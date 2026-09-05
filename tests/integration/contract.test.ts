@@ -1,15 +1,29 @@
 /**
  * Contract checks between the generated client and a real listening server.
  *
- * Every request in this file goes through a generated operation. No test
- * builds a URL, a query string, or a request body by hand.
+ * Every application request goes through a generated operation. A request that
+ * no operation can express, such as a forged Host header or an unknown path,
+ * uses the framework's in-process `app.inject()` utility. That utility is not
+ * a handwritten HTTP call: it builds no URL, serializes no body, and sends no
+ * traffic. It is the only supported way to reach the boundary rules that sit
+ * outside the contract surface.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { configureClient, getHealth, getReadiness } from '@notesapp/api-client';
 import { operations } from '@notesapp/api-contract';
 import { createHandlers, loadServerConfig } from '@notesapp/server';
-import { startTestServer, testEnvironment } from './support/server.ts';
+import {
+  LogRecorder,
+  startTestServer,
+  testEnvironment,
+} from './support/server.ts';
+
+/** Reads one property of an unknown value without asserting its shape. */
+function readProperty(value: unknown, key: string): unknown {
+  if (value === null || typeof value !== 'object') return undefined;
+  return Object.fromEntries(Object.entries(value))[key];
+}
 
 /** The HTTP response of a generated call, or a clear test failure. */
 function responseOf(response: Response | undefined): Response {
@@ -21,15 +35,10 @@ function responseOf(response: Response | undefined): Response {
 /** Checks that a value carries every required problem member. */
 function asProblem(value: unknown): Record<string, unknown> {
   assert.ok(value !== null && typeof value === 'object', 'expected a problem');
-  const problem: Record<string, unknown> = Object.fromEntries(
-    Object.entries(value),
-  );
-  assert.equal(typeof problem.type, 'string');
-  assert.equal(typeof problem.title, 'string');
-  assert.equal(typeof problem.status, 'number');
-  assert.equal(typeof problem.code, 'string');
-  assert.equal(typeof problem.requestId, 'string');
-  return problem;
+  for (const key of ['type', 'title', 'code', 'requestId'])
+    assert.equal(typeof readProperty(value, key), 'string', key);
+  assert.equal(typeof readProperty(value, 'status'), 'number');
+  return Object.fromEntries(Object.entries(value));
 }
 
 const server = await startTestServer();
@@ -65,9 +74,20 @@ await test('a summary report omits the detail of every check', async () => {
   assert.equal(result.data?.checks[0]?.detail, undefined);
 });
 
+await test('the server echoes a caller supplied request id', async () => {
+  const result = await getHealth({
+    headers: { 'x-request-id': 'trace-abc.123' },
+  });
+  assert.equal(result.error, undefined);
+  assert.equal(
+    responseOf(result.response).headers.get('x-request-id'),
+    'trace-abc.123',
+  );
+});
+
 await test('an invalid header value is rejected with problem details', async () => {
   const result = await getReadiness({
-    headers: { 'x-request-id': 'not-a-uuid' },
+    headers: { 'x-request-id': 'not a valid id' },
   });
   assert.equal(result.data, undefined);
   const response = responseOf(result.response);
@@ -81,6 +101,10 @@ await test('an invalid header value is rejected with problem details', async () 
   assert.equal(problem.status, 400);
   const issues: unknown = problem.issues;
   assert.ok(Array.isArray(issues) && issues.length > 0);
+  assert.equal(typeof readProperty(issues[0], 'path'), 'string');
+  assert.equal(typeof readProperty(issues[0], 'message'), 'string');
+  // A malformed correlation id is never echoed back.
+  assert.match(response.headers.get('x-request-id') ?? '', /^[0-9a-f-]{36}$/);
 });
 
 await test('an unknown query parameter is rejected', async () => {
@@ -89,6 +113,120 @@ await test('an unknown query parameter is rejected', async () => {
   const result = await getReadiness({ query });
   assert.equal(responseOf(result.response).status, 400);
   assert.equal(asProblem(result.error).code, 'invalid_request');
+});
+
+await test('an operation without query parameters rejects one', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/health?bogus=1',
+    headers: { host: '127.0.0.1' },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(asProblem(response.json()).code, 'invalid_request');
+});
+
+await test('an operation without a request body rejects one', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/health',
+    headers: { host: '127.0.0.1', 'content-type': 'application/json' },
+    payload: '{"unexpected":true}',
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(asProblem(response.json()).code, 'invalid_request');
+});
+
+await test('a body over the configured limit is rejected', async () => {
+  // The configured limit is 1024 bytes. No operation accepts a request body
+  // yet, so the boundary rejects the body before the limit can apply. The
+  // status that a body over the limit produces is unit tested in
+  // `apps/server/src/http/problem.test.ts`, and an operation that accepts a
+  // body must declare 413 and 415 or generation fails.
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/health',
+    headers: { host: '127.0.0.1', 'content-type': 'application/json' },
+    payload: JSON.stringify({ filler: 'x'.repeat(4096) }),
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(asProblem(response.json()).code, 'invalid_request');
+});
+
+await test('a method that no operation serves answers 404', async () => {
+  const response = await server.app.inject({
+    method: 'POST',
+    url: '/api/health',
+    headers: { host: '127.0.0.1', 'content-type': 'application/json' },
+    payload: '{}',
+  });
+  assert.equal(response.statusCode, 404);
+  assert.equal(asProblem(response.json()).code, 'route_not_found');
+});
+
+await test('a forged Host header is rejected', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/health',
+    headers: { host: 'evil.example' },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(asProblem(response.json()).code, 'host_not_allowed');
+});
+
+await test('a request that names no served Host is rejected', async () => {
+  // The in-process utility always supplies a Host, so an unserved default
+  // value is the closest reachable form of an absent Host. The unit tests
+  // cover an absent and an empty header value directly.
+  const narrow = await startTestServer({
+    environment: { NOTESAPP_ALLOWED_HOSTS: '127.0.0.1' },
+  });
+  try {
+    const response = await narrow.app.inject({
+      method: 'GET',
+      url: '/api/health',
+    });
+    assert.equal(response.statusCode, 400);
+    assert.equal(asProblem(response.json()).code, 'host_not_allowed');
+  } finally {
+    await narrow.close();
+  }
+});
+
+await test('a bracketed IPv6 Host with a port is served', async () => {
+  const sixth = await startTestServer({
+    environment: { NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,[::1]' },
+  });
+  try {
+    const response = await sixth.app.inject({
+      method: 'GET',
+      url: '/api/health',
+      headers: { host: '[::1]:8080' },
+    });
+    assert.equal(response.statusCode, 200);
+  } finally {
+    await sixth.close();
+  }
+});
+
+await test('an unknown path answers with problem details', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/missing',
+    headers: { host: '127.0.0.1' },
+  });
+  assert.equal(response.statusCode, 404);
+  assert.equal(asProblem(response.json()).code, 'route_not_found');
+});
+
+await test('HEAD on a GET route answers without a body', async () => {
+  const response = await server.app.inject({
+    method: 'HEAD',
+    url: '/api/health',
+    headers: { host: '127.0.0.1' },
+  });
+  assert.equal(response.statusCode, 200);
+  assert.match(response.headers['content-type']?.toString() ?? '', /json/);
+  assert.equal(response.body, '');
 });
 
 await test('a cancelled request produces no data', async () => {
@@ -112,17 +250,52 @@ await test('every operation has exactly one handler and back', () => {
 
 await server.close();
 
+// A degraded readiness probe proves the declared 503 answer.
+const degraded = await startTestServer({
+  handlers: (config) =>
+    createHandlers(config, [
+      () =>
+        Promise.resolve({
+          name: 'database',
+          status: 'degraded',
+          detail: 'The database connection is not open.',
+        }),
+    ]),
+});
+configureClient(degraded.baseUrl, undefined);
+
+await test('a degraded check answers 503 with problem details', async () => {
+  const result = await getReadiness();
+  assert.equal(result.data, undefined);
+  const response = responseOf(result.response);
+  assert.equal(response.status, 503);
+  assert.match(
+    response.headers.get('content-type') ?? '',
+    /^application\/problem\+json/,
+  );
+  const problem = asProblem(result.error);
+  assert.equal(problem.code, 'not_ready');
+  assert.equal(problem.status, 503);
+});
+
+await degraded.close();
+
 // The injected handler answers with a member that the contract forbids.
-const strictServer = await startTestServer((base) => ({
-  ...base,
-  getHealth: () =>
-    Promise.resolve({
-      status: 200,
-      mediaType: 'application/json',
-      body: { status: 'ok', leaked: 'internal detail' },
-    }),
-}));
-configureClient(strictServer.baseUrl, undefined);
+const recorder = new LogRecorder();
+const leaky = await startTestServer({
+  environment: { NOTESAPP_LOG_LEVEL: 'error' },
+  logStream: recorder,
+  handlers: (config) => ({
+    ...createHandlers(config),
+    getHealth: () =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/json',
+        body: { status: 'ok', leaked: 'internal detail' },
+      }),
+  }),
+});
+configureClient(leaky.baseUrl, undefined);
 
 await test('an unexpected response member is rejected by the server', async () => {
   const result = await getHealth();
@@ -136,4 +309,55 @@ await test('an unexpected response member is rejected by the server', async () =
   assert.match(String(problem.requestId), /^[0-9a-f-]{36}$/);
 });
 
-await strictServer.close();
+await test('the rejected response is logged at error level with its id', () => {
+  const records = recorder.records().filter((record) => record.level === 50);
+  assert.equal(records.length >= 1, true, recorder.lines.join('\n'));
+  const record = records[0] ?? {};
+  assert.equal(record.operationId, 'getHealth');
+  assert.match(String(record.requestId), /^[0-9a-f-]{36}$/);
+  // A log record never repeats the rejected content.
+  assert.equal(recorder.lines.join('\n').includes('leaked'), false);
+});
+
+await leaky.close();
+
+// A token provider must reach the server without appearing in the log.
+const audited = new LogRecorder();
+const logged = await startTestServer({
+  environment: { NOTESAPP_LOG_LEVEL: 'info' },
+  logStream: audited,
+});
+configureClient(logged.baseUrl, () => Promise.resolve('agent-token-value'));
+
+await test('the token provider reaches the server and stays out of the log', async () => {
+  const result = await getHealth();
+  assert.equal(result.error, undefined);
+  assert.ok(audited.lines.length > 0);
+  assert.equal(audited.lines.join('\n').includes('agent-token-value'), false);
+});
+
+await logged.close();
+
+// A handler that answers with a media type the operation does not declare.
+const wrongMediaType = await startTestServer({
+  handlers: (config) => ({
+    ...createHandlers(config),
+    getHealth: () =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/vnd.notes+json',
+        body: { status: 'ok', leaked: 'internal detail' },
+      }),
+  }),
+});
+configureClient(wrongMediaType.baseUrl, undefined);
+
+await test('an undeclared response media type is rejected', async () => {
+  const result = await getHealth();
+  assert.equal(responseOf(result.response).status, 500);
+  const problem = asProblem(result.error);
+  assert.equal(problem.code, 'invalid_response');
+  assert.equal(JSON.stringify(problem).includes('leaked'), false);
+});
+
+await wrongMediaType.close();

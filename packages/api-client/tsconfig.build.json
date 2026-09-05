@@ -9,7 +9,6 @@
     "noEmit": false,
     "rootDir": "src",
     "outDir": "dist",
-    "skipLibCheck": true,
     "exactOptionalPropertyTypes": false
   },
   "include": ["src/**/*.ts"],

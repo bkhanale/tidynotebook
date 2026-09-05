@@ -372,8 +372,14 @@ for (const file of sources) {
   const isGenerated = generated.some((prefix) => path.startsWith(prefix));
   const isTest = isTestPath(path);
   const item = owner(file);
+  // Application code owns the generated HTTP boundary. The repository-root
+  // `tests/` tree is application test code, so the transport rules apply there
+  // too: a test calls a generated operation or the framework's in-process
+  // inject utility, never a transport by hand. Only the generator workspace is
+  // outside this rule, because it produces the boundary rather than using it.
   const isApplication =
-    Boolean(item) && item?.manifest.name !== '@notesapp/sdk-codegen';
+    (Boolean(item) && item?.manifest.name !== '@notesapp/sdk-codegen') ||
+    path.startsWith('tests/');
   const protocol = protocolFiles.has(path);
   const asset = assetFiles.has(path);
   const clientConfig = clientConfigFiles.has(path);

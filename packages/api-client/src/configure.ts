@@ -14,18 +14,20 @@ export type TokenProvider = () => Promise<string | undefined>;
 let tokenProvider: TokenProvider | undefined;
 let interceptorsInstalled = false;
 
+/** Reads one property of an unknown value without asserting its shape. */
+function readProperty(value: unknown, key: string): unknown {
+  if (value === null || typeof value !== 'object') return undefined;
+  return Object.fromEntries(Object.entries(value))[key];
+}
+
 function isProblemDetails(value: unknown): value is ProblemDetails {
-  if (value === null || typeof value !== 'object' || Array.isArray(value))
-    return false;
-  const problem: Record<string, unknown> = Object.fromEntries(
-    Object.entries(value),
-  );
+  if (Array.isArray(value)) return false;
   return (
-    typeof problem.type === 'string' &&
-    typeof problem.title === 'string' &&
-    typeof problem.status === 'number' &&
-    typeof problem.code === 'string' &&
-    typeof problem.requestId === 'string'
+    typeof readProperty(value, 'type') === 'string' &&
+    typeof readProperty(value, 'title') === 'string' &&
+    typeof readProperty(value, 'status') === 'number' &&
+    typeof readProperty(value, 'code') === 'string' &&
+    typeof readProperty(value, 'requestId') === 'string'
   );
 }
 

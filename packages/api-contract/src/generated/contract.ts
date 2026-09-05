@@ -34,14 +34,22 @@ export type ParameterSerialization = {
   readonly explode: boolean;
 };
 
-/** One schema for each request slot. A null slot carries no data. */
+/**
+ * One schema for each request slot. The path, query, and header schemas always
+ * exist. A closed empty object schema means the operation accepts no member of
+ * that kind, so an unknown one is rejected. A null body means the operation
+ * accepts no request body at all.
+ */
 export type RequestSchemas = {
-  readonly params: JsonSchema | null;
-  readonly query: JsonSchema | null;
-  readonly headers: JsonSchema | null;
+  readonly params: JsonSchema;
+  readonly query: JsonSchema;
+  readonly headers: JsonSchema;
   readonly body: JsonSchema | null;
   readonly bodyMediaType: string | null;
 };
+
+/** One security requirement: scheme name to the scopes it must carry. */
+export type SecurityRequirement = Readonly<Record<string, readonly string[]>>;
 
 export type ResponseSchema = {
   readonly status: number;
@@ -53,6 +61,8 @@ export type OperationEntry = {
   readonly id: OperationId;
   readonly method: HttpMethod;
   readonly path: string;
+  /** Alternative security requirements. An empty list means public. */
+  readonly security: readonly SecurityRequirement[];
   readonly parameters: readonly ParameterSerialization[];
   readonly request: RequestSchemas;
   readonly responses: readonly ResponseSchema[];
@@ -61,16 +71,12 @@ export type OperationEntry = {
 /** Version of the contract document that produced this index. */
 export const contractVersion = '0.1.0';
 
-export const operationIds: readonly OperationId[] = [
-  'getHealth',
-  'getReadiness',
-];
-
 export const operations: readonly OperationEntry[] = [
   {
     "id": "getHealth",
     "method": "get",
     "path": "/api/health",
+    "security": [],
     "parameters": [
       {
         "name": "x-request-id",
@@ -81,15 +87,27 @@ export const operations: readonly OperationEntry[] = [
       }
     ],
     "request": {
-      "params": null,
-      "query": null,
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
       "headers": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
         "properties": {
           "x-request-id": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
           }
         }
       },
@@ -180,7 +198,37 @@ export const operations: readonly OperationEntry[] = [
               "type": "string",
               "readOnly": true,
               "description": "Identifier of the request, repeated in the x-request-id header.",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
             }
           }
         }
@@ -245,7 +293,37 @@ export const operations: readonly OperationEntry[] = [
               "type": "string",
               "readOnly": true,
               "description": "Identifier of the request, repeated in the x-request-id header.",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
             }
           }
         }
@@ -256,6 +334,7 @@ export const operations: readonly OperationEntry[] = [
     "id": "getReadiness",
     "method": "get",
     "path": "/api/ready",
+    "security": [],
     "parameters": [
       {
         "name": "x-request-id",
@@ -269,11 +348,16 @@ export const operations: readonly OperationEntry[] = [
         "location": "query",
         "required": false,
         "style": "form",
-        "explode": false
+        "explode": true
       }
     ],
     "request": {
-      "params": null,
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "type": "object",
@@ -294,7 +378,9 @@ export const operations: readonly OperationEntry[] = [
         "properties": {
           "x-request-id": {
             "type": "string",
-            "format": "uuid"
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
           }
         }
       },
@@ -427,7 +513,37 @@ export const operations: readonly OperationEntry[] = [
               "type": "string",
               "readOnly": true,
               "description": "Identifier of the request, repeated in the x-request-id header.",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
             }
           }
         }
@@ -492,7 +608,37 @@ export const operations: readonly OperationEntry[] = [
               "type": "string",
               "readOnly": true,
               "description": "Identifier of the request, repeated in the x-request-id header.",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
             }
           }
         }
@@ -557,7 +703,37 @@ export const operations: readonly OperationEntry[] = [
               "type": "string",
               "readOnly": true,
               "description": "Identifier of the request, repeated in the x-request-id header.",
-              "format": "uuid"
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
             }
           }
         }

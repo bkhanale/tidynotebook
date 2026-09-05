@@ -6,48 +6,66 @@
  * handler never has to repeat the contract shape.
  */
 import type { ServerConfig } from '../config.ts';
+import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
 import { createProblem, problemMediaType } from './problem.ts';
 
 const jsonMediaType = 'application/json';
 
 /** Readiness of one startup requirement. */
-type ReadinessCheck = {
+export type ReadinessCheck = {
   readonly name: string;
   readonly status: 'ok' | 'degraded';
   readonly detail?: string;
 };
 
+/**
+ * One startup requirement that readiness reports.
+ *
+ * The list is injectable, so the task that adds PostgreSQL adds a database
+ * probe and the task that adds attachment storage adds a storage probe without
+ * changing this module, and a test can force a degraded report.
+ */
+export type ReadinessProbe = () => Promise<ReadinessCheck>;
+
 /** Amount of readiness information the caller asked for. */
 function readDetailLevel(query: unknown): 'summary' | 'full' {
-  if (query === null || typeof query !== 'object') return 'full';
-  const value: unknown = Object.fromEntries(Object.entries(query)).detail;
-  return value === 'summary' ? 'summary' : 'full';
+  return readProperty(query, 'detail') === 'summary' ? 'summary' : 'full';
 }
 
 /**
- * Evaluates every startup requirement that this release can check.
+ * The only requirement this release can check.
  *
- * Configuration is the only requirement today, because no database and no
- * attachment storage exists yet. The task that adds PostgreSQL adds a database
- * check to this list, and the task that adds attachment storage adds a storage
- * check.
+ * No database and no attachment storage exists yet, so nothing else is
+ * checked. The tasks that add them add their own probes.
  */
-export function evaluateReadiness(
-  config: ServerConfig,
+export function configurationProbe(config: ServerConfig): ReadinessProbe {
+  return () =>
+    Promise.resolve(
+      config.allowedHosts.length > 0
+        ? {
+            name: 'configuration',
+            status: 'ok',
+            detail:
+              'Configuration was validated at startup. No database or attachment storage exists in this release, so nothing else is checked.',
+          }
+        : {
+            name: 'configuration',
+            status: 'degraded',
+            detail: 'The deployment serves no Host value.',
+          },
+    );
+}
+
+/** Runs every probe and combines the result. */
+export async function evaluateReadiness(
+  probes: readonly ReadinessProbe[],
   level: 'summary' | 'full',
-): { status: 'ok' | 'degraded'; checks: readonly ReadinessCheck[] } {
-  const configurationDetail =
-    config.allowedHosts.length > 0
-      ? 'Configuration was validated at startup. No database or attachment storage exists in this release, so nothing else is checked.'
-      : 'The deployment serves no Host value, so no request can reach it.';
-  const checks: ReadinessCheck[] = [
-    {
-      name: 'configuration',
-      status: config.allowedHosts.length > 0 ? 'ok' : 'degraded',
-      ...(level === 'full' ? { detail: configurationDetail } : {}),
-    },
-  ];
+): Promise<{ status: 'ok' | 'degraded'; checks: readonly ReadinessCheck[] }> {
+  const results = await Promise.all(probes.map((probe) => probe()));
+  const checks = results.map((check) =>
+    level === 'full' ? check : { name: check.name, status: check.status },
+  );
   return {
     status: checks.some((check) => check.status === 'degraded')
       ? 'degraded'
@@ -57,7 +75,10 @@ export function evaluateReadiness(
 }
 
 /** Builds the handler map for the operations in the contract. */
-export function createHandlers(config: ServerConfig): HandlerMap {
+export function createHandlers(
+  config: ServerConfig,
+  probes: readonly ReadinessProbe[] = [configurationProbe(config)],
+): HandlerMap {
   return {
     getHealth: (): Promise<HandlerResult> =>
       Promise.resolve({
@@ -65,28 +86,27 @@ export function createHandlers(config: ServerConfig): HandlerMap {
         mediaType: jsonMediaType,
         body: { status: 'ok' },
       }),
-    getReadiness: (request): Promise<HandlerResult> => {
-      const report = evaluateReadiness(config, readDetailLevel(request.query));
+    getReadiness: async (request): Promise<HandlerResult> => {
+      const report = await evaluateReadiness(
+        probes,
+        readDetailLevel(request.query),
+      );
       if (report.status === 'ok')
-        return Promise.resolve({
-          status: 200,
-          mediaType: jsonMediaType,
-          body: report,
-        });
-      return Promise.resolve({
+        return { status: 200, mediaType: jsonMediaType, body: report };
+      return {
         status: 503,
         mediaType: problemMediaType,
         body: createProblem({
           code: 'not_ready',
           status: 503,
-          detail: report.checks
+          detail: `Degraded checks: ${report.checks
             .filter((check) => check.status === 'degraded')
             .map((check) => check.name)
-            .join(', '),
+            .join(', ')}.`,
           instance: request.url.split('?')[0] ?? request.url,
           requestId: request.id,
         }),
-      });
+      };
     },
   };
 }

@@ -6,6 +6,7 @@
  * rejected value, or a stack trace.
  */
 import type { ValidationIssue } from '@notesapp/api-contract';
+import { readProperty } from '../values.ts';
 
 /** Media type of every error response. */
 export const problemMediaType = 'application/problem+json';
@@ -46,12 +47,14 @@ const titles: Readonly<Record<ProblemCode, string>> = {
 
 /** Request contract failure raised by the boundary validator. */
 export class RequestContractError extends Error {
-  constructor(
-    readonly slot: string,
-    readonly issues: readonly ValidationIssue[],
-  ) {
+  readonly slot: string;
+  readonly issues: readonly ValidationIssue[];
+
+  constructor(slot: string, issues: readonly ValidationIssue[]) {
     super(`The ${slot} of the request did not match the contract.`);
     this.name = 'RequestContractError';
+    this.slot = slot;
+    this.issues = issues;
   }
 }
 
@@ -60,14 +63,16 @@ export class RequestContractError extends Error {
  * the failure cannot leak the content that the contract rejected.
  */
 export class ResponseContractError extends Error {
-  constructor(
-    readonly status: number,
-    readonly mediaType: string,
-  ) {
+  readonly status: number;
+  readonly mediaType: string;
+
+  constructor(status: number, mediaType: string) {
     super(
       `The service produced a ${String(status)} ${mediaType} response that the contract does not allow.`,
     );
     this.name = 'ResponseContractError';
+    this.status = status;
+    this.mediaType = mediaType;
   }
 }
 
@@ -141,7 +146,6 @@ export function classifyError(error: unknown): {
 }
 
 function fastifyErrorCode(error: unknown): string {
-  if (error === null || typeof error !== 'object') return '';
-  const value: unknown = Object.fromEntries(Object.entries(error)).code;
+  const value = readProperty(error, 'code');
   return typeof value === 'string' ? value : '';
 }

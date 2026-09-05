@@ -466,17 +466,26 @@ different TypeScript version in either place.
   prove that: the fixture assigns `undefined` to an optional member of the
   generated `GetReadinessData` query type, and the test fails when that no
   longer reports TS2375 or TS2379. `pnpm test:unit` runs it.
-- The new packages set `skipLibCheck: true`. The published declarations of
-  Fastify, Ajv, and the Hey API generator are outside this repository's control,
-  and the generator's own declarations do not compile under TypeScript 6.0.3.
+- Only `apps/server`, `tests/integration`, and `tools/sdk-codegen` set
+  `skipLibCheck: true`. The server and the integration tree need it because
+  Fastify pulls in `pino` and then `thread-stream` 4.2.0, whose
+  `index.d.ts` line 96 reports
+  `TS2694: Namespace '"worker_threads"' has no exported member 'TransferListItem'`
+  against `@types/node` 26.4.1. The generator workspace needs it because the
+  Hey API 0.99.0 declarations do not compile under TypeScript 6.0.3.
+  `packages/api-contract` and `packages/api-client` check their library
+  declarations in full.
 - `packages/api-contract` reaches the Ajv formats plugin through
   `ajvFormats.default(...)`. Ajv formats ships CommonJS, so Node binds a default
   import to `module.exports` and the plugin function is its `default` member.
 - `tests/integration/tsconfig.json` covers the integration tree, so type-aware
   Oxlint finds a configuration for those files. The root `typecheck` script runs
   it after the package type checks.
-- The root `test:integration` script builds first, because the integration tests
-  import the workspace packages through their published `dist` entry points.
+- The root `test:unit` and `test:integration` scripts build first, because the
+  server tests import the workspace packages through their published `dist`
+  entry points.
+- Error classes avoid TypeScript parameter properties. Node's type stripping
+  runs an adjacent `*.test.ts` file directly and rejects that syntax.
 
 ### Generated output
 
@@ -498,6 +507,12 @@ The `.oxlintrc.json` override for the two generated globs now also turns off
 `typescript/no-floating-promises`. The generated fetch transport trips both. The
 globs were not widened.
 
+`tools/check-boundaries.mjs` now applies the transport call and reference rules
+to the repository-root `tests/` tree as well. A test is application code: it
+calls a generated operation, or the framework's in-process `app.inject()`
+utility for a request that no operation can express. Nothing in that tree is
+exempt.
+
 ## Task 2 verification
 
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
@@ -505,9 +520,12 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
 - `pnpm contract:lint`, `pnpm generate`, `pnpm generated:check`.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm build`.
-- `pnpm test:unit` runs 40 tests, including the exact optional proof.
-- `pnpm test:integration -- contract` runs 8 contract tests through the
-  generated client against a real listening Fastify server.
+- `pnpm test:unit` runs the tool tests, the exact optional proof, and the
+  adjacent server tests for configuration, host names, correlation ids, error
+  classification, route paths, media types, and the startup checks.
+- `pnpm test:integration -- contract` runs 22 contract tests through the
+  generated client against a real listening Fastify server, plus the boundary
+  rules that no generated operation can express through `app.inject()`.
 
 ## Task 3 package settings
 

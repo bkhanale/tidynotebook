@@ -2,14 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "types": ["node"],
+    "skipLibCheck": true,
     "composite": true,
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "noEmit": false,
     "rootDir": "src",
-    "outDir": "dist",
-    "skipLibCheck": true
+    "outDir": "dist"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],

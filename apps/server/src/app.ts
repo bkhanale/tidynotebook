@@ -14,7 +14,7 @@ import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
 import { createHandlers } from './http/handlers.ts';
-import type { HandlerMap } from './http/register.ts';
+import type { HandlerMap, IdentityResolver } from './http/register.ts';
 import { registerOperations } from './http/register.ts';
 import {
   classifyError,
@@ -22,21 +22,33 @@ import {
   problemMediaType,
 } from './http/problem.ts';
 
-const uuidPattern =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+/**
+ * Accepted shape of a caller supplied correlation id. It matches the contract
+ * schema of the `x-request-id` header, so an echoed value always passes the
+ * response check as well.
+ */
+const requestIdPattern = /^[A-Za-z0-9._-]{1,128}$/;
 
-/** The caller's correlation id when it is a UUID, otherwise a new one. */
-function requestId(headers: Readonly<Record<string, unknown>>): string {
-  const supplied: unknown = headers['x-request-id'];
-  return typeof supplied === 'string' && uuidPattern.test(supplied)
+/** The caller's correlation id when it is usable, otherwise a new UUID. */
+export function requestId(supplied: unknown): string {
+  return typeof supplied === 'string' && requestIdPattern.test(supplied)
     ? supplied
     : randomUUID();
 }
 
-/** Host header value without its port, lowercased. */
-function hostName(request: FastifyRequest): string {
-  const host = request.headers.host ?? '';
-  return (host.split(':')[0] ?? '').toLowerCase();
+/**
+ * Host header value without its port, lowercased.
+ *
+ * An IPv6 literal keeps its brackets, because `[::1]:8080` and `[::1]` name
+ * the same host and a plain split on the colon would cut the address.
+ */
+export function hostName(host: string | undefined): string {
+  const value = (host ?? '').trim().toLowerCase();
+  if (value.startsWith('[')) {
+    const end = value.indexOf(']');
+    return end === -1 ? value : value.slice(0, end + 1);
+  }
+  return value.split(':')[0] ?? '';
 }
 
 function instanceOf(request: FastifyRequest): string {
@@ -56,24 +68,43 @@ function contractStatus(id: OperationId | undefined, status: number): number {
   return declared ? status : 500;
 }
 
+/** Everything that a deployment or a test supplies besides configuration. */
+export type AppOptions = {
+  /** One handler per contract operation id. */
+  readonly handlers: HandlerMap;
+  /** Resolves the actor of an operation that declares a security scheme. */
+  readonly identity?: IdentityResolver;
+  /** Destination of the structured log, for tests that read log records. */
+  readonly logStream?: { write: (line: string) => void };
+};
+
 /** Builds the application with an explicit handler map. */
 export function createAppWithHandlers(
   config: ServerConfig,
-  handlers: HandlerMap,
+  options: AppOptions,
 ): Promise<FastifyInstance> {
   const app = Fastify({
-    logger: false,
-    // The contract decides which routes exist. Fastify would otherwise add a
-    // HEAD route for every GET route, and that route has no operation id, no
-    // declared response, and no handler in the map.
-    exposeHeadRoutes: false,
+    logger:
+      config.logLevel === 'silent'
+        ? false
+        : {
+            level: config.logLevel,
+            // A log record must never carry a credential.
+            redact: {
+              paths: ['req.headers.authorization', 'req.headers.cookie'],
+              censor: '[redacted]',
+            },
+            ...(options.logStream === undefined
+              ? {}
+              : { stream: options.logStream }),
+          },
     bodyLimit: config.limits.bodyBytes,
     routerOptions: { maxParamLength: 256 },
     requestTimeout: config.limits.requestTimeoutMs,
     // Fastify's own header limit is a server option, so it is applied here
     // rather than per route.
     http: { maxHeaderSize: config.limits.headerBytes },
-    genReqId: (request) => requestId(request.headers),
+    genReqId: (request) => requestId(request.headers['x-request-id']),
   });
 
   app.addHook('onSend', async (request, reply) => {
@@ -84,7 +115,7 @@ export function createAppWithHandlers(
   // before any handler runs. This blocks cache poisoning and absolute URL
   // rewriting through a forged Host header.
   app.addHook('onRequest', async (request, reply) => {
-    if (config.allowedHosts.includes(hostName(request))) return;
+    if (config.allowedHosts.includes(hostName(request.headers.host))) return;
     const id = request.routeOptions.config.operationId;
     const status = contractStatus(id, 400);
     await reply
@@ -142,11 +173,11 @@ export function createAppWithHandlers(
       );
   });
 
-  registerOperations(app, handlers);
+  registerOperations(app, options.handlers, options.identity);
   return Promise.resolve(app);
 }
 
 /** Builds the application with the handlers of this release. */
 export function createApp(config: ServerConfig): Promise<FastifyInstance> {
-  return createAppWithHandlers(config, createHandlers(config));
+  return createAppWithHandlers(config, { handlers: createHandlers(config) });
 }

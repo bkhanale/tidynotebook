@@ -20,11 +20,14 @@ import type {
   HttpMethod,
   OperationId,
   RequestSlot,
+  SecurityRequirement,
 } from '@notesapp/api-contract';
 import {
   describeIssues,
+  findOperation,
   operations,
   requestValidator,
+  responseMediaTypes,
   responseValidator,
 } from '@notesapp/api-contract';
 import { RequestContractError, ResponseContractError } from './problem.ts';
@@ -46,7 +49,7 @@ export type MediaHandling = 'json' | 'html' | 'binary';
  * it is sent. The `html` and `binary` rows are the documented hook for later
  * tasks: those responses carry bytes, so a later task adds size, access, and
  * caching checks there instead of JSON validation. No operation returns them
- * yet.
+ * yet. A media type outside this table cannot leave the boundary.
  */
 export const mediaTypeHandling: Readonly<Record<string, MediaHandling>> = {
   'application/json': 'json',
@@ -74,6 +77,21 @@ export type OperationHandler = (
 
 /** One handler for every operation id in the contract. */
 export type HandlerMap = Readonly<Record<OperationId, OperationHandler>>;
+
+/**
+ * Resolves the actor of a request before its input is validated.
+ *
+ * Task 5 supplies the implementation. It receives the operation id and the
+ * security requirements that the contract declares for it, and it rejects the
+ * request by throwing when the actor cannot satisfy any of them.
+ */
+export type IdentityResolver = (
+  request: FastifyRequest,
+  operation: {
+    readonly id: OperationId;
+    readonly security: readonly SecurityRequirement[];
+  },
+) => Promise<void>;
 
 /** Route method names, stated once so no cast is needed at registration. */
 const routeMethods: Readonly<Record<HttpMethod, HTTPMethods>> = {
@@ -106,39 +124,103 @@ function slotForHttpPart(part: string | undefined): RequestSlot | undefined {
   return undefined;
 }
 
+/** True when the request carries a body of its own. */
+function carriesBody(request: FastifyRequest): boolean {
+  const length = request.headers['content-length'];
+  if (typeof length === 'string' && Number(length) > 0) return true;
+  return typeof request.headers['transfer-encoding'] === 'string';
+}
+
+/** The part of an operation that the startup checks read. */
+export type RegistrationEntry = {
+  readonly id: string;
+  readonly parameters: readonly {
+    readonly name: string;
+    readonly location: string;
+    readonly style: string;
+    readonly explode: boolean;
+  }[];
+  readonly security: readonly SecurityRequirement[];
+};
+
+/**
+ * Rejects a registration that the boundary cannot serve. Every failure here
+ * stops startup, so no deployment can answer a request it does not understand.
+ *
+ * Only the parameter forms that the current operations use are supported. A
+ * later task that needs an array parameter must add its parsing in the same
+ * change that declares it, instead of relying on an unstated default.
+ */
+export function checkRegistration(
+  entries: readonly RegistrationEntry[],
+  handlerIds: readonly string[],
+  hasIdentity: boolean,
+): void {
+  const declared = entries.map((entry) => entry.id);
+  const missing = declared.filter((id) => !handlerIds.includes(id));
+  const unknown = handlerIds.filter((id) => !declared.includes(id));
+  const failures = [
+    ...missing.map((id) => `Missing handler for operation ${id}.`),
+    ...unknown.map((id) => `Handler ${id} has no operation.`),
+  ];
+  for (const entry of entries) {
+    for (const parameter of entry.parameters) {
+      const where = `Operation ${entry.id} parameter ${parameter.name}`;
+      if (parameter.location === 'cookie')
+        failures.push(`${where} is a cookie parameter, which is not served.`);
+      else if (parameter.location === 'query') {
+        if (parameter.style !== 'form' || !parameter.explode)
+          failures.push(
+            `${where} must use style form with explode true. The boundary serves no other query form yet.`,
+          );
+      } else if (parameter.style !== 'simple')
+        failures.push(
+          `${where} must use style simple. The boundary serves no other ${parameter.location} form yet.`,
+        );
+    }
+    // Every operation that names a security scheme needs an actor before its
+    // input is validated. Task 5 supplies that resolver; until then an
+    // operation that declares one cannot start.
+    if (entry.security.length > 0 && !hasIdentity)
+      failures.push(
+        `Operation ${entry.id} declares a security requirement, but no identity resolver was supplied.`,
+      );
+  }
+  if (failures.length > 0)
+    throw new Error(
+      ['The server cannot serve this contract.', ...failures].join('\n'),
+    );
+}
+
 // Replies whose response validation already failed. The failure reply is built
 // by this server, so validating it a second time would only risk a loop.
 const validationFailed = new WeakSet<FastifyReply>();
 
 /**
  * Registers the contract on the instance. Throws before the server listens
- * when the handler map and the contract do not match exactly.
+ * when the handler map and the contract do not match exactly, when an
+ * operation needs an identity resolver that was not supplied, or when a
+ * parameter uses a serialization that the boundary does not implement.
  */
 export function registerOperations(
   app: FastifyInstance,
   handlers: HandlerMap,
+  identity?: IdentityResolver,
 ): void {
-  const declared = operations.map((operation) => operation.id);
-  const provided = Object.keys(handlers);
-  const missing = declared.filter((id) => !provided.includes(id));
-  const unknown = provided.filter(
-    (id) => !declared.some((declaredId) => declaredId === id),
-  );
-  if (missing.length > 0 || unknown.length > 0)
-    throw new Error(
-      [
-        'The handler map does not match the contract.',
-        ...missing.map((id) => `Missing handler for operation ${id}.`),
-        ...unknown.map((id) => `Handler ${id} has no operation.`),
-      ].join('\n'),
-    );
+  checkRegistration(operations, Object.keys(handlers), identity !== undefined);
 
   const routeOperations = new Map<string, OperationId>();
-  for (const operation of operations)
+  for (const operation of operations) {
+    const route = toRoutePath(operation.path);
     routeOperations.set(
-      `${routeMethods[operation.method]} ${toRoutePath(operation.path)}`,
+      `${routeMethods[operation.method]} ${route}`,
       operation.id,
     );
+    // Fastify serves HEAD for every GET route. That route shares the GET
+    // schemas, so its validators resolve to the same operation.
+    if (operation.method === 'get')
+      routeOperations.set(`HEAD ${route}`, operation.id);
+  }
 
   app.setValidatorCompiler(({ method, url, httpPart }) => {
     const id = routeOperations.get(`${method.toUpperCase()} ${url}`);
@@ -164,19 +246,48 @@ export function registerOperations(
   // read, and would silently drop members it does not understand.
   app.setSerializerCompiler(() => (data: unknown) => JSON.stringify(data));
 
+  app.addHook('preValidation', async (request) => {
+    const id = request.routeOptions.config.operationId;
+    if (id === undefined) return;
+    const operation = findOperation(id);
+    if (operation === undefined) return;
+    // An operation that declares no request body accepts none. Fastify does
+    // not parse a body for every method, so the check reads the request
+    // framing headers instead of the parsed value.
+    if (operation.request.body === null && carriesBody(request))
+      throw new RequestContractError('body', [
+        { path: '/', message: 'this operation accepts no request body' },
+      ]);
+    if (operation.security.length === 0) return;
+    if (identity === undefined)
+      throw new Error(`Operation ${id} has no identity resolver.`);
+    await identity(request, { id, security: operation.security });
+  });
+
   app.addHook('preSerialization', async (request, reply, payload: unknown) => {
     const id = request.routeOptions.config.operationId;
     if (id === undefined || validationFailed.has(reply)) return payload;
     const mediaType = baseMediaType(reply.getHeader('content-type'));
-    if (mediaTypeHandling[mediaType] !== 'json') return payload;
-    const validate = responseValidator(id, reply.statusCode, mediaType);
-    if (validate === undefined || !validate(payload)) {
+    const declaredTypes = responseMediaTypes(id, reply.statusCode);
+    const handling = mediaTypeHandling[mediaType];
+    const validate = declaredTypes.includes(mediaType)
+      ? responseValidator(id, reply.statusCode, mediaType)
+      : undefined;
+    // A media type the operation does not declare for this status leaves the
+    // contract just as much as an undeclared member does.
+    if (
+      !declaredTypes.includes(mediaType) ||
+      handling === undefined ||
+      (handling === 'json' && (validate === undefined || !validate(payload)))
+    ) {
       validationFailed.add(reply);
       request.log.error(
         {
+          requestId: request.id,
           operationId: id,
           status: reply.statusCode,
           mediaType,
+          declaredMediaTypes: declaredTypes,
           issues: validate === undefined ? [] : describeIssues(validate.errors),
         },
         'The service produced a response outside the contract.',
@@ -187,13 +298,11 @@ export function registerOperations(
   });
 
   for (const operation of operations) {
-    const schema: FastifySchema = {};
-    if (operation.request.params !== null)
-      schema.params = operation.request.params;
-    if (operation.request.query !== null)
-      schema.querystring = operation.request.query;
-    if (operation.request.headers !== null)
-      schema.headers = operation.request.headers;
+    const schema: FastifySchema = {
+      params: operation.request.params,
+      querystring: operation.request.query,
+      headers: operation.request.headers,
+    };
     if (operation.request.body !== null) schema.body = operation.request.body;
     const response: Record<string, unknown> = {};
     for (const declaredResponse of operation.responses) {

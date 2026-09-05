@@ -12,21 +12,22 @@ import { generateInto } from './generate.ts';
 import { outputDirectories, repositoryRoot } from './paths.ts';
 import { listFiles } from './files.ts';
 
-async function compare(expected: string, actual: string): Promise<string[]> {
+async function compare(fresh: string, committed: string): Promise<string[]> {
   const differences: string[] = [];
-  const expectedFiles = await listFiles(expected);
-  const actualFiles = await listFiles(actual);
-  for (const file of expectedFiles)
-    if (!actualFiles.includes(file))
+  const freshFiles = await listFiles(fresh);
+  const committedFiles = await listFiles(committed);
+  for (const file of freshFiles)
+    if (!committedFiles.includes(file))
       differences.push(`${file}: generated but not committed.`);
-  for (const file of actualFiles)
-    if (!expectedFiles.includes(file))
+  for (const file of committedFiles)
+    if (!freshFiles.includes(file))
       differences.push(`${file}: committed but no longer generated.`);
-  for (const file of expectedFiles) {
-    if (!actualFiles.includes(file)) continue;
-    const left = await readFile(resolve(expected, file));
-    const right = await readFile(resolve(actual, file));
-    if (!left.equals(right)) differences.push(`${file}: content differs.`);
+  for (const file of freshFiles) {
+    if (!committedFiles.includes(file)) continue;
+    const generated = await readFile(resolve(fresh, file));
+    const stored = await readFile(resolve(committed, file));
+    if (!generated.equals(stored))
+      differences.push(`${file}: content differs.`);
   }
   return differences;
 }

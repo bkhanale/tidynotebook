@@ -565,3 +565,26 @@ await test('accepts a transport name as an object literal key', () => {
     ),
   );
 });
+
+await test('rejects a fetch call in the root tests tree', () => {
+  rejected(
+    check(
+      workspace({
+        'tests/integration/contract.test.ts':
+          "await fetch('http://127.0.0.1/api/health');\n",
+      }),
+    ),
+    'Handwritten fetch is outside the generated HTTP boundary',
+  );
+});
+
+await test('accepts an in-process inject call in the root tests tree', () => {
+  accepted(
+    check(
+      workspace({
+        'tests/integration/contract.test.ts':
+          "import { domain } from '@notesapp/core';\nexport const probe = domain;\n",
+      }),
+    ),
+  );
+});

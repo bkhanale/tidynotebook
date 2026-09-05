@@ -7,7 +7,7 @@
  */
 import type { ValidateFunction } from 'ajv';
 import type { OperationEntry, OperationId } from './generated/contract.ts';
-import { operationIds, operations } from './generated/contract.ts';
+import { operations } from './generated/contract.ts';
 import type { RequestSlot } from './generated/validators.ts';
 import {
   requestKey,
@@ -19,11 +19,6 @@ import {
 const byId = new Map<string, OperationEntry>(
   operations.map((operation) => [operation.id, operation]),
 );
-
-/** True when the contract declares this operation id. */
-export function isOperationId(id: string): id is OperationId {
-  return byId.has(id);
-}
 
 /** The operation with this id, or undefined when the contract has no such id. */
 export function findOperation(id: string): OperationEntry | undefined {
@@ -60,4 +55,4 @@ export function responseMediaTypes(
     .map((response) => response.mediaType);
 }
 
-export { operationIds, operations };
+export { operations };

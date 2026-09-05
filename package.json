@@ -13,7 +13,7 @@
     "lint": "node tools/check-versions.mjs && oxlint --type-aware --deny-warnings && node tools/check-boundaries.mjs",
     "format:check": "prettier --check .",
     "format": "prettier --write .",
-    "test:unit": "node tools/run-tests.mjs unit",
+    "test:unit": "pnpm run build && node tools/run-tests.mjs unit",
     "test:integration": "pnpm run build && node tools/run-tests.mjs integration",
     "build": "tsc -p tsconfig.json && pnpm -r --if-present build",
     "contract:lint": "pnpm --filter @notesapp/sdk-codegen run contract:lint",

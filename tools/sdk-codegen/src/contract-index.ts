@@ -30,12 +30,14 @@ export type ParameterSerialization = {
 };
 
 export type RequestSchemas = {
-  params: Record<string, unknown> | null;
-  query: Record<string, unknown> | null;
-  headers: Record<string, unknown> | null;
+  params: Record<string, unknown>;
+  query: Record<string, unknown>;
+  headers: Record<string, unknown>;
   body: Record<string, unknown> | null;
   bodyMediaType: string | null;
 };
+
+export type SecurityRequirement = Record<string, string[]>;
 
 export type ResponseSchema = {
   status: number;
@@ -47,6 +49,7 @@ export type OperationEntry = {
   id: string;
   method: HttpMethod;
   path: string;
+  security: SecurityRequirement[];
   parameters: ParameterSerialization[];
   request: RequestSchemas;
   responses: ResponseSchema[];
@@ -104,17 +107,18 @@ function objectSchema(
   properties: Record<string, unknown>,
   required: string[],
   closed: boolean,
-): Record<string, unknown> | null {
-  if (Object.keys(properties).length === 0) return null;
+): Record<string, unknown> {
   const schema: Record<string, unknown> = {
     $schema: 'https://json-schema.org/draft/2020-12/schema',
     type: 'object',
     properties,
   };
   if (required.length > 0) schema.required = required;
-  // A closed schema rejects an unknown member. Headers stay open because a
-  // proxy, a browser, or the test runner adds headers that the contract does
-  // not describe.
+  // A closed schema rejects an unknown member, and it is emitted even when the
+  // operation declares no member of that kind. An operation without a query
+  // parameter therefore rejects every query parameter. Headers stay open,
+  // because a proxy, a browser, and the test runner all add headers that no
+  // contract describes.
   if (closed) schema.additionalProperties = false;
   return schema;
 }
@@ -191,9 +195,14 @@ function requestSchemas(
       content[bodyMediaType],
       `${where} request body media type`,
     );
+    const declared = asRecord(media.schema, `${where} request body schema`);
+    // A write body must reject an unknown member, otherwise a client can send
+    // a field that no reviewer ever saw.
+    if (declared.type === 'object' && declared.additionalProperties !== false)
+      fail(`${where} request body must set additionalProperties to false.`);
     bodySchema = {
       $schema: 'https://json-schema.org/draft/2020-12/schema',
-      ...asRecord(media.schema, `${where} request body schema`),
+      ...declared,
     };
   }
   return {
@@ -247,6 +256,28 @@ function responseSchemas(
   return entries;
 }
 
+/** Security requirements of an operation, or the document default. */
+function readSecurity(
+  operation: Record<string, unknown>,
+  root: Record<string, unknown>,
+  where: string,
+): SecurityRequirement[] {
+  const declared =
+    operation.security === undefined ? root.security : operation.security;
+  if (declared === undefined) return [];
+  const requirements = asArray(declared, `${where} security`);
+  return requirements.map((entry, position) => {
+    const requirement = asRecord(entry, `${where} security ${position}`);
+    const result: SecurityRequirement = {};
+    for (const [scheme, scopes] of Object.entries(requirement))
+      result[scheme] = asArray(
+        scopes,
+        `${where} security ${scheme} scopes`,
+      ).map((scope) => asString(scope, `${where} security ${scheme} scope`));
+    return result;
+  });
+}
+
 /** Builds the index from a fully dereferenced OpenAPI document. */
 export function buildContractIndex(document: unknown): ContractIndex {
   const root = asRecord(document, 'document');
@@ -273,13 +304,24 @@ export function buildContractIndex(document: unknown): ContractIndex {
           : asArray(operation.parameters, `${where} parameters`)),
       ];
       const parameters = readParameters(raw, where);
+      const request = requestSchemas(parameters, raw, operation, where);
+      const responses = responseSchemas(operation, where);
+      // A write body needs a declared answer for a body that is too large and
+      // for a media type the operation does not accept.
+      if (request.body !== null)
+        for (const required of [413, 415])
+          if (!responses.some((response) => response.status === required))
+            fail(
+              `${where} has a request body, so it must declare a ${String(required)} response.`,
+            );
       operations.push({
         id,
         method,
         path,
+        security: readSecurity(operation, root, where),
         parameters,
-        request: requestSchemas(parameters, raw, operation, where),
-        responses: responseSchemas(operation, where),
+        request,
+        responses,
       });
     }
   }

@@ -78,11 +78,29 @@ export type ProblemDetails = {
      * Identifier of the request, repeated in the x-request-id header.
      */
     readonly requestId: string;
+    /**
+     * Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.
+     */
+    readonly issues?: Array<ValidationIssue>;
     [key: string]: unknown;
 };
 
 /**
- * Optional caller supplied correlation identifier. The server echoes the value when it is a UUID and generates one otherwise.
+ * One value that a boundary check rejected.
+ */
+export type ValidationIssue = {
+    /**
+     * JSON Pointer of the rejected value inside its request slot.
+     */
+    readonly path: string;
+    /**
+     * Reason the value was rejected. It never repeats the value.
+     */
+    readonly message: string;
+};
+
+/**
+ * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
  */
 export type RequestId = string;
 
@@ -95,7 +113,7 @@ export type GetHealthData = {
     body?: never;
     headers?: {
         /**
-         * Optional caller supplied correlation identifier. The server echoes the value when it is a UUID and generates one otherwise.
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
          */
         'x-request-id'?: string;
     };
@@ -130,7 +148,7 @@ export type GetReadinessData = {
     body?: never;
     headers?: {
         /**
-         * Optional caller supplied correlation identifier. The server echoes the value when it is a UUID and generates one otherwise.
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
          */
         'x-request-id'?: string;
     };

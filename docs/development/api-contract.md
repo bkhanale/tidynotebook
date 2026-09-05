@@ -27,16 +27,22 @@ these across commits, and never edit a file under a `src/generated/` directory.
 2. **Declare every parameter completely.** Set `in`, `required`, `style`,
    `explode`, a description, and a schema. The generator rejects a parameter
    that does not state `style` and `explode`, because a client and the server
-   must not disagree about serialization.
+   must not disagree about serialization. The boundary serves `form` with
+   `explode: true` for a query parameter and `simple` for a path or header
+   parameter. Any other combination, and any cookie parameter, stops startup
+   with a named error. A later task that needs another form adds its parsing in
+   the same change that declares it.
 3. **Separate input and output members.** A member that only a client sends is
    `writeOnly`. A member that only the server produces is `readOnly`. A write
-   body sets `additionalProperties: false`, so an unknown member is rejected
-   instead of ignored.
+   body object must set `additionalProperties: false`, so an unknown member is
+   rejected instead of ignored. Generation fails when it does not.
 4. **Declare every response.** Each operation needs a success status, `400`, and
-   `500`. Use `application/problem+json` with the `ProblemDetails` schema for
-   every error, and give the failure a stable `code`. The boundary answers only
-   with a status that the operation declares; any other status becomes a generic
-   `500` problem.
+   `500`. An operation with a request body must also declare `413` and `415`;
+   generation fails when it does not. Use `application/problem+json` with the
+   `ProblemDetails` schema for every error, and give the failure a stable
+   `code`. The boundary answers only with a status and a media type that the
+   operation declares; any other status becomes a generic `500` problem, and an
+   undeclared media type becomes a `500` `invalid_response`.
    One status may carry one media type. A status with more than one media type
    is a startup error today.
 5. **Run `pnpm contract:lint`.** The Redocly rules are strict, so a missing
@@ -54,6 +60,13 @@ these across commits, and never edit a file under a `src/generated/` directory.
    the generated operation against a real listening server. Cover the success
    path, one rejected input, and any new failure code. The operation coverage
    test then also proves the one-to-one mapping.
+   A request that no generated operation can express, such as a forged Host
+   header, an unknown path, or a body on an operation that accepts none, uses
+   the framework's in-process `app.inject()` utility. That utility builds no
+   URL, serializes no body, and sends no traffic, so it is not a handwritten
+   HTTP call. It is the only accepted way to reach those rules, and
+   `tools/check-boundaries.mjs` rejects a real transport call anywhere in the
+   `tests/` tree.
 9. **Run the gate.** `pnpm generated:check`, `pnpm typecheck`, `pnpm lint`,
    `pnpm format:check`, `pnpm test:unit`, `pnpm test:integration -- contract`,
    and `pnpm build` must all pass.
@@ -63,14 +76,32 @@ these across commits, and never edit a file under a `src/generated/` directory.
 - Request path, query, header, and body values are validated with the compiled
   2020-12 validators before a handler runs. Fastify's own validator and
   serializer compilers are replaced, because the default pair reads draft-07.
-- An unknown query parameter is rejected. Headers stay open, because a proxy
+- The path and query schemas are closed, and they exist even when an operation
+  declares no member of that kind. An operation without a query parameter
+  therefore rejects every query parameter. Headers stay open, because a proxy
   and a browser add headers that no contract describes.
-- Responses are validated in every environment. An invalid response becomes a
-  `500` problem that carries the request id and never the rejected body.
-- Only the contract creates routes. Fastify's automatic `HEAD` route is off, so
-  an operation that needs `HEAD` must declare it.
+- An operation that declares no `requestBody` accepts no request body. A
+  request that carries one is rejected with a `400` `invalid_request`, because
+  the size limit of a body the operation never accepts is not the useful
+  answer.
+- Responses are validated in every environment. An undeclared status, an
+  undeclared media type, and an undeclared member all become a `500`
+  `invalid_response` problem that carries the request id and never the rejected
+  body. The rejection is logged once at error level with the request id and
+  without the body.
+- Only the contract creates routes, with one exception: Fastify serves `HEAD`
+  for every `GET` route and drops the body, as RFC 9110 expects. That route
+  reuses the `GET` operation's validators.
 - Every response carries an `x-request-id` header. A caller may supply that
-  header; the server echoes it when it is a UUID and generates one otherwise.
+  header. The server echoes a value that matches the declared pattern
+  (`^[A-Za-z0-9._-]+$`, 1 to 128 characters) and generates a UUID when the
+  header is absent. A value outside that pattern is rejected by the normal
+  header validation with a `400` problem, and that problem carries a generated
+  id rather than the rejected value.
+- An operation that names a security scheme needs an identity resolver. Until
+  Task 5 supplies one, an operation that declares a non-empty `security` list
+  stops startup with a named error. The resolver runs as a `preValidation`
+  hook, so an actor is known before any input is read.
 
 ## Client rules
 
@@ -87,6 +118,14 @@ it. That relaxation stays inside the package: every consumer reads the emitted
 declarations through a project reference and keeps
 `exactOptionalPropertyTypes: true`. `tools/check-exact-optional.test.mjs`
 fails when a consumer stops enforcing it.
+
+## Logging
+
+`NOTESAPP_LOG_LEVEL` selects the structured log level: `fatal`, `error`, `warn`,
+`info`, `debug`, or `silent`. It defaults to `info`, and `silent` disables the
+logger. The logger redacts `req.headers.authorization` and `req.headers.cookie`.
+A log record names an operation, a status, and a request id; it never carries
+note content, a credential, or a rejected value.
 
 ## Media types
 

@@ -6,20 +6,13 @@
  */
 export type {
   HttpMethod,
-  JsonSchema,
   OperationEntry,
   OperationId,
-  ParameterLocation,
-  ParameterSerialization,
-  RequestSchemas,
-  ResponseSchema,
+  SecurityRequirement,
 } from './generated/contract.ts';
-export { contractVersion } from './generated/contract.ts';
 export type { RequestSlot } from './generated/validators.ts';
 export {
   findOperation,
-  isOperationId,
-  operationIds,
   operations,
   requestValidator,
   responseMediaTypes,
@@ -27,4 +20,4 @@ export {
 } from './operations.ts';
 export type { ValidationIssue } from './schema.ts';
 export { compileSchema, describeIssues } from './schema.ts';
-export type { ErrorObject, SchemaObject, ValidateFunction } from 'ajv';
+export type { SchemaObject } from 'ajv';

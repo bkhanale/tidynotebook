@@ -9,6 +9,22 @@
 import type { SchemaObject } from '@notesapp/api-contract';
 import { compileSchema, describeIssues } from '@notesapp/api-contract';
 
+const logLevels = [
+  'fatal',
+  'error',
+  'warn',
+  'info',
+  'debug',
+  'silent',
+] as const;
+
+/** Accepted structured log levels. */
+export type LogLevel = (typeof logLevels)[number];
+
+function isLogLevel(value: string): value is LogLevel {
+  return (logLevels as readonly string[]).includes(value);
+}
+
 /** Validated server configuration. */
 export type ServerConfig = {
   /** Public origin of this deployment, used for cookie and CORS decisions. */
@@ -21,6 +37,8 @@ export type ServerConfig = {
   readonly authSecret: string;
   /** Host header values that this deployment answers. */
   readonly allowedHosts: readonly string[];
+  /** Level of the structured log. `silent` disables logging. */
+  readonly logLevel: LogLevel;
   /** Request limits applied before a handler runs. */
   readonly limits: {
     readonly bodyBytes: number;
@@ -31,9 +49,12 @@ export type ServerConfig = {
 
 /** Startup failure that names every rejected configuration entry. */
 export class ConfigError extends Error {
-  constructor(readonly issues: readonly string[]) {
+  readonly issues: readonly string[];
+
+  constructor(issues: readonly string[]) {
     super(`Server configuration is not usable:\n${issues.join('\n')}`);
     this.name = 'ConfigError';
+    this.issues = issues;
   }
 }
 
@@ -43,6 +64,7 @@ const variables = [
   'NOTESAPP_STORAGE_ROOT',
   'NOTESAPP_AUTH_SECRET',
   'NOTESAPP_ALLOWED_HOSTS',
+  'NOTESAPP_LOG_LEVEL',
   'NOTESAPP_MAX_BODY_BYTES',
   'NOTESAPP_MAX_HEADER_BYTES',
   'NOTESAPP_REQUEST_TIMEOUT_MS',
@@ -72,11 +94,13 @@ const configSchema: SchemaObject = {
     NOTESAPP_STORAGE_ROOT: { type: 'string', pattern: '^/', maxLength: 1024 },
     // A short secret cannot protect a session cookie or an agent token.
     NOTESAPP_AUTH_SECRET: { type: 'string', minLength: 32, maxLength: 512 },
+    // A bracketed IPv6 literal such as `[::1]` is an allowed entry.
     NOTESAPP_ALLOWED_HOSTS: {
       type: 'string',
-      pattern: '^[A-Za-z0-9.-]+(,[A-Za-z0-9.-]+)*$',
+      pattern: '^[A-Za-z0-9.:_\\[\\]-]+(,[A-Za-z0-9.:_\\[\\]-]+)*$',
       maxLength: 1024,
     },
+    NOTESAPP_LOG_LEVEL: { type: 'string', enum: [...logLevels] },
     NOTESAPP_MAX_BODY_BYTES: positiveInteger,
     NOTESAPP_MAX_HEADER_BYTES: positiveInteger,
     NOTESAPP_REQUEST_TIMEOUT_MS: positiveInteger,
@@ -92,7 +116,7 @@ const validate = compileSchema<RawConfig>(configSchema);
 export function loadServerConfig(
   environment: Readonly<Record<string, string | undefined>>,
 ): ServerConfig {
-  const raw: Record<string, string> = {};
+  const raw: Record<string, string> = { NOTESAPP_LOG_LEVEL: 'info' };
   for (const name of variables) {
     const value = environment[name];
     if (value !== undefined && value !== '') raw[name] = value;
@@ -109,8 +133,11 @@ export function loadServerConfig(
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
     authSecret: raw.NOTESAPP_AUTH_SECRET,
     allowedHosts: raw.NOTESAPP_ALLOWED_HOSTS.split(',').map((host) =>
-      host.toLowerCase(),
+      host.trim().toLowerCase(),
     ),
+    logLevel: isLogLevel(raw.NOTESAPP_LOG_LEVEL)
+      ? raw.NOTESAPP_LOG_LEVEL
+      : 'info',
     limits: {
       bodyBytes: Number(raw.NOTESAPP_MAX_BODY_BYTES),
       headerBytes: Number(raw.NOTESAPP_MAX_HEADER_BYTES),

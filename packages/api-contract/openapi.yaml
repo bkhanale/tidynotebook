@@ -97,16 +97,19 @@ components:
       explode: false
       description: >-
         Optional caller supplied correlation identifier. The server echoes the
-        value when it is a UUID and generates one otherwise.
+        value and generates a UUID when the header is absent. A value outside
+        the pattern below is rejected with a 400 problem.
       schema:
         type: string
-        format: uuid
+        minLength: 1
+        maxLength: 128
+        pattern: ^[A-Za-z0-9._-]+$
     Detail:
       name: detail
       in: query
       required: false
       style: form
-      explode: false
+      explode: true
       description: >-
         Amount of readiness information to return. A summary report omits the
         detail text of each check.
@@ -266,4 +269,32 @@ components:
           type: string
           readOnly: true
           description: Identifier of the request, repeated in the x-request-id header.
-          format: uuid
+          minLength: 1
+          maxLength: 128
+        issues:
+          type: array
+          readOnly: true
+          description: >-
+            Values that a boundary check rejected. Each entry names the value by
+            JSON Pointer and never repeats the value itself.
+          maxItems: 64
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+    ValidationIssue:
+      type: object
+      description: One value that a boundary check rejected.
+      additionalProperties: false
+      required:
+        - path
+        - message
+      properties:
+        path:
+          type: string
+          readOnly: true
+          description: JSON Pointer of the rejected value inside its request slot.
+          maxLength: 256
+        message:
+          type: string
+          readOnly: true
+          description: Reason the value was rejected. It never repeats the value.
+          maxLength: 256

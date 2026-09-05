@@ -3,7 +3,9 @@
  *
  * The server binds an ephemeral port on the loopback interface, so a test
  * exercises the generated client over real HTTP instead of an injected
- * request object.
+ * request object. The instance is also returned, because `app.inject()` is the
+ * only way to send a request that no generated operation can express, for
+ * example a forged Host header or an unknown path.
  */
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -20,8 +22,28 @@ import {
 export type TestServer = {
   readonly baseUrl: string;
   readonly config: ServerConfig;
+  readonly app: Awaited<ReturnType<typeof createAppWithHandlers>>;
   readonly close: () => Promise<void>;
 };
+
+/** Collects the structured log records that a test server writes. */
+export class LogRecorder {
+  readonly lines: string[] = [];
+
+  write(line: string): void {
+    this.lines.push(line);
+  }
+
+  /** Parsed records, newest last. */
+  records(): Record<string, unknown>[] {
+    return this.lines.flatMap((line) => {
+      const parsed: unknown = JSON.parse(line);
+      return parsed === null || typeof parsed !== 'object'
+        ? []
+        : [Object.fromEntries(Object.entries(parsed))];
+    });
+  }
+}
 
 /** Environment of a valid test deployment. */
 export function testEnvironment(storageRoot: string): Record<string, string> {
@@ -32,26 +54,38 @@ export function testEnvironment(storageRoot: string): Record<string, string> {
     NOTESAPP_STORAGE_ROOT: storageRoot,
     NOTESAPP_AUTH_SECRET: 'test-secret-value-for-integration-checks',
     NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
-    NOTESAPP_MAX_BODY_BYTES: '1048576',
+    NOTESAPP_LOG_LEVEL: 'silent',
+    NOTESAPP_MAX_BODY_BYTES: '1024',
     NOTESAPP_MAX_HEADER_BYTES: '16384',
     NOTESAPP_REQUEST_TIMEOUT_MS: '5000',
   };
 }
 
-/**
- * Starts the server. A caller can replace the handler map to exercise a
- * boundary rule, for example a handler that answers outside the contract.
- */
+/** What a test replaces in the server it starts. */
+export type TestServerOptions = {
+  /** Builds the handler map, for example to answer outside the contract. */
+  readonly handlers?: (config: ServerConfig) => HandlerMap;
+  /** Environment overrides, for example a log level a test needs. */
+  readonly environment?: Readonly<Record<string, string>>;
+  /** Destination of the structured log. */
+  readonly logStream?: { write: (line: string) => void };
+};
+
+/** Starts the server on an ephemeral loopback port. */
 export async function startTestServer(
-  overrides?: (base: HandlerMap) => HandlerMap,
+  options: TestServerOptions = {},
 ): Promise<TestServer> {
   const storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-storage-'));
-  const config = loadServerConfig(testEnvironment(storageRoot));
-  const base = createHandlers(config);
-  const app = await createAppWithHandlers(
-    config,
-    overrides === undefined ? base : overrides(base),
-  );
+  const config = loadServerConfig({
+    ...testEnvironment(storageRoot),
+    ...options.environment,
+  });
+  const app = await createAppWithHandlers(config, {
+    handlers: (options.handlers ?? createHandlers)(config),
+    ...(options.logStream === undefined
+      ? {}
+      : { logStream: options.logStream }),
+  });
   await app.listen({ host: '127.0.0.1', port: 0 });
   const address: string | AddressInfo | null = app.server.address();
   if (address === null || typeof address === 'string') {
@@ -62,6 +96,7 @@ export async function startTestServer(
   return {
     baseUrl: `http://127.0.0.1:${String(address.port)}`,
     config,
+    app,
     close: async () => {
       await app.close();
       await rm(storageRoot, { recursive: true, force: true });

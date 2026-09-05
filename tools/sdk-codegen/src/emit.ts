@@ -45,14 +45,22 @@ export type ParameterSerialization = {
   readonly explode: boolean;
 };
 
-/** One schema for each request slot. A null slot carries no data. */
+/**
+ * One schema for each request slot. The path, query, and header schemas always
+ * exist. A closed empty object schema means the operation accepts no member of
+ * that kind, so an unknown one is rejected. A null body means the operation
+ * accepts no request body at all.
+ */
 export type RequestSchemas = {
-  readonly params: JsonSchema | null;
-  readonly query: JsonSchema | null;
-  readonly headers: JsonSchema | null;
+  readonly params: JsonSchema;
+  readonly query: JsonSchema;
+  readonly headers: JsonSchema;
   readonly body: JsonSchema | null;
   readonly bodyMediaType: string | null;
 };
+
+/** One security requirement: scheme name to the scopes it must carry. */
+export type SecurityRequirement = Readonly<Record<string, readonly string[]>>;
 
 export type ResponseSchema = {
   readonly status: number;
@@ -64,6 +72,8 @@ export type OperationEntry = {
   readonly id: OperationId;
   readonly method: HttpMethod;
   readonly path: string;
+  /** Alternative security requirements. An empty list means public. */
+  readonly security: readonly SecurityRequirement[];
   readonly parameters: readonly ParameterSerialization[];
   readonly request: RequestSchemas;
   readonly responses: readonly ResponseSchema[];
@@ -71,10 +81,6 @@ export type OperationEntry = {
 
 /** Version of the contract document that produced this index. */
 export const contractVersion = '${index.version}';
-
-export const operationIds: readonly OperationId[] = [
-${ids.map((id) => `  '${id}',`).join('\n')}
-];
 
 export const operations: readonly OperationEntry[] = ${literal(index.operations)};
 `;
