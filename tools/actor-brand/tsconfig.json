@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": [],
+    "paths": {
+      "@notesapp/core": ["../../packages/core/dist/index.d.ts"]
+    }
+  },
+  "include": ["fixture.ts"],
+  "references": [{ "path": "../../packages/core/tsconfig.build.json" }]
+}

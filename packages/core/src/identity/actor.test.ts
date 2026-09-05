@@ -2,7 +2,8 @@
  * Role and grant decisions.
  *
  * The tests cover every role and action pair, a grant that is missing while
- * the role permits the action, and a grant that names another workspace.
+ * the role permits the action, a grant that names another workspace, and the
+ * run time checks of `verifyActor`.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -11,6 +12,7 @@ import {
   verifyActor,
   type Action,
   type Actor,
+  type Grant,
   type Role,
 } from './actor.ts';
 
@@ -32,9 +34,25 @@ const permitted: Readonly<Record<Role, readonly Action[]>> = {
   owner: ['read', 'history', 'write', 'share', 'members', 'purge'],
 };
 
+/**
+ * A value outside its union, as an unvalidated storage read could return it.
+ * The assertion is stated once here, so no test repeats it.
+ */
+function stored<T>(value: string): T {
+  return value as unknown as T;
+}
+
+/** The verified actor, or a test failure when the input was rejected. */
+function actorOf(accountId: string, grants: readonly Grant[]): Actor {
+  const result = verifyActor(accountId, grants);
+  assert.equal(result.ok, true, 'expected the actor to be verified');
+  if (!result.ok) throw new Error('unreachable');
+  return result.value;
+}
+
 /** An actor whose verified grants cover every action in one workspace. */
 function fullActor(workspaceId: string = workspace): Actor {
-  return verifyActor('account-1', [{ workspaceId, actions }]);
+  return actorOf('account-1', [{ workspaceId, actions }]);
 }
 
 await test('the role matrix decides every role and action pair', () => {
@@ -56,7 +74,7 @@ await test('the role matrix decides every role and action pair', () => {
 });
 
 await test('a missing grant denies an action that the role permits', () => {
-  const actor = verifyActor('account-1', [
+  const actor = actorOf('account-1', [
     { workspaceId: workspace, actions: ['read', 'history'] },
   ]);
   assert.equal(authorize(actor, workspace, 'owner', 'read').ok, true);
@@ -66,7 +84,7 @@ await test('a missing grant denies an action that the role permits', () => {
 });
 
 await test('an actor without any grant is denied', () => {
-  const actor = verifyActor('account-1', []);
+  const actor = actorOf('account-1', []);
   assert.equal(authorize(actor, workspace, 'owner', 'read').ok, false);
 });
 
@@ -83,10 +101,45 @@ await test('a grant cannot widen what the role permits', () => {
   assert.equal(authorize(actor, workspace, 'admin', 'purge').ok, false);
 });
 
+await test('a role outside the union denies every action', () => {
+  // A stored role can hold an unexpected string. The lookup must deny it
+  // instead of failing, so the check states the unchecked value once.
+  const role = stored<Role>('superuser');
+  for (const action of actions) {
+    assert.equal(authorize(fullActor(), workspace, role, action).ok, false);
+  }
+});
+
 await test('a verified actor copies the grants it was given', () => {
   const grants = [{ workspaceId: workspace, actions: ['read'] as Action[] }];
-  const actor = verifyActor('account-1', grants);
+  const actor = actorOf('account-1', grants);
   grants[0]?.actions.push('purge');
   assert.equal(authorize(actor, workspace, 'owner', 'purge').ok, false);
   assert.equal(actor.accountId, 'account-1');
+});
+
+await test('an empty account identifier is rejected', () => {
+  const result = verifyActor('', [{ workspaceId: workspace, actions: [] }]);
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.code, 'forbidden');
+    assert.deepEqual(result.error.fileIds, []);
+  }
+});
+
+await test('an empty workspace identifier is rejected', () => {
+  const result = verifyActor('account-1', [
+    { workspaceId: '', actions: ['read'] },
+  ]);
+  assert.equal(result.ok, false);
+});
+
+await test('an unknown action rejects the whole actor', () => {
+  // A stored token scope can hold a string that the union no longer contains.
+  const action = stored<Action>('administer');
+  const result = verifyActor('account-1', [
+    { workspaceId: workspace, actions: ['read', action] },
+  ]);
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.error.code, 'forbidden');
 });

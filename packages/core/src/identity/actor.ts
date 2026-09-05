@@ -30,7 +30,8 @@ export type Grant = {
  * is required. Only `verifyActor` creates the marker, and only the identity
  * adapter calls it after it has checked a session or a token. The package
  * entry point does not export the symbol, so no other package can build an
- * actor by hand.
+ * actor by hand. `tools/actor-brand/fixture.ts` proves the compile-time part
+ * of this rule.
  */
 export const verifiedActorMark: unique symbol = Symbol(
   'notesapp.verified-actor',
@@ -50,27 +51,6 @@ export type Actor = {
 };
 
 /**
- * Creates a verified actor.
- *
- * Call this only after the identity adapter has verified the session or the
- * token and has read the scope from it. The grants are copied, so a later
- * change to the caller's array cannot change a decision.
- */
-export function verifyActor(
-  accountId: string,
-  grants: readonly Grant[],
-): Actor {
-  return {
-    accountId,
-    grants: grants.map((grant) => ({
-      workspaceId: grant.workspaceId,
-      actions: [...grant.actions],
-    })),
-    [verifiedActorMark]: true,
-  };
-}
-
-/**
  * The actions that each role permits.
  *
  * A viewer reads content and history. An editor also writes. An admin also
@@ -84,6 +64,55 @@ const roleActions: Readonly<Record<Role, readonly Action[]>> = {
   admin: ['read', 'history', 'write', 'share', 'members'],
   owner: ['read', 'history', 'write', 'share', 'members', 'purge'],
 };
+/**
+ * The same matrix, read by a plain string key.
+ *
+ * A role reaches this package from storage, so a value outside the union can
+ * arrive when a database row holds an unexpected string. The lookup then finds
+ * nothing and the decision is a denial instead of a thrown error.
+ */
+const actionsOfRole = new Map<string, readonly Action[]>(
+  Object.entries(roleActions),
+);
+/** Every action, for the runtime check of a supplied grant. */
+const knownActions = new Set<string>(roleActions.owner);
+
+/**
+ * Creates a verified actor.
+ *
+ * Call this only after the identity adapter has verified the session or the
+ * token and has read the scope from it. The grants are copied, so a later
+ * change to the caller's array cannot change a decision.
+ *
+ * The values are checked at run time as well, because the scope of a token can
+ * come from stored JSON that no longer matches the current union. An empty
+ * account identifier, an empty workspace identifier, or an unknown action
+ * rejects the whole actor with `forbidden`. Nothing is dropped silently: a
+ * partly understood scope must not become a smaller scope that then looks
+ * verified.
+ */
+export function verifyActor(
+  accountId: string,
+  grants: readonly Grant[],
+): Result<Actor> {
+  if (accountId.length === 0) return fail('forbidden');
+  const copied: Grant[] = [];
+  for (const grant of grants) {
+    if (grant.workspaceId.length === 0) return fail('forbidden');
+    for (const action of grant.actions) {
+      if (!knownActions.has(action)) return fail('forbidden');
+    }
+    copied.push({
+      workspaceId: grant.workspaceId,
+      actions: [...grant.actions],
+    });
+  }
+  return ok({
+    accountId,
+    grants: copied,
+    [verifiedActorMark]: true,
+  });
+}
 
 /**
  * Decides whether the actor may perform the action in the workspace.
@@ -99,7 +128,8 @@ export function authorize(
   role: Role,
   action: Action,
 ): Result<void> {
-  if (!roleActions[role].includes(action)) return fail('forbidden');
+  const permitted = actionsOfRole.get(role) ?? [];
+  if (!permitted.includes(action)) return fail('forbidden');
   const grant = actor.grants.find((entry) => entry.workspaceId === workspaceId);
   if (grant === undefined || !grant.actions.includes(action))
     return fail('forbidden');

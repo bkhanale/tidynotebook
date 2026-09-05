@@ -539,12 +539,21 @@ A browser-safe package that keeps adjacent tests follows this pattern:
 - `tsconfig.json` sets `types: ["node"]`, because the type check covers the
   adjacent `*.test.ts` files and those files import `node:test` and
   `node:assert/strict`.
-- `tsconfig.build.json` excludes `**/*.test.ts` and keeps the empty `types`
-  list of `tsconfig.base.json`. Production sources therefore compile without any
-  Node global, so a browser-only rule cannot reach `process` or `Buffer`
-  unnoticed. The boundary checker already rejects a `node:` import there.
+- `tsconfig.build.json` excludes `src/**/*.test.ts` and keeps the empty `types`
+  list of `tsconfig.base.json`. An adjacent test is therefore never emitted into
+  `dist`, and production sources compile without any Node global, so a
+  browser-only rule cannot reach `process` or `Buffer` unnoticed. The boundary
+  checker already rejects a `node:` import there.
 - `@types/node` stays in `devDependencies`. The browser build does not read that
   group, and the boundary checker allows a test helper only in that group.
 
 `packages/core` does not set `skipLibCheck`. It has no third-party runtime
 declarations to skip, so the strict base setting stays in force.
+
+`tools/actor-brand/` holds a second compile-time proof, built on the pattern of
+`tools/exact-optional/`. `fixture.ts` assigns a plain object to `Actor` and
+passes it to `authorize`. `tools/check-actor-brand.test.mjs` builds
+`packages/core`, compiles the fixture, and fails when the two expected errors
+about the missing verified actor marker disappear. The fixture reads the
+package through its emitted declarations. TypeScript 7 removed `baseUrl`, so
+its `paths` entry is written relative to the configuration file.

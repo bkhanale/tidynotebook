@@ -68,6 +68,40 @@ await test('a null byte and a control character are rejected', () => {
   rejected('notes/plan\u009f.md');
 });
 
+await test('a lone surrogate is rejected', () => {
+  // A lone surrogate becomes U+FFFD in UTF-8, so two inputs would become one
+  // stored path and the uniqueness rule would no longer hold.
+  rejected('a\ud800b.md');
+  rejected('a\udfffb.md');
+  rejected('notes/\ud83d.md');
+  // A complete pair is well formed and stays accepted.
+  assert.equal(accepted('notes/\ud83d\ude00.md'), 'notes/\ud83d\ude00.md');
+});
+
+await test('a format character and a line separator are rejected', () => {
+  // A zero width or bidirectional character makes two different names look
+  // the same in the file tree.
+  rejected('notes/pl\u202ean.md');
+  rejected('notes/pl\u200ban.md');
+  rejected('notes/pl\ufeffan.md');
+  rejected('\ufeffnotes/plan.md');
+  rejected('notes/pl\u2028an.md');
+  rejected('notes/pl\u2029an.md');
+});
+
+await test('white space at the edge of a segment is rejected', () => {
+  rejected(' notes/plan.md');
+  rejected('notes /plan.md');
+  rejected('notes/ plan.md');
+  rejected('notes/plan.md ');
+  rejected('notes/\u00a0plan.md');
+  rejected('notes/plan.md\u00a0');
+  rejected('notes/ /plan.md');
+  rejected(' .md');
+  // White space inside a name stays valid.
+  assert.equal(accepted('notes/my plan.md'), 'notes/my plan.md');
+});
+
 await test('an empty segment and an empty path are rejected', () => {
   rejected('');
   rejected('notes//plan.md');
