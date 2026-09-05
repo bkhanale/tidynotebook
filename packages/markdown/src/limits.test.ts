@@ -136,6 +136,51 @@ function inlineDocument(count: number): string {
   return `${inlineBlock(perBlock)}\n\n`.repeat(Math.floor(count / perBlock));
 }
 
+/** A list of `items` lines, each holding `count` inline delimiters. */
+function denseList(items: number, count: number): string {
+  return `- ${'*a* '.repeat(count / 2)}\n`.repeat(items);
+}
+
+/** A table of `rowLines` lines whose cells hold inline delimiters. */
+function denseTable(rowLines: number): string {
+  const cell = '*_'.repeat(20);
+  const rows = ['| Column | Right |', '| :----- | ----: |'];
+  for (let index = 0; index < rowLines - 2; index += 1)
+    rows.push(`| ${cell} | ${cell} |`);
+  return `${rows.join('\n')}\n`;
+}
+
+/** A document of `count` paragraphs of ordinary words. */
+function plainBlocks(count: number): string {
+  return 'word word word word\n\n'.repeat(count);
+}
+
+/**
+ * The most expensive document the combined score still admits.
+ *
+ * The two costliest counts are the inline delimiters and the blocks, so this
+ * spends a whole delimiter cap and then as many blocks as the score has room
+ * for. The arithmetic repeats the score on purpose: the test states the shape
+ * it means rather than asking the code under test what it allows.
+ */
+function worstCombination(): string {
+  const head = inlineDocument(markdownLimits.maxInlineDelimiters);
+  const headBlocks =
+    markdownLimits.maxInlineDelimiters /
+    markdownLimits.maxBlockInlineDelimiters;
+  const blockSize = 'word word word word\n\n'.length;
+  const budget =
+    markdownLimits.maxCombinedCost -
+    1 -
+    head.length / markdownLimits.maxInputBytes -
+    headBlocks / markdownLimits.maxBlocks;
+  const count = Math.floor(
+    budget /
+      (1 / markdownLimits.maxBlocks + blockSize / markdownLimits.maxInputBytes),
+  );
+  return head + plainBlocks(Math.min(count, markdownLimits.maxBlocks));
+}
+
 /** A document of exactly `bytes` bytes, as 64 byte paragraphs. */
 function documentOfBytes(bytes: number): string {
   return `${'x'.repeat(62)}\n\n`.repeat(bytes / 64);
@@ -175,6 +220,12 @@ const hostile: ReadonlyArray<[string, string]> = [
     inlineDocument(markdownLimits.maxInlineDelimiters + 2000),
   ],
   ['one block above the cap', blocks(markdownLimits.maxBlocks + 1)],
+  ['list lines that hold dense emphasis', denseList(5000, 96)],
+  ['table cells that hold dense emphasis', denseTable(1998)],
+  [
+    'a document close to several caps at once',
+    `${table(1798)}${list(4500)}\n${links(1790)}${inlineDocument(100000)}`,
+  ],
 ];
 
 /**
@@ -408,6 +459,47 @@ for (const [name, source] of adversarial)
     assert.ok(elapsed < 2000, `${name} took ${elapsed} ms`);
   });
 
+await test('inline delimiters count inside a row and a list line', async () => {
+  // The content of a cell and of a list item is inline content too.
+  const listRun = await refusal(parseMarkdown, denseList(5000, 96));
+  assert.equal(listRun.error.reason, 'inline-delimiters');
+  const tableRun = await refusal(parseMarkdown, denseTable(1998));
+  assert.equal(tableRun.error.reason, 'inline-delimiters');
+  // One row or list line may not be denser than a whole paragraph may be.
+  const oneLine = await refusal(
+    parseMarkdown,
+    denseList(1, markdownLimits.maxBlockInlineDelimiters + 2),
+  );
+  assert.equal(oneLine.error.reason, 'inline-delimiters');
+  assert.equal(oneLine.error.limit, markdownLimits.maxBlockInlineDelimiters);
+});
+
+await test('an ordinary list with light emphasis still renders', async () => {
+  const source = '- item *number* here\n'.repeat(5000);
+  const started = Date.now();
+  const html = await renderMarkdown(source);
+  const elapsed = Date.now() - started;
+  console.log(`5000 ordinary list items with emphasis    ${elapsed} ms`);
+  assert.ok(html.includes('<em>'));
+  assert.ok(elapsed < 1000, `the list took ${elapsed} ms`);
+});
+
+await test('a document close to several caps at once is refused', async () => {
+  // Every single cap passes here; their costs add up to more than any one of
+  // them allows, and the combined score is what catches it.
+  const source = `${table(1798)}${list(4500)}\n${links(1790)}${inlineDocument(100000)}`;
+  const { error, elapsed } = await refusal(parseMarkdown, source);
+  assert.equal(error.reason, 'combined-cost');
+  assert.equal(error.limit, markdownLimits.maxCombinedCost);
+  assert.ok(error.actual > markdownLimits.maxCombinedCost);
+  assert.ok(elapsed < 100, `the combination took ${elapsed} ms`);
+});
+
+await test('one megabyte of ordinary prose stays inside the combined cost', () => {
+  // Ordinary prose uses a fraction of every count, so the score has room.
+  assert.equal(parseMarkdown(prose(markdownLimits.maxInputBytes)).type, 'root');
+});
+
 /** Every capped shape, built at exactly its cap. */
 const calibration: ReadonlyArray<[string, string]> = [
   ['a table at the row cap', table(markdownLimits.maxTableRows)],
@@ -430,6 +522,7 @@ const calibration: ReadonlyArray<[string, string]> = [
     '1 MiB of blocks at the block cap',
     blocksOfBytes(markdownLimits.maxBlocks, markdownLimits.maxInputBytes),
   ],
+  ['the worst combination the score admits', worstCombination()],
 ];
 
 for (const [name, source] of calibration)

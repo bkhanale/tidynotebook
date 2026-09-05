@@ -144,6 +144,26 @@ export const markdownLimits = {
    */
   maxBlocks: 15000,
   /**
+   * Largest accepted combined cost of one document.
+   *
+   * Every cap above admits a document that renders inside the budget on its
+   * own, but their costs add. A document at nine tenths of the row, list,
+   * link, and delimiter caps at once measured between 2.1 and 4.5 seconds
+   * while passing every single cap.
+   *
+   * The score adds each count divided by its own cap, so one full cap is one
+   * point and the document size is one point at the byte cap. This value
+   * therefore lets a full-size document spend a little more than one point
+   * elsewhere, or a small document fill about two caps.
+   *
+   * Calibrated by measurement. One megabyte of ordinary prose scores 2.01: a
+   * full point of size, half a point of blocks, and half a point of inline
+   * delimiters. The limit has to stay above that, and the most expensive
+   * combination it then admits renders in about 1.35 seconds. See
+   * `limits.test.ts`.
+   */
+  maxCombinedCost: 2.3,
+  /**
    * Largest accepted plain block, in UTF-8 bytes.
    *
    * A plain block is a run of neighbouring lines that is not blank, not a
@@ -184,7 +204,8 @@ export type MarkdownLimitReason =
   | 'list-items'
   | 'block-size'
   | 'block-count'
-  | 'inline-delimiters';
+  | 'inline-delimiters'
+  | 'combined-cost';
 
 /** The sentence that explains one refusal. */
 const reasons: Record<MarkdownLimitReason, string> = {
@@ -202,6 +223,8 @@ const reasons: Record<MarkdownLimitReason, string> = {
   'block-count': 'Markdown holds %actual blocks and the limit is %limit.',
   'inline-delimiters':
     'A Markdown paragraph holds %actual inline delimiters and the limit is %limit.',
+  'combined-cost':
+    'Markdown reaches a combined cost of %actual and the limit is %limit.',
 };
 
 /**
@@ -479,11 +502,8 @@ function assertLineNesting(
  * rather than after the whole file.
  */
 export function assertParseCost(source: string): void {
-  assertAtMost(
-    'input-size',
-    markdownLimits.maxInputBytes,
-    utf8ByteLength(source),
-  );
+  const totalBytes = utf8ByteLength(source);
+  assertAtMost('input-size', markdownLimits.maxInputBytes, totalBytes);
   let lineStart = 0;
   let lineBytes = 0;
   let lineDelimiters = 0;
@@ -498,6 +518,29 @@ export function assertParseCost(source: string): void {
   let fence: { char: string; length: number } | null = null;
   let runChar = '';
   let runLength = 0;
+  /**
+   * Refuses a document that is close to several caps at once.
+   *
+   * Each cap on its own admits a document that renders inside the budget, but
+   * the costs add up, so a document at nine tenths of four caps costs more
+   * than any single cap allows. The score is the sum of every count over its
+   * own cap, which makes one full cap worth one point. See
+   * `maxCombinedCost` for the value and the calibration.
+   */
+  const assertCombinedCost = (): void => {
+    const score =
+      tableRows / markdownLimits.maxTableRows +
+      listItems / markdownLimits.maxListItems +
+      linkOpenings / markdownLimits.maxLinkOpenings +
+      documentDelimiters / markdownLimits.maxInlineDelimiters +
+      blocks / markdownLimits.maxBlocks +
+      totalBytes / markdownLimits.maxInputBytes;
+    assertAtMost(
+      'combined-cost',
+      markdownLimits.maxCombinedCost,
+      Math.round(score * 100) / 100,
+    );
+  };
   /** Opens a block when the previous line did not already open this kind. */
   const openBlockOfKind = (kind: BlockKind): void => {
     if (openBlock !== kind) {
@@ -547,19 +590,33 @@ export function assertParseCost(source: string): void {
       endPlainBlock();
       return;
     }
+    // The content of a table cell and of a list item is inline content too,
+    // so every line outside a fence adds to the document total.
+    documentDelimiters += lineDelimiters;
+    assertAtMost(
+      'inline-delimiters',
+      markdownLimits.maxInlineDelimiters,
+      documentDelimiters,
+    );
     if (isBlank(source, lineStart, end)) {
       openBlock = 'none';
       endPlainBlock();
+      assertCombinedCost();
       return;
     }
-    if (shape.tableRow) {
-      openBlockOfKind('table');
+    // A row and a list line carry the per-block cap on their own line rather
+    // than across the run. A run has its own cap on its length, and one line
+    // is the unit an author can see, so this is the simpler rule to reason
+    // about: no single line may be denser than a whole paragraph may be.
+    if (shape.tableRow || shape.listItem) {
+      assertAtMost(
+        'inline-delimiters',
+        markdownLimits.maxBlockInlineDelimiters,
+        lineDelimiters,
+      );
+      openBlockOfKind(shape.tableRow ? 'table' : 'list');
       endPlainBlock();
-      return;
-    }
-    if (shape.listItem) {
-      openBlockOfKind('list');
-      endPlainBlock();
+      assertCombinedCost();
       return;
     }
     openBlockOfKind('plain');
@@ -571,12 +628,7 @@ export function assertParseCost(source: string): void {
       markdownLimits.maxBlockInlineDelimiters,
       blockDelimiters,
     );
-    documentDelimiters += lineDelimiters;
-    assertAtMost(
-      'inline-delimiters',
-      markdownLimits.maxInlineDelimiters,
-      documentDelimiters,
-    );
+    assertCombinedCost();
   };
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index] ?? '';

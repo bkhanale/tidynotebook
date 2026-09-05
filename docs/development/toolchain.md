@@ -702,6 +702,7 @@ caps every shape whose cost grows faster than its size:
 | Table rows in one document          | 2000    | `table-rows`        |
 | List lines in one document          | 5000    | `list-items`        |
 | Blocks in one document              | 15,000  | `block-count`       |
+| Combined cost of every count above  | 2.3     | `combined-cost`     |
 
 The run delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. The inline
 delimiter set is the subset the parser pairs inside a paragraph:
@@ -722,6 +723,26 @@ A plain block is a run of neighbouring lines that is not blank, not a table
 row, not a list line, and not inside a code fence. The parser reads the inline
 content of a paragraph as one unit, and that cost grows faster than the
 paragraph does.
+
+The content of a table cell and of a list item is inline content too, so every
+line outside a fence adds to the document delimiter total. A row and a list
+line carry the per-block cap on their own line rather than across the run: a
+run already has a cap on its length, and one line is the unit an author can
+see, so the rule is that no single line may be denser than a whole paragraph
+may be. Without this, 970 KB of list lines holding dense emphasis rendered in
+5.7 seconds and a 1998 row table of `*_` cells in 4.3 seconds. Both are now
+refused in a few milliseconds, while 5000 ordinary list items with light
+emphasis still render in 0.45 seconds.
+
+Each cap on its own admits a document that renders inside the budget, but their
+costs add. A document at nine tenths of the row, list, link, and delimiter caps
+at once passed every single cap and rendered in 2.1 to 4.5 seconds. The
+combined cost adds each count divided by its own cap, so one full cap is one
+point and a document at the byte cap is one point of size. The limit of 2.3
+lets a full-size document spend a little over one more point, or a small
+document fill about two caps. One megabyte of ordinary prose scores 2.01 and
+passes; the combination above scores 2.51 and is refused in under a
+millisecond.
 
 The fence is the one Markdown construct the scan recognizes, and it recognizes
 it only to exempt the two plain block caps, because the parser never reads the
@@ -749,19 +770,21 @@ value from `markdownLimits`.
 `limits.test.ts` builds every capped shape at exactly its cap, renders it, and
 prints the time. The measurements on the development machine are:
 
-| Shape at its cap                    | Size    | Render time |
-| ----------------------------------- | ------- | ----------- |
-| Table of 2000 rows                  | 39 KB   | 0.33 s      |
-| List of 5000 lines                  | 94 KB   | 0.30 s      |
-| 2000 link openings                  | 92 KB   | 0.15 s      |
-| 100 nesting levels                  | 205 B   | 0.001 s     |
-| One paragraph of 64 KiB             | 66 KB   | 0.03 s      |
-| One block of 2000 inline delimiters | 4 KB    | 0.01 s      |
-| 100,000 inline delimiters           | 200 KB  | 0.82 s      |
-| 15,000 minimal blocks               | 75 KB   | 0.64 s      |
-| 1 MiB spread over 15,000 blocks     | 1.0 MiB | 0.81 s      |
-| 1 MiB of prose in short paragraphs  | 1.0 MiB | 0.87 s      |
-| 1 MiB fenced code block             | 1.0 MiB | 0.15 s      |
+| Shape at its cap                       | Size    | Render time |
+| -------------------------------------- | ------- | ----------- |
+| Table of 2000 rows                     | 39 KB   | 0.33 s      |
+| List of 5000 lines                     | 94 KB   | 0.30 s      |
+| 2000 link openings                     | 92 KB   | 0.15 s      |
+| 100 nesting levels                     | 205 B   | 0.001 s     |
+| One paragraph of 64 KiB                | 66 KB   | 0.03 s      |
+| One block of 2000 inline delimiters    | 4 KB    | 0.01 s      |
+| 100,000 inline delimiters              | 200 KB  | 0.82 s      |
+| 15,000 minimal blocks                  | 75 KB   | 0.64 s      |
+| 1 MiB spread over 15,000 blocks        | 1.0 MiB | 0.81 s      |
+| 1 MiB of prose in short paragraphs     | 1.0 MiB | 1.00 s      |
+| 1 MiB fenced code block                | 1.0 MiB | 0.13 s      |
+| The worst combination the score admits | 468 KB  | 1.53 s      |
+| 5000 list items with light emphasis    | 105 KB  | 0.45 s      |
 
 Two caps were lowered below their first value during calibration, because the
 first value measured too close to the budget to be a stable bound: the list cap
@@ -770,13 +793,20 @@ and the block cap from 20,000 to 15,000, where 20,000 measured 1.4 seconds
 inside the test run. One megabyte of ordinary prose uses about 7900 blocks and
 about 47,000 inline delimiters, so a real note keeps room to spare under both.
 
+The worst combination the score admits is a full inline delimiter count next to
+a nearly full block count. It is the slowest document this package accepts, and
+it is the reason the combined limit cannot go much higher: at 2.5 that same
+combination reaches 1.7 seconds.
+
 The shapes a reviewer found are measured too, and each is refused in a few
 milliseconds: 1 MiB of alternating `*_` on one line as `line-length`, the same
 text in blocks as `inline-delimiters`, 64 KiB of dense emphasis as
 `inline-delimiters`, 50,000 setext headings as `block-count`, and both the
 fence bypass and an unterminated fence before 30,000 table rows as
-`table-rows`. Each shape one step past its cap is refused in under 100 ms; the
-tests assert all of it.
+`table-rows`, 970 KB of list lines with dense emphasis and a 1998 row table of
+`*_` cells as `inline-delimiters`, and a document near four caps at once as
+`combined-cost`. Each shape one step past its cap is refused in under 100 ms;
+the tests assert all of it.
 
 ### Byte order marks and reported ranges
 
@@ -802,7 +832,7 @@ resolve during the type check.
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 104 tests, including the
+- `pnpm --filter @notesapp/markdown test:unit` runs 112 tests, including the
   resource limit measurements above.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
