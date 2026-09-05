@@ -20,6 +20,56 @@ export type AcceptedChangeset = {
      * The commit ordered position of this change in the workspace. A sync client asks for changes after a cursor it already applied.
      */
     readonly cursor: string;
+    /**
+     * Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.
+     */
+    readonly revisions: Array<AcceptedRevision>;
+};
+
+/**
+ * One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.
+ */
+export type AcceptedRevision = {
+    /**
+     * Identifier of the accepted revision.
+     */
+    readonly revisionId: Uuid;
+    /**
+     * The file that the revision belongs to.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The parents of the revision, in submitted order.
+     */
+    readonly parents: Array<Uuid>;
+    /**
+     * The accepted path, in its normalized form.
+     */
+    readonly path: FilePath;
+    /**
+     * True for a tombstone, which is how a deletion is recorded.
+     */
+    readonly deleted: boolean;
+    /**
+     * Digest of the content of the revision.
+     */
+    readonly digest: ContentDigest;
+    /**
+     * Size of the content in bytes.
+     */
+    readonly size: number;
+    /**
+     * The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it.
+     */
+    readonly actorAccountId: Uuid;
+    /**
+     * Instant at which the workspace accepted the revision.
+     */
+    readonly serverTime: string;
+    /**
+     * The checkpoint name of the revision, or null.
+     */
+    readonly message: CheckpointMessage;
 };
 
 /**
@@ -447,6 +497,11 @@ export type DeleteFileInput = {
 export type DeviceId = string;
 
 /**
+ * A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.
+ */
+export type EntityTagCondition = string;
+
+/**
  * The accepted head that the client saw for each file of the changeset, keyed by file identifier. The value null states that the file must not exist in accepted state, which is the precondition of a new file. Every file that the changeset changes needs an entry, and an entry for a file that it does not change is refused. The limit below is a coarse bound that protects the parser; the rule that a changeset may change at most 1000 files is applied by the workspace and answers 422.
  */
 export type ExpectedHeads = {
@@ -458,9 +513,9 @@ export type ExpectedHeads = {
  */
 export type FileChange = {
     /**
-     * The accepted revision. It is also the entity tag of the answer.
+     * The accepted revision, as the workspace recorded it. Its identifier is the entity tag of the answer. It carries no text: the request that wrote it already holds the content.
      */
-    readonly revision: FileRevision;
+    readonly revision: AcceptedRevision;
     /**
      * The outcome of the changeset that carried the revision.
      */
@@ -1129,14 +1184,14 @@ export type PageCursor = Uuid;
 export type PageLimit = number;
 
 /**
- * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it: a request without it answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error.
+ * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is accepted and the request proceeds when any of them names the current head. The operation needs a tag: a request without one answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error. The value * is refused with 428 as well: it would permit a write against a state the client never read, which is the lost update that this precondition exists to prevent.
  */
-export type IfMatch = string;
+export type IfMatch = EntityTagCondition;
 
 /**
- * Entity tag that the client already holds. The answer is 304 with no body when it names the current head.
+ * Entity tag that the client already holds, or a list of them. The answer is 304 with no body when one of them names the current head. The value * means any representation, so it answers 304 for a file that exists.
  */
-export type IfNoneMatch = string;
+export type IfNoneMatch = EntityTagCondition;
 
 /**
  * The settings to store for the signed in account.
@@ -2343,9 +2398,9 @@ export type DeleteFileData = {
          */
         'x-request-id'?: string;
         /**
-         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it: a request without it answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error.
+         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is accepted and the request proceeds when any of them names the current head. The operation needs a tag: a request without one answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error. The value * is refused with 428 as well: it would permit a write against a state the client never read, which is the lost update that this precondition exists to prevent.
          */
-        'if-match'?: string;
+        'if-match'?: EntityTagCondition;
     };
     path: {
         /**
@@ -2431,9 +2486,9 @@ export type GetFileData = {
          */
         'x-request-id'?: string;
         /**
-         * Entity tag that the client already holds. The answer is 304 with no body when it names the current head.
+         * Entity tag that the client already holds, or a list of them. The answer is 304 with no body when one of them names the current head. The value * means any representation, so it answers 304 for a file that exists.
          */
-        'if-none-match'?: string;
+        'if-none-match'?: EntityTagCondition;
     };
     path: {
         /**
@@ -2494,9 +2549,9 @@ export type UpdateFileData = {
          */
         'x-request-id'?: string;
         /**
-         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it: a request without it answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error.
+         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is accepted and the request proceeds when any of them names the current head. The operation needs a tag: a request without one answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error. The value * is refused with 428 as well: it would permit a write against a state the client never read, which is the lost update that this precondition exists to prevent.
          */
-        'if-match'?: string;
+        'if-match'?: EntityTagCondition;
     };
     path: {
         /**

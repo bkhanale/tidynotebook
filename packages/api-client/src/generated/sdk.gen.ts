@@ -330,7 +330,7 @@ export const createFile = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Delete a file by writing a tombstone revision.
  *
- * Deletes one file. The deletion is a revision, so the history of the file stays complete and a later restore is possible. The tombstone carries no note text. Deleting revokes every share of the file and removes it from search, and it adds no content, so a workspace at its storage limit can still be tidied. The request must carry the entity tag of the head that the client saw.
+ * Deletes one file. The deletion is a revision, so the history of the file stays complete and a later restore is possible. The tombstone carries no note text, and a submitted tombstone that carries Markdown is refused with 422, so a deletion can never add content. Deleting revokes every share of the file and removes it from search, so a workspace at its storage limit can still be tidied. The request must carry the entity tag of the head that the client saw.
  */
 export const deleteFile = <ThrowOnError extends boolean = false>(options: Options<DeleteFileData, ThrowOnError>): RequestResult<DeleteFileResponses, DeleteFileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteFileResponses, DeleteFileErrors, ThrowOnError>({
     security: [{
@@ -349,7 +349,7 @@ export const deleteFile = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Read a file and the content of its accepted head.
  *
- * Reports the metadata of one live file and the Markdown of its accepted head revision. The answer carries a strong entity tag that names that revision, so a later conditional read answers 304 and a later conditional write answers 412 when the head has moved. A deleted file answers 404; its revisions stay readable.
+ * Reports the metadata of one live file and the Markdown of its accepted head revision. The answer carries a strong entity tag that names that revision, so a later conditional read answers 304 and a later conditional write answers 412 when the head has moved. If-None-Match with that tag, or with *, answers 304. A deleted file answers 404; its revisions stay readable.
  */
 export const getFile = <ThrowOnError extends boolean = false>(options: Options<GetFileData, ThrowOnError>): RequestResult<GetFileResponses, GetFileErrors, ThrowOnError> => (options.client ?? client).get<GetFileResponses, GetFileErrors, ThrowOnError>({
     security: [{
@@ -364,7 +364,7 @@ export const getFile = <ThrowOnError extends boolean = false>(options: Options<G
 /**
  * Replace the content or the path of a file.
  *
- * Writes one revision of an existing file. The request must carry the entity tag of the head that the client saw in If-Match; a request without it answers 428, and a head that has moved answers 412. The request states the new text, the new path, or both; a member that is absent keeps the value of the expected head.
+ * Writes one revision of an existing file. The request must carry the entity tag of the head that the client saw in If-Match; a request without it, and a request that carries *, both answer 428, and a head that has moved answers 412. The request states the new text, the new path, or both; a member that is absent keeps the value of the expected head. The answer carries the accepted revision without its text.
  */
 export const updateFile = <ThrowOnError extends boolean = false>(options: Options<UpdateFileData, ThrowOnError>): RequestResult<UpdateFileResponses, UpdateFileErrors, ThrowOnError> => (options.client ?? client).put<UpdateFileResponses, UpdateFileErrors, ThrowOnError>({
     security: [{

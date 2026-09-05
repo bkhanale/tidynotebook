@@ -14,6 +14,7 @@ export type { Action, Actor, Grant, Role } from './identity/actor.ts';
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export type {
   AcceptedChangeset,
+  AcceptedRevision,
   ChangesetInput,
   ContentRef,
   DomainError,
@@ -65,6 +66,8 @@ export {
   maxPageSize,
   pageSize,
   readFile,
+  readHeadForWrite,
+  readMutationReceipt,
   readRevision,
 } from './files/read.ts';
 export type {

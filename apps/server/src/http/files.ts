@@ -15,6 +15,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type {
   AcceptedChangeset,
+  AcceptedRevision,
   ChangesetInput,
   ContentRef,
   Result,
@@ -29,6 +30,8 @@ import {
   listFiles,
   markdownContent,
   readFile,
+  readHeadForWrite,
+  readMutationReceipt,
   readRevision,
   requestDigest,
   tombstoneContent,
@@ -108,24 +111,59 @@ function unwrap<T>(result: Result<T>): T {
 
 /** Fails with the domain code and the files that the failure refers to. */
 function refuse(
-  code: 'stale_head' | 'invalid_content' | 'invalid_graph' | 'not_found',
+  code:
+    | 'stale_head'
+    | 'invalid_content'
+    | 'invalid_graph'
+    | 'mutation_reused'
+    | 'not_found',
   fileIds: readonly string[] = [],
 ): never {
   throw new DomainProblemError({ code, fileIds: [...fileIds] });
 }
 
-/** The accepted head that the request states, or a 428 answer. */
-function requiredExpectedHead(request: FastifyRequest, fileId: string): string {
+/**
+ * The revisions that a conditional header names.
+ *
+ * `*` means any representation. A list is accepted, and any of its members may
+ * match. A member that this server could never have issued is dropped, so it
+ * matches nothing.
+ */
+export function parseTagList(value: string): {
+  star: boolean;
+  revisionIds: readonly string[];
+} {
+  const entries = value.split(',').map((entry) => entry.trim());
+  if (entries.includes('*')) return { star: true, revisionIds: [] };
+  return {
+    star: false,
+    revisionIds: entries.flatMap((entry) => {
+      const revisionId = parseTag(entry);
+      return revisionId === null ? [] : [revisionId];
+    }),
+  };
+}
+
+/**
+ * The revisions that an `If-Match` request accepts as the current head.
+ *
+ * A write needs a tag of a state that the client actually read. A request
+ * without the header, and a request that carries `*`, both answer 428: `*`
+ * would accept whatever the head is now, which is the lost update that this
+ * precondition exists to prevent.
+ */
+function requiredTags(request: FastifyRequest): readonly string[] {
   const value = header(request, 'if-match');
   if (value === undefined)
     throw new PreconditionRequiredError(
       'This operation needs the If-Match entity tag of the head that was read.',
     );
-  const revisionId = parseTag(value);
-  // A tag that this server never issued cannot name the current head, so the
-  // answer is the same as for a head that moved on.
-  if (revisionId === null) refuse('stale_head', [fileId]);
-  return revisionId;
+  const condition = parseTagList(value);
+  if (condition.star)
+    throw new PreconditionRequiredError(
+      'This operation needs the entity tag of one state, so If-Match * is not enough.',
+    );
+  return condition.revisionIds;
 }
 
 /** Whether an `If-None-Match` value names the current entity tag. */
@@ -134,10 +172,11 @@ export function matchesNoneMatch(
   tag: string,
 ): boolean {
   if (value === undefined) return false;
-  return value
-    .split(',')
-    .map((entry) => entry.trim())
-    .some((entry) => entry === '*' || entry === tag);
+  const condition = parseTagList(value);
+  return (
+    condition.star ||
+    condition.revisionIds.some((revisionId) => revisionTag(revisionId) === tag)
+  );
 }
 
 /** The public members of one revision. */
@@ -160,12 +199,31 @@ function revisionBody(revision: RevisionRecord): Record<string, unknown> {
   };
 }
 
+/** The public members of one accepted revision. */
+function acceptedRevisionBody(
+  revision: AcceptedRevision,
+): Record<string, unknown> {
+  return {
+    revisionId: revision.revisionId,
+    fileId: revision.fileId,
+    parents: [...revision.parents],
+    path: revision.path,
+    deleted: revision.deleted,
+    digest: revision.digest,
+    size: revision.size,
+    actorAccountId: revision.actorAccountId,
+    serverTime: revision.serverTime,
+    message: revision.message,
+  };
+}
+
 /** The public members of one accepted changeset. */
 function acceptedBody(outcome: AcceptedChangeset): Record<string, unknown> {
   return {
     mutationId: outcome.mutationId,
     revisionIds: [...outcome.revisionIds],
     cursor: outcome.cursor,
+    revisions: outcome.revisions.map(acceptedRevisionBody),
   };
 }
 
@@ -269,22 +327,98 @@ export function missingWorkspaceStore(): WorkspaceStore {
   };
 }
 
+/**
+ * The answer of one single file write.
+ *
+ * The answer is built from the accepted write itself. A read back would need
+ * the read permission, and an actor that may write but not read would then be
+ * refused after its change was already stored.
+ *
+ * The entity tag names the revision that the operation accepted. A change from
+ * somewhere else can make it stale, and the next conditional write then answers
+ * 412, which is the documented way to notice it.
+ */
+function answerAccepted(
+  reply: FastifyReply,
+  accepted: AcceptedChangeset,
+  status: number,
+): HandlerResult {
+  const revision = accepted.revisions[0];
+  if (revision === undefined)
+    throw new Error('notesapp: an accepted changeset named no revision.');
+  reply.header('etag', revisionTag(revision.revisionId));
+  return {
+    status,
+    mediaType: jsonMediaType,
+    body: {
+      revision: acceptedRevisionBody(revision),
+      accepted: acceptedBody(accepted),
+    },
+  };
+}
+
 /** Builds the file, revision, and changeset handlers. */
 export function createFileHandlers(store: WorkspaceStore): HandlerMap {
-  /** Reads one revision, or answers that the expected head has moved on. */
-  async function expectedRevision(
+  /**
+   * The answer that a retry of an already accepted mutation receives.
+   *
+   * The receipt is read before the current head, exactly as the use case reads
+   * it inside its transaction. An accepted mutation must stay replayable after
+   * its head has moved on and after its file was deleted, and a mutation
+   * identity that was used for another operation must be reported as reused
+   * rather than as a failed precondition.
+   */
+  async function replayedAnswer(
+    request: FastifyRequest,
+    reply: FastifyReply,
+    input: {
+      readonly workspaceId: string;
+      readonly fileId: string;
+      readonly mutationId: string;
+      readonly digest: string;
+      readonly status: number;
+    },
+  ): Promise<HandlerResult | null> {
+    const actor = requireActor(request).actor;
+    const receipt = unwrap(
+      await readMutationReceipt(
+        store,
+        actor,
+        input.workspaceId,
+        input.mutationId,
+      ),
+    );
+    if (receipt === null) return null;
+    if (receipt.digest !== input.digest)
+      refuse('mutation_reused', [input.fileId]);
+    return answerAccepted(reply, receipt.outcome, input.status);
+  }
+
+  /**
+   * The accepted head of the file that a conditional write names.
+   *
+   * The head comes from the write path, so it needs the `write` action and not
+   * `read`: an actor that may change a file may base its revision on the state
+   * it is replacing. A denied actor therefore answers 403, and a missing file
+   * answers 404, instead of both looking like a failed precondition.
+   *
+   * The entity tags of the request are compared against that head. A head that
+   * none of them names answers 412. The changeset states the same head again,
+   * and the commit compares it under the workspace lock, so a change between
+   * this read and the commit is also a 412.
+   */
+  async function conditionalHead(
     request: FastifyRequest,
     workspaceId: string,
     fileId: string,
+    tags: readonly string[],
   ): Promise<RevisionRecord> {
-    const expected = requiredExpectedHead(request, fileId);
     const actor = requireActor(request).actor;
-    const found = await readRevision(store, actor, workspaceId, expected);
-    // A revision that this workspace does not hold, and a revision of another
-    // file, are both answers to a tag that cannot name this head.
-    if (!found.ok || found.value.fileId !== fileId)
-      refuse('stale_head', [fileId]);
-    return found.value;
+    const head = unwrap(
+      await readHeadForWrite(store, actor, workspaceId, fileId),
+    );
+    if (!tags.includes(head.revisionId)) refuse('stale_head', [fileId]);
+    return head;
   }
 
   /** Commits one changeset and answers with the revision it accepted. */
@@ -302,24 +436,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     const accepted = unwrap(
       await commitChangeset(store, actor, input.changeset, input.digest),
     );
-    const revisionId = accepted.revisionIds[0];
-    if (revisionId === undefined)
-      throw new Error('notesapp: an accepted changeset named no revision.');
-    const revision = unwrap(
-      await readRevision(store, actor, input.workspaceId, revisionId),
-    );
-    // The tag names the revision that this operation accepted. A change from
-    // somewhere else can make it stale, and the next conditional write then
-    // answers 412, which is the documented way to notice it.
-    reply.header('etag', revisionTag(revision.revisionId));
-    return {
-      status: input.status,
-      mediaType: jsonMediaType,
-      body: {
-        revision: revisionBody(revision),
-        accepted: acceptedBody(accepted),
-      },
-    };
+    return answerAccepted(reply, accepted, input.status);
   }
 
   return {
@@ -422,8 +539,26 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     updateFile: async (request, reply): Promise<HandlerResult> => {
       const workspaceId = readText(request.params, 'workspaceId');
       const fileId = readText(request.params, 'fileId');
-      const head = await expectedRevision(request, workspaceId, fileId);
       const body = request.body;
+      // The digest covers the tags that the request stated, not the head they
+      // resolved to, so a retry of the same request reaches the same value
+      // however the workspace has moved on since.
+      const tags = requiredTags(request);
+      const digest = await requestDigest(
+        'updateFile',
+        { workspaceId, fileId, ifMatch: tags },
+        body,
+      );
+      const mutationId = readText(body, 'mutationId');
+      const replayed = await replayedAnswer(request, reply, {
+        workspaceId,
+        fileId,
+        mutationId,
+        digest,
+        status: 200,
+      });
+      if (replayed !== null) return replayed;
+      const head = await conditionalHead(request, workspaceId, fileId, tags);
       const text = readProperty(body, 'text');
       const path = readProperty(body, 'path');
       const changeset = updateFileChangeset({
@@ -443,11 +578,6 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         message: readOptionalText(body, 'message'),
         ids: submissionIds(body),
       });
-      const digest = await requestDigest(
-        'updateFile',
-        { workspaceId, fileId, ifMatch: head.revisionId },
-        body,
-      );
       return commitSingleFile(request, reply, {
         workspaceId,
         changeset,
@@ -459,8 +589,22 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     deleteFile: async (request, reply): Promise<HandlerResult> => {
       const workspaceId = readText(request.params, 'workspaceId');
       const fileId = readText(request.params, 'fileId');
-      const head = await expectedRevision(request, workspaceId, fileId);
       const body = request.body;
+      const tags = requiredTags(request);
+      const digest = await requestDigest(
+        'deleteFile',
+        { workspaceId, fileId, ifMatch: tags },
+        body,
+      );
+      const replayed = await replayedAnswer(request, reply, {
+        workspaceId,
+        fileId,
+        mutationId: readText(body, 'mutationId'),
+        digest,
+        status: 200,
+      });
+      if (replayed !== null) return replayed;
+      const head = await conditionalHead(request, workspaceId, fileId, tags);
       const changeset = updateFileChangeset({
         workspaceId,
         fileId,
@@ -475,11 +619,6 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         message: readOptionalText(body, 'message'),
         ids: submissionIds(body),
       });
-      const digest = await requestDigest(
-        'deleteFile',
-        { workspaceId, fileId, ifMatch: head.revisionId },
-        body,
-      );
       return commitSingleFile(request, reply, {
         workspaceId,
         changeset,

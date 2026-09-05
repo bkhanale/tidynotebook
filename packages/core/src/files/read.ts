@@ -14,6 +14,7 @@ import { fail, ok, type Result } from './model.ts';
 import type {
   FilePage,
   FileRecord,
+  MutationReceipt,
   PageRequest,
   RevisionRecord,
   WorkspaceStore,
@@ -95,6 +96,78 @@ export function readFile(
           ? null
           : await tx.revision(file.headRevisionId);
       return ok({ file, head });
+    },
+  );
+}
+
+/**
+ * The accepted head of a file, for the operation that is about to change it.
+ *
+ * This is part of the write path, so it checks the `write` action rather than
+ * `read`. A caller that may write a file may base its revision on the head of
+ * that file: it needs the head identifier as the parent of its revision, and
+ * it needs the stored path and content when its request changes only one of
+ * them. The value never reaches a write answer, so this call discloses no
+ * content to an actor that may not read the workspace.
+ *
+ * A file that does not exist, one that has no accepted revision, and one that
+ * was deleted are all `not_found`. Restoring a deleted file is an explicit
+ * operation of its own.
+ *
+ * The answer can be out of date the moment it is returned. That is safe: the
+ * changeset states the head it saw, and `commitChangeset` compares it again
+ * under the workspace lock, so a change in between is a `stale_head`.
+ */
+export function readHeadForWrite(
+  store: WorkspaceStore,
+  actor: Actor,
+  workspaceId: string,
+  fileId: string,
+): Promise<Result<RevisionRecord>> {
+  return store.transact<Result<RevisionRecord>>(
+    actor,
+    workspaceId,
+    async (tx) => {
+      const role = await tx.role(actor.accountId);
+      if (role === null) return fail('forbidden');
+      const permitted = authorize(actor, workspaceId, role, 'write');
+      if (!permitted.ok) return permitted;
+      const file = await tx.file(fileId);
+      if (file === null || file.deleted || file.headRevisionId === null)
+        return fail('not_found', [fileId]);
+      const head = await tx.revision(file.headRevisionId);
+      if (head === null) return fail('not_found', [fileId]);
+      return ok(head);
+    },
+  );
+}
+
+/**
+ * The receipt of an earlier mutation of this actor, or `null`.
+ *
+ * This is part of the write path, so it checks the `write` action. A transport
+ * uses it to answer a retry the way the first attempt was answered, before it
+ * reads the current head: an accepted mutation must be replayable after the
+ * head has moved on, and a reused mutation identity must be reported as such
+ * rather than as a failed precondition. `commitChangeset` applies the same
+ * order inside its transaction, so a race only sends the request down the
+ * normal path, where the receipt is found again.
+ */
+export function readMutationReceipt(
+  store: WorkspaceStore,
+  actor: Actor,
+  workspaceId: string,
+  mutationId: string,
+): Promise<Result<MutationReceipt | null>> {
+  return store.transact<Result<MutationReceipt | null>>(
+    actor,
+    workspaceId,
+    async (tx) => {
+      const role = await tx.role(actor.accountId);
+      if (role === null) return fail('forbidden');
+      const permitted = authorize(actor, workspaceId, role, 'write');
+      if (!permitted.ok) return permitted;
+      return ok(await tx.receipt(mutationId, actor.accountId));
     },
   );
 }

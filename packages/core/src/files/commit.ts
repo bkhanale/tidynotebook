@@ -11,17 +11,23 @@
  * earlier one passed:
  *
  * ```text
- * lock workspace, mutation identity, sorted affected files   (store.transact)
+ * take the workspace lock                                    (store.transact)
  * check current role and grants
  * read the actor bound receipt
  *   same digest    -> return the stored outcome
  *   other digest   -> mutation_reused
- * check purge markers
+ * check purge markers                                       (one query)
  * check paths, the revision graph, and every expected head
- * verify every Markdown digest
- * accept: content, revisions, heads, indexes, cursor, receipt   (one write)
+ * check every Markdown text and its digest
+ * accept: lock the affected files in identifier order, then write content,
+ *   revisions, heads, indexes, cursor, and receipt            (one write)
  * remove the side records of every deleted file
  * ```
+ *
+ * The workspace lock serializes every write of one workspace, so the checks
+ * above cannot be overtaken between the read and the write. The row locks of
+ * the affected files are taken inside `accept`, in identifier order, which is
+ * what keeps two changesets that share files free of a deadlock.
  *
  * The receipt is read before the heads and before the quota, because a first
  * attempt that the client never saw may already have changed both. A replay
@@ -144,12 +150,22 @@ async function checkHeads(
 }
 
 /**
- * Verifies that every Markdown revision matches its declared digest.
+ * Checks the submitted Markdown of every revision.
  *
- * Content is addressed by digest and deduplicated inside a workspace, so a
- * revision that declared a digest of other stored bytes would resolve to those
- * bytes instead of the submitted text. Storage checks this as well; this check
- * keeps the wrong content out of storage in the first place.
+ * Three rules apply, and all three answer `invalid_content`:
+ *
+ * - The text must be well formed. A lone surrogate becomes U+FFFD when the
+ *   value is encoded as UTF-8, so the stored bytes would differ from the
+ *   submitted string and the digest would never match again.
+ * - A note tombstone carries no text. A deletion that carried Markdown would
+ *   add content while it claims to remove a file, and the quota rule that
+ *   keeps a full workspace manageable reserves capacity for operations that
+ *   add nothing. The revision before the tombstone still holds the content.
+ * - The text must match its declared digest. Content is addressed by digest
+ *   and deduplicated inside a workspace, so a revision that declared the
+ *   digest of other stored bytes would resolve to those bytes instead of the
+ *   submitted text. Storage checks this as well; this check keeps the wrong
+ *   content out of storage in the first place.
  */
 async function checkContent(
   revisions: readonly RevisionInput[],
@@ -158,6 +174,13 @@ async function checkContent(
   for (const revision of revisions) {
     const content = revision.content;
     if (content.kind !== 'markdown') continue;
+    if (
+      !content.text.isWellFormed() ||
+      (revision.deleted && content.text !== '')
+    ) {
+      wrong.push(revision.fileId);
+      continue;
+    }
     const digest = await contentDigest(content.text);
     if (digest !== content.digest.toLowerCase()) wrong.push(revision.fileId);
   }
@@ -204,12 +227,7 @@ export async function commitChangeset(
         return fail<AcceptedChangeset>('mutation_reused', fileIds);
       }
 
-      const markers = await Promise.all(
-        fileIds.map((fileId) => tx.isPurged(fileId)),
-      );
-      const purged = fileIds.filter(
-        (_, position) => markers[position] === true,
-      );
+      const purged = await tx.purgedFiles(fileIds);
       if (purged.length > 0) return fail<AcceptedChangeset>('purged', purged);
 
       const normalized = normalizeRevisions(input);

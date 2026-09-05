@@ -1308,7 +1308,8 @@ export const operations: readonly OperationEntry[] = [
           "required": [
             "mutationId",
             "revisionIds",
-            "cursor"
+            "cursor",
+            "revisions"
           ],
           "properties": {
             "mutationId": {
@@ -1347,6 +1348,145 @@ export const operations: readonly OperationEntry[] = [
               "minLength": 1,
               "maxLength": 32,
               "pattern": "^[0-9]+$"
+            },
+            "revisions": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.",
+              "minItems": 1,
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                "additionalProperties": false,
+                "required": [
+                  "revisionId",
+                  "fileId",
+                  "parents",
+                  "path",
+                  "deleted",
+                  "digest",
+                  "size",
+                  "actorAccountId",
+                  "serverTime",
+                  "message"
+                ],
+                "properties": {
+                  "revisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Identifier of the accepted revision."
+                  },
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file that the revision belongs to."
+                  },
+                  "parents": {
+                    "type": "array",
+                    "readOnly": true,
+                    "description": "The parents of the revision, in submitted order.",
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "path": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted path, in its normalized form."
+                  },
+                  "deleted": {
+                    "type": "boolean",
+                    "readOnly": true,
+                    "description": "True for a tombstone, which is how a deletion is recorded."
+                  },
+                  "digest": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                        "minLength": 64,
+                        "maxLength": 64,
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Digest of the content of the revision."
+                  },
+                  "size": {
+                    "type": "integer",
+                    "readOnly": true,
+                    "description": "Size of the content in bytes.",
+                    "minimum": 0
+                  },
+                  "actorAccountId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                  },
+                  "serverTime": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the workspace accepted the revision.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  },
+                  "message": {
+                    "allOf": [
+                      {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                        "maxLength": 512
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
             }
           }
         }
@@ -3662,23 +3802,19 @@ export const operations: readonly OperationEntry[] = [
               "allOf": [
                 {
                   "type": "object",
-                  "description": "One immutable revision. Its identity, its parents, and its content never change after acceptance.",
+                  "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
                   "additionalProperties": false,
                   "required": [
                     "revisionId",
                     "fileId",
-                    "path",
-                    "kind",
-                    "deleted",
                     "parents",
+                    "path",
+                    "deleted",
                     "digest",
                     "size",
-                    "text",
-                    "attachmentObjectId",
-                    "message",
-                    "restoredFrom",
-                    "clientTime",
-                    "serverTime"
+                    "actorAccountId",
+                    "serverTime",
+                    "message"
                   ],
                   "properties": {
                     "revisionId": {
@@ -3693,7 +3829,7 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "Identifier of this revision."
+                      "description": "Identifier of the accepted revision."
                     },
                     "fileId": {
                       "allOf": [
@@ -3707,7 +3843,21 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The file that this revision belongs to."
+                      "description": "The file that the revision belongs to."
+                    },
+                    "parents": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "The parents of the revision, in submitted order.",
+                      "maxItems": 2,
+                      "items": {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
                     },
                     "path": {
                       "allOf": [
@@ -3719,40 +3869,12 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The path of the file at this revision."
-                    },
-                    "kind": {
-                      "allOf": [
-                        {
-                          "type": "string",
-                          "description": "Whether a file holds Markdown or an attachment.",
-                          "enum": [
-                            "note",
-                            "attachment"
-                          ]
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "Whether this revision holds Markdown or an attachment."
+                      "description": "The accepted path, in its normalized form."
                     },
                     "deleted": {
                       "type": "boolean",
                       "readOnly": true,
                       "description": "True for a tombstone, which is how a deletion is recorded."
-                    },
-                    "parents": {
-                      "type": "array",
-                      "readOnly": true,
-                      "description": "The parents of this revision, in submitted order. A first revision has none, a normal revision has one, and an explicit merge has two.",
-                      "maxItems": 2,
-                      "items": {
-                        "type": "string",
-                        "description": "A UUID that names one record.",
-                        "format": "uuid",
-                        "minLength": 36,
-                        "maxLength": 36,
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                      }
                     },
                     "digest": {
                       "allOf": [
@@ -3765,7 +3887,7 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "Digest of the content of this revision."
+                      "description": "Digest of the content of the revision."
                     },
                     "size": {
                       "type": "integer",
@@ -3773,22 +3895,8 @@ export const operations: readonly OperationEntry[] = [
                       "description": "Size of the content in bytes.",
                       "minimum": 0
                     },
-                    "text": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "description": "The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.",
-                          "maxLength": 1048576
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "The Markdown of this revision, or null for an attachment revision."
-                    },
-                    "attachmentObjectId": {
-                      "oneOf": [
+                    "actorAccountId": {
+                      "allOf": [
                         {
                           "type": "string",
                           "description": "A UUID that names one record.",
@@ -3796,13 +3904,17 @@ export const operations: readonly OperationEntry[] = [
                           "minLength": 36,
                           "maxLength": 36,
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                        },
-                        {
-                          "type": "null"
                         }
                       ],
                       "readOnly": true,
-                      "description": "The immutable attachment object of this revision, or null for a Markdown revision. Its bytes are transferred separately."
+                      "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                    },
+                    "serverTime": {
+                      "type": "string",
+                      "readOnly": true,
+                      "description": "Instant at which the workspace accepted the revision.",
+                      "format": "date-time",
+                      "maxLength": 64
                     },
                     "message": {
                       "allOf": [
@@ -3816,44 +3928,13 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The checkpoint name of this revision, or null."
-                    },
-                    "restoredFrom": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "description": "A UUID that names one record.",
-                          "format": "uuid",
-                          "minLength": 36,
-                          "maxLength": 36,
-                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "The historic revision that this one restored, or null. A restore never rewinds history; it adds a revision."
-                    },
-                    "clientTime": {
-                      "type": "string",
-                      "readOnly": true,
-                      "description": "The clock of the device that wrote the revision. It stays informational, because a device clock cannot be trusted.",
-                      "format": "date-time",
-                      "maxLength": 64
-                    },
-                    "serverTime": {
-                      "type": "string",
-                      "readOnly": true,
-                      "description": "Instant at which the workspace accepted the revision.",
-                      "format": "date-time",
-                      "maxLength": 64
+                      "description": "The checkpoint name of the revision, or null."
                     }
                   }
                 }
               ],
               "readOnly": true,
-              "description": "The accepted revision. It is also the entity tag of the answer."
+              "description": "The accepted revision, as the workspace recorded it. Its identifier is the entity tag of the answer. It carries no text: the request that wrote it already holds the content."
             },
             "accepted": {
               "allOf": [
@@ -3864,7 +3945,8 @@ export const operations: readonly OperationEntry[] = [
                   "required": [
                     "mutationId",
                     "revisionIds",
-                    "cursor"
+                    "cursor",
+                    "revisions"
                   ],
                   "properties": {
                     "mutationId": {
@@ -3903,6 +3985,145 @@ export const operations: readonly OperationEntry[] = [
                       "minLength": 1,
                       "maxLength": 32,
                       "pattern": "^[0-9]+$"
+                    },
+                    "revisions": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.",
+                      "minItems": 1,
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                        "additionalProperties": false,
+                        "required": [
+                          "revisionId",
+                          "fileId",
+                          "parents",
+                          "path",
+                          "deleted",
+                          "digest",
+                          "size",
+                          "actorAccountId",
+                          "serverTime",
+                          "message"
+                        ],
+                        "properties": {
+                          "revisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "Identifier of the accepted revision."
+                          },
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file that the revision belongs to."
+                          },
+                          "parents": {
+                            "type": "array",
+                            "readOnly": true,
+                            "description": "The parents of the revision, in submitted order.",
+                            "maxItems": 2,
+                            "items": {
+                              "type": "string",
+                              "description": "A UUID that names one record.",
+                              "format": "uuid",
+                              "minLength": 36,
+                              "maxLength": 36,
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "path": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                                "minLength": 1,
+                                "maxLength": 1024
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted path, in its normalized form."
+                          },
+                          "deleted": {
+                            "type": "boolean",
+                            "readOnly": true,
+                            "description": "True for a tombstone, which is how a deletion is recorded."
+                          },
+                          "digest": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                                "minLength": 64,
+                                "maxLength": 64,
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "Digest of the content of the revision."
+                          },
+                          "size": {
+                            "type": "integer",
+                            "readOnly": true,
+                            "description": "Size of the content in bytes.",
+                            "minimum": 0
+                          },
+                          "actorAccountId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                          },
+                          "serverTime": {
+                            "type": "string",
+                            "readOnly": true,
+                            "description": "Instant at which the workspace accepted the revision.",
+                            "format": "date-time",
+                            "maxLength": 64
+                          },
+                          "message": {
+                            "allOf": [
+                              {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                                "maxLength": 512
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -5985,8 +6206,10 @@ export const operations: readonly OperationEntry[] = [
           },
           "if-match": {
             "type": "string",
-            "minLength": 3,
-            "maxLength": 128
+            "description": "A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^(?:\\*|(?:W/)?\"[^\"]*\"(?:[ \\t]*,[ \\t]*(?:W/)?\"[^\"]*\")*)$"
           }
         }
       },
@@ -6073,23 +6296,19 @@ export const operations: readonly OperationEntry[] = [
               "allOf": [
                 {
                   "type": "object",
-                  "description": "One immutable revision. Its identity, its parents, and its content never change after acceptance.",
+                  "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
                   "additionalProperties": false,
                   "required": [
                     "revisionId",
                     "fileId",
-                    "path",
-                    "kind",
-                    "deleted",
                     "parents",
+                    "path",
+                    "deleted",
                     "digest",
                     "size",
-                    "text",
-                    "attachmentObjectId",
-                    "message",
-                    "restoredFrom",
-                    "clientTime",
-                    "serverTime"
+                    "actorAccountId",
+                    "serverTime",
+                    "message"
                   ],
                   "properties": {
                     "revisionId": {
@@ -6104,7 +6323,7 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "Identifier of this revision."
+                      "description": "Identifier of the accepted revision."
                     },
                     "fileId": {
                       "allOf": [
@@ -6118,7 +6337,21 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The file that this revision belongs to."
+                      "description": "The file that the revision belongs to."
+                    },
+                    "parents": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "The parents of the revision, in submitted order.",
+                      "maxItems": 2,
+                      "items": {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
                     },
                     "path": {
                       "allOf": [
@@ -6130,40 +6363,12 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The path of the file at this revision."
-                    },
-                    "kind": {
-                      "allOf": [
-                        {
-                          "type": "string",
-                          "description": "Whether a file holds Markdown or an attachment.",
-                          "enum": [
-                            "note",
-                            "attachment"
-                          ]
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "Whether this revision holds Markdown or an attachment."
+                      "description": "The accepted path, in its normalized form."
                     },
                     "deleted": {
                       "type": "boolean",
                       "readOnly": true,
                       "description": "True for a tombstone, which is how a deletion is recorded."
-                    },
-                    "parents": {
-                      "type": "array",
-                      "readOnly": true,
-                      "description": "The parents of this revision, in submitted order. A first revision has none, a normal revision has one, and an explicit merge has two.",
-                      "maxItems": 2,
-                      "items": {
-                        "type": "string",
-                        "description": "A UUID that names one record.",
-                        "format": "uuid",
-                        "minLength": 36,
-                        "maxLength": 36,
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                      }
                     },
                     "digest": {
                       "allOf": [
@@ -6176,7 +6381,7 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "Digest of the content of this revision."
+                      "description": "Digest of the content of the revision."
                     },
                     "size": {
                       "type": "integer",
@@ -6184,22 +6389,8 @@ export const operations: readonly OperationEntry[] = [
                       "description": "Size of the content in bytes.",
                       "minimum": 0
                     },
-                    "text": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "description": "The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.",
-                          "maxLength": 1048576
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "The Markdown of this revision, or null for an attachment revision."
-                    },
-                    "attachmentObjectId": {
-                      "oneOf": [
+                    "actorAccountId": {
+                      "allOf": [
                         {
                           "type": "string",
                           "description": "A UUID that names one record.",
@@ -6207,13 +6398,17 @@ export const operations: readonly OperationEntry[] = [
                           "minLength": 36,
                           "maxLength": 36,
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                        },
-                        {
-                          "type": "null"
                         }
                       ],
                       "readOnly": true,
-                      "description": "The immutable attachment object of this revision, or null for a Markdown revision. Its bytes are transferred separately."
+                      "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                    },
+                    "serverTime": {
+                      "type": "string",
+                      "readOnly": true,
+                      "description": "Instant at which the workspace accepted the revision.",
+                      "format": "date-time",
+                      "maxLength": 64
                     },
                     "message": {
                       "allOf": [
@@ -6227,44 +6422,13 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The checkpoint name of this revision, or null."
-                    },
-                    "restoredFrom": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "description": "A UUID that names one record.",
-                          "format": "uuid",
-                          "minLength": 36,
-                          "maxLength": 36,
-                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "The historic revision that this one restored, or null. A restore never rewinds history; it adds a revision."
-                    },
-                    "clientTime": {
-                      "type": "string",
-                      "readOnly": true,
-                      "description": "The clock of the device that wrote the revision. It stays informational, because a device clock cannot be trusted.",
-                      "format": "date-time",
-                      "maxLength": 64
-                    },
-                    "serverTime": {
-                      "type": "string",
-                      "readOnly": true,
-                      "description": "Instant at which the workspace accepted the revision.",
-                      "format": "date-time",
-                      "maxLength": 64
+                      "description": "The checkpoint name of the revision, or null."
                     }
                   }
                 }
               ],
               "readOnly": true,
-              "description": "The accepted revision. It is also the entity tag of the answer."
+              "description": "The accepted revision, as the workspace recorded it. Its identifier is the entity tag of the answer. It carries no text: the request that wrote it already holds the content."
             },
             "accepted": {
               "allOf": [
@@ -6275,7 +6439,8 @@ export const operations: readonly OperationEntry[] = [
                   "required": [
                     "mutationId",
                     "revisionIds",
-                    "cursor"
+                    "cursor",
+                    "revisions"
                   ],
                   "properties": {
                     "mutationId": {
@@ -6314,6 +6479,145 @@ export const operations: readonly OperationEntry[] = [
                       "minLength": 1,
                       "maxLength": 32,
                       "pattern": "^[0-9]+$"
+                    },
+                    "revisions": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.",
+                      "minItems": 1,
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                        "additionalProperties": false,
+                        "required": [
+                          "revisionId",
+                          "fileId",
+                          "parents",
+                          "path",
+                          "deleted",
+                          "digest",
+                          "size",
+                          "actorAccountId",
+                          "serverTime",
+                          "message"
+                        ],
+                        "properties": {
+                          "revisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "Identifier of the accepted revision."
+                          },
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file that the revision belongs to."
+                          },
+                          "parents": {
+                            "type": "array",
+                            "readOnly": true,
+                            "description": "The parents of the revision, in submitted order.",
+                            "maxItems": 2,
+                            "items": {
+                              "type": "string",
+                              "description": "A UUID that names one record.",
+                              "format": "uuid",
+                              "minLength": 36,
+                              "maxLength": 36,
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "path": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                                "minLength": 1,
+                                "maxLength": 1024
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted path, in its normalized form."
+                          },
+                          "deleted": {
+                            "type": "boolean",
+                            "readOnly": true,
+                            "description": "True for a tombstone, which is how a deletion is recorded."
+                          },
+                          "digest": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                                "minLength": 64,
+                                "maxLength": 64,
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "Digest of the content of the revision."
+                          },
+                          "size": {
+                            "type": "integer",
+                            "readOnly": true,
+                            "description": "Size of the content in bytes.",
+                            "minimum": 0
+                          },
+                          "actorAccountId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                          },
+                          "serverTime": {
+                            "type": "string",
+                            "readOnly": true,
+                            "description": "Instant at which the workspace accepted the revision.",
+                            "format": "date-time",
+                            "maxLength": 64
+                          },
+                          "message": {
+                            "allOf": [
+                              {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                                "maxLength": 512
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
                     }
                   }
                 }
@@ -9695,8 +9999,10 @@ export const operations: readonly OperationEntry[] = [
           },
           "if-none-match": {
             "type": "string",
-            "minLength": 3,
-            "maxLength": 128
+            "description": "A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^(?:\\*|(?:W/)?\"[^\"]*\"(?:[ \\t]*,[ \\t]*(?:W/)?\"[^\"]*\")*)$"
           }
         }
       },
@@ -23028,8 +23334,10 @@ export const operations: readonly OperationEntry[] = [
           },
           "if-match": {
             "type": "string",
-            "minLength": 3,
-            "maxLength": 128
+            "description": "A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^(?:\\*|(?:W/)?\"[^\"]*\"(?:[ \\t]*,[ \\t]*(?:W/)?\"[^\"]*\")*)$"
           }
         }
       },
@@ -23137,23 +23445,19 @@ export const operations: readonly OperationEntry[] = [
               "allOf": [
                 {
                   "type": "object",
-                  "description": "One immutable revision. Its identity, its parents, and its content never change after acceptance.",
+                  "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
                   "additionalProperties": false,
                   "required": [
                     "revisionId",
                     "fileId",
-                    "path",
-                    "kind",
-                    "deleted",
                     "parents",
+                    "path",
+                    "deleted",
                     "digest",
                     "size",
-                    "text",
-                    "attachmentObjectId",
-                    "message",
-                    "restoredFrom",
-                    "clientTime",
-                    "serverTime"
+                    "actorAccountId",
+                    "serverTime",
+                    "message"
                   ],
                   "properties": {
                     "revisionId": {
@@ -23168,7 +23472,7 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "Identifier of this revision."
+                      "description": "Identifier of the accepted revision."
                     },
                     "fileId": {
                       "allOf": [
@@ -23182,7 +23486,21 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The file that this revision belongs to."
+                      "description": "The file that the revision belongs to."
+                    },
+                    "parents": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "The parents of the revision, in submitted order.",
+                      "maxItems": 2,
+                      "items": {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
                     },
                     "path": {
                       "allOf": [
@@ -23194,40 +23512,12 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The path of the file at this revision."
-                    },
-                    "kind": {
-                      "allOf": [
-                        {
-                          "type": "string",
-                          "description": "Whether a file holds Markdown or an attachment.",
-                          "enum": [
-                            "note",
-                            "attachment"
-                          ]
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "Whether this revision holds Markdown or an attachment."
+                      "description": "The accepted path, in its normalized form."
                     },
                     "deleted": {
                       "type": "boolean",
                       "readOnly": true,
                       "description": "True for a tombstone, which is how a deletion is recorded."
-                    },
-                    "parents": {
-                      "type": "array",
-                      "readOnly": true,
-                      "description": "The parents of this revision, in submitted order. A first revision has none, a normal revision has one, and an explicit merge has two.",
-                      "maxItems": 2,
-                      "items": {
-                        "type": "string",
-                        "description": "A UUID that names one record.",
-                        "format": "uuid",
-                        "minLength": 36,
-                        "maxLength": 36,
-                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                      }
                     },
                     "digest": {
                       "allOf": [
@@ -23240,7 +23530,7 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "Digest of the content of this revision."
+                      "description": "Digest of the content of the revision."
                     },
                     "size": {
                       "type": "integer",
@@ -23248,22 +23538,8 @@ export const operations: readonly OperationEntry[] = [
                       "description": "Size of the content in bytes.",
                       "minimum": 0
                     },
-                    "text": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "description": "The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.",
-                          "maxLength": 1048576
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "The Markdown of this revision, or null for an attachment revision."
-                    },
-                    "attachmentObjectId": {
-                      "oneOf": [
+                    "actorAccountId": {
+                      "allOf": [
                         {
                           "type": "string",
                           "description": "A UUID that names one record.",
@@ -23271,13 +23547,17 @@ export const operations: readonly OperationEntry[] = [
                           "minLength": 36,
                           "maxLength": 36,
                           "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                        },
-                        {
-                          "type": "null"
                         }
                       ],
                       "readOnly": true,
-                      "description": "The immutable attachment object of this revision, or null for a Markdown revision. Its bytes are transferred separately."
+                      "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                    },
+                    "serverTime": {
+                      "type": "string",
+                      "readOnly": true,
+                      "description": "Instant at which the workspace accepted the revision.",
+                      "format": "date-time",
+                      "maxLength": 64
                     },
                     "message": {
                       "allOf": [
@@ -23291,44 +23571,13 @@ export const operations: readonly OperationEntry[] = [
                         }
                       ],
                       "readOnly": true,
-                      "description": "The checkpoint name of this revision, or null."
-                    },
-                    "restoredFrom": {
-                      "oneOf": [
-                        {
-                          "type": "string",
-                          "description": "A UUID that names one record.",
-                          "format": "uuid",
-                          "minLength": 36,
-                          "maxLength": 36,
-                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "readOnly": true,
-                      "description": "The historic revision that this one restored, or null. A restore never rewinds history; it adds a revision."
-                    },
-                    "clientTime": {
-                      "type": "string",
-                      "readOnly": true,
-                      "description": "The clock of the device that wrote the revision. It stays informational, because a device clock cannot be trusted.",
-                      "format": "date-time",
-                      "maxLength": 64
-                    },
-                    "serverTime": {
-                      "type": "string",
-                      "readOnly": true,
-                      "description": "Instant at which the workspace accepted the revision.",
-                      "format": "date-time",
-                      "maxLength": 64
+                      "description": "The checkpoint name of the revision, or null."
                     }
                   }
                 }
               ],
               "readOnly": true,
-              "description": "The accepted revision. It is also the entity tag of the answer."
+              "description": "The accepted revision, as the workspace recorded it. Its identifier is the entity tag of the answer. It carries no text: the request that wrote it already holds the content."
             },
             "accepted": {
               "allOf": [
@@ -23339,7 +23588,8 @@ export const operations: readonly OperationEntry[] = [
                   "required": [
                     "mutationId",
                     "revisionIds",
-                    "cursor"
+                    "cursor",
+                    "revisions"
                   ],
                   "properties": {
                     "mutationId": {
@@ -23378,6 +23628,145 @@ export const operations: readonly OperationEntry[] = [
                       "minLength": 1,
                       "maxLength": 32,
                       "pattern": "^[0-9]+$"
+                    },
+                    "revisions": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.",
+                      "minItems": 1,
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                        "additionalProperties": false,
+                        "required": [
+                          "revisionId",
+                          "fileId",
+                          "parents",
+                          "path",
+                          "deleted",
+                          "digest",
+                          "size",
+                          "actorAccountId",
+                          "serverTime",
+                          "message"
+                        ],
+                        "properties": {
+                          "revisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "Identifier of the accepted revision."
+                          },
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file that the revision belongs to."
+                          },
+                          "parents": {
+                            "type": "array",
+                            "readOnly": true,
+                            "description": "The parents of the revision, in submitted order.",
+                            "maxItems": 2,
+                            "items": {
+                              "type": "string",
+                              "description": "A UUID that names one record.",
+                              "format": "uuid",
+                              "minLength": 36,
+                              "maxLength": 36,
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          },
+                          "path": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                                "minLength": 1,
+                                "maxLength": 1024
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted path, in its normalized form."
+                          },
+                          "deleted": {
+                            "type": "boolean",
+                            "readOnly": true,
+                            "description": "True for a tombstone, which is how a deletion is recorded."
+                          },
+                          "digest": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                                "minLength": 64,
+                                "maxLength": 64,
+                                "pattern": "^[0-9a-f]{64}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "Digest of the content of the revision."
+                          },
+                          "size": {
+                            "type": "integer",
+                            "readOnly": true,
+                            "description": "Size of the content in bytes.",
+                            "minimum": 0
+                          },
+                          "actorAccountId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                          },
+                          "serverTime": {
+                            "type": "string",
+                            "readOnly": true,
+                            "description": "Instant at which the workspace accepted the revision.",
+                            "format": "date-time",
+                            "maxLength": 64
+                          },
+                          "message": {
+                            "allOf": [
+                              {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ],
+                                "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                                "maxLength": 512
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
                     }
                   }
                 }

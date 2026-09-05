@@ -57,6 +57,22 @@
             "message": "The application asset cache belongs to the web application."
           },
           {
+            "name": "Worker",
+            "message": "A shared package runs inside its caller and starts no worker."
+          },
+          {
+            "name": "SharedWorker",
+            "message": "A shared package runs inside its caller and starts no worker."
+          },
+          {
+            "name": "importScripts",
+            "message": "A shared package uses ECMAScript modules only."
+          },
+          {
+            "name": "postMessage",
+            "message": "Message passing belongs to the application, not to a shared package."
+          },
+          {
             "name": "process",
             "message": "A shared package runs in the browser and cannot use a Node global."
           },

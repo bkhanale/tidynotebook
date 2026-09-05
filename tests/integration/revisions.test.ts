@@ -47,8 +47,12 @@ import {
   openWorkspaceStore,
 } from '@notesapp/storage-server';
 import {
+  changeset,
   createDisposableDatabase,
+  markdown,
+  memberActor,
   openSession,
+  revision,
   seedWorkspace,
 } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
@@ -305,7 +309,15 @@ await test('an update needs the entity tag of the head it saw', async () => {
   const revisionId = updated.data?.revision.revisionId ?? '';
   assert.equal(response.headers.get('etag'), `"${revisionId}"`);
   assert.deepEqual(updated.data?.revision.parents, [file.revisionId]);
-  assert.equal(updated.data?.revision.text, '# two\n');
+  // The answer to a write carries the accepted record and no note text: the
+  // client already holds the content it sent.
+  assert.equal(
+    JSON.stringify(updated.data?.revision).includes('two'),
+    false,
+    JSON.stringify(updated.data?.revision),
+  );
+  assert.equal(updated.data?.revision.actorAccountId, ownerAccountId);
+  assert.match(updated.data?.revision.serverTime ?? '', /^\d{4}-/);
 
   // The old tag is stale now, and the same write with it answers 412.
   const again = await updateFile({
@@ -325,13 +337,13 @@ await test('a rename keeps the content and the file identity', async () => {
   });
   assert.equal(renamed.error, undefined, JSON.stringify(renamed.error));
   assert.equal(renamed.data?.revision.path, 'archive/after.md');
-  // The text was not resent, so the revision reuses the stored content.
-  assert.equal(renamed.data?.revision.text, '# keep\n');
   const read = await getFile({
     headers: browser(cookie),
     path: { workspaceId, fileId: file.fileId },
   });
   assert.equal(read.data?.path, 'archive/after.md');
+  // The text was not resent, so the revision reuses the stored content.
+  assert.equal(read.data?.head?.text, '# keep\n');
 });
 
 await test('a deletion writes a tombstone and hides the file', async () => {
@@ -344,7 +356,8 @@ await test('a deletion writes a tombstone and hides the file', async () => {
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
   assert.equal(responseOf(removed.response).status, 200);
   assert.equal(removed.data?.revision.deleted, true);
-  assert.equal(removed.data?.revision.text, '');
+  // A tombstone carries no content, so it adds no stored bytes.
+  assert.equal(removed.data?.revision.size, 0);
 
   const read = await getFile({
     headers: browser(cookie),
@@ -768,6 +781,163 @@ await test('a folder change of 1000 files commits, and 1001 does not', async () 
   assert.equal(problemFiles(overLimit.error).length, 1001);
 });
 
+await test('a conditional read accepts a tag list and the star form', async () => {
+  const file = await newFile('notes/conditional.md');
+  const listed = await getFile({
+    headers: {
+      ...browser(cookie),
+      'if-none-match': `"${randomUUID()}", ${file.tag}`,
+    },
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(responseOf(listed.response).status, 304);
+  // The star form means any representation, so an existing file is unchanged.
+  const star = await getFile({
+    headers: { ...browser(cookie), 'if-none-match': '*' },
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(responseOf(star.response).status, 304);
+});
+
+await test('a write refuses the star precondition and accepts a tag list', async () => {
+  const file = await newFile('notes/precondition.md');
+  // A star would accept whatever the head is now, which is the lost update
+  // that this precondition exists to prevent.
+  const star = await updateFile({
+    headers: { ...browser(cookie), 'if-match': '*' },
+    path: { workspaceId, fileId: file.fileId },
+    body: { text: '# two\n', ...ids() },
+  });
+  assert.equal(responseOf(star.response).status, 428);
+  assert.equal(problemCode(star.error), 'precondition_required');
+
+  const list = await updateFile({
+    headers: {
+      ...browser(cookie),
+      'if-match': `"${randomUUID()}", ${file.tag}`,
+    },
+    path: { workspaceId, fileId: file.fileId },
+    body: { text: '# two\n', ...ids() },
+  });
+  assert.equal(list.error, undefined, JSON.stringify(list.error));
+  assert.equal(responseOf(list.response).status, 200);
+});
+
+await test('a write to a file that does not exist answers 404', async () => {
+  const missing = await updateFile({
+    headers: { ...browser(cookie), 'if-match': `"${randomUUID()}"` },
+    path: { workspaceId, fileId: randomUUID() },
+    body: { text: '# x\n', ...ids() },
+  });
+  assert.equal(responseOf(missing.response).status, 404);
+  assert.equal(problemCode(missing.error), 'not_found');
+});
+
+await test('a file identifier that already exists cannot be created again', async () => {
+  const file = await newFile('notes/taken-id.md');
+  const again = await createFile({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      fileId: file.fileId,
+      path: 'notes/other-name.md',
+      text: '# x\n',
+      ...ids(),
+    },
+  });
+  // The changeset states that the file must not exist, so the accepted head
+  // fails that precondition.
+  assert.equal(responseOf(again.response).status, 412);
+  assert.equal(problemCode(again.error), 'stale_head');
+  assert.deepEqual(problemFiles(again.error), [file.fileId]);
+});
+
+await test('one submission can carry a chain of revisions of one file', async () => {
+  const fileId = randomUUID();
+  const first = await revisionBody({
+    fileId,
+    path: 'chain/one.md',
+    text: '# a\n',
+  });
+  const second = await revisionBody({
+    fileId,
+    path: 'chain/one.md',
+    text: '# b\n',
+    parents: [first.revisionId],
+  });
+  const committed = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [fileId]: null },
+      revisions: [first, second],
+    },
+  });
+  assert.equal(committed.error, undefined, JSON.stringify(committed.error));
+  assert.deepEqual(committed.data?.revisionIds, [
+    first.revisionId,
+    second.revisionId,
+  ]);
+  // The last revision of the chain becomes the head.
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId },
+  });
+  assert.equal(read.data?.headRevisionId, second.revisionId);
+  assert.equal(read.data?.head?.text, '# b\n');
+});
+
+await test('a replayed changeset repeats its first outcome', async () => {
+  const fileId = randomUUID();
+  const body = {
+    mutationId: randomUUID(),
+    deviceId: 'integration-device',
+    expectedHeads: { [fileId]: null },
+    revisions: [await revisionBody({ fileId, path: 'replay/one.md' })],
+  };
+  const first = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body,
+  });
+  assert.equal(first.error, undefined, JSON.stringify(first.error));
+  const replay = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body,
+  });
+  assert.equal(replay.error, undefined, JSON.stringify(replay.error));
+  assert.deepEqual(replay.data, first.data);
+});
+
+await test('markdown that is not well formed is refused', async () => {
+  const fileId = randomUUID();
+  // A lone surrogate becomes U+FFFD in UTF-8, so the stored bytes would differ
+  // from the submitted string and the digest could never match again.
+  const broken = '# \ud800\n';
+  const refused = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [fileId]: null },
+      revisions: [
+        await revisionBody({
+          fileId,
+          path: 'notes/broken.md',
+          text: broken,
+          digest: await contentDigest(broken),
+        }),
+      ],
+    },
+  });
+  assert.equal(responseOf(refused.response).status, 422);
+  assert.equal(problemCode(refused.error), 'invalid_content');
+});
+
 await test('a purged file identifier answers 410', async () => {
   const fileId = randomUUID();
   const session = await openSession(database.migrationUrl);
@@ -814,6 +984,66 @@ await test('a viewer may read but not write', async () => {
   });
   assert.equal(responseOf(refused.response).status, 403);
   assert.equal(problemCode(refused.error), 'forbidden');
+
+  // A denied write with a precondition is still a denied write, not a failed
+  // precondition, so the answer does not claim that a head moved.
+  const denied = await updateFile({
+    headers: { ...browser(cookie), 'if-match': `"${randomUUID()}"` },
+    path: { workspaceId: readOnlyWorkspace, fileId: randomUUID() },
+    body: { text: '# x\n', ...ids() },
+  });
+  assert.equal(responseOf(denied.response).status, 403);
+  assert.equal(problemCode(denied.error), 'forbidden');
+});
+
+await test('a write only token can create, change, and delete a file', async () => {
+  const issued = await createAgentToken({
+    headers: browser(cookie),
+    body: {
+      name: 'writer',
+      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      scopes: [{ workspaceId, actions: ['write'] }],
+    },
+  });
+  assert.equal(issued.error, undefined, JSON.stringify(issued.error));
+  const agent = { authorization: `Bearer ${issued.data?.secret ?? ''}` };
+  const fileId = randomUUID();
+  const created = await createFile({
+    headers: agent,
+    path: { workspaceId },
+    body: { fileId, path: 'agent/one.md', text: '# one\n', ...ids() },
+  });
+  assert.equal(created.error, undefined, JSON.stringify(created.error));
+  const createdResponse = responseOf(created.response);
+  assert.equal(createdResponse.status, 201);
+  const firstTag = createdResponse.headers.get('etag') ?? '';
+  assert.equal(firstTag, `"${created.data?.revision.revisionId ?? ''}"`);
+
+  const updated = await updateFile({
+    headers: { ...agent, 'if-match': firstTag },
+    path: { workspaceId, fileId },
+    body: { text: '# two\n', ...ids() },
+  });
+  assert.equal(updated.error, undefined, JSON.stringify(updated.error));
+  assert.equal(responseOf(updated.response).status, 200);
+  const secondTag = responseOf(updated.response).headers.get('etag') ?? '';
+
+  const removed = await deleteFile({
+    headers: { ...agent, 'if-match': secondTag },
+    path: { workspaceId, fileId },
+    body: ids(),
+  });
+  assert.equal(removed.error, undefined, JSON.stringify(removed.error));
+  assert.equal(responseOf(removed.response).status, 200);
+  assert.equal(removed.data?.revision.deleted, true);
+
+  // The token may write, so it may not read: the write answers never carried
+  // any note text, and a read is still refused.
+  const read = await getFile({
+    headers: agent,
+    path: { workspaceId, fileId },
+  });
+  assert.equal(responseOf(read.response).status, 403);
 });
 
 await test('an agent token cannot write outside its scope', async () => {
@@ -870,6 +1100,55 @@ await test('a full workspace still accepts a deletion', async () => {
   });
   assert.equal(responseOf(refused.response).status, 413);
   assert.equal(problemCode(refused.error), 'quota_exceeded');
+
+  // A deletion that carried content would reach the reserved capacity through
+  // a disguised write, so a tombstone with Markdown is refused outright.
+  const disguised = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId: fullWorkspace },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'notes/only.md',
+          parents: [file.revisionId],
+          deleted: true,
+          text: `# ${'padding '.repeat(50_000)}\n`,
+        }),
+      ],
+    },
+  });
+  assert.equal(responseOf(disguised.response).status, 422);
+  assert.equal(problemCode(disguised.error), 'invalid_content');
+
+  // Storage refuses the same disguised deletion on its own, so a caller that
+  // reaches the store without the use case cannot spend the reserve either.
+  const actor = memberActor(ownerAccountId, fullWorkspace);
+  const padding = `# ${'padding '.repeat(50_000)}\n`;
+  const refusedByStore = await content.transact(actor, fullWorkspace, (tx) =>
+    tx.accept(
+      actor,
+      changeset(
+        fullWorkspace,
+        [
+          revision({
+            fileId: file.fileId,
+            parents: [file.revisionId],
+            path: 'notes/only.md',
+            deleted: true,
+            content: markdown(padding),
+          }),
+        ],
+        { expectedHeads: { [file.fileId]: file.revisionId } },
+      ),
+      'disguised-delete-digest',
+    ),
+  );
+  assert.equal(refusedByStore.ok, false);
+  if (!refusedByStore.ok) assert.equal(refusedByStore.error.code, 'quota');
 
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },

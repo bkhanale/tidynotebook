@@ -64,11 +64,41 @@ export type ChangesetInput = {
   readonly revisions: readonly RevisionInput[];
 };
 
-/** The outcome of an accepted changeset, also stored as a mutation receipt. */
+/**
+ * One revision as the workspace accepted it.
+ *
+ * The record carries the values that the workspace assigned: the verified
+ * actor and the acceptance time. It carries no note text. A client that
+ * submitted the revision already holds its content, and a caller that may not
+ * read the workspace must not receive content through a write answer.
+ */
+export type AcceptedRevision = {
+  readonly revisionId: string;
+  readonly fileId: string;
+  readonly parents: readonly string[];
+  readonly path: string;
+  readonly deleted: boolean;
+  readonly digest: string;
+  /** Size of the content in bytes. */
+  readonly size: number;
+  readonly actorAccountId: string;
+  readonly serverTime: string;
+  readonly message: string | null;
+};
+
+/**
+ * The outcome of an accepted changeset, also stored as a mutation receipt.
+ *
+ * The accepted revisions travel with the outcome, so an answer to a write is
+ * built from the write itself rather than from a later read. A retry of the
+ * same mutation therefore repeats the same records, and a caller that may
+ * write but not read still receives its own acknowledgement.
+ */
 export type AcceptedChangeset = {
   readonly mutationId: string;
   readonly revisionIds: readonly string[];
   readonly cursor: string;
+  readonly revisions: readonly AcceptedRevision[];
 };
 
 /**

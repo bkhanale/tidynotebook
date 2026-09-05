@@ -56,9 +56,11 @@ Canonical JSON is the value with:
   request never reaches this error through the HTTP boundary.
 
 The HTTP adapter computes it from the validated request: the operation id, the
-path identifiers and the `If-Match` precondition, and the body. Two retries of
-one operation reach the same value, and a reused mutation identity with another
-body does not.
+path identifiers and the entity tags that `If-Match` stated, and the body. The
+digest covers the tags as they were sent, not the head they resolved to, so a
+retry of one request reaches the same value however the workspace has moved on
+since. Two retries of one operation therefore agree, and a reused mutation
+identity with another body does not.
 
 ## Transaction order
 
@@ -67,17 +69,19 @@ one passed:
 
 ```text
 refuse an empty changeset and one over 1000 files      (before any query)
-lock the workspace, then the affected files in identifier order
+take the workspace lock                                (store.transact)
 check the current role and the verified grants for `write`
 read the actor bound receipt
   same digest    -> return the stored outcome
   other digest   -> mutation_reused
-check the purge marker of every file
+check the purge marker of every file                   (one query)
 normalize and check every path
 check the revision graph against the stored parents
 compare every expected head
-verify every Markdown digest
-accept: content, revisions, heads, live paths, cursor, sync record, receipt
+check every Markdown text and its digest
+accept
+  lock the affected file rows in identifier order
+  write content, revisions, heads, live paths, cursor, sync record, receipt
 remove the side records of every deleted file
 commit once
 ```
@@ -90,10 +94,21 @@ savepoint, so an expected failure such as a path conflict writes nothing and a
 partly applied changeset cannot exist. A refused changeset also consumes no
 commit cursor.
 
-The workspace lock is an advisory transaction lock; the files are then locked by
-identifier order, so two changesets that share files cannot deadlock. The path
-uniqueness constraint is deferred, which is what permits an atomic swap of two
-paths inside one changeset.
+The workspace lock is an advisory transaction lock, and it is taken before the
+first check. Every write of one workspace is therefore serialized, and nothing
+can overtake a changeset between its checks and its write. The row locks of the
+affected files are taken inside `accept`, in identifier order, so two
+changesets that share files cannot deadlock. The path uniqueness constraint is
+deferred, which is what permits an atomic swap of two paths inside one
+changeset.
+
+The HTTP adapter keeps the same order in front of the use case. A single file
+write reads the actor's receipt for its mutation identity before it reads the
+current head, so an accepted mutation stays replayable after its head has moved
+on or its file was deleted, and a mutation identity that was used for another
+operation answers 409 rather than 412. The use case applies the order again
+inside its transaction, so a race only sends the request down the normal path,
+where the receipt is found again.
 
 `onFilesDeleted` runs after `accept`, inside the same transaction. It revokes
 every share of a deleted file and removes its link index rows. It is one port
@@ -107,11 +122,20 @@ A strong entity tag is the accepted head revision in quotes, for example
 names exactly one state of one file.
 
 - `getFile` returns the tag of the head. `If-None-Match` with that tag answers
-  `304` with no body, and the answer repeats the tag.
+  `304` with no body, and the answer repeats the tag. A list of tags matches
+  when any of them names the head, and `*` matches any representation, so it
+  answers `304` for a file that exists.
 - `updateFile` and `deleteFile` need `If-Match`. A request without it answers
   `428`, and a tag that no longer names the head answers `412` with the file
-  identifiers in the problem. A weak tag is refused, because RFC 9110 requires
-  strong comparison and a weak tag would permit a lost update.
+  identifiers in the problem. A list of tags is accepted and matches when any
+  of them names the head. A weak tag is refused, because RFC 9110 requires
+  strong comparison and a weak tag would permit a lost update. `If-Match: *`
+  is refused with `428` for the same reason: it would accept whatever the head
+  is now, which is the lost update that the precondition exists to prevent.
+- A write answer carries the accepted revision without its text. The client
+  that wrote it already holds the content, and an actor that may write but not
+  read must not receive content through a write answer. The answer is built
+  from the accepted write itself, never from a read that follows it.
 - `createFile` carries no precondition header. The changeset states that the
   file must not exist yet, so a file that already exists answers `412`.
 - `commitChangeset` carries its preconditions in the body: `expectedHeads` maps
@@ -155,9 +179,14 @@ that does not exist. A problem that refers to files carries their identifiers in
   last file identifier of the page, and the order is by identifier.
 - The workspace quota counts content, revision metadata, and receipts. A
   changeset that adds content must fit below the quota minus a 1 MiB control
-  reserve. A changeset whose revisions are all tombstones may use that reserve,
-  so a full workspace can still be tidied. A tombstone carries no note text, so
-  a deletion adds no content.
+  reserve. Only a changeset that both deletes every file it touches and adds no
+  content byte may use that reserve, so a full workspace can still be tidied
+  and a deletion that carried content cannot reach the reserved capacity
+  through a disguised write. Storage applies that rule, and the use case
+  refuses a note tombstone that carries Markdown with `invalid_content` before
+  it gets there. A tombstone therefore adds no content: the revision before it
+  still holds the text, and an attachment tombstone keeps the object reference
+  of its parent.
 
 ## Adding an operation
 
@@ -167,4 +196,8 @@ Follow `docs/development/api-contract.md`. A content operation also has to:
   `packages/core/src/files/operations.ts` rather than by hand;
 - compute the request digest from the validated request, never from a value
   that the handler invented;
+- build its answer from the accepted result, never from a read that follows the
+  write;
 - leave every permission decision to the use case. A handler has no role check.
+  A read that the write path needs, such as the head that a revision replaces
+  or the receipt of a retry, checks `write` rather than `read`.

@@ -103,8 +103,14 @@ export type WorkspaceTransaction = {
    * `known` argument of `validateGraph`.
    */
   parents(ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
-  /** Whether the file identifier was permanently purged in this workspace. */
-  isPurged(fileId: string): Promise<boolean>;
+  /**
+   * The requested file identifiers that were permanently purged.
+   *
+   * The lookup takes every file of a changeset at once, because a folder
+   * change asks about up to 1000 files and one query per file would be one
+   * round trip per file.
+   */
+  purgedFiles(fileIds: readonly string[]): Promise<readonly string[]>;
   /**
    * One page of the live files of this workspace, ordered by identifier.
    *

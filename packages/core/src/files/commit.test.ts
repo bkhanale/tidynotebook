@@ -83,7 +83,8 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           }),
         ),
       ),
-    isPurged: (fileId: string) => Promise.resolve(state.purged.has(fileId)),
+    purgedFiles: (fileIds: readonly string[]) =>
+      Promise.resolve(fileIds.filter((fileId) => state.purged.has(fileId))),
     listFiles: (page: PageRequest): Promise<FilePage> =>
       Promise.resolve({
         files: [...state.files.values()]
@@ -139,6 +140,21 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
         mutationId: input.mutationId,
         revisionIds: input.revisions.map((revision) => revision.id),
         cursor: String(state.cursor),
+        revisions: input.revisions.map((revision) => ({
+          revisionId: revision.id,
+          fileId: revision.fileId,
+          parents: [...revision.parents],
+          path: revision.path,
+          deleted: revision.deleted,
+          digest: revision.content.digest,
+          size:
+            revision.content.kind === 'markdown'
+              ? revision.content.text.length
+              : 0,
+          actorAccountId: writer.accountId,
+          serverTime: '2026-09-06T10:00:00.000Z',
+          message: revision.message,
+        })),
       };
       state.receipts.set(`${writer.accountId}:${input.mutationId}`, {
         digest,
@@ -441,6 +457,70 @@ await test('content that does not match its digest is refused', async () => {
   assert.equal(state.accepted.length, 0);
 });
 
+await test('markdown that is not well formed is refused', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  // A lone surrogate becomes U+FFFD in UTF-8, so the stored bytes would differ
+  // from the submitted string and the digest could never match again.
+  const broken = '# \ud800\n';
+  const fileId = id('f');
+  const failure = rejected(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([
+        await revision({
+          fileId,
+          path: 'notes/broken.md',
+          content: {
+            kind: 'markdown',
+            digest: await contentDigest(broken),
+            text: broken,
+          },
+        }),
+      ]),
+      'd-1',
+    ),
+  );
+  assert.equal(failure.code, 'invalid_content');
+  assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.accepted.length, 0);
+});
+
+await test('a tombstone that carries markdown is refused', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  // A deletion that carried content would add bytes while it claims to remove
+  // a file, and the quota reserve exists for operations that add nothing.
+  const failure = rejected(
+    await commitChangeset(
+      store,
+      actor,
+      changeset(
+        [
+          await revision({
+            fileId,
+            path: 'notes/one.md',
+            parents: [first.id],
+            deleted: true,
+            content: await content('# still here\n'),
+          }),
+        ],
+        { expectedHeads: { [fileId]: first.id } },
+      ),
+      'd-2',
+    ),
+  );
+  assert.equal(failure.code, 'invalid_content');
+  assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.files.get(fileId)?.deleted, false);
+});
+
 await test('a path outside the rules is refused before any write', async () => {
   const state = workspaceWith('editor');
   const store = fakeStore(state);
@@ -575,6 +655,7 @@ await test('side records are removed only when the write succeeded', async () =>
           fileId: id('f'),
           path: 'notes/one.md',
           deleted: true,
+          content: await content(''),
         }),
       ]),
       'd-1',

@@ -20,6 +20,7 @@ import {
   ok,
   type OperationalErrorKind,
   type AcceptedChangeset,
+  type AcceptedRevision,
   type Actor,
   type ChangesetInput,
   type FilePage,
@@ -52,8 +53,14 @@ import {
   workspaceUsage,
 } from './schema.ts';
 
-/** Bytes charged for the metadata of one accepted revision. */
-const revisionOverheadBytes = 512n;
+/**
+ * Bytes charged for the metadata of one accepted revision.
+ *
+ * The charge covers the revision row, its parent rows, its incremental sync
+ * record, and its entry in the stored mutation receipt, which repeats the
+ * accepted record so a retry can be answered without a read.
+ */
+const revisionOverheadBytes = 1024n;
 
 /** Bytes charged for one retained mutation receipt. */
 const receiptOverheadBytes = 512n;
@@ -293,6 +300,45 @@ function assertUuid(value: string, what: string): void {
   }
 }
 
+/** Reads one accepted revision record out of a stored outcome. */
+function parseAcceptedRevision(value: unknown): AcceptedRevision {
+  const record: Record<string, unknown> =
+    typeof value === 'object' && value !== null
+      ? Object.fromEntries(Object.entries(value))
+      : {};
+  const parents = record.parents;
+  if (
+    typeof record.revisionId === 'string' &&
+    typeof record.fileId === 'string' &&
+    Array.isArray(parents) &&
+    parents.every((entry: unknown) => typeof entry === 'string') &&
+    typeof record.path === 'string' &&
+    typeof record.deleted === 'boolean' &&
+    typeof record.digest === 'string' &&
+    typeof record.size === 'number' &&
+    typeof record.actorAccountId === 'string' &&
+    typeof record.serverTime === 'string' &&
+    (record.message === null || typeof record.message === 'string')
+  ) {
+    return {
+      revisionId: record.revisionId,
+      fileId: record.fileId,
+      parents: [...parents],
+      path: record.path,
+      deleted: record.deleted,
+      digest: record.digest,
+      size: record.size,
+      actorAccountId: record.actorAccountId,
+      serverTime: record.serverTime,
+      message: record.message,
+    };
+  }
+  throw new OperationalError(
+    'unexpected',
+    'notesapp: a stored accepted revision has an unknown shape.',
+  );
+}
+
 /** Reads the stored outcome of a mutation receipt. */
 function parseOutcome(value: unknown): AcceptedChangeset {
   if (
@@ -304,12 +350,15 @@ function parseOutcome(value: unknown): AcceptedChangeset {
     typeof value.cursor === 'string' &&
     'revisionIds' in value &&
     Array.isArray(value.revisionIds) &&
-    value.revisionIds.every((entry: unknown) => typeof entry === 'string')
+    value.revisionIds.every((entry: unknown) => typeof entry === 'string') &&
+    'revisions' in value &&
+    Array.isArray(value.revisions)
   ) {
     return {
       mutationId: value.mutationId,
       cursor: value.cursor,
       revisionIds: [...value.revisionIds],
+      revisions: value.revisions.map(parseAcceptedRevision),
     };
   }
   throw new OperationalError(
@@ -515,18 +564,19 @@ function createTransaction(
       return result;
     },
 
-    async isPurged(fileId: string): Promise<boolean> {
-      assertUuid(fileId, 'the file');
+    async purgedFiles(fileIds: readonly string[]): Promise<readonly string[]> {
+      if (fileIds.length === 0) return [];
+      for (const fileId of fileIds) assertUuid(fileId, 'a file');
       const rows = await db
         .select({ fileId: purgeMarkers.fileId })
         .from(purgeMarkers)
         .where(
           and(
             eq(purgeMarkers.workspaceId, workspaceId),
-            eq(purgeMarkers.fileId, fileId),
+            inArray(purgeMarkers.fileId, [...fileIds]),
           ),
         );
-      return rows.length > 0;
+      return rows.map((row) => row.fileId);
     },
 
     async listFiles(page: PageRequest): Promise<FilePage> {
@@ -904,11 +954,17 @@ async function writeChangeset(
       'notesapp: the workspace has no usage record.',
     );
   }
-  // Only a changeset that deletes every file it touches may use the control
-  // reserve. Reusing a stored digest is not a control operation: its revision
-  // rows and its receipt still grow the retained bytes, so it must fit under
-  // the reserve line like any other write.
-  const control = input.revisions.every((revision) => revision.deleted);
+  // Only a changeset that deletes every file it touches and adds no content
+  // byte may use the control reserve. A deletion that carried new content
+  // would otherwise reach the reserved capacity through a disguised write, and
+  // the reserve exists so that a full workspace can still be managed by
+  // operations that add nothing. Reusing a stored digest is not enough on its
+  // own either: the revision rows and the receipt still grow the retained
+  // bytes, so a changeset that keeps a file alive must fit under the reserve
+  // line like any other write.
+  const control =
+    contentBytes === 0n &&
+    input.revisions.every((revision) => revision.deleted);
   const limit = control
     ? usage.quotaBytes
     : usage.quotaBytes - controlReserveBytes;
@@ -947,20 +1003,29 @@ async function writeChangeset(
     cursor,
   });
 
-  await db.insert(revisions).values(
-    input.revisions.map((revision) => ({
-      workspaceId,
-      id: revision.id,
-      fileId: revision.fileId,
-      contentDigest: revision.content.digest,
-      path: revision.path,
-      deleted: revision.deleted,
-      changesetId,
-      actorAccountId: actor.accountId,
-      clientTime: clientTime(revision),
-      message: revision.message,
-      restoredFrom: revision.restoredFrom,
-    })),
+  // The acceptance time is assigned by the database, so it is read back here:
+  // the answer to a write is built from the accepted rows, never from a later
+  // read that would need the read permission the writer may not hold.
+  const written = await db
+    .insert(revisions)
+    .values(
+      input.revisions.map((revision) => ({
+        workspaceId,
+        id: revision.id,
+        fileId: revision.fileId,
+        contentDigest: revision.content.digest,
+        path: revision.path,
+        deleted: revision.deleted,
+        changesetId,
+        actorAccountId: actor.accountId,
+        clientTime: clientTime(revision),
+        message: revision.message,
+        restoredFrom: revision.restoredFrom,
+      })),
+    )
+    .returning({ id: revisions.id, serverTime: revisions.serverTime });
+  const serverTimes = new Map(
+    written.map((row) => [row.id, row.serverTime.toISOString()]),
   );
 
   const parentRows = input.revisions.flatMap((revision) =>
@@ -1040,6 +1105,27 @@ async function writeChangeset(
     mutationId: input.mutationId,
     revisionIds: input.revisions.map((revision) => revision.id),
     cursor: cursor.toString(),
+    revisions: input.revisions.map((revision) => {
+      const serverTime = serverTimes.get(revision.id);
+      if (serverTime === undefined) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: an accepted revision was not written back.',
+        );
+      }
+      return {
+        revisionId: revision.id,
+        fileId: revision.fileId,
+        parents: [...revision.parents],
+        path: revision.path,
+        deleted: revision.deleted,
+        digest: revision.content.digest,
+        size: Number(contentRows.get(revision.content.digest)?.size ?? 0n),
+        actorAccountId: actor.accountId,
+        serverTime,
+        message: revision.message,
+      };
+    }),
   };
   await db.insert(mutationReceipts).values({
     workspaceId,
