@@ -1,0 +1,618 @@
+/**
+ * The IndexedDB implementation of the local persistence port.
+ *
+ * Two transaction boundaries matter, and they come from the design:
+ *
+ * - A draft save is one transaction over one table. The target is at most
+ *   150 ms after input, so the editor can show Saved on this device.
+ * - A checkpoint is one transaction that writes the content, the immutable
+ *   checkpoint with its parent, the local head, and the queue entry. Either
+ *   all of them exist or none does, so a queued mutation always has the bytes
+ *   it refers to and a stored checkpoint always has a parent.
+ *
+ * The store is opened for one server origin and every key starts with that
+ * origin, the account, and the workspace. A caller names its account on every
+ * method, so one account cannot reach the records of another.
+ *
+ * The clock and the identifier source are injected, so a test produces the
+ * same records twice.
+ */
+import { contentDigest } from '@notesapp/core';
+import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
+import {
+  LocalStorageError,
+  shouldCheckpoint,
+  type CheckpointRecord,
+  type Draft,
+  type LocalStore,
+  type QueueEntry,
+  type RecoveryRecord,
+} from '@notesapp/sync';
+import {
+  createDatabase,
+  defaultDatabaseName,
+  guard,
+  partitionRange,
+  type CheckpointRow,
+  type DraftRow,
+  type FileRow,
+  type QueueRow,
+} from './database.ts';
+import {
+  ensureSchema,
+  validateAcceptedFile,
+  validateCheckpoint,
+  validateDraft,
+  validateQueueRow,
+  validateRecovery,
+} from './migrations.ts';
+
+/** What `openLocalStore` accepts. */
+export type LocalStoreOptions = {
+  /** The IndexedDB factory. Node tests inject `fake-indexeddb`. */
+  readonly indexedDB?: IDBFactory;
+  /** The key range constructor that belongs to the injected factory. */
+  readonly IDBKeyRange?: typeof IDBKeyRange;
+  /** The database name. A test uses its own so runs stay isolated. */
+  readonly databaseName?: string;
+  /** The clock, in milliseconds. */
+  readonly now?: () => number;
+  /** The source of client generated identifiers. */
+  readonly id?: () => string;
+  /** The device identity. The stored one is used when this is absent. */
+  readonly deviceId?: string;
+};
+
+/** The number of UTF-8 bytes of a string. */
+function byteLength(text: string): number {
+  return new TextEncoder().encode(text).byteLength;
+}
+
+/**
+ * Opens the local database of one server origin.
+ *
+ * The schema check runs before the store is returned, so an interrupted
+ * migration is completed or refused before any note is written.
+ */
+export async function openLocalStore(
+  serverOrigin: string,
+  options: LocalStoreOptions = {},
+): Promise<LocalStore> {
+  if (serverOrigin === '')
+    throw new LocalStorageError('unavailable', 'the server origin is empty');
+  const clock = options.now ?? Date.now;
+  const newId = options.id ?? ((): string => crypto.randomUUID());
+  const nowIso = (): string => new Date(clock()).toISOString();
+  const backend: {
+    indexedDB?: IDBFactory;
+    IDBKeyRange?: typeof IDBKeyRange;
+  } = {};
+  if (options.indexedDB !== undefined) backend.indexedDB = options.indexedDB;
+  if (options.IDBKeyRange !== undefined)
+    backend.IDBKeyRange = options.IDBKeyRange;
+  const { db, tables } = createDatabase(
+    options.databaseName ?? defaultDatabaseName,
+    backend,
+  );
+  let deviceId: string;
+  try {
+    await guard('opening the local database', async () => {
+      await db.open();
+    });
+    const schema = await guard('checking the local schema', () =>
+      ensureSchema(tables, newId),
+    );
+    deviceId = options.deviceId ?? schema.meta.deviceId;
+  } catch (error: unknown) {
+    db.close();
+    throw error;
+  }
+
+  /** The stored form of a draft the caller supplied. */
+  const draftRow = (
+    draft: Draft,
+    lastCheckpointId: string | null,
+  ): DraftRow => ({
+    serverOrigin,
+    accountId: draft.accountId,
+    workspaceId: draft.workspaceId,
+    workingCopyId: draft.workingCopyId,
+    fileId: draft.fileId,
+    baseRevisionId: draft.baseRevisionId,
+    text: draft.text,
+    path: draft.path,
+    deleted: draft.deleted,
+    sequence: draft.sequence,
+    lastCheckpointId,
+    savedAt: nowIso(),
+  });
+
+  /** The editor view of a stored draft. */
+  const draftOf = (row: DraftRow): Draft => ({
+    accountId: row.accountId,
+    workspaceId: row.workspaceId,
+    workingCopyId: row.workingCopyId,
+    fileId: row.fileId,
+    baseRevisionId: row.baseRevisionId,
+    text: row.text,
+    path: row.path,
+    deleted: row.deleted,
+    sequence: row.sequence,
+  });
+
+  /** The public view of a stored checkpoint. */
+  const checkpointOf = (row: CheckpointRow): CheckpointRecord => ({
+    serverOrigin: row.serverOrigin,
+    accountId: row.accountId,
+    workspaceId: row.workspaceId,
+    revisionId: row.revisionId,
+    fileId: row.fileId,
+    workingCopyId: row.workingCopyId,
+    parents: row.parents,
+    path: row.path,
+    deleted: row.deleted,
+    digest: row.digest,
+    message: row.message,
+    clientTime: row.clientTime,
+    mutationId: row.mutationId,
+    accepted: row.accepted,
+  });
+
+  /** The next submission order number of one partition. */
+  const nextQueueSequence = async (
+    accountId: string,
+    workspaceId: string,
+  ): Promise<number> => {
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
+    const last: unknown = await tables.queue
+      .where('[serverOrigin+accountId+workspaceId+sequence]')
+      .between(range.lower, range.upper, true, true)
+      .last();
+    return last === undefined ? 1 : validateQueueRow(last).sequence + 1;
+  };
+
+  /** The next checkpoint order number of one partition. */
+  const nextCheckpointSequence = async (
+    accountId: string,
+    workspaceId: string,
+  ): Promise<number> => {
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
+    const last: unknown = await tables.checkpoints
+      .where('[serverOrigin+accountId+workspaceId+sequence]')
+      .between(range.lower, range.upper, true, true)
+      .last();
+    return last === undefined ? 1 : validateCheckpoint(last).sequence + 1;
+  };
+
+  /** One queued mutation of one account, wherever its workspace is. */
+  const queueEntryOf = async (
+    accountId: string,
+    mutationId: string,
+  ): Promise<QueueRow | null> => {
+    const stored: unknown = await tables.queue
+      .where('[serverOrigin+accountId+mutationId]')
+      .equals([serverOrigin, accountId, mutationId])
+      .first();
+    return stored === undefined ? null : validateQueueRow(stored);
+  };
+
+  const store: LocalStore = {
+    serverOrigin,
+    deviceId,
+
+    saveDraft(draft: Draft): Promise<void> {
+      return guard('saving a draft', () =>
+        db.transaction('rw', tables.drafts, async () => {
+          const stored: unknown = await tables.drafts.get([
+            serverOrigin,
+            draft.accountId,
+            draft.workspaceId,
+            draft.workingCopyId,
+          ]);
+          const current = stored === undefined ? null : validateDraft(stored);
+          // A save that arrives after a newer one must not undo it.
+          if (current !== null && current.sequence > draft.sequence) return;
+          await tables.drafts.put(
+            draftRow(draft, current?.lastCheckpointId ?? null),
+          );
+        }),
+      );
+    },
+
+    readDraft(
+      accountId: string,
+      workspaceId: string,
+      workingCopyId: string,
+    ): Promise<Draft | null> {
+      return guard('reading a draft', () =>
+        db.transaction('r', tables.drafts, async () => {
+          const stored: unknown = await tables.drafts.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            workingCopyId,
+          ]);
+          return stored === undefined ? null : draftOf(validateDraft(stored));
+        }),
+      );
+    },
+
+    async checkpoint(
+      draft: Draft,
+      message: string | null,
+    ): Promise<QueueEntry | null> {
+      // The digest is computed before the transaction. WebCrypto is not a
+      // database promise, so awaiting it inside a Dexie transaction would
+      // leave the transaction zone and the transaction would already be gone.
+      // A browser without WebCrypto cannot address content, so the caller
+      // receives the same typed failure as for a refused write.
+      const digest = await guard('creating a checkpoint', () =>
+        contentDigest(draft.text),
+      );
+      const clientTime = nowIso();
+      const revisionId = newId();
+      const mutationId = newId();
+      const branchId = newId();
+      return guard('creating a checkpoint', () =>
+        db.transaction(
+          'rw',
+          [
+            tables.drafts,
+            tables.checkpoints,
+            tables.contents,
+            tables.acceptedFiles,
+            tables.branches,
+            tables.queue,
+          ],
+          async (): Promise<QueueEntry | null> => {
+            const { accountId, workspaceId, fileId } = draft;
+            const storedDraft: unknown = await tables.drafts.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              draft.workingCopyId,
+            ]);
+            const current =
+              storedDraft === undefined ? null : validateDraft(storedDraft);
+            const storedFile: unknown = await tables.acceptedFiles.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+            ]);
+            const file =
+              storedFile === undefined
+                ? null
+                : validateAcceptedFile(storedFile);
+
+            const lastCheckpointId = current?.lastCheckpointId ?? null;
+            let previous: {
+              digest: string;
+              path: string;
+              deleted: boolean;
+            } | null = null;
+            if (lastCheckpointId !== null) {
+              const stored: unknown = await tables.checkpoints.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                lastCheckpointId,
+              ]);
+              if (stored !== undefined) previous = validateCheckpoint(stored);
+            }
+            // A working copy that has not checkpointed yet is compared with
+            // the accepted head it started from, so opening a file and leaving
+            // it writes nothing.
+            if (
+              previous === null &&
+              file !== null &&
+              file.acceptedHeadDigest !== null &&
+              file.acceptedHeadRevisionId === draft.baseRevisionId
+            )
+              previous = {
+                digest: file.acceptedHeadDigest,
+                path: file.path,
+                deleted: file.deleted,
+              };
+
+            if (
+              !shouldCheckpoint(
+                previous,
+                { digest, path: draft.path, deleted: draft.deleted },
+                message,
+              )
+            )
+              return null;
+
+            const parentId = lastCheckpointId ?? draft.baseRevisionId;
+            const parents = parentId === null ? [] : [parentId];
+            const localHead =
+              file?.localHeadRevisionId ?? file?.acceptedHeadRevisionId ?? null;
+            // Another working copy of this file already moved the local head,
+            // so this checkpoint is a second tip over the same base.
+            const diverged = localHead !== null && localHead !== parentId;
+
+            await tables.contents.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              digest,
+              text: draft.text,
+              bytes: null,
+              size: byteLength(draft.text),
+            });
+            const checkpoint: CheckpointRow = {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              revisionId,
+              fileId,
+              workingCopyId: draft.workingCopyId,
+              parents,
+              path: draft.path,
+              deleted: draft.deleted,
+              digest,
+              message,
+              clientTime,
+              mutationId,
+              accepted: false,
+              sequence: await nextCheckpointSequence(accountId, workspaceId),
+            };
+            // `add` and not `put`: a checkpoint is immutable, so writing over
+            // an existing identifier is a defect, not an update.
+            await tables.checkpoints.add(checkpoint);
+
+            const nextFile: FileRow = {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+              kind: file?.kind ?? 'note',
+              path: diverged ? (file?.path ?? draft.path) : draft.path,
+              deleted: diverged
+                ? (file?.deleted ?? draft.deleted)
+                : draft.deleted,
+              acceptedHeadRevisionId: file?.acceptedHeadRevisionId ?? null,
+              acceptedHeadDigest: file?.acceptedHeadDigest ?? null,
+              localHeadRevisionId: diverged ? localHead : revisionId,
+              updatedAt: clientTime,
+            };
+            await tables.acceptedFiles.put(nextFile);
+            if (diverged)
+              await tables.branches.add({
+                serverOrigin,
+                accountId,
+                workspaceId,
+                branchId,
+                fileId,
+                baseRevisionId: parentId,
+                tips: [localHead, revisionId],
+                resolved: false,
+                createdAt: clientTime,
+              });
+
+            const input: ChangesetInput = {
+              workspaceId,
+              mutationId,
+              deviceId,
+              // The accepted head known locally. `null` states that the server
+              // must not have this file yet.
+              expectedHeads: { [fileId]: file?.acceptedHeadRevisionId ?? null },
+              revisions: [
+                {
+                  id: revisionId,
+                  fileId,
+                  parents,
+                  path: draft.path,
+                  deleted: draft.deleted,
+                  content: { kind: 'markdown', digest, text: draft.text },
+                  clientTime,
+                  message,
+                  restoredFrom: null,
+                },
+              ],
+            };
+            await tables.queue.add({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              mutationId,
+              sequence: await nextQueueSequence(accountId, workspaceId),
+              input,
+              state: 'pending',
+              digest: null,
+              createdAt: clientTime,
+            });
+
+            const base =
+              current !== null && current.sequence > draft.sequence
+                ? current
+                : draftRow(draft, lastCheckpointId);
+            await tables.drafts.put({
+              ...base,
+              lastCheckpointId: revisionId,
+              savedAt: clientTime,
+            });
+            return {
+              accountId,
+              input,
+              state: 'pending',
+              digest: null,
+            };
+          },
+        ),
+      );
+    },
+
+    pending(
+      accountId: string,
+      workspaceId: string,
+    ): Promise<readonly QueueEntry[]> {
+      return guard('reading the queue', () =>
+        db.transaction('r', tables.queue, async () => {
+          const range = partitionRange(serverOrigin, accountId, workspaceId);
+          const rows: unknown[] = await tables.queue
+            .where('[serverOrigin+accountId+workspaceId+sequence]')
+            .between(range.lower, range.upper, true, true)
+            .toArray();
+          return rows
+            .map((row: unknown) => validateQueueRow(row))
+            .map((row) => ({
+              accountId: row.accountId,
+              input: row.input,
+              state: row.state,
+              digest: row.digest,
+            }));
+        }),
+      );
+    },
+
+    markSending(
+      accountId: string,
+      mutationId: string,
+      digest: string,
+    ): Promise<void> {
+      return guard('marking a mutation as sending', () =>
+        db.transaction('rw', tables.queue, async () => {
+          const entry = await queueEntryOf(accountId, mutationId);
+          if (entry === null) return;
+          // The digest freezes on the first send. A retry repeats the same
+          // operation, so a later value would describe a different request.
+          await tables.queue.put({
+            ...entry,
+            state: 'sending',
+            digest: entry.digest ?? digest,
+          });
+        }),
+      );
+    },
+
+    markConflict(accountId: string, mutationId: string): Promise<void> {
+      return guard('marking a mutation as conflicting', () =>
+        db.transaction('rw', tables.queue, async () => {
+          const entry = await queueEntryOf(accountId, mutationId);
+          if (entry === null) return;
+          await tables.queue.put({ ...entry, state: 'conflict' });
+        }),
+      );
+    },
+
+    acknowledge(accountId: string, result: AcceptedChangeset): Promise<void> {
+      return guard('acknowledging a mutation', () =>
+        db.transaction(
+          'rw',
+          [
+            tables.queue,
+            tables.checkpoints,
+            tables.acceptedFiles,
+            tables.receipts,
+          ],
+          async () => {
+            const entry = await queueEntryOf(accountId, result.mutationId);
+            // The queue entry is gone, so this answer was already applied.
+            // Repeating it must change nothing.
+            if (entry === null) return;
+            const workspaceId = entry.workspaceId;
+            await tables.queue.delete([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              entry.mutationId,
+            ]);
+            const rows: unknown[] = await tables.checkpoints
+              .where('[serverOrigin+accountId+workspaceId+mutationId]')
+              .equals([serverOrigin, accountId, workspaceId, entry.mutationId])
+              .toArray();
+            const accepted = new Set(result.revisionIds);
+            const newest = new Map<string, CheckpointRow>();
+            for (const row of rows) {
+              const checkpoint = validateCheckpoint(row);
+              if (!accepted.has(checkpoint.revisionId)) continue;
+              await tables.checkpoints.put({ ...checkpoint, accepted: true });
+              const seen = newest.get(checkpoint.fileId);
+              if (seen === undefined || checkpoint.sequence > seen.sequence)
+                newest.set(checkpoint.fileId, checkpoint);
+            }
+            for (const [fileId, checkpoint] of newest) {
+              const stored: unknown = await tables.acceptedFiles.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                fileId,
+              ]);
+              const file =
+                stored === undefined ? null : validateAcceptedFile(stored);
+              // Only the accepted head moves. The local head, the path, and
+              // the deletion state keep whatever later local work set, so a
+              // checkpoint created after the submission survives.
+              await tables.acceptedFiles.put({
+                serverOrigin,
+                accountId,
+                workspaceId,
+                fileId,
+                kind: file?.kind ?? 'note',
+                path: file?.path ?? checkpoint.path,
+                deleted: file?.deleted ?? checkpoint.deleted,
+                acceptedHeadRevisionId: checkpoint.revisionId,
+                acceptedHeadDigest: checkpoint.digest,
+                localHeadRevisionId:
+                  file?.localHeadRevisionId ?? checkpoint.revisionId,
+                updatedAt: nowIso(),
+              });
+            }
+            await tables.receipts.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              mutationId: entry.mutationId,
+              revisionIds: [...result.revisionIds],
+              cursor: result.cursor,
+              acknowledgedAt: nowIso(),
+            });
+          },
+        ),
+      );
+    },
+
+    listCheckpoints(
+      accountId: string,
+      workspaceId: string,
+      fileId: string,
+    ): Promise<readonly CheckpointRecord[]> {
+      return guard('reading local history', () =>
+        db.transaction('r', tables.checkpoints, async () => {
+          const rows: unknown[] = await tables.checkpoints
+            .where('[serverOrigin+accountId+workspaceId+fileId]')
+            .equals([serverOrigin, accountId, workspaceId, fileId])
+            .toArray();
+          return rows
+            .map((row: unknown) => validateCheckpoint(row))
+            .sort((left, right) => left.sequence - right.sequence)
+            .map(checkpointOf);
+        }),
+      );
+    },
+
+    recover(
+      accountId: string,
+      workspaceId: string,
+    ): Promise<readonly RecoveryRecord[]> {
+      return guard('reading the recovery area', () =>
+        db.transaction('r', tables.recovery, async () => {
+          const range = partitionRange(serverOrigin, accountId, workspaceId);
+          const rows: unknown[] = await tables.recovery
+            .where('[serverOrigin+accountId+workspaceId+createdAt]')
+            .between(range.lower, range.upper, true, true)
+            .toArray();
+          return rows.map((row: unknown) => validateRecovery(row));
+        }),
+      );
+    },
+
+    close(): Promise<void> {
+      db.close();
+      return Promise.resolve();
+    },
+  };
+  return store;
+}

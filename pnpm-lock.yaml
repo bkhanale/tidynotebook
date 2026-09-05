@@ -121,15 +121,24 @@ importers:
       '@notesapp/server':
         specifier: workspace:*
         version: link:apps/server
+      '@notesapp/storage-browser':
+        specifier: workspace:*
+        version: link:packages/storage-browser
       '@notesapp/storage-server':
         specifier: workspace:*
         version: link:packages/storage-server
+      '@notesapp/sync':
+        specifier: workspace:*
+        version: link:packages/sync
       '@types/node':
         specifier: 26.4.1
         version: 26.4.1
       '@types/pg':
         specifier: 8.23.1
         version: 8.23.1
+      fake-indexeddb:
+        specifier: 6.2.5
+        version: 6.2.5
       fastify:
         specifier: 5.12.3
         version: 5.12.3
@@ -275,6 +284,25 @@ importers:
         specifier: 7.0.2
         version: 7.0.2
 
+  packages/storage-browser:
+    dependencies:
+      '@notesapp/core':
+        specifier: workspace:*
+        version: link:../core
+      '@notesapp/sync':
+        specifier: workspace:*
+        version: link:../sync
+      dexie:
+        specifier: 4.4.5
+        version: 4.4.5
+    devDependencies:
+      '@types/node':
+        specifier: 26.4.1
+        version: 26.4.1
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
   packages/storage-server:
     dependencies:
       '@notesapp/core':
@@ -282,7 +310,7 @@ importers:
         version: link:../core
       drizzle-orm:
         specifier: 0.45.2
-        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
+        version: 0.45.2(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)
       pg:
         specifier: 8.23.0
         version: 8.23.0
@@ -296,6 +324,19 @@ importers:
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
+      typescript:
+        specifier: 7.0.2
+        version: 7.0.2
+
+  packages/sync:
+    dependencies:
+      '@notesapp/core':
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      '@types/node':
+        specifier: 26.4.1
+        version: 26.4.1
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -1561,6 +1602,9 @@ packages:
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
 
+  dexie@4.4.5:
+    resolution: {integrity: sha512-wWCHdihT3dmlUSuNhn5mMZDWSpG0suxjAni7YjjiZdzabZcKmy3uNZGZ7AeYYXBoLbpSXX35fikPLkPC44Osiw==}
+
   dotenv@17.4.2:
     resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
@@ -1685,6 +1729,10 @@ packages:
 
   extend@3.0.2:
     resolution: {integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==}
+
+  fake-indexeddb@6.2.5:
+    resolution: {integrity: sha512-CGnyrvbhPlWYMngksqrSSUT1BAVP49dZocrHuK0SvtR0D5TMs5wP0o3j7jexDJW01KSadjBp1M/71o/KR3nD1w==}
+    engines: {node: '>=18'}
 
   fast-decode-uri-component@1.0.1:
     resolution: {integrity: sha512-WKgKWg5eUxvRZGwW8FvfbaH7AXSh2cL+3j5fMGzUMCxWBJ3dV3a7Wz8y2f/uQ0e3B6WmodD3oS54jTQ9HVTIIg==}
@@ -3017,6 +3065,8 @@ snapshots:
     dependencies:
       dequal: 2.0.3
 
+  dexie@4.4.5: {}
+
   dotenv@17.4.2: {}
 
   drizzle-kit@0.31.10:
@@ -3030,11 +3080,6 @@ snapshots:
     optionalDependencies:
       '@types/pg': 8.23.1
       kysely: 0.29.5
-      pg: 8.23.0
-
-  drizzle-orm@0.45.2(@types/pg@8.23.1)(pg@8.23.0):
-    optionalDependencies:
-      '@types/pg': 8.23.1
       pg: 8.23.0
 
   esbuild@0.18.20:
@@ -3125,6 +3170,8 @@ snapshots:
   exsolve@1.1.1: {}
 
   extend@3.0.2: {}
+
+  fake-indexeddb@6.2.5: {}
 
   fast-decode-uri-component@1.0.1: {}
 

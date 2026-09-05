@@ -1,0 +1,510 @@
+/**
+ * Schema versions, record validation, and the interrupted migration guard.
+ *
+ * Two rules come from the design. Stored records are validated when they are
+ * read or migrated, because a browser database is local state that another
+ * application version, a partial write, or a user tool may have touched. And
+ * an interrupted schema change must never be treated as a finished one: the
+ * database records that a migration is running, so the next open either
+ * finishes it inside a transaction or refuses to use the database.
+ *
+ * Refusing is a correct outcome. The application then shows a storage error
+ * and read-only server content, which is better than editing on top of records
+ * whose shape is unknown.
+ */
+import { LocalStorageError, type QueueState } from '@notesapp/sync';
+import type { ChangesetInput, ContentRef, RevisionInput } from '@notesapp/core';
+import {
+  metaKey,
+  schemaVersions,
+  tableNames,
+  type BranchRow,
+  type CheckpointRow,
+  type ContentRow,
+  type CursorRow,
+  type DraftRow,
+  type FileRow,
+  type MetaRow,
+  type MigrationState,
+  type PreferenceRow,
+  type QueueRow,
+  type ReceiptRow,
+  type RecoveryRow,
+  type SnapshotRow,
+  type Tables,
+} from './database.ts';
+
+/** The schema version this application writes. */
+export const currentSchemaVersion: number = Math.max(
+  ...schemaVersions.map((entry) => entry.version),
+);
+
+/** Refuses a stored value that does not match its declared shape. */
+function corrupt(detail: string): never {
+  throw new LocalStorageError('corrupt', detail);
+}
+
+/**
+ * The value as a plain record, or a refusal.
+ *
+ * Only own enumerable members are kept, so an inherited member of a value that
+ * some other tool wrote cannot pass a check.
+ */
+function object(value: unknown, where: string): Record<string, unknown> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value))
+    corrupt(`${where} is not a record`);
+  const members: Record<string, unknown> = Object.fromEntries(
+    Object.entries(value),
+  );
+  return members;
+}
+
+function text(
+  row: Record<string, unknown>,
+  field: string,
+  where: string,
+): string {
+  const value: unknown = row[field];
+  if (typeof value !== 'string') corrupt(`${where}.${field} is not text`);
+  return value;
+}
+
+function optionalText(
+  row: Record<string, unknown>,
+  field: string,
+  where: string,
+): string | null {
+  const value: unknown = row[field];
+  if (value === null) return null;
+  if (typeof value !== 'string')
+    corrupt(`${where}.${field} is not text or null`);
+  return value;
+}
+
+function flag(
+  row: Record<string, unknown>,
+  field: string,
+  where: string,
+): boolean {
+  const value: unknown = row[field];
+  if (typeof value !== 'boolean') corrupt(`${where}.${field} is not a flag`);
+  return value;
+}
+
+function count(
+  row: Record<string, unknown>,
+  field: string,
+  where: string,
+): number {
+  const value: unknown = row[field];
+  if (typeof value !== 'number' || !Number.isFinite(value))
+    corrupt(`${where}.${field} is not a finite number`);
+  return value;
+}
+
+function textList(
+  row: Record<string, unknown>,
+  field: string,
+  where: string,
+): readonly string[] {
+  const value: unknown = row[field];
+  if (!Array.isArray(value)) corrupt(`${where}.${field} is not a list`);
+  const list: unknown[] = value;
+  return list.map((entry: unknown, index: number) => {
+    if (typeof entry !== 'string')
+      corrupt(`${where}.${field}[${String(index)}] is not text`);
+    return entry;
+  });
+}
+
+function member<T extends string>(
+  row: Record<string, unknown>,
+  field: string,
+  allowed: readonly T[],
+  where: string,
+): T {
+  const value: unknown = row[field];
+  const found = allowed.find((entry) => entry === value);
+  if (found === undefined)
+    corrupt(`${where}.${field} is not one of the allowed values`);
+  return found;
+}
+
+/** The three partition members every private row carries. */
+function partition(
+  row: Record<string, unknown>,
+  where: string,
+): { serverOrigin: string; accountId: string; workspaceId: string } {
+  return {
+    serverOrigin: text(row, 'serverOrigin', where),
+    accountId: text(row, 'accountId', where),
+    workspaceId: text(row, 'workspaceId', where),
+  };
+}
+
+/** Narrows one stored working copy. */
+export function validateDraft(value: unknown): DraftRow {
+  const row = object(value, 'draft');
+  return {
+    ...partition(row, 'draft'),
+    workingCopyId: text(row, 'workingCopyId', 'draft'),
+    fileId: text(row, 'fileId', 'draft'),
+    baseRevisionId: optionalText(row, 'baseRevisionId', 'draft'),
+    text: text(row, 'text', 'draft'),
+    path: text(row, 'path', 'draft'),
+    deleted: flag(row, 'deleted', 'draft'),
+    sequence: count(row, 'sequence', 'draft'),
+    lastCheckpointId: optionalText(row, 'lastCheckpointId', 'draft'),
+    savedAt: text(row, 'savedAt', 'draft'),
+  };
+}
+
+/** Narrows one stored content reference of a queued revision. */
+function validateContentRef(value: unknown, where: string): ContentRef {
+  const row = object(value, where);
+  const kind = member(row, 'kind', ['markdown', 'attachment'] as const, where);
+  if (kind === 'markdown')
+    return {
+      kind,
+      digest: text(row, 'digest', where),
+      text: text(row, 'text', where),
+    };
+  return {
+    kind,
+    digest: text(row, 'digest', where),
+    objectId: text(row, 'objectId', where),
+  };
+}
+
+/** Narrows one stored submitted revision. */
+function validateRevisionInput(value: unknown, where: string): RevisionInput {
+  const row = object(value, where);
+  return {
+    id: text(row, 'id', where),
+    fileId: text(row, 'fileId', where),
+    parents: textList(row, 'parents', where),
+    path: text(row, 'path', where),
+    deleted: flag(row, 'deleted', where),
+    content: validateContentRef(row['content'], `${where}.content`),
+    clientTime: text(row, 'clientTime', where),
+    message: optionalText(row, 'message', where),
+    restoredFrom: optionalText(row, 'restoredFrom', where),
+  };
+}
+
+/** Narrows one stored changeset body. */
+export function validateChangesetInput(value: unknown): ChangesetInput {
+  const where = 'changeset';
+  const row = object(value, where);
+  const heads = object(row['expectedHeads'], `${where}.expectedHeads`);
+  const expectedHeads: Record<string, string | null> = {};
+  for (const [fileId, head] of Object.entries(heads)) {
+    if (head !== null && typeof head !== 'string')
+      corrupt(`${where}.expectedHeads.${fileId} is not a revision or null`);
+    expectedHeads[fileId] = head;
+  }
+  const revisions: unknown = row['revisions'];
+  if (!Array.isArray(revisions)) corrupt(`${where}.revisions is not a list`);
+  const list: unknown[] = revisions;
+  return {
+    workspaceId: text(row, 'workspaceId', where),
+    mutationId: text(row, 'mutationId', where),
+    deviceId: text(row, 'deviceId', where),
+    expectedHeads,
+    revisions: list.map((entry: unknown, index: number) =>
+      validateRevisionInput(entry, `${where}.revisions[${String(index)}]`),
+    ),
+  };
+}
+
+/** Narrows one stored queue entry. */
+export function validateQueueRow(value: unknown): QueueRow {
+  const row = object(value, 'queue entry');
+  const states: readonly QueueState[] = ['pending', 'sending', 'conflict'];
+  return {
+    ...partition(row, 'queue entry'),
+    mutationId: text(row, 'mutationId', 'queue entry'),
+    sequence: count(row, 'sequence', 'queue entry'),
+    input: validateChangesetInput(row['input']),
+    state: member(row, 'state', states, 'queue entry'),
+    digest: optionalText(row, 'digest', 'queue entry'),
+    createdAt: text(row, 'createdAt', 'queue entry'),
+  };
+}
+
+/** Narrows one stored checkpoint. */
+export function validateCheckpoint(value: unknown): CheckpointRow {
+  const row = object(value, 'checkpoint');
+  return {
+    ...partition(row, 'checkpoint'),
+    revisionId: text(row, 'revisionId', 'checkpoint'),
+    fileId: text(row, 'fileId', 'checkpoint'),
+    workingCopyId: text(row, 'workingCopyId', 'checkpoint'),
+    parents: textList(row, 'parents', 'checkpoint'),
+    path: text(row, 'path', 'checkpoint'),
+    deleted: flag(row, 'deleted', 'checkpoint'),
+    digest: text(row, 'digest', 'checkpoint'),
+    message: optionalText(row, 'message', 'checkpoint'),
+    clientTime: text(row, 'clientTime', 'checkpoint'),
+    mutationId: text(row, 'mutationId', 'checkpoint'),
+    accepted: flag(row, 'accepted', 'checkpoint'),
+    sequence: count(row, 'sequence', 'checkpoint'),
+  };
+}
+
+/** Narrows one stored content body. */
+export function validateContent(value: unknown): ContentRow {
+  const row = object(value, 'content');
+  const body: unknown = row['text'];
+  const bytes: unknown = row['bytes'];
+  if (body === null && !(bytes instanceof Blob))
+    corrupt('content carries neither text nor bytes');
+  if (body !== null && typeof body !== 'string')
+    corrupt('content.text is not text or null');
+  if (bytes !== null && !(bytes instanceof Blob))
+    corrupt('content.bytes is not a blob or null');
+  return {
+    ...partition(row, 'content'),
+    digest: text(row, 'digest', 'content'),
+    text: typeof body === 'string' ? body : null,
+    bytes: bytes instanceof Blob ? bytes : null,
+    size: count(row, 'size', 'content'),
+  };
+}
+
+/** Narrows one stored file record. */
+export function validateAcceptedFile(value: unknown): FileRow {
+  const row = object(value, 'file');
+  return {
+    ...partition(row, 'file'),
+    fileId: text(row, 'fileId', 'file'),
+    path: text(row, 'path', 'file'),
+    kind: member(row, 'kind', ['note', 'attachment'] as const, 'file'),
+    acceptedHeadRevisionId: optionalText(row, 'acceptedHeadRevisionId', 'file'),
+    acceptedHeadDigest: optionalText(row, 'acceptedHeadDigest', 'file'),
+    localHeadRevisionId: optionalText(row, 'localHeadRevisionId', 'file'),
+    deleted: flag(row, 'deleted', 'file'),
+    updatedAt: text(row, 'updatedAt', 'file'),
+  };
+}
+
+/** Narrows one stored local branch. */
+export function validateBranch(value: unknown): BranchRow {
+  const row = object(value, 'branch');
+  return {
+    ...partition(row, 'branch'),
+    branchId: text(row, 'branchId', 'branch'),
+    fileId: text(row, 'fileId', 'branch'),
+    baseRevisionId: optionalText(row, 'baseRevisionId', 'branch'),
+    tips: textList(row, 'tips', 'branch'),
+    resolved: flag(row, 'resolved', 'branch'),
+    createdAt: text(row, 'createdAt', 'branch'),
+  };
+}
+
+/** Narrows one stored receipt. */
+export function validateReceipt(value: unknown): ReceiptRow {
+  const row = object(value, 'receipt');
+  return {
+    ...partition(row, 'receipt'),
+    mutationId: text(row, 'mutationId', 'receipt'),
+    revisionIds: textList(row, 'revisionIds', 'receipt'),
+    cursor: text(row, 'cursor', 'receipt'),
+    acknowledgedAt: text(row, 'acknowledgedAt', 'receipt'),
+  };
+}
+
+/** Narrows one staged snapshot. */
+export function validateSnapshot(value: unknown): SnapshotRow {
+  const row = object(value, 'snapshot');
+  return {
+    ...partition(row, 'snapshot'),
+    token: text(row, 'token', 'snapshot'),
+    revisionIds: textList(row, 'revisionIds', 'snapshot'),
+    cursor: text(row, 'cursor', 'snapshot'),
+    state: member(
+      row,
+      'state',
+      ['staging', 'complete', 'active'] as const,
+      'snapshot',
+    ),
+    createdAt: text(row, 'createdAt', 'snapshot'),
+  };
+}
+
+/** Narrows one stored change position. */
+export function validateCursor(value: unknown): CursorRow {
+  const row = object(value, 'cursor');
+  return {
+    ...partition(row, 'cursor'),
+    cursor: text(row, 'cursor', 'cursor'),
+    updatedAt: text(row, 'updatedAt', 'cursor'),
+  };
+}
+
+/** Narrows one stored setting. */
+export function validatePreference(value: unknown): PreferenceRow {
+  const row = object(value, 'preference');
+  return {
+    ...partition(row, 'preference'),
+    name: text(row, 'name', 'preference'),
+    value: text(row, 'value', 'preference'),
+  };
+}
+
+/** Narrows one stored recovery entry. */
+export function validateRecovery(value: unknown): RecoveryRow {
+  const row = object(value, 'recovery');
+  return {
+    ...partition(row, 'recovery'),
+    recoveryId: text(row, 'recoveryId', 'recovery'),
+    fileId: text(row, 'fileId', 'recovery'),
+    path: text(row, 'path', 'recovery'),
+    text: text(row, 'text', 'recovery'),
+    reason: member(
+      row,
+      'reason',
+      ['access_revoked', 'role_downgraded', 'purged', 'sign_out'] as const,
+      'recovery',
+    ),
+    createdAt: text(row, 'createdAt', 'recovery'),
+  };
+}
+
+/** Narrows the bookkeeping row. */
+export function validateMeta(value: unknown): MetaRow {
+  const row = object(value, 'meta');
+  const states: readonly MigrationState[] = ['complete', 'in-progress'];
+  if (text(row, 'key', 'meta') !== metaKey) corrupt('meta.key is unexpected');
+  return {
+    key: metaKey,
+    schemaVersion: count(row, 'schemaVersion', 'meta'),
+    migrationState: member(row, 'migrationState', states, 'meta'),
+    deviceId: text(row, 'deviceId', 'meta'),
+  };
+}
+
+/**
+ * One step from one schema version to the next.
+ *
+ * Version 1 is the first released schema, so there is no step yet. A later
+ * task appends a step and its schema entry together. A gap between two stored
+ * versions with no step is a refusal, never a silent continuation.
+ */
+export const migrationSteps: readonly {
+  readonly from: number;
+  readonly to: number;
+  readonly run: (tables: Tables) => Promise<void>;
+}[] = [];
+
+/**
+ * Reads and validates every record of every partitioned table.
+ *
+ * This reads the whole database, which is why it runs only when a migration is
+ * pending. It is the check that an interrupted change left every record in a
+ * shape this application can read.
+ */
+async function revalidate(tables: Tables): Promise<void> {
+  for (const row of await tables.drafts.toArray()) validateDraft(row);
+  for (const row of await tables.checkpoints.toArray()) validateCheckpoint(row);
+  for (const row of await tables.contents.toArray()) validateContent(row);
+  for (const row of await tables.acceptedFiles.toArray())
+    validateAcceptedFile(row);
+  for (const row of await tables.branches.toArray()) validateBranch(row);
+  for (const row of await tables.queue.toArray()) validateQueueRow(row);
+  for (const row of await tables.receipts.toArray()) validateReceipt(row);
+  for (const row of await tables.stagedSnapshots.toArray())
+    validateSnapshot(row);
+  for (const row of await tables.cursors.toArray()) validateCursor(row);
+  for (const row of await tables.preferences.toArray()) validatePreference(row);
+  for (const row of await tables.recovery.toArray()) validateRecovery(row);
+}
+
+/**
+ * Applies the record migration from one stored version to the current one.
+ *
+ * A rerun at the current version revalidates every record, because an
+ * interrupted migration may have written a record and stopped before the next
+ * one. Validation is the check that the database is complete and readable.
+ */
+async function migrateRecords(
+  tables: Tables,
+  from: number,
+  to: number,
+): Promise<void> {
+  let version = from;
+  while (version < to) {
+    const step = migrationSteps.find((entry) => entry.from === version);
+    if (step === undefined)
+      throw new LocalStorageError(
+        'corrupt',
+        `no migration step leads away from schema version ${String(version)}`,
+      );
+    await step.run(tables);
+    version = step.to;
+  }
+  await revalidate(tables);
+}
+
+/** The result of the schema check that runs on every open. */
+export type SchemaState = {
+  readonly meta: MetaRow;
+  /** Whether an interrupted migration was found and completed. */
+  readonly repaired: boolean;
+};
+
+/**
+ * Checks the stored schema state and completes an interrupted migration.
+ *
+ * The three writes are separate transactions on purpose. Marking the migration
+ * as running has to be durable before the records change, otherwise a stop in
+ * the middle would leave a database that claims to be complete. The record
+ * migration itself is one transaction over every table, so it either applies
+ * fully or not at all.
+ *
+ * A database written by a newer application version, or one whose stored
+ * version has no migration step, is refused with a `corrupt` failure. The
+ * application then stops claiming persistence rather than editing records
+ * whose shape it does not know.
+ */
+export async function ensureSchema(
+  tables: Tables,
+  newDeviceId: () => string,
+): Promise<SchemaState> {
+  const stored: unknown = await tables.meta.get(metaKey);
+  if (stored === undefined) {
+    const meta: MetaRow = {
+      key: metaKey,
+      schemaVersion: currentSchemaVersion,
+      migrationState: 'complete',
+      deviceId: newDeviceId(),
+    };
+    await tables.meta.put(meta);
+    return { meta, repaired: false };
+  }
+  const meta = validateMeta(stored);
+  if (meta.schemaVersion > currentSchemaVersion)
+    throw new LocalStorageError(
+      'corrupt',
+      `stored schema version ${String(meta.schemaVersion)} is newer than this application`,
+    );
+  if (
+    meta.migrationState === 'complete' &&
+    meta.schemaVersion === currentSchemaVersion
+  )
+    return { meta, repaired: false };
+
+  const running: MetaRow = { ...meta, migrationState: 'in-progress' };
+  await tables.meta.put(running);
+  const db = tables.meta.db;
+  await db.transaction('rw', tableNames, async () => {
+    await migrateRecords(tables, meta.schemaVersion, currentSchemaVersion);
+  });
+  const done: MetaRow = {
+    ...meta,
+    schemaVersion: currentSchemaVersion,
+    migrationState: 'complete',
+  };
+  await tables.meta.put(done);
+  return { meta: done, repaired: true };
+}

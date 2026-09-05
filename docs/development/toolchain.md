@@ -960,3 +960,72 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `pnpm test:integration -- row-access` runs 20 tests.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
+
+## Task 10 packages and settings
+
+`packages/sync` holds the local persistence port and the pure checkpoint rules.
+`packages/storage-browser` implements that port with IndexedDB. Both are
+browser-safe packages, so the boundary checker forbids a Node module, a
+server-only workspace package, and a handwritten HTTP transport in either.
+
+Every version below was rechecked against the npm registry on 2026-09-06 with
+`npm view <package> dist-tags`, immediately before the install that added it.
+
+| Package                                                           | Version | Workspace                                   |
+| ----------------------------------------------------------------- | ------- | ------------------------------------------- |
+| [dexie](https://registry.npmjs.org/dexie/4.4.5)                   | 4.4.5   | `packages/storage-browser` dependency       |
+| [fake-indexeddb](https://registry.npmjs.org/fake-indexeddb/6.2.5) | 6.2.5   | root development dependency, for Node tests |
+
+`dexie` 4.4.5 is the newest stable release and matches the design baseline. Its
+other published tags are a 3.x maintenance line and a pull request preview, and
+the dependency policy forbids both. `fake-indexeddb` 6.2.5 is the newest stable
+release and matches the plan's recorded version. It declares no peer
+dependency, so strict peer installation is unaffected.
+
+The root also gains `@notesapp/sync` and `@notesapp/storage-browser` as
+development dependencies, so the repository-root `tests/integration` tree can
+import their public entry points, as it already does for core and server
+storage.
+
+### Importing Dexie
+
+`packages/storage-browser` imports the **named** export:
+
+```ts
+import { Dexie, type DexieOptions, type Table } from 'dexie';
+```
+
+The package's default export describes a CommonJS module, so under
+`module: NodeNext` without `esModuleInterop` a default import is typed as the
+module namespace and `new Dexie(...)` does not compile. The named `Dexie` is a
+merged declaration: the constructor value, the database type, and the namespace
+that carries `minKey` and `maxKey`. One import therefore covers every use, and
+`esModuleInterop` stays off.
+
+### Compiler settings added by Task 10
+
+Both packages set `lib: ["ES2024", "DOM"]` in their type check and build
+configurations. The port declares a `Blob` for attachment content and the
+storage package uses `IDBFactory` and `IDBKeyRange` in its injected options.
+These are browser types, and both packages run in the browser, so adding the
+library keeps `skipLibCheck: false` in force. Production sources still list no
+`types`, so no Node global is reachable.
+
+Otherwise both keep the Task 3 pattern: `types: ["node"]` for the type check
+only, `src/**/*.test.ts` excluded from the build, `@types/node` in
+`devDependencies`, and project references to the packages they depend on.
+
+### Task 10 verification
+
+The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
+
+- `pnpm install`, then `pnpm install --frozen-lockfile`.
+- `pnpm --filter @notesapp/sync test:unit` runs 14 tests.
+- `pnpm test:integration -- browser-storage` runs 12 tests and prints the
+  measured draft save times.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
+  `pnpm build`.
+
+`docs/development/local-storage.md` records the tables, the partition rule, the
+transaction boundaries, working copies and local branches, the migration guard,
+and the failure kinds.
