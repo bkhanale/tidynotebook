@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "exactOptionalPropertyTypes": true,
+    "types": []
+  },
+  "include": ["fixture.ts"],
+  "references": [{ "path": "../../packages/api-client/tsconfig.build.json" }]
+}

@@ -1,0 +1,269 @@
+openapi: 3.1.2
+info:
+  title: notesapp API
+  version: 0.1.0
+  summary: Application HTTP contract for notesapp.
+  description: >-
+    This document is the authoritative HTTP interface of notesapp. Every
+    application HTTP call in the web app, the sync engine, and the local MCP
+    adapter uses an operation generated from this document. Errors use RFC 9457
+    problem details with a stable application code.
+  license:
+    name: MIT
+    identifier: MIT
+  contact:
+    name: notesapp maintainers
+    url: https://notesapp.invalid/support
+jsonSchemaDialect: https://json-schema.org/draft/2020-12/schema
+servers:
+  - url: https://notes.invalid
+    description: >-
+      Documentation placeholder origin. Every deployment sets its real origin
+      through the client configuration, so no generated call depends on this
+      value.
+tags:
+  - name: service
+    description: Service state operations used by operators and load balancers.
+security:
+  - sessionCookie: []
+  - agentToken: []
+paths:
+  /api/health:
+    get:
+      operationId: getHealth
+      summary: Report that the service process is running.
+      description: >-
+        Reports process liveness only. The operation never inspects a
+        dependency, so a caller cannot use it to decide that the service can
+        accept traffic. Use the readiness operation for that decision.
+      tags:
+        - service
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Health'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/ready:
+    get:
+      operationId: getReadiness
+      summary: Report whether the service can accept traffic.
+      description: >-
+        Reports the state of every startup requirement that the service can
+        check. The current release validates configuration only, because no
+        database or storage dependency exists yet. A later task adds a database
+        check and a storage check to the same report.
+      tags:
+        - service
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/Detail'
+      responses:
+        '200':
+          $ref: '#/components/responses/Readiness'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+        '503':
+          $ref: '#/components/responses/NotReady'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: notesapp_session
+      description: >-
+        Browser session cookie. The cookie is Secure and HttpOnly, and a
+        cookie authenticated write also needs an origin check.
+    agentToken:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: >-
+        Revocable agent token with workspace and action scopes. The server
+        checks the current membership on every operation as well.
+  parameters:
+    RequestId:
+      name: x-request-id
+      in: header
+      required: false
+      style: simple
+      explode: false
+      description: >-
+        Optional caller supplied correlation identifier. The server echoes the
+        value when it is a UUID and generates one otherwise.
+      schema:
+        type: string
+        format: uuid
+    Detail:
+      name: detail
+      in: query
+      required: false
+      style: form
+      explode: false
+      description: >-
+        Amount of readiness information to return. A summary report omits the
+        detail text of each check.
+      schema:
+        type: string
+        enum:
+          - summary
+          - full
+  responses:
+    Health:
+      description: The service process is running.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HealthReport'
+    Readiness:
+      description: The service can accept traffic.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ReadinessReport'
+    NotReady:
+      description: The service cannot accept traffic yet.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    BadRequest:
+      description: The request did not match the contract.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    ServerError:
+      description: The service failed to complete the request.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+  schemas:
+    HealthReport:
+      type: object
+      description: Liveness report of the service process.
+      additionalProperties: false
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          readOnly: true
+          description: Always the literal value ok while the process answers.
+          enum:
+            - ok
+    ReadinessReport:
+      type: object
+      description: Readiness report of every startup requirement.
+      additionalProperties: false
+      required:
+        - status
+        - checks
+      properties:
+        status:
+          type: string
+          readOnly: true
+          description: >-
+            Overall readiness. The value is degraded when at least one check is
+            degraded.
+          enum:
+            - ok
+            - degraded
+        checks:
+          type: array
+          readOnly: true
+          description: One entry for every startup requirement that was checked.
+          minItems: 1
+          maxItems: 32
+          items:
+            $ref: '#/components/schemas/ReadinessCheck'
+    ReadinessCheck:
+      type: object
+      description: State of one startup requirement.
+      additionalProperties: false
+      required:
+        - name
+        - status
+      properties:
+        name:
+          type: string
+          readOnly: true
+          description: Stable name of the requirement, for example configuration.
+          minLength: 1
+          maxLength: 64
+        status:
+          type: string
+          readOnly: true
+          description: State of this requirement.
+          enum:
+            - ok
+            - degraded
+        detail:
+          type: string
+          readOnly: true
+          description: >-
+            Operator readable explanation. The field is absent in a summary
+            report and it never contains note content or a secret.
+          maxLength: 512
+    ProblemDetails:
+      type: object
+      description: >-
+        RFC 9457 problem details. The code field carries the stable application
+        error code that a client can branch on.
+      additionalProperties: true
+      required:
+        - type
+        - title
+        - status
+        - code
+        - requestId
+      properties:
+        type:
+          type: string
+          readOnly: true
+          description: Stable URI reference that identifies the problem type.
+          format: uri-reference
+          maxLength: 256
+        title:
+          type: string
+          readOnly: true
+          description: Short human readable summary of the problem type.
+          maxLength: 256
+        status:
+          type: integer
+          readOnly: true
+          description: HTTP status code of this response.
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+          readOnly: true
+          description: >-
+            Explanation of this occurrence. The field never contains note
+            content, a secret, or a stack trace.
+          maxLength: 1024
+        instance:
+          type: string
+          readOnly: true
+          description: URI reference of the request that produced the problem.
+          format: uri-reference
+          maxLength: 1024
+        code:
+          type: string
+          readOnly: true
+          description: Stable application error code.
+          pattern: ^[a-z][a-z0-9_]*$
+          maxLength: 64
+        requestId:
+          type: string
+          readOnly: true
+          description: Identifier of the request, repeated in the x-request-id header.
+          format: uuid

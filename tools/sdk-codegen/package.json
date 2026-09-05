@@ -1,0 +1,23 @@
+{
+  "name": "@notesapp/sdk-codegen",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/generate.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json",
+    "test:unit": "node ../../tools/run-tests.mjs unit",
+    "contract:lint": "redocly lint --config ../../packages/api-contract/redocly.yaml ../../packages/api-contract/openapi.yaml",
+    "generate": "node src/generate.ts",
+    "generated:check": "node src/check-generated.ts"
+  },
+  "devDependencies": {
+    "@hey-api/openapi-ts": "0.99.0",
+    "@redocly/cli": "2.51.2",
+    "@types/node": "26.4.1",
+    "typescript": "6.0.3"
+  }
+}

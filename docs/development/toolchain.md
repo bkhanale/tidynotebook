@@ -59,10 +59,10 @@ the task that installs them. Registry availability does not prove runtime behavi
 | [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)                          | 10.0.1   | Later task      |
 | [katex](https://registry.npmjs.org/katex/0.18.5)                                                | 0.18.5   | Later task      |
 | [mermaid](https://registry.npmjs.org/mermaid/11.17.2)                                           | 11.17.2  | Later task      |
-| [fastify](https://registry.npmjs.org/fastify/5.12.3)                                            | 5.12.3   | Later task      |
-| [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                                  | 2.51.2   | Later task      |
-| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                                    | 8.20.0   | Later task      |
-| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                     | 3.0.1    | Later task      |
+| [fastify](https://registry.npmjs.org/fastify/5.12.3)                                            | 5.12.3   | Installed       |
+| [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                                  | 2.51.2   | Installed       |
+| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                                    | 8.20.0   | Installed       |
+| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                     | 3.0.1    | Installed       |
 | [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                                    | 0.45.2   | Later task      |
 | [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                                   | 0.31.10  | Later task      |
 | [pg](https://registry.npmjs.org/pg/8.23.0)                                                      | 8.23.0   | Later task      |
@@ -74,11 +74,12 @@ the task that installs them. Registry availability does not prove runtime behavi
 | [@modelcontextprotocol/fastify](https://registry.npmjs.org/@modelcontextprotocol/fastify/2.0.0) | 2.0.0    | Later task      |
 | [@modelcontextprotocol/node](https://registry.npmjs.org/@modelcontextprotocol/node/2.0.0)       | 2.0.0    | Later task      |
 | [typescript](https://registry.npmjs.org/typescript/7.0.2)                                       | 7.0.2    | Root tool       |
+| [typescript](https://registry.npmjs.org/typescript/6.0.3)                                       | 6.0.3    | SDK generator   |
 | [pnpm](https://registry.npmjs.org/pnpm/12.3.4)                                                  | 12.3.4   | Package manager |
 | [oxlint](https://registry.npmjs.org/oxlint/1.81.0)                                              | 1.81.0   | Root tool       |
 | [oxlint-tsgolint](https://registry.npmjs.org/oxlint-tsgolint/7.0.2001)                          | 7.0.2001 | Root tool       |
 | [prettier](https://registry.npmjs.org/prettier/3.9.6)                                           | 3.9.6    | Root tool       |
-| [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)                    | 0.99.0   | Later task      |
+| [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)                    | 0.99.0   | Installed       |
 | [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                                     | 1.7.2    | Later task      |
 | [@better-auth/oauth-provider](https://registry.npmjs.org/@better-auth/oauth-provider/1.7.2)     | 1.7.2    | Later task      |
 | [@types/node](https://registry.npmjs.org/@types/node/26.4.1)                                    | 26.4.1   | Root tool       |
@@ -186,14 +187,17 @@ the emitted file also ran under `node --test`.
 
 ## Commands and boundaries
 
-| Command                             | Behavior                                                          |
-| ----------------------------------- | ----------------------------------------------------------------- |
-| `pnpm typecheck`                    | Check tool scripts with TS 7, then package type checks.           |
-| `pnpm lint`                         | Check pins and runtime, type-aware Oxlint, and source boundaries. |
-| `pnpm format:check`                 | Check maintained source and configuration formatting.             |
-| `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.         |
-| `pnpm test:integration -- contract` | Run the named service integration test.                           |
-| `pnpm build`                        | Check tools, then run package builds in dependency order.         |
+| Command                             | Behavior                                                                      |
+| ----------------------------------- | ----------------------------------------------------------------------------- |
+| `pnpm typecheck`                    | Check tool scripts with TS 7, package type checks, then the integration tree. |
+| `pnpm lint`                         | Check pins and runtime, type-aware Oxlint, and source boundaries.             |
+| `pnpm format:check`                 | Check maintained source and configuration formatting.                         |
+| `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.                     |
+| `pnpm test:integration -- contract` | Build the packages, then run the named service integration test.              |
+| `pnpm build`                        | Check tools, then run package builds in dependency order.                     |
+| `pnpm contract:lint`                | Check `openapi.yaml` with the strict Redocly rules.                           |
+| `pnpm generate`                     | Bundle the contract, write the validators, and write the SDK.                 |
+| `pnpm generated:check`              | Generate into a temporary directory and compare bytes.                        |
 
 Unit test discovery covers `*.test.ts` and `*.test.mjs` only. It does not
 discover `*.test.tsx`, because Node cannot strip JSX. Until the authorized E2E
@@ -421,3 +425,86 @@ exact optional checking is enabled. The fetch plugin's published types expose
 found no `exactOptionalPropertyTypes` setting. These observations are evidence
 for Task 2, not a selected workaround. The probe and diagnostics remain local
 under `.tooling/compat/`; application output has not been created.
+
+## Task 2 packages and settings
+
+Every version below was rechecked against the npm registry on 2026-09-05,
+immediately before the install that added it. `pnpm install --frozen-lockfile`
+passes with the committed lockfile.
+
+| Package               | Version | Workspace                                      |
+| --------------------- | ------- | ---------------------------------------------- |
+| `fastify`             | 5.12.3  | `apps/server` dependency                       |
+| `ajv`                 | 8.20.0  | `packages/api-contract` dependency             |
+| `ajv-formats`         | 3.0.1   | `packages/api-contract` dependency             |
+| `@hey-api/openapi-ts` | 0.99.0  | `tools/sdk-codegen` development dependency     |
+| `@redocly/cli`        | 2.51.2  | `tools/sdk-codegen` development dependency     |
+| `typescript`          | 6.0.3   | `tools/sdk-codegen` development dependency     |
+| `typescript`          | 7.0.2   | every other new package development dependency |
+| `@types/node`         | 26.4.1  | `apps/server` and `tools/sdk-codegen`          |
+
+`packages/api-client` has no runtime dependency. The Hey API fetch plugin
+bundles its transport into the generated output, so the client package does not
+install `@hey-api/client-fetch`.
+
+TypeScript 6.0.3 exists only inside `tools/sdk-codegen`. Its package scripts run
+that compiler, so the recursive root `typecheck` never checks the generator with
+TypeScript 7. `tools/check-versions.mjs` already fails a manifest that pins a
+different TypeScript version in either place.
+
+### Compiler settings added by Task 2
+
+- Each new package has `tsconfig.json` for type checking and
+  `tsconfig.build.json` for declaration output. The build configuration is
+  `composite`, sets an explicit `rootDir`, and excludes `**/*.test.ts`. A
+  consumer uses `references` to that build configuration, so it reads emitted
+  declarations rather than another package's sources.
+- `packages/api-client` sets `exactOptionalPropertyTypes: false` in both of its
+  configurations, as the design requires. Every consumer keeps
+  `exactOptionalPropertyTypes: true`.
+  `tools/exact-optional/fixture.ts` and `tools/check-exact-optional.test.mjs`
+  prove that: the fixture assigns `undefined` to an optional member of the
+  generated `GetReadinessData` query type, and the test fails when that no
+  longer reports TS2375 or TS2379. `pnpm test:unit` runs it.
+- The new packages set `skipLibCheck: true`. The published declarations of
+  Fastify, Ajv, and the Hey API generator are outside this repository's control,
+  and the generator's own declarations do not compile under TypeScript 6.0.3.
+- `packages/api-contract` reaches the Ajv formats plugin through
+  `ajvFormats.default(...)`. Ajv formats ships CommonJS, so Node binds a default
+  import to `module.exports` and the plugin function is its `default` member.
+- `tests/integration/tsconfig.json` covers the integration tree, so type-aware
+  Oxlint finds a configuration for those files. The root `typecheck` script runs
+  it after the package type checks.
+- The root `test:integration` script builds first, because the integration tests
+  import the workspace packages through their published `dist` entry points.
+
+### Generated output
+
+`pnpm generate` runs three steps in a fixed order: Redocly bundles and
+dereferences `packages/api-contract/openapi.yaml`, the operation index and its
+Ajv validators are written to `packages/api-contract/src/generated/`, and Hey
+API writes the SDK to `packages/api-client/src/generated/`. `pnpm
+generated:check` runs the same code into a temporary directory and compares
+every produced file byte for byte, so it needs no Git history.
+
+The generator sets `output.module.extension` to `.js` and does not set
+`output.tsConfigPath`. Ajv standalone code output was not used: it emits
+JavaScript, and both generated modules must compile and emit through the
+package's TypeScript declaration build. Ajv compiles each schema once when
+`packages/api-contract/src/generated/validators.ts` is first imported.
+
+The `.oxlintrc.json` override for the two generated globs now also turns off
+`typescript/no-redundant-type-constituents` and
+`typescript/no-floating-promises`. The generated fetch transport trips both. The
+globs were not widened.
+
+## Task 2 verification
+
+The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
+
+- `pnpm install`, then `pnpm install --frozen-lockfile`.
+- `pnpm contract:lint`, `pnpm generate`, `pnpm generated:check`.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm build`.
+- `pnpm test:unit` runs 40 tests, including the exact optional proof.
+- `pnpm test:integration -- contract` runs 8 contract tests through the
+  generated client against a real listening Fastify server.

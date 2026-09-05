@@ -1,0 +1,27 @@
+# Strict specification checks for the notesapp contract.
+extends:
+  - recommended-strict
+rules:
+  struct: error
+  no-unresolved-refs: error
+  no-unused-components: error
+  security-defined: error
+  operation-operationId: error
+  operation-operationId-unique: error
+  operation-operationId-url-safe: error
+  operation-summary: error
+  operation-description: error
+  operation-2xx-response: error
+  operation-4xx-response: error
+  operation-tag-defined: error
+  operation-singular-tag: error
+  parameter-description: error
+  path-parameters-defined: error
+  no-ambiguous-paths: error
+  no-identical-paths: error
+  no-invalid-parameter-examples: error
+  no-invalid-media-type-examples: error
+  no-http-verbs-in-paths: error
+  spec-strict-refs: error
+  response-contains-property: off
+  operation-4xx-problem-details-rfc7807: error

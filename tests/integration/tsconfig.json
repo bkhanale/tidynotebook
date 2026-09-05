@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true
+  },
+  "include": ["**/*.ts"],
+  "references": [
+    { "path": "../../packages/api-client/tsconfig.build.json" },
+    { "path": "../../packages/api-contract/tsconfig.build.json" },
+    { "path": "../../apps/server/tsconfig.build.json" }
+  ]
+}
