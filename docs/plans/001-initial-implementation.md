@@ -81,7 +81,7 @@ type AcceptedChangeset = {
 };
 type DomainError = {
   code: 'forbidden' | 'stale_head' | 'path_conflict' | 'invalid_path' | 'invalid_graph'
-    | 'quota' | 'purged' | 'mutation_reused' | 'not_found';
+    | 'invalid_content' | 'quota' | 'purged' | 'mutation_reused' | 'not_found';
   fileIds: readonly string[];
 };
 type Result<T> = { ok: true; value: T } | { ok: false; error: DomainError };
@@ -182,6 +182,7 @@ Execution record (2026-09-06): commits `9f47677` and `9c34166`. Independent revi
 
 **Interfaces:** Produces `commitChangeset(store: WorkspaceStore, actor: Actor, input: ChangesetInput): Promise<Result<AcceptedChangeset>>`. Operation IDs are `listFiles`, `getFile`, `getRevision`, `createFile`, `updateFile`, `deleteFile`, and `commitChangeset`. All single-file write handlers map to the same changeset use case. Read schemas expose selected metadata and Markdown, never storage paths.
 
+- [ ] Server-side digest verification is mandatory (Task 4 review finding): content is deduplicated per workspace digest, so a client that reuses a stored digest with different text would otherwise make its revision resolve to the earlier bytes. `accept` verifies Markdown digests and returns the `invalid_content` domain error; `commitChangeset` must reject before storage as well, and HTTP maps `invalid_content` to 422.
 - [ ] Define SHA-256 content digests over UTF-8 Markdown or original attachment bytes. For a request digest, recursively sort object keys, preserve array order and explicit nulls, exclude transport-only fields, serialize validated values to UTF-8, and hash them with the operation identity and preconditions. Reject non-finite numbers through the schema. Require strong `If-Match` on existing-file HTTP writes and per-file expected heads on batch sync; missing preconditions return 428 and stale heads return 412.
 - [ ] Implement this transaction order, using the ports from Task 3:
 
@@ -363,7 +364,7 @@ commit once; return exact accepted revision IDs
 **Interfaces:** Operation IDs are `searchFiles` and `getBacklinks`. Define `SearchHit = { fileId: string; path: string; revisionId: string; excerpt: string }` in the domain search module. Produces `searchLocal(query: string, files: readonly { fileId: string; path: string; revisionId: string; text: string }[]): readonly SearchHit[]`. Transport maps domain hits into generated response schemas.
 
 - [ ] Add workspace-filtered PostgreSQL text search with the `simple` configuration on accepted titles/content. Update indexes in the acceptance transaction. Exclude deleted files, branch tips, and history from normal results.
-- [ ] Add wiki-link completion that requires selection for ambiguous titles and writes the stable ID syntax from Task 12. Keep unresolved references visible. Build backlinks from accepted source revisions and check access to both ends before returning metadata.
+- [ ] Add wiki-link completion that requires selection for ambiguous titles and writes the stable ID syntax from Task 12. Follow-up from the Task 12 review: the Markdown policy blocks author-written `#fragment` links because rendered headings carry no ids yet. When heading slugs are added (here or in Task 15), allow `^#[A-Za-z0-9_-]+$` against `user-content-` namespaced heading ids and add corpus tests. Keep unresolved references visible. Build backlinks from accepted source revisions and check access to both ends before returning metadata.
 - [ ] Search downloaded accepted content plus current local drafts offline. Prefer a draft over its accepted version for local results and do not mix accounts/workspaces. Add the search dialog, outline, and backlinks panel without changing editor selection.
 - [ ] Run `pnpm test:integration -- search` and sync/Markdown unit tests. Verify rename-safe links, ambiguity, no private target metadata, deletion index removal, and pending draft search. Run `pnpm generated:check` and `pnpm build`.
 - [ ] Commit: `feat: add linked notes and workspace search`.
