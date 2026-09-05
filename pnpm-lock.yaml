@@ -115,12 +115,21 @@ importers:
       '@notesapp/api-contract':
         specifier: workspace:*
         version: link:packages/api-contract
+      '@notesapp/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@notesapp/server':
         specifier: workspace:*
         version: link:apps/server
+      '@notesapp/storage-server':
+        specifier: workspace:*
+        version: link:packages/storage-server
       '@types/node':
         specifier: 26.4.1
         version: 26.4.1
+      '@types/pg':
+        specifier: 8.23.1
+        version: 8.23.1
       oxc-parser:
         specifier: 0.148.0
         version: 0.148.0
@@ -130,6 +139,9 @@ importers:
       oxlint-tsgolint:
         specifier: 7.0.2001
         version: 7.0.2001
+      pg:
+        specifier: 8.23.0
+        version: 8.23.0
       prettier:
         specifier: 3.9.6
         version: 3.9.6

@@ -640,3 +640,87 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `pnpm --filter @notesapp/markdown test:unit` runs 52 tests.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
+
+## Task 4 packages and settings
+
+Every version below was rechecked against the npm registry on 2026-09-06,
+immediately before the install that added it.
+
+| Package       | Version | Workspace                                          |
+| ------------- | ------- | -------------------------------------------------- |
+| `drizzle-orm` | 0.45.2  | `packages/storage-server` dependency               |
+| `pg`          | 8.23.0  | `packages/storage-server` dependency               |
+| `drizzle-kit` | 0.31.10 | `packages/storage-server` development dependency   |
+| `@types/pg`   | 8.23.1  | `packages/storage-server` development dependency   |
+| `pg`          | 8.23.0  | root development dependency, for integration tests |
+| `@types/pg`   | 8.23.1  | root development dependency, for integration tests |
+| PostgreSQL    | 18.6    | `compose.test.yaml`, pinned by image digest        |
+
+`drizzle-orm` 0.45.2 and `pg` 8.23.0 are the newest stable releases.
+`drizzle-kit` 0.31.10 is the newest stable release of its line. Drizzle also
+publishes 1.0.0 release candidates; the dependency policy forbids a prerelease,
+so the 0.x lines stay. `@types/pg` 8.23.1 is the newest stable release, one
+patch above the design's note, so that patch is pinned. `drizzle-orm` declares
+`pg` and `@types/pg` as optional peers, and both are satisfied inside the
+package that installs them.
+
+`pg` and `@types/pg` are also root development dependencies, because the row
+access tests must issue direct statements. Table rights, row level security,
+and immutability triggers are database guarantees that no application call
+exposes. The boundary checker still forbids a handwritten transport there; a
+database driver is not an HTTP transport.
+
+The root also gains `@notesapp/core` and `@notesapp/storage-server` as
+development dependencies, so the repository-root `tests/integration` tree can
+import their public entry points, as it already does for the server and the
+generated client.
+
+`packages/storage-server` sets `skipLibCheck: true` in both of its compiler
+configurations. The published Drizzle declarations do not compile under
+TypeScript 7 with the strict base settings: they report errors inside the Gel,
+MySQL, and SingleStore dialect files, which this package never loads.
+Application sources are still checked in full, and the package keeps `strict`,
+`noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes`.
+
+`packages/storage-server/tsconfig.json` also includes `drizzle.config.ts`, so
+type-aware lint finds a compiler configuration for that file. The build
+configuration keeps `rootDir: "src"` and excludes it.
+
+`pnpm-workspace.yaml` gained `allowBuilds: { esbuild: false }`. pnpm 12 refuses
+an install that has unreviewed build scripts. `drizzle-kit` depends on
+`esbuild`, whose install script was checked and is not needed: `drizzle-kit
+generate` runs correctly with the script disabled, because the platform binary
+arrives through esbuild's optional dependencies.
+
+### Database commands
+
+| Command                            | Behavior                                                      |
+| ---------------------------------- | ------------------------------------------------------------- |
+| `pnpm db:generate`                 | Writes the next Drizzle schema migration. No database needed. |
+| `pnpm db:migrate --profile test`   | Migrates the Compose test database.                           |
+| `pnpm db:migrate --profile deploy` | Migrates the operator database from protected files.          |
+
+The migration command requires an explicit profile and refuses a database whose
+name does not match the profile. `docs/development/database.md` records the
+schema, the roles, the row access design, the deferrable accepted path, the
+immutability triggers, the test database procedure, and the migration
+procedure.
+
+Node runs `packages/storage-server/src/migrate.ts` directly through its type
+stripping, so the migration command needs no build step. The file guards its
+command entry point with `import.meta.main`, so importing it starts nothing.
+
+### Task 4 verification
+
+The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
+
+- `pnpm install`, then `pnpm install --frozen-lockfile`.
+- `sudo docker compose -f compose.test.yaml up -d --wait`.
+- `pnpm db:generate` produced `0000_slimy_ravenous.sql`; a second run reported
+  no schema change. `0001_row_access.sql` is the reviewed custom migration.
+- `pnpm db:migrate --profile test`, then the same command again as a no
+  operation. The command without a profile exits 1.
+- `pnpm test:integration -- storage` runs 14 tests.
+- `pnpm test:integration -- row-access` runs 11 tests.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
+  `pnpm build`.

@@ -18,16 +18,22 @@
     "build": "tsc -p tsconfig.json && pnpm -r --if-present build",
     "contract:lint": "pnpm --filter @notesapp/sdk-codegen run contract:lint",
     "generate": "pnpm --filter @notesapp/sdk-codegen run generate",
-    "generated:check": "pnpm --filter @notesapp/sdk-codegen run generated:check"
+    "generated:check": "pnpm --filter @notesapp/sdk-codegen run generated:check",
+    "db:generate": "pnpm --filter @notesapp/storage-server run db:generate",
+    "db:migrate": "node packages/storage-server/src/migrate.ts"
   },
   "devDependencies": {
     "@notesapp/api-client": "workspace:*",
     "@notesapp/api-contract": "workspace:*",
+    "@notesapp/core": "workspace:*",
     "@notesapp/server": "workspace:*",
+    "@notesapp/storage-server": "workspace:*",
     "@types/node": "26.4.1",
+    "@types/pg": "8.23.1",
     "oxc-parser": "0.148.0",
     "oxlint": "1.81.0",
     "oxlint-tsgolint": "7.0.2001",
+    "pg": "8.23.0",
     "prettier": "3.9.6",
     "typescript": "7.0.2"
   }

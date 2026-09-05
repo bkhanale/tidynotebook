@@ -7,3 +7,5 @@ autoInstallPeers: false
 saveExact: true
 engineStrict: true
 linkWorkspacePackages: false
+allowBuilds:
+  esbuild: false
