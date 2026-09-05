@@ -273,7 +273,7 @@ commit once; return exact accepted revision IDs
 - [ ] Run `pnpm --filter @notesapp/sync test:unit` and `pnpm test:integration -- sync` against the actual generated client and disposable server/database. Test offline A/B changes, dropped accepted response, lease takeover, later local edits during acknowledgment, purged assets needing upload, expired cursor, and incomplete snapshot restart.
 - [ ] Commit: `feat: sync offline changes without losing revisions`.
 
-### [ ] Task 12: Build the shared Markdown parser and safe renderer
+### [x] Task 12: Build the shared Markdown parser and safe renderer
 
 **Depends on:** Task 3.
 
@@ -281,11 +281,13 @@ commit once; return exact accepted revision IDs
 
 **Interfaces:** Define `SourceRange = { from: number; to: number }` and `NoteLink = { range: SourceRange; label: string; targetId: string | null; source: string }`. Produces `parseMarkdown(source: string): Root` using the upstream mdast `Root` type, `extractLinks(source: string): readonly NoteLink[]`, and `renderMarkdown(source: string): Promise<string>` returning sanitized HTML. Use `/notes/<file-uuid>` for stable note references and `/attachments/<revision-uuid>` for immutable image references in stored Markdown; the UI intercepts these references and uses generated operations to load content.
 
-- [ ] Compose CommonMark, GFM, footnotes, math, and fenced code parsing with source offsets. Preserve unknown syntax and front matter as text. Extract ID links and unresolved wiki-link references without fetching targets.
-- [ ] Disable raw HTML/MDX/plugins, reject unsafe URL schemes, sanitize rendered output, and add fixed resource limits. Keep attachment references as approved internal references resolved by the caller, not arbitrary server fetches. External images remain unloaded until explicit action.
-- [ ] Build a shared corpus with nested lists, tables, escaping, Unicode, malformed fences, footnotes, unsafe URLs, raw HTML, and unresolved links. Check both source ranges and rendered output rather than relying on broad snapshots.
-- [ ] Run `pnpm --filter @notesapp/markdown test:unit`, `pnpm typecheck`, and `pnpm lint`. Require safe output, exact source range mapping, and intact original Markdown after parsing.
-- [ ] Commit: `feat: add shared safe Markdown parsing`.
+- [x] Compose CommonMark, GFM, footnotes, math, and fenced code parsing with source offsets. Preserve unknown syntax and front matter as text. Extract ID links and unresolved wiki-link references without fetching targets.
+- [x] Disable raw HTML/MDX/plugins, reject unsafe URL schemes, sanitize rendered output, and add fixed resource limits. Keep attachment references as approved internal references resolved by the caller, not arbitrary server fetches. External images remain unloaded until explicit action.
+- [x] Build a shared corpus with nested lists, tables, escaping, Unicode, malformed fences, footnotes, unsafe URLs, raw HTML, and unresolved links. Check both source ranges and rendered output rather than relying on broad snapshots.
+- [x] Run `pnpm --filter @notesapp/markdown test:unit`, `pnpm typecheck`, and `pnpm lint`. Require safe output, exact source range mapping, and intact original Markdown after parsing.
+- [x] Commit: `feat: add shared safe Markdown parsing`.
+
+Execution record (2026-09-06): commits `8b1760e`, `4e5c07d`, `6a4dfb8`, `b06635b`, `0d03776`, `d9d79d0`. Six independent review rounds; final verdict Ready. The sanitizer and URL policy passed about 60 adversarial inputs from the first round unchanged. Resource limits were the repeated finding: micromark parsing is quadratic for several ordinary shapes, so `packages/markdown/src/limits.ts` now runs a source pre-scan before every entry point with measured caps (1 MiB input, 64 KiB line and paragraph, 1,000 delimiter run, 100 nesting levels, 2,000 links, 2,000 table rows, 10,000 table cells, 100 table columns, 5,000 list lines, 15,000 blocks, 2,000 inline delimiters per block and 100,000 per document, and a combined cost score at or below 2.3). Every at-cap shape renders in about one second and every out-of-cap shape is refused in under 100 ms; measurements are recorded in `docs/development/toolchain.md`. Deviations recorded there: corpus as a TypeScript template literal, `MarkdownLimitError` instead of a result variant, math and Mermaid as placeholders until Task 15, external images as placeholders, `#fragment` links blocked until heading slugs exist (Task 18 follow-up), `@types/<name>` accepted by the boundary checker for type-only imports.
 
 ### [ ] Task 13: Build the Tokyo Night shell and account screens
 
