@@ -77,6 +77,10 @@ export type AcceptedChangeset = {
  * Each code is an expected outcome of a valid request, so a caller can map it
  * to a documented problem response. An infrastructure failure is not a domain
  * error; see `OperationalError` in `./ports.ts`.
+ *
+ * `invalid_content` means that submitted content does not match its declared
+ * digest. Storage checks this, because a wrong digest would attach a revision
+ * to bytes that the client never sent.
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -84,6 +88,7 @@ export type DomainErrorCode =
   | 'path_conflict'
   | 'invalid_path'
   | 'invalid_graph'
+  | 'invalid_content'
   | 'quota'
   | 'purged'
   | 'mutation_reused'

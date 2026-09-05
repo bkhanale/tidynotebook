@@ -7,7 +7,9 @@
  * A browser package must never import it.
  */
 export {
+  DatabaseFailure,
   openWorkspaceStore,
+  WorkspaceUnavailableError,
   type WorkspaceStoreHandle,
   type WorkspaceStoreOptions,
 } from './workspace-store.ts';

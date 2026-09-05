@@ -11,7 +11,7 @@
  * the open transaction usable and writes nothing. An infrastructure failure
  * throws `OperationalError` instead.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Buffer } from 'node:buffer';
 import {
   OperationalError,
@@ -41,7 +41,6 @@ import {
   revisionParents,
   revisions,
   syncChanges,
-  workspaceCursors,
   workspaceUsage,
 } from './schema.ts';
 
@@ -62,6 +61,11 @@ const receiptOverheadBytes = 512n;
  */
 const controlReserveBytes = 1n << 20n;
 
+/** The SHA-256 digest of UTF-8 Markdown, in lower case hexadecimal. */
+function markdownDigest(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -76,21 +80,52 @@ export type WorkspaceStoreOptions = {
 /** A workspace store and the calls that a process needs to manage its pool. */
 export type WorkspaceStoreHandle = WorkspaceStore & {
   /**
-   * The identity setting of a pooled connection outside a transaction.
+   * The identity setting of one pooled connection outside a transaction.
    *
    * The value must be `null`. The transaction identity is set with the local
    * flag of `set_config`, so it disappears at commit or rollback and cannot
    * reach the next user of the connection.
+   *
+   * The call takes whichever connection the pool hands out, so it proves the
+   * absence of a leak only at pool size 1, where that is the connection the
+   * earlier transaction used.
    */
-  readConnectionIdentity(): Promise<string | null>;
+  readPooledIdentity(): Promise<string | null>;
   /** Closes every pooled connection. */
   close(): Promise<void>;
 };
 
-/** A PostgreSQL failure, as the driver reports it. */
+/**
+ * The workspace is not available to this actor.
+ *
+ * The row access policies hide a workspace that the account is not a member
+ * of, so storage cannot tell a missing workspace from a hidden one, and it
+ * must not try: the answer would disclose that the workspace exists. This is
+ * not an infrastructure failure, so it is a separate error. An HTTP adapter
+ * maps it to 404.
+ */
+export class WorkspaceUnavailableError extends Error {
+  readonly workspaceId: string;
+
+  constructor(workspaceId: string) {
+    super('notesapp: the workspace is not available to this actor.');
+    this.name = 'WorkspaceUnavailableError';
+    this.workspaceId = workspaceId;
+  }
+}
+
+/**
+ * A PostgreSQL failure, reduced to the fields that carry no stored content.
+ *
+ * `detail`, `hint`, `where`, the statement, and its bound parameters are
+ * deliberately absent: PostgreSQL echoes the offending values in `detail`, and
+ * the driver keeps the parameters.
+ */
 type PostgresFailure = {
   readonly code: string;
   readonly constraint: string | null;
+  readonly table: string | null;
+  readonly routine: string | null;
 };
 
 /** Reads the PostgreSQL failure out of a thrown value and its causes. */
@@ -99,16 +134,62 @@ function postgresFailure(value: unknown): PostgresFailure | null {
   for (let depth = 0; depth < 5; depth += 1) {
     if (typeof current !== 'object' || current === null) return null;
     if ('code' in current && typeof current.code === 'string') {
-      const constraint =
-        'constraint' in current && typeof current.constraint === 'string'
-          ? current.constraint
-          : null;
-      return { code: current.code, constraint };
+      return {
+        code: current.code,
+        constraint:
+          'constraint' in current && typeof current.constraint === 'string'
+            ? current.constraint
+            : null,
+        table:
+          'table' in current && typeof current.table === 'string'
+            ? current.table
+            : null,
+        routine:
+          'routine' in current && typeof current.routine === 'string'
+            ? current.routine
+            : null,
+      };
     }
     if (!('cause' in current)) return null;
     current = current.cause;
   }
   return null;
+}
+
+/**
+ * A content free description of a database failure.
+ *
+ * The driver's own error, and the wrapper that Drizzle puts around it, carry
+ * the failed statement, its bound parameters, and the PostgreSQL `detail` and
+ * `hint` fields. All four echo note text and file paths, and a logger that
+ * walks `cause` would write them out. This class therefore becomes the cause
+ * of every `OperationalError` that this package throws. It keeps only the
+ * SQLSTATE, the constraint, the table, and the server routine.
+ */
+export class DatabaseFailure extends Error {
+  readonly sqlState: string | null;
+  readonly constraintName: string | null;
+  readonly tableName: string | null;
+  readonly routine: string | null;
+
+  constructor(failure: PostgresFailure | null, fallback: string) {
+    super(
+      failure === null
+        ? `notesapp: ${fallback}`
+        : `notesapp: PostgreSQL rejected a statement with SQLSTATE ${failure.code}`,
+    );
+    this.name = 'DatabaseFailure';
+    this.sqlState = failure?.code ?? null;
+    this.constraintName = failure?.constraint ?? null;
+    this.tableName = failure?.table ?? null;
+    this.routine = failure?.routine ?? null;
+  }
+}
+
+/** The name of a thrown value, without any of its content. */
+function failureName(value: unknown): string {
+  if (value instanceof Error) return value.name;
+  return typeof value;
 }
 
 /** Wraps an unexpected failure as an infrastructure failure. */
@@ -120,13 +201,17 @@ function operational(value: unknown): OperationalError {
       ? 'unexpected'
       : failure.code === '40001' || failure.code === '40P01'
         ? 'serialization'
-        : failure.code.startsWith('08')
+        : failure.code.startsWith('08') || failure.code === '57P03'
           ? 'unavailable'
           : failure.code === '57014'
             ? 'timeout'
-            : 'unexpected';
+            : failure.code === '28P01' || failure.code === '28000'
+              ? 'unavailable'
+              : 'unexpected';
+  // The cause is rebuilt, never forwarded, so no statement text, no bound
+  // parameter, and no PostgreSQL detail line can reach a log.
   return new OperationalError(kind, 'notesapp: the workspace store failed.', {
-    cause: value,
+    cause: new DatabaseFailure(failure, `a ${failureName(value)} was thrown`),
   });
 }
 
@@ -249,7 +334,14 @@ export function openWorkspaceStore(
     ): Promise<T> {
       assertUuid(actor.accountId, 'the actor account');
       assertUuid(workspaceId, 'the workspace');
-      const client = await pool.connect();
+      // A refused connection must not escape as a driver error: its message
+      // repeats the host, the port, and the role of the connection URL.
+      let client: pg.PoolClient;
+      try {
+        client = await pool.connect();
+      } catch (error) {
+        throw operational(error);
+      }
       try {
         const db = drizzle({ client });
         await client.query('begin');
@@ -258,10 +350,22 @@ export function openWorkspaceStore(
             "select set_config('notesapp.account_id', $1, true)",
             [actor.accountId],
           );
+          // The workspace lock orders every write of one workspace, so the
+          // commit ordered cursor cannot skip a transaction that commits late.
+          // It is an advisory lock, not `SELECT ... FOR UPDATE`, because a
+          // viewer holds no UPDATE right on the workspace row. A hash
+          // collision between two workspaces costs extra serialization only.
           await client.query(
-            'select id from workspaces where id = $1 for update',
+            'select pg_advisory_xact_lock(hashtext($1::text)::bigint)',
             [workspaceId],
           );
+          const seen = await client.query<{ id: string }>(
+            'select id from workspaces where id = $1',
+            [workspaceId],
+          );
+          if (seen.rowCount === 0) {
+            throw new WorkspaceUnavailableError(workspaceId);
+          }
           const value = await run(
             createTransaction(client, db, actor, workspaceId),
           );
@@ -273,6 +377,7 @@ export function openWorkspaceStore(
           } catch {
             // The connection is already unusable; report the first failure.
           }
+          if (error instanceof WorkspaceUnavailableError) throw error;
           throw operational(error);
         }
       } finally {
@@ -280,7 +385,7 @@ export function openWorkspaceStore(
       }
     },
 
-    async readConnectionIdentity(): Promise<string | null> {
+    async readPooledIdentity(): Promise<string | null> {
       const client = await pool.connect();
       try {
         const result = await client.query<{ value: string | null }>(
@@ -513,13 +618,14 @@ async function writeChangeset(
       ),
     ),
   ];
-  const objectSizes = new Map<string, bigint>();
+  const objects = new Map<string, { size: bigint; digest: string }>();
   if (objectIds.length > 0) {
     for (const objectId of objectIds) assertUuid(objectId, 'an attachment');
     const rows = await db
       .select({
         id: attachmentObjects.id,
         size: attachmentObjects.size,
+        digest: attachmentObjects.digest,
         state: attachmentObjects.state,
       })
       .from(attachmentObjects)
@@ -530,12 +636,14 @@ async function writeChangeset(
         ),
       );
     for (const row of rows) {
-      if (row.state === 'finalized') objectSizes.set(row.id, row.size);
+      if (row.state === 'finalized') {
+        objects.set(row.id, { size: row.size, digest: row.digest });
+      }
     }
     const unusable = input.revisions.filter(
       (revision) =>
         revision.content.kind === 'attachment' &&
-        !objectSizes.has(revision.content.objectId),
+        !objects.has(revision.content.objectId),
     );
     if (unusable.length > 0) {
       return fail(
@@ -543,6 +651,23 @@ async function writeChangeset(
         unusable.map((revision) => revision.fileId),
       );
     }
+  }
+
+  // The declared digest must match the submitted bytes. A wrong digest would
+  // attach the revision to content that the client never sent, because content
+  // is addressed by digest and deduplicated.
+  const mismatched = input.revisions.filter((revision) => {
+    const content = revision.content;
+    if (content.kind === 'markdown') {
+      return markdownDigest(content.text) !== content.digest.toLowerCase();
+    }
+    return objects.get(content.objectId)?.digest !== content.digest;
+  });
+  if (mismatched.length > 0) {
+    return fail(
+      'invalid_content',
+      mismatched.map((revision) => revision.fileId),
+    );
   }
 
   // Immutable content, deduplicated inside this workspace only.
@@ -567,7 +692,7 @@ async function writeChangeset(
       size:
         content.kind === 'markdown'
           ? BigInt(Buffer.byteLength(content.text, 'utf8'))
-          : (objectSizes.get(content.objectId) ?? 0n),
+          : (objects.get(content.objectId)?.size ?? 0n),
       markdown: content.kind === 'markdown' ? content.text : null,
       objectId: content.kind === 'attachment' ? content.objectId : null,
     });
@@ -590,8 +715,7 @@ async function writeChangeset(
       quotaBytes: workspaceUsage.quotaBytes,
     })
     .from(workspaceUsage)
-    .where(eq(workspaceUsage.workspaceId, workspaceId))
-    .for('update');
+    .where(eq(workspaceUsage.workspaceId, workspaceId));
   const usage = usageRows[0];
   if (usage === undefined) {
     throw new OperationalError(
@@ -599,30 +723,37 @@ async function writeChangeset(
       'notesapp: the workspace has no usage record.',
     );
   }
-  if (
-    contentBytes > 0n &&
-    usage.bytesUsed + addedBytes > usage.quotaBytes - controlReserveBytes
-  ) {
+  // Only a changeset that deletes every file it touches may use the control
+  // reserve. Reusing a stored digest is not a control operation: its revision
+  // rows and its receipt still grow the retained bytes, so it must fit under
+  // the reserve line like any other write.
+  const control = input.revisions.every((revision) => revision.deleted);
+  const limit = control
+    ? usage.quotaBytes
+    : usage.quotaBytes - controlReserveBytes;
+  if (usage.bytesUsed + addedBytes > limit) {
     return fail('quota', fileIds);
   }
-  await db
-    .update(workspaceUsage)
-    .set({ bytesUsed: usage.bytesUsed + addedBytes })
-    .where(eq(workspaceUsage.workspaceId, workspaceId));
-
-  // The commit ordered cursor is allocated under the workspace row lock.
-  const cursorRows = await db
-    .update(workspaceCursors)
-    .set({ lastCursor: sql`${workspaceCursors.lastCursor} + 1` })
-    .where(eq(workspaceCursors.workspaceId, workspaceId))
-    .returning({ cursor: workspaceCursors.lastCursor });
-  const cursor = cursorRows[0]?.cursor;
-  if (cursor === undefined) {
+  // The runtime role holds no UPDATE right on the usage or the cursor record,
+  // so both changes go through a membership checked function of the schema
+  // owner. A member can therefore not raise its own quota or reset the commit
+  // order.
+  await client.query('select notesapp_add_usage($1, $2::bigint)', [
+    workspaceId,
+    addedBytes.toString(),
+  ]);
+  const allocated = await client.query<{ cursor: string }>(
+    'select notesapp_next_cursor($1) as cursor',
+    [workspaceId],
+  );
+  const allocatedCursor = allocated.rows[0]?.cursor;
+  if (allocatedCursor === undefined) {
     throw new OperationalError(
       'unexpected',
-      'notesapp: the workspace has no cursor record.',
+      'notesapp: the workspace cursor was not allocated.',
     );
   }
+  const cursor = BigInt(allocatedCursor);
 
   const changesetId = randomUUID();
   await db.insert(changesets).values({

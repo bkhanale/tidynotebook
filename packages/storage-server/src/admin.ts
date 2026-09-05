@@ -63,23 +63,14 @@ export async function createTestDatabase(
 /**
  * Drops one disposable database.
  *
- * Existing sessions are closed first, because a test may leave a pooled
- * connection open until its process exits.
+ * `WITH (FORCE)` closes the sessions that a test left open. The migration role
+ * owns the database and holds `pg_signal_backend`, so it may close the runtime
+ * role's pooled connections as well.
  */
 export async function dropTestDatabase(
   serverUrl: string,
   name: string,
 ): Promise<void> {
   assertDisposable(serverUrl, name);
-  const client = new pg.Client({ connectionString: serverUrl });
-  await client.connect();
-  try {
-    await client.query(
-      'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()',
-      [name],
-    );
-  } finally {
-    await client.end();
-  }
-  await runQuoted(serverUrl, 'drop database if exists %I', name);
+  await runQuoted(serverUrl, 'drop database if exists %I with (force)', name);
 }

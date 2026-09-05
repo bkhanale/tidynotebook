@@ -54,7 +54,7 @@ CREATE TABLE "changesets" (
 	"actor_account_id" uuid NOT NULL,
 	"device_id" text NOT NULL,
 	"request_digest" text NOT NULL,
-	"server_time" timestamp with time zone DEFAULT now() NOT NULL,
+	"server_time" timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
 	"cursor" bigint NOT NULL,
 	CONSTRAINT "changesets_workspace_id_id_pk" PRIMARY KEY("workspace_id","id"),
 	CONSTRAINT "changesets_mutation_key" UNIQUE("workspace_id","actor_account_id","mutation_id"),
@@ -150,7 +150,7 @@ CREATE TABLE "revisions" (
 	"changeset_id" uuid NOT NULL,
 	"actor_account_id" uuid NOT NULL,
 	"client_time" timestamp with time zone NOT NULL,
-	"server_time" timestamp with time zone DEFAULT now() NOT NULL,
+	"server_time" timestamp with time zone DEFAULT clock_timestamp() NOT NULL,
 	"message" text,
 	"restored_from" uuid,
 	CONSTRAINT "revisions_workspace_id_id_pk" PRIMARY KEY("workspace_id","id")
@@ -229,6 +229,7 @@ ALTER TABLE "branches" ADD CONSTRAINT "branches_tip_fk" FOREIGN KEY ("workspace_
 ALTER TABLE "changesets" ADD CONSTRAINT "changesets_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "changesets" ADD CONSTRAINT "changesets_actor_account_id_accounts_id_fk" FOREIGN KEY ("actor_account_id") REFERENCES "public"."accounts"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contents" ADD CONSTRAINT "contents_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "contents" ADD CONSTRAINT "contents_object_fk" FOREIGN KEY ("workspace_id","object_id") REFERENCES "public"."attachment_objects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "files" ADD CONSTRAINT "files_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "link_index" ADD CONSTRAINT "link_index_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "link_index" ADD CONSTRAINT "link_index_source_file_fk" FOREIGN KEY ("workspace_id","source_file_id") REFERENCES "public"."files"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -271,7 +272,7 @@ CREATE INDEX "memberships_account_idx" ON "memberships" USING btree ("account_id
 CREATE INDEX "revision_parents_parent_idx" ON "revision_parents" USING btree ("workspace_id","parent_id");--> statement-breakpoint
 CREATE INDEX "revisions_file_idx" ON "revisions" USING btree ("workspace_id","file_id");--> statement-breakpoint
 CREATE INDEX "revisions_changeset_idx" ON "revisions" USING btree ("workspace_id","changeset_id");--> statement-breakpoint
+CREATE INDEX "revisions_restored_from_idx" ON "revisions" USING btree ("workspace_id","restored_from");--> statement-breakpoint
 CREATE INDEX "shares_file_idx" ON "shares" USING btree ("workspace_id","file_id");--> statement-breakpoint
 CREATE INDEX "snapshot_items_workspace_idx" ON "snapshot_items" USING btree ("workspace_id");--> statement-breakpoint
-CREATE INDEX "snapshots_expiry_idx" ON "snapshots" USING btree ("workspace_id","expires_at");--> statement-breakpoint
-CREATE INDEX "sync_changes_cursor_idx" ON "sync_changes" USING btree ("workspace_id","cursor");
+CREATE INDEX "snapshots_expiry_idx" ON "snapshots" USING btree ("workspace_id","expires_at");

@@ -4,21 +4,24 @@
 # a non default host port, so it cannot collide with an installed PostgreSQL.
 # The image is pinned by digest, as the design requires.
 #
-# `POSTGRES_USER` is the migration role. It owns the schema and runs the
-# migrations. The migration creates the runtime role `notesapp_app`, and the
-# migration command sets that role's password from `NOTESAPP_RUNTIME_PASSWORD`.
-# Both passwords below are test values of a throwaway local service.
+# `POSTGRES_USER` is the image superuser and is used for initialization only.
+# `tools/test-database/init.sql` then creates the migration role
+# `notesapp_migrate` and the database `notesapp_test` that it owns. Every test
+# connects as that non superuser migration role or as the runtime role
+# `notesapp_app`, so row level security is proved under the production role
+# model. The passwords below are test values of a throwaway local service.
 services:
   postgres:
     image: postgres@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     environment:
-      POSTGRES_USER: notesapp_migrate
-      POSTGRES_PASSWORD: notesapp_migrate_test
-      POSTGRES_DB: notesapp_test
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_test
+    volumes:
+      - ./tools/test-database/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
     ports:
       - '127.0.0.1:55432:5432'
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U notesapp_migrate -d notesapp_test -q']
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d notesapp_test -q']
       interval: 2s
       timeout: 5s
       retries: 30

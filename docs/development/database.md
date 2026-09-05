@@ -4,8 +4,7 @@
 the roles, and the row access policies. It is a Node only package. A browser
 package must never import it, and the boundary checker enforces that.
 
-Verified on 2026-09-06 against PostgreSQL 18.6 in
-`compose.test.yaml`.
+Verified on 2026-09-06 against PostgreSQL 18.6 in `compose.test.yaml`.
 
 ## Pinned versions
 
@@ -60,7 +59,13 @@ boundary holds even where a row access policy hides the parent.
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 
 Content is deduplicated by `(workspace_id, digest)` only, so one workspace
-cannot learn that another holds the same bytes.
+cannot learn that another holds the same bytes. `contents.object_id` carries a
+composite foreign key to `attachment_objects (workspace_id, id)`, so content
+cannot name an object of another workspace either.
+
+`revisions.server_time` and `changesets.server_time` are the acceptance time.
+They default to `clock_timestamp()`, not `now()`, so two changesets written in
+one transaction keep the order of their cursors.
 
 ### Accepted paths and the deferrable constraint
 
@@ -99,62 +104,117 @@ heads.
 
 ## Roles
 
-| Role           | Purpose                                                                                                                                                                        |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| migration role | Owns the schema. The only credential that may run DDL. It needs `CREATEROLE`, because the migration creates the runtime role. `compose.test.yaml` names it `notesapp_migrate`. |
-| `notesapp_app` | The application runtime credential. `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE`, `NOSUPERUSER`, and no `CREATE` right on the schema.                                           |
+| Role           | Purpose                                                                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| migration role | Owns the schema and the database. The only credential that may run DDL.                                                                     |
+| `notesapp_app` | The application runtime credential. No DDL, no row security bypass, and no `UPDATE` or `DELETE` right on an immutable or an operator table. |
+
+The migration role needs:
+
+- **schema ownership**, to create and alter the tables and to force row level
+  security on them;
+- **database ownership**, for the `REVOKE ALL ON DATABASE` and
+  `GRANT CONNECT` statements of the migration;
+- **`CREATEROLE`**, because the migration creates `notesapp_app`;
+- **`CREATEDB`** in the test service only, so the integration tests can create
+  a disposable database for each test file.
+
+The migration role **must not be a superuser** and must not hold `BYPASSRLS`.
+FORCE row level security has no effect on a role that can bypass it, so a
+superuser migration role would make the owner policies, and therefore every
+row access check that runs against them, meaningless.
+
+The migration creates `notesapp_app` with the plain `CREATE ROLE` defaults,
+which are already `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE`,
+and `NOREPLICATION`. It never sets those attributes in an `ALTER ROLE`: from
+PostgreSQL 16 a `CREATEROLE` role that is not a superuser cannot set them, so
+an `ALTER` would fail on the second database of a cluster, where the role
+already exists. When the role exists the migration reads `pg_roles` instead and
+raises an exception if the role is `SUPERUSER`, `BYPASSRLS`, or `REPLICATION`.
 
 `REVOKE CREATE ON SCHEMA public FROM PUBLIC` and the database level
 `REVOKE ALL ... FROM PUBLIC` keep the runtime role out of DDL and out of every
-other database. The migration creates `notesapp_app` without a password; the
-migration command then sets the password from a protected value, so no password
-is stored in a committed SQL file.
+other database.
 
-The runtime role holds `SELECT` and `INSERT` only on `contents`, `revisions`,
-`revision_parents`, `changesets`, and `mutation_receipts`. It therefore cannot
-change or remove an immutable row at all.
+### Operator notes
+
+- The migration sets the runtime password with `ALTER ROLE ... WITH PASSWORD`.
+  PostgreSQL redacts that statement in the server log only when
+  `log_statement` is off and the statement is not otherwise captured. An
+  installation that runs `log_statement = 'ddl'` or `'all'`, or that captures
+  the statement through `pgaudit`, will hold the password in its log. Rotate
+  the runtime password after enabling such logging, and keep the log under the
+  same encryption policy as the data.
+- The owner policies name the migration role **by the name it had when the
+  migration ran**. A restore into a cluster where the schema owner has a
+  different name leaves that new owner without a policy, and FORCE row level
+  security then hides every row from it. Restore under the same role name, or
+  re-point the owner policies with `ALTER POLICY ... TO <new owner>` for every
+  table before using the installation.
 
 ## Row level security
 
 Row level security is enabled and forced on every workspace scoped table, on
-`workspaces`, and on `accounts`. Each table carries two policies:
+`workspaces`, and on `accounts`. Each table carries an owner policy,
+`FOR ALL TO <migration role> USING (true)`, which is what lets the schema owner
+migrate, provision, and run the SECURITY DEFINER helpers. The runtime role gets
+narrower policies.
 
-- `<table>_owner_policy`, `FOR ALL TO <migration role> USING (true)`. The
-  schema owner runs migrations, provisioning, and the SECURITY DEFINER helpers.
-- `<table>_member_policy`, `FOR ALL TO notesapp_app`, with the predicate
-  `notesapp_is_member(workspace_id)`.
+| Table                        | Runtime role policy                                                                                                                                       |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                         |
+| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                            |
+| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                        |
+| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner` or `admin`, never on the actor's own row, and the `owner` role only from an `owner` |
+| `accounts`                   | `id = notesapp_current_account()`                                                                                                                         |
 
-`mutation_receipts` adds `actor_account_id = notesapp_current_account()`, so a
-replay cannot read the stored outcome of another account. `workspaces` uses
-`notesapp_is_member(id)` and `accounts` uses `id = notesapp_current_account()`.
 Task 5 widens the account policy to the co-members that a membership list must
 show.
 
 A role that matches no policy sees nothing, so an anonymous transaction with no
 identity setting reads no row and writes no row.
 
+### Operator owned records
+
+Two records must not follow the general member policy, because a member could
+otherwise raise its own limits:
+
+- `workspace_usage` holds the quota. The runtime role has `SELECT` only.
+- `workspace_cursors` holds the commit order. The runtime role has `SELECT`
+  only, so a member cannot rewind the cursor and replay a sync stream.
+
+Two SECURITY DEFINER functions of the schema owner make the permitted changes,
+and both check membership first:
+
+- `notesapp_next_cursor(workspace_id)` moves the cursor forward by exactly one
+  and returns it.
+- `notesapp_add_usage(workspace_id, delta)` changes the stored bytes only,
+  never the quota, and refuses a change that would make the value negative.
+
 ### Identity per transaction
 
 `transact` runs `select set_config('notesapp.account_id', $1, true)` as its
 first statement. The `true` argument makes the setting transaction local, so it
 disappears at commit or rollback and cannot reach the next user of a pooled
-connection. `WorkspaceStoreHandle.readConnectionIdentity()` reads the setting of
-a pooled connection outside a transaction; the integration test asserts that it
-is `null` after a transaction that set it.
+connection. `WorkspaceStoreHandle.readPooledIdentity()` reads the setting of a
+pooled connection outside a transaction. It takes whichever connection the pool
+hands out, so it proves the absence of a leak at pool size 1, which is what the
+integration test uses.
 
 `notesapp_current_account()` reads the setting and returns `null` when it is
 absent or empty.
 
 ### A non-recursive membership policy
 
-The membership policy calls `notesapp_is_member(workspace_id)`. That function
-queries `memberships`, so a plain function would evaluate the policy again and
-PostgreSQL would report infinite recursion.
+The membership policies call `notesapp_is_member(workspace_id)` and
+`notesapp_member_role(workspace_id)`. Both query `memberships`, so a plain
+function would evaluate the policy again and PostgreSQL would report infinite
+recursion.
 
-`notesapp_is_member` is therefore `SECURITY DEFINER` with a fixed
-`search_path`. It runs as the schema owner, whose policy on `memberships` is a
-plain `true`, so the lookup never evaluates the member policy. No role needs
-`BYPASSRLS` for this, and the runtime role stays fully constrained.
+Both are therefore `SECURITY DEFINER` with a fixed `search_path`. They run as
+the schema owner, whose policy on `memberships` is a plain `true`, so the
+lookup never evaluates the member policies. No role needs `BYPASSRLS` for this,
+and the runtime role stays fully constrained.
 
 `tests/integration/row-access.test.ts` proves the property with a plan, a self
 join over `memberships`, and a correlated subquery over `memberships`.
@@ -205,6 +265,23 @@ Drizzle writes an empty file for that command, so the SQL in it is handwritten
 and reviewed, not generated output. A later schema change adds a new generated
 migration and does not touch it.
 
+### Rewriting the initial pair
+
+The review of Task 4 changed the schema and the access rules. The initial pair
+`0000_slimy_ravenous.sql` and `0001_row_access.sql` was rewritten in place, and
+their snapshots were regenerated, instead of adding an incremental `0002`
+migration. This is correct only because no database outside a disposable
+`notesapp_test` database has ever applied them: there is no installation whose
+applied set would now disagree with the journal. Once an installation exists,
+every change must be a new migration.
+
+The rewrite used `drizzle-kit generate --name slimy_ravenous` for the schema
+migration, so the file name stayed stable, followed by
+`drizzle-kit generate --custom --name row_access` for the reviewed access
+migration. Recreate the test service with
+`sudo docker compose -f compose.test.yaml down -v` before applying a rewritten
+migration, because the journal no longer matches the applied set.
+
 ### Profiles
 
 The command requires an explicit profile, so no default can point a developer
@@ -230,29 +307,46 @@ pnpm test:integration -- row-access
 
 `compose.test.yaml` runs one PostgreSQL 18.6 service, pinned by digest, on host
 port 55432 so it cannot collide with an installed PostgreSQL. Its
-`POSTGRES_USER` is the migration role and its database is `notesapp_test`. The
-passwords in that file are test values of a throwaway local service and belong
-to no deployment.
+`POSTGRES_USER` is the image superuser and is used for initialization only.
+`tools/test-database/init.sql` then creates the non superuser migration role
+`notesapp_migrate` with `CREATEROLE` and `CREATEDB`, and the database
+`notesapp_test` that it owns. Every check therefore runs under the production
+role model. The passwords in those files are test values of a throwaway local
+service and belong to no deployment.
 
 `tests/integration/support/database.ts` creates one disposable database named
 `notesapp_test_<random>` for each test file, applies the migrations, and returns
 the migration URL and the runtime URL. It refuses to run unless the server URL
 selects a `notesapp_test` database, and it drops only the database that it
-created. `packages/storage-server/src/admin.ts` applies the same guard to both
-the server name and the new name, so no operator database can be created or
-dropped through that path.
+created, with `DROP DATABASE ... WITH (FORCE)`.
+`packages/storage-server/src/admin.ts` applies the same guard to both the server
+name and the new name, so no operator database can be created or dropped
+through that path.
 
 ## Quota accounting
 
 `workspace_usage` counts new content bytes plus a fixed charge for retained
-revision metadata and for the mutation receipt. A changeset that adds content
-must fit below `quota_bytes` minus a 1 MiB control reserve.
+revision metadata and for the mutation receipt.
 
-A changeset that adds no new content is a control operation: a deletion, a
-rename, or a restore of content that the workspace already holds. It skips the
-quota check, so a full workspace stays manageable and a delete always fits. New
-content cannot consume that headroom, because only a control operation may pass
-the check while the workspace is above the reserve line.
+A changeset may use the 1 MiB control reserve only when **every** revision in
+it has `deleted = true`. A deletion is the operation that must stay possible on
+a full workspace. Every other changeset, including one that only reuses a digest
+the workspace already stores, must fit inside `quota_bytes` minus the reserve,
+because its revision rows and its receipt are still retained data. Without that
+rule a client could grow `bytes_used` without limit by resubmitting stored
+content.
+
+## Content digests
+
+`accept` recomputes the SHA-256 digest of submitted Markdown over its UTF-8
+bytes and compares it with the declared digest in lower case hexadecimal. For
+attachment content it compares the declared digest with the digest of the
+finalized object. A mismatch returns the domain code `invalid_content`.
+
+The check is required because content is addressed by digest and deduplicated
+inside the workspace. A revision that declared a digest the workspace already
+stores, with different text, would otherwise be recorded against bytes the
+client never sent.
 
 ## Transaction shape
 
@@ -260,10 +354,23 @@ the check while the workspace is above the reserve line.
 transact(actor, workspaceId, run)
   begin
   set_config('notesapp.account_id', actor.accountId, true)
-  select id from workspaces where id = $1 for update
+  pg_advisory_xact_lock(hashtext(workspaceId))
+  select id from workspaces where id = $1     visibility check
   run(tx)          role, receipt, heads, parents, isPurged, accept
   commit
 ```
+
+The workspace lock is an advisory transaction lock, not `SELECT ... FOR UPDATE`.
+A viewer holds no `UPDATE` right on the workspace row, and the update policy
+restricts the row to an owner or an admin, so a row lock would silently return
+no row for most actors. The advisory lock has neither problem. A hash collision
+between two workspaces costs extra serialization and nothing else.
+
+The visibility check runs after the lock. When the workspace row is not visible,
+`transact` throws `WorkspaceUnavailableError` before the callback runs. That is
+not an infrastructure failure: the policies hide a workspace that the account is
+not a member of, so storage cannot tell a missing workspace from a hidden one
+and must not try. An HTTP adapter maps the error to 404.
 
 `accept` runs inside a savepoint:
 
@@ -271,9 +378,10 @@ transact(actor, workspaceId, run)
 savepoint notesapp_accept
   lock the affected files in identifier order
   insert missing file rows
-  resolve attachment objects and insert deduplicated content
-  check and update the quota
-  allocate the cursor under the workspace lock
+  resolve attachment objects, verify every content digest
+  insert deduplicated content
+  check the quota, then notesapp_add_usage
+  notesapp_next_cursor under the workspace lock
   insert the changeset, the revisions, and the parent edges
   advance every head in one statement
   release and claim accepted paths
@@ -295,6 +403,19 @@ named constraints below map to a domain code; every other SQL failure stays an
 
 The cursor is a PostgreSQL `bigint` and leaves the store as a decimal string,
 so no JavaScript number truncates it.
+
+### Content free failure reporting
+
+The driver's error, and the wrapper that Drizzle puts around it, carry the
+failed statement, its bound parameters, and the PostgreSQL `detail` and `hint`
+fields. All four echo note text and file paths, and a logger that walks `cause`
+would write them out.
+
+`OperationalError` therefore never forwards the original value. Its `cause` is
+a rebuilt `DatabaseFailure` that keeps the SQLSTATE, the constraint name, the
+table name, and the server routine, and nothing else. The same applies to a
+refused connection: `transact` wraps `pool.connect()`, so a driver message that
+repeats the host, the port, and the role never escapes.
 
 ## What Task 4 does not do
 

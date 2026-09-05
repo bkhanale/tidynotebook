@@ -428,5 +428,168 @@ await test('membership policy: is not recursive', async () => {
   }
 });
 
+// One workspace with three roles, for the privilege escalation checks below.
+const escalation = {
+  workspaceId: randomUUID(),
+  ownerId: randomUUID(),
+  adminId: randomUUID(),
+  viewerId: randomUUID(),
+};
+await seedWorkspace(database, escalation.workspaceId, [
+  { accountId: escalation.ownerId, role: 'owner' },
+  { accountId: escalation.adminId, role: 'admin' },
+  { accountId: escalation.viewerId, role: 'viewer' },
+]);
+
+await test('privilege escalation: a viewer cannot add a membership', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.viewerId);
+  try {
+    const failure = await session.failure(
+      `insert into memberships (workspace_id, account_id, role)
+       values ($1, $2, 'owner')`,
+      [escalation.workspaceId, randomUUID()],
+    );
+    assert.equal(failure.code, '42501');
+    assert.match(failure.message, /row-level security/i);
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privilege escalation: a viewer cannot promote itself', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.viewerId);
+  try {
+    const changed = await session.query<{ account_id: string }>(
+      `update memberships set role = 'owner'
+       where workspace_id = $1 and account_id = $2
+       returning account_id`,
+      [escalation.workspaceId, escalation.viewerId],
+    );
+    assert.equal(changed.length, 0);
+    const current = await session.query<{ role: string }>(
+      'select role from memberships where account_id = $1',
+      [escalation.viewerId],
+    );
+    assert.equal(current[0]?.role, 'viewer');
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privilege escalation: a viewer cannot remove a co-member', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.viewerId);
+  try {
+    const removed = await session.query<{ account_id: string }>(
+      `delete from memberships
+       where workspace_id = $1 and account_id = $2
+       returning account_id`,
+      [escalation.workspaceId, escalation.adminId],
+    );
+    assert.equal(removed.length, 0);
+    assert.equal(await visible(session, 'memberships'), 3);
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privilege escalation: a viewer cannot rename the workspace', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.viewerId);
+  try {
+    const renamed = await session.query<{ id: string }>(
+      "update workspaces set name = 'taken over' where id = $1 returning id",
+      [escalation.workspaceId],
+    );
+    assert.equal(renamed.length, 0);
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privilege escalation: a member cannot raise its own quota', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.ownerId);
+  try {
+    const failure = await session.failure(
+      'update workspace_usage set quota_bytes = 1 where workspace_id = $1',
+      [escalation.workspaceId],
+    );
+    assert.equal(failure.code, '42501');
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privilege escalation: a member cannot reset the commit cursor', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.ownerId);
+  try {
+    const failure = await session.failure(
+      'update workspace_cursors set last_cursor = 0 where workspace_id = $1',
+      [escalation.workspaceId],
+    );
+    assert.equal(failure.code, '42501');
+  } finally {
+    await session.close();
+  }
+});
+
+await test('membership changes: an admin may edit a co-member but not create an owner', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.adminId);
+  try {
+    const promoted = await session.query<{ role: string }>(
+      `update memberships set role = 'editor'
+       where workspace_id = $1 and account_id = $2
+       returning role`,
+      [escalation.workspaceId, escalation.viewerId],
+    );
+    assert.equal(promoted[0]?.role, 'editor');
+
+    const refused = await session.failure(
+      `update memberships set role = 'owner'
+       where workspace_id = $1 and account_id = $2`,
+      [escalation.workspaceId, escalation.viewerId],
+    );
+    assert.equal(refused.code, '42501');
+
+    const restored = await session.query<{ role: string }>(
+      `update memberships set role = 'viewer'
+       where workspace_id = $1 and account_id = $2
+       returning role`,
+      [escalation.workspaceId, escalation.viewerId],
+    );
+    assert.equal(restored[0]?.role, 'viewer');
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privileged functions: a stranger cannot move a cursor or add usage', async () => {
+  const session = await openSession(database.runtimeUrl, strangerId);
+  try {
+    const cursor = await session.failure('select notesapp_next_cursor($1)', [
+      escalation.workspaceId,
+    ]);
+    assert.equal(cursor.code, '42501');
+    const usage = await session.failure(
+      'select notesapp_add_usage($1, 1000::bigint)',
+      [escalation.workspaceId],
+    );
+    assert.equal(usage.code, '42501');
+  } finally {
+    await session.close();
+  }
+});
+
+await test('privileged functions: usage cannot become negative', async () => {
+  const session = await openSession(database.runtimeUrl, escalation.ownerId);
+  try {
+    const failure = await session.failure(
+      'select notesapp_add_usage($1, (-1000000)::bigint)',
+      [escalation.workspaceId],
+    );
+    assert.equal(failure.code, '23514');
+  } finally {
+    await session.close();
+  }
+});
+
 await store.close();
 await database.destroy();

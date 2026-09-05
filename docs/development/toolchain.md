@@ -710,17 +710,29 @@ Node runs `packages/storage-server/src/migrate.ts` directly through its type
 stripping, so the migration command needs no build step. The file guards its
 command entry point with `import.meta.main`, so importing it starts nothing.
 
+### The test service role model
+
+`compose.test.yaml` uses the image superuser for initialization only.
+`tools/test-database/init.sql` runs once in `/docker-entrypoint-initdb.d` and
+creates the migration role `notesapp_migrate` with `LOGIN`, `CREATEROLE`,
+`CREATEDB`, `NOSUPERUSER`, and `NOBYPASSRLS`, plus the database `notesapp_test`
+that it owns. Every check therefore runs under the production role model. A
+superuser migration role would bypass row level security, and FORCE row level
+security would prove nothing.
+
 ### Task 4 verification
 
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `sudo docker compose -f compose.test.yaml up -d --wait`.
-- `pnpm db:generate` produced `0000_slimy_ravenous.sql`; a second run reported
-  no schema change. `0001_row_access.sql` is the reviewed custom migration.
+- `sudo docker compose -f compose.test.yaml down -v`, then
+  `up -d --wait`.
+- `pnpm db:generate` reported no schema change against the committed
+  `0000_slimy_ravenous.sql`. `0001_row_access.sql` is the reviewed custom
+  migration.
 - `pnpm db:migrate --profile test`, then the same command again as a no
   operation. The command without a profile exits 1.
-- `pnpm test:integration -- storage` runs 14 tests.
-- `pnpm test:integration -- row-access` runs 11 tests.
+- `pnpm test:integration -- storage` runs 22 tests.
+- `pnpm test:integration -- row-access` runs 20 tests.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.

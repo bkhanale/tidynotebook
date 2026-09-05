@@ -1,6 +1,6 @@
 {
-  "id": "d078a3b0-27e0-46b2-a0c4-29de585f7c07",
-  "prevId": "65fea5d2-888c-44ef-940a-703552c15bcc",
+  "id": "97c9f07e-9ee6-4d00-9f8a-cd0e8cb64457",
+  "prevId": "f739ae8f-5ab9-4463-bfa8-a321928836f0",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -442,7 +442,7 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "default": "clock_timestamp()"
         },
         "cursor": {
           "name": "cursor",
@@ -551,6 +551,15 @@
           "columnsFrom": ["workspace_id"],
           "tableTo": "workspaces",
           "columnsTo": ["id"],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "contents_object_fk": {
+          "name": "contents_object_fk",
+          "tableFrom": "contents",
+          "columnsFrom": ["workspace_id", "object_id"],
+          "tableTo": "attachment_objects",
+          "columnsTo": ["workspace_id", "id"],
           "onUpdate": "no action",
           "onDelete": "no action"
         }
@@ -1206,7 +1215,7 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
-          "default": "now()"
+          "default": "clock_timestamp()"
         },
         "message": {
           "name": "message",
@@ -1254,6 +1263,27 @@
             },
             {
               "expression": "changeset_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "revisions_restored_from_idx": {
+          "name": "revisions_restored_from_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "restored_from",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1722,29 +1752,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "sync_changes_cursor_idx": {
-          "name": "sync_changes_cursor_idx",
-          "columns": [
-            {
-              "expression": "workspace_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "cursor",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "sync_changes_workspace_id_workspaces_id_fk": {
           "name": "sync_changes_workspace_id_workspaces_id_fk",

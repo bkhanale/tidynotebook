@@ -11,16 +11,22 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
+import { inspect } from 'node:util';
 import type { AcceptedChangeset, Result } from '@notesapp/core';
+import { isOperationalError } from '@notesapp/core';
 import {
   openWorkspaceStore,
   runMigrations,
+  runtimeRole,
+  withCredentials,
+  WorkspaceUnavailableError,
   type WorkspaceStoreHandle,
 } from '@notesapp/storage-server';
 import {
   changeset,
   createDisposableDatabase,
   markdown,
+  markdownDigest,
   memberActor,
   openSession,
   revision,
@@ -55,6 +61,16 @@ function accepted(result: Result<AcceptedChangeset>): AcceptedChangeset {
     assert.fail(`the changeset was rejected with ${result.error.code}`);
   }
   return result.value;
+}
+
+/** The value that a failing call threw, or a clear test failure. */
+async function thrownBy(run: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await run();
+  } catch (error) {
+    return error;
+  }
+  assert.fail('the call was expected to fail');
 }
 
 /** Counts rows of one table inside one workspace. */
@@ -436,18 +452,18 @@ await test('pooled identity: keeps no identity on a released connection', async 
       ),
     );
 
-    assert.equal(await single.readConnectionIdentity(), null);
+    assert.equal(await single.readPooledIdentity(), null);
 
+    // The same connection now serves a stranger. A leaked identity would make
+    // the workspace visible to it.
     const stranger = testActor(randomUUID(), [
       { workspaceId, actions: ['read', 'write'] },
     ]);
-    const seen = await single.transact(stranger, workspaceId, async (tx) => ({
-      role: await tx.role(stranger.accountId),
-      head: (await tx.heads([only.fileId])).get(only.fileId),
-    }));
-    assert.equal(seen.role, null);
-    assert.equal(seen.head, null);
-    assert.equal(await single.readConnectionIdentity(), null);
+    await assert.rejects(
+      () => single.transact(stranger, workspaceId, (tx) => tx.role(accountId)),
+      WorkspaceUnavailableError,
+    );
+    assert.equal(await single.readPooledIdentity(), null);
   } finally {
     await single.close();
   }
@@ -556,6 +572,231 @@ await test('migrations: applies to an empty database and is a no operation the s
     }
   } finally {
     await fresh.destroy();
+  }
+});
+
+await test('content digests: rejects Markdown that does not match its digest', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const forged = revision({
+    fileId: randomUUID(),
+    path: 'notes/forged.md',
+    content: {
+      kind: 'markdown',
+      digest: markdownDigest('# a different body\n'),
+      text: '# the submitted body\n',
+    },
+  });
+
+  const result = await store.transact(actor, workspaceId, (tx) =>
+    tx.accept(actor, changeset(workspaceId, [forged]), 'digest-forged'),
+  );
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error.code, 'invalid_content');
+    assert.deepEqual(result.error.fileIds, [forged.fileId]);
+  }
+  assert.equal(await countRows('contents', workspaceId), 0);
+});
+
+await test('content digests: an attachment must carry its object digest', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const objectId = randomUUID();
+  const owner = await openSession(database.migrationUrl);
+  try {
+    await owner.query(
+      `insert into attachment_objects (workspace_id, id, digest, size, media_type, state)
+       values ($1, $2, 'sha256-object-digest', 24, 'image/png', 'finalized')`,
+      [workspaceId, objectId],
+    );
+  } finally {
+    await owner.close();
+  }
+
+  const wrong = revision({
+    fileId: randomUUID(),
+    path: 'attachments/one.png',
+    content: { kind: 'attachment', digest: 'sha256-other', objectId },
+  });
+  const rejected = await store.transact(actor, workspaceId, (tx) =>
+    tx.accept(
+      actor,
+      changeset(workspaceId, [wrong]),
+      'digest-attachment-wrong',
+    ),
+  );
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.error.code, 'invalid_content');
+
+  const right = revision({
+    fileId: randomUUID(),
+    path: 'attachments/two.png',
+    content: {
+      kind: 'attachment',
+      digest: 'sha256-object-digest',
+      objectId,
+    },
+  });
+  accepted(
+    await store.transact(actor, workspaceId, (tx) =>
+      tx.accept(actor, changeset(workspaceId, [right]), 'digest-attachment-ok'),
+    ),
+  );
+});
+
+await test('workspace boundaries: content cannot name an object of another workspace', async () => {
+  const source = await newWorkspace();
+  const target = await newWorkspace();
+  const objectId = randomUUID();
+  const owner = await openSession(database.migrationUrl);
+  try {
+    await owner.query(
+      `insert into attachment_objects (workspace_id, id, digest, size, media_type, state)
+       values ($1, $2, 'sha256-foreign', 24, 'image/png', 'finalized')`,
+      [source.workspaceId, objectId],
+    );
+    const failure = await owner.failure(
+      `insert into contents (workspace_id, digest, kind, size, object_id)
+       values ($1, 'sha256-foreign', 'attachment', 24, $2)`,
+      [target.workspaceId, objectId],
+    );
+    assert.equal(failure.code, '23503');
+    assert.match(failure.message, /contents_object_fk/);
+  } finally {
+    await owner.close();
+  }
+});
+
+await test('quota: a reused digest still needs room below the control reserve', async () => {
+  const quota = (1n << 20n) + 2000n;
+  const { workspaceId, accountId } = await newWorkspace(quota);
+  const actor = memberActor(accountId, workspaceId);
+  const body = markdown('# reuse\n');
+  const first = revision({
+    fileId: randomUUID(),
+    path: 'notes/reuse-a.md',
+    content: body,
+  });
+  accepted(
+    await store.transact(actor, workspaceId, (tx) =>
+      tx.accept(actor, changeset(workspaceId, [first]), 'digest-reuse-1'),
+    ),
+  );
+
+  // The second file adds no content bytes, but its revision and its receipt
+  // are still retained data, so it must fit below the reserve line.
+  const second = revision({
+    fileId: randomUUID(),
+    path: 'notes/reuse-b.md',
+    content: body,
+  });
+  const rejected = await store.transact(actor, workspaceId, (tx) =>
+    tx.accept(actor, changeset(workspaceId, [second]), 'digest-reuse-2'),
+  );
+  assert.equal(rejected.ok, false);
+  if (!rejected.ok) assert.equal(rejected.error.code, 'quota');
+  assert.equal(await countRows('revisions', workspaceId), 1);
+
+  // A changeset that deletes every file it touches may use the reserve.
+  const removal = revision({
+    fileId: first.fileId,
+    parents: [first.id],
+    path: 'notes/reuse-a.md',
+    deleted: true,
+    content: body,
+  });
+  accepted(
+    await store.transact(actor, workspaceId, (tx) =>
+      tx.accept(
+        actor,
+        changeset(workspaceId, [removal]),
+        'digest-reuse-delete',
+      ),
+    ),
+  );
+  assert.equal(await countRows('live_paths', workspaceId), 0);
+});
+
+await test('unavailable workspace: a non member gets a dedicated error', async () => {
+  const { workspaceId } = await newWorkspace();
+  const stranger = testActor(randomUUID(), [
+    { workspaceId, actions: ['read', 'write'] },
+  ]);
+  const error = await thrownBy(() =>
+    store.transact(stranger, workspaceId, (tx) => tx.role(stranger.accountId)),
+  );
+  assert.ok(error instanceof WorkspaceUnavailableError);
+  assert.equal(isOperationalError(error), false);
+});
+
+await test('operational failures: a refused connection stays an infrastructure failure', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const secret = 'wrong-password-marker';
+  const broken = openWorkspaceStore(
+    withCredentials(database.runtimeUrl, runtimeRole, secret),
+    { poolSize: 1 },
+  );
+  try {
+    const error = await thrownBy(() =>
+      broken.transact(actor, workspaceId, () => Promise.resolve(null)),
+    );
+    assert.ok(isOperationalError(error));
+    assert.equal(error.kind, 'unavailable');
+    assert.equal(inspect(error, { depth: 10 }).includes(secret), false);
+  } finally {
+    await broken.close();
+  }
+});
+
+await test('operational failures: the reported cause carries no stored content', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const marker = 'NOTESAPP-CONTENT-MARKER-4f19';
+  // A null byte is valid in a JavaScript string and invalid in a PostgreSQL
+  // text value, so the content insert fails with the note body still bound to
+  // the statement.
+  const body = markdown(`# ${marker}\u0000`);
+  const only = revision({
+    fileId: randomUUID(),
+    path: `notes/${marker}.md`,
+    content: body,
+  });
+
+  const error = await thrownBy(() =>
+    store.transact(actor, workspaceId, (tx) =>
+      tx.accept(actor, changeset(workspaceId, [only]), 'digest-marker'),
+    ),
+  );
+
+  assert.ok(isOperationalError(error));
+  const printed = inspect(error, { depth: 10 });
+  assert.equal(printed.includes(marker), false);
+  assert.equal(printed.includes(body.digest), false);
+});
+
+await test('acceptance time: server_time uses clock_timestamp', async () => {
+  const session = await openSession(database.migrationUrl);
+  try {
+    const rows = await session.query<{
+      table_name: string;
+      column_default: string;
+    }>(
+      `select table_name, column_default from information_schema.columns
+       where table_schema = 'public' and column_name = 'server_time'
+       order by table_name`,
+    );
+    assert.deepEqual(
+      rows.map((row) => row.table_name),
+      ['changesets', 'revisions'],
+    );
+    for (const row of rows) {
+      assert.match(row.column_default, /clock_timestamp\(\)/);
+    }
+  } finally {
+    await session.close();
   }
 });
 

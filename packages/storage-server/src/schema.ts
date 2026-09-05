@@ -156,6 +156,32 @@ export const files = pgTable(
   ],
 );
 
+/** One immutable attachment object on the private server volume. */
+export const attachmentObjects = pgTable(
+  'attachment_objects',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    id: uuid('id').notNull(),
+    digest: text('digest').notNull(),
+    size: bigint('size', { mode: 'bigint' }).notNull(),
+    mediaType: text('media_type').notNull(),
+    width: integer('width'),
+    height: integer('height'),
+    state: attachmentState('state').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.id] }),
+    index('attachment_objects_digest_idx').on(table.workspaceId, table.digest),
+    check('attachment_objects_size_check', sql`${table.size} >= 0`),
+  ],
+);
+
 /**
  * Immutable content, addressed by its digest inside one workspace.
  *
@@ -179,6 +205,11 @@ export const contents = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.workspaceId, table.digest] }),
+    foreignKey({
+      name: 'contents_object_fk',
+      columns: [table.workspaceId, table.objectId],
+      foreignColumns: [attachmentObjects.workspaceId, attachmentObjects.id],
+    }),
     check(
       'contents_body_check',
       sql`(${table.kind} = 'markdown' and ${table.markdown} is not null and ${table.objectId} is null)
@@ -192,7 +223,9 @@ export const contents = pgTable(
  * One atomic operation over one or more files.
  *
  * The mutation identity is bound to the actor, so a replay cannot reuse the
- * identity of another account.
+ * identity of another account. `server_time` is the acceptance time. It uses
+ * `clock_timestamp()`, not `now()`, so two changesets of one transaction keep
+ * the order of their cursors.
  */
 export const changesets = pgTable(
   'changesets',
@@ -209,7 +242,7 @@ export const changesets = pgTable(
     requestDigest: text('request_digest').notNull(),
     serverTime: timestamp('server_time', { withTimezone: true })
       .notNull()
-      .defaultNow(),
+      .default(sql`clock_timestamp()`),
     cursor: bigint('cursor', { mode: 'bigint' }).notNull(),
   },
   (table) => [
@@ -223,7 +256,12 @@ export const changesets = pgTable(
   ],
 );
 
-/** One immutable revision of one file. */
+/**
+ * One immutable revision of one file.
+ *
+ * `client_time` stays informational. `server_time` is the acceptance time and
+ * uses `clock_timestamp()`, so it is monotone with the cursor order.
+ */
 export const revisions = pgTable(
   'revisions',
   {
@@ -242,7 +280,7 @@ export const revisions = pgTable(
     clientTime: timestamp('client_time', { withTimezone: true }).notNull(),
     serverTime: timestamp('server_time', { withTimezone: true })
       .notNull()
-      .defaultNow(),
+      .default(sql`clock_timestamp()`),
     message: text('message'),
     restoredFrom: uuid('restored_from'),
   },
@@ -270,6 +308,10 @@ export const revisions = pgTable(
     }),
     index('revisions_file_idx').on(table.workspaceId, table.fileId),
     index('revisions_changeset_idx').on(table.workspaceId, table.changesetId),
+    index('revisions_restored_from_idx').on(
+      table.workspaceId,
+      table.restoredFrom,
+    ),
   ],
 );
 
@@ -482,7 +524,6 @@ export const syncChanges = pgTable(
         table.entityId,
       ],
     }),
-    index('sync_changes_cursor_idx').on(table.workspaceId, table.cursor),
   ],
 );
 
@@ -604,31 +645,5 @@ export const shares = pgTable(
       foreignColumns: [revisions.workspaceId, revisions.id],
     }),
     index('shares_file_idx').on(table.workspaceId, table.fileId),
-  ],
-);
-
-/** One immutable attachment object on the private server volume. */
-export const attachmentObjects = pgTable(
-  'attachment_objects',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    id: uuid('id').notNull(),
-    digest: text('digest').notNull(),
-    size: bigint('size', { mode: 'bigint' }).notNull(),
-    mediaType: text('media_type').notNull(),
-    width: integer('width'),
-    height: integer('height'),
-    state: attachmentState('state').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    finalizedAt: timestamp('finalized_at', { withTimezone: true }),
-  },
-  (table) => [
-    primaryKey({ columns: [table.workspaceId, table.id] }),
-    index('attachment_objects_digest_idx').on(table.workspaceId, table.digest),
-    check('attachment_objects_size_check', sql`${table.size} >= 0`),
   ],
 );

@@ -4,25 +4,34 @@
 -- created with `drizzle-kit generate --custom`. It is handwritten SQL, not
 -- generated output. See docs/development/database.md for the design.
 --
--- The role that runs this migration owns the schema. It needs CREATEROLE,
--- because the statements below create the runtime role. The runtime role gets
--- no DDL right, no row security bypass, and no UPDATE or DELETE right on an
--- immutable table.
+-- The role that runs this migration owns the schema and the database. It needs
+-- CREATEROLE, because the statements below create the runtime role. It must not
+-- be a superuser: FORCE row level security has no effect on a role that can
+-- bypass it. The runtime role gets no DDL right, no row security bypass, and no
+-- UPDATE or DELETE right on an immutable table.
 
--- The runtime role. The migration creates it without a password; the migration
--- command sets the password from a protected environment value afterwards.
+-- The runtime role.
+--
+-- The CREATE ROLE defaults are already NOSUPERUSER, NOBYPASSRLS, NOCREATEDB,
+-- NOCREATEROLE, and NOREPLICATION, so the statement sets no attribute that a
+-- CREATEROLE role is not allowed to set. When the role already exists, because
+-- another database of the same cluster created it, the migration only asserts
+-- those attributes and refuses to continue when they are wrong.
 DO $$
+DECLARE
+	existing pg_catalog.pg_roles%ROWTYPE;
 BEGIN
-	IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname = 'notesapp_app') THEN
-		CREATE ROLE notesapp_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
-	ELSE
-		ALTER ROLE notesapp_app NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS NOREPLICATION;
+	SELECT * INTO existing FROM pg_catalog.pg_roles WHERE rolname = 'notesapp_app';
+	IF NOT FOUND THEN
+		CREATE ROLE notesapp_app LOGIN NOINHERIT;
+	ELSIF existing.rolsuper OR existing.rolbypassrls OR existing.rolreplication THEN
+		RAISE EXCEPTION 'notesapp: the role notesapp_app must not be SUPERUSER, BYPASSRLS, or REPLICATION';
 	END IF;
 END
 $$;--> statement-breakpoint
 
 -- Only the schema owner may create objects, and only the runtime role and the
--- owner may connect.
+-- owner may connect. The REVOKE needs database ownership.
 DO $$
 BEGIN
 	EXECUTE format('REVOKE ALL ON DATABASE %I FROM PUBLIC', current_database());
@@ -62,6 +71,83 @@ CREATE FUNCTION public.notesapp_is_member(p_workspace_id uuid) RETURNS boolean
 			WHERE m.workspace_id = p_workspace_id
 				AND m.account_id = public.notesapp_current_account()
 		)
+	$$;--> statement-breakpoint
+
+-- The current role of the transaction identity, or null for a stranger. The
+-- membership policies below use it, so a viewer cannot change membership.
+CREATE FUNCTION public.notesapp_member_role(p_workspace_id uuid) RETURNS text
+	LANGUAGE sql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+		SELECT m.role::text
+		FROM public.memberships m
+		WHERE m.workspace_id = p_workspace_id
+			AND m.account_id = public.notesapp_current_account()
+	$$;--> statement-breakpoint
+
+-- Cursor allocation.
+--
+-- The runtime role holds no UPDATE right on `workspace_cursors`, so it cannot
+-- reset the commit order. This function is the only way to move the cursor, it
+-- requires a membership, and it always moves the cursor forward by one.
+CREATE FUNCTION public.notesapp_next_cursor(p_workspace_id uuid) RETURNS bigint
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+	DECLARE
+		allocated bigint;
+	BEGIN
+		IF NOT public.notesapp_is_member(p_workspace_id) THEN
+			RAISE EXCEPTION 'notesapp: the account is not a member of this workspace'
+				USING ERRCODE = '42501';
+		END IF;
+		UPDATE public.workspace_cursors
+		SET last_cursor = last_cursor + 1
+		WHERE workspace_id = p_workspace_id
+		RETURNING last_cursor INTO allocated;
+		IF allocated IS NULL THEN
+			RAISE EXCEPTION 'notesapp: the workspace has no cursor record'
+				USING ERRCODE = '23503';
+		END IF;
+		RETURN allocated;
+	END
+	$$;--> statement-breakpoint
+
+-- Usage accounting.
+--
+-- The runtime role holds no UPDATE right on `workspace_usage`, so it cannot
+-- raise its own quota. This function changes the stored bytes only, requires a
+-- membership, and refuses a change that would make the value negative.
+CREATE FUNCTION public.notesapp_add_usage(p_workspace_id uuid, p_delta bigint)
+	RETURNS bigint
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+	DECLARE
+		updated bigint;
+	BEGIN
+		IF NOT public.notesapp_is_member(p_workspace_id) THEN
+			RAISE EXCEPTION 'notesapp: the account is not a member of this workspace'
+				USING ERRCODE = '42501';
+		END IF;
+		UPDATE public.workspace_usage
+		SET bytes_used = bytes_used + p_delta
+		WHERE workspace_id = p_workspace_id
+		RETURNING bytes_used INTO updated;
+		IF updated IS NULL THEN
+			RAISE EXCEPTION 'notesapp: the workspace has no usage record'
+				USING ERRCODE = '23503';
+		END IF;
+		IF updated < 0 THEN
+			RAISE EXCEPTION 'notesapp: workspace usage cannot become negative'
+				USING ERRCODE = '23514';
+		END IF;
+		RETURN updated;
+	END
 	$$;--> statement-breakpoint
 
 -- Rows are immutable. The runtime role holds no UPDATE or DELETE right on the
@@ -110,13 +196,16 @@ ALTER TABLE public.files
 	ADD CONSTRAINT files_head_revision_fk FOREIGN KEY (workspace_id, head_revision_id)
 	REFERENCES public.revisions (workspace_id, id) DEFERRABLE INITIALLY DEFERRED;--> statement-breakpoint
 
--- Table rights of the runtime role. An immutable table gets SELECT and INSERT
--- only.
+-- Table rights of the runtime role.
+--
+-- An immutable table gets SELECT and INSERT only. `workspace_usage` and
+-- `workspace_cursors` get SELECT only, because the two SECURITY DEFINER
+-- functions above are the only permitted way to change them.
 GRANT SELECT ON public.accounts TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, UPDATE ON public.workspaces TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.memberships TO notesapp_app;--> statement-breakpoint
-GRANT SELECT, UPDATE ON public.workspace_usage TO notesapp_app;--> statement-breakpoint
-GRANT SELECT, UPDATE ON public.workspace_cursors TO notesapp_app;--> statement-breakpoint
+GRANT SELECT ON public.workspace_usage TO notesapp_app;--> statement-breakpoint
+GRANT SELECT ON public.workspace_cursors TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.files TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.live_paths TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT ON public.contents TO notesapp_app;--> statement-breakpoint
@@ -136,8 +225,14 @@ GRANT SELECT, INSERT, UPDATE ON public.attachment_objects TO notesapp_app;--> st
 
 REVOKE ALL ON FUNCTION public.notesapp_current_account() FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_is_member(uuid) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_member_role(uuid) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_next_cursor(uuid) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_add_usage(uuid, bigint) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_current_account() TO notesapp_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_is_member(uuid) TO notesapp_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_member_role(uuid) TO notesapp_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_next_cursor(uuid) TO notesapp_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_add_usage(uuid, bigint) TO notesapp_app;--> statement-breakpoint
 
 -- Row level security. Every workspace scoped table is enabled and forced. Each
 -- table gets two policies:
@@ -153,7 +248,7 @@ GRANT EXECUTE ON FUNCTION public.notesapp_is_member(uuid) TO notesapp_app;--> st
 DO $$
 DECLARE
 	scoped text[] := ARRAY[
-		'memberships', 'workspace_usage', 'workspace_cursors', 'files',
+		'workspace_usage', 'workspace_cursors', 'files',
 		'live_paths', 'contents', 'revisions', 'revision_parents', 'changesets',
 		'branches', 'purge_markers', 'audit_events', 'sync_changes', 'snapshots',
 		'snapshot_items', 'link_index', 'shares', 'attachment_objects'
@@ -189,17 +284,54 @@ BEGIN
 		'WITH CHECK (public.notesapp_is_member(workspace_id) '
 		'  AND actor_account_id = public.notesapp_current_account())';
 
-	-- A workspace row is visible to its members only.
+	-- Membership. Every member reads the list, but only an owner or an admin
+	-- changes it, never their own row, and only an owner may create or set the
+	-- owner role. This is what stops a viewer from promoting itself.
+	EXECUTE 'ALTER TABLE public.memberships ENABLE ROW LEVEL SECURITY';
+	EXECUTE 'ALTER TABLE public.memberships FORCE ROW LEVEL SECURITY';
+	EXECUTE format(
+		'CREATE POLICY memberships_owner_policy ON public.memberships '
+		'FOR ALL TO %I USING (true) WITH CHECK (true)', owner_role);
+	EXECUTE
+		'CREATE POLICY memberships_read_policy ON public.memberships '
+		'FOR SELECT TO notesapp_app '
+		'USING (public.notesapp_is_member(workspace_id))';
+	EXECUTE
+		'CREATE POLICY memberships_insert_policy ON public.memberships '
+		'FOR INSERT TO notesapp_app '
+		'WITH CHECK (public.notesapp_member_role(workspace_id) IN (''owner'', ''admin'') '
+		'  AND account_id <> public.notesapp_current_account() '
+		'  AND (role <> ''owner'' OR public.notesapp_member_role(workspace_id) = ''owner''))';
+	EXECUTE
+		'CREATE POLICY memberships_update_policy ON public.memberships '
+		'FOR UPDATE TO notesapp_app '
+		'USING (public.notesapp_member_role(workspace_id) IN (''owner'', ''admin'') '
+		'  AND account_id <> public.notesapp_current_account()) '
+		'WITH CHECK (public.notesapp_member_role(workspace_id) IN (''owner'', ''admin'') '
+		'  AND account_id <> public.notesapp_current_account() '
+		'  AND (role <> ''owner'' OR public.notesapp_member_role(workspace_id) = ''owner''))';
+	EXECUTE
+		'CREATE POLICY memberships_delete_policy ON public.memberships '
+		'FOR DELETE TO notesapp_app '
+		'USING (public.notesapp_member_role(workspace_id) IN (''owner'', ''admin'') '
+		'  AND account_id <> public.notesapp_current_account())';
+
+	-- A workspace row is visible to its members. Only an owner or an admin can
+	-- change it, so a viewer cannot rename the workspace.
 	EXECUTE 'ALTER TABLE public.workspaces ENABLE ROW LEVEL SECURITY';
 	EXECUTE 'ALTER TABLE public.workspaces FORCE ROW LEVEL SECURITY';
 	EXECUTE format(
 		'CREATE POLICY workspaces_owner_policy ON public.workspaces '
 		'FOR ALL TO %I USING (true) WITH CHECK (true)', owner_role);
 	EXECUTE
-		'CREATE POLICY workspaces_member_policy ON public.workspaces '
-		'FOR ALL TO notesapp_app '
-		'USING (public.notesapp_is_member(id)) '
-		'WITH CHECK (public.notesapp_is_member(id))';
+		'CREATE POLICY workspaces_read_policy ON public.workspaces '
+		'FOR SELECT TO notesapp_app '
+		'USING (public.notesapp_is_member(id))';
+	EXECUTE
+		'CREATE POLICY workspaces_update_policy ON public.workspaces '
+		'FOR UPDATE TO notesapp_app '
+		'USING (public.notesapp_member_role(id) IN (''owner'', ''admin'')) '
+		'WITH CHECK (public.notesapp_member_role(id) IN (''owner'', ''admin''))';
 
 	-- An account row is visible to that account only. Task 5 widens this to the
 	-- co-members that a membership list must show.
