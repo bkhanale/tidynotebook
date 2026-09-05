@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { Readable } from 'node:stream';
 import {
   baseMediaType,
+  checkBodyMediaType,
   checkRegistration,
+  isJsonPayload,
   mediaTypeHandling,
   toRoutePath,
 } from './register.ts';
@@ -134,5 +137,45 @@ await test('an unsupported parameter serialization stops startup', () => {
         false,
       ),
     /cookie parameter, which is not served/,
+  );
+});
+
+await test('a JSON payload must be an object or an array', () => {
+  assert.equal(isJsonPayload({ status: 'ok' }), true);
+  assert.equal(isJsonPayload([{ status: 'ok' }]), true);
+  // A handler that serialized its own answer has left the contract.
+  assert.equal(isJsonPayload('{"status":"ok"}'), false);
+  assert.equal(isJsonPayload(Buffer.from('{"status":"ok"}')), false);
+  assert.equal(isJsonPayload(new Uint8Array([1, 2, 3])), false);
+  assert.equal(isJsonPayload(new ArrayBuffer(4)), false);
+  assert.equal(isJsonPayload(Readable.from(['a'])), false);
+  assert.equal(isJsonPayload(null), false);
+  assert.equal(isJsonPayload(undefined), false);
+  assert.equal(isJsonPayload(42), false);
+});
+
+await test('an operation without a body rejects every request body', () => {
+  assert.equal(checkBodyMediaType(null, undefined, false), null);
+  assert.equal(
+    checkBodyMediaType(null, 'application/json', true),
+    'no_body_allowed',
+  );
+});
+
+await test('an operation with a body accepts only its media type', () => {
+  const declared = 'application/json';
+  assert.equal(checkBodyMediaType(declared, undefined, false), null);
+  assert.equal(
+    checkBodyMediaType(declared, 'application/json; charset=utf-8', true),
+    null,
+  );
+  assert.equal(checkBodyMediaType(declared, 'Application/JSON', true), null);
+  assert.equal(
+    checkBodyMediaType(declared, 'text/plain', true),
+    'unsupported_media_type',
+  );
+  assert.equal(
+    checkBodyMediaType(declared, undefined, true),
+    'unsupported_media_type',
   );
 });

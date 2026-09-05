@@ -4,6 +4,7 @@ import {
   classifyError,
   createProblem,
   RequestContractError,
+  RequestMediaTypeError,
   ResponseContractError,
 } from './problem.ts';
 
@@ -40,6 +41,15 @@ await test('an unsupported media type becomes a 415', () => {
     assert.equal(classified.status, 415);
     assert.equal(classified.code, 'unsupported_media_type');
   }
+});
+
+await test('a wrong request body media type becomes a 415', () => {
+  const classified = classifyError(
+    new RequestMediaTypeError('application/json'),
+  );
+  assert.equal(classified.status, 415);
+  assert.equal(classified.code, 'unsupported_media_type');
+  assert.match(classified.detail, /application\/json/);
 });
 
 await test('any other failure becomes a generic 500', () => {

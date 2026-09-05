@@ -481,9 +481,16 @@ different TypeScript version in either place.
 - `tests/integration/tsconfig.json` covers the integration tree, so type-aware
   Oxlint finds a configuration for those files. The root `typecheck` script runs
   it after the package type checks.
-- The root `test:unit` and `test:integration` scripts build first, because the
-  server tests import the workspace packages through their published `dist`
+- The root `test:integration` script builds every package first, because the
+  integration tests import workspace packages through their published `dist`
   entry points.
+- The root `test:unit` script builds only `@notesapp/api-contract`,
+  `@notesapp/api-client`, and `@notesapp/core`. Those are the packages that an
+  adjacent unit test reaches through `dist`: `apps/server/src/config.test.ts`
+  and its neighbours import `@notesapp/api-contract`. An adjacent test in
+  another package must not import a workspace package through `dist` unless
+  that package is added to this filter list in the same change, otherwise
+  `pnpm test:unit` fails on a missing build output.
 - Error classes avoid TypeScript parameter properties. Node's type stripping
   runs an adjacent `*.test.ts` file directly and rejects that syntax.
 

@@ -58,6 +58,17 @@ export class RequestContractError extends Error {
   }
 }
 
+/** Request body media type that the operation does not accept. */
+export class RequestMediaTypeError extends Error {
+  readonly accepted: string;
+
+  constructor(accepted: string) {
+    super(`This operation accepts only ${accepted} request bodies.`);
+    this.name = 'RequestMediaTypeError';
+    this.accepted = accepted;
+  }
+}
+
 /**
  * Response contract failure. The invalid body is dropped here on purpose, so
  * the failure cannot leak the content that the contract rejected.
@@ -117,6 +128,13 @@ export function classifyError(error: unknown): {
       status: 500,
       code: 'invalid_response',
       detail: titles.invalid_response,
+      issues: [],
+    };
+  if (error instanceof RequestMediaTypeError)
+    return {
+      status: 415,
+      code: 'unsupported_media_type',
+      detail: error.message,
       issues: [],
     };
   const code = fastifyErrorCode(error);

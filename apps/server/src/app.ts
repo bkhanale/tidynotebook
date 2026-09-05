@@ -84,16 +84,16 @@ export function createAppWithHandlers(
   options: AppOptions,
 ): Promise<FastifyInstance> {
   const app = Fastify({
+    // Request headers are never logged. Fastify's request serializer records
+    // the method, the URL, the host name, and the peer address only, so a
+    // credential in a header cannot reach a log record. Redaction by omission
+    // is stronger than a redaction list, which only covers the header names
+    // that someone remembered to add.
     logger:
       config.logLevel === 'silent'
         ? false
         : {
             level: config.logLevel,
-            // A log record must never carry a credential.
-            redact: {
-              paths: ['req.headers.authorization', 'req.headers.cookie'],
-              censor: '[redacted]',
-            },
             ...(options.logStream === undefined
               ? {}
               : { stream: options.logStream }),

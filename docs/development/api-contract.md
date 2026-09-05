@@ -83,12 +83,21 @@ these across commits, and never edit a file under a `src/generated/` directory.
 - An operation that declares no `requestBody` accepts no request body. A
   request that carries one is rejected with a `400` `invalid_request`, because
   the size limit of a body the operation never accepts is not the useful
-  answer.
-- Responses are validated in every environment. An undeclared status, an
-  undeclared media type, and an undeclared member all become a `500`
-  `invalid_response` problem that carries the request id and never the rejected
-  body. The rejection is logged once at error level with the request id and
-  without the body.
+  answer. An operation that does declare a `requestBody` accepts only the media
+  type it declares; any other media type is a `415`
+  `unsupported_media_type`.
+- Responses are checked twice, in every environment. The route wrapper checks
+  the answer of a handler before the framework writes it: the media type must
+  be one the operation declares for that status, and a `json` answer must be an
+  object or an array. A pre-serialized string, a byte buffer, and a stream are
+  rejected there, because no later schema check could read their members. The
+  `preSerialization` hook then validates the members against the declared
+  schema.
+- An undeclared status, an undeclared media type, a body of the wrong kind, and
+  an undeclared member all become a `500` `invalid_response` problem that
+  carries the request id and never the rejected body. The rejection is logged
+  once at error level with the request id, the operation, the status, the media
+  type, and the reason, and never with the body.
 - Only the contract creates routes, with one exception: Fastify serves `HEAD`
   for every `GET` route and drops the body, as RFC 9110 expects. That route
   reuses the `GET` operation's validators.
@@ -123,9 +132,15 @@ fails when a consumer stops enforcing it.
 
 `NOTESAPP_LOG_LEVEL` selects the structured log level: `fatal`, `error`, `warn`,
 `info`, `debug`, or `silent`. It defaults to `info`, and `silent` disables the
-logger. The logger redacts `req.headers.authorization` and `req.headers.cookie`.
-A log record names an operation, a status, and a request id; it never carries
-note content, a credential, or a rejected value.
+logger.
+
+Request headers are never logged. The request serializer records the method,
+the URL, the host name, and the peer address only, so redaction here is by
+omission: an `Authorization` header and a `Cookie` header cannot reach a log
+record, and no redaction list has to stay in step with the header names that a
+later task adds. A log record names an operation, a status, and a request id;
+it never carries note content, a credential, or a rejected value. A change that
+starts logging headers must add redaction in the same change.
 
 ## Media types
 

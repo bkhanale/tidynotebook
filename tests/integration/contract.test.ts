@@ -338,26 +338,76 @@ await test('the token provider reaches the server and stays out of the log', asy
 
 await logged.close();
 
-// A handler that answers with a media type the operation does not declare.
-const wrongMediaType = await startTestServer({
-  handlers: (config) => ({
-    ...createHandlers(config),
-    getHealth: () =>
-      Promise.resolve({
-        status: 200,
-        mediaType: 'application/vnd.notes+json',
-        body: { status: 'ok', leaked: 'internal detail' },
-      }),
-  }),
-});
-configureClient(wrongMediaType.baseUrl, undefined);
+/**
+ * Every answer that a handler can produce outside the contract.
+ *
+ * A pre-serialized string, a byte buffer, and an undeclared media type all
+ * bypass a schema check unless the boundary inspects the answer before the
+ * framework writes it, so each one gets its own case.
+ */
+const leakingAnswers: readonly {
+  readonly name: string;
+  readonly mediaType: string;
+  readonly body: unknown;
+}[] = [
+  {
+    name: 'an undeclared response media type',
+    mediaType: 'application/vnd.notes+json',
+    body: { status: 'ok', leaked: 'internal detail' },
+  },
+  {
+    name: 'a pre-serialized JSON string',
+    mediaType: 'application/json',
+    body: JSON.stringify({ status: 'ok', leaked: 'internal detail' }),
+  },
+  {
+    name: 'an HTML string',
+    mediaType: 'text/html',
+    body: '<p>leaked internal detail</p>',
+  },
+  {
+    name: 'a byte buffer',
+    mediaType: 'application/octet-stream',
+    body: Buffer.from('leaked internal detail'),
+  },
+];
 
-await test('an undeclared response media type is rejected', async () => {
-  const result = await getHealth();
-  assert.equal(responseOf(result.response).status, 500);
-  const problem = asProblem(result.error);
-  assert.equal(problem.code, 'invalid_response');
-  assert.equal(JSON.stringify(problem).includes('leaked'), false);
-});
+for (const answer of leakingAnswers) {
+  const audit = new LogRecorder();
+  const rejecting = await startTestServer({
+    environment: { NOTESAPP_LOG_LEVEL: 'error' },
+    logStream: audit,
+    handlers: (config) => ({
+      ...createHandlers(config),
+      getHealth: () =>
+        Promise.resolve({
+          status: 200,
+          mediaType: answer.mediaType,
+          body: answer.body,
+        }),
+    }),
+  });
+  configureClient(rejecting.baseUrl, undefined);
 
-await wrongMediaType.close();
+  await test(`${answer.name} is rejected and logged`, async () => {
+    const result = await getHealth();
+    assert.equal(result.data, undefined);
+    const response = responseOf(result.response);
+    assert.equal(response.status, 500);
+    assert.match(
+      response.headers.get('content-type') ?? '',
+      /^application\/problem\+json/,
+    );
+    const problem = asProblem(result.error);
+    assert.equal(problem.code, 'invalid_response');
+    assert.equal(JSON.stringify(problem).includes('leaked'), false);
+    const errors = audit.records().filter((record) => record.level === 50);
+    assert.equal(errors.length >= 1, true, audit.lines.join('\n'));
+    assert.equal(errors[0]?.operationId, 'getHealth');
+    assert.match(String(errors[0]?.requestId), /^[0-9a-f-]{36}$/);
+    // The rejected answer never reaches a log record either.
+    assert.equal(audit.lines.join('\n').includes('leaked'), false);
+  });
+
+  await rejecting.close();
+}

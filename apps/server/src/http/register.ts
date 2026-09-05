@@ -21,6 +21,7 @@ import type {
   OperationId,
   RequestSlot,
   SecurityRequirement,
+  ValidationIssue,
 } from '@notesapp/api-contract';
 import {
   describeIssues,
@@ -30,7 +31,11 @@ import {
   responseMediaTypes,
   responseValidator,
 } from '@notesapp/api-contract';
-import { RequestContractError, ResponseContractError } from './problem.ts';
+import {
+  RequestContractError,
+  RequestMediaTypeError,
+  ResponseContractError,
+} from './problem.ts';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -129,6 +134,102 @@ function carriesBody(request: FastifyRequest): boolean {
   const length = request.headers['content-length'];
   if (typeof length === 'string' && Number(length) > 0) return true;
   return typeof request.headers['transfer-encoding'] === 'string';
+}
+
+/** What is wrong with the media type of a request body, if anything. */
+export type BodyMediaTypeIssue = 'no_body_allowed' | 'unsupported_media_type';
+
+/**
+ * Compares a request body with the body the operation declares.
+ *
+ * No operation accepts a request body yet, so this function is covered by unit
+ * tests only. The first operation that declares a `requestBody`, in Task 5 or
+ * Task 6, adds the integration test that sends a wrong media type.
+ */
+export function checkBodyMediaType(
+  declared: string | null,
+  contentType: unknown,
+  carries: boolean,
+): BodyMediaTypeIssue | null {
+  if (declared === null) return carries ? 'no_body_allowed' : null;
+  // An absent body is a schema matter, not a media type matter.
+  if (!carries) return null;
+  return baseMediaType(contentType) === declared
+    ? null
+    : 'unsupported_media_type';
+}
+
+/**
+ * True when a value can be written as a JSON document.
+ *
+ * A string, a byte buffer, and a stream are all sent verbatim by the
+ * framework, so no schema check would ever see their members. A handler that
+ * serialized its own answer has left the contract.
+ */
+export function isJsonPayload(value: unknown): boolean {
+  if (Array.isArray(value)) return true;
+  if (value === null || typeof value !== 'object') return false;
+  if (value instanceof Uint8Array || value instanceof ArrayBuffer) return false;
+  return !('pipe' in value) && !(Symbol.asyncIterator in value);
+}
+
+/** Reports a response that left the contract and stops it from being sent. */
+function rejectResponse(
+  request: FastifyRequest,
+  detail: {
+    readonly operationId: OperationId;
+    readonly status: number;
+    readonly mediaType: string;
+    readonly declaredMediaTypes: readonly string[];
+    readonly reason: string;
+    readonly issues: readonly ValidationIssue[];
+  },
+): never {
+  // The rejected body is never logged, so the failure cannot leak the content
+  // that the contract refused.
+  request.log.error(
+    { requestId: request.id, ...detail },
+    'The service produced a response outside the contract.',
+  );
+  throw new ResponseContractError(detail.status, detail.mediaType);
+}
+
+/**
+ * Checks the answer of a handler before the framework touches it.
+ *
+ * The member check runs later, in `preSerialization`. This check runs first,
+ * because a pre-serialized string, a buffer, and a stream never reach that
+ * hook in a form any schema can read.
+ */
+function checkHandlerResult(
+  request: FastifyRequest,
+  operationId: OperationId,
+  result: HandlerResult,
+): void {
+  const declaredMediaTypes = responseMediaTypes(operationId, result.status);
+  const handling = mediaTypeHandling[result.mediaType];
+  const shared = {
+    operationId,
+    status: result.status,
+    mediaType: result.mediaType,
+    declaredMediaTypes,
+    issues: [],
+  };
+  if (!declaredMediaTypes.includes(result.mediaType))
+    rejectResponse(request, {
+      ...shared,
+      reason: 'the operation declares no such media type for this status',
+    });
+  if (handling === undefined)
+    rejectResponse(request, {
+      ...shared,
+      reason: 'the boundary serves no such media type',
+    });
+  if (handling === 'json' && !isJsonPayload(result.body))
+    rejectResponse(request, {
+      ...shared,
+      reason: 'a JSON answer must be an object or an array, not bytes or text',
+    });
 }
 
 /** The part of an operation that the startup checks read. */
@@ -251,13 +352,21 @@ export function registerOperations(
     if (id === undefined) return;
     const operation = findOperation(id);
     if (operation === undefined) return;
-    // An operation that declares no request body accepts none. Fastify does
-    // not parse a body for every method, so the check reads the request
-    // framing headers instead of the parsed value.
-    if (operation.request.body === null && carriesBody(request))
+    // An operation that declares no request body accepts none, and one that
+    // does accepts only its declared media type. Fastify does not parse a body
+    // for every method, so the check reads the request framing headers instead
+    // of the parsed value.
+    const issue = checkBodyMediaType(
+      operation.request.bodyMediaType,
+      request.headers['content-type'],
+      carriesBody(request),
+    );
+    if (issue === 'no_body_allowed')
       throw new RequestContractError('body', [
         { path: '/', message: 'this operation accepts no request body' },
       ]);
+    if (issue === 'unsupported_media_type')
+      throw new RequestMediaTypeError(operation.request.bodyMediaType ?? '');
     if (operation.security.length === 0) return;
     if (identity === undefined)
       throw new Error(`Operation ${id} has no identity resolver.`);
@@ -281,18 +390,14 @@ export function registerOperations(
       (handling === 'json' && (validate === undefined || !validate(payload)))
     ) {
       validationFailed.add(reply);
-      request.log.error(
-        {
-          requestId: request.id,
-          operationId: id,
-          status: reply.statusCode,
-          mediaType,
-          declaredMediaTypes: declaredTypes,
-          issues: validate === undefined ? [] : describeIssues(validate.errors),
-        },
-        'The service produced a response outside the contract.',
-      );
-      throw new ResponseContractError(reply.statusCode, mediaType);
+      rejectResponse(request, {
+        operationId: id,
+        status: reply.statusCode,
+        mediaType,
+        declaredMediaTypes: declaredTypes,
+        reason: 'the response body does not match the declared schema',
+        issues: validate === undefined ? [] : describeIssues(validate.errors),
+      });
     }
     return payload;
   });
@@ -322,6 +427,7 @@ export function registerOperations(
       schema,
       handler: async (request, reply) => {
         const result = await handler(request, reply);
+        checkHandlerResult(request, operation.id, result);
         reply.status(result.status);
         reply.header('content-type', `${result.mediaType}; charset=utf-8`);
         return result.body;
