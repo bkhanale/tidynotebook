@@ -508,3 +508,25 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `pnpm test:unit` runs 40 tests, including the exact optional proof.
 - `pnpm test:integration -- contract` runs 8 contract tests through the
   generated client against a real listening Fastify server.
+
+## Task 3 package settings
+
+`packages/core` holds the shared domain rules. It has no runtime dependency, so
+nothing new was installed for the browser. Its only development dependencies are
+`typescript` 7.0.2 and `@types/node` 26.4.1, both rechecked against the registry
+on 2026-09-05 and already used elsewhere in this workspace.
+
+A browser-safe package that keeps adjacent tests follows this pattern:
+
+- `tsconfig.json` sets `types: ["node"]`, because the type check covers the
+  adjacent `*.test.ts` files and those files import `node:test` and
+  `node:assert/strict`.
+- `tsconfig.build.json` excludes `**/*.test.ts` and keeps the empty `types`
+  list of `tsconfig.base.json`. Production sources therefore compile without any
+  Node global, so a browser-only rule cannot reach `process` or `Buffer`
+  unnoticed. The boundary checker already rejects a `node:` import there.
+- `@types/node` stays in `devDependencies`. The browser build does not read that
+  group, and the boundary checker allows a test helper only in that group.
+
+`packages/core` does not set `skipLibCheck`. It has no third-party runtime
+declarations to skip, so the strict base setting stays in force.
