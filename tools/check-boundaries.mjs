@@ -257,6 +257,9 @@ function checkImport(file, specifier, isTest, isGenerated) {
   // Generated output owns the fetch transport and its client package.
   if (!isGenerated && httpLibraries.has(dependency))
     fail(file, `Use generated operations instead of ${dependency}.`);
+  // A declaration package declares the module it describes. TypeScript
+  // resolves `mdast` through `@types/mdast`, so a manifest that lists the
+  // declaration package has declared that import.
   if (
     !specifier.startsWith('node:') &&
     !builtinModules.includes(specifier) &&
@@ -266,7 +269,11 @@ function checkImport(file, specifier, isTest, isGenerated) {
       'devDependencies',
       'optionalDependencies',
       'peerDependencies',
-    ].some((group) => dependency in record(item.manifest[group]))
+    ].some(
+      (group) =>
+        dependency in record(item.manifest[group]) ||
+        `@types/${dependency}` in record(item.manifest[group]),
+    )
   )
     fail(file, `Undeclared dependency ${dependency}.`);
 }

@@ -564,3 +564,79 @@ passes it to `authorize`. `tools/check-actor-brand.test.mjs` builds
 about the missing verified actor marker disappear. The fixture reads the
 package through its emitted declarations. TypeScript 7 removed `baseUrl`, so
 its `paths` entry is written relative to the configuration file.
+
+## Task 12 package settings
+
+`packages/markdown` holds the shared Markdown parser, reference extraction, and
+safe renderer. It is a browser-safe package, so every runtime dependency below
+is browser-safe too and nothing in it reads a file or opens a connection.
+
+The versions were rechecked against the registry on 2026-09-06 with
+`npm view <package> dist-tags.latest`. Each one is the newest stable release of
+its major line, so nothing moved past the design baseline and no prerelease was
+used.
+
+| Package                                                                       | Version | Purpose                                                           |
+| ----------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------- |
+| [unified](https://registry.npmjs.org/unified/11.0.5)                          | 11.0.5  | Processor that holds the parse, transform, and serialize stages.  |
+| [remark-parse](https://registry.npmjs.org/remark-parse/11.0.0)                | 11.0.0  | CommonMark parsing with source positions.                         |
+| [remark-gfm](https://registry.npmjs.org/remark-gfm/4.0.1)                     | 4.0.1   | Tables, task list items, strikethrough, autolinks, and footnotes. |
+| [remark-math](https://registry.npmjs.org/remark-math/6.0.0)                   | 6.0.0   | Inline and display math nodes.                                    |
+| [remark-rehype](https://registry.npmjs.org/remark-rehype/11.1.2)              | 11.1.2  | Markdown tree to HTML tree, with raw HTML dropped.                |
+| [rehype-sanitize](https://registry.npmjs.org/rehype-sanitize/6.0.0)           | 6.0.0   | Element, attribute, and scheme allow list.                        |
+| [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)        | 10.0.1  | HTML serialization with text escaping.                            |
+| [unist-util-visit](https://registry.npmjs.org/unist-util-visit/5.1.0)         | 5.1.0   | Tree walking for extraction and the URL pass.                     |
+| [mdast-util-to-string](https://registry.npmjs.org/mdast-util-to-string/4.0.0) | 4.0.0   | Plain text of a link label.                                       |
+| [@types/mdast](https://registry.npmjs.org/@types/mdast/4.0.4)                 | 4.0.4   | Declares the `mdast` module, including the public `Root` type.    |
+| [@types/hast](https://registry.npmjs.org/@types/hast/3.0.5)                   | 3.0.5   | Declares the `hast` module used by the renderer stage.            |
+
+GFM covers footnotes, so no separate footnote extension is installed. No front
+matter extension is installed either: the design requires front matter to stay
+document content.
+
+The two declaration packages are runtime dependencies and not development
+dependencies, because the public API returns an mdast `Root`. A consumer of the
+emitted declarations needs that module to resolve.
+
+### Compiler settings added by Task 12
+
+`packages/markdown` sets `lib: ["ES2024", "DOM"]` in both its type check and its
+build configuration. The `vfile` declarations that unified depends on reference
+the WHATWG `URL` global, which the base `ES2024` library does not declare. The
+alternative was `skipLibCheck: true`, which would have stopped checking every
+third-party declaration in the package. Adding the browser library keeps
+`skipLibCheck: false` in force and matches the runtime: this package runs in the
+browser. Production sources still list no `types`, so no Node global is
+reachable.
+
+The package keeps the Task 3 pattern otherwise: `types: ["node"]` for the type
+check only, `src/**/*.test.ts` excluded from the build, and `@types/node` in
+`devDependencies`.
+
+### Declaration packages and the boundary checker
+
+`tools/check-boundaries.mjs` now accepts `@types/<name>` in a manifest as the
+declaration of an import of `<name>`. TypeScript resolves `import type { Root }
+from 'mdast'` through `@types/mdast`, so the module has a declared owner even
+though no dependency is literally named `mdast`. Without this rule a package
+could only satisfy the checker by adding a fake dependency. Every other rule is
+unchanged, and an import with no declaration package at all is still rejected.
+
+### The shared corpus
+
+The corpus lives in `packages/markdown/test-data/content.ts` and exports the
+document as a string, rather than in a `content.md` file. Two repository rules
+force this. A browser-safe package may import only `node:test` and
+`node:assert` in a test, so a test cannot read a file from disk. Prettier also
+formats every `.md` file, and the corpus holds deliberately malformed Markdown
+that formatting would repair. A template literal in a TypeScript file is left
+exactly as written, so the byte offsets that the range tests assert stay stable.
+
+### Task 12 verification
+
+The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
+
+- `pnpm install`, then `pnpm install --frozen-lockfile`.
+- `pnpm --filter @notesapp/markdown test:unit` runs 52 tests.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
+  `pnpm build`.
