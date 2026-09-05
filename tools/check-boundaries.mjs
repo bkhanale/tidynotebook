@@ -36,17 +36,33 @@ const allowed = {
   ui: [],
   'sdk-codegen': ['api-contract'],
 };
+// Core belongs here. The design requires core to run in the browser, so core
+// must stay free of Node built-in modules and server-only packages.
 const browser = new Set([
   'web',
   'api-client',
+  'core',
   'storage-browser',
   'sync',
   'markdown',
   'editor',
   'ui',
 ]);
+const serverOnly = new Set(['server', 'storage-server']);
+// Recognized test files may use these modules. Production files may not.
+const testModules = new Set([
+  'node:test',
+  'node:test/reporters',
+  'node:assert',
+  'node:assert/strict',
+]);
+const builtinNames = new Set(
+  builtinModules.flatMap((name) => {
+    const bare = name.replace(/^node:/, '');
+    return [bare, bare.split('/')[0] ?? bare];
+  }),
+);
 const nodeOnly = new Set([
-  ...builtinModules.map((name) => name.replace(/^node:/, '').split('/')[0]),
   'pg',
   'fastify',
   'drizzle-orm',
@@ -87,6 +103,9 @@ const generated = [
 const failures = [];
 /** @type {Map<string, Set<string>>} */
 const graph = new Map();
+// First Node-only or server-only use found in each package, for reach reports.
+/** @type {Map<string, string>} */
+const nodeUse = new Map();
 /** @param {string} file @param {string} reason */
 const fail = (file, reason) =>
   failures.push(`${relative(directory, file)}: ${reason}`);
@@ -102,6 +121,35 @@ const owner = (file) =>
   packages.find(
     (item) => file === item.path || file.startsWith(item.path + sep),
   );
+/** @param {string} specifier */
+const isNodeModule = (specifier) =>
+  specifier.startsWith('node:') ||
+  builtinNames.has(specifier) ||
+  builtinNames.has(packageName(specifier));
+// Reports why a specifier keeps its importer out of the browser.
+/** @param {string} specifier @returns {string | null} */
+function browserBlocker(specifier) {
+  const dependency = packageName(specifier);
+  if (isNodeModule(specifier)) return `Node module ${specifier}`;
+  if (
+    nodeOnly.has(dependency) ||
+    dependency.startsWith('@modelcontextprotocol/') ||
+    dependency.startsWith('@better-auth/')
+  )
+    return `Node-only package ${dependency}`;
+  if (dependency.startsWith('@notesapp/') && serverOnly.has(short(dependency)))
+    return `server-only package ${dependency}`;
+  return null;
+}
+/** @param {string} path @returns {boolean} */
+const isTestPath = (path) =>
+  /\.test\.[cm]?[jt]sx?$/.test(path) ||
+  path.startsWith('tests/') ||
+  path.includes('/tests/');
+/** @param {string} specifier @returns {boolean} */
+const isTestSpecifier = (specifier) =>
+  /(?:^|\/)[^/]*\.test(?:\.[cm]?[jt]sx?)?$/.test(specifier) ||
+  /(?:^|\/)tests\//.test(specifier);
 
 for (const item of packages) {
   const name = String(item.manifest.name);
@@ -133,27 +181,28 @@ for (const item of packages) {
         if (!allowed[key]?.includes(short(dependency)))
           fail(item.path, `Forbidden dependency ${dependency}.`);
       }
-      if (
-        browser.has(key) &&
-        group !== 'devDependencies' &&
-        (nodeOnly.has(dependency) ||
-          dependency.startsWith('@modelcontextprotocol/') ||
-          dependency.startsWith('@better-auth/'))
-      )
-        fail(item.path, `Browser runtime cannot depend on ${dependency}.`);
       if (key === 'core' && coreForbidden.has(dependency))
         fail(item.path, `Core cannot depend on ${dependency}.`);
+      // Test helpers stay in devDependencies and never reach the browser build.
+      if (group === 'devDependencies') continue;
+      const blocker = browserBlocker(dependency);
+      if (!blocker) continue;
+      if (browser.has(key))
+        fail(item.path, `Browser runtime cannot depend on ${dependency}.`);
+      if (!nodeUse.has(name)) nodeUse.set(name, `${blocker} in ${group}`);
     }
   }
 }
 
-/** @param {string} file @param {string} specifier */
-function checkImport(file, specifier) {
+/** @param {string} file @param {string} specifier @param {boolean} isTest */
+function checkImport(file, specifier, isTest) {
   const item = owner(file);
   if (!item) return;
   const name = String(item.manifest.name);
   const key = short(name);
   const dependency = packageName(specifier);
+  if (!isTest && isTestSpecifier(specifier))
+    fail(file, `Production source cannot import test file ${specifier}.`);
   if (specifier.startsWith('.') || isAbsolute(specifier)) {
     const target = resolve(file, '..', specifier);
     if (owner(target) !== item)
@@ -171,14 +220,12 @@ function checkImport(file, specifier) {
     if (!allowed[key]?.includes(short(dependency)))
       fail(file, `Forbidden import ${dependency}.`);
   }
-  if (
-    browser.has(key) &&
-    (specifier.startsWith('node:') ||
-      nodeOnly.has(dependency) ||
-      dependency.startsWith('@modelcontextprotocol/') ||
-      dependency.startsWith('@better-auth/'))
-  )
-    fail(file, `Browser source cannot import ${specifier}.`);
+  const blocker = browserBlocker(specifier);
+  if (blocker && !(isTest && testModules.has(specifier))) {
+    if (browser.has(key))
+      fail(file, `Browser source cannot import ${specifier}.`);
+    if (!isTest && !nodeUse.has(name)) nodeUse.set(name, blocker);
+  }
   if (
     key === 'core' &&
     (coreForbidden.has(dependency) || dependency === '@notesapp/api-client')
@@ -223,6 +270,7 @@ const sources = (
 for (const file of sources) {
   const path = relative(directory, file).split(sep).join('/');
   const isGenerated = generated.some((prefix) => path.startsWith(prefix));
+  const isTest = isTestPath(path);
   const item = owner(file);
   const isApplication =
     Boolean(item) && item?.manifest.name !== '@notesapp/sdk-codegen';
@@ -234,6 +282,7 @@ for (const file of sources) {
     continue;
   }
   walk(parsed.program, (node) => {
+    const type = String(node.type);
     if (
       [
         'ImportDeclaration',
@@ -241,16 +290,37 @@ for (const file of sources) {
         'ExportAllDeclaration',
         'ImportExpression',
         'TSImportType',
-      ].includes(String(node.type))
+      ].includes(type)
     ) {
       const source = record(node.source ?? node.argument);
-      if (typeof source.value === 'string') checkImport(file, source.value);
-      else if (node.type === 'ImportExpression')
+      if (typeof source.value === 'string')
+        checkImport(file, source.value, isTest);
+      else if (type === 'ImportExpression')
         fail(file, 'Dynamic imports must use a literal path.');
+    }
+    // TypeScript `import name = require('module')` is an import too.
+    if (type === 'TSImportEqualsDeclaration') {
+      const reference = record(node.moduleReference);
+      if (reference.type === 'TSExternalModuleReference') {
+        const expression = record(reference.expression);
+        if (typeof expression.value === 'string')
+          checkImport(file, expression.value, isTest);
+        else
+          fail(file, 'import = require(...) must use a literal module path.');
+      }
+    }
+    if (type === 'CallExpression' && record(node.callee).name === 'require') {
+      const argumentsList = node.arguments;
+      const source = Array.isArray(argumentsList)
+        ? record(argumentsList[0])
+        : {};
+      if (typeof source.value === 'string')
+        checkImport(file, source.value, isTest);
+      else fail(file, 'require must use a literal module path.');
     }
     if (!isApplication || isGenerated) return;
     if (
-      node.type === 'Identifier' &&
+      type === 'Identifier' &&
       ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].includes(
         String(node.name),
       ) &&
@@ -262,7 +332,7 @@ for (const file of sources) {
         `Handwritten ${node.name} is outside the generated HTTP boundary.`,
       );
     if (
-      node.type === 'MemberExpression' &&
+      type === 'MemberExpression' &&
       record(node.property).type === 'Literal' &&
       ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].includes(
         String(record(node.property).value),
@@ -272,18 +342,7 @@ for (const file of sources) {
     )
       fail(file, 'Computed HTTP transport access is forbidden.');
     if (
-      node.type === 'CallExpression' &&
-      record(node.callee).name === 'require'
-    ) {
-      const argumentsList = node.arguments;
-      const source = Array.isArray(argumentsList)
-        ? record(argumentsList[0])
-        : {};
-      if (typeof source.value === 'string') checkImport(file, source.value);
-      else fail(file, 'require must use a literal module path.');
-    }
-    if (
-      node.type === 'NewExpression' &&
+      type === 'NewExpression' &&
       ['URL', 'URLSearchParams'].includes(String(record(node.callee).name)) &&
       [
         '@notesapp/web',
@@ -297,12 +356,36 @@ for (const file of sources) {
       fail(file, 'Application URL construction belongs in generated output.');
     if (
       asset &&
-      node.type === 'Literal' &&
+      type === 'Literal' &&
       typeof node.value === 'string' &&
       /(?:^|\/)api(?:\/|$)/.test(node.value)
     )
       fail(file, 'The asset worker cannot cache application API paths.');
   });
+}
+// A browser package must stay browser-safe through every workspace package it
+// imports, not only in its own files.
+for (const item of packages) {
+  const name = String(item.manifest.name);
+  if (!browser.has(short(name))) continue;
+  const seen = new Set([name]);
+  /** @type {string[][]} */
+  const queue = [[name]];
+  while (queue.length) {
+    const chain = queue.shift();
+    const current = chain?.at(-1);
+    if (!chain || current === undefined) break;
+    const blocker = nodeUse.get(current);
+    if (blocker !== undefined && chain.length > 1)
+      failures.push(
+        `${name}: Browser package reaches ${blocker} through ${chain.join(' -> ')}.`,
+      );
+    for (const next of graph.get(current) ?? []) {
+      if (seen.has(next)) continue;
+      seen.add(next);
+      queue.push([...chain, next]);
+    }
+  }
 }
 /** @type {Set<string>} */
 const done = new Set();

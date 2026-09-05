@@ -178,9 +178,65 @@ tests exist at Task 1.
 The boundary checker rejects package cycles, disallowed dependency directions,
 deep imports, relative imports outside a package, undeclared imports, browser
 imports of Node modules and server dependencies, and handwritten application
-HTTP transports. It parses JavaScript and TypeScript, including re-exports and
-literal dynamic imports. Computed dynamic imports are rejected. Oxlint also
-checks import cycles within source modules.
+HTTP transports. Oxlint also checks import cycles within source modules.
+
+### Browser-safe packages
+
+These packages must run in a browser: `web`, `api-client`, `core`,
+`storage-browser`, `sync`, `markdown`, `editor`, and `ui`. Core is part of this
+set because the design requires core to hold domain rules for both runtimes.
+
+A browser-safe package must not import a Node built-in module. This covers the
+`node:` prefix and the bare built-in names, for example `node:fs`, `fs`,
+`fs/promises`, `path`, and `crypto`. It must not import a Node-only package
+either: `pg`, `fastify`, `drizzle-orm`, `drizzle-kit`, `better-auth`, `sharp`,
+`dotenv`, and every `@modelcontextprotocol/` or `@better-auth/` package. It must
+not import the server-only workspace packages `@notesapp/server` and
+`@notesapp/storage-server`.
+
+The same rule applies to the package manifest. A browser-safe package cannot
+list such a package in `dependencies`, `optionalDependencies`, or
+`peerDependencies`. Test helpers stay in `devDependencies`, which the browser
+build does not use.
+
+The rule is transitive. The checker records the first Node-only or server-only
+use of every workspace package, then walks the workspace import graph from each
+browser-safe package. A browser-safe package fails when it reaches such a use
+through other workspace packages, and the report names the chain. For example,
+`web` fails when `sync` imports `core` and `core` imports `node:fs`.
+
+### Test files
+
+A recognized test file is a file whose name ends in `.test.ts`, `.test.tsx`,
+`.test.js`, `.test.jsx`, `.test.mjs`, or `.test.cjs`, or a file under any
+`tests/` directory. A recognized test file may import `node:test`,
+`node:test/reporters`, `node:assert`, and `node:assert/strict`, also inside a
+browser-safe package. Other Node modules stay forbidden there. Test helper
+packages belong in `devDependencies`; the browser dependency rule ignores that
+group.
+
+A production file must not import a test file. Test files do not contribute to
+the transitive Node reach above, because they are not part of a browser build.
+Every other rule, including package cycles, deep imports, browser-to-server
+imports, and handwritten HTTP calls, stays active for test files.
+
+### Inspected import forms
+
+The checker parses JavaScript and TypeScript with the oxc parser and inspects
+every import form it produces:
+
+| Form                                           | Handling                               |
+| ---------------------------------------------- | -------------------------------------- |
+| `import x from 'module'`                       | Checked.                               |
+| `export ... from 'module'` and `export * from` | Checked.                               |
+| `import('module')` with a string literal       | Checked.                               |
+| `import('module')` with any other expression   | Rejected as a computed dynamic import. |
+| `type T = import('module').X`                  | Checked.                               |
+| `import x = require('module')`                 | Checked, including a type-only form.   |
+| `require('module')` with a string literal      | Checked.                               |
+| `require(name)` with any other expression      | Rejected as a computed module path.    |
+
+Each rejected form names the file and the reason.
 
 Generated output exceptions apply only to the two contract/client generated
 paths. Protocol exceptions use exact adapter files:
@@ -192,7 +248,11 @@ apply to exceptions. Code review must check semantic wrappers and computed
 endpoints that a static rule cannot prove.
 
 The checker accepts `--root <directory>` for disposable verification inputs.
-These inputs stay under ignored `.tooling/` and are not application fixtures.
+`tools/check-boundaries.test.mjs` uses that option. It writes fixture workspaces
+into a temporary system directory, runs the checker against them, and removes
+them again. No fixture is committed as application code. `pnpm test:unit`
+discovers this test with the other root tool tests.
+
 Formatting excludes generated output, local progress notes, and the two approved
 design/plan input documents. Their existing formatting is not changed by this task.
 
@@ -203,9 +263,15 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `pnpm install` and `pnpm install --frozen-lockfile`.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, and `pnpm build`.
 - `pnpm test:unit` and `pnpm test:integration` report no tests yet.
-- A disposable checker root accepted a valid core package. It rejected seven
-  cases: a deep import, a browser Node import, direct fetch, computed fetch, a
-  cross-package relative re-export, a package cycle, and a computed import.
+- `tools/check-boundaries.test.mjs` covers the checker with temporary fixture
+  workspaces. It accepts a browser-safe workspace and test files that use the
+  Node test runner. It rejects a deep import, a browser Node import, direct
+  fetch, computed fetch, a cross-package relative re-export, a package cycle, a
+  computed import, a computed `require`, a Node built-in in core, a bare
+  built-in name, Node reach through a workspace package, a Node-only manifest
+  dependency, `import x = require('node:fs')`, a deep `import x = require(...)`,
+  another Node module inside a test file, and a production import of a test
+  file.
 - `pnpm test:integration -- missing-task1-probe` exited 1. A temporary tool unit
   test was selected by name and propagated its intentional failure as exit 1.
   The temporary test was removed after the check.
