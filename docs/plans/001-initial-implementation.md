@@ -93,7 +93,7 @@ Task 2 owns HTTP schemas and generated types. Transport adapters explicitly map 
 
 ## Tasks
 
-### [ ] Task 1: Establish the toolchain and verification commands
+### [x] Task 1: Establish the toolchain and verification commands
 
 **Depends on:** Repository baseline only.
 
@@ -101,11 +101,13 @@ Task 2 owns HTTP schemas and generated types. Transport adapters explicitly map 
 
 **Interfaces:** Produces root commands `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`, `pnpm test:integration -- <test-name>`, and `pnpm build`. Package `test:unit` runs its adjacent tests with Node's test runner. Root test discovery fails on a requested test name that does not exist; it must not return a false success.
 
-- [ ] Verify the design's selected packages against official registry metadata and release notes. Check Node/pnpm engines, peer ranges, TS 7 compilation, the generator's TS 6 compiler API requirement, and Better Auth's nested utility range. Pin compatible stable releases and record exact versions, source links, and reasons for exceptions in `toolchain.md`.
-- [ ] Add workspace discovery, strict peer installation, exact direct versions, package exports, and strict TypeScript settings. Configure separate app and SDK generator compiler contexts. Keep Node-only dependencies out of browser package dependency lists.
-- [ ] Add root command routing and test discovery using Node, including forwarded test names and nonzero exit propagation. Add Oxlint rules plus the boundary checker for package cycles, deep imports, browser-to-server imports, and handwritten application HTTP calls outside generated output. Exempt library protocol adapters and PWA asset handling by exact file responsibility, not a broad directory exception.
-- [ ] Run `pnpm install`, then `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, and `pnpm format:check`. At this stage checks cover the tooling files and configuration. Confirm that an invalid import fixture supplied to the checker is rejected without committing that fixture as application code.
-- [ ] Commit: `chore: establish strict workspace tooling`.
+- [x] Verify the design's selected packages against official registry metadata and release notes. Check Node/pnpm engines, peer ranges, TS 7 compilation, the generator's TS 6 compiler API requirement, and Better Auth's nested utility range. Pin compatible stable releases and record exact versions, source links, and reasons for exceptions in `toolchain.md`.
+- [x] Add workspace discovery, strict peer installation, exact direct versions, package exports, and strict TypeScript settings. Configure separate app and SDK generator compiler contexts. Keep Node-only dependencies out of browser package dependency lists.
+- [x] Add root command routing and test discovery using Node, including forwarded test names and nonzero exit propagation. Add Oxlint rules plus the boundary checker for package cycles, deep imports, browser-to-server imports, and handwritten application HTTP calls outside generated output. Exempt library protocol adapters and PWA asset handling by exact file responsibility, not a broad directory exception.
+- [x] Run `pnpm install`, then `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, and `pnpm format:check`. At this stage checks cover the tooling files and configuration. Confirm that an invalid import fixture supplied to the checker is rejected without committing that fixture as application code.
+- [x] Commit: `chore: establish strict workspace tooling`.
+
+Execution record (2026-09-05): commits `26044af`, `22eb5fd`, `7b6939b`, `8ca664c`, `520959b`. Four independent review rounds. Final gate: install with frozen lockfile, typecheck, type-aware lint, format check, 39 unit tests, and build all passed. Decisions recorded in `docs/development/toolchain.md`: handwritten relative imports use `.ts` extensions with `allowImportingTsExtensions` and `rewriteRelativeImportExtensions`; core is browser-safe; test files live in package `src` trees or the root `tests` tree; the root `tsconfig.json` is the tooling context. Computed transport access hidden behind a variable remains a code-review item.
 
 ### [ ] Task 2: Create OpenAPI generation and the HTTP boundary
 
