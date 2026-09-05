@@ -304,15 +304,27 @@ The transport names are `fetch`, `XMLHttpRequest`, `WebSocket`, and
   `new globalThis.WebSocket('/x')`.
 - A reference to a bare transport name in value position, such as
   `const send = fetch`, which would otherwise hide a call behind an alias.
-- Computed access to a transport name, such as `globalThis['fetch']`.
+- A destructured transport, such as `const { fetch: send } = globalThis` or
+  `const { fetch: send } = deps`. The pattern key is the reference, so a rename
+  does not hide it.
+- Computed access to a transport name, such as `globalThis['fetch']` or
+  `Reflect.get(globalThis, 'fetch')` with a string literal.
 - An import of a direct HTTP library such as `axios`, `undici`, or
   `@hey-api/client-fetch`.
 
 A transport name that is not a value reference is accepted: a plain property key
-in `{ fetch: value }`, a member property such as the `fetch` in
-`globalThis.fetch` when it is not called, any type position such as
-`typeof globalThis.fetch` or `{ fetch?: typeof fetch }`, an import or export
-name, and a declared name such as a parameter.
+in an object literal such as `{ fetch: 1 }` or `{ fetch: value }`, a member
+property such as the `fetch` in `globalThis.fetch` when it is not called, any
+type position such as `typeof globalThis.fetch` or `{ fetch?: typeof fetch }`,
+and an import or export name.
+
+Do not name a parameter, variable, or other binding after a transport. The
+declaration itself is accepted, but every later use of that name is a value
+reference and is rejected. Choose another name.
+
+A computed access that hides the name behind a variable or an expression, for
+example `globalThis[key]` or `Reflect.get(globalThis, key)`, cannot be proved by
+a static rule. Code review must check semantic wrappers and computed endpoints.
 
 The generated client owns the fetch transport, so the transport rules and the
 HTTP library rule are skipped for the two generated paths,
@@ -331,8 +343,7 @@ transport access, and URL construction are accepted in that one file. It must
 not call `fetch` itself, so the call and `new` rules stay active for it.
 
 Package direction, browser dependencies, and deep-import checks still apply to
-every exception. Code review must check semantic wrappers and computed
-endpoints that a static rule cannot prove.
+every exception.
 
 The checker accepts `--root <directory>` for disposable verification inputs.
 `tools/check-boundaries.test.mjs` uses that option. It writes fixture workspaces
@@ -354,11 +365,15 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `tools/check-boundaries.test.mjs` covers the checker with temporary fixture
   workspaces. It accepts a browser-safe workspace, test files that use the Node
   test runner, a property or type named `fetch`, the generated client
-  transport, a transport name in a type query, and base URL and transport
-  options in the client configuration. It
+  transport, a transport name in a type query, a transport name as an object
+  literal key, and base URL and transport options in the client configuration.
+  It
   rejects a deep import, a `fetch` call, computed transport access, a
   `new WebSocket()`, a cross-package relative re-export, a package cycle, a
-  computed import, a computed `require`, a `globalThis.fetch` call, a
+  computed import, a computed `require`, a renamed destructured transport, a
+  destructured transport constructor, a transport destructured from a
+  dependency object, `Reflect.get` access to a transport, a `globalThis.fetch`
+  call, a
   `window.fetch` call, a `self.fetch` call, a transport alias, a
   `new globalThis.WebSocket()`, a test file outside a runnable tree, a Node
   built-in in core, a bare

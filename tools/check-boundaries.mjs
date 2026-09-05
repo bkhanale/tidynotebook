@@ -451,6 +451,45 @@ for (const file of sources) {
     }
     // The client configuration may pass a transport implementation on, so a
     // reference is accepted there. A call from it is not.
+    // Destructuring renames a transport: `const { fetch: send } = globalThis`.
+    // The pattern key is the reference, so the object literal rule above cannot
+    // see it. An object literal such as `{ fetch: value }` stays accepted.
+    if (type === 'ObjectPattern' && !protocol && !asset && !clientConfig) {
+      const properties = Array.isArray(node.properties) ? node.properties : [];
+      for (const entry of properties) {
+        const property = record(entry);
+        if (String(property.type) !== 'Property' || property.computed === true)
+          continue;
+        const propertyKey = record(property.key);
+        const name =
+          String(propertyKey.type) === 'Identifier'
+            ? String(propertyKey.name)
+            : typeof propertyKey.value === 'string'
+              ? propertyKey.value
+              : '';
+        if (transportNames.has(name))
+          fail(
+            file,
+            `Transport reference ${name} is outside the generated HTTP boundary.`,
+          );
+      }
+    }
+    // `Reflect.get(globalThis, 'fetch')` reaches the same transport.
+    if (type === 'CallExpression' && !protocol && !asset && !clientConfig) {
+      const target = record(node.callee);
+      const property = record(target.property);
+      const argumentsList = Array.isArray(node.arguments) ? node.arguments : [];
+      const second = record(argumentsList[1]);
+      if (
+        String(target.type) === 'MemberExpression' &&
+        target.computed !== true &&
+        String(record(target.object).name) === 'Reflect' &&
+        String(property.name) === 'get' &&
+        typeof second.value === 'string' &&
+        transportNames.has(second.value)
+      )
+        fail(file, 'Computed HTTP transport access is forbidden.');
+    }
     if (
       type === 'Identifier' &&
       transportNames.has(String(node.name)) &&

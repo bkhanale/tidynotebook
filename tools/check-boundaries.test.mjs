@@ -524,3 +524,44 @@ await test('accepts a transport name in a type query', () => {
     ),
   );
 });
+await test('rejects a renamed destructured transport', () => {
+  rejected(
+    webSource(
+      "const { fetch: send } = globalThis;\nexport const load = () => send('/files');\n",
+    ),
+    'Transport reference fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a renamed destructured transport constructor', () => {
+  rejected(
+    webSource(
+      "const { WebSocket: Socket } = globalThis;\nexport const live = () => new Socket('/events');\n",
+    ),
+    'Transport reference WebSocket is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a transport destructured from a dependency object', () => {
+  rejected(
+    webSource(
+      "declare const deps: { fetch: (url: string) => Promise<unknown> };\nconst { fetch: send } = deps;\nexport const load = () => send('/files');\n",
+    ),
+    'Transport reference fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects Reflect access to a transport', () => {
+  rejected(
+    webSource("export const send = Reflect.get(globalThis, 'fetch');\n"),
+    'Computed HTTP transport access is forbidden.',
+  );
+});
+
+await test('accepts a transport name as an object literal key', () => {
+  accepted(
+    webSource(
+      'const value = 1;\nexport const counts = { fetch: 1 };\nexport const options = { fetch: value };\n',
+    ),
+  );
+});
