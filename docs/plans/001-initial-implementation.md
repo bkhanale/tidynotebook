@@ -87,6 +87,8 @@ type DomainError = {
 type Result<T> = { ok: true; value: T } | { ok: false; error: DomainError };
 ```
 
+Implementation note (Task 3, accepted): `Actor` also carries a non-exported verified marker, and only `verifyActor(accountId, grants): Result<Actor>` in `@notesapp/core` can create one, so a parsed request object cannot be passed where an `Actor` is required. Task 5's `resolveActor` must build actors through `verifyActor`. `normalizePath(input, kind = 'note')` accepts `'attachment'` for attachment paths. `validateGraph` accepts one linear or merging chain per file per submission; a device with two local branches for one file submits them as separate branch changesets (Task 8). `validateGraph` cannot see a stored root for a file whose parents were not looked up, so Task 6's `expectedHeads[fileId] === null` check is the rule that prevents a second root.
+
 `expectedHeads[fileId] = null` means that the file must not exist in accepted state. Parents in a submitted chain may refer to earlier revisions in that same chain. Revisions of one file cannot parent revisions of another. Acceptance adds the verified actor and server time; clients cannot supply either field. Store content once per workspace digest rather than duplicate text in every revision row.
 
 Task 2 owns HTTP schemas and generated types. Transport adapters explicitly map those types to the domain types above. Task 10 owns local records, which add account, workspace, working-copy identity, and persistence state. No storage table row becomes a public response by automatic serialization.
@@ -124,7 +126,7 @@ Execution record (2026-09-05): commits `26044af`, `22eb5fd`, `7b6939b`, `8ca664c
 - [ ] Run `pnpm contract:lint`, `pnpm generate`, `pnpm generated:check`, `pnpm test:integration -- contract`, `pnpm typecheck`, and `pnpm build`. Expect generated TypeScript to compile with the app compiler and no duplicate schema source.
 - [ ] Commit: `feat: add generated API contract and HTTP boundary`.
 
-### [ ] Task 3: Define domain rules and storage ports
+### [x] Task 3: Define domain rules and storage ports
 
 **Depends on:** Task 2.
 
@@ -134,11 +136,13 @@ Execution record (2026-09-05): commits `26044af`, `22eb5fd`, `7b6939b`, `8ca664c
 
 Define `WorkspaceTransaction` with `role(accountId: string): Promise<Role | null>`, `receipt(mutationId: string, accountId: string): Promise<{ digest: string; outcome: AcceptedChangeset } | null>`, `heads(fileIds: readonly string[]): Promise<ReadonlyMap<string, string | null>>`, `parents(ids: readonly string[]): Promise<ReadonlyMap<string, string>>`, `isPurged(fileId: string): Promise<boolean>`, and `accept(actor: Actor, input: ChangesetInput, digest: string): Promise<Result<AcceptedChangeset>>`. Define `WorkspaceStore.transact<T>(actor: Actor, workspaceId: string, run: (tx: WorkspaceTransaction) => Promise<T>): Promise<T>`. `accept` enforces persistent final-path and quota invariants and performs the atomic write; it does not start a nested transaction.
 
-- [ ] Implement role/action intersection, with viewer read/history, editor write, admin share/members, and owner purge. Prevent owner removal and ownership changes outside owner use cases. Keep verified grants distinct from user-supplied requests.
-- [ ] Implement NFC relative paths, `.md` validation for Markdown, traversal and null rejection, and stable IDs. Validate zero parents for a root, one for a normal revision, two for an explicit merge, same-file parents, known or earlier chain parents, and no cycles or duplicate IDs.
-- [ ] Define the transaction port and map expected domain failures to `Result`. Keep operational failures such as an unavailable database separate for the HTTP adapter to map to a server error.
-- [ ] Run `pnpm --filter @notesapp/core test:unit`, `pnpm typecheck`, and `pnpm lint`. Test role and grant combinations, NFC collisions, malformed paths, foreign parents, repeated IDs, and valid submitted chains.
-- [ ] Commit: `feat: define file and access domain boundaries`.
+- [x] Implement role/action intersection, with viewer read/history, editor write, admin share/members, and owner purge. Prevent owner removal and ownership changes outside owner use cases. Keep verified grants distinct from user-supplied requests.
+- [x] Implement NFC relative paths, `.md` validation for Markdown, traversal and null rejection, and stable IDs. Validate zero parents for a root, one for a normal revision, two for an explicit merge, same-file parents, known or earlier chain parents, and no cycles or duplicate IDs.
+- [x] Define the transaction port and map expected domain failures to `Result`. Keep operational failures such as an unavailable database separate for the HTTP adapter to map to a server error.
+- [x] Run `pnpm --filter @notesapp/core test:unit`, `pnpm typecheck`, and `pnpm lint`. Test role and grant combinations, NFC collisions, malformed paths, foreign parents, repeated IDs, and valid submitted chains.
+- [x] Commit: `feat: define file and access domain boundaries`.
+
+Execution record (2026-09-06): commits `9f47677` and `9c34166`. Independent review verdict Ready; the follow-up commit rejects lone surrogates, Unicode format characters, line separators, and segment edge white space in paths, denies out-of-union roles, makes `verifyActor` return `Result<Actor>`, and adds a compile-time proof under `tools/actor-brand/` that a plain object is not an `Actor`. Core has 46 unit tests. Owner removal and ownership transfer rules are deferred to the Task 5 membership use cases, which the plan already assigns there.
 
 ### [ ] Task 4: Add PostgreSQL persistence and row access controls
 
