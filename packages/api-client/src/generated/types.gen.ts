@@ -5,6 +5,284 @@ export type ClientOptions = {
 };
 
 /**
+ * The signed in account and its settings.
+ */
+export type Account = {
+    /**
+     * Stable identifier of the account inside this deployment.
+     */
+    readonly accountId: Uuid;
+    /**
+     * Sign-in address, or null when the transport is an agent token.
+     */
+    readonly email?: string | null;
+    /**
+     * Display name, or null when the transport is an agent token.
+     */
+    readonly name?: string | null;
+    /**
+     * The stored settings of the account.
+     */
+    readonly preferences: Preferences;
+};
+
+/**
+ * One permitted kind of operation inside one workspace.
+ */
+export type Action = 'read' | 'write' | 'history' | 'share' | 'members' | 'purge';
+
+/**
+ * One agent token without its secret.
+ */
+export type AgentToken = {
+    /**
+     * Identifier of the token.
+     */
+    readonly id: Uuid;
+    /**
+     * Name that the account gave the token.
+     */
+    readonly name: string;
+    /**
+     * Public prefix of the secret, which names the token in a list.
+     */
+    readonly prefix: string;
+    /**
+     * The stored scope of the token.
+     */
+    readonly scopes: Array<AgentTokenScope>;
+    /**
+     * Instant after which the token is refused.
+     */
+    readonly expiresAt: string;
+    /**
+     * Instant at which the token was created.
+     */
+    readonly createdAt: string;
+    /**
+     * Instant at which the token was revoked, or null.
+     */
+    readonly revokedAt?: string | null;
+};
+
+/**
+ * A new agent token and its secret, which is shown once.
+ */
+export type AgentTokenCreated = {
+    /**
+     * The stored token.
+     */
+    readonly token: AgentToken;
+    /**
+     * The token secret. It appears in this answer only, because storage keeps its hash.
+     */
+    readonly secret: string;
+};
+
+/**
+ * The name, the expiry, and the scope of a new agent token.
+ */
+export type AgentTokenInput = {
+    /**
+     * Name that identifies the token to its account.
+     */
+    name: string;
+    /**
+     * Instant after which the token is refused. An expiry is required and can never be more than one year away.
+     */
+    expiresAt: string;
+    /**
+     * Workspace and action scope of the token. It can never be wider than the current role of the account in that workspace.
+     */
+    scopes: Array<AgentTokenScope>;
+};
+
+/**
+ * Every agent token of the signed in account.
+ */
+export type AgentTokenList = {
+    /**
+     * One entry for each token of the account.
+     */
+    readonly tokens: Array<AgentToken>;
+};
+
+/**
+ * The workspace and the actions that one agent token may use.
+ */
+export type AgentTokenScope = {
+    /**
+     * Workspace that the scope applies to.
+     */
+    workspaceId: Uuid;
+    /**
+     * Actions that the token may perform in that workspace.
+     */
+    actions: Array<Action>;
+};
+
+/**
+ * A role that an invitation or a role change may grant. The owner role is not in this list, because ownership moves only through an explicit transfer.
+ */
+export type AssignableRole = 'admin' | 'editor' | 'viewer';
+
+/**
+ * The current session, or null when there is none.
+ */
+export type AuthCurrentSession = {
+    user?: AuthUser;
+    [key: string]: unknown;
+} | null;
+
+/**
+ * Whether the protocol endpoint completed its work.
+ */
+export type AuthOutcome = {
+    /**
+     * True when the endpoint completed its work.
+     */
+    readonly status: boolean;
+    [key: string]: unknown;
+};
+
+/**
+ * The new password and the token from the reset message.
+ */
+export type AuthPasswordReset = {
+    /**
+     * New password of the account.
+     */
+    newPassword: string;
+    /**
+     * Token from the reset message.
+     */
+    token?: string;
+};
+
+/**
+ * The address that asks for a password reset message.
+ */
+export type AuthPasswordResetRequest = {
+    /**
+     * Sign-in address of the account.
+     */
+    email: string;
+    /**
+     * Address that the reset link opens.
+     */
+    redirectTo?: string;
+};
+
+/**
+ * Address and password of a local account.
+ */
+export type AuthPasswordSignIn = {
+    /**
+     * Sign-in address of the account.
+     */
+    email: string;
+    /**
+     * Password of the account.
+     */
+    password: string;
+    /**
+     * Whether the session survives a browser restart.
+     */
+    rememberMe?: boolean;
+    /**
+     * Address to open after a completed sign-in.
+     */
+    callbackURL?: string;
+};
+
+/**
+ * The configured provider to sign in with.
+ */
+export type AuthProviderSignIn = {
+    /**
+     * Identifier of the configured provider.
+     */
+    provider: string;
+    /**
+     * Address to open after a completed sign-in.
+     */
+    callbackURL?: string;
+    /**
+     * Address to open after a refused sign-in.
+     */
+    errorCallbackURL?: string;
+    /**
+     * Address to open after a first sign-in.
+     */
+    newUserCallbackURL?: string;
+};
+
+/**
+ * The provider address that the browser must open.
+ */
+export type AuthRedirect = {
+    /**
+     * Whether the caller should follow the address below.
+     */
+    readonly redirect: boolean;
+    /**
+     * Authorization address of the configured provider.
+     */
+    readonly url?: string;
+    [key: string]: unknown;
+};
+
+/**
+ * The result of a completed sign-in.
+ */
+export type AuthSession = {
+    /**
+     * Whether the caller should follow a redirect.
+     */
+    readonly redirect: boolean;
+    /**
+     * Session token. The session cookie carries it as well.
+     */
+    readonly token?: string;
+    /**
+     * Address to open, when the answer asks for a redirect.
+     */
+    readonly url?: string;
+    user?: AuthUser;
+    [key: string]: unknown;
+};
+
+/**
+ * Sign-out carries no data. The session cookie names it.
+ */
+export type AuthSignOut = {
+    [key: string]: never;
+};
+
+/**
+ * The signed in user as the identity provider reports it.
+ */
+export type AuthUser = {
+    /**
+     * Identifier of the user inside the identity provider.
+     */
+    readonly id: string;
+    /**
+     * Sign-in address of the user.
+     */
+    readonly email: string;
+    /**
+     * Display name of the user.
+     */
+    readonly name?: string;
+    /**
+     * Whether the provider reported the address as verified.
+     */
+    readonly emailVerified?: boolean;
+    [key: string]: unknown;
+};
+
+/**
  * Liveness report of the service process.
  */
 export type HealthReport = {
@@ -15,35 +293,165 @@ export type HealthReport = {
 };
 
 /**
- * Readiness report of every startup requirement.
+ * One invitation to one workspace. The token itself is never stored.
  */
-export type ReadinessReport = {
+export type Invitation = {
     /**
-     * Overall readiness. The value is degraded when at least one check is degraded.
+     * Identifier of the invitation.
      */
-    readonly status: 'ok' | 'degraded';
+    readonly id: Uuid;
     /**
-     * One entry for every startup requirement that was checked.
+     * Workspace that the invitation admits to.
      */
-    readonly checks: Array<ReadinessCheck>;
+    readonly workspaceId: Uuid;
+    /**
+     * Address that the invitation was created for.
+     */
+    readonly email: string;
+    /**
+     * Role that acceptance grants.
+     */
+    readonly role: AssignableRole;
+    /**
+     * Instant after which the invitation cannot be accepted.
+     */
+    readonly expiresAt: string;
+    /**
+     * Whether the invitation is still open.
+     */
+    readonly state: 'pending' | 'accepted' | 'revoked';
 };
 
 /**
- * State of one startup requirement.
+ * The invitation token to consume.
  */
-export type ReadinessCheck = {
+export type InvitationAcceptanceInput = {
     /**
-     * Stable name of the requirement, for example configuration.
+     * The invitation token that was handed to the invited person.
      */
-    readonly name: string;
+    token: string;
+};
+
+/**
+ * A new invitation and its token, which is shown once.
+ */
+export type InvitationCreated = {
     /**
-     * State of this requirement.
+     * The stored invitation.
      */
-    readonly status: 'ok' | 'degraded';
+    readonly invitation: Invitation;
     /**
-     * Operator readable explanation. The field is absent in a summary report and it never contains note content or a secret.
+     * The invitation token. It appears in this answer only, because storage keeps its hash.
      */
-    readonly detail?: string;
+    readonly token: string;
+};
+
+/**
+ * The address and the role of a new invitation.
+ */
+export type InvitationInput = {
+    /**
+     * Address that may accept the invitation.
+     */
+    email: string;
+    /**
+     * Role that acceptance grants.
+     */
+    role: AssignableRole;
+};
+
+/**
+ * One member of one workspace.
+ */
+export type Member = {
+    /**
+     * Identifier of the member account.
+     */
+    readonly accountId: Uuid;
+    /**
+     * Current role of the member.
+     */
+    readonly role: Role;
+    /**
+     * Sign-in address of the member, or null when none is linked.
+     */
+    readonly email?: string | null;
+    /**
+     * Display name of the member, or null when none is linked.
+     */
+    readonly name?: string | null;
+};
+
+/**
+ * The members and the open invitations of one workspace.
+ */
+export type MemberList = {
+    /**
+     * One entry for each member of the workspace.
+     */
+    readonly members: Array<Member>;
+    /**
+     * One entry for each invitation. The list is empty for a member that does not manage membership.
+     */
+    readonly invitations: Array<Invitation>;
+};
+
+/**
+ * The role to give a member.
+ */
+export type MemberRoleInput = {
+    /**
+     * New role of the member.
+     */
+    role: AssignableRole;
+};
+
+/**
+ * The workspace and the role that an invitation granted.
+ */
+export type Membership = {
+    /**
+     * Workspace that the account joined.
+     */
+    readonly workspaceId: Uuid;
+    /**
+     * Role that the account received.
+     */
+    readonly role: Role;
+};
+
+/**
+ * The member that becomes the owner of a workspace.
+ */
+export type OwnershipTransferInput = {
+    /**
+     * Member that becomes the owner.
+     */
+    accountId: Uuid;
+    /**
+     * When true, the old owner leaves the workspace instead of becoming an administrator.
+     */
+    leave?: boolean;
+};
+
+/**
+ * Settings that follow one account to every device.
+ */
+export type Preferences = {
+    /**
+     * The stored palette choice of the account.
+     */
+    readonly theme: Theme;
+};
+
+/**
+ * Settings to store for the signed in account.
+ */
+export type PreferencesInput = {
+    /**
+     * The palette choice to store.
+     */
+    theme: Theme;
 };
 
 /**
@@ -86,6 +494,63 @@ export type ProblemDetails = {
 };
 
 /**
+ * State of one startup requirement.
+ */
+export type ReadinessCheck = {
+    /**
+     * Stable name of the requirement, for example configuration.
+     */
+    readonly name: string;
+    /**
+     * State of this requirement.
+     */
+    readonly status: 'ok' | 'degraded';
+    /**
+     * Operator readable explanation. The field is absent in a summary report and it never contains note content or a secret.
+     */
+    readonly detail?: string;
+};
+
+/**
+ * Readiness report of every startup requirement.
+ */
+export type ReadinessReport = {
+    /**
+     * Overall readiness. The value is degraded when at least one check is degraded.
+     */
+    readonly status: 'ok' | 'degraded';
+    /**
+     * One entry for every startup requirement that was checked.
+     */
+    readonly checks: Array<ReadinessCheck>;
+};
+
+/**
+ * Confirmation that the named record no longer exists.
+ */
+export type Removed = {
+    /**
+     * Always true. The record no longer exists.
+     */
+    readonly removed: boolean;
+};
+
+/**
+ * Workspace membership role. A viewer reads, an editor also writes, an administrator also manages membership and shares, and the owner also purges and transfers the workspace.
+ */
+export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
+
+/**
+ * Palette choice. The value system follows the device preference between the Tokyo Night Day and Night palettes.
+ */
+export type Theme = 'system' | 'light' | 'dark';
+
+/**
+ * A UUID that names one record.
+ */
+export type Uuid = string;
+
+/**
  * One value that a boundary check rejected.
  */
 export type ValidationIssue = {
@@ -100,6 +565,90 @@ export type ValidationIssue = {
 };
 
 /**
+ * One workspace as its member sees it.
+ */
+export type Workspace = {
+    /**
+     * Identifier of the workspace.
+     */
+    readonly workspaceId: Uuid;
+    /**
+     * Name of the workspace.
+     */
+    readonly name: string;
+    /**
+     * The role of the reading account in this workspace.
+     */
+    readonly role: Role;
+    /**
+     * True for the workspace that was created with the account.
+     */
+    readonly personal: boolean;
+};
+
+/**
+ * Every workspace of the signed in account.
+ */
+export type WorkspaceList = {
+    /**
+     * One entry for each workspace the account belongs to.
+     */
+    readonly workspaces: Array<Workspace>;
+};
+
+/**
+ * The name to give a workspace.
+ */
+export type WorkspaceNameInput = {
+    /**
+     * Name of the workspace.
+     */
+    name: string;
+};
+
+/**
+ * One agent token without its secret.
+ */
+export type AgentTokenWritable = {
+    [key: string]: never;
+};
+
+/**
+ * A new agent token and its secret, which is shown once.
+ */
+export type AgentTokenCreatedWritable = {
+    [key: string]: never;
+};
+
+/**
+ * Every agent token of the signed in account.
+ */
+export type AgentTokenListWritable = {
+    [key: string]: never;
+};
+
+/**
+ * The current session, or null when there is none.
+ */
+export type AuthCurrentSessionWritable = {
+    [key: string]: unknown;
+} | null;
+
+/**
+ * The result of a completed sign-in.
+ */
+export type AuthSessionWritable = {
+    [key: string]: unknown;
+};
+
+/**
+ * Sign-out carries no data. The session cookie names it.
+ */
+export type AuthSignOutWritable = {
+    [key: string]: never;
+};
+
+/**
  * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
  */
 export type RequestId = string;
@@ -108,6 +657,579 @@ export type RequestId = string;
  * Amount of readiness information to return. A summary report omits the detail text of each check.
  */
 export type Detail = 'summary' | 'full';
+
+/**
+ * Identifier of the workspace that the operation acts on.
+ */
+export type WorkspaceId = Uuid;
+
+/**
+ * Identifier of the account whose membership the operation acts on.
+ */
+export type AccountId = Uuid;
+
+/**
+ * Identifier of the agent token that the operation acts on.
+ */
+export type TokenId = Uuid;
+
+/**
+ * The settings to store for the signed in account.
+ */
+export type Preferences2 = PreferencesInput;
+
+/**
+ * The name to give the workspace.
+ */
+export type WorkspaceName = WorkspaceNameInput;
+
+/**
+ * The address and the role of the invitation.
+ */
+export type InvitationRequest = InvitationInput;
+
+/**
+ * The role to give the member.
+ */
+export type MemberRole = MemberRoleInput;
+
+/**
+ * The member that becomes the owner.
+ */
+export type OwnershipTransfer = OwnershipTransferInput;
+
+/**
+ * The invitation token to consume.
+ */
+export type InvitationAcceptance = InvitationAcceptanceInput;
+
+/**
+ * The name, the expiry, and the scope of the new token.
+ */
+export type AgentTokenRequest = AgentTokenInput;
+
+export type GetAccountData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account';
+};
+
+export type GetAccountErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetAccountError = GetAccountErrors[keyof GetAccountErrors];
+
+export type GetAccountResponses = {
+    /**
+     * The signed in account and its settings.
+     */
+    200: Account;
+};
+
+export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type UpdatePreferencesData = {
+    /**
+     * The settings to store for the signed in account.
+     */
+    body: Preferences2;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/preferences';
+};
+
+export type UpdatePreferencesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdatePreferencesError = UpdatePreferencesErrors[keyof UpdatePreferencesErrors];
+
+export type UpdatePreferencesResponses = {
+    /**
+     * The stored settings of the signed in account.
+     */
+    200: Preferences;
+};
+
+export type UpdatePreferencesResponse = UpdatePreferencesResponses[keyof UpdatePreferencesResponses];
+
+export type ListAgentTokensData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/agent-tokens';
+};
+
+export type ListAgentTokensErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListAgentTokensError = ListAgentTokensErrors[keyof ListAgentTokensErrors];
+
+export type ListAgentTokensResponses = {
+    /**
+     * Every agent token of the signed in account.
+     */
+    200: AgentTokenList;
+};
+
+export type ListAgentTokensResponse = ListAgentTokensResponses[keyof ListAgentTokensResponses];
+
+export type CreateAgentTokenData = {
+    /**
+     * The name, the expiry, and the scope of the new token.
+     */
+    body: AgentTokenRequest;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/agent-tokens';
+};
+
+export type CreateAgentTokenErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateAgentTokenError = CreateAgentTokenErrors[keyof CreateAgentTokenErrors];
+
+export type CreateAgentTokenResponses = {
+    /**
+     * The new agent token and its secret, which is shown once.
+     */
+    201: AgentTokenCreated;
+};
+
+export type CreateAgentTokenResponse = CreateAgentTokenResponses[keyof CreateAgentTokenResponses];
+
+export type RevokeAgentTokenData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the agent token that the operation acts on.
+         */
+        tokenId: Uuid;
+    };
+    query?: never;
+    url: '/api/agent-tokens/{tokenId}';
+};
+
+export type RevokeAgentTokenErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeAgentTokenError = RevokeAgentTokenErrors[keyof RevokeAgentTokenErrors];
+
+export type RevokeAgentTokenResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RevokeAgentTokenResponse = RevokeAgentTokenResponses[keyof RevokeAgentTokenResponses];
+
+export type GetAuthSessionData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/auth/get-session';
+};
+
+export type GetAuthSessionErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetAuthSessionError = GetAuthSessionErrors[keyof GetAuthSessionErrors];
+
+export type GetAuthSessionResponses = {
+    /**
+     * The current session, or null.
+     */
+    200: AuthCurrentSession;
+};
+
+export type GetAuthSessionResponse = GetAuthSessionResponses[keyof GetAuthSessionResponses];
+
+export type RequestPasswordResetData = {
+    /**
+     * The address that asks for a reset message.
+     */
+    body: AuthPasswordResetRequest;
+    path?: never;
+    query?: never;
+    url: '/api/auth/request-password-reset';
+};
+
+export type RequestPasswordResetErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RequestPasswordResetError = RequestPasswordResetErrors[keyof RequestPasswordResetErrors];
+
+export type RequestPasswordResetResponses = {
+    /**
+     * The request was accepted.
+     */
+    200: AuthOutcome;
+};
+
+export type RequestPasswordResetResponse = RequestPasswordResetResponses[keyof RequestPasswordResetResponses];
+
+export type ResetPasswordData = {
+    /**
+     * The new password and the reset token.
+     */
+    body: AuthPasswordReset;
+    path?: never;
+    query?: never;
+    url: '/api/auth/reset-password';
+};
+
+export type ResetPasswordErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ResetPasswordError = ResetPasswordErrors[keyof ResetPasswordErrors];
+
+export type ResetPasswordResponses = {
+    /**
+     * The password was replaced.
+     */
+    200: AuthOutcome;
+};
+
+export type ResetPasswordResponse = ResetPasswordResponses[keyof ResetPasswordResponses];
+
+export type SignInWithPasswordData = {
+    /**
+     * Address and password of a local account.
+     */
+    body: AuthPasswordSignIn;
+    path?: never;
+    query?: never;
+    url: '/api/auth/sign-in/email';
+};
+
+export type SignInWithPasswordErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type SignInWithPasswordError = SignInWithPasswordErrors[keyof SignInWithPasswordErrors];
+
+export type SignInWithPasswordResponses = {
+    /**
+     * The sign-in completed.
+     */
+    200: AuthSession;
+};
+
+export type SignInWithPasswordResponse = SignInWithPasswordResponses[keyof SignInWithPasswordResponses];
+
+export type SignInWithProviderData = {
+    /**
+     * The configured provider to sign in with.
+     */
+    body: AuthProviderSignIn;
+    path?: never;
+    query?: never;
+    url: '/api/auth/sign-in/social';
+};
+
+export type SignInWithProviderErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type SignInWithProviderError = SignInWithProviderErrors[keyof SignInWithProviderErrors];
+
+export type SignInWithProviderResponses = {
+    /**
+     * The address that the browser must open.
+     */
+    200: AuthRedirect;
+};
+
+export type SignInWithProviderResponse = SignInWithProviderResponses[keyof SignInWithProviderResponses];
+
+export type SignOutData = {
+    /**
+     * Sign-out carries no data.
+     */
+    body: AuthSignOutWritable;
+    path?: never;
+    query?: never;
+    url: '/api/auth/sign-out';
+};
+
+export type SignOutErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type SignOutError = SignOutErrors[keyof SignOutErrors];
+
+export type SignOutResponses = {
+    /**
+     * The session ended.
+     */
+    200: AuthOutcome;
+};
+
+export type SignOutResponse = SignOutResponses[keyof SignOutResponses];
 
 export type GetHealthData = {
     body?: never;
@@ -143,6 +1265,64 @@ export type GetHealthResponses = {
 };
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
+
+export type AcceptInvitationData = {
+    /**
+     * The invitation token to consume.
+     */
+    body: InvitationAcceptance;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/invitations/acceptance';
+};
+
+export type AcceptInvitationErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type AcceptInvitationError = AcceptInvitationErrors[keyof AcceptInvitationErrors];
+
+export type AcceptInvitationResponses = {
+    /**
+     * The workspace and the role that an invitation granted.
+     */
+    200: Membership;
+};
+
+export type AcceptInvitationResponse = AcceptInvitationResponses[keyof AcceptInvitationResponses];
 
 export type GetReadinessData = {
     body?: never;
@@ -187,3 +1367,516 @@ export type GetReadinessResponses = {
 };
 
 export type GetReadinessResponse = GetReadinessResponses[keyof GetReadinessResponses];
+
+export type ListWorkspacesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/workspaces';
+};
+
+export type ListWorkspacesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListWorkspacesError = ListWorkspacesErrors[keyof ListWorkspacesErrors];
+
+export type ListWorkspacesResponses = {
+    /**
+     * Every workspace of the signed in account.
+     */
+    200: WorkspaceList;
+};
+
+export type ListWorkspacesResponse = ListWorkspacesResponses[keyof ListWorkspacesResponses];
+
+export type CreateWorkspaceData = {
+    /**
+     * The name to give the workspace.
+     */
+    body: WorkspaceName;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/workspaces';
+};
+
+export type CreateWorkspaceErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateWorkspaceError = CreateWorkspaceErrors[keyof CreateWorkspaceErrors];
+
+export type CreateWorkspaceResponses = {
+    /**
+     * One workspace of the signed in account.
+     */
+    201: Workspace;
+};
+
+export type CreateWorkspaceResponse = CreateWorkspaceResponses[keyof CreateWorkspaceResponses];
+
+export type DeleteWorkspaceData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}';
+};
+
+export type DeleteWorkspaceErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type DeleteWorkspaceError = DeleteWorkspaceErrors[keyof DeleteWorkspaceErrors];
+
+export type DeleteWorkspaceResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type DeleteWorkspaceResponse = DeleteWorkspaceResponses[keyof DeleteWorkspaceResponses];
+
+export type UpdateWorkspaceData = {
+    /**
+     * The name to give the workspace.
+     */
+    body: WorkspaceName;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}';
+};
+
+export type UpdateWorkspaceErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateWorkspaceError = UpdateWorkspaceErrors[keyof UpdateWorkspaceErrors];
+
+export type UpdateWorkspaceResponses = {
+    /**
+     * One workspace of the signed in account.
+     */
+    200: Workspace;
+};
+
+export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
+
+export type ListMembersData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/members';
+};
+
+export type ListMembersErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListMembersError = ListMembersErrors[keyof ListMembersErrors];
+
+export type ListMembersResponses = {
+    /**
+     * The members and the open invitations of a workspace.
+     */
+    200: MemberList;
+};
+
+export type ListMembersResponse = ListMembersResponses[keyof ListMembersResponses];
+
+export type InviteMemberData = {
+    /**
+     * The address and the role of the invitation.
+     */
+    body: InvitationRequest;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/members';
+};
+
+export type InviteMemberErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type InviteMemberError = InviteMemberErrors[keyof InviteMemberErrors];
+
+export type InviteMemberResponses = {
+    /**
+     * The new invitation and its token, which is shown once.
+     */
+    201: InvitationCreated;
+};
+
+export type InviteMemberResponse = InviteMemberResponses[keyof InviteMemberResponses];
+
+export type RemoveMemberData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the account whose membership the operation acts on.
+         */
+        accountId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/members/{accountId}';
+};
+
+export type RemoveMemberErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RemoveMemberError = RemoveMemberErrors[keyof RemoveMemberErrors];
+
+export type RemoveMemberResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
+
+export type UpdateMemberData = {
+    /**
+     * The role to give the member.
+     */
+    body: MemberRole;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the account whose membership the operation acts on.
+         */
+        accountId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/members/{accountId}';
+};
+
+export type UpdateMemberErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateMemberError = UpdateMemberErrors[keyof UpdateMemberErrors];
+
+export type UpdateMemberResponses = {
+    /**
+     * One member of a workspace.
+     */
+    200: Member;
+};
+
+export type UpdateMemberResponse = UpdateMemberResponses[keyof UpdateMemberResponses];
+
+export type TransferOwnershipData = {
+    /**
+     * The member that becomes the owner.
+     */
+    body: OwnershipTransfer;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/ownership';
+};
+
+export type TransferOwnershipErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type TransferOwnershipError = TransferOwnershipErrors[keyof TransferOwnershipErrors];
+
+export type TransferOwnershipResponses = {
+    /**
+     * The members and the open invitations of a workspace.
+     */
+    200: MemberList;
+};
+
+export type TransferOwnershipResponse = TransferOwnershipResponses[keyof TransferOwnershipResponses];

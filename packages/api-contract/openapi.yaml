@@ -24,6 +24,16 @@ servers:
 tags:
   - name: service
     description: Service state operations used by operators and load balancers.
+  - name: accounts
+    description: The signed in account and the settings that follow it.
+  - name: workspaces
+    description: Workspaces, their membership, and their invitations.
+  - name: tokens
+    description: Revocable agent tokens with a workspace and action scope.
+  - name: auth
+    description: >-
+      Authentication protocol endpoints. Better Auth implements them; the
+      contract records their shapes so the generated client owns every call.
 security:
   - sessionCookie: []
   - agentToken: []
@@ -72,6 +82,429 @@ paths:
           $ref: '#/components/responses/ServerError'
         '503':
           $ref: '#/components/responses/NotReady'
+  /api/account:
+    get:
+      operationId: getAccount
+      summary: Report the signed in account and its settings.
+      description: >-
+        Reports the identifier of the signed in account, the address and the
+        display name that the identity provider supplied, and the stored
+        settings of that account.
+      tags:
+        - accounts
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Account'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/account/preferences:
+    put:
+      operationId: updatePreferences
+      summary: Replace the stored settings of the signed in account.
+      description: >-
+        Replaces the settings that follow the account to every device. The
+        theme choice selects the Tokyo Night Day palette, the Night palette, or
+        the palette that matches the device preference.
+      tags:
+        - accounts
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        $ref: '#/components/requestBodies/Preferences'
+      responses:
+        '200':
+          $ref: '#/components/responses/Preferences'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces:
+    get:
+      operationId: listWorkspaces
+      summary: List every workspace of the signed in account.
+      description: >-
+        Lists the workspaces that the account is a member of, with the current
+        role in each. An account never sees a workspace it does not belong to.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/WorkspaceList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createWorkspace
+      summary: Create a workspace owned by the signed in account.
+      description: >-
+        Creates a workspace whose only member is the account that created it,
+        as its owner.
+      tags:
+        - workspaces
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        $ref: '#/components/requestBodies/WorkspaceName'
+      responses:
+        '201':
+          $ref: '#/components/responses/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}:
+    put:
+      operationId: updateWorkspace
+      summary: Rename a workspace.
+      description: >-
+        Renames a workspace. An owner or an administrator of that workspace may
+        do this.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/WorkspaceName'
+      responses:
+        '200':
+          $ref: '#/components/responses/Workspace'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteWorkspace
+      summary: Delete a workspace and every record that belongs to it.
+      description: >-
+        Deletes a workspace, its membership, its invitations, its shares, and
+        its content history. Only the owner may do this. Every session loses
+        access to the workspace, because its membership rows disappear.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Removed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/members:
+    get:
+      operationId: listMembers
+      summary: List the members of a workspace.
+      description: >-
+        Lists every member of the workspace with the current role. An owner or
+        an administrator also sees the open invitations.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/MemberList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: inviteMember
+      summary: Invite an address to a workspace.
+      description: >-
+        Creates an invitation for one address and one role. The answer carries
+        the invitation token once, so a deployment without a mail transport can
+        hand it to the invited person out of band. Only the hash of the token
+        is stored.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/InvitationRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/InvitationCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/members/{accountId}:
+    put:
+      operationId: updateMember
+      summary: Change the role of a member.
+      description: >-
+        Changes the role of one member. The owner role is never granted or
+        removed here; it moves only through an explicit ownership transfer, so
+        a workspace cannot lose its last owner through a role change.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/AccountId'
+      requestBody:
+        $ref: '#/components/requestBodies/MemberRole'
+      responses:
+        '200':
+          $ref: '#/components/responses/Member'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: removeMember
+      summary: Remove a member from a workspace.
+      description: >-
+        Removes one member. The last owner cannot be removed, and only another
+        owner may remove an owner.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/AccountId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Removed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/ownership:
+    post:
+      operationId: transferOwnership
+      summary: Move the ownership of a workspace to another member.
+      description: >-
+        Moves ownership to another member of the same workspace. Only the owner
+        may do this. The old owner becomes an administrator, or leaves the
+        workspace when the request asks for it.
+      tags:
+        - workspaces
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/OwnershipTransfer'
+      responses:
+        '200':
+          $ref: '#/components/responses/MemberList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/invitations/acceptance:
+    post:
+      operationId: acceptInvitation
+      summary: Accept an invitation to a workspace.
+      description: >-
+        Consumes one invitation token and adds the signed in account to the
+        workspace with the invited role. The address of the account must match
+        the invited address. A token works once; a replay is rejected.
+      tags:
+        - workspaces
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        $ref: '#/components/requestBodies/InvitationAcceptance'
+      responses:
+        '200':
+          $ref: '#/components/responses/Membership'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/agent-tokens:
+    get:
+      operationId: listAgentTokens
+      summary: List the agent tokens of the signed in account.
+      description: >-
+        Lists every agent token of the account without its secret. A secret is
+        shown once, when the token is created, and never again.
+      tags:
+        - tokens
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/AgentTokenList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createAgentToken
+      summary: Create an agent token and return its secret once.
+      description: >-
+        Creates a revocable token with an expiry and an explicit workspace and
+        action scope. The scope can never be wider than the current role of the
+        account in that workspace, and every use checks the membership again.
+        The secret is in the answer of this call only.
+      tags:
+        - tokens
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        $ref: '#/components/requestBodies/AgentTokenRequest'
+      responses:
+        '201':
+          $ref: '#/components/responses/AgentTokenCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/agent-tokens/{tokenId}:
+    delete:
+      operationId: revokeAgentToken
+      summary: Revoke an agent token.
+      description: >-
+        Revokes one token of the signed in account. A revoked token is refused
+        on its next use.
+      tags:
+        - tokens
+      security:
+        - sessionCookie: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/TokenId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Removed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
 components:
   securitySchemes:
     sessionCookie:
@@ -79,8 +512,11 @@ components:
       in: cookie
       name: notesapp_session
       description: >-
-        Browser session cookie. The cookie is Secure and HttpOnly, and a
-        cookie authenticated write also needs an origin check.
+        Browser session cookie. The cookie is HttpOnly and SameSite, and a
+        cookie authenticated write also needs an origin check. A deployment
+        whose origin is https serves the same cookie under the reserved name
+        __Secure-notesapp_session and adds the Secure attribute, as the cookie
+        prefix rules require.
     agentToken:
       type: http
       scheme: bearer
@@ -118,6 +554,83 @@ components:
         enum:
           - summary
           - full
+    WorkspaceId:
+      name: workspaceId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the workspace that the operation acts on.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    AccountId:
+      name: accountId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the account whose membership the operation acts on.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    TokenId:
+      name: tokenId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the agent token that the operation acts on.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+  requestBodies:
+    Preferences:
+      description: The settings to store for the signed in account.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PreferencesInput'
+    WorkspaceName:
+      description: The name to give the workspace.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkspaceNameInput'
+    InvitationRequest:
+      description: The address and the role of the invitation.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvitationInput'
+    MemberRole:
+      description: The role to give the member.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MemberRoleInput'
+    OwnershipTransfer:
+      description: The member that becomes the owner.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/OwnershipTransferInput'
+    InvitationAcceptance:
+      description: The invitation token to consume.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvitationAcceptanceInput'
+    AgentTokenRequest:
+      description: The name, the expiry, and the scope of the new token.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AgentTokenInput'
   responses:
     Health:
       description: The service process is running.
@@ -149,6 +662,102 @@ components:
         application/problem+json:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
+    Unauthorized:
+      description: The request carries no usable session or agent token.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Forbidden:
+      description: The actor may not perform this operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotFound:
+      description: The requested resource does not exist.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    PayloadTooLarge:
+      description: The request body is larger than the configured limit.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    UnsupportedMediaType:
+      description: The request media type is not supported.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Account:
+      description: The signed in account and its settings.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Account'
+    Preferences:
+      description: The stored settings of the signed in account.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Preferences'
+    Workspace:
+      description: One workspace of the signed in account.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Workspace'
+    WorkspaceList:
+      description: Every workspace of the signed in account.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkspaceList'
+    Member:
+      description: One member of a workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Member'
+    MemberList:
+      description: The members and the open invitations of a workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/MemberList'
+    InvitationCreated:
+      description: The new invitation and its token, which is shown once.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/InvitationCreated'
+    Membership:
+      description: The workspace and the role that an invitation granted.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Membership'
+    AgentTokenList:
+      description: Every agent token of the signed in account.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AgentTokenList'
+    AgentTokenCreated:
+      description: The new agent token and its secret, which is shown once.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AgentTokenCreated'
+    Removed:
+      description: The named record no longer exists.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Removed'
   schemas:
     HealthReport:
       type: object
@@ -298,3 +907,512 @@ components:
           readOnly: true
           description: Reason the value was rejected. It never repeats the value.
           maxLength: 256
+    Uuid:
+      type: string
+      description: A UUID that names one record.
+      format: uuid
+      minLength: 36
+      maxLength: 36
+      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+    Theme:
+      type: string
+      description: >-
+        Palette choice. The value system follows the device preference between
+        the Tokyo Night Day and Night palettes.
+      enum:
+        - system
+        - light
+        - dark
+    Role:
+      type: string
+      description: >-
+        Workspace membership role. A viewer reads, an editor also writes, an
+        administrator also manages membership and shares, and the owner also
+        purges and transfers the workspace.
+      enum:
+        - owner
+        - admin
+        - editor
+        - viewer
+    AssignableRole:
+      type: string
+      description: >-
+        A role that an invitation or a role change may grant. The owner role is
+        not in this list, because ownership moves only through an explicit
+        transfer.
+      enum:
+        - admin
+        - editor
+        - viewer
+    Action:
+      type: string
+      description: One permitted kind of operation inside one workspace.
+      enum:
+        - read
+        - write
+        - history
+        - share
+        - members
+        - purge
+    Preferences:
+      type: object
+      description: Settings that follow one account to every device.
+      additionalProperties: false
+      required:
+        - theme
+      properties:
+        theme:
+          allOf:
+            - $ref: '#/components/schemas/Theme'
+          readOnly: true
+          description: The stored palette choice of the account.
+    PreferencesInput:
+      type: object
+      description: Settings to store for the signed in account.
+      additionalProperties: false
+      required:
+        - theme
+      properties:
+        theme:
+          allOf:
+            - $ref: '#/components/schemas/Theme'
+          description: The palette choice to store.
+    Account:
+      type: object
+      description: The signed in account and its settings.
+      additionalProperties: false
+      required:
+        - accountId
+        - preferences
+      properties:
+        accountId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Stable identifier of the account inside this deployment.
+        email:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: Sign-in address, or null when the transport is an agent token.
+          maxLength: 320
+        name:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: Display name, or null when the transport is an agent token.
+          maxLength: 256
+        preferences:
+          allOf:
+            - $ref: '#/components/schemas/Preferences'
+          readOnly: true
+          description: The stored settings of the account.
+    Workspace:
+      type: object
+      description: One workspace as its member sees it.
+      additionalProperties: false
+      required:
+        - workspaceId
+        - name
+        - role
+        - personal
+      properties:
+        workspaceId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Identifier of the workspace.
+        name:
+          type: string
+          readOnly: true
+          description: Name of the workspace.
+          minLength: 1
+          maxLength: 200
+        role:
+          allOf:
+            - $ref: '#/components/schemas/Role'
+          readOnly: true
+          description: The role of the reading account in this workspace.
+        personal:
+          type: boolean
+          readOnly: true
+          description: True for the workspace that was created with the account.
+    WorkspaceList:
+      type: object
+      description: Every workspace of the signed in account.
+      additionalProperties: false
+      required:
+        - workspaces
+      properties:
+        workspaces:
+          type: array
+          readOnly: true
+          description: One entry for each workspace the account belongs to.
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Workspace'
+    WorkspaceNameInput:
+      type: object
+      description: The name to give a workspace.
+      additionalProperties: false
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name of the workspace.
+          minLength: 1
+          maxLength: 200
+    Member:
+      type: object
+      description: One member of one workspace.
+      additionalProperties: false
+      required:
+        - accountId
+        - role
+      properties:
+        accountId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Identifier of the member account.
+        role:
+          allOf:
+            - $ref: '#/components/schemas/Role'
+          readOnly: true
+          description: Current role of the member.
+        email:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: Sign-in address of the member, or null when none is linked.
+          maxLength: 320
+        name:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: Display name of the member, or null when none is linked.
+          maxLength: 256
+    Invitation:
+      type: object
+      description: One invitation to one workspace. The token itself is never stored.
+      additionalProperties: false
+      required:
+        - id
+        - workspaceId
+        - email
+        - role
+        - expiresAt
+        - state
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Identifier of the invitation.
+        workspaceId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Workspace that the invitation admits to.
+        email:
+          type: string
+          readOnly: true
+          description: Address that the invitation was created for.
+          maxLength: 320
+        role:
+          allOf:
+            - $ref: '#/components/schemas/AssignableRole'
+          readOnly: true
+          description: Role that acceptance grants.
+        expiresAt:
+          type: string
+          readOnly: true
+          description: Instant after which the invitation cannot be accepted.
+          format: date-time
+          maxLength: 64
+        state:
+          type: string
+          readOnly: true
+          description: Whether the invitation is still open.
+          enum:
+            - pending
+            - accepted
+            - revoked
+    MemberList:
+      type: object
+      description: The members and the open invitations of one workspace.
+      additionalProperties: false
+      required:
+        - members
+        - invitations
+      properties:
+        members:
+          type: array
+          readOnly: true
+          description: One entry for each member of the workspace.
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Member'
+        invitations:
+          type: array
+          readOnly: true
+          description: >-
+            One entry for each invitation. The list is empty for a member that
+            does not manage membership.
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Invitation'
+    InvitationInput:
+      type: object
+      description: The address and the role of a new invitation.
+      additionalProperties: false
+      required:
+        - email
+        - role
+      properties:
+        email:
+          type: string
+          description: Address that may accept the invitation.
+          format: email
+          minLength: 3
+          maxLength: 320
+        role:
+          allOf:
+            - $ref: '#/components/schemas/AssignableRole'
+          description: Role that acceptance grants.
+    InvitationCreated:
+      type: object
+      description: A new invitation and its token, which is shown once.
+      additionalProperties: false
+      required:
+        - invitation
+        - token
+      properties:
+        invitation:
+          allOf:
+            - $ref: '#/components/schemas/Invitation'
+          readOnly: true
+          description: The stored invitation.
+        token:
+          type: string
+          readOnly: true
+          description: >-
+            The invitation token. It appears in this answer only, because
+            storage keeps its hash.
+          minLength: 32
+          maxLength: 128
+    MemberRoleInput:
+      type: object
+      description: The role to give a member.
+      additionalProperties: false
+      required:
+        - role
+      properties:
+        role:
+          allOf:
+            - $ref: '#/components/schemas/AssignableRole'
+          description: New role of the member.
+    OwnershipTransferInput:
+      type: object
+      description: The member that becomes the owner of a workspace.
+      additionalProperties: false
+      required:
+        - accountId
+      properties:
+        accountId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Member that becomes the owner.
+        leave:
+          type: boolean
+          description: >-
+            When true, the old owner leaves the workspace instead of becoming
+            an administrator.
+    InvitationAcceptanceInput:
+      type: object
+      description: The invitation token to consume.
+      additionalProperties: false
+      required:
+        - token
+      properties:
+        token:
+          type: string
+          description: The invitation token that was handed to the invited person.
+          minLength: 32
+          maxLength: 128
+    Membership:
+      type: object
+      description: The workspace and the role that an invitation granted.
+      additionalProperties: false
+      required:
+        - workspaceId
+        - role
+      properties:
+        workspaceId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Workspace that the account joined.
+        role:
+          allOf:
+            - $ref: '#/components/schemas/Role'
+          readOnly: true
+          description: Role that the account received.
+    AgentTokenScope:
+      type: object
+      description: The workspace and the actions that one agent token may use.
+      additionalProperties: false
+      required:
+        - workspaceId
+        - actions
+      properties:
+        workspaceId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Workspace that the scope applies to.
+        actions:
+          type: array
+          description: Actions that the token may perform in that workspace.
+          minItems: 1
+          maxItems: 6
+          items:
+            $ref: '#/components/schemas/Action'
+    AgentToken:
+      type: object
+      description: One agent token without its secret.
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - prefix
+        - scopes
+        - expiresAt
+        - createdAt
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Identifier of the token.
+        name:
+          type: string
+          readOnly: true
+          description: Name that the account gave the token.
+          minLength: 1
+          maxLength: 200
+        prefix:
+          type: string
+          readOnly: true
+          description: Public prefix of the secret, which names the token in a list.
+          minLength: 4
+          maxLength: 32
+        scopes:
+          type: array
+          readOnly: true
+          description: The stored scope of the token.
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AgentTokenScope'
+        expiresAt:
+          type: string
+          readOnly: true
+          description: Instant after which the token is refused.
+          format: date-time
+          maxLength: 64
+        createdAt:
+          type: string
+          readOnly: true
+          description: Instant at which the token was created.
+          format: date-time
+          maxLength: 64
+        revokedAt:
+          type:
+            - string
+            - 'null'
+          readOnly: true
+          description: Instant at which the token was revoked, or null.
+          format: date-time
+          maxLength: 64
+    AgentTokenList:
+      type: object
+      description: Every agent token of the signed in account.
+      additionalProperties: false
+      required:
+        - tokens
+      properties:
+        tokens:
+          type: array
+          readOnly: true
+          description: One entry for each token of the account.
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/AgentToken'
+    AgentTokenInput:
+      type: object
+      description: The name, the expiry, and the scope of a new agent token.
+      additionalProperties: false
+      required:
+        - name
+        - expiresAt
+        - scopes
+      properties:
+        name:
+          type: string
+          description: Name that identifies the token to its account.
+          minLength: 1
+          maxLength: 200
+        expiresAt:
+          type: string
+          description: >-
+            Instant after which the token is refused. An expiry is required and
+            can never be more than one year away.
+          format: date-time
+          minLength: 20
+          maxLength: 64
+        scopes:
+          type: array
+          description: >-
+            Workspace and action scope of the token. It can never be wider than
+            the current role of the account in that workspace.
+          minItems: 1
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/AgentTokenScope'
+    AgentTokenCreated:
+      type: object
+      description: A new agent token and its secret, which is shown once.
+      additionalProperties: false
+      required:
+        - token
+        - secret
+      properties:
+        token:
+          allOf:
+            - $ref: '#/components/schemas/AgentToken'
+          readOnly: true
+          description: The stored token.
+        secret:
+          type: string
+          readOnly: true
+          description: >-
+            The token secret. It appears in this answer only, because storage
+            keeps its hash.
+          minLength: 32
+          maxLength: 128
+    Removed:
+      type: object
+      description: Confirmation that the named record no longer exists.
+      additionalProperties: false
+      required:
+        - removed
+      properties:
+        removed:
+          type: boolean
+          readOnly: true
+          description: Always true. The record no longer exists.

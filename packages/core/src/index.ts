@@ -11,7 +11,7 @@
  * so an actor can be built only through `verifyActor`.
  */
 export type { Action, Actor, Grant, Role } from './identity/actor.ts';
-export { authorize, verifyActor } from './identity/actor.ts';
+export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export type {
   AcceptedChangeset,
   ChangesetInput,
@@ -32,3 +32,42 @@ export type {
   WorkspaceTransaction,
 } from './files/ports.ts';
 export { isOperationalError, OperationalError } from './files/ports.ts';
+export type {
+  AccountTransaction,
+  AgentTokenInput,
+  AgentTokenRecord,
+  AgentTokenSummary,
+  InvitationInput,
+  InvitationState,
+  InvitationSummary,
+  Member,
+  Preferences,
+  ThemeChoice,
+  TokenScope,
+  WorkspaceAdminStore,
+  WorkspaceAdminTransaction,
+  WorkspaceSummary,
+} from './workspaces/ports.ts';
+export {
+  acceptInvitation,
+  checkTokenScopes,
+  createAgentToken,
+  createWorkspace,
+  deleteWorkspace,
+  invitationLifetimeMs,
+  inviteMember,
+  listAgentTokens,
+  listMembers,
+  listWorkspaces,
+  maxAgentTokenLifetimeMs,
+  readPreferences,
+  removeMember,
+  revokeAgentToken,
+  sessionGrants,
+  themeChoices,
+  tokenGrants,
+  transferOwnership,
+  updateMember,
+  updatePreferences,
+  updateWorkspace,
+} from './workspaces/service.ts';

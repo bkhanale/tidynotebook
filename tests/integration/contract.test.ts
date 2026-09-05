@@ -242,10 +242,20 @@ await test('a cancelled request produces no data', async () => {
 await test('every operation has exactly one handler and back', () => {
   const config = loadServerConfig(testEnvironment('/tmp'));
   const handlerIds = Object.keys(createHandlers(config)).sort();
-  const operationIds = operations.map((operation) => operation.id).sort();
+  // An operation that a protocol library serves has no contract handler. It
+  // carries a protocol marker instead, and `registerOperations` mounts it
+  // through that adapter's exact path list.
+  const operationIds = operations
+    .filter((operation) => operation.protocol === null)
+    .map((operation) => operation.id)
+    .sort();
   assert.deepEqual(handlerIds, operationIds);
   assert.equal(new Set(handlerIds).size, handlerIds.length);
   assert.ok(operationIds.length > 0);
+  assert.ok(
+    operations.some((operation) => operation.protocol === 'better-auth'),
+    'the contract must declare the authentication protocol fragment',
+  );
 });
 
 await server.close();

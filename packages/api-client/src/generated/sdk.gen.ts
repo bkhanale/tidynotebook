@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses } from './types.gen.js';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -19,6 +19,166 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 };
 
 /**
+ * Report the signed in account and its settings.
+ *
+ * Reports the identifier of the signed in account, the address and the display name that the identity provider supplied, and the stored settings of that account.
+ */
+export const getAccount = <ThrowOnError extends boolean = false>(options?: Options<GetAccountData, ThrowOnError>): RequestResult<GetAccountResponses, GetAccountErrors, ThrowOnError> => (options?.client ?? client).get<GetAccountResponses, GetAccountErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/account',
+    ...options
+});
+
+/**
+ * Replace the stored settings of the signed in account.
+ *
+ * Replaces the settings that follow the account to every device. The theme choice selects the Tokyo Night Day palette, the Night palette, or the palette that matches the device preference.
+ */
+export const updatePreferences = <ThrowOnError extends boolean = false>(options: Options<UpdatePreferencesData, ThrowOnError>): RequestResult<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError> => (options.client ?? client).put<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/account/preferences',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the agent tokens of the signed in account.
+ *
+ * Lists every agent token of the account without its secret. A secret is shown once, when the token is created, and never again.
+ */
+export const listAgentTokens = <ThrowOnError extends boolean = false>(options?: Options<ListAgentTokensData, ThrowOnError>): RequestResult<ListAgentTokensResponses, ListAgentTokensErrors, ThrowOnError> => (options?.client ?? client).get<ListAgentTokensResponses, ListAgentTokensErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/agent-tokens',
+    ...options
+});
+
+/**
+ * Create an agent token and return its secret once.
+ *
+ * Creates a revocable token with an expiry and an explicit workspace and action scope. The scope can never be wider than the current role of the account in that workspace, and every use checks the membership again. The secret is in the answer of this call only.
+ */
+export const createAgentToken = <ThrowOnError extends boolean = false>(options: Options<CreateAgentTokenData, ThrowOnError>): RequestResult<CreateAgentTokenResponses, CreateAgentTokenErrors, ThrowOnError> => (options.client ?? client).post<CreateAgentTokenResponses, CreateAgentTokenErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/agent-tokens',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke an agent token.
+ *
+ * Revokes one token of the signed in account. A revoked token is refused on its next use.
+ */
+export const revokeAgentToken = <ThrowOnError extends boolean = false>(options: Options<RevokeAgentTokenData, ThrowOnError>): RequestResult<RevokeAgentTokenResponses, RevokeAgentTokenErrors, ThrowOnError> => (options.client ?? client).delete<RevokeAgentTokenResponses, RevokeAgentTokenErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/agent-tokens/{tokenId}',
+    ...options
+});
+
+/**
+ * Report the current session.
+ *
+ * Reports the session that the request cookie names, or null when there is none.
+ */
+export const getAuthSession = <ThrowOnError extends boolean = false>(options?: Options<GetAuthSessionData, ThrowOnError>): RequestResult<GetAuthSessionResponses, GetAuthSessionErrors, ThrowOnError> => (options?.client ?? client).get<GetAuthSessionResponses, GetAuthSessionErrors, ThrowOnError>({ url: '/api/auth/get-session', ...options });
+
+/**
+ * Ask for a password reset message.
+ *
+ * Sends a reset link to the address when a mail transport is configured. A deployment without one uses the operator recovery command instead. The answer never says whether the address exists.
+ */
+export const requestPasswordReset = <ThrowOnError extends boolean = false>(options: Options<RequestPasswordResetData, ThrowOnError>): RequestResult<RequestPasswordResetResponses, RequestPasswordResetErrors, ThrowOnError> => (options.client ?? client).post<RequestPasswordResetResponses, RequestPasswordResetErrors, ThrowOnError>({
+    url: '/api/auth/request-password-reset',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Choose a new password with a reset token.
+ *
+ * Sets a new password and revokes every session of the account. The token works once and expires one hour after it was created.
+ */
+export const resetPassword = <ThrowOnError extends boolean = false>(options: Options<ResetPasswordData, ThrowOnError>): RequestResult<ResetPasswordResponses, ResetPasswordErrors, ThrowOnError> => (options.client ?? client).post<ResetPasswordResponses, ResetPasswordErrors, ThrowOnError>({
+    url: '/api/auth/reset-password',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Sign in with an address and a password.
+ *
+ * Checks a local password and sets the Secure HttpOnly session cookie. Public registration is disabled, so this endpoint never creates an account.
+ */
+export const signInWithPassword = <ThrowOnError extends boolean = false>(options: Options<SignInWithPasswordData, ThrowOnError>): RequestResult<SignInWithPasswordResponses, SignInWithPasswordErrors, ThrowOnError> => (options.client ?? client).post<SignInWithPasswordResponses, SignInWithPasswordErrors, ThrowOnError>({
+    url: '/api/auth/sign-in/email',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Start a sign-in with the configured provider.
+ *
+ * Returns the authorization address of the administrator configured OpenID Connect provider. The browser opens that address; the provider then returns to the callback route, which is browser navigation and not a generated call.
+ */
+export const signInWithProvider = <ThrowOnError extends boolean = false>(options: Options<SignInWithProviderData, ThrowOnError>): RequestResult<SignInWithProviderResponses, SignInWithProviderErrors, ThrowOnError> => (options.client ?? client).post<SignInWithProviderResponses, SignInWithProviderErrors, ThrowOnError>({
+    url: '/api/auth/sign-in/social',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * End the current session.
+ *
+ * Removes the session on the server and clears the session cookie. A cleared session cannot be used again.
+ */
+export const signOut = <ThrowOnError extends boolean = false>(options: Options<SignOutData, ThrowOnError>): RequestResult<SignOutResponses, SignOutErrors, ThrowOnError> => (options.client ?? client).post<SignOutResponses, SignOutErrors, ThrowOnError>({
+    url: '/api/auth/sign-out',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Report that the service process is running.
  *
  * Reports process liveness only. The operation never inspects a dependency, so a caller cannot use it to decide that the service can accept traffic. Use the readiness operation for that decision.
@@ -26,8 +186,182 @@ export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends 
 export const getHealth = <ThrowOnError extends boolean = false>(options?: Options<GetHealthData, ThrowOnError>): RequestResult<GetHealthResponses, GetHealthErrors, ThrowOnError> => (options?.client ?? client).get<GetHealthResponses, GetHealthErrors, ThrowOnError>({ url: '/api/health', ...options });
 
 /**
+ * Accept an invitation to a workspace.
+ *
+ * Consumes one invitation token and adds the signed in account to the workspace with the invited role. The address of the account must match the invited address. A token works once; a replay is rejected.
+ */
+export const acceptInvitation = <ThrowOnError extends boolean = false>(options: Options<AcceptInvitationData, ThrowOnError>): RequestResult<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError> => (options.client ?? client).post<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/invitations/acceptance',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Report whether the service can accept traffic.
  *
  * Reports the state of every startup requirement that the service can check. The current release validates configuration only, because no database or storage dependency exists yet. A later task adds a database check and a storage check to the same report.
  */
 export const getReadiness = <ThrowOnError extends boolean = false>(options?: Options<GetReadinessData, ThrowOnError>): RequestResult<GetReadinessResponses, GetReadinessErrors, ThrowOnError> => (options?.client ?? client).get<GetReadinessResponses, GetReadinessErrors, ThrowOnError>({ url: '/api/ready', ...options });
+
+/**
+ * List every workspace of the signed in account.
+ *
+ * Lists the workspaces that the account is a member of, with the current role in each. An account never sees a workspace it does not belong to.
+ */
+export const listWorkspaces = <ThrowOnError extends boolean = false>(options?: Options<ListWorkspacesData, ThrowOnError>): RequestResult<ListWorkspacesResponses, ListWorkspacesErrors, ThrowOnError> => (options?.client ?? client).get<ListWorkspacesResponses, ListWorkspacesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces',
+    ...options
+});
+
+/**
+ * Create a workspace owned by the signed in account.
+ *
+ * Creates a workspace whose only member is the account that created it, as its owner.
+ */
+export const createWorkspace = <ThrowOnError extends boolean = false>(options: Options<CreateWorkspaceData, ThrowOnError>): RequestResult<CreateWorkspaceResponses, CreateWorkspaceErrors, ThrowOnError> => (options.client ?? client).post<CreateWorkspaceResponses, CreateWorkspaceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a workspace and every record that belongs to it.
+ *
+ * Deletes a workspace, its membership, its invitations, its shares, and its content history. Only the owner may do this. Every session loses access to the workspace, because its membership rows disappear.
+ */
+export const deleteWorkspace = <ThrowOnError extends boolean = false>(options: Options<DeleteWorkspaceData, ThrowOnError>): RequestResult<DeleteWorkspaceResponses, DeleteWorkspaceErrors, ThrowOnError> => (options.client ?? client).delete<DeleteWorkspaceResponses, DeleteWorkspaceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}',
+    ...options
+});
+
+/**
+ * Rename a workspace.
+ *
+ * Renames a workspace. An owner or an administrator of that workspace may do this.
+ */
+export const updateWorkspace = <ThrowOnError extends boolean = false>(options: Options<UpdateWorkspaceData, ThrowOnError>): RequestResult<UpdateWorkspaceResponses, UpdateWorkspaceErrors, ThrowOnError> => (options.client ?? client).put<UpdateWorkspaceResponses, UpdateWorkspaceErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the members of a workspace.
+ *
+ * Lists every member of the workspace with the current role. An owner or an administrator also sees the open invitations.
+ */
+export const listMembers = <ThrowOnError extends boolean = false>(options: Options<ListMembersData, ThrowOnError>): RequestResult<ListMembersResponses, ListMembersErrors, ThrowOnError> => (options.client ?? client).get<ListMembersResponses, ListMembersErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/members',
+    ...options
+});
+
+/**
+ * Invite an address to a workspace.
+ *
+ * Creates an invitation for one address and one role. The answer carries the invitation token once, so a deployment without a mail transport can hand it to the invited person out of band. Only the hash of the token is stored.
+ */
+export const inviteMember = <ThrowOnError extends boolean = false>(options: Options<InviteMemberData, ThrowOnError>): RequestResult<InviteMemberResponses, InviteMemberErrors, ThrowOnError> => (options.client ?? client).post<InviteMemberResponses, InviteMemberErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/members',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove a member from a workspace.
+ *
+ * Removes one member. The last owner cannot be removed, and only another owner may remove an owner.
+ */
+export const removeMember = <ThrowOnError extends boolean = false>(options: Options<RemoveMemberData, ThrowOnError>): RequestResult<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError> => (options.client ?? client).delete<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/members/{accountId}',
+    ...options
+});
+
+/**
+ * Change the role of a member.
+ *
+ * Changes the role of one member. The owner role is never granted or removed here; it moves only through an explicit ownership transfer, so a workspace cannot lose its last owner through a role change.
+ */
+export const updateMember = <ThrowOnError extends boolean = false>(options: Options<UpdateMemberData, ThrowOnError>): RequestResult<UpdateMemberResponses, UpdateMemberErrors, ThrowOnError> => (options.client ?? client).put<UpdateMemberResponses, UpdateMemberErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/members/{accountId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Move the ownership of a workspace to another member.
+ *
+ * Moves ownership to another member of the same workspace. Only the owner may do this. The old owner becomes an administrator, or leaves the workspace when the request asks for it.
+ */
+export const transferOwnership = <ThrowOnError extends boolean = false>(options: Options<TransferOwnershipData, ThrowOnError>): RequestResult<TransferOwnershipResponses, TransferOwnershipErrors, ThrowOnError> => (options.client ?? client).post<TransferOwnershipResponses, TransferOwnershipErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/ownership',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});

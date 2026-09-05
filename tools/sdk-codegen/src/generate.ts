@@ -12,6 +12,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { createClient } from '@hey-api/openapi-ts';
+import { mergeAuthContract } from './auth-contract.ts';
 import { buildContractIndex } from './contract-index.ts';
 import { emitContractModule, emitValidatorModule } from './emit.ts';
 import {
@@ -22,38 +23,74 @@ import {
   repositoryRoot,
 } from './paths.ts';
 
-/** Runs Redocly and returns the fully dereferenced contract document. */
-async function bundleContract(): Promise<unknown> {
-  const directory = await mkdtemp(join(tmpdir(), 'notesapp-bundle-'));
-  const file = resolve(directory, 'openapi.bundled.json');
-  try {
-    execFileSync(
-      redoclyBin,
-      [
-        'bundle',
-        contractFile,
-        '--config',
-        redoclyConfigFile,
-        '--dereferenced',
-        '--ext',
-        'json',
-        '--output',
-        file,
-      ],
-      { cwd: repositoryRoot, stdio: ['ignore', 'ignore', 'inherit'] },
-    );
-    const source: unknown = JSON.parse(await readFile(file, 'utf8'));
-    return source;
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
+/**
+ * Runs Redocly and writes one bundled contract document.
+ *
+ * Without `dereference` the result keeps the document's own references, so it
+ * is still the source form that the client generator reads. With it, every
+ * reference is resolved, which is the form the runtime operation index needs.
+ */
+function bundleContract(
+  input: string,
+  output: string,
+  dereference: boolean,
+): void {
+  execFileSync(
+    redoclyBin,
+    [
+      'bundle',
+      input,
+      '--config',
+      redoclyConfigFile,
+      ...(dereference ? ['--dereferenced'] : []),
+      '--ext',
+      'json',
+      '--output',
+      output,
+    ],
+    { cwd: repositoryRoot, stdio: ['ignore', 'ignore', 'inherit'] },
+  );
+}
+
+/** Reads a JSON document as an object. */
+async function readDocument(file: string): Promise<Record<string, unknown>> {
+  const parsed: unknown = JSON.parse(await readFile(file, 'utf8'));
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed))
+    throw new Error(`The bundled contract at ${file} is not an object.`);
+  return Object.fromEntries(Object.entries(parsed));
 }
 
 /** Generates every committed artefact under the given repository-like root. */
 export async function generateInto(root: string): Promise<void> {
   const directories = outputDirectories(root);
-  const document = await bundleContract();
-  const index = buildContractIndex(document);
+  const work = await mkdtemp(join(tmpdir(), 'notesapp-bundle-'));
+  const sourceFile = resolve(work, 'openapi.source.json');
+  const mergedFile = resolve(work, 'openapi.merged.json');
+  const flatFile = resolve(work, 'openapi.flat.json');
+  try {
+    await generateFrom(directories, sourceFile, mergedFile, flatFile);
+  } finally {
+    await rm(work, { recursive: true, force: true });
+  }
+}
+
+/** Writes every artefact from one temporary working directory. */
+async function generateFrom(
+  directories: { contract: string; client: string },
+  sourceFile: string,
+  mergedFile: string,
+  flatFile: string,
+): Promise<void> {
+  // The authentication protocol fragment is added to the source form, so the
+  // generated client keeps one set of shared component types.
+  bundleContract(contractFile, sourceFile, false);
+  await writeFile(
+    mergedFile,
+    `${JSON.stringify(mergeAuthContract(await readDocument(sourceFile)), null, 2)}\n`,
+    'utf8',
+  );
+  bundleContract(mergedFile, flatFile, true);
+  const index = buildContractIndex(await readDocument(flatFile));
 
   await rm(directories.contract, { recursive: true, force: true });
   await mkdir(directories.contract, { recursive: true });
@@ -69,7 +106,7 @@ export async function generateInto(root: string): Promise<void> {
   );
 
   await createClient({
-    input: contractFile,
+    input: mergedFile,
     output: {
       path: directories.client,
       clean: true,

@@ -49,11 +49,22 @@ export type OperationEntry = {
   id: string;
   method: HttpMethod;
   path: string;
+  /**
+   * The protocol library that serves this operation, or null.
+   *
+   * A protocol operation is implemented by a maintained library rather than by
+   * a contract handler, so the server registers it through that adapter's
+   * exact path list and leaves it out of the one-handler-per-operation check.
+   */
+  protocol: string | null;
   security: SecurityRequirement[];
   parameters: ParameterSerialization[];
   request: RequestSchemas;
   responses: ResponseSchema[];
 };
+
+/** Extension that names the protocol library behind an operation. */
+export const protocolExtension = 'x-notesapp-protocol';
 
 export type ContractIndex = {
   version: string;
@@ -314,10 +325,14 @@ export function buildContractIndex(document: unknown): ContractIndex {
             fail(
               `${where} has a request body, so it must declare a ${String(required)} response.`,
             );
+      const protocol = operation[protocolExtension];
+      if (protocol !== undefined && typeof protocol !== 'string')
+        fail(`${where} ${protocolExtension} must be a string.`);
       operations.push({
         id,
         method,
         path,
+        protocol: typeof protocol === 'string' ? protocol : null,
         security: readSecurity(operation, root, where),
         parameters,
         request,

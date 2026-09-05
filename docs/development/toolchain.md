@@ -63,9 +63,9 @@ the task that installs them. Registry availability does not prove runtime behavi
 | [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                                  | 2.51.2   | Installed       |
 | [ajv](https://registry.npmjs.org/ajv/8.20.0)                                                    | 8.20.0   | Installed       |
 | [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                     | 3.0.1    | Installed       |
-| [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                                    | 0.45.2   | Later task      |
-| [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                                   | 0.31.10  | Later task      |
-| [pg](https://registry.npmjs.org/pg/8.23.0)                                                      | 8.23.0   | Later task      |
+| [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                                    | 0.45.2   | Installed       |
+| [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                                   | 0.31.10  | Installed       |
+| [pg](https://registry.npmjs.org/pg/8.23.0)                                                      | 8.23.0   | Installed       |
 | [dexie](https://registry.npmjs.org/dexie/4.4.5)                                                 | 4.4.5    | Later task      |
 | [vite-plugin-pwa](https://registry.npmjs.org/vite-plugin-pwa/1.3.0)                             | 1.3.0    | Later task      |
 | [workbox-build](https://registry.npmjs.org/workbox-build/7.4.1)                                 | 7.4.1    | Later task      |
@@ -80,8 +80,13 @@ the task that installs them. Registry availability does not prove runtime behavi
 | [oxlint-tsgolint](https://registry.npmjs.org/oxlint-tsgolint/7.0.2001)                          | 7.0.2001 | Root tool       |
 | [prettier](https://registry.npmjs.org/prettier/3.9.6)                                           | 3.9.6    | Root tool       |
 | [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)                    | 0.99.0   | Installed       |
-| [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                                     | 1.7.2    | Later task      |
-| [@better-auth/oauth-provider](https://registry.npmjs.org/@better-auth/oauth-provider/1.7.2)     | 1.7.2    | Later task      |
+| [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                                     | 1.7.2    | Installed       |
+| [@better-auth/oauth-provider](https://registry.npmjs.org/@better-auth/oauth-provider/1.7.2)     | 1.7.2    | Installed       |
+| [@better-auth/core](https://registry.npmjs.org/@better-auth/core/1.7.2)                         | 1.7.2    | Installed       |
+| [@better-auth/utils](https://registry.npmjs.org/@better-auth/utils/0.4.2)                       | 0.4.2    | Installed       |
+| [@better-fetch/fetch](https://registry.npmjs.org/@better-fetch/fetch/1.3.1)                     | 1.3.1    | Installed       |
+| [better-call](https://registry.npmjs.org/better-call/1.4.0)                                     | 1.4.0    | Installed       |
+| [nodemailer](https://registry.npmjs.org/nodemailer/10.0.0)                                      | 10.0.0   | Installed       |
 | [@types/node](https://registry.npmjs.org/@types/node/26.4.1)                                    | 26.4.1   | Root tool       |
 | [oxc-parser](https://registry.npmjs.org/oxc-parser/0.148.0)                                     | 0.148.0  | Root tool       |
 
@@ -114,8 +119,33 @@ TypeScript 7 JavaScript compiler API. It requires Node `^20.19.0 || >=22.12.0`.
 - Better Auth 1.7.2 directly requires `@better-auth/utils` 0.4.2. The OAuth
   provider 1.7.2 also requires exactly 0.4.2 as a peer. Retain that nested version;
   do not override it to a newer major. The provider requires Better Auth and
-  core `^1.7.2`, better-call 1.4.0, and better-fetch 1.3.1. Its owning package
-  must supply required peers when introduced.
+  core `^1.7.2`, better-call 1.4.0, and better-fetch 1.3.1.
+- Rechecked on 2026-09-06 and installed in `apps/server`. Strict peer
+  installation refuses a missing peer, so `@better-auth/oauth-provider` also
+  needs `@better-auth/core` 1.7.2, `@better-auth/utils` 0.4.2,
+  `@better-fetch/fetch` 1.3.1, and `better-call` 1.4.0 as direct dependencies.
+  All four are the exact versions that Better Auth 1.7.2 already resolves, so
+  no second copy is installed. The OAuth provider itself is not enabled yet:
+  it serves the remote MCP authorization of Task 20.
+- Better Auth 1.7.2 declares optional peers `drizzle-orm` `^0.45.2` and
+  `drizzle-kit` `>=0.31.4`, which the selected versions satisfy. Its Drizzle
+  adapter reads a field through the property name of the table object, so the
+  identity tables in `packages/storage-server/src/schema.ts` use the Better
+  Auth field names as properties and snake case column names.
+- The generic OAuth plugin of 1.7.2 registers a configured provider as a social
+  provider, so an OpenID Connect sign-in uses `/api/auth/sign-in/social` and
+  `/api/auth/callback/:id` rather than separate OAuth 2.0 endpoints. Discovery
+  runs when the auth context is first used, so an unreachable provider fails
+  the first sign-in and not process startup.
+- `nodemailer` 10.0.0 is the SMTP transport of local password recovery. It is
+  an implementation dependency of a design feature, not new product scope. It
+  ships its own type declarations and requires Node `>=20.0.0`. The design
+  names SMTP recovery but no package, so this pin is recorded here.
+  [nodemailer metadata](https://registry.npmjs.org/nodemailer/10.0.0).
+- `fastify` 5.12.3 is also a root development dependency, because
+  `tests/integration/support/identity-provider.ts` runs a small OpenID Connect
+  provider in process. It is the same pinned version that `apps/server` uses.
+  The root already carries `pg` for the same reason.
 - React DOM 19.2.8 requires React `^19.2.8`. Router 8.3.1 requires React and
   React DOM `>=19.2.7` and Node `>=22.22.0`. The selected versions meet these
   ranges. Base UI accepts React 19. Optional date and type peers are recorded
@@ -223,9 +253,12 @@ rules `typescript/no-floating-promises`, `typescript/no-misused-promises`,
 `typescript/await-thenable`, and `typescript/no-unsafe-assignment`. Type-aware
 rules need type information, so a file must be covered by the nearest
 `tsconfig.json`. One override, listed by the two exact generated paths, turns
-off `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, and
-`typescript/no-unsafe-assignment` for generated output, which cannot satisfy
-them. Generated output is otherwise linted like every other file. A later task
+off `typescript/no-explicit-any`, `typescript/no-non-null-assertion`,
+`typescript/no-unsafe-assignment`, `typescript/no-redundant-type-constituents`,
+`typescript/no-misused-spread`, and `typescript/no-floating-promises` for
+generated output, which cannot satisfy them. The spread rule was added when the
+first operation with a request body landed: the generated call spreads
+`options.headers`, whose declared type includes an array form. Generated output is otherwise linted like every other file. A later task
 that generates new output may need to extend that exact list; it must not widen
 the glob.
 
@@ -338,7 +371,9 @@ and undeclared dependencies.
 
 Protocol exceptions use exact adapter files:
 `apps/server/src/auth/better-auth.ts`, `apps/server/src/mcp/server.ts`, and
-`apps/mcp-stdio/src/main.ts`. PWA asset handling uses only
+`apps/mcp-stdio/src/main.ts`. A protocol adapter also states an exact list of
+the routes it serves, and startup fails when a contract operation that names
+that protocol is not in the list. See `docs/development/api-contract.md`. PWA asset handling uses only
 `apps/web/src/pwa/service-worker.ts`; literal application API paths are rejected
 there. `packages/api-client/src/configure.ts` is the handwritten client
 configuration named in the plan. It may set a base URL and pass a transport

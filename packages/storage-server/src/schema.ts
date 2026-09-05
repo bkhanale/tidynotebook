@@ -77,6 +77,8 @@ export const accounts = pgTable('accounts', {
 export const workspaces = pgTable('workspaces', {
   id: uuid('id').primaryKey(),
   name: text('name').notNull(),
+  /** True for the workspace that was created together with its account. */
+  personal: boolean('personal').notNull().default(false),
   createdAt: timestamp('created_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -645,5 +647,212 @@ export const shares = pgTable(
       foreignColumns: [revisions.workspaceId, revisions.id],
     }),
     index('shares_file_idx').on(table.workspaceId, table.fileId),
+  ],
+);
+
+/**
+ * Better Auth tables.
+ *
+ * Better Auth owns the shape of the four tables below. The column names use
+ * the field names of the pinned Better Auth configuration, because its Drizzle
+ * adapter reads a field through the property of this table object. The table
+ * names carry an `auth_` prefix, so the identity tables never collide with the
+ * application's own `accounts` table and `user` stays a reserved word that
+ * this schema does not use.
+ *
+ * These tables are not scoped by a workspace. Sign-in has to find a user by an
+ * address before any identity exists, so no row policy can narrow them by the
+ * account of the transaction. `docs/development/identity.md` records that
+ * exception and the table rights that bound it.
+ */
+export const authUser = pgTable('auth_user', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull().unique(),
+  emailVerified: boolean('email_verified').notNull().default(false),
+  image: text('image'),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** One browser session of one Better Auth user. */
+export const authSession = pgTable(
+  'auth_session',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUser.id, { onDelete: 'cascade' }),
+    token: text('token').notNull().unique(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    ipAddress: text('ip_address'),
+    userAgent: text('user_agent'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('auth_session_user_idx').on(table.userId)],
+);
+
+/**
+ * One credential or one external identity of a Better Auth user.
+ *
+ * An external identity is keyed by `issuer` and `account_id`, which are the
+ * OpenID Connect issuer and subject. Two identities of different issuers are
+ * therefore never the same account, and a matching address alone never joins
+ * them.
+ */
+export const authAccount = pgTable(
+  'auth_account',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => authUser.id, { onDelete: 'cascade' }),
+    issuer: text('issuer').notNull(),
+    accountId: text('account_id').notNull(),
+    providerId: text('provider_id').notNull(),
+    accessToken: text('access_token'),
+    refreshToken: text('refresh_token'),
+    idToken: text('id_token'),
+    accessTokenExpiresAt: timestamp('access_token_expires_at', {
+      withTimezone: true,
+    }),
+    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', {
+      withTimezone: true,
+    }),
+    scope: text('scope'),
+    password: text('password'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('auth_account_user_idx').on(table.userId),
+    unique('auth_account_key').on(
+      table.issuer,
+      table.providerId,
+      table.accountId,
+    ),
+  ],
+);
+
+/** One short lived verification value, for example a password reset token. */
+export const authVerification = pgTable(
+  'auth_verification',
+  {
+    id: text('id').primaryKey(),
+    identifier: text('identifier').notNull(),
+    value: text('value').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('auth_verification_identifier_idx').on(table.identifier)],
+);
+
+/**
+ * The map from a Better Auth user to an application account.
+ *
+ * The application identifies an account by a UUID that never changes, so the
+ * identity provider can change without rewriting every workspace row. One
+ * Better Auth user maps to exactly one account and back.
+ */
+export const accountIdentities = pgTable('account_identities', {
+  authUserId: text('auth_user_id')
+    .primaryKey()
+    .references(() => authUser.id, { onDelete: 'cascade' }),
+  accountId: uuid('account_id')
+    .notNull()
+    .unique()
+    .references(() => accounts.id),
+  createdAt: timestamp('created_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/** Settings that follow one account to every device. */
+export const accountPreferences = pgTable('account_preferences', {
+  accountId: uuid('account_id')
+    .primaryKey()
+    .references(() => accounts.id),
+  theme: text('theme').notNull().default('system'),
+  updatedAt: timestamp('updated_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+/**
+ * One revocable agent token.
+ *
+ * Only the SHA-256 hash of the secret is stored, so a stolen database row
+ * cannot be replayed as a token. The prefix names the token in a list. The
+ * scope is checked again against the current membership on every use.
+ */
+export const agentTokens = pgTable(
+  'agent_tokens',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    name: text('name').notNull(),
+    prefix: text('prefix').notNull(),
+    tokenHash: text('token_hash').notNull().unique(),
+    scopes: jsonb('scopes').notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [index('agent_tokens_account_idx').on(table.accountId)],
+);
+
+/**
+ * One invitation to one workspace.
+ *
+ * Only the hash of the invitation token is stored. Acceptance consumes the
+ * row, so a replayed token finds nothing.
+ */
+export const invitations = pgTable(
+  'invitations',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    id: uuid('id').notNull(),
+    email: text('email').notNull(),
+    role: membershipRole('role').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    invitedBy: uuid('invited_by')
+      .notNull()
+      .references(() => accounts.id),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
+    acceptedBy: uuid('accepted_by').references(() => accounts.id),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.id] }),
+    unique('invitations_token_key').on(table.tokenHash),
+    index('invitations_workspace_idx').on(table.workspaceId),
   ],
 );

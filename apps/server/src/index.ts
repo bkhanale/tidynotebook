@@ -4,10 +4,57 @@
  * The HTTP boundary is generated from `@notesapp/api-contract`. Nothing here
  * declares a route, a request shape, or a response shape by hand.
  */
-export type { LogLevel, ServerConfig } from './config.ts';
+export type {
+  LogLevel,
+  MailConfig,
+  OidcConfig,
+  ServerConfig,
+} from './config.ts';
 export { ConfigError, loadServerConfig } from './config.ts';
 export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers } from './app.ts';
 export type { ReadinessCheck, ReadinessProbe } from './http/handlers.ts';
 export { createHandlers } from './http/handlers.ts';
-export type { HandlerMap, IdentityResolver } from './http/register.ts';
+export type {
+  HandlerMap,
+  IdentityResolver,
+  ProtocolAdapter,
+} from './http/register.ts';
+export type {
+  ActorSource,
+  IdentityAdapter,
+  IdentityDependencies,
+  ResolvedActor,
+} from './auth/actor.ts';
+export {
+  agentTokenHash,
+  createIdentityAdapter,
+  requestActor,
+  requireActor,
+} from './auth/actor.ts';
+export type {
+  AuthHandle,
+  AuthOptions,
+  NotesappAuth,
+} from './auth/better-auth.ts';
+export {
+  authBasePath,
+  authRoutes,
+  betterAuthProtocol,
+  createAuth,
+  createAuthProtocol,
+  oidcProviderId,
+} from './auth/better-auth.ts';
+export type { Problem, ProblemCode } from './http/problem.ts';
+export {
+  createProblem,
+  ForbiddenError,
+  NotFoundError,
+  problemMediaType,
+  UnauthenticatedError,
+} from './http/problem.ts';
+export type { MailMessage, MailTransport } from './auth/mail.ts';
+export { createMailTransport } from './auth/mail.ts';
+export { invitationTokenHash } from './http/workspaces.ts';
+export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
+export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';

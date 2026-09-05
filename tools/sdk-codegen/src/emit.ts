@@ -72,6 +72,14 @@ export type OperationEntry = {
   readonly id: OperationId;
   readonly method: HttpMethod;
   readonly path: string;
+  /**
+   * The protocol library that serves this operation, or null.
+   *
+   * A protocol operation is implemented by a maintained library rather than by
+   * a contract handler. The server registers it through that adapter's exact
+   * path list and leaves it out of the one-handler-per-operation check.
+   */
+  readonly protocol: string | null;
   /** Alternative security requirements. An empty list means public. */
   readonly security: readonly SecurityRequirement[];
   readonly parameters: readonly ParameterSerialization[];

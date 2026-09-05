@@ -115,6 +115,18 @@ export function verifyActor(
 }
 
 /**
+ * The actions that one role permits.
+ *
+ * The identity adapter uses this to build the grants of a browser session,
+ * which carries the full role, and to narrow the stored scope of an agent
+ * token to the actions the current role still permits. A role outside the
+ * union returns no action, so an unexpected stored value denies everything.
+ */
+export function actionsForRole(role: Role): readonly Action[] {
+  return actionsOfRole.get(role) ?? [];
+}
+
+/**
  * Decides whether the actor may perform the action in the workspace.
  *
  * The decision is the intersection of the current role and the verified grants

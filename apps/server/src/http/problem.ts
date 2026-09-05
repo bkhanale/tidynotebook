@@ -17,6 +17,10 @@ export type ProblemCode =
   | 'host_not_allowed'
   | 'payload_too_large'
   | 'unsupported_media_type'
+  | 'unauthenticated'
+  | 'forbidden'
+  | 'not_found'
+  | 'rate_limited'
   | 'route_not_found'
   | 'not_ready'
   | 'invalid_response'
@@ -39,6 +43,10 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   host_not_allowed: 'The Host header is not served by this deployment.',
   payload_too_large: 'The request body is larger than the configured limit.',
   unsupported_media_type: 'The request media type is not supported.',
+  unauthenticated: 'The request carries no usable session or token.',
+  forbidden: 'The actor may not perform this operation.',
+  not_found: 'The requested resource does not exist.',
+  rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
   invalid_response: 'The service produced a response outside the contract.',
@@ -66,6 +74,41 @@ export class RequestMediaTypeError extends Error {
     super(`This operation accepts only ${accepted} request bodies.`);
     this.name = 'RequestMediaTypeError';
     this.accepted = accepted;
+  }
+}
+
+/**
+ * The request carries no usable session or agent token.
+ *
+ * The answer never says whether an address exists, whether a token was
+ * revoked, or whether it expired, because all three would help an attacker.
+ */
+export class UnauthenticatedError extends Error {
+  constructor(detail = 'Sign in before calling this operation.') {
+    super(detail);
+    this.name = 'UnauthenticatedError';
+  }
+}
+
+/**
+ * The actor is known but may not perform the operation.
+ *
+ * A denied role, a denied token scope, and a denied rule such as the removal
+ * of the last owner all use this failure, so an answer never discloses which
+ * of the three applied.
+ */
+export class ForbiddenError extends Error {
+  constructor(detail = 'The actor may not perform this operation.') {
+    super(detail);
+    this.name = 'ForbiddenError';
+  }
+}
+
+/** The named resource does not exist, or the actor may not see that it does. */
+export class NotFoundError extends Error {
+  constructor(detail = 'The requested resource does not exist.') {
+    super(detail);
+    this.name = 'NotFoundError';
   }
 }
 
@@ -128,6 +171,27 @@ export function classifyError(error: unknown): {
       status: 500,
       code: 'invalid_response',
       detail: titles.invalid_response,
+      issues: [],
+    };
+  if (error instanceof UnauthenticatedError)
+    return {
+      status: 401,
+      code: 'unauthenticated',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof ForbiddenError)
+    return {
+      status: 403,
+      code: 'forbidden',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof NotFoundError)
+    return {
+      status: 404,
+      code: 'not_found',
+      detail: error.message,
       issues: [],
     };
   if (error instanceof RequestMediaTypeError)

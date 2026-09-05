@@ -11,12 +11,49 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
-import type { HandlerMap, ServerConfig } from '@notesapp/server';
+import type {
+  HandlerMap,
+  IdentityResolver,
+  ProtocolAdapter,
+  ServerConfig,
+} from '@notesapp/server';
 import {
+  authRoutes,
+  betterAuthProtocol,
   createAppWithHandlers,
   createHandlers,
   loadServerConfig,
+  UnauthenticatedError,
 } from '@notesapp/server';
+
+/**
+ * The identity resolver of a test that checks the boundary only.
+ *
+ * It authenticates nothing, so every guarded operation answers 401. A test
+ * that needs real identities supplies the real resolver instead.
+ */
+const anonymousIdentity: IdentityResolver = () =>
+  Promise.reject(
+    new UnauthenticatedError('This test server authenticates nobody.'),
+  );
+
+/**
+ * The protocol adapter of a test that checks the boundary only.
+ *
+ * It serves the same exact path list as the real adapter, so registration
+ * still proves that every protocol operation has a route, and it answers with
+ * a refusal rather than pretending to sign anybody in.
+ */
+const stubProtocol: ProtocolAdapter = {
+  protocol: betterAuthProtocol,
+  routes: authRoutes,
+  handler: async (_request, reply): Promise<void> => {
+    await reply
+      .status(503)
+      .header('content-type', 'application/json')
+      .send(JSON.stringify({ status: false }));
+  },
+};
 
 /** A listening test server and the call that stops it. */
 export type TestServer = {
@@ -69,6 +106,10 @@ export type TestServerOptions = {
   readonly environment?: Readonly<Record<string, string>>;
   /** Destination of the structured log. */
   readonly logStream?: { write: (line: string) => void };
+  /** Resolver of the operations that declare a security scheme. */
+  readonly identity?: IdentityResolver;
+  /** Maintained protocol libraries that serve part of the HTTP surface. */
+  readonly protocols?: readonly ProtocolAdapter[];
 };
 
 /** Starts the server on an ephemeral loopback port. */
@@ -85,6 +126,8 @@ export async function startTestServer(
     ...(options.logStream === undefined
       ? {}
       : { logStream: options.logStream }),
+    identity: options.identity ?? anonymousIdentity,
+    protocols: options.protocols ?? [stubProtocol],
   });
   await app.listen({ host: '127.0.0.1', port: 0 });
   const address: string | AddressInfo | null = app.server.address();

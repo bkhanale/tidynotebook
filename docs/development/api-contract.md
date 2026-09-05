@@ -17,6 +17,7 @@ these across commits, and never edit a file under a `src/generated/` directory.
 | `packages/api-client/src/configure.ts`    | Base URL, cookies, token provider, error normalization. |
 | `apps/server/src/http/register.ts`        | Route registration and boundary validation.             |
 | `apps/server/src/http/handlers.ts`        | One handler per operation id.                           |
+| `tools/sdk-codegen/src/auth-contract.ts`  | The authentication protocol fragment of the contract.   |
 | `tools/sdk-codegen/`                      | The generator and the generated output check.           |
 
 ## Steps
@@ -107,10 +108,57 @@ these across commits, and never edit a file under a `src/generated/` directory.
   header is absent. A value outside that pattern is rejected by the normal
   header validation with a `400` problem, and that problem carries a generated
   id rather than the rejected value.
-- An operation that names a security scheme needs an identity resolver. Until
-  Task 5 supplies one, an operation that declares a non-empty `security` list
-  stops startup with a named error. The resolver runs as a `preValidation`
-  hook, so an actor is known before any input is read.
+- An operation that names a security scheme needs an identity resolver, and an
+  operation that names a protocol needs its adapter. Both are startup errors
+  when they are missing. The resolver runs as a `preValidation` hook, so an
+  actor is known before any input is read. It answers `401 unauthenticated`
+  when no actor resolves, and a use case answers `403 forbidden` or
+  `404 not_found` for a denied rule or a hidden record.
+
+## Protocol operations
+
+A maintained protocol library can serve part of the HTTP surface. Such an
+operation carries `x-notesapp-protocol: <library>` in the contract, and the
+runtime operation index keeps that marker as `protocol`.
+
+A protocol operation is different in three ways:
+
+- It has no entry in the handler map. `createHandlers` returns handlers for the
+  served operations only, and a handler for a protocol operation is an unknown
+  handler that stops startup.
+- Its route comes from the adapter, not from the contract loop. The adapter
+  states an exact list of method and path pairs, and startup fails when a
+  protocol operation is not in that list. A library release that adds an
+  endpoint therefore cannot widen the surface without a reviewed change.
+- Its routes live in an encapsulated scope with a raw body parser, so the
+  library receives the bytes the client sent. No contract validator, no
+  response check, and no identity hook runs there, because the library owns
+  its own request and response shapes and its own credential checks.
+
+The adapter is still responsible for the error surface of the deployment. The
+Better Auth adapter rewrites a refused answer into RFC 9457 problem details
+with a stable code, so every path of the deployment answers problem details.
+
+## The authentication fragment
+
+`tools/sdk-codegen/src/auth-contract.ts` writes the OpenAPI fragment of the
+authentication endpoints from the pinned Better Auth configuration. It contacts
+no provider, reads no secret, and produces the same bytes on every run.
+
+`pnpm generate` therefore runs three steps instead of one:
+
+1. Bundle `openapi.yaml` into its source form, with its own references kept.
+2. Merge the fragment into that document and sort its paths and schemas, so the
+   merged document is byte stable.
+3. Bundle the merged document again, this time dereferenced, and build the
+   runtime operation index from it. The client generator reads the merged
+   source form, so the generated client keeps one set of shared component
+   types.
+
+Only the two Better Auth endpoints that answer with a redirect are absent from
+the fragment: the provider callback and the password reset link are browser
+navigation, not calls that a generated client makes. `docs/development/
+identity.md` lists the exact route table.
 
 ## Client rules
 

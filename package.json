@@ -20,7 +20,9 @@
     "generate": "pnpm --filter @notesapp/sdk-codegen run generate",
     "generated:check": "pnpm --filter @notesapp/sdk-codegen run generated:check",
     "db:generate": "pnpm --filter @notesapp/storage-server run db:generate",
-    "db:migrate": "node packages/storage-server/src/migrate.ts"
+    "db:migrate": "node packages/storage-server/src/migrate.ts",
+    "owner:bootstrap": "node apps/server/src/cli/bootstrap.ts",
+    "account:recover": "node apps/server/src/cli/recover-account.ts"
   },
   "devDependencies": {
     "@notesapp/api-client": "workspace:*",
@@ -30,6 +32,7 @@
     "@notesapp/storage-server": "workspace:*",
     "@types/node": "26.4.1",
     "@types/pg": "8.23.1",
+    "fastify": "5.12.3",
     "oxc-parser": "0.148.0",
     "oxlint": "1.81.0",
     "oxlint-tsgolint": "7.0.2001",

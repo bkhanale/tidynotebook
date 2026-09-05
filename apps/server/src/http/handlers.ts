@@ -5,10 +5,27 @@
  * that body against the declared response schema before it is sent, so a
  * handler never has to repeat the contract shape.
  */
+import type { WorkspaceAdminStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import { readProperty } from '../values.ts';
+import { createAccountHandlers } from './accounts.ts';
+import { createWorkspaceHandlers } from './workspaces.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
 import { createProblem, problemMediaType } from './problem.ts';
+
+/**
+ * A store that is not there yet.
+ *
+ * Every deployment supplies the real store. A test that only checks the
+ * service operations may leave it out, and then an account operation answers
+ * with a generic server error instead of pretending to work.
+ */
+function missingStore(): WorkspaceAdminStore {
+  const fail = (): never => {
+    throw new Error('notesapp: the server was built without an account store.');
+  };
+  return { account: fail, workspace: fail };
+}
 
 const jsonMediaType = 'application/json';
 
@@ -74,12 +91,21 @@ export async function evaluateReadiness(
   };
 }
 
-/** Builds the handler map for the operations in the contract. */
+/**
+ * Builds the handler map for the operations in the contract.
+ *
+ * An operation that a protocol library serves has no entry here. The contract
+ * marks such an operation, and `registerOperations` mounts it through that
+ * adapter's exact path list instead.
+ */
 export function createHandlers(
   config: ServerConfig,
   probes: readonly ReadinessProbe[] = [configurationProbe(config)],
+  store: WorkspaceAdminStore = missingStore(),
 ): HandlerMap {
   return {
+    ...createAccountHandlers(store),
+    ...createWorkspaceHandlers(store),
     getHealth: (): Promise<HandlerResult> =>
       Promise.resolve({
         status: 200,

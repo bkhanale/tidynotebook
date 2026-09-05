@@ -34,6 +34,21 @@ export {
 } from './profiles.ts';
 export { createTestDatabase, dropTestDatabase } from './admin.ts';
 export {
+  openIdentityStore,
+  type IdentityStoreHandle,
+  type IdentityStoreOptions,
+} from './identity-store.ts';
+export {
+  accountIdentities,
+  accountPreferences,
+  agentTokens,
+  authAccount,
+  authSession,
+  authUser,
+  authVerification,
+  invitations,
+} from './schema.ts';
+export {
   defaultQuotaBytes,
   provisionAccounts,
   provisionWorkspace,

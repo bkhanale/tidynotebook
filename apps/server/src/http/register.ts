@@ -80,8 +80,39 @@ export type OperationHandler = (
   reply: FastifyReply,
 ) => Promise<HandlerResult>;
 
-/** One handler for every operation id in the contract. */
-export type HandlerMap = Readonly<Record<OperationId, OperationHandler>>;
+/**
+ * One handler for every contract operation that this server implements.
+ *
+ * An operation that a protocol library serves has no entry here. Such an
+ * operation carries a `protocol` marker in the contract, and its route comes
+ * from that adapter's exact path list instead.
+ */
+export type HandlerMap = Readonly<
+  Partial<Record<OperationId, OperationHandler>>
+>;
+
+/**
+ * A maintained protocol library that serves part of the HTTP surface.
+ *
+ * The adapter states the exact routes it serves, so a library release that
+ * adds an endpoint cannot widen the surface without a reviewed change. Every
+ * contract operation that names this protocol must appear in that list, and
+ * startup fails when one does not.
+ */
+export type ProtocolAdapter = {
+  /** Value of the operation marker that this adapter answers for. */
+  readonly protocol: string;
+  /** Exact method and route path pairs that the adapter serves. */
+  readonly routes: readonly {
+    readonly method: 'GET' | 'POST';
+    readonly path: string;
+  }[];
+  /** Serves one request. The adapter writes the whole reply itself. */
+  readonly handler: (
+    request: FastifyRequest,
+    reply: FastifyReply,
+  ) => Promise<void>;
+};
 
 /**
  * Resolves the actor of a request before its input is validated.
@@ -235,6 +266,9 @@ function checkHandlerResult(
 /** The part of an operation that the startup checks read. */
 export type RegistrationEntry = {
   readonly id: string;
+  readonly method: HttpMethod;
+  readonly path: string;
+  readonly protocol: string | null;
   readonly parameters: readonly {
     readonly name: string;
     readonly location: string;
@@ -256,15 +290,42 @@ export function checkRegistration(
   entries: readonly RegistrationEntry[],
   handlerIds: readonly string[],
   hasIdentity: boolean,
+  protocols: readonly ProtocolAdapter[] = [],
 ): void {
-  const declared = entries.map((entry) => entry.id);
+  const served = entries.filter((entry) => entry.protocol === null);
+  const declared = served.map((entry) => entry.id);
   const missing = declared.filter((id) => !handlerIds.includes(id));
   const unknown = handlerIds.filter((id) => !declared.includes(id));
   const failures = [
     ...missing.map((id) => `Missing handler for operation ${id}.`),
     ...unknown.map((id) => `Handler ${id} has no operation.`),
   ];
+  // A protocol operation needs an adapter that states its exact route, so the
+  // contract and the mounted library cannot drift apart either.
   for (const entry of entries) {
+    if (entry.protocol === null) continue;
+    const adapter = protocols.find(
+      (candidate) => candidate.protocol === entry.protocol,
+    );
+    if (adapter === undefined) {
+      failures.push(
+        `Operation ${entry.id} names protocol ${entry.protocol}, which no adapter serves.`,
+      );
+      continue;
+    }
+    const route = toRoutePath(entry.path);
+    if (
+      !adapter.routes.some(
+        (candidate) =>
+          candidate.path === route &&
+          candidate.method === entry.method.toUpperCase(),
+      )
+    )
+      failures.push(
+        `Operation ${entry.id} is not in the exact path list of protocol ${entry.protocol}.`,
+      );
+  }
+  for (const entry of served) {
     for (const parameter of entry.parameters) {
       const where = `Operation ${entry.id} parameter ${parameter.name}`;
       if (parameter.location === 'cookie')
@@ -307,11 +368,18 @@ export function registerOperations(
   app: FastifyInstance,
   handlers: HandlerMap,
   identity?: IdentityResolver,
+  protocols: readonly ProtocolAdapter[] = [],
 ): void {
-  checkRegistration(operations, Object.keys(handlers), identity !== undefined);
+  checkRegistration(
+    operations,
+    Object.keys(handlers),
+    identity !== undefined,
+    protocols,
+  );
 
+  const served = operations.filter((operation) => operation.protocol === null);
   const routeOperations = new Map<string, OperationId>();
-  for (const operation of operations) {
+  for (const operation of served) {
     const route = toRoutePath(operation.path);
     routeOperations.set(
       `${routeMethods[operation.method]} ${route}`,
@@ -402,7 +470,9 @@ export function registerOperations(
     return payload;
   });
 
-  for (const operation of operations) {
+  for (const adapter of protocols) registerProtocol(app, adapter);
+
+  for (const operation of served) {
     const schema: FastifySchema = {
       params: operation.request.params,
       querystring: operation.request.query,
@@ -420,6 +490,8 @@ export function registerOperations(
     }
     schema.response = response;
     const handler = handlers[operation.id];
+    if (handler === undefined)
+      throw new Error(`Operation ${operation.id} has no handler.`);
     app.route({
       method: routeMethods[operation.method],
       url: toRoutePath(operation.path),
@@ -434,4 +506,39 @@ export function registerOperations(
       },
     });
   }
+}
+
+/**
+ * Mounts one protocol adapter on its exact routes.
+ *
+ * The routes live in their own encapsulated scope with a raw body parser, so
+ * the adapter receives the bytes the client sent. Re-serializing a parsed body
+ * would change it, and a protocol library may sign or hash what it received.
+ * No contract validator, no response check, and no identity hook runs for
+ * these routes: the library owns its own request and response shapes and its
+ * own credential checks.
+ */
+function registerProtocol(
+  app: FastifyInstance,
+  adapter: ProtocolAdapter,
+): void {
+  app.register((scope, _options, done) => {
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser(
+      /.*/,
+      { parseAs: 'buffer' },
+      (_request, body, next) => {
+        next(null, body);
+      },
+    );
+    for (const route of adapter.routes)
+      scope.route({
+        method: route.method,
+        url: route.path,
+        handler: async (request, reply) => {
+          await adapter.handler(request, reply);
+        },
+      });
+    done();
+  });
 }

@@ -14,8 +14,16 @@ import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
 import { createHandlers } from './http/handlers.ts';
-import type { HandlerMap, IdentityResolver } from './http/register.ts';
+import type {
+  HandlerMap,
+  IdentityResolver,
+  ProtocolAdapter,
+} from './http/register.ts';
 import { registerOperations } from './http/register.ts';
+import { createAuth, createAuthProtocol } from './auth/better-auth.ts';
+import { createIdentityAdapter } from './auth/actor.ts';
+import { createMailTransport } from './auth/mail.ts';
+import { openIdentityStore } from '@notesapp/storage-server';
 import {
   classifyError,
   createProblem,
@@ -76,6 +84,8 @@ export type AppOptions = {
   readonly identity?: IdentityResolver;
   /** Destination of the structured log, for tests that read log records. */
   readonly logStream?: { write: (line: string) => void };
+  /** Maintained protocol libraries that serve part of the HTTP surface. */
+  readonly protocols?: readonly ProtocolAdapter[];
 };
 
 /** Builds the application with an explicit handler map. */
@@ -173,11 +183,42 @@ export function createAppWithHandlers(
       );
   });
 
-  registerOperations(app, options.handlers, options.identity);
+  registerOperations(
+    app,
+    options.handlers,
+    options.identity,
+    options.protocols ?? [],
+  );
   return Promise.resolve(app);
 }
 
-/** Builds the application with the handlers of this release. */
-export function createApp(config: ServerConfig): Promise<FastifyInstance> {
-  return createAppWithHandlers(config, { handlers: createHandlers(config) });
+/**
+ * Builds the application of this release.
+ *
+ * The composition owns the two identity connections. The Better Auth pool
+ * never sets a transaction identity, which is what the row policies of the
+ * identity tables expect. The account store always sets one, so every read and
+ * write it performs is narrowed to that account and its workspaces. Both pools
+ * close when the instance closes.
+ */
+export async function createApp(
+  config: ServerConfig,
+): Promise<FastifyInstance> {
+  const identity = openIdentityStore(config.databaseUrl);
+  const auth = createAuth(config, { mail: createMailTransport(config.mail) });
+  const adapter = createIdentityAdapter({
+    auth: auth.auth,
+    identity,
+    origin: config.origin,
+  });
+  const app = await createAppWithHandlers(config, {
+    handlers: createHandlers(config, undefined, identity),
+    identity: adapter.resolver,
+    protocols: [createAuthProtocol(config, auth.auth)],
+  });
+  app.addHook('onClose', async () => {
+    await auth.close();
+    await identity.close();
+  });
+  return app;
 }

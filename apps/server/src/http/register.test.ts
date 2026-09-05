@@ -39,6 +39,9 @@ await test('only the JSON media types are validated as JSON', () => {
 
 const publicEntry = {
   id: 'getHealth',
+  method: 'get' as const,
+  path: '/api/health',
+  protocol: null,
   parameters: [
     {
       name: 'x-request-id',
@@ -177,5 +180,63 @@ await test('an operation with a body accepts only its media type', () => {
   assert.equal(
     checkBodyMediaType(declared, undefined, true),
     'unsupported_media_type',
+  );
+});
+
+await test('a protocol operation needs no contract handler', () => {
+  const protocolEntry = {
+    ...publicEntry,
+    id: 'signInWithPassword',
+    method: 'post' as const,
+    path: '/api/auth/sign-in/email',
+    protocol: 'better-auth',
+  };
+  const adapter = {
+    protocol: 'better-auth',
+    routes: [{ method: 'POST' as const, path: '/api/auth/sign-in/email' }],
+    handler: (): Promise<void> => Promise.resolve(),
+  };
+  assert.doesNotThrow(() =>
+    checkRegistration([publicEntry, protocolEntry], ['getHealth'], false, [
+      adapter,
+    ]),
+  );
+  // A handler for a protocol operation is an unknown handler.
+  assert.throws(
+    () =>
+      checkRegistration(
+        [publicEntry, protocolEntry],
+        ['getHealth', 'signInWithPassword'],
+        false,
+        [adapter],
+      ),
+    /Handler signInWithPassword has no operation/,
+  );
+});
+
+await test('a protocol operation outside the adapter path list stops startup', () => {
+  const protocolEntry = {
+    ...publicEntry,
+    id: 'signOut',
+    method: 'post' as const,
+    path: '/api/auth/sign-out',
+    protocol: 'better-auth',
+  };
+  assert.throws(
+    () => checkRegistration([protocolEntry], [], false, []),
+    /names protocol better-auth, which no adapter serves/,
+  );
+  assert.throws(
+    () =>
+      checkRegistration([protocolEntry], [], false, [
+        {
+          protocol: 'better-auth',
+          routes: [
+            { method: 'POST' as const, path: '/api/auth/sign-in/email' },
+          ],
+          handler: (): Promise<void> => Promise.resolve(),
+        },
+      ]),
+    /is not in the exact path list of protocol better-auth/,
   );
 });
