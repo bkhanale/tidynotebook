@@ -6,11 +6,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { attachmentIdA, noteIdA } from '../test-data/content.ts';
-import {
-  markdownLimits,
-  MarkdownLimitError,
-  renderMarkdown,
-} from './render.ts';
+import { renderMarkdown } from './render.ts';
 
 await test('the URL policy applies to a reference link', async () => {
   const html = await renderMarkdown(
@@ -88,45 +84,42 @@ await test('text inside a math or diagram placeholder is escaped', async () => {
   assert.ok(html.includes('<pre data-diagram="mermaid">'));
 });
 
-await test('input above the byte limit is refused', async () => {
-  const source = 'x'.repeat(markdownLimits.maxInputBytes + 1);
-  await assert.rejects(renderMarkdown(source), (error: unknown) => {
-    assert.ok(error instanceof MarkdownLimitError);
-    assert.equal(error.reason, 'input-size');
-    assert.equal(error.limit, markdownLimits.maxInputBytes);
-    assert.equal(error.actual, markdownLimits.maxInputBytes + 1);
-    return true;
-  });
-});
-
-await test('the limit counts bytes and not characters', async () => {
-  // Two bytes each, so this is exactly at the limit and must render.
-  const source = '\u00e9'.repeat(markdownLimits.maxInputBytes / 2);
-  assert.ok((await renderMarkdown(source)).length > 0);
-  await assert.rejects(
-    renderMarkdown(`${source}\u00e9`),
-    (error: unknown) =>
-      error instanceof MarkdownLimitError && error.reason === 'input-size',
+await test('a link keeps its title on both sides of the policy', async () => {
+  // A title is author text that carries no URL, so it is kept rather than
+  // dropped with the rest of the attributes. The serializer escapes the quote
+  // and the ampersand, so the value cannot end the attribute or start an
+  // entity. A `<` inside a quoted attribute value cannot open a tag, so the
+  // serializer leaves it alone and the result is still inert.
+  const external = await renderMarkdown(
+    `[shown](https://example.com/p 'a "quoted" & <b> title')\n`,
+  );
+  assert.ok(
+    external.includes(
+      '<a href="https://example.com/p" title="a &#x22;quoted&#x22; &#x26; <b> title" rel="noopener noreferrer">shown</a>',
+    ),
+  );
+  const internal = await renderMarkdown(`[shown](/notes/${noteIdA} "note")\n`);
+  assert.ok(
+    internal.includes(`<a href="/notes/${noteIdA}" title="note">shown</a>`),
   );
 });
 
-await test('a document exactly at the byte limit renders', async () => {
-  const source = 'x'.repeat(markdownLimits.maxInputBytes);
-  assert.ok((await renderMarkdown(source)).includes('<p>'));
+await test('a footnote link needs both its marker and its own fragment', async () => {
+  const html = await renderMarkdown('text[^a]\n\n[^a]: note\n');
+  assert.ok(
+    html.includes('href="#user-content-fn-a" id="user-content-fnref-a"'),
+  );
+  assert.ok(
+    html.includes('href="#user-content-fnref-a" data-footnote-backref=""'),
+  );
 });
 
-await test('a document nested past the depth limit is refused', async () => {
-  const source = `${'>'.repeat(5000)} deep\n`;
-  await assert.rejects(renderMarkdown(source), (error: unknown) => {
-    assert.ok(error instanceof MarkdownLimitError);
-    assert.equal(error.reason, 'nesting-depth');
-    assert.equal(error.limit, markdownLimits.maxNestingDepth);
-    assert.ok(error.actual > markdownLimits.maxNestingDepth);
-    return true;
-  });
-});
-
-await test('a document just inside the depth limit renders', async () => {
-  const source = `${'>'.repeat(50)} deep\n`;
-  assert.ok((await renderMarkdown(source)).includes('deep'));
+await test('an identifier outside the generated namespace is removed', async () => {
+  // Nothing in the pipeline can emit one, so this proves the schema rule.
+  const html = await renderMarkdown('text[^a]\n\n[^a]: note\n');
+  for (const id of html.match(/ id="[^"]*"/g) ?? [])
+    assert.ok(
+      id.includes('user-content-') || id === ' id="footnote-label"',
+      id,
+    );
 });

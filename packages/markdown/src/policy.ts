@@ -110,8 +110,30 @@ export function classifyUrl(raw: string): ContentUrl {
  * mdast-util-to-hast for the `user-content-` prefix, so a footnote identifier
  * is namespaced before this stage. Prefixing a second time here would rename
  * the identifier without renaming the fragment that points at it, which breaks
- * every footnote back reference.
+ * every footnote back reference. Because this schema does not add the prefix,
+ * it requires it instead: an `id` must start with `user-content-` and a
+ * character, so a note cannot claim a plain identifier such as `submit` and
+ * clobber a form control or a script variable.
+ *
+ * That prefix is shared by every note. A page that renders one note is
+ * therefore safe, which is what the public share page does. A page that
+ * renders several notes at once must scope the footnote identifiers itself,
+ * for example by rendering each note in its own document fragment; two notes
+ * with the same footnote label would otherwise produce the same identifier.
+ *
+ * A `title` on a link or an image is author text. It is kept, because a reader
+ * can see it and losing it would lose content. The serializer escapes it, so
+ * it cannot carry markup, and it holds no URL.
  */
+/**
+ * The only identifier shape the renderer may emit.
+ *
+ * mdast-util-to-hast writes a footnote identifier as `user-content-fn-<label>`
+ * or `user-content-fnref-<label>`. Requiring the prefix and one following
+ * character keeps every identifier inside that namespace.
+ */
+const namespacedId = /^user-content-[A-Za-z0-9]/;
+
 export const sanitizeSchema: SanitizeSchema = {
   strip: ['script', 'style'],
   clobber: [],
@@ -168,26 +190,38 @@ export const sanitizeSchema: SanitizeSchema = {
   attributes: {
     a: [
       'href',
-      'id',
+      'title',
       'ariaDescribedBy',
       'ariaLabel',
       'dataFootnoteBackref',
       'dataFootnoteRef',
       ['className', 'data-footnote-backref'],
+      ['id', namespacedId],
       ['rel', 'noopener', 'noreferrer'],
     ],
     code: [['className', /^language-[a-z0-9_-]+$/]],
-    h2: ['id', ['className', 'sr-only']],
+    h2: [
+      ['className', 'sr-only'],
+      ['id', 'footnote-label'],
+    ],
     img: ['alt', 'src', 'title'],
     input: [
       ['type', 'checkbox'],
       ['disabled', true],
       ['checked', true],
     ],
-    li: ['id', ['className', 'task-list-item']],
+    li: [
+      ['className', 'task-list-item'],
+      ['id', namespacedId],
+    ],
     ol: ['start', ['className', 'contains-task-list']],
     pre: [['dataDiagram', 'mermaid']],
-    section: ['dataFootnotes', ['className', 'footnotes']],
+    section: [
+      'dataFootnotes',
+      ['className', 'footnotes'],
+      ['id', namespacedId],
+    ],
+    sup: [['id', namespacedId]],
     span: [
       ['dataMath', 'inline', 'display'],
       ['dataBlocked', 'link', 'image'],

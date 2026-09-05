@@ -15,6 +15,55 @@
   },
   "overrides": [
     {
+      "files": ["packages/core/src/**", "packages/markdown/src/**"],
+      "excludeFiles": ["**/*.test.ts"],
+      "rules": {
+        "no-restricted-globals": [
+          "error",
+          {
+            "name": "document",
+            "message": "A shared package runs in both runtimes and cannot use the DOM."
+          },
+          {
+            "name": "window",
+            "message": "A shared package runs in both runtimes and cannot use the DOM."
+          },
+          {
+            "name": "navigator",
+            "message": "A shared package runs in both runtimes and cannot use the DOM."
+          },
+          {
+            "name": "location",
+            "message": "A shared package runs in both runtimes and cannot use the DOM."
+          },
+          {
+            "name": "localStorage",
+            "message": "Persistence belongs to a storage package, not to a shared package."
+          },
+          {
+            "name": "sessionStorage",
+            "message": "Persistence belongs to a storage package, not to a shared package."
+          },
+          {
+            "name": "fetch",
+            "message": "Every application HTTP call goes through the generated client."
+          },
+          {
+            "name": "process",
+            "message": "A shared package runs in the browser and cannot use a Node global."
+          },
+          {
+            "name": "Buffer",
+            "message": "A shared package runs in the browser and cannot use a Node global."
+          },
+          {
+            "name": "require",
+            "message": "A shared package uses ECMAScript modules only."
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "packages/api-client/src/generated/**",
         "packages/api-contract/src/generated/**"

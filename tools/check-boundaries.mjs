@@ -213,8 +213,9 @@ for (const item of packages) {
  * @param {string} specifier
  * @param {boolean} isTest
  * @param {boolean} isGenerated
+ * @param {boolean} [isTypeOnly]
  */
-function checkImport(file, specifier, isTest, isGenerated) {
+function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
   const item = owner(file);
   if (!item) return;
   const name = String(item.manifest.name);
@@ -257,23 +258,27 @@ function checkImport(file, specifier, isTest, isGenerated) {
   // Generated output owns the fetch transport and its client package.
   if (!isGenerated && httpLibraries.has(dependency))
     fail(file, `Use generated operations instead of ${dependency}.`);
-  // A declaration package declares the module it describes. TypeScript
-  // resolves `mdast` through `@types/mdast`, so a manifest that lists the
-  // declaration package has declared that import.
+  // A declaration package declares the module it describes, but only for a
+  // type-only import. TypeScript resolves `import type ... from 'mdast'`
+  // through `@types/mdast`, and nothing is loaded at run time. A value import
+  // of the same name needs the runtime package, so `import x from 'lodash'`
+  // still fails when only `@types/lodash` is declared. A mixed import such as
+  // `import { type A, B }` is a value import and is treated as one.
+  const groups = [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+    'peerDependencies',
+  ];
+  /** @param {string} candidate @returns {boolean} */
+  const declared = (candidate) =>
+    groups.some((group) => candidate in record(item.manifest[group]));
   if (
     !specifier.startsWith('node:') &&
     !builtinModules.includes(specifier) &&
     dependency !== name &&
-    ![
-      'dependencies',
-      'devDependencies',
-      'optionalDependencies',
-      'peerDependencies',
-    ].some(
-      (group) =>
-        dependency in record(item.manifest[group]) ||
-        `@types/${dependency}` in record(item.manifest[group]),
-    )
+    !declared(dependency) &&
+    !(isTypeOnly && declared(`@types/${dependency}`))
   )
     fail(file, `Undeclared dependency ${dependency}.`);
 }
@@ -412,8 +417,14 @@ for (const file of sources) {
       ].includes(type)
     ) {
       const source = record(node.source ?? node.argument);
+      // `import type`, `export type`, and a type-position `import(...)` load
+      // nothing at run time. Every other form does.
+      const isTypeOnly =
+        type === 'TSImportType' ||
+        node.importKind === 'type' ||
+        node.exportKind === 'type';
       if (typeof source.value === 'string')
-        checkImport(file, source.value, isTest, isGenerated);
+        checkImport(file, source.value, isTest, isGenerated, isTypeOnly);
       else if (type === 'ImportExpression')
         fail(file, 'Dynamic imports must use a literal path.');
     }
@@ -423,7 +434,13 @@ for (const file of sources) {
       if (reference.type === 'TSExternalModuleReference') {
         const expression = record(reference.expression);
         if (typeof expression.value === 'string')
-          checkImport(file, expression.value, isTest, isGenerated);
+          checkImport(
+            file,
+            expression.value,
+            isTest,
+            isGenerated,
+            node.importKind === 'type',
+          );
         else
           fail(file, 'import = require(...) must use a literal module path.');
       }

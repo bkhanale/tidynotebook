@@ -6,7 +6,7 @@
  * plus the GFM set (tables, task list items, strikethrough, autolinks, and
  * footnotes) plus inline and display math.
  *
- * Three rules matter for the rest of the package:
+ * Four rules matter for the rest of the package:
  *
  * - Position information is kept. Every node carries the source offsets that
  *   link extraction and the editor decorations rely on.
@@ -15,16 +15,23 @@
  *   metadata, permissions, or rendering options.
  * - Unknown syntax stays text. Raw HTML is parsed into `html` nodes so that
  *   the source stays addressable, but the renderer never emits it.
+ * - Every entry point is bounded. The pre-scan in `./limits.ts` runs before
+ *   the parser sees the text, and the tree depth is checked after.
  *
  * Parsing does not change the source. A JavaScript string is immutable, and
  * this module keeps only offsets into it, so `source.slice(from, to)` of any
- * reported range is still the original text.
+ * reported range is still the original text. One detail belongs to the caller:
+ * the parser removes a leading byte order mark before it assigns offsets, so
+ * the offsets in this tree are relative to the text after that mark. The
+ * extraction functions in `./links.ts` add it back, and their ranges always
+ * address the string the caller passed in.
  */
 import type { Root } from 'mdast';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
+import { assertNestingDepth, assertParseCost } from './limits.ts';
 
 /**
  * Builds the shared Markdown half of a processor.
@@ -43,9 +50,14 @@ const markdownProcessor = createMarkdownProcessor().freeze();
  * Parses `source` into an mdast tree with position information.
  *
  * The result is the upstream mdast `Root` type, so a caller can use the normal
- * unist utilities. Parsing applies no size limit; `renderMarkdown` owns the
- * resource limits, because it is the stage that produces output.
+ * unist utilities. Throws `MarkdownLimitError` when the document is larger
+ * than the byte cap, holds a line or a delimiter run that makes parsing cost
+ * more than the document size, or nests deeper than the limit. Every other
+ * entry point of this package parses through here, so all of them are bounded.
  */
 export function parseMarkdown(source: string): Root {
-  return markdownProcessor.parse(source);
+  assertParseCost(source);
+  const tree = markdownProcessor.parse(source);
+  assertNestingDepth(tree);
+  return tree;
 }

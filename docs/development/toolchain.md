@@ -619,8 +619,16 @@ check only, `src/**/*.test.ts` excluded from the build, and `@types/node` in
 declaration of an import of `<name>`. TypeScript resolves `import type { Root }
 from 'mdast'` through `@types/mdast`, so the module has a declared owner even
 though no dependency is literally named `mdast`. Without this rule a package
-could only satisfy the checker by adding a fake dependency. Every other rule is
-unchanged, and an import with no declaration package at all is still rejected.
+could only satisfy the checker by adding a fake dependency.
+
+The rule covers a type-only import and nothing else: `import type`,
+`export type`, and a type position `import('module')`. Those load nothing at
+run time. A value import of the same name still needs the runtime package, so
+`import lodash from 'lodash'` fails when only `@types/lodash` is declared, and
+a mixed import such as `import { type A, B }` is treated as a value import.
+Four fixtures in `tools/check-boundaries.test.mjs` cover both outcomes. Every
+other rule is unchanged, and an import with no declaration package at all is
+still rejected.
 
 ### The shared corpus
 
@@ -632,12 +640,67 @@ formats every `.md` file, and the corpus holds deliberately malformed Markdown
 that formatting would repair. A template literal in a TypeScript file is left
 exactly as written, so the byte offsets that the range tests assert stay stable.
 
+### Bounded Markdown parsing
+
+A byte cap alone does not bound the cost of reading a note. Several parser
+constructs cost time that grows faster than the document does: 80 KB of `[` and
+`]` took 16 seconds, 200 KB took 205 seconds, and a line of one million `>`
+characters never finished.
+
+`packages/markdown/src/limits.ts` therefore runs a pre-scan before any parse, in
+every public entry point of the package. It is one pass over the text and it
+refuses the shapes that make the parser slow:
+
+| Limit                                                   | Value  | Reason code     |
+| ------------------------------------------------------- | ------ | --------------- |
+| Document size                                           | 2 MiB  | `input-size`    |
+| Line size                                               | 64 KiB | `line-length`   |
+| Run of one delimiter character                          | 1000   | `delimiter-run` |
+| Block nesting on one line, and depth of the parsed tree | 100    | `nesting-depth` |
+| Link openings in one document                           | 20,000 | `link-count`    |
+
+The delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. Block nesting counts
+the block quote markers, the list markers, and the four-column indentation
+levels at the start of one line. The tree depth is checked again after parsing,
+because inline constructs such as repeated emphasis nest without a line prefix.
+
+Every entry point parses through `parseMarkdown`, so `renderMarkdown`,
+`extractLinks`, and `extractAttachmentRefs` are all bounded by both guards.
+A refused document throws `MarkdownLimitError`; it is never truncated, because
+a half note looks like data loss. The tests measure the refusals: every listed
+hostile document is refused in under 100 ms, and a 1 MiB document of ordinary
+paragraphs, lists, tables, and code renders in about 2.7 seconds when that test
+file runs alone and about 8 seconds inside the full parallel run on the
+development machine. The measurement is printed, and the assertion uses a
+generous 30 second bound, because it exists to catch a return to the earlier
+cost rather than to set a performance budget.
+
+### Byte order marks and reported ranges
+
+The parser removes a leading U+FEFF before it assigns offsets, so a tree offset
+is relative to the text after the mark. `extractLinks` and
+`extractAttachmentRefs` add its length back, so every reported range addresses
+the string the caller passed in and `source.slice(from, to)` returns the
+reported text. `parseMarkdown` returns the tree as the parser built it.
+
+### Restricted globals in shared packages
+
+`.oxlintrc.json` adds a `no-restricted-globals` override for
+`packages/core/src/**` and `packages/markdown/src/**`, excluding `*.test.ts`.
+The restricted names are `document`, `window`, `navigator`, `location`,
+`localStorage`, `sessionStorage`, `fetch`, `process`, `Buffer`, and `require`.
+A package that both runtimes share must not reach for a DOM global or a Node
+global, and the boundary checker sees imports only. This matters more since
+`packages/markdown` loads the `DOM` type library, which makes those names
+resolve during the type check.
+
 ### Task 12 verification
 
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 52 tests.
+- `pnpm --filter @notesapp/markdown test:unit` runs 72 tests, including the
+  resource limit measurements above.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
 

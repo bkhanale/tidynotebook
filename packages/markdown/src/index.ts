@@ -7,8 +7,10 @@
  *
  * `parseMarkdown` gives the tree with source offsets. `extractLinks` and
  * `extractAttachmentRefs` give the references a caller resolves through the
- * generated API operations. `renderMarkdown` gives sanitized HTML. Nothing in
- * this package performs input or output of any kind.
+ * generated API operations. `renderMarkdown` gives sanitized HTML. Every one
+ * of them refuses a document that exceeds a limit in `markdownLimits` by
+ * throwing `MarkdownLimitError`. Nothing in this package performs input or
+ * output of any kind.
  */
 export type { Root } from 'mdast';
 export { parseMarkdown } from './parse.ts';
@@ -19,11 +21,8 @@ export type {
   WikiLink,
 } from './links.ts';
 export { extractAttachmentRefs, extractLinks, parseWikiLink } from './links.ts';
+export type { MarkdownLimitReason } from './limits.ts';
+export { markdownLimits, MarkdownLimitError } from './limits.ts';
 export type { ContentUrl } from './policy.ts';
 export { classifyUrl, isIdentifier } from './policy.ts';
-export type { MarkdownLimitReason } from './render.ts';
-export {
-  markdownLimits,
-  MarkdownLimitError,
-  renderMarkdown,
-} from './render.ts';
+export { renderMarkdown } from './render.ts';

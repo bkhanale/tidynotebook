@@ -126,6 +126,23 @@ await test('a malformed attachment identifier reports nothing', () => {
   );
 });
 
+await test('a byte order mark does not shift a reported range', () => {
+  // The parser removes the mark before it assigns offsets, so every range
+  // would be one character short without the correction.
+  const body = `intro [note](/notes/${noteIdA}) and [[A Title]] end\n`;
+  const source = `\ufeff${body}`;
+  const found = extractLinks(source);
+  assert.equal(found.length, 2);
+  for (const link of found)
+    assert.equal(source.slice(link.range.from, link.range.to), link.source);
+  assert.equal(found[0]?.range.from, source.indexOf('[note]'));
+  assert.equal(found[1]?.range.from, source.indexOf('[[A Title]]'));
+  const images = extractAttachmentRefs(
+    `\ufeff![a](/attachments/${attachmentIdA})\n`,
+  );
+  assert.equal(images[0]?.range.from, 1);
+});
+
 await test('a wiki reference splits into a title and a label', () => {
   assert.deepEqual(parseWikiLink('[[Title]]'), {
     title: 'Title',

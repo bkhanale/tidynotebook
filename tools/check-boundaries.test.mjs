@@ -588,3 +588,52 @@ await test('accepts an in-process inject call in the root tests tree', () => {
     ),
   );
 });
+
+await test('accepts a type-only import declared by its @types package', () => {
+  accepted(
+    check({
+      'packages/markdown/package.json': manifest('markdown', {
+        '@types/mdast': '4.0.4',
+      }),
+      'packages/markdown/src/index.ts':
+        "import type { Root } from 'mdast';\nexport type Tree = Root;\n",
+    }),
+  );
+});
+
+await test('accepts a type-only export declared by its @types package', () => {
+  accepted(
+    check({
+      'packages/markdown/package.json': manifest('markdown', {
+        '@types/mdast': '4.0.4',
+      }),
+      'packages/markdown/src/index.ts': "export type { Root } from 'mdast';\n",
+    }),
+  );
+});
+
+await test('rejects a runtime import declared only by its @types package', () => {
+  rejected(
+    check({
+      'packages/markdown/package.json': manifest('markdown', {
+        '@types/lodash': '4.17.20',
+      }),
+      'packages/markdown/src/index.ts':
+        "import lodash from 'lodash';\nexport const value = lodash;\n",
+    }),
+    'Undeclared dependency lodash.',
+  );
+});
+
+await test('rejects a mixed type and value import declared only by @types', () => {
+  rejected(
+    check({
+      'packages/markdown/package.json': manifest('markdown', {
+        '@types/lodash': '4.17.20',
+      }),
+      'packages/markdown/src/index.ts':
+        "import { type Dictionary, chunk } from 'lodash';\nexport const value = chunk;\nexport type Map = Dictionary<string>;\n",
+    }),
+    'Undeclared dependency lodash.',
+  );
+});
