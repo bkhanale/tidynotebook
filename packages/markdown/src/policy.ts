@@ -91,6 +91,15 @@ export function classifyUrl(raw: string): ContentUrl {
 }
 
 /**
+ * The only identifier shape the renderer may emit.
+ *
+ * mdast-util-to-hast writes a footnote identifier as `user-content-fn-<label>`
+ * or `user-content-fnref-<label>`. Requiring the prefix and one following
+ * character keeps every identifier inside that namespace.
+ */
+const namespacedId = /^user-content-[A-Za-z0-9]/;
+
+/**
  * The sanitization schema for rendered notes.
  *
  * It is written out rather than derived from the rehype-sanitize GitHub
@@ -125,15 +134,6 @@ export function classifyUrl(raw: string): ContentUrl {
  * can see it and losing it would lose content. The serializer escapes it, so
  * it cannot carry markup, and it holds no URL.
  */
-/**
- * The only identifier shape the renderer may emit.
- *
- * mdast-util-to-hast writes a footnote identifier as `user-content-fn-<label>`
- * or `user-content-fnref-<label>`. Requiring the prefix and one following
- * character keeps every identifier inside that namespace.
- */
-const namespacedId = /^user-content-[A-Za-z0-9]/;
-
 export const sanitizeSchema: SanitizeSchema = {
   strip: ['script', 'style'],
   clobber: [],

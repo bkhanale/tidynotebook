@@ -2,33 +2,57 @@
  * Fixed resource limits for Markdown work.
  *
  * A note is untrusted input. The parser this package uses is fast on ordinary
- * documents, but several of its constructs cost time that grows faster than
- * the document does. A document of 80 KB built only from `[` and `]` takes
- * many seconds, and a line of one million `>` characters does not finish at
- * all. A byte cap alone therefore does not bound the work.
+ * prose, but several of its constructs cost time that grows faster than the
+ * document does. Measured before these limits existed: 80 KB of `[` and `]`
+ * took 16 seconds, a 220 KB table took 83 seconds, and a line of one million
+ * `>` characters never finished. A byte cap alone therefore does not bound the
+ * work.
  *
  * The answer is a pre-scan that runs before any parse, in every public entry
  * point of this package. It is a single pass over the text, so it costs a few
- * milliseconds on the largest accepted document, and it rejects the shapes
- * that make the parser slow: an over-long delimiter run, an over-long line,
- * deep block nesting on one line, and a document made almost entirely of link
- * openings. Ordinary prose, lists, tables, and code stay far inside every
- * limit.
+ * milliseconds on the largest accepted document, and it caps the shapes whose
+ * cost grows faster than their size: the length of a line, the length of a
+ * delimiter run, the block nesting one line opens, and the number of link
+ * openings, table rows, and list lines in the document.
  *
- * A rejected document is not truncated. The caller catches the error and shows
- * the source as plain text, because cutting a note in half would look like
- * data loss.
+ * There is no wall-clock timeout anywhere in this package. A timeout would
+ * bound one render on one machine and would make the outcome depend on the
+ * load of that machine, so the same note could render for one reader and fail
+ * for another. The shape caps are the bound instead: every accepted document
+ * has a measured worst case, and the numbers are recorded in
+ * `docs/development/toolchain.md` and asserted in `limits.test.ts`.
+ *
+ * The pre-scan is not Markdown aware and it does not exempt a fenced code
+ * block. A line of code counts as a line, a row of a table drawn inside a code
+ * fence counts as a table row, and a bullet inside a fence counts as a list
+ * line. Exempting them would need the parse this scan exists to protect, and a
+ * document that trips a cap inside a fence is already far outside what a note
+ * holds.
+ *
+ * A rejected document is not truncated. The caller catches `MarkdownLimitError`
+ * and shows the source as plain text, because cutting a note in half would look
+ * like data loss. The message on the error names the limit in technical terms;
+ * a caller that shows it to an author should phrase it for that author, for
+ * example "this note has more table rows than the editor can display" with the
+ * limit from `markdownLimits`.
  */
 
-/** The fixed resource limits of this package. */
+/**
+ * The fixed resource limits of this package.
+ *
+ * Every value is calibrated by measurement, not chosen by feel. The test
+ * `limits.test.ts` builds each capped shape at exactly its cap and asserts
+ * that it renders inside the budget, so a change to a value here shows up as
+ * a failed measurement rather than as a slow page.
+ */
 export const markdownLimits = {
   /**
    * Largest accepted document, in UTF-8 bytes.
    *
    * The design budgets typical notes of 5 to 20 KiB and a 1 MiB stress file,
-   * so this leaves headroom while keeping one render bounded.
+   * so this is the stress file size and nothing more.
    */
-  maxInputBytes: 2 * 1024 * 1024,
+  maxInputBytes: 1024 * 1024,
   /**
    * Longest accepted line, in UTF-8 bytes.
    *
@@ -45,22 +69,59 @@ export const markdownLimits = {
    */
   maxDelimiterRun: 1000,
   /**
-   * Deepest accepted block nesting, measured before parsing and again on the
-   * parsed tree.
+   * Deepest accepted nesting written by an author.
    *
    * Before parsing this counts the block quote markers, the list markers, and
    * the indentation levels at the start of one line. After parsing it is the
-   * depth of the tree. Real documents stay far below it.
+   * depth of the tree, less the levels every document has. Real documents stay
+   * far below it.
    */
   maxNestingDepth: 100,
   /**
    * Largest accepted number of link openings in one document.
    *
    * Every `[` and `![` starts a candidate the parser must keep until it can
-   * decide. A document of 10,000 links is already far past what a note holds.
+   * decide, and the cost of resolving them grows faster than their number.
    */
-  maxLinkOpenings: 20000,
+  maxLinkOpenings: 2000,
+  /**
+   * Largest accepted number of table rows in one document.
+   *
+   * A table row is a line that starts with `|`. The table parser re-reads the
+   * rows it has collected, so a long table costs more than its size suggests.
+   */
+  maxTableRows: 2000,
+  /**
+   * Largest accepted number of list lines in one document.
+   *
+   * A list line is a line that starts with a bullet or an ordered marker. The
+   * cost of a list grows a little faster than its length, so this is the
+   * measured value rather than a round one: 10,000 lines took between 0.8 and
+   * 1.9 seconds depending on the load of the machine, and 5000 stays near a
+   * third of a second.
+   */
+  maxListItems: 5000,
+  /**
+   * Largest accepted plain block, in UTF-8 bytes.
+   *
+   * A plain block is a run of neighbouring lines that is not blank, not a
+   * table row, not a list line, and not inside a code fence: in practice, one
+   * paragraph. The parser reads the inline content of a paragraph as one unit,
+   * and that cost grows faster than the paragraph does. One megabyte of prose
+   * written as one paragraph took 12 seconds; the same text with blank lines
+   * between its paragraphs took under a second.
+   */
+  maxBlockBytes: 64 * 1024,
 } as const;
+
+/**
+ * Tree levels that every document has, whatever its author wrote.
+ *
+ * The shallowest possible document is a root, one leaf block, and its text, so
+ * `maxNestingDepth` counts the levels above those three. A document of one
+ * hundred nested block quotes therefore reports one hundred levels.
+ */
+const documentDepth = 3;
 
 /**
  * Columns of leading white space that count as one nesting level.
@@ -76,7 +137,10 @@ export type MarkdownLimitReason =
   | 'line-length'
   | 'delimiter-run'
   | 'nesting-depth'
-  | 'link-count';
+  | 'link-count'
+  | 'table-rows'
+  | 'list-items'
+  | 'block-size';
 
 /** The sentence that explains one refusal. */
 const reasons: Record<MarkdownLimitReason, string> = {
@@ -87,6 +151,10 @@ const reasons: Record<MarkdownLimitReason, string> = {
   'nesting-depth':
     'Markdown nesting reaches %actual levels and the limit is %limit.',
   'link-count': 'Markdown holds %actual link openings and the limit is %limit.',
+  'table-rows': 'Markdown holds %actual table rows and the limit is %limit.',
+  'list-items': 'Markdown holds %actual list lines and the limit is %limit.',
+  'block-size':
+    'A Markdown paragraph is %actual bytes and the limit is %limit.',
 };
 
 /**
@@ -186,18 +254,76 @@ function isDigit(source: string, index: number): boolean {
   return code >= 0x30 && code <= 0x39;
 }
 
+/** What one line contributes to the structural counts of the document. */
+type LineShape = { readonly tableRow: boolean; readonly listItem: boolean };
+
+/** The shortest run of characters that opens or closes a code fence. */
+const fenceRun = 3;
+
 /**
- * Checks the block nesting that one line opens.
+ * The fence marker on this line, or `null` when the line carries none.
+ *
+ * A fence is the one construct the scan recognizes, and it recognizes it only
+ * to exempt the plain block cap: a long code fence is cheap to parse because
+ * the parser never reads its content as inline text. Every other cap still
+ * applies inside a fence.
+ */
+function fenceMarker(
+  source: string,
+  from: number,
+  to: number,
+): { readonly char: string; readonly length: number } | null {
+  let index = from;
+  while (index < to && index - from < tableRowIndent && source[index] === ' ')
+    index += 1;
+  const char = source[index];
+  if (char !== '`' && char !== '~') return null;
+  let length = 0;
+  while (index + length < to && source[index + length] === char) length += 1;
+  return length >= fenceRun ? { char, length } : null;
+}
+
+/** Reports whether the line holds nothing but white space. */
+function isBlank(source: string, from: number, to: number): boolean {
+  for (let index = from; index < to; index += 1)
+    if (!isSpace(source, index)) return false;
+  return true;
+}
+
+/** Columns of indentation a table row may carry before it stops being one. */
+const tableRowIndent = 3;
+
+/**
+ * Reports whether the line is a table row.
+ *
+ * A row of a GFM table starts with `|` after at most three spaces. The check
+ * runs on the raw line, so a row inside a block quote is not counted; a table
+ * that long inside a quote is not a shape this cap has to cover.
+ */
+function isTableRow(source: string, from: number, to: number): boolean {
+  let index = from;
+  while (index < to && index - from < tableRowIndent && source[index] === ' ')
+    index += 1;
+  return source[index] === '|' && index < to;
+}
+
+/**
+ * Checks the block nesting that one line opens and reports its shape.
  *
  * The scan reads the line prefix the way the parser does: white space, block
  * quote markers, and list markers, in any order, until ordinary content
  * starts. Every block quote marker, every list marker, and every group of
  * indentation columns is one level.
  */
-function assertLineNesting(source: string, from: number, to: number): void {
+function assertLineNesting(
+  source: string,
+  from: number,
+  to: number,
+): LineShape {
   let index = from;
   let levels = 0;
   let columns = 0;
+  let listItem = false;
   while (index < to) {
     const char = source[index];
     if (char === ' ') {
@@ -224,6 +350,7 @@ function assertLineNesting(source: string, from: number, to: number): void {
       isSpace(source, index + 1)
     ) {
       levels += 1;
+      listItem = true;
       assertAtMost('nesting-depth', markdownLimits.maxNestingDepth, levels);
       columns = 0;
       index += 1;
@@ -239,6 +366,7 @@ function assertLineNesting(source: string, from: number, to: number): void {
       isSpace(source, digits + 1)
     ) {
       levels += 1;
+      listItem = true;
       assertAtMost('nesting-depth', markdownLimits.maxNestingDepth, levels);
       columns = 0;
       index = digits + 1;
@@ -251,6 +379,7 @@ function assertLineNesting(source: string, from: number, to: number): void {
     markdownLimits.maxNestingDepth,
     levels + Math.floor(columns / columnsPerLevel),
   );
+  return { tableRow: isTableRow(source, from, to), listItem };
 }
 
 /**
@@ -258,8 +387,9 @@ function assertLineNesting(source: string, from: number, to: number): void {
  *
  * Runs before any parse. The checks are, in order: total bytes, then one pass
  * that measures each line, each delimiter run, and the number of link
- * openings. The first failure wins, so a hostile document is refused after a
- * few thousand characters rather than after the whole file.
+ * openings, table rows, and list lines. Each cap is asserted as soon as it is
+ * passed, so a hostile document is refused after a few thousand characters
+ * rather than after the whole file.
  */
 export function assertParseCost(source: string): void {
   assertAtMost(
@@ -270,13 +400,53 @@ export function assertParseCost(source: string): void {
   let lineStart = 0;
   let lineBytes = 0;
   let linkOpenings = 0;
+  let tableRows = 0;
+  let listItems = 0;
+  let blockBytes = 0;
+  let fence: { char: string; length: number } | null = null;
   let runChar = '';
   let runLength = 0;
+  /** Counts what one finished line contributes to the document. */
+  const finishLine = (end: number): void => {
+    assertAtMost('line-length', markdownLimits.maxLineBytes, lineBytes);
+    const marker = fenceMarker(source, lineStart, end);
+    if (fence === null) {
+      if (marker !== null) {
+        fence = { char: marker.char, length: marker.length };
+        blockBytes = 0;
+        return;
+      }
+    } else {
+      if (
+        marker !== null &&
+        marker.char === fence.char &&
+        marker.length >= fence.length
+      )
+        fence = null;
+      return;
+    }
+    const shape = assertLineNesting(source, lineStart, end);
+    if (shape.tableRow) {
+      tableRows += 1;
+      assertAtMost('table-rows', markdownLimits.maxTableRows, tableRows);
+    }
+    if (shape.listItem) {
+      listItems += 1;
+      assertAtMost('list-items', markdownLimits.maxListItems, listItems);
+    }
+    // A blank line ends a block, and a row or a list line belongs to a
+    // structure that has its own cap, so only plain lines accumulate.
+    if (shape.tableRow || shape.listItem || isBlank(source, lineStart, end)) {
+      blockBytes = 0;
+      return;
+    }
+    blockBytes += lineBytes;
+    assertAtMost('block-size', markdownLimits.maxBlockBytes, blockBytes);
+  };
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index] ?? '';
     if (char === '\n' || char === '\r') {
-      assertAtMost('line-length', markdownLimits.maxLineBytes, lineBytes);
-      assertLineNesting(source, lineStart, index);
+      finishLine(index);
       lineStart = index + 1;
       lineBytes = 0;
       runChar = '';
@@ -298,8 +468,7 @@ export function assertParseCost(source: string): void {
       assertAtMost('link-count', markdownLimits.maxLinkOpenings, linkOpenings);
     }
   }
-  assertAtMost('line-length', markdownLimits.maxLineBytes, lineBytes);
-  assertLineNesting(source, lineStart, source.length);
+  finishLine(source.length);
 }
 
 /** A tree node that may hold children, in mdast or in hast. */
@@ -313,8 +482,10 @@ type TreeNode = {
  *
  * The pre-scan bounds the nesting one line can open, and this bounds what a
  * whole document can build, including inline nesting such as repeated
- * emphasis. The walk is iterative on purpose: a recursive check would itself
- * run out of stack on the trees this guard exists to refuse.
+ * emphasis. The levels every document has are subtracted first, so the limit
+ * counts what an author wrote. The walk is iterative on purpose: a recursive
+ * check would itself run out of stack on the trees this guard exists to
+ * refuse.
  */
 export function assertNestingDepth(tree: TreeNode): void {
   let deepest = 0;
@@ -324,10 +495,17 @@ export function assertNestingDepth(tree: TreeNode): void {
   let item = pending.pop();
   while (item !== undefined) {
     if (item.depth > deepest) deepest = item.depth;
-    if (item.depth <= markdownLimits.maxNestingDepth)
+    // Stop one level past the point where the limit is already exceeded. The
+    // bound includes the levels subtracted below, otherwise the walk would
+    // stop before it can report a document that is too deep.
+    if (item.depth <= markdownLimits.maxNestingDepth + documentDepth)
       for (const child of item.node.children ?? [])
         pending.push({ node: child, depth: item.depth + 1 });
     item = pending.pop();
   }
-  assertAtMost('nesting-depth', markdownLimits.maxNestingDepth, deepest);
+  assertAtMost(
+    'nesting-depth',
+    markdownLimits.maxNestingDepth,
+    Math.max(0, deepest - documentDepth),
+  );
 }

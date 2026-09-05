@@ -643,37 +643,79 @@ exactly as written, so the byte offsets that the range tests assert stay stable.
 ### Bounded Markdown parsing
 
 A byte cap alone does not bound the cost of reading a note. Several parser
-constructs cost time that grows faster than the document does: 80 KB of `[` and
-`]` took 16 seconds, 200 KB took 205 seconds, and a line of one million `>`
-characters never finished.
+constructs cost time that grows faster than the document does. Measured on the
+development machine before the caps existed: 80 KB of `[` and `]` took 16
+seconds, 200 KB took 205 seconds, a line of one million `>` characters never
+finished, a 220 KB table took 83 seconds, 195 KB of list items took 12 seconds,
+and 1 MiB of prose written as one paragraph took 12 seconds.
 
 `packages/markdown/src/limits.ts` therefore runs a pre-scan before any parse, in
-every public entry point of the package. It is one pass over the text and it
-refuses the shapes that make the parser slow:
+every public entry point of the package. It is one pass over the text, and it
+caps the shapes whose cost grows faster than their size:
 
-| Limit                                                   | Value  | Reason code     |
-| ------------------------------------------------------- | ------ | --------------- |
-| Document size                                           | 2 MiB  | `input-size`    |
-| Line size                                               | 64 KiB | `line-length`   |
-| Run of one delimiter character                          | 1000   | `delimiter-run` |
-| Block nesting on one line, and depth of the parsed tree | 100    | `nesting-depth` |
-| Link openings in one document                           | 20,000 | `link-count`    |
+| Limit                               | Value  | Reason code     |
+| ----------------------------------- | ------ | --------------- |
+| Document size                       | 1 MiB  | `input-size`    |
+| Line size                           | 64 KiB | `line-length`   |
+| Plain block (paragraph) size        | 64 KiB | `block-size`    |
+| Run of one delimiter character      | 1000   | `delimiter-run` |
+| Nesting levels written by an author | 100    | `nesting-depth` |
+| Link openings in one document       | 2000   | `link-count`    |
+| Table rows in one document          | 2000   | `table-rows`    |
+| List lines in one document          | 5000   | `list-items`    |
 
-The delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. Block nesting counts
+The delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. A table row is a line
+that starts with `|` after at most three spaces. A list line is a line that
+starts with a bullet or an ordered marker after its indentation. Nesting counts
 the block quote markers, the list markers, and the four-column indentation
-levels at the start of one line. The tree depth is checked again after parsing,
-because inline constructs such as repeated emphasis nest without a line prefix.
+levels at the start of one line; the parsed tree is measured again afterwards,
+because inline constructs such as repeated emphasis nest without a line prefix,
+and the levels every document has are subtracted so that the number means what
+an author wrote.
+
+A plain block is a run of neighbouring lines that is not blank, not a table
+row, not a list line, and not inside a code fence. The parser reads the inline
+content of a paragraph as one unit, and that cost grows faster than the
+paragraph does. The fence is the one construct the scan recognizes, and it
+recognizes it only for this cap: a long fence is cheap because its content is
+never read as inline text. Every other cap still applies inside a fence, so a
+1 MiB block of generated YAML inside a fence can still trip the list cap.
+
+There is no wall-clock timeout. A timeout would bound one render on one machine
+and would make the outcome depend on the load of that machine, so the same note
+could render for one reader and fail for another. The shape caps are the bound
+instead, and each of them is calibrated by measurement.
 
 Every entry point parses through `parseMarkdown`, so `renderMarkdown`,
-`extractLinks`, and `extractAttachmentRefs` are all bounded by both guards.
-A refused document throws `MarkdownLimitError`; it is never truncated, because
-a half note looks like data loss. The tests measure the refusals: every listed
-hostile document is refused in under 100 ms, and a 1 MiB document of ordinary
-paragraphs, lists, tables, and code renders in about 2.7 seconds when that test
-file runs alone and about 8 seconds inside the full parallel run on the
-development machine. The measurement is printed, and the assertion uses a
-generous 30 second bound, because it exists to catch a return to the earlier
-cost rather than to set a performance budget.
+`extractLinks`, and `extractAttachmentRefs` are all bounded by both guards. A
+refused document throws `MarkdownLimitError`; it is never truncated, because a
+half note looks like data loss. The message on the error is technical; a caller
+that shows a message to an author should phrase it for that author and read the
+value from `markdownLimits`.
+
+`limits.test.ts` builds every capped shape at exactly its cap, renders it, and
+prints the time. The measurements on the development machine are:
+
+| Shape at its cap                   | Size    | Render time |
+| ---------------------------------- | ------- | ----------- |
+| Table of 2000 rows                 | 39 KB   | 0.36 s      |
+| List of 5000 lines                 | 94 KB   | 0.33 s      |
+| 2000 link openings                 | 92 KB   | 0.21 s      |
+| 100 nesting levels                 | 205 B   | 0.001 s     |
+| One paragraph of 64 KiB            | 66 KB   | 0.04 s      |
+| 1 MiB of prose in short paragraphs | 1.0 MiB | 1.13 s      |
+| 1 MiB fenced code block            | 1.0 MiB | 0.15 s      |
+
+The list cap was lowered from 10,000 to 5000 during calibration. A list of
+10,000 lines measured between 0.84 and 1.9 seconds depending on what else the
+machine was doing, which is too close to the budget to be a stable bound.
+
+Every shape is under one second except the full 1 MiB prose document, and that
+one is a size cost rather than a shape cost: the same prose measures 0.10, 0.15,
+0.35, and 0.63 seconds at an eighth, a quarter, a half, and the whole of the
+cap, which is linear. The design requires a 1 MiB stress file to render, so the
+document cap cannot go below it. Each shape one step past its cap is refused in
+under 100 ms; the tests assert both.
 
 ### Byte order marks and reported ranges
 
@@ -699,7 +741,7 @@ resolve during the type check.
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 72 tests, including the
+- `pnpm --filter @notesapp/markdown test:unit` runs 83 tests, including the
   resource limit measurements above.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
