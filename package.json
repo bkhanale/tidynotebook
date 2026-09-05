@@ -1,0 +1,28 @@
+{
+  "name": "notesapp",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.3.4",
+  "engines": {
+    "node": "26.8.1",
+    "pnpm": "12.3.4"
+  },
+  "scripts": {
+    "versions:check": "node tools/check-versions.mjs",
+    "typecheck": "tsc -p tsconfig.tools.json && pnpm -r --if-present typecheck",
+    "lint": "node tools/check-versions.mjs && oxlint --deny-warnings && node tools/check-boundaries.mjs",
+    "format:check": "prettier --check .",
+    "format": "prettier --write .",
+    "test:unit": "node tools/run-tests.mjs unit",
+    "test:integration": "node tools/run-tests.mjs integration",
+    "build": "tsc -p tsconfig.tools.json && pnpm -r --if-present build"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "oxc-parser": "0.148.0",
+    "oxlint": "1.81.0",
+    "oxlint-tsgolint": "7.0.2001",
+    "prettier": "3.9.6",
+    "typescript": "7.0.2"
+  }
+}

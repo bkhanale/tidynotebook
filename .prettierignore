@@ -1,0 +1,11 @@
+node_modules/
+.tooling/
+dist/
+coverage/
+pnpm-lock.yaml
+progress.md
+packages/api-client/src/generated/
+packages/api-contract/src/generated/
+# Approved input documents retain their existing formatting.
+docs/design/001-initial-design.md
+docs/plans/001-initial-implementation.md

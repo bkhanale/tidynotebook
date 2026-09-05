@@ -1,0 +1,9 @@
+packages:
+  - apps/*
+  - packages/*
+  - tools/sdk-codegen
+strictPeerDependencies: true
+autoInstallPeers: false
+saveExact: true
+engineStrict: true
+linkWorkspacePackages: false

@@ -1,0 +1,237 @@
+# Toolchain
+
+Verified on 2026-09-05 against the npm registry and official release sources.
+The root installs quality tools only. Application packages are added by their
+implementation tasks. No E2E dependency, test, fixture, configuration, or CI job
+is included.
+
+## Runtime and package manager
+
+Use Node 26.8.1 and pnpm 12.3.4. `.node-version`, `engines`, and `packageManager`
+record the pins. The Node Linux x64 archive was checked against its official
+SHA-256 manifest. The pnpm native package was checked against registry integrity.
+This session keeps both runtimes in ignored `.tooling/` paths. No global runtime
+or Git configuration was changed.
+
+```sh
+export PATH="$PWD/.tooling/bin:$PATH"
+node --version
+pnpm --version
+pnpm install --frozen-lockfile
+```
+
+The local executable paths are `.tooling/bin/node` and `.tooling/bin/pnpm`. A new
+checkout can use an existing installation of the exact versions. The ignored
+local downloads are not part of the build contract.
+
+The [Node release index](https://nodejs.org/dist/index.json) lists 26.8.1 as Current.
+The [pnpm installation guide](https://pnpm.io/installation) describes pnpm 12 as a
+native executable and uses the `latest-12` channel. Its npm installer needs Node
+22.13 or later, while registry engines say `>=18.*`. Node 26.8.1 meets both.
+[Node checksums](https://nodejs.org/dist/v26.8.1/SHASUMS256.txt).
+
+## Checked package versions
+
+Every version below exists as a stable registry release. The link is the exact
+metadata checked. Packages outside the root quality tools are checked, not yet
+installed as application dependencies. Recheck their metadata immediately before
+the task that installs them. Registry availability does not prove runtime behavior.
+
+| Package                                                                                         | Version  | Status          |
+| ----------------------------------------------------------------------------------------------- | -------- | --------------- |
+| [react](https://registry.npmjs.org/react/19.2.8)                                                | 19.2.8   | Later task      |
+| [react-dom](https://registry.npmjs.org/react-dom/19.2.8)                                        | 19.2.8   | Later task      |
+| [vite](https://registry.npmjs.org/vite/8.2.2)                                                   | 8.2.2    | Later task      |
+| [react-router](https://registry.npmjs.org/react-router/8.3.1)                                   | 8.3.1    | Later task      |
+| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3)                                     | 4.3.3    | Later task      |
+| [@base-ui/react](https://registry.npmjs.org/@base-ui/react/1.8.0)                               | 1.8.0    | Later task      |
+| [@codemirror/state](https://registry.npmjs.org/@codemirror/state/6.7.4)                         | 6.7.4    | Later task      |
+| [@codemirror/view](https://registry.npmjs.org/@codemirror/view/6.43.11)                         | 6.43.11  | Later task      |
+| [@codemirror/commands](https://registry.npmjs.org/@codemirror/commands/6.11.0)                  | 6.11.0   | Later task      |
+| [@codemirror/language](https://registry.npmjs.org/@codemirror/language/6.12.4)                  | 6.12.4   | Later task      |
+| [@codemirror/lang-markdown](https://registry.npmjs.org/@codemirror/lang-markdown/6.5.2)         | 6.5.2    | Later task      |
+| [unified](https://registry.npmjs.org/unified/11.0.5)                                            | 11.0.5   | Later task      |
+| [remark-parse](https://registry.npmjs.org/remark-parse/11.0.0)                                  | 11.0.0   | Later task      |
+| [remark-gfm](https://registry.npmjs.org/remark-gfm/4.0.1)                                       | 4.0.1    | Later task      |
+| [remark-math](https://registry.npmjs.org/remark-math/6.0.0)                                     | 6.0.0    | Later task      |
+| [remark-rehype](https://registry.npmjs.org/remark-rehype/11.1.2)                                | 11.1.2   | Later task      |
+| [rehype-sanitize](https://registry.npmjs.org/rehype-sanitize/6.0.0)                             | 6.0.0    | Later task      |
+| [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)                          | 10.0.1   | Later task      |
+| [katex](https://registry.npmjs.org/katex/0.18.5)                                                | 0.18.5   | Later task      |
+| [mermaid](https://registry.npmjs.org/mermaid/11.17.2)                                           | 11.17.2  | Later task      |
+| [fastify](https://registry.npmjs.org/fastify/5.12.3)                                            | 5.12.3   | Later task      |
+| [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                                  | 2.51.2   | Later task      |
+| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                                    | 8.20.0   | Later task      |
+| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                     | 3.0.1    | Later task      |
+| [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                                    | 0.45.2   | Later task      |
+| [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                                   | 0.31.10  | Later task      |
+| [pg](https://registry.npmjs.org/pg/8.23.0)                                                      | 8.23.0   | Later task      |
+| [dexie](https://registry.npmjs.org/dexie/4.4.5)                                                 | 4.4.5    | Later task      |
+| [vite-plugin-pwa](https://registry.npmjs.org/vite-plugin-pwa/1.3.0)                             | 1.3.0    | Later task      |
+| [workbox-build](https://registry.npmjs.org/workbox-build/7.4.1)                                 | 7.4.1    | Later task      |
+| [@modelcontextprotocol/server](https://registry.npmjs.org/@modelcontextprotocol/server/2.0.0)   | 2.0.0    | Later task      |
+| [@modelcontextprotocol/client](https://registry.npmjs.org/@modelcontextprotocol/client/2.0.0)   | 2.0.0    | Later task      |
+| [@modelcontextprotocol/fastify](https://registry.npmjs.org/@modelcontextprotocol/fastify/2.0.0) | 2.0.0    | Later task      |
+| [@modelcontextprotocol/node](https://registry.npmjs.org/@modelcontextprotocol/node/2.0.0)       | 2.0.0    | Later task      |
+| [typescript](https://registry.npmjs.org/typescript/7.0.2)                                       | 7.0.2    | Root tool       |
+| [pnpm](https://registry.npmjs.org/pnpm/12.3.4)                                                  | 12.3.4   | Package manager |
+| [oxlint](https://registry.npmjs.org/oxlint/1.81.0)                                              | 1.81.0   | Root tool       |
+| [oxlint-tsgolint](https://registry.npmjs.org/oxlint-tsgolint/7.0.2001)                          | 7.0.2001 | Root tool       |
+| [prettier](https://registry.npmjs.org/prettier/3.9.6)                                           | 3.9.6    | Root tool       |
+| [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)                    | 0.99.0   | Later task      |
+| [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                                     | 1.7.2    | Later task      |
+| [@better-auth/oauth-provider](https://registry.npmjs.org/@better-auth/oauth-provider/1.7.2)     | 1.7.2    | Later task      |
+| [@types/node](https://registry.npmjs.org/@types/node/26.4.1)                                    | 26.4.1   | Root tool       |
+| [oxc-parser](https://registry.npmjs.org/oxc-parser/0.148.0)                                     | 0.148.0  | Root tool       |
+
+`@types/node` 26.4.1 matches the runtime major. `oxc-parser` 0.148.0 is an
+additional development dependency. The boundary checker uses its TypeScript AST
+to inspect imports and transport calls. This avoids dependence on the removed
+TypeScript 7 JavaScript compiler API. It requires Node `^20.19.0 || >=22.12.0`.
+
+## Compatibility evidence
+
+- TypeScript 7.0.2 compiles the tooling with `strict`,
+  `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes`. Its CLI works.
+  Its default export reports the version, but `factory` and `createProgram` are
+  undefined. It does not expose the legacy JavaScript compiler API. The
+  [TypeScript 7 release notes](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
+  describe the native compiler transition.
+- SDK code generation must own an exact TypeScript 6.0.3 dependency in
+  `tools/sdk-codegen`. The [6.0.3 metadata](https://registry.npmjs.org/typescript/6.0.3)
+  requires Node `>=14.17`. Hey API 0.99.0 requires Node `>=22.18.0` and declares
+  TypeScript peers `>=5.5.3 || >=6.0.0 || 6.0.1-rc`. That broad peer range does
+  not prove compiler API support in TypeScript 7. An isolated local probe ran
+  the generator with the TS 6 compiler API and produced a health-operation SDK.
+  [Hey API release](https://github.com/hey-api/hey-api/releases/tag/@hey-api%2Fopenapi-ts@0.99.0).
+- The probe exposed a real limitation: default generated fetch transport fails
+  strict TS 7 checks with `exactOptionalPropertyTypes`. Reported fields include
+  `serializedBody`, `allowReserved`, `path`, `map`, and SSE request/event fields.
+  Task 2 must resolve this in the generation process and pass the full generated
+  output check. Application strict settings remain enabled. No handwritten SDK
+  or transport has been added. This probe does not claim SDK compatibility.
+- Better Auth 1.7.2 directly requires `@better-auth/utils` 0.4.2. The OAuth
+  provider 1.7.2 also requires exactly 0.4.2 as a peer. Retain that nested version;
+  do not override it to a newer major. The provider requires Better Auth and
+  core `^1.7.2`, better-call 1.4.0, and better-fetch 1.3.1. Its owning package
+  must supply required peers when introduced.
+- React DOM 19.2.8 requires React `^19.2.8`. Router 8.3.1 requires React and
+  React DOM `>=19.2.7` and Node `>=22.22.0`. The selected versions meet these
+  ranges. Base UI accepts React 19. Optional date and type peers are recorded
+  upstream and must be installed only when needed.
+- Vite 8.2.2 requires Node `^20.19.0 || >=22.12.0`. PWA plugin 1.3.0 accepts
+  Vite 8 and Workbox `^7.4.1`. Its assets generator peer is optional.
+- Ajv formats 3.0.1 accepts Ajv `^8.0.0`. Redocly 2.51.2 accepts Node 26. Use
+  Ajv's explicit 2020-12 entry point for the contract, as described in
+  [Ajv dialect support](https://ajv.js.org/json-schema.html).
+- Drizzle ORM 0.45.2 accepts pg `>=8`; pg 8.23.0 requires Node `>=16`.
+  Better Auth accepts the selected Drizzle ORM and Kit versions.
+- MCP adapters 2.0.0 require Node `>=20`. The Fastify adapter accepts Fastify
+  `^5.2.0` and MCP server `^2.0.0`. The Node adapter also requires Hono
+  `^4.11.4`; verify and pin that peer if the later task uses this adapter.
+- Oxlint 1.81.0 requires Node `^20.19.0 || >=22.12.0` and the selected
+  oxlint-tsgolint version `>=7.0.2001`. Its vite-plus peer is optional.
+  [Oxlint release](https://github.com/oxc-project/oxc/releases/tag/oxlint_v1.81.0).
+- PostgreSQL 18.6 is recorded in its
+  [official release notes](https://www.postgresql.org/docs/release/18.6/).
+  Docker and Compose are reference deployment versions in the design, not
+  installed by this task. The host currently has Docker 26.1.5 and Compose
+  2.26.1. Their application checks belong to the storage and deployment tasks.
+
+## Workspace conventions
+
+`pnpm-workspace.yaml` discovers `apps/*`, `packages/*`, and
+`tools/sdk-codegen`. Installation uses exact versions, strict engines and peers,
+no automatic peer installation, and explicit `workspace:*` links. There are no
+major-version overrides. The lockfile records the installed root tool graph.
+
+Each new package must have its assigned `@notesapp/` name, `package.json`,
+`tsconfig.json`, `src/index.ts`, and `typecheck`, `build`, and `test:unit` scripts.
+Expose only `exports["."]`. Do not expose internal paths. Configure runtime
+exports for the package build. Package test scripts call
+`node ../../tools/run-tests.mjs unit`; the runner uses the current package.
+
+Application packages extend `tsconfig.base.json` and use root TypeScript 7.
+Browser packages add DOM libraries and bundler resolution where required.
+Server packages add Node types. Code generation extends the same strict base
+but invokes its own TypeScript 6 executable. The root tooling context is
+`tsconfig.tools.json`, with strict JavaScript checks for `tools/*.mjs`.
+The recursive root commands run each package's own compiler/build script.
+
+## Commands and boundaries
+
+| Command                             | Behavior                                                            |
+| ----------------------------------- | ------------------------------------------------------------------- |
+| `pnpm typecheck`                    | Check tool scripts with TS 7, then package type checks.             |
+| `pnpm lint`                         | Check pins and runtime, Oxlint import rules, and source boundaries. |
+| `pnpm format:check`                 | Check maintained source and configuration formatting.               |
+| `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.           |
+| `pnpm test:integration -- contract` | Run the named service integration test.                             |
+| `pnpm build`                        | Check tools, then run package builds in dependency order.           |
+
+Test selectors match a basename without `.test.ts` or an exact repository-relative
+path. Every supplied selector must exist. A missing selector exits 1. Test
+failures and process failures exit nonzero. An unfiltered suite with no tests
+prints an explicit message; it does not claim that tests passed. No application
+tests exist at Task 1.
+
+The boundary checker rejects package cycles, disallowed dependency directions,
+deep imports, relative imports outside a package, undeclared imports, browser
+imports of Node modules and server dependencies, and handwritten application
+HTTP transports. It parses JavaScript and TypeScript, including re-exports and
+literal dynamic imports. Computed dynamic imports are rejected. Oxlint also
+checks import cycles within source modules.
+
+Generated output exceptions apply only to the two contract/client generated
+paths. Protocol exceptions use exact adapter files:
+`apps/server/src/auth/better-auth.ts`, `apps/server/src/mcp/server.ts`, and
+`apps/mcp-stdio/src/main.ts`. PWA asset handling uses only
+`apps/web/src/pwa/service-worker.ts`; literal application API paths are rejected
+there. Package direction, browser dependencies, and deep-import checks still
+apply to exceptions. Code review must check semantic wrappers and computed
+endpoints that a static rule cannot prove.
+
+The checker accepts `--root <directory>` for disposable verification inputs.
+These inputs stay under ignored `.tooling/` and are not application fixtures.
+Formatting excludes generated output, local progress notes, and the two approved
+design/plan input documents. Their existing formatting is not changed by this task.
+
+## Task 1 verification
+
+The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
+
+- `pnpm install` and `pnpm install --frozen-lockfile`.
+- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, and `pnpm build`.
+- `pnpm test:unit` and `pnpm test:integration` report no tests yet.
+- A disposable checker root accepted a valid core package. It rejected seven
+  cases: a deep import, a browser Node import, direct fetch, computed fetch, a
+  cross-package relative re-export, a package cycle, and a computed import.
+- `pnpm test:integration -- missing-task1-probe` exited 1. A temporary tool unit
+  test was selected by name and propagated its intentional failure as exit 1.
+  The temporary test was removed after the check.
+
+The SDK probe generated output using `@hey-api/typescript`, `@hey-api/sdk`, and
+`@hey-api/client-fetch`, then ran this command:
+
+```sh
+pnpm exec tsc --ignoreConfig --noEmit --strict --noUncheckedIndexedAccess \
+  --exactOptionalPropertyTypes --module NodeNext --target ES2024 \
+  .tooling/compat/generated/index.ts
+```
+
+That probe failed with TS2379 or TS2375 in these generated files:
+
+| File                           | Lines           | Incompatible optional fields |
+| ------------------------------ | --------------- | ---------------------------- |
+| `client/client.gen.ts`         | 93, 105, 230    | `serializedBody`, SSE `body` |
+| `client/utils.gen.ts`          | 31, 41, 51, 158 | `allowReserved`, `path`      |
+| `core/params.gen.ts`           | 73              | `map`                        |
+| `core/pathSerializer.gen.ts`   | 99, 163         | `allowReserved`              |
+| `core/serverSentEvents.gen.ts` | 119, 206        | `body`, `event`              |
+
+For example, `string | undefined` is passed to an optional `string` field while
+exact optional checking is enabled. The fetch plugin's published types expose
+`bundle` and `runtimeConfigPath` options. A search of the installed generator
+found no `exactOptionalPropertyTypes` setting. These observations are evidence
+for Task 2, not a selected workaround. The probe and diagnostics remain local
+under `.tooling/compat/`; application output has not been created.
