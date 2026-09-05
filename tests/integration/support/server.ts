@@ -15,6 +15,7 @@ import type {
   HandlerMap,
   IdentityResolver,
   ProtocolAdapter,
+  ProtocolResult,
   ServerConfig,
 } from '@notesapp/server';
 import {
@@ -22,7 +23,9 @@ import {
   betterAuthProtocol,
   createAppWithHandlers,
   createHandlers,
+  createProblem,
   loadServerConfig,
+  problemMediaType,
   UnauthenticatedError,
 } from '@notesapp/server';
 
@@ -47,12 +50,21 @@ const anonymousIdentity: IdentityResolver = () =>
 const stubProtocol: ProtocolAdapter = {
   protocol: betterAuthProtocol,
   routes: authRoutes,
-  handler: async (_request, reply): Promise<void> => {
-    await reply
-      .status(503)
-      .header('content-type', 'application/json')
-      .send(JSON.stringify({ status: false }));
-  },
+  handle: (request): Promise<ProtocolResult> =>
+    Promise.resolve({
+      status: 503,
+      mediaType: problemMediaType,
+      headers: [],
+      cookies: [],
+      body: createProblem({
+        code: 'not_ready',
+        status: 503,
+        detail: 'This test server serves no identity.',
+        instance: request.url.split('?')[0] ?? request.url,
+        requestId: request.id,
+      }),
+      bytes: null,
+    }),
 };
 
 /** A listening test server and the call that stops it. */
@@ -88,6 +100,8 @@ export function testEnvironment(storageRoot: string): Record<string, string> {
     NOTESAPP_ORIGIN: 'http://127.0.0.1',
     NOTESAPP_DATABASE_URL:
       'postgres://notesapp:notesapp@127.0.0.1:5432/notesapp',
+    NOTESAPP_AUTH_DATABASE_URL:
+      'postgres://notesapp_auth:notesapp_auth@127.0.0.1:5432/notesapp',
     NOTESAPP_STORAGE_ROOT: storageRoot,
     NOTESAPP_AUTH_SECRET: 'test-secret-value-for-integration-checks',
     NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',

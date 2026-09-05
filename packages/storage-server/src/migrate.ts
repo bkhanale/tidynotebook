@@ -25,6 +25,15 @@ import {
 /** The name of the runtime role that the migration creates. */
 export const runtimeRole = 'notesapp_app';
 
+/**
+ * The name of the identity role that the migration creates.
+ *
+ * It holds every right on the four Better Auth tables and no right anywhere
+ * else. Only the connection that Better Auth owns uses it, so the application
+ * cannot read a session token, a password hash, or a reset token.
+ */
+export const authRole = 'notesapp_auth';
+
 /** The reviewed migration directory of this package. */
 export function migrationsFolder(): string {
   return fileURLToPath(new URL('../migrations/', import.meta.url));
@@ -36,6 +45,8 @@ export type MigrationRun = {
   readonly databaseUrl: string;
   /** The password that the runtime role receives after the migrations apply. */
   readonly runtimePassword: string;
+  /** The password that the identity role receives after they apply. */
+  readonly authPassword: string;
 };
 
 /**
@@ -45,26 +56,41 @@ export type MigrationRun = {
  * the applied set in its own bookkeeping table.
  */
 export async function runMigrations(run: MigrationRun): Promise<void> {
-  if (run.runtimePassword.length < 12) {
+  for (const [name, value] of [
+    ['runtime', run.runtimePassword],
+    ['identity', run.authPassword],
+  ] as const) {
+    if (value.length < 12) {
+      throw new Error(
+        `notesapp: the ${name} role password must have at least 12 characters.`,
+      );
+    }
+  }
+  if (run.runtimePassword === run.authPassword) {
     throw new Error(
-      'notesapp: the runtime role password must have at least 12 characters.',
+      'notesapp: the runtime role and the identity role need different passwords.',
     );
   }
   const client = new pg.Client({ connectionString: run.databaseUrl });
   await client.connect();
   try {
     await migrate(drizzle(client), { migrationsFolder: migrationsFolder() });
-    // DDL cannot take a bind parameter, so PostgreSQL itself quotes the
-    // literal and the result is executed as one statement.
-    const built = await client.query<{ statement: string }>(
-      'select format($1, $2::text) as statement',
-      [`alter role ${runtimeRole} with password %L`, run.runtimePassword],
-    );
-    const statement = built.rows[0]?.statement;
-    if (statement === undefined) {
-      throw new Error('notesapp: the runtime role password was not built.');
+    for (const [role, password] of [
+      [runtimeRole, run.runtimePassword],
+      [authRole, run.authPassword],
+    ] as const) {
+      // DDL cannot take a bind parameter, so PostgreSQL itself quotes the
+      // literal and the result is executed as one statement.
+      const built = await client.query<{ statement: string }>(
+        'select format($1, $2::text) as statement',
+        [`alter role ${role} with password %L`, password],
+      );
+      const statement = built.rows[0]?.statement;
+      if (statement === undefined) {
+        throw new Error(`notesapp: the ${role} password was not built.`);
+      }
+      await client.query(statement);
     }
-    await client.query(statement);
   } finally {
     await client.end();
   }
@@ -80,6 +106,7 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
 export const testDatabaseUrl =
   'postgres://notesapp_migrate:notesapp_migrate_test@127.0.0.1:55432/notesapp_test';
 export const testRuntimePassword = 'notesapp_app_test_password';
+export const testAuthPassword = 'notesapp_auth_test_password';
 
 /** Reads a required environment value. */
 function required(name: string): string {
@@ -103,11 +130,14 @@ async function loadProfile(profile: MigrationProfile): Promise<MigrationRun> {
       databaseUrl: process.env['NOTESAPP_TEST_DATABASE_URL'] || testDatabaseUrl,
       runtimePassword:
         process.env['NOTESAPP_RUNTIME_PASSWORD'] || testRuntimePassword,
+      authPassword:
+        process.env['NOTESAPP_AUTH_DATABASE_PASSWORD'] || testAuthPassword,
     };
   }
   return {
     databaseUrl: await readSecretFile('NOTESAPP_DATABASE_URL_FILE'),
     runtimePassword: await readSecretFile('NOTESAPP_RUNTIME_PASSWORD_FILE'),
+    authPassword: await readSecretFile('NOTESAPP_AUTH_PASSWORD_FILE'),
   };
 }
 

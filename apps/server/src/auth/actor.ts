@@ -17,7 +17,11 @@ import type { Actor } from '@notesapp/core';
 import { sessionGrants, tokenGrants, verifyActor } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
 import type { IdentityResolver } from '../http/register.ts';
-import { ForbiddenError, UnauthenticatedError } from '../http/problem.ts';
+import {
+  ForbiddenError,
+  OriginRequiredError,
+  UnauthenticatedError,
+} from '../http/problem.ts';
 import { toRequestHeaders, type NotesappAuth } from './better-auth.ts';
 
 /** Which transport proved the identity of a request. */
@@ -128,13 +132,17 @@ function readSessionUser(
   };
 }
 
+/** What a cookie authenticated write may do. */
+export type OriginDecision = 'accepted' | 'foreign' | 'missing';
+
 /**
- * Rejects a cookie authenticated write that a foreign page started.
+ * Decides a cookie authenticated write by its origin headers.
  *
- * A browser always sends `Origin` on a write, so a value that differs from the
- * configured origin is a cross-site request. A request without the header did
- * not come from a browser page, so it cannot be a cross-site request forgery;
- * it still needs its session cookie to be accepted at all.
+ * A browser always sends `Origin` or the Fetch Metadata headers on a write, so
+ * the check is positive rather than permissive: the request must name the
+ * configured origin, or state that it is same-origin. A request with neither
+ * header did not come from a browser page, and a non-browser client uses an
+ * agent token instead of a session cookie.
  */
 export function checkWriteOrigin(
   origin: string,
@@ -143,16 +151,13 @@ export function checkWriteOrigin(
     readonly origin?: string | undefined;
     readonly site?: string | undefined;
   },
-): boolean {
-  if (safeMethods.has(method.toUpperCase())) return true;
-  if (headers.origin !== undefined && headers.origin !== origin) return false;
-  if (
-    headers.site !== undefined &&
-    headers.site !== 'same-origin' &&
-    headers.site !== 'none'
-  )
-    return false;
-  return true;
+): OriginDecision {
+  if (safeMethods.has(method.toUpperCase())) return 'accepted';
+  if (headers.origin !== undefined)
+    return headers.origin === origin ? 'accepted' : 'foreign';
+  if (headers.site !== undefined)
+    return headers.site === 'same-origin' ? 'accepted' : 'foreign';
+  return 'missing';
 }
 
 /** Reads one header as a single string. */
@@ -225,10 +230,15 @@ export function createIdentityAdapter(
   async function resolveActor(
     request: FastifyRequest,
   ): Promise<ResolvedActor | null> {
-    // An explicit bearer credential wins, so a browser that also holds a
-    // session cannot silently widen an agent call.
-    const secret = bearerSecret(request.headers.authorization);
-    if (secret !== null) return fromToken(secret);
+    // An explicit credential wins, so a browser that also holds a session
+    // cannot silently widen an agent call. A malformed value is refused here
+    // and never falls through to the cookie, because a caller that meant to
+    // present a token must not be authenticated as somebody else.
+    const header = request.headers.authorization;
+    if (header !== undefined) {
+      const secret = bearerSecret(header);
+      return secret === null ? null : fromToken(secret);
+    }
     return fromSession(request);
   }
 
@@ -245,16 +255,17 @@ export function createIdentityAdapter(
       throw new UnauthenticatedError(
         'This operation does not accept the supplied credential.',
       );
-    if (
-      resolved.source === 'session' &&
-      !checkWriteOrigin(dependencies.origin, request.method, {
+    if (resolved.source === 'session') {
+      const decision = checkWriteOrigin(dependencies.origin, request.method, {
         origin: headerValue(request.headers.origin),
         site: headerValue(request.headers['sec-fetch-site']),
-      })
-    )
-      throw new ForbiddenError(
-        'A cookie authenticated write must come from the configured origin.',
-      );
+      });
+      if (decision === 'foreign')
+        throw new ForbiddenError(
+          'A cookie authenticated write must come from the configured origin.',
+        );
+      if (decision === 'missing') throw new OriginRequiredError();
+    }
     actors.set(request, resolved);
   };
 

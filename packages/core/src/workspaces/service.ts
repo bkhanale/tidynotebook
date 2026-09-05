@@ -89,7 +89,19 @@ export function createWorkspace(
   input: { readonly workspaceId: string; readonly name: string },
 ): Promise<Result<WorkspaceSummary>> {
   return store.account(actor, async (tx) => {
+    // The store takes the workspace lock before it creates anything, so the
+    // owner membership row is recorded in the same order as every later
+    // membership change of that workspace.
     await tx.createWorkspace(input);
+    await tx.recordMembershipChange(input.workspaceId, {
+      accountId: actor.accountId,
+      removed: false,
+    });
+    await tx.audit(input.workspaceId, {
+      action: 'workspace.create',
+      targetKind: 'workspace',
+      targetId: input.workspaceId,
+    });
     return ok({
       workspaceId: input.workspaceId,
       name: input.name,
@@ -145,11 +157,9 @@ export function deleteWorkspace(
     const allowed = permit(actor, workspaceId, role, 'purge');
     if (!allowed.ok) return fail<void>(allowed.error.code);
     if (role !== 'owner') return fail<void>('forbidden');
-    await tx.audit({
-      action: 'workspace.delete',
-      targetKind: 'workspace',
-      targetId: workspaceId,
-    });
+    // The record of the deletion goes to another workspace of the actor,
+    // because `destroy` removes the audit rows of this one.
+    await tx.auditActorHome({ action: 'workspace.delete' });
     await tx.destroy();
     return ok(undefined);
   });
@@ -244,9 +254,20 @@ export function acceptInvitation(
   input: { readonly tokenHash: string; readonly email: string },
 ): Promise<Result<{ workspaceId: string; role: Role }>> {
   return store.account(actor, async (tx) => {
+    // The store takes the workspace lock of the invitation before it consumes
+    // it, so acceptance is ordered with every other membership write.
     const claimed = await tx.claimInvitation(input);
     if (claimed === null)
       return fail<{ workspaceId: string; role: Role }>('not_found');
+    await tx.recordMembershipChange(claimed.workspaceId, {
+      accountId: actor.accountId,
+      removed: false,
+    });
+    await tx.audit(claimed.workspaceId, {
+      action: 'membership.accept',
+      targetKind: 'account',
+      targetId: actor.accountId,
+    });
     return ok(claimed);
   });
 }

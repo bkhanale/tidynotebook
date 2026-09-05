@@ -9,14 +9,15 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import {
   acceptInvitation,
   configureClient,
   createAgentToken,
   createWorkspace,
+  deleteWorkspace,
   getAccount,
+  getAuthSession,
   inviteMember,
   listAgentTokens,
   listMembers,
@@ -39,15 +40,17 @@ import {
   createAuthProtocol,
   createHandlers,
   createIdentityAdapter,
+  createInvitationAccounts,
   loadServerConfig,
   recoverAccount,
+  type MailMessage,
   type ServerConfig,
 } from '@notesapp/server';
 import {
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
-import { createDisposableDatabase } from './support/database.ts';
+import { createDisposableDatabase, openSession } from './support/database.ts';
 import { startIdentityProvider } from './support/identity-provider.ts';
 import { startTestServer } from './support/server.ts';
 
@@ -109,6 +112,7 @@ function environment(
   return {
     NOTESAPP_ORIGIN: 'https://notes.test',
     NOTESAPP_DATABASE_URL: database.runtimeUrl,
+    NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
     NOTESAPP_STORAGE_ROOT: '/tmp',
     NOTESAPP_AUTH_SECRET: 'identity-test-secret-value-0123456789abcd',
     NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost,notes.test',
@@ -123,23 +127,54 @@ function environment(
   };
 }
 
+/** Collects the messages that a deployment with a mail transport would send. */
+const outbox: MailMessage[] = [];
+
 const config: ServerConfig = loadServerConfig(environment());
-const auth = createAuth(config, { mail: null });
+// The running server never mounts the sign-up route. Sign-up is reachable
+// through the server API only, which is what the invitation path uses.
+const auth = createAuth(config, { mail: null, allowSignUp: true });
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,
   origin: config.origin,
 });
+const invitations = createInvitationAccounts(config, {
+  auth: auth.auth,
+  identity,
+  resolveActor: (request) => adapter.resolveActor(request),
+});
 const server = await startTestServer({
   environment: environment(),
-  handlers: (value) => createHandlers(value, undefined, identity),
+  handlers: (value) =>
+    createHandlers(value, undefined, { store: identity, invitations }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
 });
 configureClient(server.baseUrl, undefined);
 
+/** A second deployment whose only difference is a configured mail transport. */
+const mailingServer = await startTestServer({
+  environment: environment(),
+  handlers: (value) =>
+    createHandlers(value, undefined, {
+      store: identity,
+      invitations,
+      mail: {
+        send: (message: MailMessage): Promise<void> => {
+          outbox.push(message);
+          return Promise.resolve();
+        },
+      },
+    }),
+  identity: adapter.resolver,
+  protocols: [createAuthProtocol(config, auth.auth)],
+});
+
 const ownerEmail = 'owner@notes.invalid';
 const ownerPassword = 'first-owner-password';
+/** The password of the first account, which the recovery test replaces. */
+let currentOwnerPassword = ownerPassword;
 
 await test('the bootstrap command creates the first account once', async () => {
   const created = await bootstrapOwner({
@@ -266,6 +301,39 @@ await test('a cookie write from another origin is refused', async () => {
   assert.equal(readProperty(JSON.parse(response.body), 'code'), 'forbidden');
 });
 
+await test('a cookie write that names no origin is refused', async () => {
+  const response = await server.app.inject({
+    method: 'PUT',
+    url: '/api/account/preferences',
+    headers: { 'content-type': 'application/json', cookie: ownerCookie },
+    payload: JSON.stringify({ theme: 'dark' }),
+  });
+  assert.equal(response.statusCode, 403);
+  assert.equal(
+    readProperty(JSON.parse(response.body), 'code'),
+    'origin_required',
+  );
+});
+
+await test('a malformed bearer value never falls back to the cookie', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/account',
+    headers: { cookie: ownerCookie, authorization: 'Bearer not a token' },
+  });
+  assert.equal(response.statusCode, 401);
+  assert.equal(
+    readProperty(JSON.parse(response.body), 'code'),
+    'unauthenticated',
+  );
+  const empty = await server.app.inject({
+    method: 'GET',
+    url: '/api/account',
+    headers: { cookie: ownerCookie, authorization: 'Basic abc' },
+  });
+  assert.equal(empty.statusCode, 401);
+});
+
 await test('settings are stored and read back', async () => {
   const stored = await updatePreferences({
     headers: browser(ownerCookie),
@@ -312,32 +380,49 @@ await test('an administrator invites an address', async () => {
   });
   assert.equal(invited.error, undefined);
   assert.equal(responseOf(invited.response).status, 201);
+  assert.equal(invited.data?.delivered, false);
   invitationToken = invited.data?.token ?? '';
   assert.ok(invitationToken.length >= 32);
   assert.equal(invited.data?.invitation.state, 'pending');
   assert.equal(invited.data?.invitation.role, 'editor');
 });
 
-await test('an invitation is accepted once and a replay is rejected', async () => {
-  // The invited person needs an account. The running server never creates
-  // one, so the test uses an instance with sign-up permitted, exactly like the
-  // one-time bootstrap command.
-  const provisioning = createAuth(config, { mail: null, allowSignUp: true });
-  try {
-    await provisioning.auth.api.signUpEmail({
-      body: { email: memberEmail, name: 'Member', password: memberPassword },
-    });
-  } finally {
-    await provisioning.close();
-  }
-  memberCookie = await signIn(memberEmail, memberPassword);
-  const accepted = await acceptInvitation({
-    headers: browser(memberCookie),
-    body: { token: invitationToken },
+await test('a deployment with mail sends the token instead of returning it', async () => {
+  configureClient(mailingServer.baseUrl, undefined);
+  const invited = await inviteMember({
+    headers: browser(ownerCookie),
+    path: { workspaceId: sharedWorkspaceId },
+    body: { email: 'mailed@notes.invalid', role: 'viewer' },
   });
-  assert.equal(accepted.error, undefined);
+  configureClient(server.baseUrl, undefined);
+  assert.equal(invited.error, undefined);
+  assert.equal(invited.data?.delivered, true);
+  assert.equal(invited.data?.token, undefined);
+  assert.equal(outbox.length, 1);
+  assert.equal(outbox[0]?.to, 'mailed@notes.invalid');
+  // The answer never repeats the token that the message carries.
+  assert.equal(
+    JSON.stringify(invited.data).includes(
+      (outbox[0]?.text ?? '').split('/').at(-1)?.split('\n')[0] ?? 'x',
+    ),
+    false,
+  );
+});
+
+await test('an invitation is accepted once and a replay is rejected', async () => {
+  // The invited person has no account. The product path creates it from the
+  // invitation token, which proves control of the invited address, and signs
+  // the new account in.
+  const accepted = await acceptInvitation({
+    headers: browser(),
+    body: { token: invitationToken, password: memberPassword },
+  });
+  assert.equal(accepted.error, undefined, JSON.stringify(accepted.error));
   assert.equal(accepted.data?.workspaceId, sharedWorkspaceId);
   assert.equal(accepted.data?.role, 'editor');
+  const issued = responseOf(accepted.response).headers.getSetCookie();
+  assert.ok(issued.some(isSessionCookie), issued.join('\n'));
+  memberCookie = cookieHeader(issued);
   const replay = await acceptInvitation({
     headers: browser(memberCookie),
     body: { token: invitationToken },
@@ -348,6 +433,50 @@ await test('an invitation is accepted once and a replay is rejected', async () =
   const account = await getAccount({ headers: browser(memberCookie) });
   memberAccountId = account.data?.accountId ?? '';
   assert.match(memberAccountId, /^[0-9a-f-]{36}$/);
+  // The new account also received its own personal workspace.
+  const spaces = await listWorkspaces({ headers: browser(memberCookie) });
+  assert.equal(
+    (spaces.data?.workspaces ?? []).filter((entry) => entry.personal).length,
+    1,
+  );
+  // The password still works on its own, so the account is a normal one.
+  const again = await signIn(memberEmail, memberPassword);
+  assert.ok(again.length > 0);
+});
+
+await test('an invitation acceptance needs a session or a password', async () => {
+  const invited = await inviteMember({
+    headers: browser(ownerCookie),
+    path: { workspaceId: sharedWorkspaceId },
+    body: { email: 'nobody@notes.invalid', role: 'viewer' },
+  });
+  const token = invited.data?.token ?? '';
+  const bare = await acceptInvitation({
+    headers: browser(),
+    body: { token },
+  });
+  assert.equal(responseOf(bare.response).status, 401);
+  assert.equal(problemCode(bare.error), 'unauthenticated');
+  // A signed in account never supplies a password here.
+  const both = await acceptInvitation({
+    headers: browser(ownerCookie),
+    body: { token, password: 'a-password-that-is-long' },
+  });
+  assert.equal(responseOf(both.response).status, 403);
+  // The invited address must not already have an account.
+  const taken = await inviteMember({
+    headers: browser(ownerCookie),
+    path: { workspaceId: sharedWorkspaceId },
+    body: { email: memberEmail, role: 'viewer' },
+  });
+  const clash = await acceptInvitation({
+    headers: browser(),
+    body: {
+      token: taken.data?.token ?? '',
+      password: 'another-long-password',
+    },
+  });
+  assert.equal(responseOf(clash.response).status, 403);
 });
 
 await test('an account never sees another account workspace', async () => {
@@ -406,26 +535,40 @@ await test('a role downgrade waits for the open write transaction', async () => 
   const held = new Promise<void>((resolve) => {
     release = resolve;
   });
+  let announce = (): void => {};
+  const holding = new Promise<void>((resolve) => {
+    announce = resolve;
+  });
   let roleDuringWrite: string | null = null;
   const writing = content.transact(
     verified.value,
     sharedWorkspaceId,
     async (tx) => {
       roleDuringWrite = await tx.role(memberAccountId);
+      // The lock is held from here, and the test only continues once it is.
+      announce();
       await held;
       return tx.role(memberAccountId);
     },
   );
-  // The write holds the workspace lock, so the membership change cannot
-  // interleave with it.
-  await delay(50);
+  await holding;
+  let downgradeSettled = false;
   const downgrading = updateMember({
     headers: browser(ownerCookie),
     path: { workspaceId: sharedWorkspaceId, accountId: memberAccountId },
     body: { role: 'viewer' },
+  }).then((value) => {
+    downgradeSettled = true;
+    return value;
   });
-  await delay(150);
+  // The membership change waits for the same advisory lock. Racing it against
+  // a `select pg_advisory_lock` probe would need a third connection, so the
+  // proof is that it cannot finish while the write transaction is open: the
+  // check below runs after the event loop has drained every pending answer.
+  await Promise.resolve();
+  await new Promise((resolve) => setImmediate(resolve));
   assert.equal(roleDuringWrite, 'editor');
+  assert.equal(downgradeSettled, false);
   release();
   const roleAtCommit = await writing;
   assert.equal(roleAtCommit, 'editor');
@@ -538,6 +681,40 @@ await test('a token is refused outside its scope and after revocation', async ()
   assert.equal(responseOf(unknown.response).status, 401);
 });
 
+await test('deleting a workspace keeps a record of the deletion', async () => {
+  const created = await createWorkspace({
+    headers: browser(ownerCookie),
+    body: { name: 'Throwaway' },
+  });
+  const workspaceId = created.data?.workspaceId ?? '';
+  const removed = await deleteWorkspace({
+    headers: browser(ownerCookie),
+    path: { workspaceId },
+  });
+  assert.equal(removed.error, undefined);
+  const listed = await listWorkspaces({ headers: browser(ownerCookie) });
+  assert.equal(
+    (listed.data?.workspaces ?? []).some(
+      (entry) => entry.workspaceId === workspaceId,
+    ),
+    false,
+  );
+  // The audit rows of the deleted workspace are gone with it, so the record of
+  // the deletion lives in another workspace of the same actor.
+  const session = await openSession(database.runtimeUrl, ownerAccountId);
+  try {
+    const rows = await session.query<{ workspace_id: string }>(
+      `select workspace_id from audit_events
+        where action = 'workspace.delete' and target_id = $1`,
+      [workspaceId],
+    );
+    assert.equal(rows.length, 1);
+    assert.notEqual(rows[0]?.workspace_id, workspaceId);
+  } finally {
+    await session.close();
+  }
+});
+
 await test('an expired token is refused', async () => {
   const secret = `nsk_${randomUUID().replaceAll('-', '')}`;
   await identity.account(
@@ -568,6 +745,7 @@ await test('sign-out clears the cookie and revokes the session', async () => {
   const cookie = await signIn(ownerEmail, ownerPassword);
   const out = await signOut({ headers: browser(cookie), body: {} });
   assert.equal(out.error, undefined);
+  assert.equal(out.data?.success, true);
   const cleared = responseOf(out.response).headers.getSetCookie();
   assert.ok(
     cleared.some(
@@ -722,8 +900,60 @@ await test('the operator recovery command replaces a password', async () => {
   const fresh = await signIn(ownerEmail, replacement);
   assert.ok(fresh.length > 0);
   ownerCookie = fresh;
+  currentOwnerPassword = replacement;
 });
 
+await test('an auth endpoint rejects a body outside its contract', async () => {
+  for (const [url, payload] of [
+    ['/api/auth/sign-in/email', { email: 'a@b.invalid' }],
+    ['/api/auth/sign-in/social', { provider: 'oidc', extra: 1 }],
+    ['/api/auth/request-password-reset', { email: 12 }],
+    ['/api/auth/reset-password', { newPassword: 'short' }],
+    ['/api/auth/sign-out', { unexpected: true }],
+  ] as const) {
+    const response = await server.app.inject({
+      method: 'POST',
+      url,
+      headers: {
+        'content-type': 'application/json',
+        origin: 'https://notes.test',
+      },
+      payload: JSON.stringify(payload),
+    });
+    assert.equal(response.statusCode, 400, url);
+    assert.equal(
+      readProperty(JSON.parse(response.body), 'code'),
+      'invalid_request',
+      url,
+    );
+  }
+});
+
+await test('an auth endpoint rejects a wrong request media type', async () => {
+  const response = await server.app.inject({
+    method: 'POST',
+    url: '/api/auth/sign-in/email',
+    headers: { 'content-type': 'text/plain', origin: 'https://notes.test' },
+    payload: 'email=a@b.invalid',
+  });
+  assert.equal(response.statusCode, 415);
+});
+
+await test('the session answer never carries the session token', async () => {
+  const cookie = await signIn(ownerEmail, currentOwnerPassword);
+  const current = await getAuthSession({ headers: browser(cookie) });
+  assert.equal(current.error, undefined);
+  const raw = JSON.stringify(current.data);
+  assert.equal(raw.includes('"token"'), false, raw);
+  // The answer still matches its declared schema, which the boundary checked
+  // before it was sent.
+  assert.equal(typeof readProperty(current.data, 'session'), 'object');
+  const anonymous = await getAuthSession();
+  assert.equal(responseOf(anonymous.response).status, 200);
+  assert.equal(anonymous.data ?? null, null);
+});
+
+await mailingServer.close();
 await server.close();
 await auth.close();
 await content.close();

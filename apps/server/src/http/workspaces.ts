@@ -29,9 +29,17 @@ import {
 } from '@notesapp/core';
 import { WorkspaceUnavailableError } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
+import type { InvitationAccounts } from '../auth/invitations.ts';
+import type { MailTransport } from '../auth/mail.ts';
+import { readProperty } from '../values.ts';
 import { readBoolean, readParameter, readString, unwrap } from './accounts.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
-import { ForbiddenError, NotFoundError } from './problem.ts';
+import {
+  ForbiddenError,
+  NotFoundError,
+  OidcRequiredError,
+  UnauthenticatedError,
+} from './problem.ts';
 
 const jsonMediaType = 'application/json';
 
@@ -103,11 +111,25 @@ function invitationBody(
   };
 }
 
+/** What the workspace handlers need besides the store. */
+export type WorkspaceHandlerOptions = {
+  /** Clock, so a test can decide the expiry of an invitation. */
+  readonly now?: () => Date;
+  /** Mail transport, or `null` when the deployment has none. */
+  readonly mail?: MailTransport | null;
+  /** The invitation sign-up path, when the composition supplies one. */
+  readonly invitations?: InvitationAccounts;
+};
+
 /** Builds the workspace, membership, and invitation handlers. */
 export function createWorkspaceHandlers(
   store: WorkspaceAdminStore,
-  now: () => Date = () => new Date(),
+  options: WorkspaceHandlerOptions = {},
+  origin = '',
 ): HandlerMap {
+  const now = options.now ?? ((): Date => new Date());
+  const mail = options.mail ?? null;
+  const invitations = options.invitations;
   return {
     listWorkspaces: async (request): Promise<HandlerResult> => {
       const resolved = requireActor(request);
@@ -213,12 +235,33 @@ export function createWorkspaceHandlers(
           ),
         ),
       );
-      // The token is in this answer and nowhere else. A deployment with a mail
-      // transport also sends it; one without hands it to the administrator.
+      // A deployment with a mail transport sends the token and keeps it out of
+      // the answer, so it never reaches a browser log or a shared screen. One
+      // without a transport hands it to the inviting administrator instead.
+      if (mail !== null) {
+        await mail.send({
+          to: created.email,
+          subject: 'You are invited to a notesapp workspace',
+          text: [
+            'Open this link to join the workspace.',
+            `${origin}/invitations/${issued.token}`,
+            'The invitation expires in fourteen days and works once.',
+          ].join('\n'),
+        });
+        return {
+          status: 201,
+          mediaType: jsonMediaType,
+          body: { invitation: invitationBody(created), delivered: true },
+        };
+      }
       return {
         status: 201,
         mediaType: jsonMediaType,
-        body: { invitation: invitationBody(created), token: issued.token },
+        body: {
+          invitation: invitationBody(created),
+          delivered: false,
+          token: issued.token,
+        },
       };
     },
 
@@ -283,18 +326,63 @@ export function createWorkspaceHandlers(
       };
     },
 
-    acceptInvitation: async (request): Promise<HandlerResult> => {
-      const resolved = requireActor(request);
-      if (resolved.email === null)
+    acceptInvitation: async (request, reply): Promise<HandlerResult> => {
+      if (invitations === undefined)
+        throw new UnauthenticatedError(
+          'This deployment cannot accept an invitation.',
+        );
+      const tokenHash = invitationTokenHash(readString(request.body, 'token'));
+      const password = readProperty(request.body, 'password');
+      const resolved = await invitations.resolveActor(request);
+      if (resolved !== null) {
+        // A signed in account accepts with its own address. A password would
+        // be a second identity for the same request, so it is refused.
+        if (password !== undefined)
+          throw new ForbiddenError(
+            'A signed in account accepts an invitation without a password.',
+          );
+        if (resolved.email === null)
+          throw new ForbiddenError(
+            'An invitation is accepted by a browser session only.',
+          );
+        const membership = unwrap(
+          await acceptInvitation(store, resolved.actor, {
+            tokenHash,
+            email: resolved.email.toLowerCase(),
+          }),
+        );
+        return {
+          status: 200,
+          mediaType: jsonMediaType,
+          body: {
+            workspaceId: membership.workspaceId,
+            role: membership.role,
+          },
+        };
+      }
+      if (typeof password !== 'string')
+        throw new UnauthenticatedError(
+          'Sign in first, or supply a password to create the invited account.',
+        );
+      if (!invitations.passwordSignUpEnabled) throw new OidcRequiredError();
+      const open = await invitations.openInvitation(tokenHash);
+      if (open === null) throw new NotFoundError();
+      const created = await invitations.register({
+        email: open.email,
+        password,
+      });
+      if (created === null)
         throw new ForbiddenError(
-          'An invitation is accepted by a signed in account only.',
+          'That address already has an account. Sign in and accept again.',
         );
       const membership = unwrap(
-        await acceptInvitation(store, resolved.actor, {
-          tokenHash: invitationTokenHash(readString(request.body, 'token')),
-          email: resolved.email.toLowerCase(),
+        await acceptInvitation(store, created.actor, {
+          tokenHash,
+          email: created.email.toLowerCase(),
         }),
       );
+      if (created.cookies.length > 0)
+        reply.header('set-cookie', [...created.cookies]);
       return {
         status: 200,
         mediaType: jsonMediaType,

@@ -5,6 +5,8 @@ import { ConfigError, loadServerConfig } from './config.ts';
 const valid: Record<string, string> = {
   NOTESAPP_ORIGIN: 'http://127.0.0.1',
   NOTESAPP_DATABASE_URL: 'postgres://notesapp:notesapp@127.0.0.1:5432/notesapp',
+  NOTESAPP_AUTH_DATABASE_URL:
+    'postgres://notesapp_auth:notesapp_auth@127.0.0.1:5432/notesapp',
   NOTESAPP_STORAGE_ROOT: '/var/lib/notesapp',
   NOTESAPP_AUTH_SECRET: 'test-secret-value-for-integration-checks',
   NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
@@ -29,6 +31,69 @@ await test('a complete environment produces a configuration', () => {
   assert.equal(config.limits.bodyBytes, 1048576);
   assert.equal(config.limits.headerBytes, 16384);
   assert.equal(config.limits.requestTimeoutMs, 5000);
+});
+
+await test('the identity connection must use its own role', () => {
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_AUTH_DATABASE_URL: valid.NOTESAPP_DATABASE_URL,
+        }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) =>
+        issue.includes('NOTESAPP_AUTH_DATABASE_URL'),
+      ),
+  );
+});
+
+await test('a provider needs its client identifier and secret', () => {
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_OIDC_ISSUER_URL: 'https://issuer.invalid',
+        }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) => issue.includes('NOTESAPP_OIDC_CLIENT_ID')),
+  );
+  const configured = loadServerConfig(
+    environment({
+      NOTESAPP_OIDC_ISSUER_URL: 'https://issuer.invalid/',
+      NOTESAPP_OIDC_CLIENT_ID: 'client',
+      NOTESAPP_OIDC_CLIENT_SECRET: 'secret',
+    }),
+  );
+  // A trailing separator would produce a double slash in the discovery URL.
+  assert.equal(configured.oidc?.issuerUrl, 'https://issuer.invalid');
+});
+
+await test('a mail transport needs a sender address', () => {
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({ NOTESAPP_SMTP_URL: 'smtps://mail.invalid' }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) => issue.includes('NOTESAPP_MAIL_FROM')),
+  );
+  assert.equal(loadServerConfig(valid).mail, null);
+});
+
+await test('an installation cannot require a provider it has not configured', () => {
+  assert.throws(
+    () => loadServerConfig(environment({ NOTESAPP_OIDC_REQUIRED: 'true' })),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) => issue.includes('NOTESAPP_OIDC_REQUIRED')),
+  );
+  assert.equal(loadServerConfig(valid).oidcRequired, false);
+  assert.equal(loadServerConfig(valid).sessionMaxAgeSeconds, 604800);
 });
 
 await test('the log level defaults to info when it is absent', () => {

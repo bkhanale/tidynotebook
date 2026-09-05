@@ -19,6 +19,8 @@ export type ProblemCode =
   | 'unsupported_media_type'
   | 'unauthenticated'
   | 'forbidden'
+  | 'origin_required'
+  | 'oidc_required'
   | 'not_found'
   | 'rate_limited'
   | 'route_not_found'
@@ -45,6 +47,10 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   unsupported_media_type: 'The request media type is not supported.',
   unauthenticated: 'The request carries no usable session or token.',
   forbidden: 'The actor may not perform this operation.',
+  origin_required:
+    'A cookie authenticated write must name the configured origin.',
+  oidc_required:
+    'This installation signs in through the configured provider only.',
   not_found: 'The requested resource does not exist.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
@@ -101,6 +107,38 @@ export class ForbiddenError extends Error {
   constructor(detail = 'The actor may not perform this operation.') {
     super(detail);
     this.name = 'ForbiddenError';
+  }
+}
+
+/**
+ * A cookie authenticated write that names no origin.
+ *
+ * A browser always sends `Origin` or `Sec-Fetch-Site` on a write. A request
+ * with neither did not come from a browser page, and a non-browser client uses
+ * an agent token instead of a session cookie.
+ */
+export class OriginRequiredError extends Error {
+  constructor(
+    detail = 'A cookie authenticated write must name the configured origin.',
+  ) {
+    super(detail);
+    this.name = 'OriginRequiredError';
+  }
+}
+
+/**
+ * The installation signs in through the configured provider only.
+ *
+ * The invitation sign-up path answers this when a request asks for a local
+ * password under that policy. The invited person signs in through the provider
+ * instead, and the invitation is claimed on that first sign-in.
+ */
+export class OidcRequiredError extends Error {
+  constructor(
+    detail = 'This installation signs in through the configured provider only.',
+  ) {
+    super(detail);
+    this.name = 'OidcRequiredError';
   }
 }
 
@@ -184,6 +222,20 @@ export function classifyError(error: unknown): {
     return {
       status: 403,
       code: 'forbidden',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof OriginRequiredError)
+    return {
+      status: 403,
+      code: 'origin_required',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof OidcRequiredError)
+    return {
+      status: 403,
+      code: 'oidc_required',
       detail: error.message,
       issues: [],
     };

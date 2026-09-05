@@ -55,6 +55,8 @@ const body = (description: string, schema: Json): Json => ({
 const protocolFailures: Json = {
   '400': problem('The request did not match the endpoint.'),
   '401': problem('The credential was refused.'),
+  '403': problem('The request did not come from the configured origin.'),
+  '404': problem('The named record does not exist.'),
   '429': problem('Too many attempts. Try again later.'),
   '500': problem('The service failed to complete the request.'),
 };
@@ -162,6 +164,36 @@ export function authContractSchemas(): Json {
       additionalProperties: true,
       properties: {
         user: { $ref: '#/components/schemas/AuthUser' },
+        session: { $ref: '#/components/schemas/AuthSessionRecord' },
+      },
+    },
+    AuthSessionRecord: {
+      type: 'object',
+      description:
+        'The stored session of the signed in user. It never carries the ' +
+        'session token: the browser already holds that value in an HttpOnly ' +
+        'cookie, and the protocol adapter removes it from this answer.',
+      additionalProperties: true,
+      required: ['id', 'expiresAt'],
+      properties: {
+        id: {
+          type: 'string',
+          readOnly: true,
+          description: 'Identifier of the session record.',
+          minLength: 1,
+          maxLength: 128,
+        },
+        expiresAt: {
+          type: 'string',
+          readOnly: true,
+          description: 'Instant after which the session is refused.',
+          maxLength: 64,
+        },
+        token: {
+          not: {},
+          description:
+            'Never present. The adapter removes the session token from this answer.',
+        },
       },
     },
     AuthRedirect: {
@@ -193,6 +225,19 @@ export function authContractSchemas(): Json {
           type: 'boolean',
           readOnly: true,
           description: 'True when the endpoint completed its work.',
+        },
+      },
+    },
+    AuthSignOutResult: {
+      type: 'object',
+      description: 'Whether the session was ended.',
+      additionalProperties: true,
+      required: ['success'],
+      properties: {
+        success: {
+          type: 'boolean',
+          readOnly: true,
+          description: 'True when the session no longer exists.',
         },
       },
     },
@@ -351,7 +396,7 @@ export function authContractPaths(): Json {
           $ref: '#/components/schemas/AuthSignOut',
         }),
         success: json('The session ended.', {
-          $ref: '#/components/schemas/AuthOutcome',
+          $ref: '#/components/schemas/AuthSignOutResult',
         }),
       }),
     },

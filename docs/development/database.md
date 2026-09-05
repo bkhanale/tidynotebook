@@ -28,8 +28,9 @@ package never loads. Application sources are still checked in full.
 
 ## Schema
 
-Twenty one tables live in the `public` schema. Every table that holds workspace
-content carries `workspace_id`, and every child reference is a composite
+Twenty nine tables live in the `public` schema: twenty one for workspace
+content, and eight that Task 5 added for identity. Every table that holds
+workspace content carries `workspace_id`, and every child reference is a composite
 foreign key `(workspace_id, ...)` to its parent. A row therefore cannot point
 at a row of another workspace: the pair does not exist in the parent table.
 PostgreSQL runs referential checks with the referenced table's rights, so this
@@ -57,6 +58,29 @@ boundary holds even where a row access policy hides the parent.
 | `link_index`                  | Links found in accepted revisions.                         |
 | `shares`                      | A pinned public publication and its token hash.            |
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
+
+Task 5 added the identity tables. The first four belong to Better Auth; the
+last four are the application's own.
+
+| Table                 | Holds                                                      |
+| --------------------- | ---------------------------------------------------------- |
+| `auth_user`           | One Better Auth user: address, display name, verification. |
+| `auth_session`        | One browser session and its token.                         |
+| `auth_account`        | One credential or one external identity, and its tokens.   |
+| `auth_verification`   | One short lived verification value, such as a reset token. |
+| `account_identities`  | The map from a Better Auth user to an application account. |
+| `account_preferences` | Settings that follow one account to every device.          |
+| `agent_tokens`        | One revocable agent token, by the hash of its secret.      |
+| `invitations`         | One invitation to one workspace, by its token hash.        |
+
+The four Better Auth tables are not scoped by a workspace. Sign-in must find a
+user by an address before any identity exists, so no row policy can narrow them
+by the account of the transaction. A second database role owns them instead;
+see "Roles" below. `docs/development/identity.md` describes the rules above
+these tables.
+
+`workspaces.personal` marks the workspace that was created together with its
+account.
 
 Content is deduplicated by `(workspace_id, digest)` only, so one workspace
 cannot learn that another holds the same bytes. `contents.object_id` carries a
@@ -104,10 +128,21 @@ heads.
 
 ## Roles
 
-| Role           | Purpose                                                                                                                                     |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| migration role | Owns the schema and the database. The only credential that may run DDL.                                                                     |
-| `notesapp_app` | The application runtime credential. No DDL, no row security bypass, and no `UPDATE` or `DELETE` right on an immutable or an operator table. |
+| Role            | Purpose                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| migration role  | Owns the schema and the database. The only credential that may run DDL.                                                                     |
+| `notesapp_app`  | The application runtime credential. No DDL, no row security bypass, and no `UPDATE` or `DELETE` right on an immutable or an operator table. |
+| `notesapp_auth` | The identity credential. Every right on the four Better Auth tables, and no right anywhere else.                                            |
+
+The two application roles split the identity data from the workspace data.
+`notesapp_auth` is the only credential that can read a session token, a
+password hash, a reset token, or a provider token, and only the Better Auth
+connection uses it. `notesapp_app` holds no right on those four tables at all,
+so an application query cannot reach them however it sets its identity, and
+`notesapp_auth` holds no right on any workspace table, so the identity
+connection cannot read note content. The few facts the application needs from
+the identity side come from named SECURITY DEFINER functions that return one
+narrow answer each.
 
 The migration role needs:
 
@@ -115,7 +150,8 @@ The migration role needs:
   security on them;
 - **database ownership**, for the `REVOKE ALL ON DATABASE` and
   `GRANT CONNECT` statements of the migration;
-- **`CREATEROLE`**, because the migration creates `notesapp_app`;
+- **`CREATEROLE`**, because the migration creates `notesapp_app` and
+  `notesapp_auth`;
 - **`CREATEDB`** in the test service only, so the integration tests can create
   a disposable database for each test file.
 
@@ -124,7 +160,7 @@ FORCE row level security has no effect on a role that can bypass it, so a
 superuser migration role would make the owner policies, and therefore every
 row access check that runs against them, meaningless.
 
-The migration creates `notesapp_app` with the plain `CREATE ROLE` defaults,
+The migration creates both application roles with the plain `CREATE ROLE` defaults,
 which are already `NOSUPERUSER`, `NOBYPASSRLS`, `NOCREATEDB`, `NOCREATEROLE`,
 and `NOREPLICATION`. It never sets those attributes in an `ALTER ROLE`: from
 PostgreSQL 16 a `CREATEROLE` role that is not a superuser cannot set them, so
@@ -166,10 +202,32 @@ narrower policies.
 | `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                                                                                                                                                                                                                                          |
 | `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                                                                                                                                                                                                                                      |
 | `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner` or `admin`, never on the actor's own row, and the `owner` role only from an `owner`. The last owner rule is not expressed here: a policy sees one row at a time and cannot count the remaining owners. Task 5's workspace use case enforces it inside the same workspace lock as a content write. |
-| `accounts`                   | `id = notesapp_current_account()`                                                                                                                                                                                                                                                                                                                                       |
+| `accounts`                   | `notesapp_shares_workspace_with(id)`: the account itself and every co-member                                                                                                                                                                                                                                                                                            |
 
-Task 5 widens the account policy to the co-members that a membership list must
-show.
+Task 5 replaced two of these policies and added a trigger:
+
+- `accounts_member_policy` now shows the account row of a co-member, which is
+  what a member list needs. Migration `0001` recorded that widening as work of
+  Task 5.
+- `memberships_delete_policy` now lets only an owner delete an owner. A delete
+  that the policy refuses removes no row rather than failing, because a `USING`
+  clause hides the row from the statement.
+- `memberships_keep_owner` is a `BEFORE UPDATE OR DELETE` trigger that refuses
+  a change which would leave a workspace without an owner. A policy sees one
+  row at a time and cannot count the remaining owners, so the last owner rule
+  needs a trigger. Workspace deletion sets `notesapp.purge` and is exempt,
+  exactly like the immutability triggers. The core use case enforces the same
+  rule first, inside the same workspace lock as a content write.
+
+The Task 5 identity tables use these policies:
+
+| Table                 | Policy                                                                                              |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| the four `auth_*`     | `FOR ALL` to `notesapp_auth` with `true`. `notesapp_app` holds no right at all.                     |
+| `account_identities`  | The owner policy only. `notesapp_app` holds no right at all.                                        |
+| `account_preferences` | `account_id = notesapp_current_account()`                                                           |
+| `agent_tokens`        | `account_id = notesapp_current_account()`                                                           |
+| `invitations`         | `FOR SELECT` for members; insert and update for `owner` or `admin`, and never with the `owner` role |
 
 A role that matches no policy sees nothing, so an anonymous transaction with no
 identity setting reads no row and writes no row.
@@ -193,6 +251,26 @@ and both check membership first:
   member that could subtract would zero `bytes_used` and then write past the
   quota without limit, so the runtime path only ever adds. Task 8 lowers the
   stored bytes through its own owner only purge function.
+
+Task 5 added eight more SECURITY DEFINER functions, for the writes that the
+runtime role holds no right for and for the narrow reads that replace a right
+on the identity tables:
+
+| Function                                      | Answers or performs                                          |
+| --------------------------------------------- | ------------------------------------------------------------ |
+| `notesapp_link_account`                       | Creates an account, its map row, and its personal workspace. |
+| `notesapp_create_workspace`                   | Creates a workspace owned by the calling account.            |
+| `notesapp_transfer_ownership`                 | Moves ownership; owner only.                                 |
+| `notesapp_delete_workspace`                   | Removes a workspace and its rows; owner only.                |
+| `notesapp_claim_invitation`                   | Consumes one invitation in one statement.                    |
+| `notesapp_open_invitation`                    | The workspace and the address of an open invitation.         |
+| `notesapp_account_of`, `notesapp_has_account` | One account identifier, and whether any account exists.      |
+| `notesapp_workspace_members`                  | The member directory of one workspace; members only.         |
+| `notesapp_agent_token`                        | One agent token by the hash of its secret.                   |
+
+Every function that changes state checks the caller's role with
+`IS DISTINCT FROM` rather than `<>`, because a stranger has no role at all and
+`<> 'owner'` is null for a null role rather than true.
 
 ### Identity per transaction
 
@@ -290,10 +368,16 @@ migration, because the journal no longer matches the applied set.
 The command requires an explicit profile, so no default can point a developer
 command at an operator database.
 
-| Profile  | Connection source                                         | Runtime password source                                  | Guard                                                  |
-| -------- | --------------------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------ |
-| `test`   | `NOTESAPP_TEST_DATABASE_URL`, otherwise the Compose value | `NOTESAPP_RUNTIME_PASSWORD`, otherwise the Compose value | The database name must start with `notesapp_test`.     |
-| `deploy` | The file at `NOTESAPP_DATABASE_URL_FILE`                  | The file at `NOTESAPP_RUNTIME_PASSWORD_FILE`             | The database name must not start with `notesapp_test`. |
+| Profile  | Connection source                                         | Runtime password source                                  | Identity password source                                       | Guard                                                  |
+| -------- | --------------------------------------------------------- | -------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ |
+| `test`   | `NOTESAPP_TEST_DATABASE_URL`, otherwise the Compose value | `NOTESAPP_RUNTIME_PASSWORD`, otherwise the Compose value | `NOTESAPP_AUTH_DATABASE_PASSWORD`, otherwise the Compose value | The database name must start with `notesapp_test`.     |
+| `deploy` | The file at `NOTESAPP_DATABASE_URL_FILE`                  | The file at `NOTESAPP_RUNTIME_PASSWORD_FILE`             | The file at `NOTESAPP_AUTH_PASSWORD_FILE`                      | The database name must not start with `notesapp_test`. |
+
+The two passwords must differ, and each needs at least twelve characters. The
+command refuses to run otherwise, so a deployment cannot end up with one shared
+credential for both roles. The server then reads `NOTESAPP_DATABASE_URL` for
+the runtime connection and `NOTESAPP_AUTH_DATABASE_URL` for the identity
+connection, and startup fails when the two are the same value.
 
 The deployment profile reads protected operator files rather than environment
 values, so a URL and a password do not appear in a process list or a shell
@@ -435,8 +519,25 @@ table name, and the server routine, and nothing else. The same applies to a
 refused connection: `transact` wraps `pool.connect()`, so a driver message that
 repeats the host, the port, and the role never escapes.
 
+## Migration history
+
+| Migration                  | Contains                                                                                     |
+| -------------------------- | -------------------------------------------------------------------------------------------- |
+| `0000_slimy_ravenous.sql`  | The workspace content tables, generated by Drizzle.                                          |
+| `0001_row_access.sql`      | Roles, row policies, immutability, and the deferrable path key.                              |
+| `0002_furry_darkhawk.sql`  | The Task 5 identity tables and `workspaces.personal`, generated.                             |
+| `0003_identity_access.sql` | The identity role, the identity policies, the owner guard trigger, and the Task 5 functions. |
+
+`0002` and `0003` were rewritten in place during the review of Task 5, for the
+same reason the initial pair was: no database outside a disposable
+`notesapp_test` database has ever applied them. Recreate the test service with
+`sudo docker compose -f compose.test.yaml down -v` before applying a rewritten
+migration.
+
 ## What Task 4 does not do
 
 The commit use case, the expected head checks, the purge path, snapshots,
-attachments, search, and sharing operations are later tasks. This task provides
-the schema they need, the storage ports, and the access controls.
+attachments, search, and sharing operations are later tasks. Task 4 provides
+the schema they need, the storage ports, and the access controls. Task 5 added
+the identity tables, their roles and policies, and the account and membership
+rules above them; see `docs/development/identity.md`.

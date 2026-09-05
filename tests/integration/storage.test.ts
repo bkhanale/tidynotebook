@@ -567,6 +567,7 @@ await test('migrations: applies to an empty database and is a no operation the s
       await runMigrations({
         databaseUrl: fresh.migrationUrl,
         runtimePassword: 'notesapp_app_test_password',
+        authPassword: 'notesapp_auth_test_password',
       });
 
       const applied = await session.query<{ total: number }>(

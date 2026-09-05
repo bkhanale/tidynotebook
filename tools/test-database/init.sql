@@ -9,6 +9,10 @@
 -- CREATEDB lets the integration tests create a disposable database for each
 -- test file. pg_signal_backend lets `DROP DATABASE ... WITH (FORCE)` close the
 -- runtime role's pooled connections. Both belong to this throwaway service.
+-- The migration then creates the two application roles, `notesapp_app` and
+-- `notesapp_auth`, and `pnpm db:migrate --profile test` sets their passwords
+-- from `NOTESAPP_RUNTIME_PASSWORD` and `NOTESAPP_AUTH_DATABASE_PASSWORD`, or
+-- from the throwaway defaults of this local service.
 CREATE ROLE notesapp_migrate
   LOGIN PASSWORD 'notesapp_migrate_test'
   CREATEROLE CREATEDB NOSUPERUSER NOBYPASSRLS NOREPLICATION;

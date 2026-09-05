@@ -9,6 +9,7 @@
  * default compilers use draft-07 Ajv and fast-json-stringify, and neither
  * understands the JSON Schema 2020-12 documents that this contract publishes.
  */
+import { Buffer } from 'node:buffer';
 import type {
   FastifyInstance,
   FastifyReply,
@@ -107,11 +108,27 @@ export type ProtocolAdapter = {
     readonly method: 'GET' | 'POST';
     readonly path: string;
   }[];
-  /** Serves one request. The adapter writes the whole reply itself. */
-  readonly handler: (
-    request: FastifyRequest,
-    reply: FastifyReply,
-  ) => Promise<void>;
+  /**
+   * Serves one request and returns its answer.
+   *
+   * The answer is returned rather than written, so the boundary can check it
+   * against the declared response schema before the framework sends it.
+   */
+  readonly handle: (request: FastifyRequest) => Promise<ProtocolResult>;
+};
+
+/** One answer of a protocol adapter. */
+export type ProtocolResult = {
+  readonly status: number;
+  readonly mediaType: string;
+  /** Headers to copy, without `set-cookie` and without a content type. */
+  readonly headers: readonly (readonly [string, string])[];
+  /** Complete `set-cookie` values. */
+  readonly cookies: readonly string[];
+  /** The parsed JSON answer, or undefined when the answer carries none. */
+  readonly body: unknown;
+  /** The bytes of an answer that is not JSON, for example a redirect page. */
+  readonly bytes: Uint8Array | null;
 };
 
 /**
@@ -470,7 +487,16 @@ export function registerOperations(
     return payload;
   });
 
-  for (const adapter of protocols) registerProtocol(app, adapter);
+  const protocolRoutes = new Map<string, OperationId>();
+  for (const operation of operations) {
+    if (operation.protocol === null) continue;
+    protocolRoutes.set(
+      `${operation.method.toUpperCase()} ${toRoutePath(operation.path)}`,
+      operation.id,
+    );
+  }
+  for (const adapter of protocols)
+    registerProtocol(app, adapter, protocolRoutes);
 
   for (const operation of served) {
     const schema: FastifySchema = {
@@ -509,18 +535,44 @@ export function registerOperations(
 }
 
 /**
+ * Reads the raw request body of a protocol route as JSON.
+ *
+ * The adapter receives the bytes the client sent, because a protocol library
+ * may sign or hash what it received. The boundary still parses a copy, so a
+ * declared request body is validated against its schema like any other.
+ */
+function readRawJson(request: FastifyRequest): unknown {
+  const body = request.body;
+  if (!Buffer.isBuffer(body) || body.length === 0) return undefined;
+  const text = body.toString('utf8');
+  if (text.trim() === '') return undefined;
+  try {
+    const value: unknown = JSON.parse(text);
+    return value;
+  } catch {
+    throw new RequestContractError('body', [
+      { path: '/', message: 'the request body is not valid JSON' },
+    ]);
+  }
+}
+
+/**
  * Mounts one protocol adapter on its exact routes.
  *
  * The routes live in their own encapsulated scope with a raw body parser, so
- * the adapter receives the bytes the client sent. Re-serializing a parsed body
- * would change it, and a protocol library may sign or hash what it received.
- * No contract validator, no response check, and no identity hook runs for
- * these routes: the library owns its own request and response shapes and its
- * own credential checks.
+ * the adapter receives the bytes the client sent. A route that a contract
+ * operation describes is still checked at both ends: its declared request body
+ * is validated before the library runs, and its answer is validated against
+ * the declared response schema before the framework sends it. The library
+ * still owns its own credential checks, so no identity hook runs here.
+ *
+ * A route with no contract operation, such as the provider callback, answers
+ * with a redirect and is served without those checks.
  */
 function registerProtocol(
   app: FastifyInstance,
   adapter: ProtocolAdapter,
+  byRoute: ReadonlyMap<string, OperationId>,
 ): void {
   app.register((scope, _options, done) => {
     scope.removeAllContentTypeParsers();
@@ -531,14 +583,92 @@ function registerProtocol(
         next(null, body);
       },
     );
-    for (const route of adapter.routes)
+    for (const route of adapter.routes) {
+      const id = byRoute.get(`${route.method} ${route.path}`);
       scope.route({
         method: route.method,
         url: route.path,
+        ...(id === undefined ? {} : { config: { operationId: id } }),
         handler: async (request, reply) => {
-          await adapter.handler(request, reply);
+          if (id !== undefined) checkProtocolRequest(id, request);
+          const result = await adapter.handle(request);
+          if (id !== undefined) checkProtocolResponse(request, id, result);
+          for (const [name, value] of result.headers) reply.header(name, value);
+          if (result.cookies.length > 0)
+            reply.header('set-cookie', [...result.cookies]);
+          reply.status(result.status);
+          if (result.bytes !== null) {
+            if (result.mediaType !== '')
+              reply.header('content-type', result.mediaType);
+            await reply.send(Buffer.from(result.bytes));
+            return;
+          }
+          reply.header('content-type', `${result.mediaType}; charset=utf-8`);
+          await reply.send(JSON.stringify(result.body ?? null));
         },
       });
+    }
     done();
   });
+}
+
+/** Validates the declared slots of a protocol request. */
+function checkProtocolRequest(id: OperationId, request: FastifyRequest): void {
+  const operation = findOperation(id);
+  if (operation === undefined) return;
+  const slots: readonly (readonly [RequestSlot, unknown])[] = [
+    ['params', request.params],
+    ['query', request.query],
+    ['headers', request.headers],
+    ...(operation.request.body === null
+      ? []
+      : ([['body', readRawJson(request)]] as const)),
+  ];
+  for (const [slot, value] of slots) {
+    const validate = requestValidator(id, slot);
+    if (validate === undefined) continue;
+    if (!validate(value))
+      throw new RequestContractError(slot, describeIssues(validate.errors));
+  }
+}
+
+/** Validates the answer of a protocol route against the contract. */
+function checkProtocolResponse(
+  request: FastifyRequest,
+  id: OperationId,
+  result: ProtocolResult,
+): void {
+  const declaredMediaTypes = responseMediaTypes(id, result.status);
+  const shared = {
+    operationId: id,
+    status: result.status,
+    mediaType: result.mediaType,
+    declaredMediaTypes,
+    issues: [],
+  };
+  if (result.bytes !== null) {
+    // A protocol operation describes a JSON answer. A redirect belongs to a
+    // route that the contract does not describe.
+    rejectResponse(request, {
+      ...shared,
+      reason: 'a protocol operation must answer with JSON',
+    });
+  }
+  if (!declaredMediaTypes.includes(result.mediaType))
+    rejectResponse(request, {
+      ...shared,
+      reason: 'the operation declares no such media type for this status',
+    });
+  const validate = responseValidator(id, result.status, result.mediaType);
+  if (validate === undefined)
+    rejectResponse(request, {
+      ...shared,
+      reason: 'the contract declares no validator for this answer',
+    });
+  if (!validate(result.body ?? null))
+    rejectResponse(request, {
+      ...shared,
+      reason: 'the response body does not match the declared schema',
+      issues: describeIssues(validate.errors),
+    });
 }

@@ -13,12 +13,17 @@ export type {
 export { ConfigError, loadServerConfig } from './config.ts';
 export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers } from './app.ts';
-export type { ReadinessCheck, ReadinessProbe } from './http/handlers.ts';
+export type {
+  HandlerDependencies,
+  ReadinessCheck,
+  ReadinessProbe,
+} from './http/handlers.ts';
 export { createHandlers } from './http/handlers.ts';
 export type {
   HandlerMap,
   IdentityResolver,
   ProtocolAdapter,
+  ProtocolResult,
 } from './http/register.ts';
 export type {
   ActorSource,
@@ -50,9 +55,17 @@ export {
   createProblem,
   ForbiddenError,
   NotFoundError,
+  OidcRequiredError,
+  OriginRequiredError,
   problemMediaType,
   UnauthenticatedError,
 } from './http/problem.ts';
+export type {
+  InvitationAccounts,
+  OpenInvitation,
+  RegisteredAccount,
+} from './auth/invitations.ts';
+export { createInvitationAccounts } from './auth/invitations.ts';
 export type { MailMessage, MailTransport } from './auth/mail.ts';
 export { createMailTransport } from './auth/mail.ts';
 export { invitationTokenHash } from './http/workspaces.ts';

@@ -69,6 +69,7 @@ type Space = {
   audit: string[];
   changes: { accountId: string; removed: boolean }[];
   destroyed: boolean;
+  locked: boolean;
 };
 
 /** An in-memory store that records what a use case asked it to do. */
@@ -106,6 +107,7 @@ function createFakeStore(): FakeStore {
       audit: [],
       changes: [],
       destroyed: false,
+      locked: false,
     });
   };
 
@@ -143,7 +145,32 @@ function createFakeStore(): FakeStore {
       createWorkspace: (input) => {
         seed(input.workspaceId, [[actor.accountId, 'owner']]);
         space(input.workspaceId).name = input.name;
+        space(input.workspaceId).locked = true;
         return Promise.resolve();
+      },
+      lockWorkspace: (workspaceId: string) => {
+        space(workspaceId).locked = true;
+        return Promise.resolve();
+      },
+      audit: (workspaceId: string, input) => {
+        space(workspaceId).audit.push(input.action);
+        return Promise.resolve();
+      },
+      recordMembershipChange: (workspaceId: string, input) => {
+        space(workspaceId).changes.push(input);
+        return Promise.resolve();
+      },
+      openInvitation: (tokenHash: string) => {
+        for (const [workspaceId, value] of spaces.entries()) {
+          const found = value.tokens.get(tokenHash);
+          if (found === undefined) continue;
+          const invitation = value.invitations.find(
+            (entry) => entry.id === found,
+          );
+          if (invitation === undefined) continue;
+          return Promise.resolve({ workspaceId, email: invitation.email });
+        }
+        return Promise.resolve(null);
       },
       agentTokens: () =>
         Promise.resolve(
@@ -169,6 +196,7 @@ function createFakeStore(): FakeStore {
         for (const value of spaces.values()) {
           const found = value.tokens.get(input.tokenHash);
           if (found === undefined) continue;
+          value.locked = true;
           value.tokens.delete(input.tokenHash);
           const invitation = value.invitations.find(
             (entry) => entry.id === found,
@@ -245,6 +273,15 @@ function createFakeStore(): FakeStore {
         value.audit.push(input.action);
         return Promise.resolve();
       },
+      auditActorHome: (input) => {
+        const home = [...spaces.entries()].find(
+          ([id, other]) =>
+            id !== workspaceId && other.members.has(actor.accountId),
+        );
+        if (home === undefined) return Promise.resolve(false);
+        home[1].audit.push(input.action);
+        return Promise.resolve(true);
+      },
       recordMembershipChange: (input) => {
         value.changes.push(input);
         return Promise.resolve();
@@ -305,11 +342,15 @@ await test('only the owner deletes a workspace', async () => {
     [alice, 'owner'],
     [bob, 'admin'],
   ]);
+  store.seed(other, [[alice, 'owner']]);
   const denied = await deleteWorkspace(store, actorFor(bob, 'admin'), space);
   assert.equal(denied.ok, false);
   const allowed = await deleteWorkspace(store, actorFor(alice, 'owner'), space);
   assert.equal(allowed.ok, true);
   assert.equal(store.spaces.has(space), false);
+  // The record of the deletion survives, because it was written to another
+  // workspace of the same actor.
+  assert.deepEqual(store.space(other).audit, ['workspace.delete']);
 });
 
 await test('the last owner cannot be removed', async () => {
@@ -506,6 +547,11 @@ await test('a created workspace has its creator as owner', async () => {
   );
   assert.equal(created.ok, true);
   assert.equal(store.space(space).members.get(alice), 'owner');
+  assert.equal(store.space(space).locked, true);
+  assert.deepEqual(store.space(space).changes, [
+    { accountId: alice, removed: false },
+  ]);
+  assert.deepEqual(store.space(space).audit, ['workspace.create']);
 });
 
 await test('a viewer reads members but not invitations', async () => {
@@ -550,6 +596,11 @@ await test('an invitation is accepted once and a replay is rejected', async () =
   });
   assert.equal(first.ok, true);
   assert.equal(store.space(space).members.get(bob), 'editor');
+  assert.equal(store.space(space).locked, true);
+  assert.deepEqual(store.space(space).changes, [
+    { accountId: bob, removed: false },
+  ]);
+  assert.deepEqual(store.space(space).audit, ['membership.accept']);
   const replay = await acceptInvitation(store, guest, {
     tokenHash: 'hash',
     email: '2222@notes.invalid',

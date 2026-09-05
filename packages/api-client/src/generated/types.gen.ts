@@ -131,6 +131,7 @@ export type AssignableRole = 'admin' | 'editor' | 'viewer';
  */
 export type AuthCurrentSession = {
     user?: AuthUser;
+    session?: AuthSessionRecord;
     [key: string]: unknown;
 } | null;
 
@@ -253,10 +254,40 @@ export type AuthSession = {
 };
 
 /**
+ * The stored session of the signed in user. It never carries the session token: the browser already holds that value in an HttpOnly cookie, and the protocol adapter removes it from this answer.
+ */
+export type AuthSessionRecord = {
+    /**
+     * Identifier of the session record.
+     */
+    readonly id: string;
+    /**
+     * Instant after which the session is refused.
+     */
+    readonly expiresAt: string;
+    /**
+     * Never present. The adapter removes the session token from this answer.
+     */
+    token?: unknown;
+    [key: string]: unknown;
+};
+
+/**
  * Sign-out carries no data. The session cookie names it.
  */
 export type AuthSignOut = {
     [key: string]: never;
+};
+
+/**
+ * Whether the session was ended.
+ */
+export type AuthSignOutResult = {
+    /**
+     * True when the session no longer exists.
+     */
+    readonly success: boolean;
+    [key: string]: unknown;
 };
 
 /**
@@ -323,17 +354,21 @@ export type Invitation = {
 };
 
 /**
- * The invitation token to consume.
+ * The invitation token to consume, and an optional password.
  */
 export type InvitationAcceptanceInput = {
     /**
      * The invitation token that was handed to the invited person.
      */
     token: string;
+    /**
+     * Password of the local account to create. Supply it only when no session exists and the invited person has no account yet. It is refused when a session is present or when the installation requires the configured provider.
+     */
+    password?: string;
 };
 
 /**
- * A new invitation and its token, which is shown once.
+ * A new invitation, and its token when no mail transport exists.
  */
 export type InvitationCreated = {
     /**
@@ -341,9 +376,13 @@ export type InvitationCreated = {
      */
     readonly invitation: Invitation;
     /**
-     * The invitation token. It appears in this answer only, because storage keeps its hash.
+     * True when the server sent the invitation by email. The token is then absent, because it left through the message.
      */
-    readonly token: string;
+    readonly delivered: boolean;
+    /**
+     * The invitation token. It is present only when the deployment has no mail transport, so an administrator can hand it over. It appears in this answer only, because storage keeps its hash.
+     */
+    readonly token?: string;
 };
 
 /**
@@ -631,6 +670,7 @@ export type AgentTokenListWritable = {
  * The current session, or null when there is none.
  */
 export type AuthCurrentSessionWritable = {
+    session?: AuthSessionRecordWritable;
     [key: string]: unknown;
 } | null;
 
@@ -638,6 +678,17 @@ export type AuthCurrentSessionWritable = {
  * The result of a completed sign-in.
  */
 export type AuthSessionWritable = {
+    [key: string]: unknown;
+};
+
+/**
+ * The stored session of the signed in user. It never carries the session token: the browser already holds that value in an HttpOnly cookie, and the protocol adapter removes it from this answer.
+ */
+export type AuthSessionRecordWritable = {
+    /**
+     * Never present. The adapter removes the session token from this answer.
+     */
+    token?: unknown;
     [key: string]: unknown;
 };
 
@@ -971,6 +1022,14 @@ export type GetAuthSessionErrors = {
      */
     401: ProblemDetails;
     /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
+    /**
      * Too many attempts. Try again later.
      */
     429: ProblemDetails;
@@ -1010,6 +1069,14 @@ export type RequestPasswordResetErrors = {
      * The credential was refused.
      */
     401: ProblemDetails;
+    /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
     /**
      * The request body is larger than the configured limit.
      */
@@ -1059,6 +1126,14 @@ export type ResetPasswordErrors = {
      */
     401: ProblemDetails;
     /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
+    /**
      * The request body is larger than the configured limit.
      */
     413: ProblemDetails;
@@ -1106,6 +1181,14 @@ export type SignInWithPasswordErrors = {
      * The credential was refused.
      */
     401: ProblemDetails;
+    /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
     /**
      * The request body is larger than the configured limit.
      */
@@ -1155,6 +1238,14 @@ export type SignInWithProviderErrors = {
      */
     401: ProblemDetails;
     /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
+    /**
      * The request body is larger than the configured limit.
      */
     413: ProblemDetails;
@@ -1203,6 +1294,14 @@ export type SignOutErrors = {
      */
     401: ProblemDetails;
     /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
+    /**
      * The request body is larger than the configured limit.
      */
     413: ProblemDetails;
@@ -1226,7 +1325,7 @@ export type SignOutResponses = {
     /**
      * The session ended.
      */
-    200: AuthOutcome;
+    200: AuthSignOutResult;
 };
 
 export type SignOutResponse = SignOutResponses[keyof SignOutResponses];

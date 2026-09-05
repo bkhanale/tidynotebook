@@ -116,17 +116,49 @@ export type AccountTransaction = {
   preferences(): Promise<Preferences>;
   /** Replaces the stored settings of the account. */
   savePreferences(preferences: Preferences): Promise<void>;
-  /** Creates a workspace whose only member is the account, as its owner. */
+  /**
+   * Creates a workspace whose only member is the account, as its owner.
+   *
+   * The call takes the same workspace lock as every other write of that
+   * workspace, so the first membership record is ordered with the rest.
+   */
   createWorkspace(input: {
     readonly workspaceId: string;
     readonly name: string;
   }): Promise<void>;
+  /** Takes the workspace lock inside this transaction. */
+  lockWorkspace(workspaceId: string): Promise<void>;
+  /** Appends one content free audit record to a workspace. */
+  audit(
+    workspaceId: string,
+    input: {
+      readonly action: string;
+      readonly targetKind: string;
+      readonly targetId: string | null;
+    },
+  ): Promise<void>;
+  /** Appends one incremental membership record under the workspace lock. */
+  recordMembershipChange(
+    workspaceId: string,
+    input: { readonly accountId: string; readonly removed: boolean },
+  ): Promise<void>;
   /** Every agent token of the account, without secrets. */
   agentTokens(): Promise<readonly AgentTokenSummary[]>;
   /** Stores one new agent token. */
   createAgentToken(input: AgentTokenInput): Promise<void>;
   /** Revokes one agent token of the account. False when it does not exist. */
   revokeAgentToken(tokenId: string): Promise<boolean>;
+  /**
+   * The workspace and the invited address of one open invitation, or `null`.
+   *
+   * The invitation is not consumed. Acceptance uses the workspace to take its
+   * lock, and the sign-up path uses the address to create a local account for
+   * a person who has none.
+   */
+  openInvitation(tokenHash: string): Promise<{
+    workspaceId: string;
+    email: string;
+  } | null>;
   /**
    * Consumes one invitation for the account.
    *
@@ -180,6 +212,15 @@ export type WorkspaceAdminTransaction = {
     readonly targetKind: string;
     readonly targetId: string | null;
   }): Promise<void>;
+  /**
+   * Appends one audit record to another workspace of the actor.
+   *
+   * Deleting a workspace removes its own audit rows, so the record of that
+   * deletion has to live somewhere else. The deleted workspace identifier is
+   * the content free target. The result is false when the actor belongs to no
+   * other workspace.
+   */
+  auditActorHome(input: { readonly action: string }): Promise<boolean>;
   /** Appends one incremental change record under the workspace lock. */
   recordMembershipChange(input: {
     readonly accountId: string;

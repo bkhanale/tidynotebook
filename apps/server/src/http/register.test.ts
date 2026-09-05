@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Readable } from 'node:stream';
+import type { ProtocolResult } from './register.ts';
 import {
   baseMediaType,
   checkBodyMediaType,
@@ -194,7 +195,15 @@ await test('a protocol operation needs no contract handler', () => {
   const adapter = {
     protocol: 'better-auth',
     routes: [{ method: 'POST' as const, path: '/api/auth/sign-in/email' }],
-    handler: (): Promise<void> => Promise.resolve(),
+    handle: (): Promise<ProtocolResult> =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/json',
+        headers: [],
+        cookies: [],
+        body: {},
+        bytes: null,
+      }),
   };
   assert.doesNotThrow(() =>
     checkRegistration([publicEntry, protocolEntry], ['getHealth'], false, [
@@ -234,7 +243,15 @@ await test('a protocol operation outside the adapter path list stops startup', (
           routes: [
             { method: 'POST' as const, path: '/api/auth/sign-in/email' },
           ],
-          handler: (): Promise<void> => Promise.resolve(),
+          handle: (): Promise<ProtocolResult> =>
+            Promise.resolve({
+              status: 200,
+              mediaType: 'application/json',
+              headers: [],
+              cookies: [],
+              body: {},
+              bytes: null,
+            }),
         },
       ]),
     /is not in the exact path list of protocol better-auth/,

@@ -7,6 +7,8 @@
  */
 import type { WorkspaceAdminStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
+import type { InvitationAccounts } from '../auth/invitations.ts';
+import type { MailTransport } from '../auth/mail.ts';
 import { readProperty } from '../values.ts';
 import { createAccountHandlers } from './accounts.ts';
 import { createWorkspaceHandlers } from './workspaces.ts';
@@ -26,6 +28,18 @@ function missingStore(): WorkspaceAdminStore {
   };
   return { account: fail, workspace: fail };
 }
+
+/** What the account and workspace handlers need from the composition. */
+export type HandlerDependencies = {
+  /** The account and workspace store of the deployment. */
+  readonly store?: WorkspaceAdminStore;
+  /** The invitation sign-up path. */
+  readonly invitations?: InvitationAccounts;
+  /** Mail transport, or `null` when the deployment has none. */
+  readonly mail?: MailTransport | null;
+  /** Clock, so a test can decide an expiry. */
+  readonly now?: () => Date;
+};
 
 const jsonMediaType = 'application/json';
 
@@ -101,11 +115,22 @@ export async function evaluateReadiness(
 export function createHandlers(
   config: ServerConfig,
   probes: readonly ReadinessProbe[] = [configurationProbe(config)],
-  store: WorkspaceAdminStore = missingStore(),
+  dependencies: HandlerDependencies = {},
 ): HandlerMap {
+  const store = dependencies.store ?? missingStore();
   return {
-    ...createAccountHandlers(store),
-    ...createWorkspaceHandlers(store),
+    ...createAccountHandlers(store, dependencies.now),
+    ...createWorkspaceHandlers(
+      store,
+      {
+        ...(dependencies.now === undefined ? {} : { now: dependencies.now }),
+        ...(dependencies.mail === undefined ? {} : { mail: dependencies.mail }),
+        ...(dependencies.invitations === undefined
+          ? {}
+          : { invitations: dependencies.invitations }),
+      },
+      config.origin,
+    ),
     getHealth: (): Promise<HandlerResult> =>
       Promise.resolve({
         status: 200,

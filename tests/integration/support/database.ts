@@ -26,6 +26,7 @@ import type {
 } from '@notesapp/core';
 import { verifyActor } from '@notesapp/core';
 import {
+  authRole,
   createTestDatabase,
   databaseName,
   dropTestDatabase,
@@ -34,6 +35,7 @@ import {
   provisionWorkspace,
   runMigrations,
   runtimeRole,
+  testAuthPassword,
   testDatabaseUrl,
   testRuntimePassword,
   withCredentials,
@@ -47,6 +49,12 @@ export type TestDatabase = {
   readonly migrationUrl: string;
   /** A connection URL of the runtime role, which the application uses. */
   readonly runtimeUrl: string;
+  /**
+   * A connection URL of the identity role, which only the Better Auth pool
+   * uses. It holds every right on the four Better Auth tables and no right
+   * anywhere else.
+   */
+  readonly authUrl: string;
   /** Drops this database and nothing else. */
   destroy(): Promise<void>;
 };
@@ -68,6 +76,11 @@ function testPassword(): string {
   return process.env['NOTESAPP_RUNTIME_PASSWORD'] ?? testRuntimePassword;
 }
 
+/** The identity role password of the test service. */
+function testIdentityPassword(): string {
+  return process.env['NOTESAPP_AUTH_DATABASE_PASSWORD'] ?? testAuthPassword;
+}
+
 /** Creates and migrates one disposable database. */
 export async function createDisposableDatabase(): Promise<TestDatabase> {
   const serverUrl = testServerUrl();
@@ -77,6 +90,7 @@ export async function createDisposableDatabase(): Promise<TestDatabase> {
     await runMigrations({
       databaseUrl: migrationUrl,
       runtimePassword: testPassword(),
+      authPassword: testIdentityPassword(),
     });
   } catch (error) {
     await dropTestDatabase(serverUrl, name);
@@ -86,6 +100,7 @@ export async function createDisposableDatabase(): Promise<TestDatabase> {
     name,
     migrationUrl,
     runtimeUrl: withCredentials(migrationUrl, runtimeRole, testPassword()),
+    authUrl: withCredentials(migrationUrl, authRole, testIdentityPassword()),
     destroy: async () => {
       await dropTestDatabase(serverUrl, name);
     },

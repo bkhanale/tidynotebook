@@ -27,21 +27,27 @@ tables that Task 5 added and the rules above them.
 
 ## Configuration
 
-| Variable                      | Meaning                                                      |
-| ----------------------------- | ------------------------------------------------------------ |
-| `NOTESAPP_ORIGIN`             | Public origin. The only trusted origin, and the cookie base. |
-| `NOTESAPP_AUTH_SECRET`        | Signs sessions and tokens. At least 32 characters.           |
-| `NOTESAPP_SESSION_MAX_AGE_S`  | Session life in seconds. Seven days by default.              |
-| `NOTESAPP_SMTP_URL`           | Mail transport. Absent disables recovery by email.           |
-| `NOTESAPP_MAIL_FROM`          | Sender address. Required when a transport is configured.     |
-| `NOTESAPP_OIDC_ISSUER_URL`    | Issuer of the administrator configured provider.             |
-| `NOTESAPP_OIDC_CLIENT_ID`     | Client identifier at that provider.                          |
-| `NOTESAPP_OIDC_CLIENT_SECRET` | Client secret at that provider.                              |
-| `NOTESAPP_OIDC_REQUIRED`      | `true` disables password sign-in for the whole deployment.   |
+| Variable                      | Meaning                                                           |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `NOTESAPP_ORIGIN`             | Public origin. The only trusted origin, and the cookie base.      |
+| `NOTESAPP_AUTH_DATABASE_URL`  | Connection of the identity role. It must not be the runtime role. |
+| `NOTESAPP_AUTH_SECRET`        | Signs sessions and tokens. At least 32 characters.                |
+| `NOTESAPP_SESSION_MAX_AGE_S`  | Session life in seconds. Seven days by default.                   |
+| `NOTESAPP_SMTP_URL`           | Mail transport. Absent disables recovery by email.                |
+| `NOTESAPP_MAIL_FROM`          | Sender address. Required when a transport is configured.          |
+| `NOTESAPP_OIDC_ISSUER_URL`    | Issuer of the administrator configured provider.                  |
+| `NOTESAPP_OIDC_CLIENT_ID`     | Client identifier at that provider.                               |
+| `NOTESAPP_OIDC_CLIENT_SECRET` | Client secret at that provider.                                   |
+| `NOTESAPP_OIDC_REQUIRED`      | `true` disables password sign-in for the whole deployment.        |
 
 Startup fails when a group is half configured: a transport without a sender, a
-provider without a client identifier or secret, or `NOTESAPP_OIDC_REQUIRED`
-without a provider.
+provider without a client identifier or secret, `NOTESAPP_OIDC_REQUIRED`
+without a provider, or an identity connection that reuses the runtime
+connection.
+
+The migration creates the identity role and sets its password. See
+`docs/development/database.md` for the two profiles and their password
+sources.
 
 ## Sign-in
 
@@ -104,6 +110,21 @@ body into RFC 9457 problem details with a stable code, so the deployment
 answers problem details everywhere and the library's message, which can name an
 address, never leaves the server.
 
+The six endpoints that the contract describes are checked at both ends like any
+other operation. The boundary parses a copy of the raw body and validates it
+against the declared schema, so a closed request body rejects an unknown member
+with `400 invalid_request`, a wrong media type answers `415`, and a body larger
+than the limit answers `413`. The answer is validated against the declared
+response schema before it is sent, so the fragment cannot drift from what the
+library actually returns. The library still receives the exact bytes the client
+sent, because it may sign or hash them, and it still owns its own credential
+checks.
+
+The get-session answer is the one place where the adapter changes the body: it
+removes `session.token`. The browser already holds that value in an HttpOnly
+cookie, so handing the same secret to page script would only widen where it can
+leak, and the contract declares the session without a token.
+
 ## The verified actor
 
 `resolveActor` maps a request to an `Actor` from `@notesapp/core`. Only
@@ -119,11 +140,16 @@ verified actor is required.
   revoked token resolves to nothing. Its grants are the stored scope
   intersected with the current role, so a scope for a workspace the account has
   left disappears completely.
-- A cookie authenticated write must come from the configured origin. A request
-  whose `Origin` differs, or whose `Sec-Fetch-Site` is neither `same-origin`
-  nor `none`, answers `403 forbidden`. A request without those headers did not
-  come from a browser page and cannot be a cross-site request forgery; it still
-  needs its session cookie.
+- A cookie authenticated write must name the configured origin. The check is
+  positive: the request carries `Origin` equal to that origin, or
+  `Sec-Fetch-Site: same-origin`. A request whose `Origin` differs answers
+  `403 forbidden`, and a request with neither header answers
+  `403 origin_required`. A client that is not a browser sends neither header,
+  and its path is an agent token rather than a session cookie.
+- A request that carries an `Authorization` header is resolved as a token and
+  never falls back to the cookie. A malformed or unknown bearer value answers
+  `401 unauthenticated`, so a caller that meant to present a token is never
+  authenticated as somebody else.
 - An operation that declares only `sessionCookie` refuses an agent token, and
   the other way round.
 
@@ -166,19 +192,50 @@ of one workspace have a defined order.
   survives.
 
 Every membership change appends a `sync_changes` record under the workspace
-lock and a content free `audit_events` record.
+lock and a content free `audit_events` record. That includes the two writes
+that create a membership rather than changing one: creating a workspace, which
+takes the new workspace's lock before it writes anything, and accepting an
+invitation.
+
+Deleting a workspace removes its own audit rows, so the record of that deletion
+is written to another workspace of the same actor, with the deleted workspace
+identifier as its content free target. An actor whose only workspace is the one
+being deleted leaves no record, because there is nowhere left to write it.
 
 ## Invitations
 
 An invitation stores an address, a role, an expiry, and the SHA-256 hash of its
-token. The token itself appears once, in the answer of `inviteMember`. A
-deployment with a mail transport sends it; one without hands it to the inviting
-administrator.
+token. Where the token goes depends on the deployment:
+
+- With `NOTESAPP_SMTP_URL`, the server sends the invitation by email and the
+  answer of `inviteMember` carries `delivered: true` and no token. The token
+  then never reaches a browser log or a shared screen.
+- Without a transport, the answer carries `delivered: false` and the token, so
+  the inviting administrator can hand it over out of band.
+
+`acceptInvitation` accepts two forms, and it declares no security requirement
+because the second has no session yet:
+
+1. A signed in account whose address is the invited address. A password in that
+   request is refused, because it would be a second identity for one call.
+2. A request with no session that carries the token and a password. The server
+   then creates the local account for the invited address, marks that address
+   verified because the token proves control of it, signs the new account in,
+   and creates its personal workspace. Sign-up is reachable through Better
+   Auth's server API only; `/api/auth/sign-up/email` is not in `authRoutes`, so
+   nothing outside this path can register. An address that already has an
+   account answers `403 forbidden`: that person signs in and accepts again.
+
+Under `NOTESAPP_OIDC_REQUIRED` the second form answers `403 oidc_required`. The
+invited person signs in through the configured provider instead, and the
+invitation is claimed on that first sign-in with the matching address.
 
 `notesapp_claim_invitation` consumes the invitation in one statement that
 matches only a pending, unexpired, unrevoked row whose address is the one that
 signed in. A replay of the same token updates no row and answers
-`404 not_found`.
+`404 not_found`. Acceptance reads the workspace of the invitation first and
+takes that workspace lock, so it is ordered with every other membership write,
+and it appends a `membership` sync record and an audit event like the others.
 
 ## Agent tokens
 
@@ -202,30 +259,42 @@ and `acceptInvitation` accept a browser session only.
 Migration `0002` creates the tables and `0003` adds their rights, policies, and
 functions.
 
-| Table                 | Scope     | Row policy for the runtime role                                     |
-| --------------------- | --------- | ------------------------------------------------------------------- |
-| `auth_user`           | identity  | An identity free connection, or an account that shares a workspace. |
-| `auth_session`        | identity  | An identity free connection only.                                   |
-| `auth_account`        | identity  | An identity free connection only.                                   |
-| `auth_verification`   | identity  | An identity free connection only.                                   |
-| `account_identities`  | identity  | Readable by the account itself and by a co-member.                  |
-| `account_preferences` | account   | The account itself.                                                 |
-| `agent_tokens`        | account   | The account itself.                                                 |
-| `invitations`         | workspace | A member reads; an owner or an administrator writes.                |
+| Table                 | Scope     | Row policy for the runtime role                        |
+| --------------------- | --------- | ------------------------------------------------------ |
+| `auth_user`           | identity  | `notesapp_auth` only. `notesapp_app` has no right.     |
+| `auth_session`        | identity  | `notesapp_auth` only. `notesapp_app` has no right.     |
+| `auth_account`        | identity  | `notesapp_auth` only. `notesapp_app` has no right.     |
+| `auth_verification`   | identity  | `notesapp_auth` only. `notesapp_app` has no right.     |
+| `account_identities`  | identity  | Neither application role. Two functions answer for it. |
+| `account_preferences` | account   | The account itself.                                    |
+| `agent_tokens`        | account   | The account itself.                                    |
+| `invitations`         | workspace | A member reads; an owner or an administrator writes.   |
 
 The four Better Auth tables are not scoped by a workspace, because sign-in must
-find a user by an address before any identity exists. The deployment therefore
-uses two connection pools:
+find a user by an address before any identity exists. Two database roles carry
+that separation instead:
 
-- The pool that Better Auth owns never sets `notesapp.account_id`. It is the
-  only connection that can read a session row, a password hash, or a reset
-  token.
-- The pool that serves application requests always sets that value inside its
-  transaction. Such a transaction can read its own account row and the address
-  and display name of a co-member, and nothing else in those tables.
+- `notesapp_auth` holds every right on those four tables and no right anywhere
+  else. Only the connection pool that Better Auth owns uses it, and that pool
+  reads `NOTESAPP_AUTH_DATABASE_URL`.
+- `notesapp_app` holds no right on them at all. An application query therefore
+  cannot read a session token, a password hash, a reset token, or a provider
+  `id_token` or `access_token`, however it sets its identity. The row policies
+  above are the second control, not the only one.
 
-This is the documented exception to workspace scoping. The rest of the schema
-keeps the policies that `database.md` describes.
+Better Auth 1.7.2 offers no option to skip storing a provider token, so
+`auth_account` keeps the `id_token` and the `access_token` that the provider
+returned. Only `notesapp_auth` can read them.
+
+Four SECURITY DEFINER functions give the application the narrow answers it
+still needs: `notesapp_account_of` returns one account identifier,
+`notesapp_has_account` returns whether any account exists,
+`notesapp_workspace_members` returns the address and the display name of the
+members of one workspace and requires a membership of its own, and
+`notesapp_open_invitation` returns the workspace and the invited address of an
+open invitation. None of them returns a token or a hash.
+
+The rest of the schema keeps the policies that `database.md` describes.
 
 Migration `0003` also narrows two earlier policies and adds one guard:
 
@@ -259,6 +328,21 @@ provider. The password comes from the named file or from a hidden terminal
 prompt. It never travels in a command argument and is never written to standard
 output.
 
+### What the operator commands use
+
+`pnpm account:recover` drives Better Auth through its server API rather than
+its HTTP surface. It uses `auth.$context` and then
+`internalAdapter.findUserByEmail`, `internalAdapter.findCredentialAccount`,
+`password.hash`, `internalAdapter.updatePassword`, and
+`internalAdapter.deleteUserSessions`. `pnpm owner:bootstrap` uses
+`auth.api.signUpEmail` on an instance that permits sign-up, and the invitation
+path uses the same call plus `internalAdapter.updateUser` to mark the address
+verified. None of these mounts an HTTP route.
+
+A local account starts unverified: `requireEmailVerification` is off, so a
+password sign-in works immediately. Only the invitation sign-up path sets
+`emailVerified`, because the invitation token proves control of the address.
+
 ### Recovery without email
 
 ```sh
@@ -270,6 +354,19 @@ The command sets a new local password, revokes every session of that account,
 and records a content free audit event. It refuses under
 `NOTESAPP_OIDC_REQUIRED`, so it cannot be used to work around that policy, and
 it refuses for an account that has no local credential.
+
+### An address that already has a local account
+
+An OpenID Connect identity whose address matches an existing local account is
+refused with the library's `account_not_linked` outcome, and the callback
+redirects with an error rather than issuing a session. That is the intended
+answer: automatic linking is off, so a provider that reports a familiar address
+can never take over a local account.
+
+An operator resolves it in one of two ways. Either the person keeps signing in
+with the local password, or the operator removes the local account so that the
+next provider sign-in creates a fresh one. There is no supported path that
+merges the two, because that would be exactly the takeover this rule prevents.
 
 ### Recovery by email
 

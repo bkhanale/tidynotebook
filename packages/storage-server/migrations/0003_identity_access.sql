@@ -6,65 +6,69 @@
 --
 -- Two kinds of table arrive with identity:
 --
---   * The four Better Auth tables and the account map. They are not scoped by
---     a workspace, because sign-in must find a user by an address before any
---     identity exists. The connection that Better Auth owns therefore sets no
---     identity, and the policies below give that identity free connection the
---     access it needs. Every application transaction does set an identity, and
---     for such a transaction the same policies narrow the rows to the account
---     itself and, for the member directory only, to the accounts that share a
---     workspace with it.
---   * The application's own identity tables: preferences, agent tokens, and
---     invitations. They carry an account or a workspace, so their policies are
---     the normal ones.
+--   * The four Better Auth tables. They hold session tokens, password hashes,
+--     reset tokens, and provider tokens. They are not scoped by a workspace,
+--     because sign-in must find a user by an address before any identity
+--     exists, so no row policy can narrow them by the account of the
+--     transaction. A second database role owns them instead: `notesapp_auth`
+--     holds every right on those four tables and on nothing else, and
+--     `notesapp_app` holds no right on them at all. The application therefore
+--     cannot read a session token, a password hash, a reset token, or a
+--     provider token through any query, however it sets its identity.
+--   * The application's own identity tables: the account map, preferences,
+--     agent tokens, and invitations. They carry an account or a workspace, so
+--     their policies are the normal ones.
 --
 -- Every write that creates or removes a workspace, moves ownership, or
 -- consumes an invitation goes through a SECURITY DEFINER function, because the
 -- runtime role holds no right to insert a workspace, an account, or another
--- account's membership row.
+-- account's membership row. The few facts that the application needs from the
+-- identity tables come from named SECURITY DEFINER functions that return those
+-- columns and nothing else.
 
--- Table rights of the runtime role.
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_user TO notesapp_app;--> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_session TO notesapp_app;--> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_account TO notesapp_app;--> statement-breakpoint
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_verification TO notesapp_app;--> statement-breakpoint
-GRANT SELECT ON public.account_identities TO notesapp_app;--> statement-breakpoint
+-- The identity role.
+--
+-- It is created exactly like `notesapp_app` in migration 0001: no superuser, no
+-- row security bypass, no replication. `migrate.ts` sets its password, so no
+-- password is stored in a committed SQL file.
+DO $$
+DECLARE
+	existing pg_catalog.pg_roles%ROWTYPE;
+BEGIN
+	SELECT * INTO existing FROM pg_catalog.pg_roles WHERE rolname = 'notesapp_auth';
+	IF NOT FOUND THEN
+		CREATE ROLE notesapp_auth LOGIN NOINHERIT;
+	ELSIF existing.rolsuper OR existing.rolbypassrls OR existing.rolreplication THEN
+		RAISE EXCEPTION 'notesapp: the role notesapp_auth must not be SUPERUSER, BYPASSRLS, or REPLICATION';
+	END IF;
+END
+$$;--> statement-breakpoint
+
+DO $$
+BEGIN
+	EXECUTE format('GRANT CONNECT ON DATABASE %I TO notesapp_auth', current_database());
+END
+$$;--> statement-breakpoint
+GRANT USAGE ON SCHEMA public TO notesapp_auth;--> statement-breakpoint
+
+-- Table rights. The four Better Auth tables belong to the identity role only.
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_user TO notesapp_auth;--> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_session TO notesapp_auth;--> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_account TO notesapp_auth;--> statement-breakpoint
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.auth_verification TO notesapp_auth;--> statement-breakpoint
+REVOKE ALL ON public.auth_user FROM notesapp_app;--> statement-breakpoint
+REVOKE ALL ON public.auth_session FROM notesapp_app;--> statement-breakpoint
+REVOKE ALL ON public.auth_account FROM notesapp_app;--> statement-breakpoint
+REVOKE ALL ON public.auth_verification FROM notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.account_preferences TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.agent_tokens TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.invitations TO notesapp_app;--> statement-breakpoint
 
--- True when the Better Auth user belongs to the account of the transaction, or
--- to an account that shares a workspace with it. The member list shows the
--- address and the display name of every co-member, and nothing else.
+-- True when the account belongs to the transaction identity, or shares a
+-- workspace with it.
 --
 -- The function is SECURITY DEFINER, so its own reads are not filtered by the
 -- policies that call it. That is what keeps those policies non-recursive.
-CREATE FUNCTION public.notesapp_shares_workspace(p_auth_user_id text)
-	RETURNS boolean
-	LANGUAGE sql
-	STABLE
-	SECURITY DEFINER
-	SET search_path = pg_catalog, public
-	AS $$
-		SELECT EXISTS (
-			SELECT 1
-			FROM public.account_identities ai
-			WHERE ai.auth_user_id = p_auth_user_id
-				AND (
-					ai.account_id = public.notesapp_current_account()
-					OR EXISTS (
-						SELECT 1
-						FROM public.memberships mine
-						JOIN public.memberships theirs
-							ON theirs.workspace_id = mine.workspace_id
-						WHERE mine.account_id = public.notesapp_current_account()
-							AND theirs.account_id = ai.account_id
-					)
-				)
-		)
-	$$;--> statement-breakpoint
-
--- The same question for an application account identifier.
 CREATE FUNCTION public.notesapp_shares_workspace_with(p_account_id uuid)
 	RETURNS boolean
 	LANGUAGE sql
@@ -83,9 +87,7 @@ CREATE FUNCTION public.notesapp_shares_workspace_with(p_account_id uuid)
 			)
 	$$;--> statement-breakpoint
 
-REVOKE ALL ON FUNCTION public.notesapp_shares_workspace(text) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_shares_workspace_with(uuid) FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.notesapp_shares_workspace(text) TO notesapp_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_shares_workspace_with(uuid) TO notesapp_app;--> statement-breakpoint
 
 -- Row level security of the identity tables.
@@ -94,48 +96,30 @@ DECLARE
 	owner_role text := current_user;
 	name text;
 BEGIN
-	-- The credential, session, and verification tables are reachable only by an
-	-- identity free connection, which is the one Better Auth owns. An
-	-- application transaction always sets an identity, so it cannot read a
-	-- password hash, a session token, or a reset token of anybody, including
-	-- itself.
-	FOREACH name IN ARRAY ARRAY['auth_session', 'auth_account', 'auth_verification'] LOOP
+	-- The four Better Auth tables belong to the identity role. The application
+	-- role holds no right on them at all, so the policy below is the second
+	-- control rather than the only one.
+	FOREACH name IN ARRAY ARRAY['auth_user', 'auth_session', 'auth_account', 'auth_verification'] LOOP
 		EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', name);
 		EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY', name);
 		EXECUTE format(
 			'CREATE POLICY %I ON public.%I FOR ALL TO %I USING (true) WITH CHECK (true)',
 			name || '_owner_policy', name, owner_role);
 		EXECUTE format(
-			'CREATE POLICY %I ON public.%I FOR ALL TO notesapp_app '
-			'USING (public.notesapp_current_account() IS NULL) '
-			'WITH CHECK (public.notesapp_current_account() IS NULL)',
+			'CREATE POLICY %I ON public.%I FOR ALL TO notesapp_auth '
+			'USING (true) WITH CHECK (true)',
 			name || '_auth_policy', name);
 	END LOOP;
 
-	-- The user table also answers the member directory, so an application
-	-- transaction sees the accounts that share a workspace with it.
-	EXECUTE 'ALTER TABLE public.auth_user ENABLE ROW LEVEL SECURITY';
-	EXECUTE 'ALTER TABLE public.auth_user FORCE ROW LEVEL SECURITY';
-	EXECUTE format(
-		'CREATE POLICY auth_user_owner_policy ON public.auth_user '
-		'FOR ALL TO %I USING (true) WITH CHECK (true)', owner_role);
-	EXECUTE
-		'CREATE POLICY auth_user_auth_policy ON public.auth_user '
-		'FOR ALL TO notesapp_app '
-		'USING (public.notesapp_current_account() IS NULL '
-		'  OR public.notesapp_shares_workspace(id)) '
-		'WITH CHECK (public.notesapp_current_account() IS NULL)';
-
+	-- The account map joins an identity to an account. The application role
+	-- holds no right on it: it learns an account through
+	-- `notesapp_account_of` and a member directory through
+	-- `notesapp_workspace_members`, and both return one narrow answer.
 	EXECUTE 'ALTER TABLE public.account_identities ENABLE ROW LEVEL SECURITY';
 	EXECUTE 'ALTER TABLE public.account_identities FORCE ROW LEVEL SECURITY';
 	EXECUTE format(
 		'CREATE POLICY account_identities_owner_policy ON public.account_identities '
 		'FOR ALL TO %I USING (true) WITH CHECK (true)', owner_role);
-	EXECUTE
-		'CREATE POLICY account_identities_read_policy ON public.account_identities '
-		'FOR SELECT TO notesapp_app '
-		'USING (public.notesapp_current_account() IS NULL '
-		'  OR public.notesapp_shares_workspace(auth_user_id))';
 
 	-- Settings belong to one account and to nobody else.
 	EXECUTE 'ALTER TABLE public.account_preferences ENABLE ROW LEVEL SECURITY';
@@ -336,7 +320,11 @@ CREATE FUNCTION public.notesapp_transfer_ownership(
 		caller uuid := public.notesapp_current_account();
 		changed integer;
 	BEGIN
-		IF caller IS NULL OR public.notesapp_member_role(p_workspace_id) <> 'owner' THEN
+		-- A stranger has no role at all, and `<> 'owner'` is null rather than
+		-- true for a null role. `IS DISTINCT FROM` is the comparison that also
+		-- refuses that case.
+		IF caller IS NULL
+			OR public.notesapp_member_role(p_workspace_id) IS DISTINCT FROM 'owner' THEN
 			RAISE EXCEPTION 'notesapp: only an owner can transfer a workspace'
 				USING ERRCODE = '42501';
 		END IF;
@@ -403,6 +391,84 @@ CREATE FUNCTION public.notesapp_claim_invitation(
 	END
 	$$;--> statement-breakpoint
 
+-- The account of one Better Auth user, or null.
+--
+-- The application role holds no right on the identity tables, so this is the
+-- only way it can learn that a verified user already has an account. The
+-- function returns one identifier and nothing else.
+CREATE FUNCTION public.notesapp_account_of(p_auth_user_id text) RETURNS uuid
+	LANGUAGE sql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+		SELECT ai.account_id FROM public.account_identities ai
+		WHERE ai.auth_user_id = p_auth_user_id
+	$$;--> statement-breakpoint
+
+-- Whether this installation already has an account. The bootstrap command
+-- refuses to run a second time on the strength of this answer.
+CREATE FUNCTION public.notesapp_has_account() RETURNS boolean
+	LANGUAGE sql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+		SELECT EXISTS (SELECT 1 FROM public.account_identities)
+	$$;--> statement-breakpoint
+
+-- The member directory of one workspace.
+--
+-- A member list shows the address and the display name of every co-member. The
+-- application role cannot read the identity tables, so this function reads them
+-- and returns those two columns only. It requires a membership, so a stranger
+-- learns nothing.
+CREATE FUNCTION public.notesapp_workspace_members(p_workspace_id uuid)
+	RETURNS TABLE (
+		member_account_id uuid,
+		member_role text,
+		member_email text,
+		member_name text)
+	LANGUAGE plpgsql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+	BEGIN
+		IF NOT public.notesapp_is_member(p_workspace_id) THEN
+			RAISE EXCEPTION 'notesapp: the account is not a member of this workspace'
+				USING ERRCODE = '42501';
+		END IF;
+		RETURN QUERY
+			SELECT m.account_id, m.role::text, u.email, u.name
+			FROM public.memberships m
+			LEFT JOIN public.account_identities ai ON ai.account_id = m.account_id
+			LEFT JOIN public.auth_user u ON u.id = ai.auth_user_id
+			WHERE m.workspace_id = p_workspace_id
+			ORDER BY m.created_at ASC, m.account_id ASC;
+	END
+	$$;--> statement-breakpoint
+
+-- The address and the workspace of one open invitation.
+--
+-- Acceptance needs both before it can consume the invitation: the workspace to
+-- take its lock, and the address to create a local account for a person who
+-- has none. The function returns no token and no hash.
+CREATE FUNCTION public.notesapp_open_invitation(p_token_hash text)
+	RETURNS TABLE (invited_workspace_id uuid, invited_email text)
+	LANGUAGE sql
+	STABLE
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+		SELECT i.workspace_id, i.email
+		FROM public.invitations i
+		WHERE i.token_hash = p_token_hash
+			AND i.accepted_at IS NULL
+			AND i.revoked_at IS NULL
+			AND i.expires_at > now()
+	$$;--> statement-breakpoint
+
 -- Resolves an agent token by the hash of its secret.
 --
 -- The lookup happens before any identity exists, so it cannot pass the row
@@ -439,7 +505,9 @@ CREATE FUNCTION public.notesapp_delete_workspace(p_workspace_id uuid)
 	SET search_path = pg_catalog, public
 	AS $$
 	BEGIN
-		IF public.notesapp_member_role(p_workspace_id) <> 'owner' THEN
+		-- A null role is not the owner role either, so the comparison has to be
+		-- `IS DISTINCT FROM` and not `<>`.
+		IF public.notesapp_member_role(p_workspace_id) IS DISTINCT FROM 'owner' THEN
 			RAISE EXCEPTION 'notesapp: only an owner can delete a workspace'
 				USING ERRCODE = '42501';
 		END IF;
@@ -471,6 +539,14 @@ CREATE FUNCTION public.notesapp_delete_workspace(p_workspace_id uuid)
 	END
 	$$;--> statement-breakpoint
 
+REVOKE ALL ON FUNCTION public.notesapp_account_of(text) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_has_account() FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_workspace_members(uuid) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_open_invitation(text) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_account_of(text) TO notesapp_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_has_account() TO notesapp_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_workspace_members(uuid) TO notesapp_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_open_invitation(text) TO notesapp_app;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_link_account(text, uuid, uuid, text, bigint) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_create_workspace(uuid, text, bigint) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_transfer_ownership(uuid, uuid, boolean) FROM PUBLIC;--> statement-breakpoint

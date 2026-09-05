@@ -147,6 +147,15 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
   /** Whether any application account exists. The bootstrap command uses it. */
   hasAccount(): Promise<boolean>;
   /**
+   * The workspace and the invited address of one open invitation, or `null`.
+   *
+   * The invitation is not consumed. The sign-up path needs the address before
+   * any account exists, so this call is not bound to an actor.
+   */
+  openInvitation(
+    tokenHash: string,
+  ): Promise<{ workspaceId: string; email: string } | null>;
+  /**
    * Appends one content free audit record to the personal workspace of an
    * account. The operator recovery command uses it.
    */
@@ -219,6 +228,69 @@ export function openIdentityStore(
     }
   }
 
+  /** Takes the advisory lock that every write of one workspace shares. */
+  async function lockWorkspace(
+    client: pg.PoolClient,
+    workspaceId: string,
+  ): Promise<void> {
+    assertUuid(workspaceId, 'the workspace');
+    await client.query(
+      'select pg_advisory_xact_lock(hashtext($1::text)::bigint)',
+      [workspaceId],
+    );
+  }
+
+  /** Appends one content free audit record. */
+  async function writeAudit(
+    client: pg.PoolClient,
+    workspaceId: string,
+    accountId: string,
+    input: {
+      readonly action: string;
+      readonly targetKind: string;
+      readonly targetId: string | null;
+    },
+  ): Promise<void> {
+    await client.query(
+      `insert into audit_events
+         (workspace_id, id, actor_account_id, action, target_kind, target_id)
+       values ($1, $2, $3, $4, $5, $6)`,
+      [
+        workspaceId,
+        randomUUID(),
+        accountId,
+        input.action,
+        input.targetKind,
+        input.targetId,
+      ],
+    );
+  }
+
+  /** Appends one incremental membership record under the workspace lock. */
+  async function writeMembershipChange(
+    client: pg.PoolClient,
+    workspaceId: string,
+    input: { readonly accountId: string; readonly removed: boolean },
+  ): Promise<void> {
+    const allocated = await client.query<{ cursor: string }>(
+      'select notesapp_next_cursor($1) as cursor',
+      [workspaceId],
+    );
+    const cursor = allocated.rows[0]?.cursor;
+    if (cursor === undefined) {
+      throw new OperationalError(
+        'unexpected',
+        'notesapp: the workspace cursor was not allocated.',
+      );
+    }
+    await client.query(
+      `insert into sync_changes
+         (workspace_id, cursor, entity_kind, entity_id, deleted)
+       values ($1, $2::bigint, 'membership', $3, $4)`,
+      [workspaceId, cursor, input.accountId, input.removed],
+    );
+  }
+
   function accountTransaction(
     client: pg.PoolClient,
     accountId: string,
@@ -278,11 +350,29 @@ export function openIdentityStore(
 
       async createWorkspace(input): Promise<void> {
         assertUuid(input.workspaceId, 'the workspace');
+        // The new workspace takes the same lock as every other write of that
+        // workspace, so its first membership record and its first cursor are
+        // allocated in the same order as a later change.
+        await lockWorkspace(client, input.workspaceId);
         await client.query('select notesapp_create_workspace($1, $2, $3)', [
           input.workspaceId,
           input.name,
           defaultQuotaBytes.toString(),
         ]);
+      },
+
+      async lockWorkspace(workspaceId: string): Promise<void> {
+        await lockWorkspace(client, workspaceId);
+      },
+
+      async audit(workspaceId: string, input): Promise<void> {
+        assertUuid(workspaceId, 'the workspace');
+        await writeAudit(client, workspaceId, accountId, input);
+      },
+
+      async recordMembershipChange(workspaceId: string, input): Promise<void> {
+        assertUuid(workspaceId, 'the workspace');
+        await writeMembershipChange(client, workspaceId, input);
       },
 
       async agentTokens(): Promise<readonly AgentTokenSummary[]> {
@@ -339,7 +429,29 @@ export function openIdentityStore(
         return (result.rowCount ?? 0) > 0;
       },
 
+      async openInvitation(tokenHash: string) {
+        const rows = await client.query<{
+          invited_workspace_id: string;
+          invited_email: string;
+        }>('select * from notesapp_open_invitation($1)', [tokenHash]);
+        const row = rows.rows[0];
+        if (row === undefined) return null;
+        return {
+          workspaceId: row.invited_workspace_id,
+          email: row.invited_email,
+        };
+      },
+
       async claimInvitation(input) {
+        // The workspace of the invitation is read first, so acceptance takes
+        // the same lock as every other membership write of that workspace.
+        const open = await client.query<{ invited_workspace_id: string }>(
+          'select invited_workspace_id from notesapp_open_invitation($1)',
+          [input.tokenHash],
+        );
+        const workspaceId = open.rows[0]?.invited_workspace_id;
+        if (workspaceId === undefined) return null;
+        await lockWorkspace(client, workspaceId);
         const rows = await client.query<{
           granted_workspace_id: string;
           granted_role: string;
@@ -386,25 +498,20 @@ export function openIdentityStore(
       },
 
       async members(): Promise<readonly Member[]> {
+        // The runtime role holds no right on the identity tables, so the
+        // directory function reads the address and the display name and
+        // returns nothing else. It requires a membership of its own.
         const rows = await client.query<{
-          account_id: string;
-          role: string;
-          email: string | null;
-          name: string | null;
-        }>(
-          `select m.account_id, m.role::text as role, u.email, u.name
-             from memberships m
-             left join account_identities i on i.account_id = m.account_id
-             left join auth_user u on u.id = i.auth_user_id
-            where m.workspace_id = $1
-            order by m.created_at asc, m.account_id asc`,
-          [workspaceId],
-        );
+          member_account_id: string;
+          member_role: string;
+          member_email: string | null;
+          member_name: string | null;
+        }>('select * from notesapp_workspace_members($1)', [workspaceId]);
         return rows.rows.map((row) => ({
-          accountId: row.account_id,
-          role: asRole(row.role),
-          email: row.email,
-          name: row.name,
+          accountId: row.member_account_id,
+          role: asRole(row.member_role),
+          email: row.member_email,
+          name: row.member_name,
         }));
       },
 
@@ -491,39 +598,33 @@ export function openIdentityStore(
       },
 
       async audit(input): Promise<void> {
-        await client.query(
-          `insert into audit_events
-             (workspace_id, id, actor_account_id, action, target_kind, target_id)
-           values ($1, $2, $3, $4, $5, $6)`,
-          [
-            workspaceId,
-            randomUUID(),
-            accountId,
-            input.action,
-            input.targetKind,
-            input.targetId,
-          ],
+        await writeAudit(client, workspaceId, accountId, input);
+      },
+
+      async auditActorHome(input): Promise<boolean> {
+        // Deleting a workspace removes its own audit rows, so the record of
+        // that deletion is written to another workspace of the actor. The
+        // deleted identifier travels as the content free target.
+        const rows = await client.query<{ workspace_id: string }>(
+          `select m.workspace_id from memberships m
+             join workspaces w on w.id = m.workspace_id
+            where m.account_id = $1 and m.workspace_id <> $2
+            order by w.personal desc, w.id asc
+            limit 1`,
+          [accountId, workspaceId],
         );
+        const home = rows.rows[0]?.workspace_id;
+        if (home === undefined) return false;
+        await writeAudit(client, home, accountId, {
+          action: input.action,
+          targetKind: 'workspace',
+          targetId: workspaceId,
+        });
+        return true;
       },
 
       async recordMembershipChange(input): Promise<void> {
-        const allocated = await client.query<{ cursor: string }>(
-          'select notesapp_next_cursor($1) as cursor',
-          [workspaceId],
-        );
-        const cursor = allocated.rows[0]?.cursor;
-        if (cursor === undefined) {
-          throw new OperationalError(
-            'unexpected',
-            'notesapp: the workspace cursor was not allocated.',
-          );
-        }
-        await client.query(
-          `insert into sync_changes
-             (workspace_id, cursor, entity_kind, entity_id, deleted)
-           values ($1, $2::bigint, 'membership', $3, $4)`,
-          [workspaceId, cursor, input.accountId, input.removed],
-        );
+        await writeMembershipChange(client, workspaceId, input);
       },
     };
   }
@@ -584,11 +685,11 @@ export function openIdentityStore(
 
     async accountOf(authUserId: string): Promise<string | null> {
       return inTransaction(null, null, async (client) => {
-        const rows = await client.query<{ account_id: string }>(
-          'select account_id from account_identities where auth_user_id = $1',
+        const rows = await client.query<{ account: string | null }>(
+          'select notesapp_account_of($1) as account',
           [authUserId],
         );
-        return rows.rows[0]?.account_id ?? null;
+        return rows.rows[0]?.account ?? null;
       });
     },
 
@@ -631,10 +732,25 @@ export function openIdentityStore(
       });
     },
 
+    async openInvitation(tokenHash: string) {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{
+          invited_workspace_id: string;
+          invited_email: string;
+        }>('select * from notesapp_open_invitation($1)', [tokenHash]);
+        const row = rows.rows[0];
+        if (row === undefined) return null;
+        return {
+          workspaceId: row.invited_workspace_id,
+          email: row.invited_email,
+        };
+      });
+    },
+
     async hasAccount(): Promise<boolean> {
       return inTransaction(null, null, async (client) => {
         const rows = await client.query<{ present: boolean }>(
-          'select exists (select 1 from account_identities) as present',
+          'select notesapp_has_account() as present',
         );
         return rows.rows[0]?.present ?? false;
       });

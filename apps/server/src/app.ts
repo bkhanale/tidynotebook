@@ -20,8 +20,10 @@ import type {
   ProtocolAdapter,
 } from './http/register.ts';
 import { registerOperations } from './http/register.ts';
+import type { AuthLogRecord } from './auth/better-auth.ts';
 import { createAuth, createAuthProtocol } from './auth/better-auth.ts';
 import { createIdentityAdapter } from './auth/actor.ts';
+import { createInvitationAccounts } from './auth/invitations.ts';
 import { createMailTransport } from './auth/mail.ts';
 import { openIdentityStore } from '@notesapp/storage-server';
 import {
@@ -205,17 +207,47 @@ export async function createApp(
   config: ServerConfig,
 ): Promise<FastifyInstance> {
   const identity = openIdentityStore(config.databaseUrl);
-  const auth = createAuth(config, { mail: createMailTransport(config.mail) });
+  const mail = createMailTransport(config.mail);
+  // The protocol library writes into the application log. The sink is filled
+  // once the instance exists, so nothing reaches the console in between.
+  const sink: { write?: (record: AuthLogRecord) => void } = {};
+  const auth = createAuth(config, {
+    mail,
+    // Sign-up is reachable through the server API only. The route that would
+    // expose it is not in `authRoutes`, so the invitation path in
+    // `auth/invitations.ts` is the one way an account is created besides the
+    // bootstrap command.
+    allowSignUp: true,
+    log: (record) => sink.write?.(record),
+  });
   const adapter = createIdentityAdapter({
     auth: auth.auth,
     identity,
     origin: config.origin,
   });
+  const invitations = createInvitationAccounts(config, {
+    auth: auth.auth,
+    identity,
+    resolveActor: (request) => adapter.resolveActor(request),
+  });
   const app = await createAppWithHandlers(config, {
-    handlers: createHandlers(config, undefined, identity),
+    handlers: createHandlers(config, undefined, {
+      store: identity,
+      invitations,
+      mail,
+    }),
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],
   });
+  sink.write = (record): void => {
+    const where = { source: 'better-auth' };
+    // The level is chosen explicitly rather than by index, so the logger keeps
+    // its own receiver.
+    if (record.level === 'error') app.log.error(where, record.message);
+    else if (record.level === 'warn') app.log.warn(where, record.message);
+    else if (record.level === 'info') app.log.info(where, record.message);
+    else app.log.debug(where, record.message);
+  };
   app.addHook('onClose', async () => {
     await auth.close();
     await identity.close();

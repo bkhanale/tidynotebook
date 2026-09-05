@@ -14,10 +14,12 @@ export {
   type WorkspaceStoreOptions,
 } from './workspace-store.ts';
 export {
+  authRole,
   main as runMigrationCommand,
   migrationsFolder,
   runMigrations,
   runtimeRole,
+  testAuthPassword,
   testDatabaseUrl,
   testRuntimePassword,
   type MigrationRun,

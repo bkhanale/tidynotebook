@@ -47,6 +47,15 @@ export type ServerConfig = {
   readonly origin: string;
   /** PostgreSQL connection URL of the runtime role. */
   readonly databaseUrl: string;
+  /**
+   * PostgreSQL connection URL of the identity role.
+   *
+   * Only the Better Auth pool uses it. That role holds every right on the four
+   * Better Auth tables and no right anywhere else, and the runtime role holds
+   * no right on those four tables, so the application cannot read a session
+   * token, a password hash, or a reset token through any query.
+   */
+  readonly authDatabaseUrl: string;
   /** Directory that holds immutable attachment content. */
   readonly storageRoot: string;
   /** Secret that signs sessions and tokens. */
@@ -94,6 +103,7 @@ export class ConfigError extends Error {
 const variables = [
   'NOTESAPP_ORIGIN',
   'NOTESAPP_DATABASE_URL',
+  'NOTESAPP_AUTH_DATABASE_URL',
   'NOTESAPP_STORAGE_ROOT',
   'NOTESAPP_AUTH_SECRET',
   'NOTESAPP_ALLOWED_HOSTS',
@@ -139,6 +149,11 @@ const configSchema: SchemaObject = {
       maxLength: 256,
     },
     NOTESAPP_DATABASE_URL: {
+      type: 'string',
+      pattern: '^postgres(ql)?://',
+      maxLength: 1024,
+    },
+    NOTESAPP_AUTH_DATABASE_URL: {
       type: 'string',
       pattern: '^postgres(ql)?://',
       maxLength: 1024,
@@ -228,10 +243,15 @@ export function loadServerConfig(
     partial.push(
       'NOTESAPP_OIDC_REQUIRED: an installation that requires a provider must configure one.',
     );
+  if (raw.NOTESAPP_AUTH_DATABASE_URL === raw.NOTESAPP_DATABASE_URL)
+    partial.push(
+      'NOTESAPP_AUTH_DATABASE_URL: the identity connection must use its own role, not the runtime role.',
+    );
   if (partial.length > 0) throw new ConfigError(partial);
   return {
     origin: raw.NOTESAPP_ORIGIN,
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
+    authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
     authSecret: raw.NOTESAPP_AUTH_SECRET,
     allowedHosts: raw.NOTESAPP_ALLOWED_HOSTS.split(',').map((host) =>

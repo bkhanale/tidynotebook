@@ -395,13 +395,19 @@ paths:
       operationId: acceptInvitation
       summary: Accept an invitation to a workspace.
       description: >-
-        Consumes one invitation token and adds the signed in account to the
-        workspace with the invited role. The address of the account must match
-        the invited address. A token works once; a replay is rejected.
+        Consumes one invitation token and adds an account to the workspace with
+        the invited role. A signed in account must already use the invited
+        address. A request without a session may instead supply a password: the
+        server then creates the local account for the invited address, marks
+        that address verified because the token proves control of it, and signs
+        the new account in. An installation that requires the configured
+        provider refuses the second form with the code oidc_required; the
+        invited person signs in through the provider instead and the invitation
+        is claimed on that first sign-in. A token works once; a replay is
+        rejected.
       tags:
         - workspaces
-      security:
-        - sessionCookie: []
+      security: []
       parameters:
         - $ref: '#/components/parameters/RequestId'
       requestBody:
@@ -1187,23 +1193,30 @@ components:
           description: Role that acceptance grants.
     InvitationCreated:
       type: object
-      description: A new invitation and its token, which is shown once.
+      description: A new invitation, and its token when no mail transport exists.
       additionalProperties: false
       required:
         - invitation
-        - token
+        - delivered
       properties:
         invitation:
           allOf:
             - $ref: '#/components/schemas/Invitation'
           readOnly: true
           description: The stored invitation.
+        delivered:
+          type: boolean
+          readOnly: true
+          description: >-
+            True when the server sent the invitation by email. The token is
+            then absent, because it left through the message.
         token:
           type: string
           readOnly: true
           description: >-
-            The invitation token. It appears in this answer only, because
-            storage keeps its hash.
+            The invitation token. It is present only when the deployment has no
+            mail transport, so an administrator can hand it over. It appears in
+            this answer only, because storage keeps its hash.
           minLength: 32
           maxLength: 128
     MemberRoleInput:
@@ -1235,7 +1248,7 @@ components:
             an administrator.
     InvitationAcceptanceInput:
       type: object
-      description: The invitation token to consume.
+      description: The invitation token to consume, and an optional password.
       additionalProperties: false
       required:
         - token
@@ -1245,6 +1258,15 @@ components:
           description: The invitation token that was handed to the invited person.
           minLength: 32
           maxLength: 128
+        password:
+          type: string
+          description: >-
+            Password of the local account to create. Supply it only when no
+            session exists and the invited person has no account yet. It is
+            refused when a session is present or when the installation requires
+            the configured provider.
+          minLength: 12
+          maxLength: 512
     Membership:
       type: object
       description: The workspace and the role that an invitation granted.

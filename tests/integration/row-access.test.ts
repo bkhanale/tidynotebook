@@ -315,6 +315,7 @@ await test('runtime role limits: cannot read or run the migration bookkeeping', 
     runMigrations({
       databaseUrl: database.runtimeUrl,
       runtimePassword: 'notesapp_app_test_password',
+      authPassword: 'notesapp_auth_test_password',
     }),
   );
 });
@@ -605,6 +606,350 @@ await test('privileged functions: a member cannot reduce the stored usage', asyn
     assert.equal(current[0]?.bytes_used, '4096');
   } finally {
     await session.close();
+  }
+});
+
+// The identity tables that Task 5 added, and the two roles that separate them.
+const identityTables = [
+  'auth_user',
+  'auth_session',
+  'auth_account',
+  'auth_verification',
+] as const;
+
+const invited = {
+  workspaceId: randomUUID(),
+  ownerId: randomUUID(),
+  adminId: randomUUID(),
+  memberId: randomUUID(),
+  strangerId: randomUUID(),
+};
+await seedWorkspace(database, invited.workspaceId, [
+  { accountId: invited.ownerId, role: 'owner' },
+  { accountId: invited.adminId, role: 'admin' },
+  { accountId: invited.memberId, role: 'editor' },
+]);
+await seedWorkspace(database, randomUUID(), [
+  { accountId: invited.strangerId, role: 'owner' },
+]);
+
+await test('identity roles: the runtime role cannot touch an identity table', async () => {
+  const session = await openSession(database.runtimeUrl, invited.ownerId);
+  try {
+    for (const table of identityTables) {
+      const read = await session.failure(`select * from ${table} limit 1`);
+      assert.equal(read.code, '42501', table);
+      const write = await session.failure(
+        `update ${table} set id = id where false`,
+      );
+      assert.equal(write.code, '42501', table);
+    }
+    // A connection without an identity setting fares no better, so an
+    // identity free query is not a way around the rights.
+    const anonymous = await openSession(database.runtimeUrl);
+    try {
+      const read = await anonymous.failure('select * from auth_account');
+      assert.equal(read.code, '42501');
+    } finally {
+      await anonymous.close();
+    }
+  } finally {
+    await session.close();
+  }
+});
+
+await test('identity roles: the identity role cannot touch a workspace table', async () => {
+  const session = await openSession(database.authUrl);
+  try {
+    for (const table of [
+      'workspaces',
+      'memberships',
+      'accounts',
+      'account_identities',
+      'account_preferences',
+      'agent_tokens',
+      'invitations',
+      'revisions',
+      'contents',
+    ]) {
+      const denied = await session.failure(`select * from ${table} limit 1`);
+      assert.equal(denied.code, '42501', table);
+    }
+    // It reads its own tables, which is the only thing it is for.
+    const rows = await session.query('select * from auth_user limit 1');
+    assert.equal(Array.isArray(rows), true);
+  } finally {
+    await session.close();
+  }
+});
+
+await test('account settings and tokens belong to one account', async () => {
+  const setup = await openSession(database.migrationUrl);
+  try {
+    await setup.query(
+      `insert into account_preferences (account_id, theme) values ($1, 'dark')`,
+      [invited.ownerId],
+    );
+    await setup.query(
+      `insert into agent_tokens
+         (id, account_id, name, prefix, token_hash, scopes, expires_at)
+       values ($1, $2, 'seed', 'nsk_seed', 'seed-hash', '[]'::jsonb, now() + interval '1 day')`,
+      [randomUUID(), invited.ownerId],
+    );
+  } finally {
+    await setup.close();
+  }
+  const foreign = await openSession(database.runtimeUrl, invited.adminId);
+  try {
+    const settings = await foreign.query(
+      'select * from account_preferences where account_id = $1',
+      [invited.ownerId],
+    );
+    assert.equal(settings.length, 0);
+    const tokens = await foreign.query(
+      'select * from agent_tokens where account_id = $1',
+      [invited.ownerId],
+    );
+    assert.equal(tokens.length, 0);
+    // Nor can a co-member write a setting for somebody else.
+    const denied = await foreign.failure(
+      `insert into account_preferences (account_id, theme) values ($1, 'light')`,
+      [invited.memberId],
+    );
+    assert.equal(denied.code, '42501');
+  } finally {
+    await foreign.close();
+  }
+  const own = await openSession(database.runtimeUrl, invited.ownerId);
+  try {
+    const settings = await own.query(
+      'select * from account_preferences where account_id = $1',
+      [invited.ownerId],
+    );
+    assert.equal(settings.length, 1);
+  } finally {
+    await own.close();
+  }
+});
+
+await test('an account row is visible to a co-member and to nobody else', async () => {
+  const member = await openSession(database.runtimeUrl, invited.memberId);
+  try {
+    const seen = await member.query<{ id: string }>(
+      'select id from accounts where id = $1',
+      [invited.ownerId],
+    );
+    assert.equal(seen.length, 1);
+    const hidden = await member.query('select id from accounts where id = $1', [
+      invited.strangerId,
+    ]);
+    assert.equal(hidden.length, 0);
+  } finally {
+    await member.close();
+  }
+});
+
+await test('the account map is unreachable from the application role', async () => {
+  const member = await openSession(database.runtimeUrl, invited.memberId);
+  try {
+    // The application learns an account through `notesapp_account_of` and a
+    // member list through `notesapp_workspace_members`. Both return one narrow
+    // answer, so the table itself needs no right at all.
+    const denied = await member.failure('select * from account_identities');
+    assert.equal(denied.code, '42501');
+  } finally {
+    await member.close();
+  }
+});
+
+await test('invitations: a member reads, an administrator writes', async () => {
+  const invitationId = randomUUID();
+  const admin = await openSession(database.runtimeUrl, invited.adminId);
+  try {
+    await admin.query(
+      `insert into invitations
+         (workspace_id, id, email, role, token_hash, invited_by, expires_at)
+       values ($1, $2, 'guest@notes.invalid', 'editor', $3, $4, now() + interval '1 day')`,
+      [
+        invited.workspaceId,
+        invitationId,
+        `hash-${invitationId}`,
+        invited.adminId,
+      ],
+    );
+    // An administrator may not invite a second owner.
+    const owner = await admin.failure(
+      `insert into invitations
+         (workspace_id, id, email, role, token_hash, invited_by, expires_at)
+       values ($1, $2, 'owner@notes.invalid', 'owner', $3, $4, now() + interval '1 day')`,
+      [
+        invited.workspaceId,
+        randomUUID(),
+        `hash-owner-${invitationId}`,
+        invited.adminId,
+      ],
+    );
+    assert.equal(owner.code, '42501');
+  } finally {
+    await admin.close();
+  }
+  const member = await openSession(database.runtimeUrl, invited.memberId);
+  try {
+    const rows = await member.query(
+      'select id from invitations where id = $1',
+      [invitationId],
+    );
+    assert.equal(rows.length, 1);
+    const denied = await member.failure(
+      `insert into invitations
+         (workspace_id, id, email, role, token_hash, invited_by, expires_at)
+       values ($1, $2, 'x@notes.invalid', 'viewer', $3, $4, now() + interval '1 day')`,
+      [
+        invited.workspaceId,
+        randomUUID(),
+        `hash-member-${invitationId}`,
+        invited.memberId,
+      ],
+    );
+    assert.equal(denied.code, '42501');
+  } finally {
+    await member.close();
+  }
+  const stranger = await openSession(database.runtimeUrl, invited.strangerId);
+  try {
+    const rows = await stranger.query('select id from invitations');
+    assert.equal(rows.length, 0);
+  } finally {
+    await stranger.close();
+  }
+});
+
+await test('the owner guard keeps a workspace with an owner', async () => {
+  // An administrator cannot delete an owner. The delete policy hides that row
+  // from the statement, so it removes nothing rather than failing.
+  const admin = await openSession(database.runtimeUrl, invited.adminId);
+  try {
+    const removed = await admin.query<{ account_id: string }>(
+      `delete from memberships
+        where workspace_id = $1 and account_id = $2 returning account_id`,
+      [invited.workspaceId, invited.ownerId],
+    );
+    assert.equal(removed.length, 0);
+    const kept = await admin.query<{ role: string }>(
+      'select role::text as role from memberships where workspace_id = $1 and account_id = $2',
+      [invited.workspaceId, invited.ownerId],
+    );
+    assert.equal(kept[0]?.role, 'owner');
+    // The same administrator may remove a member that is not an owner.
+    const allowed = await admin.query<{ account_id: string }>(
+      `delete from memberships
+        where workspace_id = $1 and account_id = $2 returning account_id`,
+      [invited.workspaceId, invited.memberId],
+    );
+    assert.equal(allowed.length, 1);
+  } finally {
+    await admin.close();
+  }
+  // Even the schema owner cannot remove or demote the last owner. The check is
+  // a trigger, so it applies to every role that holds the right at all.
+  const guarded = randomUUID();
+  const soleOwner = randomUUID();
+  await seedWorkspace(database, guarded, [
+    { accountId: soleOwner, role: 'owner' },
+  ]);
+  const setup = await openSession(database.migrationUrl);
+  try {
+    const present = await setup.query(
+      'select role::text as role from memberships where workspace_id = $1',
+      [guarded],
+    );
+    assert.equal(present.length, 1);
+    const removed = await setup.failure(
+      'delete from memberships where workspace_id = $1 and account_id = $2',
+      [guarded, soleOwner],
+    );
+    assert.equal(removed.code, '23514');
+    const demoted = await setup.failure(
+      `update memberships set role = 'viewer'
+        where workspace_id = $1 and account_id = $2`,
+      [guarded, soleOwner],
+    );
+    assert.equal(demoted.code, '23514');
+    // A second owner makes both changes legitimate again.
+    const second = randomUUID();
+    await setup.query('insert into accounts (id) values ($1)', [second]);
+    await setup.query(
+      `insert into memberships (workspace_id, account_id, role)
+       values ($1, $2, 'owner')`,
+      [guarded, second],
+    );
+    await setup.query(
+      `update memberships set role = 'viewer'
+        where workspace_id = $1 and account_id = $2`,
+      [guarded, soleOwner],
+    );
+  } finally {
+    await setup.close();
+  }
+});
+
+await test('identity functions: a stranger learns nothing', async () => {
+  const stranger = await openSession(database.runtimeUrl, invited.strangerId);
+  try {
+    const denied = await stranger.failure(
+      'select * from notesapp_workspace_members($1)',
+      [invited.workspaceId],
+    );
+    assert.equal(denied.code, '42501');
+    // Creating a workspace for somebody else is not possible: the function
+    // always makes the calling account the owner.
+    const created = randomUUID();
+    await stranger.query('select notesapp_create_workspace($1, $2, 1000000)', [
+      created,
+      'stranger workspace',
+    ]);
+    const roles = await stranger.query<{ account_id: string; role: string }>(
+      'select account_id, role::text as role from memberships where workspace_id = $1',
+      [created],
+    );
+    assert.equal(roles.length, 1);
+    assert.equal(roles[0]?.account_id, invited.strangerId);
+    assert.equal(roles[0]?.role, 'owner');
+    // A transfer needs the owner role in that workspace.
+    const transfer = await stranger.failure(
+      'select notesapp_transfer_ownership($1, $2, false)',
+      [invited.workspaceId, invited.adminId],
+    );
+    assert.equal(transfer.code, '42501');
+    const deletion = await stranger.failure(
+      'select notesapp_delete_workspace($1)',
+      [invited.workspaceId],
+    );
+    assert.equal(deletion.code, '42501');
+    // An open invitation of another workspace answers nothing useful.
+    const invitation = await stranger.query(
+      'select * from notesapp_open_invitation($1)',
+      ['no-such-hash'],
+    );
+    assert.equal(invitation.length, 0);
+  } finally {
+    await stranger.close();
+  }
+});
+
+await test('a member list names co-members and nobody else', async () => {
+  const owner = await openSession(database.runtimeUrl, invited.ownerId);
+  try {
+    const rows = await owner.query<{ member_account_id: string }>(
+      'select * from notesapp_workspace_members($1)',
+      [invited.workspaceId],
+    );
+    const listed = rows.map((row) => row.member_account_id);
+    assert.equal(listed.includes(invited.ownerId), true);
+    assert.equal(listed.includes(invited.adminId), true);
+    assert.equal(listed.includes(invited.strangerId), false);
+  } finally {
+    await owner.close();
   }
 });
 

@@ -188,14 +188,9 @@ export const getHealth = <ThrowOnError extends boolean = false>(options?: Option
 /**
  * Accept an invitation to a workspace.
  *
- * Consumes one invitation token and adds the signed in account to the workspace with the invited role. The address of the account must match the invited address. A token works once; a replay is rejected.
+ * Consumes one invitation token and adds an account to the workspace with the invited role. A signed in account must already use the invited address. A request without a session may instead supply a password: the server then creates the local account for the invited address, marks that address verified because the token proves control of it, and signs the new account in. An installation that requires the configured provider refuses the second form with the code oidc_required; the invited person signs in through the provider instead and the invitation is claimed on that first sign-in. A token works once; a replay is rejected.
  */
 export const acceptInvitation = <ThrowOnError extends boolean = false>(options: Options<AcceptInvitationData, ThrowOnError>): RequestResult<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError> => (options.client ?? client).post<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }],
     url: '/api/invitations/acceptance',
     ...options,
     headers: {
