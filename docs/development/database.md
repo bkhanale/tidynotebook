@@ -268,10 +268,15 @@ on the identity tables:
 | `notesapp_account_of`, `notesapp_has_account` | One account identifier, and whether any account exists.      |
 | `notesapp_workspace_members`                  | The member directory of one workspace; members only.         |
 | `notesapp_agent_token`                        | One agent token by the hash of its secret.                   |
+| `notesapp_discard_account`                    | Removes an account that an invitation attempt never used.    |
 
-Every function that changes state checks the caller's role with
-`IS DISTINCT FROM` rather than `<>`, because a stranger has no role at all and
-`<> 'owner'` is null for a null role rather than true.
+Every function that changes state checks the caller with `IS DISTINCT FROM`
+rather than `<>`, because a stranger has no role and no account identity at
+all, and `<> 'owner'` is null for a null role rather than true.
+`notesapp_discard_account` compares its target with
+`notesapp_current_account()` in the same way, so one account can never remove
+another, and it answers false rather than failing on any row it may not
+remove.
 
 ### Identity per transaction
 

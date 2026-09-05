@@ -240,12 +240,30 @@ because the second has no session yet:
    transaction, because the two live behind different credentials. The order is
    create, claim, then compensate: the claim runs inside `register`, and a
    claim that fails removes the Better Auth user through
-   `internalAdapter.deleteUser` and the account, its identity row, and its
-   personal workspace through `notesapp_discard_account`. That function refuses
-   an account that belongs to a workspace which is not its own personal one, or
-   whose workspaces hold a file, so it can never remove an account that has
-   been used. The answer is then `404 not_found`, as if the invitation had
-   already been consumed.
+   `internalAdapter.deleteUser` and the account, its identity row, its
+   settings, its account audit trail, and its personal workspace through
+   `notesapp_discard_account`. The answer is then `404 not_found`, as if the
+   invitation had already been consumed.
+
+   `notesapp_discard_account` is bound to the calling account. It compares the
+   target with `notesapp_current_account()` and answers false when they differ,
+   so one account can never remove another and an identity free transaction
+   removes nothing. The storage call therefore resolves the account first and
+   opens its transaction with that identity. The function also answers false,
+   rather than failing on a constraint, when:
+
+   - the account belongs to a workspace that is not its own personal one, or
+     that workspace has another member;
+   - a retained record still names the account: a revision, a changeset, a
+     mutation receipt, a share, a snapshot, an agent token, an invitation it
+     sent or accepted, or an audit event outside its own workspaces;
+   - its personal workspace holds anything at all. `contents` is checked on its
+     own as well as `files`, because content can outlive the file that
+     referenced it.
+
+   Only the three rows that the sign-up path itself created are removed rather
+   than treated as a reason to refuse: the settings row, the account audit
+   trail, and the identity row.
 
 `acceptInvitation` declares no security requirement, because its second form
 has no session yet. The identity hook therefore does not run for it, and the

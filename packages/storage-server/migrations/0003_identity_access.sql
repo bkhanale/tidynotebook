@@ -526,8 +526,13 @@ CREATE FUNCTION public.notesapp_agent_token(p_token_hash text)
 -- function removes what the attempt created, so a failed acceptance leaves no
 -- account behind.
 --
--- It refuses when the account belongs to any workspace that is not its own
--- personal one, so it can never remove an account that has already been used.
+-- The function is bound to the calling account: it refuses every account that
+-- is not the identity of the transaction, so one account can never remove
+-- another. It also refuses every account that any retained record still names,
+-- and every account whose personal workspace holds anything at all. It
+-- therefore removes only an account that has done nothing since it was
+-- created, and it answers false rather than failing on a row it may not
+-- remove.
 CREATE FUNCTION public.notesapp_discard_account(p_auth_user_id text)
 	RETURNS boolean
 	LANGUAGE plpgsql
@@ -544,6 +549,13 @@ CREATE FUNCTION public.notesapp_discard_account(p_auth_user_id text)
 		IF target IS NULL THEN
 			RETURN false;
 		END IF;
+		-- Only the account itself. A null identity is distinct from every
+		-- account, so an identity free transaction is refused as well.
+		IF public.notesapp_current_account() IS DISTINCT FROM target THEN
+			RETURN false;
+		END IF;
+		-- The account must belong to nothing but its own personal workspace,
+		-- and that workspace must be the only member of itself.
 		IF EXISTS (
 			SELECT 1 FROM public.memberships m
 			JOIN public.workspaces w ON w.id = m.workspace_id
@@ -552,9 +564,59 @@ CREATE FUNCTION public.notesapp_discard_account(p_auth_user_id text)
 			RETURN false;
 		END IF;
 		IF EXISTS (
-			SELECT 1 FROM public.files f
-			JOIN public.memberships m ON m.workspace_id = f.workspace_id
+			SELECT 1 FROM public.memberships other
+			WHERE other.account_id <> target
+				AND other.workspace_id IN (
+					SELECT m.workspace_id FROM public.memberships m
+					WHERE m.account_id = target
+				)
+		) THEN
+			RETURN false;
+		END IF;
+		-- Every record that still names the account keeps it alive. Each of
+		-- these is a foreign key to `accounts`, so removing the row would fail
+		-- with a constraint violation rather than a usable answer.
+		IF EXISTS (SELECT 1 FROM public.revisions WHERE actor_account_id = target)
+			OR EXISTS (SELECT 1 FROM public.changesets WHERE actor_account_id = target)
+			OR EXISTS (SELECT 1 FROM public.mutation_receipts WHERE actor_account_id = target)
+			OR EXISTS (SELECT 1 FROM public.shares WHERE creator_account_id = target)
+			OR EXISTS (SELECT 1 FROM public.snapshots WHERE account_id = target)
+			OR EXISTS (SELECT 1 FROM public.agent_tokens WHERE account_id = target)
+			OR EXISTS (
+				SELECT 1 FROM public.invitations
+				WHERE invited_by = target OR accepted_by = target
+			)
+			OR EXISTS (
+				SELECT 1 FROM public.audit_events ae
+				WHERE ae.actor_account_id = target
+					AND ae.workspace_id NOT IN (
+						SELECT m.workspace_id FROM public.memberships m
+						WHERE m.account_id = target
+					)
+			)
+		THEN
+			RETURN false;
+		END IF;
+		-- The personal workspace must hold nothing. `contents` is checked on
+		-- its own, because content can outlive the file that referenced it.
+		IF EXISTS (
+			SELECT 1 FROM public.memberships m
 			WHERE m.account_id = target
+				AND (
+					EXISTS (SELECT 1 FROM public.files t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.contents t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.attachment_objects t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.revisions t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.changesets t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.mutation_receipts t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.live_paths t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.branches t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.purge_markers t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.snapshots t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.link_index t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.shares t WHERE t.workspace_id = m.workspace_id)
+					OR EXISTS (SELECT 1 FROM public.invitations t WHERE t.workspace_id = m.workspace_id)
+				)
 		) THEN
 			RETURN false;
 		END IF;
@@ -565,12 +627,13 @@ CREATE FUNCTION public.notesapp_discard_account(p_auth_user_id text)
 		LOOP
 			DELETE FROM public.sync_changes WHERE workspace_id = victim;
 			DELETE FROM public.audit_events WHERE workspace_id = victim;
-			DELETE FROM public.invitations WHERE workspace_id = victim;
 			DELETE FROM public.memberships WHERE workspace_id = victim;
 			DELETE FROM public.workspace_cursors WHERE workspace_id = victim;
 			DELETE FROM public.workspace_usage WHERE workspace_id = victim;
 			DELETE FROM public.workspaces WHERE id = victim;
 		END LOOP;
+		-- These three belong to the account and to nothing else, so they are
+		-- removed rather than treated as a reason to refuse.
 		DELETE FROM public.account_audit_events WHERE account_id = target;
 		DELETE FROM public.account_preferences WHERE account_id = target;
 		DELETE FROM public.account_identities WHERE account_id = target;

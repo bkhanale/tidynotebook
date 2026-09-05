@@ -163,9 +163,12 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
   /**
    * Removes an account that an invitation attempt created and never used.
    *
-   * The call refuses when the account belongs to a workspace that is not its
-   * own personal one, or when any of its workspaces holds a file, so it can
-   * never remove an account that has been used.
+   * The call is bound to that account: the database function refuses every
+   * account that is not the identity of the transaction, so one account can
+   * never remove another. It also refuses when any retained record still names
+   * the account, when it holds an agent token, when it belongs to a workspace
+   * that is not its own personal one, or when that workspace holds anything at
+   * all. The answer is then false rather than a failure.
    */
   discardAccount(authUserId: string): Promise<boolean>;
   /** Closes every pooled connection. */
@@ -782,7 +785,13 @@ export function openIdentityStore(
     },
 
     async discardAccount(authUserId: string): Promise<boolean> {
-      return inTransaction(null, null, async (client) => {
+      // The function is bound to the account of the transaction, so the
+      // identity is set to the account that is being removed. An identity free
+      // call would be refused, which is what stops one account from removing
+      // another.
+      const accountId = await this.accountOf(authUserId);
+      if (accountId === null) return false;
+      return inTransaction(accountId, null, async (client) => {
         const rows = await client.query<{ discarded: boolean }>(
           'select notesapp_discard_account($1) as discarded',
           [authUserId],

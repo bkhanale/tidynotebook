@@ -765,19 +765,147 @@ await test('the account audit trail belongs to one account', async () => {
   }
 });
 
-await test('a stranger cannot discard another account', async () => {
-  const stranger = await openSession(database.runtimeUrl, invited.strangerId);
+/**
+ * Seeds an account that looks exactly like one the invitation path created:
+ * an identity, an application account, and one personal workspace.
+ */
+async function seedFreshAccount(): Promise<{
+  authUserId: string;
+  accountId: string;
+  workspaceId: string;
+}> {
+  const authUserId = `auth-${randomUUID()}`;
+  const accountId = randomUUID();
+  const workspaceId = randomUUID();
+  const setup = await openSession(database.migrationUrl);
   try {
-    // The identity of the transaction does not matter: the function refuses
-    // every account that belongs to a workspace which is not personal.
-    const rows = await stranger.query<{ discarded: boolean }>(
-      'select notesapp_discard_account($1) as discarded',
-      ['no-such-auth-user'],
+    await setup.query(
+      `insert into auth_user (id, name, email) values ($1, 'Fresh', $2)`,
+      [authUserId, `${authUserId}@notes.invalid`],
     );
-    assert.equal(rows[0]?.discarded, false);
+    await setup.query('insert into accounts (id) values ($1)', [accountId]);
+    await setup.query(
+      'insert into account_identities (auth_user_id, account_id) values ($1, $2)',
+      [authUserId, accountId],
+    );
+    await setup.query(
+      `insert into workspaces (id, name, personal) values ($1, 'Personal', true)`,
+      [workspaceId],
+    );
+    await setup.query('insert into workspace_usage values ($1, 0, 1000000)', [
+      workspaceId,
+    ]);
+    await setup.query('insert into workspace_cursors values ($1, 0)', [
+      workspaceId,
+    ]);
+    await setup.query(
+      `insert into memberships (workspace_id, account_id, role)
+       values ($1, $2, 'owner')`,
+      [workspaceId, accountId],
+    );
   } finally {
-    await stranger.close();
+    await setup.close();
   }
+  return { authUserId, accountId, workspaceId };
+}
+
+/** Whether the application account still exists. */
+async function accountExists(accountId: string): Promise<boolean> {
+  const setup = await openSession(database.migrationUrl);
+  try {
+    const rows = await setup.query('select id from accounts where id = $1', [
+      accountId,
+    ]);
+    return rows.length === 1;
+  } finally {
+    await setup.close();
+  }
+}
+
+/** Runs the discard function with one account identity. */
+async function discardAs(
+  identityAccountId: string | undefined,
+  authUserId: string,
+): Promise<boolean> {
+  const session = await openSession(database.runtimeUrl, identityAccountId);
+  try {
+    const rows = await session.query<{ discarded: boolean }>(
+      'select notesapp_discard_account($1) as discarded',
+      [authUserId],
+    );
+    return rows[0]?.discarded ?? false;
+  } finally {
+    await session.close();
+  }
+}
+
+await test('an account is discarded only by itself', async () => {
+  const fresh = await seedFreshAccount();
+  // Another account, and an identity free transaction, are both refused.
+  assert.equal(await discardAs(invited.strangerId, fresh.authUserId), false);
+  assert.equal(await accountExists(fresh.accountId), true);
+  assert.equal(await discardAs(undefined, fresh.authUserId), false);
+  assert.equal(await accountExists(fresh.accountId), true);
+  // The account itself removes what its own sign-up created.
+  assert.equal(await discardAs(fresh.accountId, fresh.authUserId), true);
+  assert.equal(await accountExists(fresh.accountId), false);
+  const setup = await openSession(database.migrationUrl);
+  try {
+    const spaces = await setup.query(
+      'select id from workspaces where id = $1',
+      [fresh.workspaceId],
+    );
+    assert.equal(spaces.length, 0);
+    const users = await setup.query('select id from auth_user where id = $1', [
+      fresh.authUserId,
+    ]);
+    // The Better Auth user is removed by the identity role, not by this
+    // function, so it is still there.
+    assert.equal(users.length, 1);
+  } finally {
+    await setup.close();
+  }
+});
+
+await test('an account that has been used is not discarded', async () => {
+  const withToken = await seedFreshAccount();
+  const setup = await openSession(database.migrationUrl);
+  try {
+    await setup.query(
+      `insert into agent_tokens
+         (id, account_id, name, prefix, token_hash, scopes, expires_at)
+       values ($1, $2, 'used', 'nsk_used', $3, '[]'::jsonb, now() + interval '1 day')`,
+      [randomUUID(), withToken.accountId, `token-${withToken.accountId}`],
+    );
+  } finally {
+    await setup.close();
+  }
+  // An agent token names the account, so the answer is false rather than a
+  // constraint violation.
+  assert.equal(
+    await discardAs(withToken.accountId, withToken.authUserId),
+    false,
+  );
+  assert.equal(await accountExists(withToken.accountId), true);
+
+  const withContent = await seedFreshAccount();
+  const second = await openSession(database.migrationUrl);
+  try {
+    // Content can outlive the file that referenced it, so the check looks at
+    // `contents` and not only at `files`.
+    await second.query(
+      `insert into contents (workspace_id, digest, kind, size, markdown)
+       values ($1, 'orphan-digest', 'markdown', 5, 'hello')`,
+      [withContent.workspaceId],
+    );
+  } finally {
+    await second.close();
+  }
+  assert.equal(
+    await discardAs(withContent.accountId, withContent.authUserId),
+    false,
+  );
+  assert.equal(await accountExists(withContent.accountId), true);
 });
 
 await test('an account row is visible to a co-member and to nobody else', async () => {
