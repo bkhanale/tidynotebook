@@ -700,6 +700,8 @@ caps every shape whose cost grows faster than its size:
 | Inline delimiters in one document   | 100,000 | `inline-delimiters` |
 | Link openings in one document       | 2000    | `link-count`        |
 | Table rows in one document          | 2000    | `table-rows`        |
+| Table cells in one document         | 10,000  | `table-cells`       |
+| Columns on one table row            | 100     | `table-columns`     |
 | List lines in one document          | 5000    | `list-items`        |
 | Blocks in one document              | 15,000  | `block-count`       |
 | Combined cost of every count above  | 2.3     | `combined-cost`     |
@@ -723,6 +725,20 @@ A plain block is a run of neighbouring lines that is not blank, not a table
 row, not a list line, and not inside a code fence. The parser reads the inline
 content of a paragraph as one unit, and that cost grows faster than the
 paragraph does.
+
+A table costs more than its rows suggest, because the parser re-reads the cells
+it has collected. A cell is one `|` on a table row, so the cell cap bounds a
+wide table as well as a long one: 8300 cells took 0.85 seconds, 20,500 took 5
+seconds, and a 500 column by 200 row table took 347 seconds. One very wide row
+is slow on its own as well, so the columns on a row are capped too: a single row
+of 3300 columns took 1.2 seconds. The cell cap admits a four column table at the
+row cap, which is 10,000 cells and renders in about a second.
+
+A bracket that never opens a link does not spend the link budget. A GFM task
+marker (`[ ]`, `[x]`, or `[X]` right after a list marker) and both brackets of a
+wiki reference `[[Title]]` are excluded, so a 5000 item task list and 3000 wiki
+references render in 0.37 and 0.13 seconds instead of being refused. A real link
+still counts, so 2001 of them are still refused.
 
 The content of a table cell and of a list item is inline content too, so every
 line outside a fence adds to the document delimiter total. A row and a list
@@ -773,6 +789,8 @@ prints the time. The measurements on the development machine are:
 | Shape at its cap                       | Size    | Render time |
 | -------------------------------------- | ------- | ----------- |
 | Table of 2000 rows                     | 39 KB   | 0.33 s      |
+| Table at the cell cap, 100 columns     | 40 KB   | 0.93 s      |
+| Four column table at the row cap       | 36 KB   | 1.02 s      |
 | List of 5000 lines                     | 94 KB   | 0.30 s      |
 | 2000 link openings                     | 92 KB   | 0.15 s      |
 | 100 nesting levels                     | 205 B   | 0.001 s     |
@@ -784,7 +802,9 @@ prints the time. The measurements on the development machine are:
 | 1 MiB of prose in short paragraphs     | 1.0 MiB | 1.00 s      |
 | 1 MiB fenced code block                | 1.0 MiB | 0.13 s      |
 | The worst combination the score admits | 468 KB  | 1.53 s      |
-| 5000 list items with light emphasis    | 105 KB  | 0.45 s      |
+| 5000 list items with light emphasis    | 105 KB  | 0.39 s      |
+| 5000 task list items                   | 115 KB  | 0.37 s      |
+| 3000 wiki references                   | 78 KB   | 0.13 s      |
 
 Two caps were lowered below their first value during calibration, because the
 first value measured too close to the budget to be a stable bound: the list cap
@@ -798,6 +818,13 @@ a nearly full block count. It is the slowest document this package accepts, and
 it is the reason the combined limit cannot go much higher: at 2.5 that same
 combination reaches 1.7 seconds.
 
+These numbers come from one unloaded run. The same document has measured 0.5 and
+1.8 seconds in two runs an hour apart, because the test runner runs files in
+parallel and other work shares the machine, so the tests assert a looser bound
+of four seconds and print the measurement. The assertion is a regression guard
+for the costs above, which ran from 5 to 305 seconds; the printed numbers are
+the calibration.
+
 The shapes a reviewer found are measured too, and each is refused in a few
 milliseconds: 1 MiB of alternating `*_` on one line as `line-length`, the same
 text in blocks as `inline-delimiters`, 64 KiB of dense emphasis as
@@ -805,8 +832,9 @@ text in blocks as `inline-delimiters`, 64 KiB of dense emphasis as
 fence bypass and an unterminated fence before 30,000 table rows as
 `table-rows`, 970 KB of list lines with dense emphasis and a 1998 row table of
 `*_` cells as `inline-delimiters`, and a document near four caps at once as
-`combined-cost`. Each shape one step past its cap is refused in under 100 ms;
-the tests assert all of it.
+`combined-cost`, and four wide tables as `table-columns` or `table-cells`. Each
+shape one step past its cap is refused in under 100 ms; the tests assert all of
+it.
 
 ### Byte order marks and reported ranges
 
@@ -832,7 +860,7 @@ resolve during the type check.
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 112 tests, including the
+- `pnpm --filter @notesapp/markdown test:unit` runs 121 tests, including the
   resource limit measurements above.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.

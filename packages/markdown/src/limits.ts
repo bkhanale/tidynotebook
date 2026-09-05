@@ -99,6 +99,23 @@ export const markdownLimits = {
    */
   maxTableRows: 2000,
   /**
+   * Largest accepted number of table cells in one document.
+   *
+   * A cell is one `|` on a table row, so a wide table counts as much as a long
+   * one. The table parser re-reads the cells it has collected, and that cost
+   * grows faster than their number: 8300 cells took 0.85 seconds and 20,500
+   * took 5 seconds. This value admits a four column table at the row cap.
+   */
+  maxTableCells: 10000,
+  /**
+   * Largest accepted number of columns on one table row.
+   *
+   * One very wide row is slow on its own, whatever the rest of the table
+   * holds: a single row of 3300 columns took 1.2 seconds. A real table stays
+   * far below this.
+   */
+  maxTableColumns: 100,
+  /**
    * Largest accepted number of list lines in one document.
    *
    * A list line is a line that starts with a bullet or an ordered marker. The
@@ -201,6 +218,8 @@ export type MarkdownLimitReason =
   | 'nesting-depth'
   | 'link-count'
   | 'table-rows'
+  | 'table-cells'
+  | 'table-columns'
   | 'list-items'
   | 'block-size'
   | 'block-count'
@@ -217,6 +236,9 @@ const reasons: Record<MarkdownLimitReason, string> = {
     'Markdown nesting reaches %actual levels and the limit is %limit.',
   'link-count': 'Markdown holds %actual link openings and the limit is %limit.',
   'table-rows': 'Markdown holds %actual table rows and the limit is %limit.',
+  'table-cells': 'Markdown holds %actual table cells and the limit is %limit.',
+  'table-columns':
+    'A Markdown table row holds %actual columns and the limit is %limit.',
   'list-items': 'Markdown holds %actual list lines and the limit is %limit.',
   'block-size':
     'A Markdown paragraph is %actual bytes and the limit is %limit.',
@@ -347,7 +369,12 @@ function isDigit(source: string, index: number): boolean {
 }
 
 /** What one line contributes to the structural counts of the document. */
-type LineShape = { readonly tableRow: boolean; readonly listItem: boolean };
+type LineShape = {
+  readonly tableRow: boolean;
+  readonly listItem: boolean;
+  /** Offset where the content after the line prefix starts. */
+  readonly contentStart: number;
+};
 
 /**
  * The kind of block a line belongs to.
@@ -489,7 +516,25 @@ function assertLineNesting(
     markdownLimits.maxNestingDepth,
     levels + Math.floor(columns / columnsPerLevel),
   );
-  return { tableRow: isTableRow(source, from, to), listItem };
+  return {
+    tableRow: isTableRow(source, from, to),
+    listItem,
+    contentStart: index,
+  };
+}
+
+/**
+ * Reports whether a task marker starts here.
+ *
+ * GFM writes a task list item as `- [ ] text` or `- [x] text`. The bracket is
+ * part of the marker and never opens a link, so it does not count as one.
+ */
+function isTaskMarker(source: string, from: number, to: number): boolean {
+  if (source[from] !== '[') return false;
+  const state = source[from + 1];
+  if (state !== ' ' && state !== 'x' && state !== 'X') return false;
+  if (source[from + 2] !== ']') return false;
+  return from + 3 >= to || isSpace(source, from + 3);
 }
 
 /**
@@ -507,8 +552,11 @@ export function assertParseCost(source: string): void {
   let lineStart = 0;
   let lineBytes = 0;
   let lineDelimiters = 0;
+  let linePipes = 0;
+  let lineLinkOpenings = 0;
   let linkOpenings = 0;
   let tableRows = 0;
+  let tableCells = 0;
   let listItems = 0;
   let blocks = 0;
   let blockBytes = 0;
@@ -530,6 +578,7 @@ export function assertParseCost(source: string): void {
   const assertCombinedCost = (): void => {
     const score =
       tableRows / markdownLimits.maxTableRows +
+      tableCells / markdownLimits.maxTableCells +
       listItems / markdownLimits.maxListItems +
       linkOpenings / markdownLimits.maxLinkOpenings +
       documentDelimiters / markdownLimits.maxInlineDelimiters +
@@ -576,9 +625,23 @@ export function assertParseCost(source: string): void {
       fence = null;
     const fenced = wasFenced || marker !== null;
     const shape = assertLineNesting(source, lineStart, end);
+    // A task marker is part of the list syntax and opens no link.
+    if (shape.listItem && isTaskMarker(source, shape.contentStart, end))
+      lineLinkOpenings -= 1;
+    linkOpenings += Math.max(0, lineLinkOpenings);
+    assertAtMost('link-count', markdownLimits.maxLinkOpenings, linkOpenings);
     if (shape.tableRow) {
       tableRows += 1;
       assertAtMost('table-rows', markdownLimits.maxTableRows, tableRows);
+      // A row that starts and ends with `|` carries one more bar than it has
+      // columns, so the bar count is the cell count of the row.
+      assertAtMost(
+        'table-columns',
+        markdownLimits.maxTableColumns,
+        Math.max(0, linePipes - 1),
+      );
+      tableCells += linePipes;
+      assertAtMost('table-cells', markdownLimits.maxTableCells, tableCells);
     }
     if (shape.listItem) {
       listItems += 1;
@@ -637,6 +700,8 @@ export function assertParseCost(source: string): void {
       lineStart = index + 1;
       lineBytes = 0;
       lineDelimiters = 0;
+      linePipes = 0;
+      lineLinkOpenings = 0;
       runChar = '';
       runLength = 0;
       continue;
@@ -652,10 +717,12 @@ export function assertParseCost(source: string): void {
     if (delimiters.has(char))
       assertAtMost('delimiter-run', markdownLimits.maxDelimiterRun, runLength);
     if (inlineDelimiters.has(char)) lineDelimiters += 1;
-    if (char === '[') {
-      linkOpenings += 1;
-      assertAtMost('link-count', markdownLimits.maxLinkOpenings, linkOpenings);
-    }
+    if (char === '|') linePipes += 1;
+    // A wiki reference `[[Title]]` opens no link, so neither of its brackets
+    // counts. A task marker is removed from the count in `finishLine`, where
+    // the line prefix is known.
+    if (char === '[' && source[index - 1] !== '[' && source[index + 1] !== '[')
+      lineLinkOpenings += 1;
   }
   finishLine(source.length);
 }

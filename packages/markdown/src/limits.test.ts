@@ -21,6 +21,19 @@ import { renderMarkdown } from './render.ts';
 /** One mebibyte, the largest document this package accepts. */
 const mebibyte = 1024 * 1024;
 
+/**
+ * The bound every timing assertion in this file uses.
+ *
+ * The measurement each test prints is the calibration evidence, and the values
+ * behind the caps are in `toolchain.md`. This bound is deliberately looser
+ * than those measurements, because the test runner runs files in parallel and
+ * the machine may be busy with other work: the same document has measured
+ * 0.5 and 1.8 seconds in two runs an hour apart. The assertion exists to catch
+ * a return to the cost these caps were written for, which was 5 seconds for
+ * the cheapest of those shapes and 305 seconds for the worst.
+ */
+const renderBudget = 4000;
+
 /** Every public entry point of the package, by name. */
 const entryPoints: ReadonlyArray<[string, (source: string) => unknown]> = [
   ['parseMarkdown', parseMarkdown],
@@ -61,6 +74,20 @@ function table(rowLines: number): string {
   for (let index = 0; index < rowLines - 2; index += 1)
     rows.push(`| cell ${index} | ${index} |`);
   return `${rows.join('\n')}\n`;
+}
+
+/** A table of `lines` lines and `columns` columns. */
+function wideTable(columns: number, lines: number): string {
+  const row = (cell: string) => `|${` ${cell} |`.repeat(columns)}`;
+  const rows = [row('c'), row('-')];
+  for (let index = 2; index < lines; index += 1) rows.push(row('x'));
+  return `${rows.join('\n')}\n`;
+}
+
+/** A table that holds exactly `cells` cells, as wide as the column cap. */
+function tableOfCells(cells: number): string {
+  const columns = markdownLimits.maxTableColumns;
+  return wideTable(columns, Math.floor(cells / (columns + 1)));
 }
 
 /** A bullet list of `items` lines. */
@@ -193,38 +220,50 @@ function documentOfBytes(bytes: number): string {
  * 205 seconds for the second, no result at all for the third, 83 seconds for
  * the table, 12 seconds for the list, and 12 seconds for the one paragraph.
  */
-const hostile: ReadonlyArray<[string, string]> = [
-  ['80 KB of link openings', `${'['.repeat(40000)}x${']'.repeat(40000)}`],
-  ['200 KB of link openings', `${'['.repeat(100000)}x${']'.repeat(100000)}`],
-  ['a line of one million quote markers', `${'>'.repeat(1024 * 1024)} x`],
-  ['6000 nested quotes', `${'>'.repeat(6000)} deep`],
-  ['6000 nested quotes with spaces', `${'> '.repeat(6000)}deep`],
-  ['6000 nested list items', `${'- '.repeat(6000)}deep`],
-  ['6000 nested ordered items', `${'1. '.repeat(6000)}deep`],
-  ['a line above the line limit', 'x'.repeat(100 * 1024)],
-  ['one table row above the cap', table(markdownLimits.maxTableRows + 1)],
-  ['one list line above the cap', list(markdownLimits.maxListItems + 1)],
-  ['one link opening above the cap', links(markdownLimits.maxLinkOpenings + 1)],
+const hostile: ReadonlyArray<[string, () => string]> = [
+  ['80 KB of link openings', () => `${'['.repeat(40000)}x${']'.repeat(40000)}`],
+  [
+    '200 KB of link openings',
+    () => `${'['.repeat(100000)}x${']'.repeat(100000)}`,
+  ],
+  ['a line of one million quote markers', () => `${'>'.repeat(1024 * 1024)} x`],
+  ['6000 nested quotes', () => `${'>'.repeat(6000)} deep`],
+  ['6000 nested quotes with spaces', () => `${'> '.repeat(6000)}deep`],
+  ['6000 nested list items', () => `${'- '.repeat(6000)}deep`],
+  ['6000 nested ordered items', () => `${'1. '.repeat(6000)}deep`],
+  ['a line above the line limit', () => 'x'.repeat(100 * 1024)],
+  ['one table row above the cap', () => table(markdownLimits.maxTableRows + 1)],
+  ['one list line above the cap', () => list(markdownLimits.maxListItems + 1)],
+  [
+    'one link opening above the cap',
+    () => links(markdownLimits.maxLinkOpenings + 1),
+  ],
   [
     'one nesting level above the cap',
-    nested(markdownLimits.maxNestingDepth + 1),
+    () => nested(markdownLimits.maxNestingDepth + 1),
   ],
-  ['a paragraph above the cap', paragraph(mebibyte)],
-  ['a document above the byte cap', `${documentOfBytes(mebibyte)}x`],
+  ['a paragraph above the cap', () => paragraph(mebibyte)],
+  ['a document above the byte cap', () => `${documentOfBytes(mebibyte)}x`],
   [
     'one inline delimiter above the block cap',
-    inlineBlock(markdownLimits.maxBlockInlineDelimiters + 2),
+    () => inlineBlock(markdownLimits.maxBlockInlineDelimiters + 2),
   ],
   [
     'inline delimiters above the document cap',
-    inlineDocument(markdownLimits.maxInlineDelimiters + 2000),
+    () => inlineDocument(markdownLimits.maxInlineDelimiters + 2000),
   ],
-  ['one block above the cap', blocks(markdownLimits.maxBlocks + 1)],
-  ['list lines that hold dense emphasis', denseList(5000, 96)],
-  ['table cells that hold dense emphasis', denseTable(1998)],
+  ['one block above the cap', () => blocks(markdownLimits.maxBlocks + 1)],
+  ['a table of 500 columns and 200 rows', () => wideTable(500, 202)],
+  ['a table of 200 columns and 100 rows', () => wideTable(200, 102)],
+  ['a table of 100 columns and 200 rows', () => wideTable(100, 202)],
+  ['a table of 200 columns and 40 rows', () => wideTable(200, 42)],
+  ['one table row above the column cap', () => wideTable(3300, 3)],
+  ['list lines that hold dense emphasis', () => denseList(5000, 96)],
+  ['table cells that hold dense emphasis', () => denseTable(1998)],
   [
     'a document close to several caps at once',
-    `${table(1798)}${list(4500)}\n${links(1790)}${inlineDocument(100000)}`,
+    () =>
+      `${table(1798)}${list(4500)}\n${links(1790)}${inlineDocument(100000)}`,
   ],
 ];
 
@@ -234,27 +273,27 @@ const hostile: ReadonlyArray<[string, string]> = [
  * Each one is either refused or renders inside the budget. The test prints
  * what happened, because which cap catches a shape is worth seeing.
  */
-const adversarial: ReadonlyArray<[string, string]> = [
-  ['alternating delimiters on one line', '*_ '.repeat(mebibyte / 3)],
+const adversarial: ReadonlyArray<[string, () => string]> = [
+  ['alternating delimiters on one line', () => '*_ '.repeat(mebibyte / 3)],
   [
     'alternating delimiters in blocks',
-    `${'*_ '.repeat(300)}\n\n`.repeat(Math.floor(mebibyte / 902)),
+    () => `${'*_ '.repeat(300)}\n\n`.repeat(Math.floor(mebibyte / 902)),
   ],
-  ['emphasis dense at the block cap', '*a* '.repeat(16000)],
-  ['50,000 setext headings', blocks(50000)],
+  ['emphasis dense at the block cap', () => '*a* '.repeat(16000)],
+  ['50,000 setext headings', () => blocks(50000)],
   [
     'a fence opener that is really a paragraph',
-    `\`\`\`a\`b\n${'| a | b |\n'.repeat(30000)}`,
+    () => `\`\`\`a\`b\n${'| a | b |\n'.repeat(30000)}`,
   ],
   [
     'an unterminated fence before a table',
-    `\`\`\`ts\n${'| a | b |\n'.repeat(30000)}`,
+    () => `\`\`\`ts\n${'| a | b |\n'.repeat(30000)}`,
   ],
 ];
 
-for (const [name, source] of hostile)
+for (const [name, build] of hostile)
   await test(`${name} is refused in under 100 ms`, async () => {
-    const { error, elapsed } = await refusal(parseMarkdown, source);
+    const { error, elapsed } = await refusal(parseMarkdown, build());
     assert.ok(
       elapsed < 100,
       `${name} took ${elapsed} ms and reported ${error.reason}`,
@@ -443,12 +482,12 @@ await test('a table and a list each count as one block', () => {
   assert.equal(parseMarkdown(list(markdownLimits.maxListItems)).type, 'root');
 });
 
-for (const [name, source] of adversarial)
+for (const [name, build] of adversarial)
   await test(`${name} is refused or renders inside the budget`, async () => {
     const started = Date.now();
     let outcome = '';
     try {
-      await renderMarkdown(source);
+      await renderMarkdown(build());
       outcome = `rendered in ${Date.now() - started} ms`;
     } catch (thrown) {
       assert.ok(thrown instanceof MarkdownLimitError, String(thrown));
@@ -456,8 +495,57 @@ for (const [name, source] of adversarial)
     }
     const elapsed = Date.now() - started;
     console.log(`${name.padEnd(42)} ${outcome}`);
-    assert.ok(elapsed < 2000, `${name} took ${elapsed} ms`);
+    assert.ok(elapsed < renderBudget, `${name} took ${elapsed} ms`);
   });
+
+await test('a wide table is bounded by its cells and its columns', async () => {
+  // Cost grows faster than the number of cells, and a single wide row is slow
+  // on its own, so both the total and the width are capped.
+  const cells = await refusal(parseMarkdown, wideTable(100, 202));
+  assert.equal(cells.error.reason, 'table-cells');
+  assert.equal(cells.error.limit, markdownLimits.maxTableCells);
+  const columns = await refusal(parseMarkdown, wideTable(200, 102));
+  assert.equal(columns.error.reason, 'table-columns');
+  assert.equal(columns.error.limit, markdownLimits.maxTableColumns);
+});
+
+await test('an ordinary four column table at the row cap still renders', async () => {
+  const source = wideTable(4, markdownLimits.maxTableRows);
+  const started = Date.now();
+  const html = await renderMarkdown(source);
+  const elapsed = Date.now() - started;
+  console.log(
+    `a four column table at the row cap        ${String(source.length).padStart(7)} bytes  ${elapsed} ms`,
+  );
+  assert.ok(html.includes('<table>'));
+  assert.ok(elapsed < renderBudget, `the table took ${elapsed} ms`);
+});
+
+await test('a task marker and a wiki reference open no link', async () => {
+  // Both hold a bracket that never starts a link, so neither may spend the
+  // link budget an author has for real links.
+  const tasks = '- [ ] a task item here\n'.repeat(5000);
+  const wiki = 'See [[Some Title]] here.\n\n'.repeat(3000);
+  for (const [name, source] of [
+    ['5000 task items', tasks],
+    ['3000 wiki references', wiki],
+  ] as const) {
+    const started = Date.now();
+    const html = await renderMarkdown(source);
+    const elapsed = Date.now() - started;
+    console.log(`${name.padEnd(41)} ${elapsed} ms`);
+    assert.ok(html.length > 0);
+    assert.ok(elapsed < renderBudget, `${name} took ${elapsed} ms`);
+  }
+  // A real link still spends the budget.
+  const links = await refusal(
+    parseMarkdown,
+    `A [l](https://example.com/a) here.\n\n`.repeat(
+      markdownLimits.maxLinkOpenings + 1,
+    ),
+  );
+  assert.equal(links.error.reason, 'link-count');
+});
 
 await test('inline delimiters count inside a row and a list line', async () => {
   // The content of a cell and of a list item is inline content too.
@@ -481,7 +569,7 @@ await test('an ordinary list with light emphasis still renders', async () => {
   const elapsed = Date.now() - started;
   console.log(`5000 ordinary list items with emphasis    ${elapsed} ms`);
   assert.ok(html.includes('<em>'));
-  assert.ok(elapsed < 1000, `the list took ${elapsed} ms`);
+  assert.ok(elapsed < renderBudget, `the list took ${elapsed} ms`);
 });
 
 await test('a document close to several caps at once is refused', async () => {
@@ -501,41 +589,47 @@ await test('one megabyte of ordinary prose stays inside the combined cost', () =
 });
 
 /** Every capped shape, built at exactly its cap. */
-const calibration: ReadonlyArray<[string, string]> = [
-  ['a table at the row cap', table(markdownLimits.maxTableRows)],
-  ['a list at the line cap', list(markdownLimits.maxListItems)],
-  ['links at the opening cap', links(markdownLimits.maxLinkOpenings)],
-  ['nesting at the depth cap', nested(markdownLimits.maxNestingDepth)],
-  ['a paragraph at the block cap', paragraph(markdownLimits.maxBlockBytes)],
-  ['prose at the byte cap', prose(markdownLimits.maxInputBytes)],
-  ['a code fence at the byte cap', codeFence(markdownLimits.maxInputBytes)],
+const calibration: ReadonlyArray<[string, () => string]> = [
+  ['a table at the row cap', () => table(markdownLimits.maxTableRows)],
+  ['a list at the line cap', () => list(markdownLimits.maxListItems)],
+  ['links at the opening cap', () => links(markdownLimits.maxLinkOpenings)],
+  ['nesting at the depth cap', () => nested(markdownLimits.maxNestingDepth)],
+  [
+    'a paragraph at the block cap',
+    () => paragraph(markdownLimits.maxBlockBytes),
+  ],
+  ['prose at the byte cap', () => prose(markdownLimits.maxInputBytes)],
+  [
+    'a code fence at the byte cap',
+    () => codeFence(markdownLimits.maxInputBytes),
+  ],
   [
     'a block at the inline delimiter cap',
-    inlineBlock(markdownLimits.maxBlockInlineDelimiters),
+    () => inlineBlock(markdownLimits.maxBlockInlineDelimiters),
   ],
   [
     'a document at the inline delimiter cap',
-    inlineDocument(markdownLimits.maxInlineDelimiters),
+    () => inlineDocument(markdownLimits.maxInlineDelimiters),
   ],
-  ['minimal blocks at the block cap', blocks(markdownLimits.maxBlocks)],
+  ['minimal blocks at the block cap', () => blocks(markdownLimits.maxBlocks)],
   [
     '1 MiB of blocks at the block cap',
-    blocksOfBytes(markdownLimits.maxBlocks, markdownLimits.maxInputBytes),
+    () => blocksOfBytes(markdownLimits.maxBlocks, markdownLimits.maxInputBytes),
   ],
-  ['the worst combination the score admits', worstCombination()],
+  ['a table at the cell cap', () => tableOfCells(markdownLimits.maxTableCells)],
+  ['the worst combination the score admits', () => worstCombination()],
 ];
 
-for (const [name, source] of calibration)
+for (const [name, build] of calibration)
   await test(`${name} renders inside the time budget`, async () => {
+    const source = build();
     const started = Date.now();
     const html = await renderMarkdown(source);
     const elapsed = Date.now() - started;
     console.log(
-      `${name.padEnd(30)} ${String(source.length).padStart(8)} bytes  ${elapsed} ms`,
+      `${name.padEnd(38)} ${String(source.length).padStart(8)} bytes  ${elapsed} ms`,
     );
     assert.ok(html.length > 0);
-    // The measurement above is the point of this test. The bound is loose
-    // because the runner runs test files in parallel, and it exists to catch a
-    // return to the earlier cost, which was measured in tens of seconds.
-    assert.ok(elapsed < 2000, `${name} took ${elapsed} ms`);
+    // The measurement above is the point of this test; see `renderBudget`.
+    assert.ok(elapsed < renderBudget, `${name} took ${elapsed} ms`);
   });
