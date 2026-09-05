@@ -9,6 +9,18 @@ if (process.versions.node !== runtime)
   failures.push(`Use Node ${runtime}; found ${process.versions.node}.`);
 if (!/^pnpm@\d+\.\d+\.\d+$/.test(String(manifest.packageManager)))
   failures.push('Pin a stable pnpm version.');
+// One pinned runtime and one pinned package manager, recorded in both places.
+const engines = record(manifest.engines);
+if (engines.node !== runtime)
+  failures.push(
+    `engines.node is ${String(engines.node)}; .node-version says ${runtime}.`,
+  );
+const pinnedManager = String(manifest.packageManager).split('+')[0] ?? '';
+const expectedManager = pinnedManager.replace(/^pnpm@/, '');
+if (engines.pnpm !== expectedManager)
+  failures.push(
+    `engines.pnpm is ${String(engines.pnpm)}; packageManager says ${expectedManager}.`,
+  );
 const manager = process.env.npm_config_user_agent;
 if (
   manager &&

@@ -76,7 +76,7 @@ const rejected = (result, reason) => {
   assert.ok(result.output.includes(reason), result.output);
 };
 
-test('accepts a browser-safe workspace', () => {
+await test('accepts a browser-safe workspace', () => {
   accepted(
     check(
       workspace({
@@ -90,12 +90,12 @@ test('accepts a browser-safe workspace', () => {
   );
 });
 
-test('accepts Node test modules in recognized test files', () => {
+await test('accepts Node test modules in recognized test files', () => {
   accepted(
     check(
       workspace({
         'packages/core/src/domain.test.ts':
-          "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { domain } from './index.js';\ntest('domain', () => assert.equal(domain, 'core'));\n",
+          "import test from 'node:test';\nimport assert from 'node:assert/strict';\nimport { domain } from './index.ts';\ntest('domain', () => assert.equal(domain, 'core'));\n",
         'packages/sync/package.json': manifest('sync', {
           '@notesapp/core': 'workspace:*',
         }),
@@ -107,7 +107,7 @@ test('accepts Node test modules in recognized test files', () => {
   );
 });
 
-test('rejects other Node modules in test files', () => {
+await test('rejects other Node modules in test files', () => {
   rejected(
     check(
       workspace({
@@ -119,7 +119,7 @@ test('rejects other Node modules in test files', () => {
   );
 });
 
-test('rejects a Node built-in module in core', () => {
+await test('rejects a Node built-in module in core', () => {
   rejected(
     check(
       workspace({
@@ -131,7 +131,7 @@ test('rejects a Node built-in module in core', () => {
   );
 });
 
-test('rejects a bare Node built-in name in a browser package', () => {
+await test('rejects a bare Node built-in name in a browser package', () => {
   rejected(
     check(
       workspace({
@@ -144,7 +144,7 @@ test('rejects a bare Node built-in name in a browser package', () => {
   );
 });
 
-test('rejects Node reach through a workspace package', () => {
+await test('rejects Node reach through a workspace package', () => {
   const result = check(
     workspace({
       'packages/core/src/index.ts':
@@ -173,7 +173,7 @@ test('rejects Node reach through a workspace package', () => {
   );
 });
 
-test('rejects a server-only dependency reached by a browser package', () => {
+await test('rejects a server-only dependency reached by a browser package', () => {
   rejected(
     check(
       workspace({
@@ -184,7 +184,7 @@ test('rejects a server-only dependency reached by a browser package', () => {
   );
 });
 
-test('rejects a forbidden core dependency in any group', () => {
+await test('rejects a forbidden core dependency in any group', () => {
   rejected(
     check(
       workspace({
@@ -195,7 +195,7 @@ test('rejects a forbidden core dependency in any group', () => {
   );
 });
 
-test('rejects import equals require of a Node module', () => {
+await test('rejects import equals require of a Node module', () => {
   rejected(
     check(
       workspace({
@@ -207,7 +207,7 @@ test('rejects import equals require of a Node module', () => {
   );
 });
 
-test('rejects a deep import through import equals require', () => {
+await test('rejects a deep import through import equals require', () => {
   rejected(
     check(
       workspace({
@@ -222,20 +222,20 @@ test('rejects a deep import through import equals require', () => {
   );
 });
 
-test('rejects a production import of a test file', () => {
+await test('rejects a production import of a test file', () => {
   rejected(
     check(
       workspace({
         'packages/core/src/index.ts':
-          "export { helper } from './domain.test.js';\n",
+          "export { helper } from './domain.test.ts';\n",
         'packages/core/src/domain.test.ts': 'export const helper = 1;\n',
       }),
     ),
-    'Production source cannot import test file ./domain.test.js.',
+    'Production source cannot import test file ./domain.test.ts.',
   );
 });
 
-test('rejects a deep import', () => {
+await test('rejects a deep import', () => {
   rejected(
     check(
       workspace({
@@ -250,7 +250,7 @@ test('rejects a deep import', () => {
   );
 });
 
-test('rejects a browser import of a Node module', () => {
+await test('rejects a browser import of a Node module', () => {
   rejected(
     check(
       workspace({
@@ -263,7 +263,7 @@ test('rejects a browser import of a Node module', () => {
   );
 });
 
-test('rejects a handwritten fetch call', () => {
+await test('rejects a handwritten fetch call', () => {
   rejected(
     check(
       workspace({
@@ -276,7 +276,7 @@ test('rejects a handwritten fetch call', () => {
   );
 });
 
-test('rejects computed transport access', () => {
+await test('rejects computed transport access', () => {
   rejected(
     check(
       workspace({
@@ -289,20 +289,20 @@ test('rejects computed transport access', () => {
   );
 });
 
-test('rejects a relative import that leaves a package', () => {
+await test('rejects a relative import that leaves a package', () => {
   rejected(
     check(
       workspace({
         'packages/sync/package.json': manifest('sync'),
         'packages/sync/src/index.ts':
-          "export * from '../../core/src/index.js';\n",
+          "export * from '../../core/src/index.ts';\n",
       }),
     ),
     'Relative or absolute imports cannot leave a package.',
   );
 });
 
-test('rejects a package cycle', () => {
+await test('rejects a package cycle', () => {
   rejected(
     check(
       workspace({
@@ -319,7 +319,7 @@ test('rejects a package cycle', () => {
   );
 });
 
-test('rejects a computed dynamic import', () => {
+await test('rejects a computed dynamic import', () => {
   rejected(
     check(
       workspace({
@@ -331,7 +331,7 @@ test('rejects a computed dynamic import', () => {
   );
 });
 
-test('rejects a computed require call', () => {
+await test('rejects a computed require call', () => {
   rejected(
     check(
       workspace({
@@ -340,5 +340,117 @@ test('rejects a computed require call', () => {
       }),
     ),
     'require must use a literal module path.',
+  );
+});
+
+await test('accepts the generated client transport', () => {
+  accepted(
+    check(
+      workspace({
+        'packages/api-client/package.json': manifest('api-client', {
+          '@hey-api/client-fetch': '0.99.0',
+        }),
+        'packages/api-client/src/index.ts':
+          "export { client } from './generated/client.gen.ts';\n",
+        'packages/api-client/src/generated/client.gen.ts':
+          "import { createClient } from '@hey-api/client-fetch';\nexport const client = createClient({ send: (url: string) => fetch(url) });\n",
+      }),
+    ),
+  );
+});
+
+await test('rejects an HTTP library outside generated output', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/api-client/package.json': manifest('api-client', {
+          '@hey-api/client-fetch': '0.99.0',
+        }),
+        'packages/api-client/src/index.ts':
+          "import { createClient } from '@hey-api/client-fetch';\nexport const client = createClient({});\n",
+      }),
+    ),
+    'Use generated operations instead of @hey-api/client-fetch.',
+  );
+});
+
+await test('accepts a property or type named fetch', () => {
+  accepted(
+    check(
+      workspace({
+        'apps/web/package.json': manifest('web'),
+        'apps/web/src/index.ts':
+          'export type Transport = { fetch: (url: string) => Promise<unknown> };\nexport const options = { fetch: undefined };\n',
+      }),
+    ),
+  );
+});
+
+await test('rejects a new transport object', () => {
+  rejected(
+    check(
+      workspace({
+        'apps/web/package.json': manifest('web'),
+        'apps/web/src/index.ts':
+          "export const live = () => new WebSocket('/events');\n",
+      }),
+    ),
+    'Handwritten WebSocket is outside the generated HTTP boundary.',
+  );
+});
+
+await test('accepts base URL and transport options in the client configuration', () => {
+  accepted(
+    check(
+      workspace({
+        'packages/api-client/package.json': manifest('api-client'),
+        'packages/api-client/src/index.ts':
+          "export { configure } from './configure.ts';\n",
+        'packages/api-client/src/configure.ts':
+          "export const configure = (base: string) => ({\n  url: new URL(base),\n  send: globalThis['fetch'],\n});\n",
+      }),
+    ),
+  );
+});
+
+await test('rejects a fetch call in the client configuration', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/api-client/package.json': manifest('api-client'),
+        'packages/api-client/src/index.ts':
+          "export { configure } from './configure.ts';\n",
+        'packages/api-client/src/configure.ts':
+          'export const configure = (base: string) => fetch(base);\n',
+      }),
+    ),
+    'Handwritten fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a Fastify plugin in a browser package', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/ui/package.json': manifest('ui', {
+          '@fastify/cors': '11.1.0',
+        }),
+      }),
+    ),
+    'Browser runtime cannot depend on @fastify/cors.',
+  );
+});
+
+await test('rejects Node test modules outside a recognized test file', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/sync/package.json': manifest('sync'),
+        'packages/sync/src/index.ts': 'export const queue = 1;\n',
+        'packages/sync/tests/support.ts':
+          "import test from 'node:test';\nexport const runner = test;\n",
+      }),
+    ),
+    'Browser source cannot import node:test.',
   );
 });

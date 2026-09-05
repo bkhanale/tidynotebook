@@ -65,6 +65,7 @@ const builtinNames = new Set(
 const nodeOnly = new Set([
   'pg',
   'fastify',
+  'fastify-plugin',
   'drizzle-orm',
   'drizzle-kit',
   'better-auth',
@@ -95,6 +96,10 @@ const protocolFiles = new Set([
   'apps/mcp-stdio/src/main.ts',
 ]);
 const assetFiles = new Set(['apps/web/src/pwa/service-worker.ts']);
+// The handwritten client configuration named in the plan. It may pass a fetch
+// implementation and a base URL to the generated client. It must not call fetch
+// itself, so the call rule below stays active for it.
+const clientConfigFiles = new Set(['packages/api-client/src/configure.ts']);
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -133,6 +138,7 @@ function browserBlocker(specifier) {
   if (isNodeModule(specifier)) return `Node module ${specifier}`;
   if (
     nodeOnly.has(dependency) ||
+    dependency.startsWith('@fastify/') ||
     dependency.startsWith('@modelcontextprotocol/') ||
     dependency.startsWith('@better-auth/')
   )
@@ -141,14 +147,14 @@ function browserBlocker(specifier) {
     return `server-only package ${dependency}`;
   return null;
 }
+// A recognized test file: `*.test.ts`, `*.test.tsx`, or `*.test.mjs` anywhere,
+// plus every file in the repository-root `tests/` tree.
 /** @param {string} path @returns {boolean} */
 const isTestPath = (path) =>
-  /\.test\.[cm]?[jt]sx?$/.test(path) ||
-  path.startsWith('tests/') ||
-  path.includes('/tests/');
+  /\.test\.(?:tsx?|mjs)$/.test(path) || path.startsWith('tests/');
 /** @param {string} specifier @returns {boolean} */
 const isTestSpecifier = (specifier) =>
-  /(?:^|\/)[^/]*\.test(?:\.[cm]?[jt]sx?)?$/.test(specifier) ||
+  /(?:^|\/)[^/]*\.test\.(?:tsx?|mjs)$/.test(specifier) ||
   /(?:^|\/)tests\//.test(specifier);
 
 for (const item of packages) {
@@ -194,21 +200,30 @@ for (const item of packages) {
   }
 }
 
-/** @param {string} file @param {string} specifier @param {boolean} isTest */
-function checkImport(file, specifier, isTest) {
+/**
+ * @param {string} file
+ * @param {string} specifier
+ * @param {boolean} isTest
+ * @param {boolean} isGenerated
+ */
+function checkImport(file, specifier, isTest, isGenerated) {
   const item = owner(file);
   if (!item) return;
   const name = String(item.manifest.name);
   const key = short(name);
   const dependency = packageName(specifier);
-  if (!isTest && isTestSpecifier(specifier))
-    fail(file, `Production source cannot import test file ${specifier}.`);
   if (specifier.startsWith('.') || isAbsolute(specifier)) {
+    // Handwritten relative imports carry an explicit `.ts` extension, so the
+    // resolved path decides whether the target is a test file.
     const target = resolve(file, '..', specifier);
+    if (!isTest && isTestPath(relative(directory, target).split(sep).join('/')))
+      fail(file, `Production source cannot import test file ${specifier}.`);
     if (owner(target) !== item)
       fail(file, 'Relative or absolute imports cannot leave a package.');
     return;
   }
+  if (!isTest && isTestSpecifier(specifier))
+    fail(file, `Production source cannot import test file ${specifier}.`);
   if (specifier.startsWith('#')) {
     fail(file, 'Package import aliases are not part of the public boundary.');
     return;
@@ -231,7 +246,8 @@ function checkImport(file, specifier, isTest) {
     (coreForbidden.has(dependency) || dependency === '@notesapp/api-client')
   )
     fail(file, `Core cannot import ${dependency}.`);
-  if (httpLibraries.has(dependency))
+  // Generated output owns the fetch transport and its client package.
+  if (!isGenerated && httpLibraries.has(dependency))
     fail(file, `Use generated operations instead of ${dependency}.`);
   if (
     !specifier.startsWith('node:') &&
@@ -276,6 +292,7 @@ for (const file of sources) {
     Boolean(item) && item?.manifest.name !== '@notesapp/sdk-codegen';
   const protocol = protocolFiles.has(path);
   const asset = assetFiles.has(path);
+  const clientConfig = clientConfigFiles.has(path);
   const parsed = parseSync(file, await readFile(file, 'utf8'));
   if (parsed.errors.length) {
     fail(file, 'Source must parse before boundary validation.');
@@ -294,7 +311,7 @@ for (const file of sources) {
     ) {
       const source = record(node.source ?? node.argument);
       if (typeof source.value === 'string')
-        checkImport(file, source.value, isTest);
+        checkImport(file, source.value, isTest, isGenerated);
       else if (type === 'ImportExpression')
         fail(file, 'Dynamic imports must use a literal path.');
     }
@@ -304,7 +321,7 @@ for (const file of sources) {
       if (reference.type === 'TSExternalModuleReference') {
         const expression = record(reference.expression);
         if (typeof expression.value === 'string')
-          checkImport(file, expression.value, isTest);
+          checkImport(file, expression.value, isTest, isGenerated);
         else
           fail(file, 'import = require(...) must use a literal module path.');
       }
@@ -315,21 +332,24 @@ for (const file of sources) {
         ? record(argumentsList[0])
         : {};
       if (typeof source.value === 'string')
-        checkImport(file, source.value, isTest);
+        checkImport(file, source.value, isTest, isGenerated);
       else fail(file, 'require must use a literal module path.');
     }
     if (!isApplication || isGenerated) return;
+    const callee = String(record(node.callee).name);
+    // Only a transport call is handwritten application traffic. A property key
+    // or a type position that carries the same name is not.
+    if (type === 'CallExpression' && callee === 'fetch' && !protocol && !asset)
+      fail(file, 'Handwritten fetch is outside the generated HTTP boundary.');
     if (
-      type === 'Identifier' &&
-      ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource'].includes(
-        String(node.name),
-      ) &&
+      type === 'NewExpression' &&
+      ['XMLHttpRequest', 'WebSocket', 'EventSource'].includes(callee) &&
       !protocol &&
       !asset
     )
       fail(
         file,
-        `Handwritten ${node.name} is outside the generated HTTP boundary.`,
+        `Handwritten ${callee} is outside the generated HTTP boundary.`,
       );
     if (
       type === 'MemberExpression' &&
@@ -338,12 +358,13 @@ for (const file of sources) {
         String(record(node.property).value),
       ) &&
       !protocol &&
-      !asset
+      !asset &&
+      !clientConfig
     )
       fail(file, 'Computed HTTP transport access is forbidden.');
     if (
       type === 'NewExpression' &&
-      ['URL', 'URLSearchParams'].includes(String(record(node.callee).name)) &&
+      ['URL', 'URLSearchParams'].includes(callee) &&
       [
         '@notesapp/web',
         '@notesapp/sync',
@@ -351,7 +372,8 @@ for (const file of sources) {
         '@notesapp/mcp-stdio',
       ].includes(String(item?.manifest.name)) &&
       !protocol &&
-      !asset
+      !asset &&
+      !clientConfig
     )
       fail(file, 'Application URL construction belongs in generated output.');
     if (

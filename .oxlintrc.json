@@ -6,13 +6,25 @@
     "import/no-cycle": "error",
     "import/no-self-import": "error",
     "import/no-duplicates": "error",
-    "typescript/no-explicit-any": "error"
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/no-unsafe-assignment": "error"
   },
-  "ignorePatterns": [
-    ".tooling/**",
-    "node_modules/**",
-    "**/dist/**",
-    "packages/api-client/src/generated/**",
-    "packages/api-contract/src/generated/**"
-  ]
+  "overrides": [
+    {
+      "files": [
+        "packages/api-client/src/generated/**",
+        "packages/api-contract/src/generated/**"
+      ],
+      "rules": {
+        "typescript/no-explicit-any": "off",
+        "typescript/no-non-null-assertion": "off",
+        "typescript/no-unsafe-assignment": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [".tooling/**", "node_modules/**", "**/dist/**"]
 }

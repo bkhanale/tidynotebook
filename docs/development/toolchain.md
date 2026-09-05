@@ -155,19 +155,49 @@ Application packages extend `tsconfig.base.json` and use root TypeScript 7.
 Browser packages add DOM libraries and bundler resolution where required.
 Server packages add Node types. Code generation extends the same strict base
 but invokes its own TypeScript 6 executable. The root tooling context is
-`tsconfig.tools.json`, with strict JavaScript checks for `tools/*.mjs`.
-The recursive root commands run each package's own compiler/build script.
+`tsconfig.json`, with strict JavaScript checks for `tools/*.mjs`. The root file
+keeps that name because type-aware lint resolves the nearest `tsconfig.json` for
+each file; every package supplies its own. The recursive root commands run each
+package's own compiler/build script.
+
+### Import extensions
+
+Handwritten relative imports carry an explicit `.ts` extension, for example
+`import { normalizePath } from './path.ts'`. Node's type stripping runs an
+adjacent `*.test.ts` file directly and does not map `./path.js` to `./path.ts`,
+so a `.js` specifier fails at run time. `tsconfig.base.json` therefore sets
+`allowImportingTsExtensions` and `rewriteRelativeImportExtensions`. The first
+accepts the specifier. The second rewrites it to `./path.js` on emit, so a
+package that emits, such as the server or the API client, still builds with
+`tsc`. An emitting package must set an explicit `rootDir`.
+
+This applies to handwritten source only. Generated output keeps the extension
+that its generator writes. Bare package specifiers are unchanged: a package is
+always imported by its public name, never by a file path.
+
+A local probe under `.tooling/compat/ts-extensions/` proved this on 2026-09-05
+with Node 26.8.1 and TypeScript 7.0.2. An `index.test.ts` file that imports
+`./index.ts` passed under `node --test`, type-checked with a `tsconfig.json`
+extending `tsconfig.base.json`, emitted `./index.js` in the compiled output, and
+the emitted file also ran under `node --test`.
 
 ## Commands and boundaries
 
-| Command                             | Behavior                                                            |
-| ----------------------------------- | ------------------------------------------------------------------- |
-| `pnpm typecheck`                    | Check tool scripts with TS 7, then package type checks.             |
-| `pnpm lint`                         | Check pins and runtime, Oxlint import rules, and source boundaries. |
-| `pnpm format:check`                 | Check maintained source and configuration formatting.               |
-| `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.           |
-| `pnpm test:integration -- contract` | Run the named service integration test.                             |
-| `pnpm build`                        | Check tools, then run package builds in dependency order.           |
+| Command                             | Behavior                                                          |
+| ----------------------------------- | ----------------------------------------------------------------- |
+| `pnpm typecheck`                    | Check tool scripts with TS 7, then package type checks.           |
+| `pnpm lint`                         | Check pins and runtime, type-aware Oxlint, and source boundaries. |
+| `pnpm format:check`                 | Check maintained source and configuration formatting.             |
+| `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.         |
+| `pnpm test:integration -- contract` | Run the named service integration test.                           |
+| `pnpm build`                        | Check tools, then run package builds in dependency order.         |
+
+Unit test discovery covers `*.test.ts` and `*.test.mjs` only. It does not
+discover `*.test.tsx`, because Node cannot strip JSX. Until the authorized E2E
+stage, React component behavior is verified by unit tests over the pure
+functions behind a component and by manual inspection, not by a component test
+runner. Integration discovery covers the repository-root `tests/integration`
+tree.
 
 Test selectors match a basename without `.test.ts` or an exact repository-relative
 path. Every supplied selector must exist. A missing selector exits 1. Test
@@ -178,7 +208,19 @@ tests exist at Task 1.
 The boundary checker rejects package cycles, disallowed dependency directions,
 deep imports, relative imports outside a package, undeclared imports, browser
 imports of Node modules and server dependencies, and handwritten application
-HTTP transports. Oxlint also checks import cycles within source modules.
+HTTP transports.
+
+Oxlint runs with `--type-aware --deny-warnings`. It checks import cycles within
+source modules, forbids `any` and non-null assertions, and adds the type-aware
+rules `typescript/no-floating-promises`, `typescript/no-misused-promises`,
+`typescript/await-thenable`, and `typescript/no-unsafe-assignment`. Type-aware
+rules need type information, so a file must be covered by the nearest
+`tsconfig.json`. One override, listed by the two exact generated paths, turns
+off `typescript/no-explicit-any`, `typescript/no-non-null-assertion`, and
+`typescript/no-unsafe-assignment` for generated output, which cannot satisfy
+them. Generated output is otherwise linted like every other file. A later task
+that generates new output may need to extend that exact list; it must not widen
+the glob.
 
 ### Browser-safe packages
 
@@ -189,9 +231,10 @@ set because the design requires core to hold domain rules for both runtimes.
 A browser-safe package must not import a Node built-in module. This covers the
 `node:` prefix and the bare built-in names, for example `node:fs`, `fs`,
 `fs/promises`, `path`, and `crypto`. It must not import a Node-only package
-either: `pg`, `fastify`, `drizzle-orm`, `drizzle-kit`, `better-auth`, `sharp`,
-`dotenv`, and every `@modelcontextprotocol/` or `@better-auth/` package. It must
-not import the server-only workspace packages `@notesapp/server` and
+either: `pg`, `fastify`, `fastify-plugin`, `drizzle-orm`, `drizzle-kit`,
+`better-auth`, `sharp`, `dotenv`, and every `@fastify/`,
+`@modelcontextprotocol/`, or `@better-auth/` package. It must not import the
+server-only workspace packages `@notesapp/server` and
 `@notesapp/storage-server`.
 
 The same rule applies to the package manifest. A browser-safe package cannot
@@ -207,15 +250,18 @@ through other workspace packages, and the report names the chain. For example,
 
 ### Test files
 
-A recognized test file is a file whose name ends in `.test.ts`, `.test.tsx`,
-`.test.js`, `.test.jsx`, `.test.mjs`, or `.test.cjs`, or a file under any
-`tests/` directory. A recognized test file may import `node:test`,
+A recognized test file is a file whose name ends in `.test.ts`, `.test.tsx`, or
+`.test.mjs`, or any file in the repository-root `tests/` tree. A `tests/`
+directory inside a package is not itself an exception; a file there is a test
+file only when its name matches. A recognized test file may import `node:test`,
 `node:test/reporters`, `node:assert`, and `node:assert/strict`, also inside a
 browser-safe package. Other Node modules stay forbidden there. Test helper
 packages belong in `devDependencies`; the browser dependency rule ignores that
 group.
 
-A production file must not import a test file. Test files do not contribute to
+A production file must not import a test file. Relative specifiers carry an
+explicit `.ts` extension, so the checker resolves the specifier and applies the
+same recognizer to the resolved path. Test files do not contribute to
 the transitive Node reach above, because they are not part of a browser build.
 Every other rule, including package cycles, deep imports, browser-to-server
 imports, and handwritten HTTP calls, stays active for test files.
@@ -238,13 +284,33 @@ every import form it produces:
 
 Each rejected form names the file and the reason.
 
-Generated output exceptions apply only to the two contract/client generated
-paths. Protocol exceptions use exact adapter files:
+### Transport rules and exact exemptions
+
+Handwritten application traffic means a `fetch(...)` call, a `new
+XMLHttpRequest()`, `new WebSocket()`, or `new EventSource()`, computed access to
+one of those names, and an import of a direct HTTP library such as `axios`,
+`undici`, or `@hey-api/client-fetch`. A property key, a type position, or any
+other identifier that carries one of those names is not a transport call and is
+accepted.
+
+The generated client owns the fetch transport, so the transport rules and the
+HTTP library rule are skipped for the two generated paths,
+`packages/api-client/src/generated/` and `packages/api-contract/src/generated/`.
+Every other rule still applies there, including package direction, deep imports,
+and undeclared dependencies.
+
+Protocol exceptions use exact adapter files:
 `apps/server/src/auth/better-auth.ts`, `apps/server/src/mcp/server.ts`, and
 `apps/mcp-stdio/src/main.ts`. PWA asset handling uses only
 `apps/web/src/pwa/service-worker.ts`; literal application API paths are rejected
-there. Package direction, browser dependencies, and deep-import checks still
-apply to exceptions. Code review must check semantic wrappers and computed
+there. `packages/api-client/src/configure.ts` is the handwritten client
+configuration named in the plan. It may set a base URL and pass a transport
+implementation to the generated client, so computed transport access and URL
+construction are accepted in that one file. It must not call `fetch` itself, so
+the call rule stays active for it.
+
+Package direction, browser dependencies, and deep-import checks still apply to
+every exception. Code review must check semantic wrappers and computed
 endpoints that a static rule cannot prove.
 
 The checker accepts `--root <directory>` for disposable verification inputs.
@@ -262,16 +328,30 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install` and `pnpm install --frozen-lockfile`.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, and `pnpm build`.
-- `pnpm test:unit` and `pnpm test:integration` report no tests yet.
+- `pnpm test:unit` runs the checker's own tests. `pnpm test:integration`
+  reports no tests yet.
 - `tools/check-boundaries.test.mjs` covers the checker with temporary fixture
-  workspaces. It accepts a browser-safe workspace and test files that use the
-  Node test runner. It rejects a deep import, a browser Node import, direct
-  fetch, computed fetch, a cross-package relative re-export, a package cycle, a
+  workspaces. It accepts a browser-safe workspace, test files that use the Node
+  test runner, a property or type named `fetch`, the generated client
+  transport, and base URL and transport options in the client configuration. It
+  rejects a deep import, a `fetch` call, computed transport access, a
+  `new WebSocket()`, a cross-package relative re-export, a package cycle, a
   computed import, a computed `require`, a Node built-in in core, a bare
   built-in name, Node reach through a workspace package, a Node-only manifest
-  dependency, `import x = require('node:fs')`, a deep `import x = require(...)`,
-  another Node module inside a test file, and a production import of a test
-  file.
+  dependency, a `@fastify/` dependency in a browser package,
+  `import x = require('node:fs')`, a deep `import x = require(...)`, another
+  Node module inside a test file, a Node test module outside a recognized test
+  file, an HTTP library outside generated output, a `fetch` call in the client
+  configuration, a forbidden core dependency in any group, and a production
+  import of a test file.
+- A local lint probe confirmed the type-aware rules. A floating promise in a
+  probe file was rejected. A non-null assertion was rejected in a handwritten
+  file under `packages/api-client/src/` and accepted under its `generated/`
+  path, which proves the exact-glob override. The probe files were removed.
+- A local probe confirmed the import extension settings. See the
+  "Import extensions" section above.
+- `node tools/check-versions.mjs` rejected a manifest whose `engines.pnpm`
+  did not match `packageManager`. The temporary edit was reverted.
 - `pnpm test:integration -- missing-task1-probe` exited 1. A temporary tool unit
   test was selected by name and propagated its intentional failure as exit 1.
   The temporary test was removed after the check.
