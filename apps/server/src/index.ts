@@ -47,6 +47,7 @@ export {
   authRoutes,
   betterAuthProtocol,
   createAuth,
+  createAuthPool,
   createAuthProtocol,
   oidcProviderId,
 } from './auth/better-auth.ts';
@@ -63,7 +64,7 @@ export {
 export type {
   InvitationAccounts,
   OpenInvitation,
-  RegisteredAccount,
+  RegistrationOutcome,
 } from './auth/invitations.ts';
 export { createInvitationAccounts } from './auth/invitations.ts';
 export type { MailMessage, MailTransport } from './auth/mail.ts';

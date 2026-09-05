@@ -261,6 +261,20 @@ export function classifyError(error: unknown): {
       detail: titles.payload_too_large,
       issues: [],
     };
+  // A request that declares a JSON body and sends none, which a client can do
+  // by setting a content type on a DELETE, is a malformed request rather than
+  // a server fault.
+  if (
+    code === 'FST_ERR_CTP_EMPTY_JSON_BODY' ||
+    code === 'FST_ERR_CTP_INVALID_JSON_BODY'
+  )
+    return {
+      status: 400,
+      code: 'invalid_request',
+      detail:
+        'The request declares a JSON body but carries none, or carries one that is not JSON.',
+      issues: [],
+    };
   if (
     code === 'FST_ERR_CTP_INVALID_MEDIA_TYPE' ||
     code === 'FST_ERR_CTP_EMPTY_TYPE'

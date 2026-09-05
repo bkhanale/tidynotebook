@@ -732,6 +732,54 @@ await test('account settings and tokens belong to one account', async () => {
   }
 });
 
+await test('the account audit trail belongs to one account', async () => {
+  const setup = await openSession(database.migrationUrl);
+  try {
+    await setup.query(
+      `insert into account_audit_events (id, account_id, action, target_kind)
+       values ($1, $2, 'account.recover', 'account')`,
+      [randomUUID(), invited.ownerId],
+    );
+  } finally {
+    await setup.close();
+  }
+  const own = await openSession(database.runtimeUrl, invited.ownerId);
+  try {
+    const rows = await own.query('select * from account_audit_events');
+    assert.equal(rows.length, 1);
+  } finally {
+    await own.close();
+  }
+  const foreign = await openSession(database.runtimeUrl, invited.adminId);
+  try {
+    const rows = await foreign.query('select * from account_audit_events');
+    assert.equal(rows.length, 0);
+    const denied = await foreign.failure(
+      `insert into account_audit_events (id, account_id, action, target_kind)
+       values ($1, $2, 'forged', 'account')`,
+      [randomUUID(), invited.ownerId],
+    );
+    assert.equal(denied.code, '42501');
+  } finally {
+    await foreign.close();
+  }
+});
+
+await test('a stranger cannot discard another account', async () => {
+  const stranger = await openSession(database.runtimeUrl, invited.strangerId);
+  try {
+    // The identity of the transaction does not matter: the function refuses
+    // every account that belongs to a workspace which is not personal.
+    const rows = await stranger.query<{ discarded: boolean }>(
+      'select notesapp_discard_account($1) as discarded',
+      ['no-such-auth-user'],
+    );
+    assert.equal(rows[0]?.discarded, false);
+  } finally {
+    await stranger.close();
+  }
+});
+
 await test('an account row is visible to a co-member and to nobody else', async () => {
   const member = await openSession(database.runtimeUrl, invited.memberId);
   try {

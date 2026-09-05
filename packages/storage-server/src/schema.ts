@@ -785,6 +785,35 @@ export const accountIdentities = pgTable('account_identities', {
     .defaultNow(),
 });
 
+/**
+ * A content free record of a protected action of one account.
+ *
+ * `audit_events` is scoped to a workspace, so it cannot hold the record of a
+ * workspace deletion or of a password recovery: the first removes the rows of
+ * the workspace it describes, and the second belongs to no workspace at all.
+ */
+export const accountAuditEvents = pgTable(
+  'account_audit_events',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id),
+    action: text('action').notNull(),
+    targetKind: text('target_kind').notNull(),
+    targetId: uuid('target_id'),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    index('account_audit_events_account_idx').on(
+      table.accountId,
+      table.createdAt,
+    ),
+  ],
+);
+
 /** Settings that follow one account to every device. */
 export const accountPreferences = pgTable('account_preferences', {
   accountId: uuid('account_id')

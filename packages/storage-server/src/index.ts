@@ -41,6 +41,7 @@ export {
   type IdentityStoreOptions,
 } from './identity-store.ts';
 export {
+  accountAuditEvents,
   accountIdentities,
   accountPreferences,
   agentTokens,

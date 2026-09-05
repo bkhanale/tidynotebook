@@ -157,9 +157,10 @@ export function deleteWorkspace(
     const allowed = permit(actor, workspaceId, role, 'purge');
     if (!allowed.ok) return fail<void>(allowed.error.code);
     if (role !== 'owner') return fail<void>('forbidden');
-    // The record of the deletion goes to another workspace of the actor,
-    // because `destroy` removes the audit rows of this one.
-    await tx.auditActorHome({ action: 'workspace.delete' });
+    // The record of the deletion goes to the account trail, because `destroy`
+    // removes the audit rows of this workspace and the actor may have had no
+    // other workspace at all.
+    await tx.auditAccount({ action: 'workspace.delete' });
     await tx.destroy();
     return ok(undefined);
   });

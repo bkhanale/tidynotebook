@@ -160,6 +160,29 @@ export function checkWriteOrigin(
   return 'missing';
 }
 
+/**
+ * Refuses a cookie authenticated write that does not name the origin.
+ *
+ * The identity hook applies this to every guarded operation. An operation that
+ * declares no security requirement but still reads a cookie, such as
+ * invitation acceptance, calls this helper itself, so the rule lives in one
+ * place and no such operation can forget it.
+ */
+export function requireWriteOrigin(
+  origin: string,
+  request: FastifyRequest,
+): void {
+  const decision = checkWriteOrigin(origin, request.method, {
+    origin: headerValue(request.headers.origin),
+    site: headerValue(request.headers['sec-fetch-site']),
+  });
+  if (decision === 'foreign')
+    throw new ForbiddenError(
+      'A cookie authenticated write must come from the configured origin.',
+    );
+  if (decision === 'missing') throw new OriginRequiredError();
+}
+
 /** Reads one header as a single string. */
 function headerValue(value: unknown): string | undefined {
   if (typeof value === 'string') return value;
@@ -255,17 +278,8 @@ export function createIdentityAdapter(
       throw new UnauthenticatedError(
         'This operation does not accept the supplied credential.',
       );
-    if (resolved.source === 'session') {
-      const decision = checkWriteOrigin(dependencies.origin, request.method, {
-        origin: headerValue(request.headers.origin),
-        site: headerValue(request.headers['sec-fetch-site']),
-      });
-      if (decision === 'foreign')
-        throw new ForbiddenError(
-          'A cookie authenticated write must come from the configured origin.',
-        );
-      if (decision === 'missing') throw new OriginRequiredError();
-    }
+    if (resolved.source === 'session')
+      requireWriteOrigin(dependencies.origin, request);
     actors.set(request, resolved);
   };
 

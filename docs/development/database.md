@@ -28,8 +28,8 @@ package never loads. Application sources are still checked in full.
 
 ## Schema
 
-Twenty nine tables live in the `public` schema: twenty one for workspace
-content, and eight that Task 5 added for identity. Every table that holds
+Thirty tables live in the `public` schema: twenty one for workspace content,
+and nine that Task 5 added for identity. Every table that holds
 workspace content carries `workspace_id`, and every child reference is a composite
 foreign key `(workspace_id, ...)` to its parent. A row therefore cannot point
 at a row of another workspace: the pair does not exist in the parent table.
@@ -60,18 +60,19 @@ boundary holds even where a row access policy hides the parent.
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 
 Task 5 added the identity tables. The first four belong to Better Auth; the
-last four are the application's own.
+last five are the application's own.
 
-| Table                 | Holds                                                      |
-| --------------------- | ---------------------------------------------------------- |
-| `auth_user`           | One Better Auth user: address, display name, verification. |
-| `auth_session`        | One browser session and its token.                         |
-| `auth_account`        | One credential or one external identity, and its tokens.   |
-| `auth_verification`   | One short lived verification value, such as a reset token. |
-| `account_identities`  | The map from a Better Auth user to an application account. |
-| `account_preferences` | Settings that follow one account to every device.          |
-| `agent_tokens`        | One revocable agent token, by the hash of its secret.      |
-| `invitations`         | One invitation to one workspace, by its token hash.        |
+| Table                  | Holds                                                      |
+| ---------------------- | ---------------------------------------------------------- |
+| `auth_user`            | One Better Auth user: address, display name, verification. |
+| `auth_session`         | One browser session and its token.                         |
+| `auth_account`         | One credential or one external identity, and its tokens.   |
+| `auth_verification`    | One short lived verification value, such as a reset token. |
+| `account_identities`   | The map from a Better Auth user to an application account. |
+| `account_preferences`  | Settings that follow one account to every device.          |
+| `account_audit_events` | Content free records of protected actions of one account.  |
+| `agent_tokens`         | One revocable agent token, by the hash of its secret.      |
+| `invitations`          | One invitation to one workspace, by its token hash.        |
 
 The four Better Auth tables are not scoped by a workspace. Sign-in must find a
 user by an address before any identity exists, so no row policy can narrow them

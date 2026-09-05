@@ -21,7 +21,11 @@ import type {
 } from './http/register.ts';
 import { registerOperations } from './http/register.ts';
 import type { AuthLogRecord } from './auth/better-auth.ts';
-import { createAuth, createAuthProtocol } from './auth/better-auth.ts';
+import {
+  createAuth,
+  createAuthPool,
+  createAuthProtocol,
+} from './auth/better-auth.ts';
 import { createIdentityAdapter } from './auth/actor.ts';
 import { createInvitationAccounts } from './auth/invitations.ts';
 import { createMailTransport } from './auth/mail.ts';
@@ -211,23 +215,23 @@ export async function createApp(
   // The protocol library writes into the application log. The sink is filled
   // once the instance exists, so nothing reaches the console in between.
   const sink: { write?: (record: AuthLogRecord) => void } = {};
-  const auth = createAuth(config, {
-    mail,
-    // Sign-up is reachable through the server API only. The route that would
-    // expose it is not in `authRoutes`, so the invitation path in
-    // `auth/invitations.ts` is the one way an account is created besides the
-    // bootstrap command.
-    allowSignUp: true,
-    log: (record) => sink.write?.(record),
-  });
+  // One pool for every instance that reads the identity tables. The served
+  // instance keeps `disableSignUp` on; the invitation path builds its own
+  // instance over the same pool, so registration stays off the served surface.
+  const authPool = createAuthPool(config);
+  const auth = createAuth(
+    config,
+    { mail, log: (record) => sink.write?.(record) },
+    authPool,
+  );
   const adapter = createIdentityAdapter({
     auth: auth.auth,
     identity,
     origin: config.origin,
   });
   const invitations = createInvitationAccounts(config, {
-    auth: auth.auth,
     identity,
+    pool: authPool,
     resolveActor: (request) => adapter.resolveActor(request),
   });
   const app = await createAppWithHandlers(config, {
@@ -249,7 +253,9 @@ export async function createApp(
     else app.log.debug(where, record.message);
   };
   app.addHook('onClose', async () => {
+    await invitations.close();
     await auth.close();
+    await authPool.end();
     await identity.close();
   });
   return app;

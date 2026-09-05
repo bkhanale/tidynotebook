@@ -37,6 +37,7 @@ import {
   agentTokenHash,
   bootstrapOwner,
   createAuth,
+  createAuthPool,
   createAuthProtocol,
   createHandlers,
   createIdentityAdapter,
@@ -131,17 +132,18 @@ function environment(
 const outbox: MailMessage[] = [];
 
 const config: ServerConfig = loadServerConfig(environment());
-// The running server never mounts the sign-up route. Sign-up is reachable
-// through the server API only, which is what the invitation path uses.
-const auth = createAuth(config, { mail: null, allowSignUp: true });
+// The served instance keeps `disableSignUp` on. The invitation path builds its
+// own instance over the same pool, exactly as the composition does.
+const authPool = createAuthPool(config);
+const auth = createAuth(config, { mail: null }, authPool);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,
   origin: config.origin,
 });
 const invitations = createInvitationAccounts(config, {
-  auth: auth.auth,
   identity,
+  pool: authPool,
   resolveActor: (request) => adapter.resolveActor(request),
 });
 const server = await startTestServer({
@@ -700,16 +702,16 @@ await test('deleting a workspace keeps a record of the deletion', async () => {
     false,
   );
   // The audit rows of the deleted workspace are gone with it, so the record of
-  // the deletion lives in another workspace of the same actor.
+  // the deletion lives in the account trail, which no workspace owns.
   const session = await openSession(database.runtimeUrl, ownerAccountId);
   try {
-    const rows = await session.query<{ workspace_id: string }>(
-      `select workspace_id from audit_events
+    const rows = await session.query<{ account_id: string }>(
+      `select account_id from account_audit_events
         where action = 'workspace.delete' and target_id = $1`,
       [workspaceId],
     );
     assert.equal(rows.length, 1);
-    assert.notEqual(rows[0]?.workspace_id, workspaceId);
+    assert.equal(rows[0]?.account_id, ownerAccountId);
   } finally {
     await session.close();
   }
@@ -841,6 +843,7 @@ for (const mode of [
   'wrong-issuer',
   'wrong-audience',
   'bad-signature',
+  'expired-token',
 ] as const) {
   await test(`a provider answer with a ${mode} is refused`, async () => {
     provider.setMode(mode);
@@ -854,6 +857,52 @@ for (const mode of [
     assert.equal(cookies.length, 0, result.cookies.join('\n'));
   });
 }
+
+await test('an authorization code works once', async () => {
+  provider.setMode('valid');
+  provider.setIdentity({
+    subject: 'subject-replay',
+    email: 'replay@notes.invalid',
+    name: 'Replay',
+  });
+  const started = await signInWithProvider({
+    headers: browser(),
+    body: { provider: 'oidc', callbackURL: '/' },
+  });
+  const startCookies = responseOf(started.response).headers.getSetCookie();
+  const target = new URL(started.data?.url ?? '');
+  const redirected = await provider.app.inject({
+    method: 'GET',
+    url: `${target.pathname}${target.search}`,
+  });
+  const callback = new URL(redirected.headers.location ?? '');
+  const path = `${callback.pathname}${callback.search}`;
+  const first = await server.app.inject({
+    method: 'GET',
+    url: path,
+    headers: { cookie: cookieHeader(startCookies) },
+  });
+  const firstCookies = first.headers['set-cookie'];
+  assert.ok(
+    (Array.isArray(firstCookies) ? firstCookies : [firstCookies ?? '']).some(
+      (entry) => isSessionCookie(String(entry)),
+    ),
+  );
+  // The provider removes the code when it exchanges it, so the same callback
+  // cannot be replayed into a second session.
+  const second = await server.app.inject({
+    method: 'GET',
+    url: path,
+    headers: { cookie: cookieHeader(startCookies) },
+  });
+  const secondCookies = second.headers['set-cookie'];
+  assert.equal(
+    (Array.isArray(secondCookies) ? secondCookies : [secondCookies ?? '']).some(
+      (entry) => isSessionCookie(String(entry)),
+    ),
+    false,
+  );
+});
 
 await test('the operator recovery command refuses under an oidc policy', async () => {
   const strict = loadServerConfig(
@@ -929,6 +978,77 @@ await test('an auth endpoint rejects a body outside its contract', async () => {
   }
 });
 
+await test('a bodyless operation refuses a json content type with no body', async () => {
+  for (const [method, url] of [
+    ['DELETE', `/api/workspaces/${personalWorkspaceId}`],
+    ['DELETE', '/api/agent-tokens/00000000-0000-4000-8000-000000000000'],
+  ] as const) {
+    const response = await server.app.inject({
+      method,
+      url,
+      headers: {
+        'content-type': 'application/json',
+        cookie: ownerCookie,
+        origin: 'https://notes.test',
+      },
+    });
+    assert.equal(response.statusCode, 400, url);
+    assert.equal(
+      readProperty(JSON.parse(response.body), 'code'),
+      'invalid_request',
+      url,
+    );
+  }
+});
+
+await test('the sign-up route stays unmounted after the invitation path ran', async () => {
+  const response = await server.app.inject({
+    method: 'POST',
+    url: '/api/auth/sign-up/email',
+    headers: {
+      'content-type': 'application/json',
+      origin: 'https://notes.test',
+    },
+    payload: JSON.stringify({
+      email: 'late@notes.invalid',
+      name: 'Late',
+      password: 'a-password-long-enough',
+    }),
+  });
+  assert.equal(response.statusCode, 404);
+});
+
+await test('a failed claim leaves no account behind', async () => {
+  const address = 'discarded@notes.invalid';
+  const outcome = await invitations.register({
+    email: address,
+    password: 'a-password-long-enough',
+    claim: () =>
+      Promise.resolve({
+        ok: false as const,
+        error: { code: 'not_found' as const, fileIds: [] },
+      }),
+  });
+  assert.equal(outcome.kind, 'refused');
+  // Nothing of the attempt survives: no identity, and no personal workspace.
+  const session = await openSession(database.migrationUrl);
+  try {
+    const users = await session.query(
+      'select id from auth_user where email = $1',
+      [address],
+    );
+    assert.equal(users.length, 0);
+    const identities = await session.query<{ total: number }>(
+      `select count(*)::int as total from account_identities ai
+        join auth_user u on u.id = ai.auth_user_id where u.email = $1`,
+      [address],
+    );
+    assert.equal(identities[0]?.total, 0);
+  } finally {
+    await session.close();
+  }
+});
+
 await test('an auth endpoint rejects a wrong request media type', async () => {
   const response = await server.app.inject({
     method: 'POST',
@@ -955,7 +1075,9 @@ await test('the session answer never carries the session token', async () => {
 
 await mailingServer.close();
 await server.close();
+await invitations.close();
 await auth.close();
+await authPool.end();
 await content.close();
 await identity.close();
 await provider.close();

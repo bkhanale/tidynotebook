@@ -97,9 +97,10 @@ export type AuthOptions = {
   /**
    * Permits sign-up through the email and password endpoint.
    *
-   * The running server never sets this. Only the one-time bootstrap command
-   * and the invitation sign-up path build such an instance, and neither mounts
-   * the sign-up route.
+   * The instance that serves requests never sets this: `disableSignUp` stays
+   * on there as a second control. Only the one-time bootstrap command and the
+   * invitation sign-up path build a separate instance with it, and neither
+   * mounts the sign-up route.
    */
   readonly allowSignUp?: boolean;
   /**
@@ -276,17 +277,27 @@ export type AuthHandle = {
 export function createAuth(
   config: ServerConfig,
   options: AuthOptions,
+  shared?: pg.Pool,
 ): AuthHandle {
-  const pool = new pg.Pool({
-    connectionString: config.authDatabaseUrl,
-    max: 5,
-  });
+  const pool = shared ?? createAuthPool(config);
   return {
     auth: buildAuth(config, options, drizzle({ client: pool })),
     close: async (): Promise<void> => {
-      await pool.end();
+      // A shared pool belongs to the composition that created it.
+      if (shared === undefined) await pool.end();
     },
   };
+}
+
+/**
+ * Opens the connection pool of the identity tables.
+ *
+ * The composition creates one pool and hands it to every instance it builds,
+ * so the instance that serves requests and the instance that the invitation
+ * path uses never open a second connection set.
+ */
+export function createAuthPool(config: ServerConfig): pg.Pool {
+  return new pg.Pool({ connectionString: config.authDatabaseUrl, max: 5 });
 }
 
 /** Header names that never travel to the protocol handler. */

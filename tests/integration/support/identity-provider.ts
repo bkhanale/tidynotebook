@@ -20,7 +20,12 @@ import type { FastifyInstance } from 'fastify';
 
 /** The failure that the provider produces on its next token answer. */
 export type ProviderMode =
-  'valid' | 'wrong-nonce' | 'wrong-issuer' | 'wrong-audience' | 'bad-signature';
+  | 'valid'
+  | 'wrong-nonce'
+  | 'wrong-issuer'
+  | 'wrong-audience'
+  | 'bad-signature'
+  | 'expired-token';
 
 /** The identity that the provider reports for the next sign-in. */
 export type ProviderIdentity = {
@@ -169,8 +174,8 @@ export async function startIdentityProvider(): Promise<TestIdentityProvider> {
       iss: mode === 'wrong-issuer' ? 'https://other.invalid' : issuer,
       sub: pending.identity.subject,
       aud: mode === 'wrong-audience' ? 'another-client' : clientId,
-      exp: now + 300,
-      iat: now,
+      exp: mode === 'expired-token' ? now - 300 : now + 300,
+      iat: mode === 'expired-token' ? now - 600 : now,
       email: pending.identity.email,
       email_verified: true,
       name: pending.identity.name,

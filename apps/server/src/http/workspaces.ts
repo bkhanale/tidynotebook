@@ -28,7 +28,7 @@ import {
   updateWorkspace,
 } from '@notesapp/core';
 import { WorkspaceUnavailableError } from '@notesapp/storage-server';
-import { requireActor } from '../auth/actor.ts';
+import { requireActor, requireWriteOrigin } from '../auth/actor.ts';
 import type { InvitationAccounts } from '../auth/invitations.ts';
 import type { MailTransport } from '../auth/mail.ts';
 import { readProperty } from '../values.ts';
@@ -335,6 +335,10 @@ export function createWorkspaceHandlers(
       const password = readProperty(request.body, 'password');
       const resolved = await invitations.resolveActor(request);
       if (resolved !== null) {
+        // This operation declares no security requirement, because its second
+        // form has no session yet. The identity hook therefore does not run,
+        // so the cookie write check runs here instead.
+        if (resolved.source === 'session') requireWriteOrigin(origin, request);
         // A signed in account accepts with its own address. A password would
         // be a second identity for the same request, so it is refused.
         if (password !== undefined)
@@ -367,28 +371,30 @@ export function createWorkspaceHandlers(
       if (!invitations.passwordSignUpEnabled) throw new OidcRequiredError();
       const open = await invitations.openInvitation(tokenHash);
       if (open === null) throw new NotFoundError();
+      // The claim runs inside `register`, so a failure removes the account
+      // that the attempt created rather than leaving it behind.
       const created = await invitations.register({
         email: open.email,
         password,
+        claim: (actor) =>
+          acceptInvitation(store, actor, {
+            tokenHash,
+            email: open.email.toLowerCase(),
+          }),
       });
-      if (created === null)
+      if (created.kind === 'taken')
         throw new ForbiddenError(
           'That address already has an account. Sign in and accept again.',
         );
-      const membership = unwrap(
-        await acceptInvitation(store, created.actor, {
-          tokenHash,
-          email: created.email.toLowerCase(),
-        }),
-      );
+      if (created.kind === 'refused') throw new NotFoundError();
       if (created.cookies.length > 0)
         reply.header('set-cookie', [...created.cookies]);
       return {
         status: 200,
         mediaType: jsonMediaType,
         body: {
-          workspaceId: membership.workspaceId,
-          role: membership.role,
+          workspaceId: created.value.workspaceId,
+          role: created.value.role,
         },
       };
     },

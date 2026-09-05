@@ -75,6 +75,7 @@ type Space = {
 /** An in-memory store that records what a use case asked it to do. */
 type FakeStore = WorkspaceAdminStore & {
   readonly spaces: Map<string, Space>;
+  readonly accountAudit: Map<string, string[]>;
   readonly preferences: Map<string, Preferences>;
   readonly tokens: Map<string, AgentTokenSummary & { account: string }>;
   space(id: string): Space;
@@ -85,6 +86,7 @@ type FakeStore = WorkspaceAdminStore & {
 /** Builds one in-memory store. */
 function createFakeStore(): FakeStore {
   const spaces = new Map<string, Space>();
+  const accountAudit = new Map<string, string[]>();
   const preferences = new Map<string, Preferences>();
   const tokens = new Map<string, AgentTokenSummary & { account: string }>();
 
@@ -273,14 +275,11 @@ function createFakeStore(): FakeStore {
         value.audit.push(input.action);
         return Promise.resolve();
       },
-      auditActorHome: (input) => {
-        const home = [...spaces.entries()].find(
-          ([id, other]) =>
-            id !== workspaceId && other.members.has(actor.accountId),
-        );
-        if (home === undefined) return Promise.resolve(false);
-        home[1].audit.push(input.action);
-        return Promise.resolve(true);
+      auditAccount: (input) => {
+        const trail = accountAudit.get(actor.accountId) ?? [];
+        trail.push(input.action);
+        accountAudit.set(actor.accountId, trail);
+        return Promise.resolve();
       },
       recordMembershipChange: (input) => {
         value.changes.push(input);
@@ -292,6 +291,7 @@ function createFakeStore(): FakeStore {
 
   return {
     spaces,
+    accountAudit,
     preferences,
     tokens,
     space,
@@ -342,15 +342,14 @@ await test('only the owner deletes a workspace', async () => {
     [alice, 'owner'],
     [bob, 'admin'],
   ]);
-  store.seed(other, [[alice, 'owner']]);
   const denied = await deleteWorkspace(store, actorFor(bob, 'admin'), space);
   assert.equal(denied.ok, false);
   const allowed = await deleteWorkspace(store, actorFor(alice, 'owner'), space);
   assert.equal(allowed.ok, true);
   assert.equal(store.spaces.has(space), false);
-  // The record of the deletion survives, because it was written to another
-  // workspace of the same actor.
-  assert.deepEqual(store.space(other).audit, ['workspace.delete']);
+  // The record of the deletion survives in the account trail, which is not
+  // scoped by a workspace, so it is there even when this was the last one.
+  assert.deepEqual(store.accountAudit.get(alice), ['workspace.delete']);
 });
 
 await test('the last owner cannot be removed', async () => {

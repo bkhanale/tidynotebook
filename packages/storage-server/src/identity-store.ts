@@ -156,10 +156,18 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
     tokenHash: string,
   ): Promise<{ workspaceId: string; email: string } | null>;
   /**
-   * Appends one content free audit record to the personal workspace of an
-   * account. The operator recovery command uses it.
+   * Appends one content free record to the audit trail of an account. The
+   * operator recovery command uses it.
    */
   recordAccountAudit(accountId: string, action: string): Promise<void>;
+  /**
+   * Removes an account that an invitation attempt created and never used.
+   *
+   * The call refuses when the account belongs to a workspace that is not its
+   * own personal one, or when any of its workspaces holds a file, so it can
+   * never remove an account that has been used.
+   */
+  discardAccount(authUserId: string): Promise<boolean>;
   /** Closes every pooled connection. */
   close(): Promise<void>;
 };
@@ -263,6 +271,24 @@ export function openIdentityStore(
         input.targetKind,
         input.targetId,
       ],
+    );
+  }
+
+  /** Appends one content free record to the audit trail of one account. */
+  async function writeAccountAudit(
+    client: pg.PoolClient,
+    accountId: string,
+    input: {
+      readonly action: string;
+      readonly targetKind: string;
+      readonly targetId: string | null;
+    },
+  ): Promise<void> {
+    await client.query(
+      `insert into account_audit_events
+         (id, account_id, action, target_kind, target_id)
+       values ($1, $2, $3, $4, $5)`,
+      [randomUUID(), accountId, input.action, input.targetKind, input.targetId],
     );
   }
 
@@ -601,26 +627,14 @@ export function openIdentityStore(
         await writeAudit(client, workspaceId, accountId, input);
       },
 
-      async auditActorHome(input): Promise<boolean> {
+      async auditAccount(input): Promise<void> {
         // Deleting a workspace removes its own audit rows, so the record of
-        // that deletion is written to another workspace of the actor. The
-        // deleted identifier travels as the content free target.
-        const rows = await client.query<{ workspace_id: string }>(
-          `select m.workspace_id from memberships m
-             join workspaces w on w.id = m.workspace_id
-            where m.account_id = $1 and m.workspace_id <> $2
-            order by w.personal desc, w.id asc
-            limit 1`,
-          [accountId, workspaceId],
-        );
-        const home = rows.rows[0]?.workspace_id;
-        if (home === undefined) return false;
-        await writeAudit(client, home, accountId, {
+        // that deletion goes to the account trail, which no workspace owns.
+        await writeAccountAudit(client, accountId, {
           action: input.action,
           targetKind: 'workspace',
           targetId: workspaceId,
         });
-        return true;
       },
 
       async recordMembershipChange(input): Promise<void> {
@@ -758,23 +772,22 @@ export function openIdentityStore(
 
     async recordAccountAudit(accountId: string, action: string): Promise<void> {
       assertUuid(accountId, 'the account');
-      await inTransaction(accountId, null, async (client) => {
-        const rows = await client.query<{ workspace_id: string }>(
-          `select m.workspace_id from memberships m
-             join workspaces w on w.id = m.workspace_id
-            where m.account_id = $1
-            order by w.personal desc, w.id asc
-            limit 1`,
-          [accountId],
+      await inTransaction(accountId, null, (client) =>
+        writeAccountAudit(client, accountId, {
+          action,
+          targetKind: 'account',
+          targetId: accountId,
+        }),
+      );
+    },
+
+    async discardAccount(authUserId: string): Promise<boolean> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ discarded: boolean }>(
+          'select notesapp_discard_account($1) as discarded',
+          [authUserId],
         );
-        const workspaceId = rows.rows[0]?.workspace_id;
-        if (workspaceId === undefined) return;
-        await client.query(
-          `insert into audit_events
-             (workspace_id, id, actor_account_id, action, target_kind, target_id)
-           values ($1, $2, $3, $4, 'account', $3)`,
-          [workspaceId, randomUUID(), accountId, action],
-        );
+        return rows.rows[0]?.discarded ?? false;
       });
     },
 

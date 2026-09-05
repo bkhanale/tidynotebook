@@ -213,14 +213,15 @@ export type WorkspaceAdminTransaction = {
     readonly targetId: string | null;
   }): Promise<void>;
   /**
-   * Appends one audit record to another workspace of the actor.
+   * Appends one audit record to the account trail of the actor.
    *
    * Deleting a workspace removes its own audit rows, so the record of that
-   * deletion has to live somewhere else. The deleted workspace identifier is
-   * the content free target. The result is false when the actor belongs to no
-   * other workspace.
+   * deletion cannot live in the workspace it describes. The account trail is
+   * not scoped by a workspace, so the record survives even when the deleted
+   * workspace was the actor's last one. The deleted workspace identifier is
+   * the content free target.
    */
-  auditActorHome(input: { readonly action: string }): Promise<boolean>;
+  auditAccount(input: { readonly action: string }): Promise<void>;
   /** Appends one incremental change record under the workspace lock. */
   recordMembershipChange(input: {
     readonly accountId: string;

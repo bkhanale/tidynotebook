@@ -192,15 +192,21 @@ of one workspace have a defined order.
   survives.
 
 Every membership change appends a `sync_changes` record under the workspace
-lock and a content free `audit_events` record. That includes the two writes
-that create a membership rather than changing one: creating a workspace, which
-takes the new workspace's lock before it writes anything, and accepting an
-invitation.
+lock and a content free `audit_events` record. That includes every write that
+creates a membership rather than changing one: creating a workspace, accepting
+an invitation, and the personal workspace that `notesapp_link_account` creates
+on a first sign-in. That function writes the same pair inside its own
+transaction, so a personal workspace starts its sync stream at cursor one just
+like any other workspace.
 
-Deleting a workspace removes its own audit rows, so the record of that deletion
-is written to another workspace of the same actor, with the deleted workspace
-identifier as its content free target. An actor whose only workspace is the one
-being deleted leaves no record, because there is nowhere left to write it.
+`audit_events` is scoped to a workspace, so two records cannot live there.
+`account_audit_events` holds them instead, keyed by account and readable only
+by that account:
+
+- `workspace.delete`, because deleting a workspace removes its own audit rows
+  and the actor may have had no other workspace at all. The deleted identifier
+  is the content free target.
+- `account.recover`, which belongs to no workspace.
 
 ## Invitations
 
@@ -221,10 +227,31 @@ because the second has no session yet:
 2. A request with no session that carries the token and a password. The server
    then creates the local account for the invited address, marks that address
    verified because the token proves control of it, signs the new account in,
-   and creates its personal workspace. Sign-up is reachable through Better
-   Auth's server API only; `/api/auth/sign-up/email` is not in `authRoutes`, so
-   nothing outside this path can register. An address that already has an
-   account answers `403 forbidden`: that person signs in and accepts again.
+   and creates its personal workspace. An address that already has an account
+   answers `403 forbidden`: that person signs in and accepts again.
+
+   The instance that serves requests keeps `disableSignUp` on, so registration
+   is off the served surface as a second control. `auth/invitations.ts` builds
+   a separate Better Auth instance over the same connection pool with sign-up
+   permitted, and `/api/auth/sign-up/email` is not in `authRoutes`, so nothing
+   that is mounted can reach registration.
+
+   Creating the account and consuming the invitation cannot be one database
+   transaction, because the two live behind different credentials. The order is
+   create, claim, then compensate: the claim runs inside `register`, and a
+   claim that fails removes the Better Auth user through
+   `internalAdapter.deleteUser` and the account, its identity row, and its
+   personal workspace through `notesapp_discard_account`. That function refuses
+   an account that belongs to a workspace which is not its own personal one, or
+   whose workspaces hold a file, so it can never remove an account that has
+   been used. The answer is then `404 not_found`, as if the invitation had
+   already been consumed.
+
+`acceptInvitation` declares no security requirement, because its second form
+has no session yet. The identity hook therefore does not run for it, and the
+handler calls the shared `requireWriteOrigin` helper itself whenever a session
+resolved. Every operation that reads a cookie without declaring a security
+requirement must call that helper for the same reason.
 
 Under `NOTESAPP_OIDC_REQUIRED` the second form answers `403 oidc_required`. The
 invited person signs in through the configured provider instead, and the
@@ -330,14 +357,17 @@ output.
 
 ### What the operator commands use
 
-`pnpm account:recover` drives Better Auth through its server API rather than
-its HTTP surface. It uses `auth.$context` and then
-`internalAdapter.findUserByEmail`, `internalAdapter.findCredentialAccount`,
-`password.hash`, `internalAdapter.updatePassword`, and
-`internalAdapter.deleteUserSessions`. `pnpm owner:bootstrap` uses
-`auth.api.signUpEmail` on an instance that permits sign-up, and the invitation
-path uses the same call plus `internalAdapter.updateUser` to mark the address
-verified. None of these mounts an HTTP route.
+Three paths drive Better Auth 1.7.2 through its server API rather than its HTTP
+surface. These are internal names of that pinned version, so a version change
+has to check them:
+
+| Path                    | Uses                                                                                                                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm owner:bootstrap`  | `auth.api.signUpEmail`                                                                                                                                                                            |
+| `pnpm account:recover`  | `auth.$context`, then `internalAdapter.findUserByEmail`, `internalAdapter.findCredentialAccount`, `context.password.hash`, `internalAdapter.updatePassword`, `internalAdapter.deleteUserSessions` |
+| Invitation registration | `auth.api.signUpEmail`, `internalAdapter.findUserByEmail`, `internalAdapter.updateUser`, `internalAdapter.deleteUser`                                                                             |
+
+None of them mounts an HTTP route.
 
 A local account starts unverified: `requireEmailVerification` is off, so a
 password sign-in works immediately. Only the invitation sign-up path sets
@@ -359,7 +389,8 @@ it refuses for an account that has no local credential.
 
 An OpenID Connect identity whose address matches an existing local account is
 refused with the library's `account_not_linked` outcome, and the callback
-redirects with an error rather than issuing a session. That is the intended
+redirects with `?error=account_not_linked` rather than issuing a session. No
+user row and no account row is created for that identity. That is the intended
 answer: automatic linking is off, so a provider that reports a familiar address
 can never take over a local account.
 

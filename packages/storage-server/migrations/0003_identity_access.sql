@@ -61,6 +61,7 @@ REVOKE ALL ON public.auth_session FROM notesapp_app;--> statement-breakpoint
 REVOKE ALL ON public.auth_account FROM notesapp_app;--> statement-breakpoint
 REVOKE ALL ON public.auth_verification FROM notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.account_preferences TO notesapp_app;--> statement-breakpoint
+GRANT SELECT, INSERT ON public.account_audit_events TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.agent_tokens TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.invitations TO notesapp_app;--> statement-breakpoint
 
@@ -120,6 +121,19 @@ BEGIN
 	EXECUTE format(
 		'CREATE POLICY account_identities_owner_policy ON public.account_identities '
 		'FOR ALL TO %I USING (true) WITH CHECK (true)', owner_role);
+
+	-- The account audit trail belongs to one account and to nobody else. It is
+	-- append only for the runtime role, like the workspace audit trail.
+	EXECUTE 'ALTER TABLE public.account_audit_events ENABLE ROW LEVEL SECURITY';
+	EXECUTE 'ALTER TABLE public.account_audit_events FORCE ROW LEVEL SECURITY';
+	EXECUTE format(
+		'CREATE POLICY account_audit_events_owner_policy ON public.account_audit_events '
+		'FOR ALL TO %I USING (true) WITH CHECK (true)', owner_role);
+	EXECUTE
+		'CREATE POLICY account_audit_events_member_policy ON public.account_audit_events '
+		'FOR ALL TO notesapp_app '
+		'USING (account_id = public.notesapp_current_account()) '
+		'WITH CHECK (account_id = public.notesapp_current_account())';
 
 	-- Settings belong to one account and to nobody else.
 	EXECUTE 'ALTER TABLE public.account_preferences ENABLE ROW LEVEL SECURITY';
@@ -266,6 +280,18 @@ CREATE FUNCTION public.notesapp_link_account(
 			VALUES (p_workspace_id, 0);
 		INSERT INTO public.memberships (workspace_id, account_id, role)
 			VALUES (p_workspace_id, p_account_id, 'owner');
+		-- The personal workspace records its first membership exactly like a
+		-- workspace that an account creates by hand. The cursor moves from zero
+		-- to one here, so the sync stream of a new workspace starts at one.
+		UPDATE public.workspace_cursors SET last_cursor = 1
+			WHERE workspace_id = p_workspace_id;
+		INSERT INTO public.sync_changes
+			(workspace_id, cursor, entity_kind, entity_id, deleted)
+			VALUES (p_workspace_id, 1, 'membership', p_account_id, false);
+		INSERT INTO public.audit_events
+			(workspace_id, id, actor_account_id, action, target_kind, target_id)
+			VALUES (p_workspace_id, gen_random_uuid(), p_account_id,
+				'workspace.create', 'workspace', p_workspace_id);
 		RETURN p_account_id;
 	END
 	$$;--> statement-breakpoint
@@ -492,6 +518,68 @@ CREATE FUNCTION public.notesapp_agent_token(p_token_hash text)
 		WHERE t.token_hash = p_token_hash
 	$$;--> statement-breakpoint
 
+-- Removes an account that was created for an invitation and never used.
+--
+-- The invitation sign-up path creates the account, its personal workspace, and
+-- its membership before it consumes the invitation. When that last step fails,
+-- for example because another request consumed the same token first, this
+-- function removes what the attempt created, so a failed acceptance leaves no
+-- account behind.
+--
+-- It refuses when the account belongs to any workspace that is not its own
+-- personal one, so it can never remove an account that has already been used.
+CREATE FUNCTION public.notesapp_discard_account(p_auth_user_id text)
+	RETURNS boolean
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+	DECLARE
+		target uuid;
+		victim uuid;
+	BEGIN
+		SELECT ai.account_id INTO target
+		FROM public.account_identities ai
+		WHERE ai.auth_user_id = p_auth_user_id;
+		IF target IS NULL THEN
+			RETURN false;
+		END IF;
+		IF EXISTS (
+			SELECT 1 FROM public.memberships m
+			JOIN public.workspaces w ON w.id = m.workspace_id
+			WHERE m.account_id = target AND w.personal = false
+		) THEN
+			RETURN false;
+		END IF;
+		IF EXISTS (
+			SELECT 1 FROM public.files f
+			JOIN public.memberships m ON m.workspace_id = f.workspace_id
+			WHERE m.account_id = target
+		) THEN
+			RETURN false;
+		END IF;
+		PERFORM set_config('notesapp.purge', 'on', true);
+		FOR victim IN
+			SELECT m.workspace_id FROM public.memberships m
+			WHERE m.account_id = target
+		LOOP
+			DELETE FROM public.sync_changes WHERE workspace_id = victim;
+			DELETE FROM public.audit_events WHERE workspace_id = victim;
+			DELETE FROM public.invitations WHERE workspace_id = victim;
+			DELETE FROM public.memberships WHERE workspace_id = victim;
+			DELETE FROM public.workspace_cursors WHERE workspace_id = victim;
+			DELETE FROM public.workspace_usage WHERE workspace_id = victim;
+			DELETE FROM public.workspaces WHERE id = victim;
+		END LOOP;
+		DELETE FROM public.account_audit_events WHERE account_id = target;
+		DELETE FROM public.account_preferences WHERE account_id = target;
+		DELETE FROM public.account_identities WHERE account_id = target;
+		DELETE FROM public.accounts WHERE id = target;
+		PERFORM set_config('notesapp.purge', 'off', true);
+		RETURN true;
+	END
+	$$;--> statement-breakpoint
+
 -- Removes a workspace and every record that belongs to it.
 --
 -- Only an owner may call it. The immutable content tables are cleared with the
@@ -553,6 +641,8 @@ REVOKE ALL ON FUNCTION public.notesapp_transfer_ownership(uuid, uuid, boolean) F
 REVOKE ALL ON FUNCTION public.notesapp_claim_invitation(text, text) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_agent_token(text) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.notesapp_delete_workspace(uuid) FROM PUBLIC;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.notesapp_discard_account(text) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.notesapp_discard_account(text) TO notesapp_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_link_account(text, uuid, uuid, text, bigint) TO notesapp_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_create_workspace(uuid, text, bigint) TO notesapp_app;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.notesapp_transfer_ownership(uuid, uuid, boolean) TO notesapp_app;--> statement-breakpoint
