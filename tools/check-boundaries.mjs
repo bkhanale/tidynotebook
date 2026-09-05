@@ -152,6 +152,14 @@ function browserBlocker(specifier) {
 /** @param {string} path @returns {boolean} */
 const isTestPath = (path) =>
   /\.test\.(?:tsx?|mjs)$/.test(path) || path.startsWith('tests/');
+// A test file must sit where a command runs it: a package `src` tree, the
+// repository-root `tests` tree, or directly in `tools` for a root tool test.
+/** @param {string} file @param {string} path @returns {boolean} */
+function isTestLocation(file, path) {
+  if (path.startsWith('tests/') || /^tools\/[^/]+$/.test(path)) return true;
+  const item = owner(file);
+  return item !== undefined && file.startsWith(resolve(item.path, 'src') + sep);
+}
 /** @param {string} specifier @returns {boolean} */
 const isTestSpecifier = (specifier) =>
   /(?:^|\/)[^/]*\.test\.(?:tsx?|mjs)$/.test(specifier) ||
@@ -263,15 +271,91 @@ function checkImport(file, specifier, isTest, isGenerated) {
     fail(file, `Undeclared dependency ${dependency}.`);
 }
 
-/** @param {unknown} value @param {(node: Record<string, unknown>) => void} visit */
-function walk(value, visit) {
+// A TypeScript node that carries only type syntax. Everything below it is a
+// type position. The listed nodes are value expressions that hold a type in one
+// of their children, so the walk continues into them normally.
+const typeValueNodes = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSInstantiationExpression',
+  'TSTypeAssertion',
+  'TSImportEqualsDeclaration',
+  'TSExternalModuleReference',
+  'TSExportAssignment',
+  'TSParameterProperty',
+]);
+/** @param {string} type @returns {boolean} */
+const isTypeNode = (type) => type.startsWith('TS') && !typeValueNodes.has(type);
+
+/**
+ * @typedef {(
+ *   node: Record<string, unknown>,
+ *   parent: Record<string, unknown> | null,
+ *   key: string,
+ *   inType: boolean,
+ * ) => void} Visitor
+ */
+/**
+ * @param {unknown} value
+ * @param {Visitor} visit
+ * @param {Record<string, unknown> | null} [parent]
+ * @param {string} [key]
+ * @param {boolean} [inType]
+ */
+function walk(value, visit, parent = null, key = '', inType = false) {
   if (Array.isArray(value)) {
-    for (const child of value) walk(child, visit);
-  } else if (value !== null && typeof value === 'object') {
-    const node = record(value);
-    if (typeof node.type === 'string') visit(node);
-    for (const child of Object.values(node)) walk(child, visit);
+    for (const child of value) walk(child, visit, parent, key, inType);
+    return;
   }
+  if (value === null || typeof value !== 'object') return;
+  const node = record(value);
+  const type = typeof node.type === 'string' ? node.type : '';
+  if (!type) {
+    for (const [name, child] of Object.entries(node))
+      walk(child, visit, parent, name, inType);
+    return;
+  }
+  visit(node, parent, key, inType);
+  const nested = inType || isTypeNode(type);
+  for (const [name, child] of Object.entries(node))
+    walk(child, visit, node, name, nested);
+}
+
+const transportNames = new Set([
+  'fetch',
+  'XMLHttpRequest',
+  'WebSocket',
+  'EventSource',
+]);
+// A transport name in value position is a usable reference, so an alias such as
+// `const send = fetch` is handwritten traffic too. A property key, a member
+// property, a type position, an import or export name, and a declared name are
+// not references to the global transport.
+/**
+ * @param {Record<string, unknown> | null} parent
+ * @param {string} key
+ * @param {boolean} inType
+ * @returns {boolean}
+ */
+function isValueReference(parent, key, inType) {
+  if (inType || parent === null) return false;
+  const type = String(parent.type);
+  const computed = parent.computed === true;
+  if (type === 'MemberExpression' && key === 'property' && !computed)
+    return false;
+  if (
+    ['Property', 'PropertyDefinition', 'MethodDefinition'].includes(type) &&
+    key === 'key' &&
+    !computed
+  )
+    return false;
+  if (type.endsWith('Specifier')) return false;
+  if (['id', 'params', 'label'].includes(key)) return false;
+  // A call or new expression reports its own message below.
+  if (['CallExpression', 'NewExpression'].includes(type) && key === 'callee')
+    return false;
+  return true;
 }
 
 const sources = (
@@ -293,12 +377,17 @@ for (const file of sources) {
   const protocol = protocolFiles.has(path);
   const asset = assetFiles.has(path);
   const clientConfig = clientConfigFiles.has(path);
+  if (isTest && !isTestLocation(file, path))
+    fail(
+      file,
+      'Test files must live under a package src tree or the root tests tree.',
+    );
   const parsed = parseSync(file, await readFile(file, 'utf8'));
   if (parsed.errors.length) {
     fail(file, 'Source must parse before boundary validation.');
     continue;
   }
-  walk(parsed.program, (node) => {
+  walk(parsed.program, (node, parent, key, inType) => {
     const type = String(node.type);
     if (
       [
@@ -337,19 +426,42 @@ for (const file of sources) {
     }
     if (!isApplication || isGenerated) return;
     const callee = String(record(node.callee).name);
-    // Only a transport call is handwritten application traffic. A property key
-    // or a type position that carries the same name is not.
-    if (type === 'CallExpression' && callee === 'fetch' && !protocol && !asset)
-      fail(file, 'Handwritten fetch is outside the generated HTTP boundary.');
     if (
-      type === 'NewExpression' &&
-      ['XMLHttpRequest', 'WebSocket', 'EventSource'].includes(callee) &&
+      ['CallExpression', 'NewExpression'].includes(type) &&
       !protocol &&
       !asset
+    ) {
+      // A bare call, and a member call such as `globalThis.fetch(...)` or
+      // `new self.WebSocket(...)`.
+      const target = record(node.callee);
+      const property = record(target.property);
+      const name = transportNames.has(callee)
+        ? callee
+        : String(target.type) === 'MemberExpression' &&
+            target.computed !== true &&
+            String(property.type) === 'Identifier' &&
+            transportNames.has(String(property.name))
+          ? String(property.name)
+          : '';
+      if (name)
+        fail(
+          file,
+          `Handwritten ${name} is outside the generated HTTP boundary.`,
+        );
+    }
+    // The client configuration may pass a transport implementation on, so a
+    // reference is accepted there. A call from it is not.
+    if (
+      type === 'Identifier' &&
+      transportNames.has(String(node.name)) &&
+      isValueReference(parent, key, inType) &&
+      !protocol &&
+      !asset &&
+      !clientConfig
     )
       fail(
         file,
-        `Handwritten ${callee} is outside the generated HTTP boundary.`,
+        `Transport reference ${String(node.name)} is outside the generated HTTP boundary.`,
       );
     if (
       type === 'MemberExpression' &&

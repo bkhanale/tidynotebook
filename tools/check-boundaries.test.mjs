@@ -100,8 +100,8 @@ await test('accepts Node test modules in recognized test files', () => {
           '@notesapp/core': 'workspace:*',
         }),
         'packages/sync/src/index.ts': 'export const queue = 1;\n',
-        'packages/sync/tests/queue.test.ts':
-          "import test from 'node:test';\nimport assert from 'node:assert';\ntest('queue', () => assert.ok(true));\n",
+        'packages/sync/src/queue.test.ts':
+          "import test from 'node:test';\nimport assert from 'node:assert';\nawait test('queue', () => assert.ok(true));\n",
       }),
     ),
   );
@@ -380,7 +380,7 @@ await test('accepts a property or type named fetch', () => {
       workspace({
         'apps/web/package.json': manifest('web'),
         'apps/web/src/index.ts':
-          'export type Transport = { fetch: (url: string) => Promise<unknown> };\nexport const options = { fetch: undefined };\n',
+          'export type Transport = { fetch?: typeof fetch };\nexport type Global = typeof globalThis.fetch;\nexport const options = { fetch: undefined };\n',
       }),
     ),
   );
@@ -407,7 +407,7 @@ await test('accepts base URL and transport options in the client configuration',
         'packages/api-client/src/index.ts':
           "export { configure } from './configure.ts';\n",
         'packages/api-client/src/configure.ts':
-          "export const configure = (base: string) => ({\n  url: new URL(base),\n  send: globalThis['fetch'],\n});\n",
+          "export const configure = (base: string) => ({\n  url: new URL(base),\n  send: globalThis['fetch'],\n  fetch,\n});\n",
       }),
     ),
   );
@@ -452,5 +452,75 @@ await test('rejects Node test modules outside a recognized test file', () => {
       }),
     ),
     'Browser source cannot import node:test.',
+  );
+});
+
+await test('rejects a test file outside a runnable tree', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/sync/package.json': manifest('sync'),
+        'packages/sync/src/index.ts': 'export const queue = 1;\n',
+        'packages/sync/tests/queue.test.ts':
+          "import test from 'node:test';\nawait test('queue', () => undefined);\n",
+      }),
+    ),
+    'Test files must live under a package src tree or the root tests tree.',
+  );
+});
+
+/** @param {string} body @returns {{ status: number; output: string }} */
+const webSource = (body) =>
+  check(
+    workspace({
+      'apps/web/package.json': manifest('web'),
+      'apps/web/src/index.ts': body,
+    }),
+  );
+
+await test('rejects a global object transport call', () => {
+  rejected(
+    webSource("export const load = () => globalThis.fetch('/files');\n"),
+    'Handwritten fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a window transport call', () => {
+  rejected(
+    webSource("export const load = () => window.fetch('/files');\n"),
+    'Handwritten fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a worker scope transport call', () => {
+  rejected(
+    webSource("export const load = () => self.fetch('/files');\n"),
+    'Handwritten fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a transport alias', () => {
+  rejected(
+    webSource(
+      "const send = fetch;\nexport const load = () => send('/files');\n",
+    ),
+    'Transport reference fetch is outside the generated HTTP boundary.',
+  );
+});
+
+await test('rejects a member new transport expression', () => {
+  rejected(
+    webSource(
+      "export const live = () => new globalThis.WebSocket('/events');\n",
+    ),
+    'Handwritten WebSocket is outside the generated HTTP boundary.',
+  );
+});
+
+await test('accepts a transport name in a type query', () => {
+  accepted(
+    webSource(
+      'export type Send = typeof globalThis.fetch;\nexport type Options = { fetch?: typeof fetch };\nexport const empty: Options = {};\n',
+    ),
   );
 });

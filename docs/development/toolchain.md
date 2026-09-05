@@ -169,7 +169,10 @@ so a `.js` specifier fails at run time. `tsconfig.base.json` therefore sets
 `allowImportingTsExtensions` and `rewriteRelativeImportExtensions`. The first
 accepts the specifier. The second rewrites it to `./path.js` on emit, so a
 package that emits, such as the server or the API client, still builds with
-`tsc`. An emitting package must set an explicit `rootDir`.
+`tsc`. An emitting package must set an explicit `rootDir`, otherwise `tsc`
+reports TS5011. It must also exclude `**/*.test.ts` in its build configuration,
+so adjacent test files are not emitted into `dist`. The type check
+configuration still covers those files.
 
 This applies to handwritten source only. Generated output keeps the extension
 that its generator writes. Bare package specifiers are unchanged: a package is
@@ -253,7 +256,12 @@ through other workspace packages, and the report names the chain. For example,
 A recognized test file is a file whose name ends in `.test.ts`, `.test.tsx`, or
 `.test.mjs`, or any file in the repository-root `tests/` tree. A `tests/`
 directory inside a package is not itself an exception; a file there is a test
-file only when its name matches. A recognized test file may import `node:test`,
+file only when its name matches.
+
+A test file must also sit where a command runs it: a package `src` tree, the
+repository-root `tests` tree, or directly in `tools` for a root tool test. The
+checker rejects a test file anywhere else, because no command discovers it and
+it would silently never run. A recognized test file may import `node:test`,
 `node:test/reporters`, `node:assert`, and `node:assert/strict`, also inside a
 browser-safe package. Other Node modules stay forbidden there. Test helper
 packages belong in `devDependencies`; the browser dependency rule ignores that
@@ -286,12 +294,25 @@ Each rejected form names the file and the reason.
 
 ### Transport rules and exact exemptions
 
-Handwritten application traffic means a `fetch(...)` call, a `new
-XMLHttpRequest()`, `new WebSocket()`, or `new EventSource()`, computed access to
-one of those names, and an import of a direct HTTP library such as `axios`,
-`undici`, or `@hey-api/client-fetch`. A property key, a type position, or any
-other identifier that carries one of those names is not a transport call and is
-accepted.
+The transport names are `fetch`, `XMLHttpRequest`, `WebSocket`, and
+`EventSource`. Handwritten application traffic means any of the following:
+
+- A call or `new` expression on a bare transport name, such as `fetch('/x')` or
+  `new WebSocket('/x')`.
+- A call or `new` expression through a plain property, such as
+  `globalThis.fetch('/x')`, `window.fetch('/x')`, `self.fetch('/x')`, or
+  `new globalThis.WebSocket('/x')`.
+- A reference to a bare transport name in value position, such as
+  `const send = fetch`, which would otherwise hide a call behind an alias.
+- Computed access to a transport name, such as `globalThis['fetch']`.
+- An import of a direct HTTP library such as `axios`, `undici`, or
+  `@hey-api/client-fetch`.
+
+A transport name that is not a value reference is accepted: a plain property key
+in `{ fetch: value }`, a member property such as the `fetch` in
+`globalThis.fetch` when it is not called, any type position such as
+`typeof globalThis.fetch` or `{ fetch?: typeof fetch }`, an import or export
+name, and a declared name such as a parameter.
 
 The generated client owns the fetch transport, so the transport rules and the
 HTTP library rule are skipped for the two generated paths,
@@ -305,9 +326,9 @@ Protocol exceptions use exact adapter files:
 `apps/web/src/pwa/service-worker.ts`; literal application API paths are rejected
 there. `packages/api-client/src/configure.ts` is the handwritten client
 configuration named in the plan. It may set a base URL and pass a transport
-implementation to the generated client, so computed transport access and URL
-construction are accepted in that one file. It must not call `fetch` itself, so
-the call rule stays active for it.
+implementation to the generated client, so a transport reference, computed
+transport access, and URL construction are accepted in that one file. It must
+not call `fetch` itself, so the call and `new` rules stay active for it.
 
 Package direction, browser dependencies, and deep-import checks still apply to
 every exception. Code review must check semantic wrappers and computed
@@ -333,10 +354,14 @@ The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 - `tools/check-boundaries.test.mjs` covers the checker with temporary fixture
   workspaces. It accepts a browser-safe workspace, test files that use the Node
   test runner, a property or type named `fetch`, the generated client
-  transport, and base URL and transport options in the client configuration. It
+  transport, a transport name in a type query, and base URL and transport
+  options in the client configuration. It
   rejects a deep import, a `fetch` call, computed transport access, a
   `new WebSocket()`, a cross-package relative re-export, a package cycle, a
-  computed import, a computed `require`, a Node built-in in core, a bare
+  computed import, a computed `require`, a `globalThis.fetch` call, a
+  `window.fetch` call, a `self.fetch` call, a transport alias, a
+  `new globalThis.WebSocket()`, a test file outside a runnable tree, a Node
+  built-in in core, a bare
   built-in name, Node reach through a workspace package, a Node-only manifest
   dependency, a `@fastify/` dependency in a browser package,
   `import x = require('node:fs')`, a deep `import x = require(...)`, another
