@@ -54,13 +54,21 @@ export {
 export type { Problem, ProblemCode } from './http/problem.ts';
 export {
   createProblem,
+  DomainProblemError,
   ForbiddenError,
   NotFoundError,
   OidcRequiredError,
   OriginRequiredError,
+  PreconditionRequiredError,
   problemMediaType,
   UnauthenticatedError,
 } from './http/problem.ts';
+export {
+  createFileHandlers,
+  missingWorkspaceStore,
+  parseTag,
+  revisionTag,
+} from './http/files.ts';
 export type {
   InvitationAccounts,
   OpenInvitation,

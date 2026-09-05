@@ -49,6 +49,14 @@
             "message": "Every application HTTP call goes through the generated client."
           },
           {
+            "name": "indexedDB",
+            "message": "Persistence belongs to a storage package, not to a shared package."
+          },
+          {
+            "name": "caches",
+            "message": "The application asset cache belongs to the web application."
+          },
+          {
             "name": "process",
             "message": "A shared package runs in the browser and cannot use a Node global."
           },

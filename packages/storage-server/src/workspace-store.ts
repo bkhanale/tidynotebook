@@ -16,18 +16,23 @@ import { Buffer } from 'node:buffer';
 import {
   OperationalError,
   fail,
+  maxPageSize,
   ok,
   type OperationalErrorKind,
   type AcceptedChangeset,
   type Actor,
   type ChangesetInput,
+  type FilePage,
+  type FileRecord,
+  type PageRequest,
   type Result,
   type RevisionInput,
+  type RevisionRecord,
   type Role,
   type WorkspaceStore,
   type WorkspaceTransaction,
 } from '@notesapp/core';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import {
@@ -35,12 +40,14 @@ import {
   changesets,
   contents,
   files,
+  linkIndex,
   livePaths,
   memberships,
   mutationReceipts,
   purgeMarkers,
   revisionParents,
   revisions,
+  shares,
   syncChanges,
   workspaceUsage,
 } from './schema.ts';
@@ -520,6 +527,159 @@ function createTransaction(
           ),
         );
       return rows.length > 0;
+    },
+
+    async listFiles(page: PageRequest): Promise<FilePage> {
+      // One row more than the page is read, so the answer knows whether a next
+      // page exists without a second count query.
+      const limit = Math.min(Math.max(1, Math.trunc(page.limit)), maxPageSize);
+      if (page.cursor !== null) assertUuid(page.cursor, 'the page cursor');
+      const rows = await db
+        .select({
+          id: files.id,
+          path: files.path,
+          kind: files.kind,
+          head: files.headRevisionId,
+          deleted: files.deleted,
+          updatedAt: files.updatedAt,
+        })
+        .from(files)
+        .where(
+          and(
+            eq(files.workspaceId, workspaceId),
+            eq(files.deleted, false),
+            page.cursor === null ? undefined : gt(files.id, page.cursor),
+          ),
+        )
+        .orderBy(files.id)
+        .limit(limit + 1);
+      const wanted = rows.slice(0, limit);
+      return {
+        files: wanted.map((row) => ({
+          fileId: row.id,
+          path: row.path,
+          kind: row.kind,
+          headRevisionId: row.head,
+          deleted: row.deleted,
+          updatedAt: row.updatedAt.toISOString(),
+        })),
+        nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
+      };
+    },
+
+    async file(fileId: string): Promise<FileRecord | null> {
+      assertUuid(fileId, 'the file');
+      const rows = await db
+        .select({
+          id: files.id,
+          path: files.path,
+          kind: files.kind,
+          head: files.headRevisionId,
+          deleted: files.deleted,
+          updatedAt: files.updatedAt,
+        })
+        .from(files)
+        .where(and(eq(files.workspaceId, workspaceId), eq(files.id, fileId)));
+      const row = rows[0];
+      if (row === undefined) return null;
+      return {
+        fileId: row.id,
+        path: row.path,
+        kind: row.kind,
+        headRevisionId: row.head,
+        deleted: row.deleted,
+        updatedAt: row.updatedAt.toISOString(),
+      };
+    },
+
+    async revision(revisionId: string): Promise<RevisionRecord | null> {
+      assertUuid(revisionId, 'the revision');
+      const rows = await db
+        .select({
+          id: revisions.id,
+          fileId: revisions.fileId,
+          path: revisions.path,
+          deleted: revisions.deleted,
+          digest: revisions.contentDigest,
+          message: revisions.message,
+          restoredFrom: revisions.restoredFrom,
+          clientTime: revisions.clientTime,
+          serverTime: revisions.serverTime,
+          kind: contents.kind,
+          size: contents.size,
+          markdown: contents.markdown,
+          objectId: contents.objectId,
+        })
+        .from(revisions)
+        .innerJoin(
+          contents,
+          and(
+            eq(contents.workspaceId, revisions.workspaceId),
+            eq(contents.digest, revisions.contentDigest),
+          ),
+        )
+        .where(
+          and(
+            eq(revisions.workspaceId, workspaceId),
+            eq(revisions.id, revisionId),
+          ),
+        );
+      const row = rows[0];
+      if (row === undefined) return null;
+      const parentRows = await db
+        .select({ parentId: revisionParents.parentId })
+        .from(revisionParents)
+        .where(
+          and(
+            eq(revisionParents.workspaceId, workspaceId),
+            eq(revisionParents.childId, revisionId),
+          ),
+        )
+        .orderBy(revisionParents.ordinal);
+      return {
+        revisionId: row.id,
+        fileId: row.fileId,
+        path: row.path,
+        kind: row.kind === 'markdown' ? 'note' : 'attachment',
+        deleted: row.deleted,
+        parents: parentRows.map((parent) => parent.parentId),
+        digest: row.digest,
+        size: Number(row.size),
+        text: row.markdown,
+        objectId: row.objectId,
+        message: row.message,
+        restoredFrom: row.restoredFrom,
+        clientTime: row.clientTime.toISOString(),
+        serverTime: row.serverTime.toISOString(),
+      };
+    },
+
+    async onFilesDeleted(fileIds: readonly string[]): Promise<void> {
+      if (fileIds.length === 0) return;
+      for (const fileId of fileIds) assertUuid(fileId, 'a file');
+      const ids = [...fileIds];
+      // A share of a deleted file is revoked, not removed, so the audit trail
+      // of the publication survives the deletion.
+      await db
+        .update(shares)
+        .set({ revokedAt: sql`now()` })
+        .where(
+          and(
+            eq(shares.workspaceId, workspaceId),
+            inArray(shares.fileId, ids),
+            isNull(shares.revokedAt),
+          ),
+        );
+      // The file leaves the link index, so it disappears from backlinks and
+      // from normal search. The search task adds its own rows to this call.
+      await db
+        .delete(linkIndex)
+        .where(
+          and(
+            eq(linkIndex.workspaceId, workspaceId),
+            inArray(linkIndex.sourceFileId, ids),
+          ),
+        );
     },
 
     async accept(

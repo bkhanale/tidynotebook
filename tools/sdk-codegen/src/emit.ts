@@ -85,6 +85,11 @@ export type OperationEntry = {
   readonly parameters: readonly ParameterSerialization[];
   readonly request: RequestSchemas;
   readonly responses: readonly ResponseSchema[];
+  /**
+   * Statuses that the operation declares without a response body, such as a
+   * 304. The boundary permits an empty answer only for these.
+   */
+  readonly noContent: readonly number[];
 };
 
 /** Version of the contract document that produced this index. */
@@ -117,6 +122,23 @@ const ajv = new Ajv2020({ allErrors: false, strict: true });
 // so the plugin function is reached through its \`default\` member.
 ajvFormats.default(ajv);
 
+/**
+ * The validator of the query slot, which converts as well as checks.
+ *
+ * A query value arrives as text on the wire. OpenAPI parameter serialization
+ * describes how that text maps to the declared type, so this is the one place
+ * that performs the conversion, and a handler then reads a number where the
+ * contract declares one. The body and the header validators never convert: a
+ * JSON body already carries typed values, and accepting the string "1" where a
+ * number is declared would hide a client defect.
+ */
+const ajvQuery = new Ajv2020({
+  allErrors: false,
+  strict: true,
+  coerceTypes: true,
+});
+ajvFormats.default(ajvQuery);
+
 /** Key of a request validator. */
 export function requestKey(id: OperationId, slot: RequestSlot): string {
   return \`\${id}:\${slot}\`;
@@ -143,7 +165,8 @@ for (const operation of operations) {
   ];
   for (const [slot, schema] of slots) {
     if (schema === null) continue;
-    requests.set(requestKey(operation.id, slot), ajv.compile(schema));
+    const compiler = slot === 'query' ? ajvQuery : ajv;
+    requests.set(requestKey(operation.id, slot), compiler.compile(schema));
   }
   for (const response of operation.responses) {
     responses.set(

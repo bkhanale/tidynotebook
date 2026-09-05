@@ -29,7 +29,10 @@ import {
 import { createIdentityAdapter } from './auth/actor.ts';
 import { createInvitationAccounts } from './auth/invitations.ts';
 import { createMailTransport } from './auth/mail.ts';
-import { openIdentityStore } from '@notesapp/storage-server';
+import {
+  openIdentityStore,
+  openWorkspaceStore,
+} from '@notesapp/storage-server';
 import {
   classifyError,
   createProblem,
@@ -185,6 +188,9 @@ export function createAppWithHandlers(
           ...(classified.issues.length > 0 && status === classified.status
             ? { issues: classified.issues }
             : {}),
+          ...(classified.fileIds !== undefined && status === classified.status
+            ? { fileIds: classified.fileIds }
+            : {}),
         }),
       );
   });
@@ -211,6 +217,10 @@ export async function createApp(
   config: ServerConfig,
 ): Promise<FastifyInstance> {
   const identity = openIdentityStore(config.databaseUrl);
+  // The content store uses the same runtime role. It opens its own pool,
+  // because a content transaction holds the workspace lock for the length of a
+  // changeset and must not queue behind an identity lookup.
+  const content = openWorkspaceStore(config.databaseUrl);
   const mail = createMailTransport(config.mail);
   // The protocol library writes into the application log. The sink is filled
   // once the instance exists, so nothing reaches the console in between.
@@ -237,6 +247,7 @@ export async function createApp(
   const app = await createAppWithHandlers(config, {
     handlers: createHandlers(config, undefined, {
       store: identity,
+      content,
       invitations,
       mail,
     }),
@@ -256,6 +267,7 @@ export async function createApp(
     await invitations.close();
     await auth.close();
     await authPool.end();
+    await content.close();
     await identity.close();
   });
   return app;

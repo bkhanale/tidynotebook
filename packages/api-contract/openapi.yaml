@@ -30,6 +30,10 @@ tags:
     description: Workspaces, their membership, and their invitations.
   - name: tokens
     description: Revocable agent tokens with a workspace and action scope.
+  - name: files
+    description: >-
+      Files, their immutable revisions, and the atomic changesets that accept
+      them.
   - name: auth
     description: >-
       Authentication protocol endpoints. Better Auth implements them; the
@@ -390,6 +394,271 @@ paths:
           $ref: '#/components/responses/UnsupportedMediaType'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files:
+    get:
+      operationId: listFiles
+      summary: List the live files of a workspace.
+      description: >-
+        Lists the accepted files of the workspace, ordered by identifier and
+        paged with a cursor. A deleted file is not listed, because it holds no
+        place in the file tree; its history stays readable through its
+        revisions. The answer carries metadata only, so a file tree can be
+        drawn without downloading any note.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createFile
+      summary: Create a file with its first revision.
+      description: >-
+        Creates a file that does not exist yet, together with the first
+        revision of its content. The client assigns the file, revision, and
+        mutation identifiers, so a retry that lost its answer repeats the same
+        operation instead of creating a second file. The answer carries a
+        strong entity tag that names the accepted revision.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/CreateFile'
+      responses:
+        '201':
+          $ref: '#/components/responses/FileChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files/{fileId}:
+    get:
+      operationId: getFile
+      summary: Read a file and the content of its accepted head.
+      description: >-
+        Reports the metadata of one live file and the Markdown of its accepted
+        head revision. The answer carries a strong entity tag that names that
+        revision, so a later conditional read answers 304 and a later
+        conditional write answers 412 when the head has moved. A deleted file
+        answers 404; its revisions stay readable.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      responses:
+        '200':
+          $ref: '#/components/responses/File'
+        '304':
+          $ref: '#/components/responses/NotModified'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    put:
+      operationId: updateFile
+      summary: Replace the content or the path of a file.
+      description: >-
+        Writes one revision of an existing file. The request must carry the
+        entity tag of the head that the client saw in If-Match; a request
+        without it answers 428, and a head that has moved answers 412. The
+        request states the new text, the new path, or both; a member that is
+        absent keeps the value of the expected head.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateFile'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: deleteFile
+      summary: Delete a file by writing a tombstone revision.
+      description: >-
+        Deletes one file. The deletion is a revision, so the history of the
+        file stays complete and a later restore is possible. The tombstone
+        carries no note text. Deleting revokes every share of the file and
+        removes it from search, and it adds no content, so a workspace at its
+        storage limit can still be tidied. The request must carry the entity
+        tag of the head that the client saw.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        $ref: '#/components/requestBodies/DeleteFile'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/revisions/{revisionId}:
+    get:
+      operationId: getRevision
+      summary: Read one immutable revision.
+      description: >-
+        Reports one accepted revision of the workspace with its parents, its
+        path at that time, and its content. A Markdown revision carries its
+        text. An attachment revision carries the identity of its immutable
+        object; its bytes are transferred through the attachment operations.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/RevisionId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Revision'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/changesets:
+    post:
+      operationId: commitChangeset
+      summary: Accept one atomic change of one or more files.
+      description: >-
+        Accepts a complete changeset: every revision commits or none does. The
+        request states an expected head for each file it changes, and null for
+        a file that must not exist yet. It is the operation that the sync
+        engine uses, and it also performs a folder change of up to 1000 files.
+        A retry with the same mutation identity and the same body returns the
+        first outcome; the same identity with a different body is refused.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/Changeset'
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptedChangeset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/invitations/acceptance:
     post:
       operationId: acceptInvitation
@@ -587,6 +856,77 @@ components:
       description: Identifier of the agent token that the operation acts on.
       schema:
         $ref: '#/components/schemas/Uuid'
+    FileId:
+      name: fileId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the file that the operation acts on.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    RevisionId:
+      name: revisionId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the revision that the operation reads.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    PageCursor:
+      name: cursor
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Position to continue a listing from. Use the nextCursor value of the
+        previous page. The first page names no cursor.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    PageLimit:
+      name: limit
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Largest number of entries in one page. The server uses 100 when the
+        parameter is absent and never returns more than 500.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+    IfMatch:
+      name: if-match
+      in: header
+      required: false
+      style: simple
+      explode: false
+      description: >-
+        The strong entity tag of the accepted head that the client saw, for
+        example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it:
+        a request without it answers 428, and a head that has moved answers
+        412. The parameter is declared optional so that the missing case
+        reaches the documented 428 answer instead of a schema error.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+    IfNoneMatch:
+      name: if-none-match
+      in: header
+      required: false
+      style: simple
+      explode: false
+      description: >-
+        Entity tag that the client already holds. The answer is 304 with no
+        body when it names the current head.
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
   requestBodies:
     Preferences:
       description: The settings to store for the signed in account.
@@ -637,6 +977,34 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AgentTokenInput'
+    CreateFile:
+      description: The identifiers, the path, and the first content of a new file.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateFileInput'
+    UpdateFile:
+      description: The identifiers and the new content or path of a file.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UpdateFileInput'
+    DeleteFile:
+      description: The identifiers of the tombstone revision.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DeleteFileInput'
+    Changeset:
+      description: One atomic change of one or more files.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ChangesetInput'
   responses:
     Health:
       description: The service process is running.
@@ -764,6 +1132,82 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Removed'
+    Conflict:
+      description: >-
+        The change cannot be accepted next to the state that the workspace
+        holds. The code names the reason: path_conflict for a path that another
+        live file occupies, and mutation_reused for a mutation identity that
+        was already used for another operation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    Gone:
+      description: >-
+        The file identifier was permanently purged. It can never be written
+        again, so a late offline change must be recovered into a new file.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    PreconditionFailed:
+      description: >-
+        An expected head does not match the accepted head. The fileIds member
+        names every file that moved on, so the client can resolve them.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    PreconditionRequired:
+      description: >-
+        The operation needs a precondition and the request carried none. Repeat
+        the request with the entity tag of the head that was read.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    UnprocessableContent:
+      description: >-
+        The request is well formed but its content cannot be accepted. The code
+        names the reason: invalid_path, invalid_graph, or invalid_content.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    NotModified:
+      description: >-
+        The entity tag in the request names the current head, so the answer
+        carries no body.
+    File:
+      description: One live file and the content of its accepted head.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkspaceFile'
+    FileList:
+      description: One page of the live files of a workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkspaceFileList'
+    FileChange:
+      description: The accepted revision and the outcome of its changeset.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FileChange'
+    Revision:
+      description: One immutable revision of a workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FileRevision'
+    AcceptedChangeset:
+      description: The outcome of one accepted changeset.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AcceptedChangeset'
   schemas:
     HealthReport:
       type: object
@@ -895,6 +1339,17 @@ components:
           maxItems: 64
           items:
             $ref: '#/components/schemas/ValidationIssue'
+        fileIds:
+          type: array
+          readOnly: true
+          description: >-
+            The files that a content failure refers to, for example every file
+            whose accepted head moved on. The list is absent when the failure
+            names no file. It carries identifiers only, never a path or note
+            content.
+          maxItems: 4000
+          items:
+            $ref: '#/components/schemas/Uuid'
     ValidationIssue:
       type: object
       description: One value that a boundary check rejected.
@@ -1438,3 +1893,560 @@ components:
           type: boolean
           readOnly: true
           description: Always true. The record no longer exists.
+    FileKind:
+      type: string
+      description: Whether a file holds Markdown or an attachment.
+      enum:
+        - note
+        - attachment
+    ContentDigest:
+      type: string
+      description: >-
+        The SHA-256 digest of the content, in lower case hexadecimal. Content
+        is addressed by this value, so it is verified against the bytes before
+        a revision is accepted.
+      minLength: 64
+      maxLength: 64
+      pattern: ^[0-9a-f]{64}$
+    MarkdownText:
+      type: string
+      description: >-
+        The Markdown source of one revision. It is stored and returned exactly
+        as it was written, without normalization.
+      maxLength: 1048576
+    FilePath:
+      type: string
+      description: >-
+        Relative POSIX path of the file inside its workspace. A note path ends
+        in .md. The stored path is the Unicode NFC form of this value, and it
+        is compared case sensitively.
+      minLength: 1
+      maxLength: 1024
+    DeviceId:
+      type: string
+      description: >-
+        The device that submitted the change. It is informational and appears
+        in the history of the workspace.
+      minLength: 1
+      maxLength: 128
+    CheckpointMessage:
+      type:
+        - string
+        - 'null'
+      description: >-
+        Name of a checkpoint, or null for an ordinary revision. It is written
+        by the author and is not interpreted by the server.
+      maxLength: 512
+    WorkspaceFileSummary:
+      type: object
+      description: One live file of a workspace, without its content.
+      additionalProperties: false
+      required:
+        - fileId
+        - path
+        - kind
+        - headRevisionId
+        - updatedAt
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Stable identifier of the file. A rename never changes it.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          readOnly: true
+          description: The accepted path of the file.
+        kind:
+          allOf:
+            - $ref: '#/components/schemas/FileKind'
+          readOnly: true
+          description: Whether the file holds Markdown or an attachment.
+        headRevisionId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            The accepted head of the file, which is also its entity tag, or
+            null for a file that has no accepted revision yet.
+        updatedAt:
+          type: string
+          readOnly: true
+          description: Instant at which the workspace accepted the last change.
+          format: date-time
+          maxLength: 64
+    WorkspaceFileList:
+      type: object
+      description: One page of the live files of a workspace.
+      additionalProperties: false
+      required:
+        - files
+        - nextCursor
+      properties:
+        files:
+          type: array
+          readOnly: true
+          description: The files of this page, ordered by identifier.
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/WorkspaceFileSummary'
+        nextCursor:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            Cursor of the next page, or null when this page is the last one.
+    WorkspaceFile:
+      type: object
+      description: One live file and the content of its accepted head.
+      additionalProperties: false
+      required:
+        - fileId
+        - path
+        - kind
+        - headRevisionId
+        - updatedAt
+        - head
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Stable identifier of the file.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          readOnly: true
+          description: The accepted path of the file.
+        kind:
+          allOf:
+            - $ref: '#/components/schemas/FileKind'
+          readOnly: true
+          description: Whether the file holds Markdown or an attachment.
+        headRevisionId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: The accepted head, which is also the entity tag.
+        updatedAt:
+          type: string
+          readOnly: true
+          description: Instant at which the workspace accepted the last change.
+          format: date-time
+          maxLength: 64
+        head:
+          oneOf:
+            - $ref: '#/components/schemas/FileRevision'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            The head revision with its content, or null for a file that has no
+            accepted revision yet.
+    FileRevision:
+      type: object
+      description: >-
+        One immutable revision. Its identity, its parents, and its content
+        never change after acceptance.
+      additionalProperties: false
+      required:
+        - revisionId
+        - fileId
+        - path
+        - kind
+        - deleted
+        - parents
+        - digest
+        - size
+        - text
+        - attachmentObjectId
+        - message
+        - restoredFrom
+        - clientTime
+        - serverTime
+      properties:
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Identifier of this revision.
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: The file that this revision belongs to.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          readOnly: true
+          description: The path of the file at this revision.
+        kind:
+          allOf:
+            - $ref: '#/components/schemas/FileKind'
+          readOnly: true
+          description: Whether this revision holds Markdown or an attachment.
+        deleted:
+          type: boolean
+          readOnly: true
+          description: True for a tombstone, which is how a deletion is recorded.
+        parents:
+          type: array
+          readOnly: true
+          description: >-
+            The parents of this revision, in submitted order. A first revision
+            has none, a normal revision has one, and an explicit merge has two.
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/Uuid'
+        digest:
+          allOf:
+            - $ref: '#/components/schemas/ContentDigest'
+          readOnly: true
+          description: Digest of the content of this revision.
+        size:
+          type: integer
+          readOnly: true
+          description: Size of the content in bytes.
+          minimum: 0
+        text:
+          oneOf:
+            - $ref: '#/components/schemas/MarkdownText'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            The Markdown of this revision, or null for an attachment revision.
+        attachmentObjectId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            The immutable attachment object of this revision, or null for a
+            Markdown revision. Its bytes are transferred separately.
+        message:
+          allOf:
+            - $ref: '#/components/schemas/CheckpointMessage'
+          readOnly: true
+          description: The checkpoint name of this revision, or null.
+        restoredFrom:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            The historic revision that this one restored, or null. A restore
+            never rewinds history; it adds a revision.
+        clientTime:
+          type: string
+          readOnly: true
+          description: >-
+            The clock of the device that wrote the revision. It stays
+            informational, because a device clock cannot be trusted.
+          format: date-time
+          maxLength: 64
+        serverTime:
+          type: string
+          readOnly: true
+          description: Instant at which the workspace accepted the revision.
+          format: date-time
+          maxLength: 64
+    AcceptedChangeset:
+      type: object
+      description: The outcome of one accepted changeset.
+      additionalProperties: false
+      required:
+        - mutationId
+        - revisionIds
+        - cursor
+      properties:
+        mutationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: The mutation identity that the client submitted.
+        revisionIds:
+          type: array
+          readOnly: true
+          description: >-
+            Every revision that this changeset accepted, in submitted order. A
+            retry of the same mutation returns exactly these identifiers again.
+          minItems: 1
+          maxItems: 4000
+          items:
+            $ref: '#/components/schemas/Uuid'
+        cursor:
+          type: string
+          readOnly: true
+          description: >-
+            The commit ordered position of this change in the workspace. A sync
+            client asks for changes after a cursor it already applied.
+          minLength: 1
+          maxLength: 32
+          pattern: ^[0-9]+$
+    FileChange:
+      type: object
+      description: The revision that one single file operation accepted.
+      additionalProperties: false
+      required:
+        - revision
+        - accepted
+      properties:
+        revision:
+          allOf:
+            - $ref: '#/components/schemas/FileRevision'
+          readOnly: true
+          description: The accepted revision. It is also the entity tag of the answer.
+        accepted:
+          allOf:
+            - $ref: '#/components/schemas/AcceptedChangeset'
+          readOnly: true
+          description: The outcome of the changeset that carried the revision.
+    CreateFileInput:
+      type: object
+      description: The identifiers, the path, and the first content of a new file.
+      additionalProperties: false
+      required:
+        - fileId
+        - revisionId
+        - mutationId
+        - deviceId
+        - path
+        - text
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: >-
+            Identifier of the new file. The client assigns it, so a file that
+            was written offline keeps one identity everywhere.
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identifier of the first revision.
+        mutationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: >-
+            Identity of this operation. A retry that repeats it returns the
+            first outcome instead of writing a second time.
+        deviceId:
+          allOf:
+            - $ref: '#/components/schemas/DeviceId'
+          description: The device that submitted the change.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          description: Path of the new note, which must end in .md.
+        text:
+          allOf:
+            - $ref: '#/components/schemas/MarkdownText'
+          description: Markdown of the first revision.
+        message:
+          allOf:
+            - $ref: '#/components/schemas/CheckpointMessage'
+          description: Name of this checkpoint, or null.
+    UpdateFileInput:
+      type: object
+      description: The identifiers and the new content or path of a file.
+      additionalProperties: false
+      required:
+        - revisionId
+        - mutationId
+        - deviceId
+      properties:
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identifier of the new revision.
+        mutationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identity of this operation, which makes a retry safe.
+        deviceId:
+          allOf:
+            - $ref: '#/components/schemas/DeviceId'
+          description: The device that submitted the change.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          description: >-
+            New path of the file. The path of the expected head is kept when
+            this member is absent.
+        text:
+          allOf:
+            - $ref: '#/components/schemas/MarkdownText'
+          description: >-
+            New Markdown of the file. The content of the expected head is kept
+            when this member is absent, which is how a plain rename is written.
+        message:
+          allOf:
+            - $ref: '#/components/schemas/CheckpointMessage'
+          description: Name of this checkpoint, or null.
+    DeleteFileInput:
+      type: object
+      description: The identifiers of a tombstone revision.
+      additionalProperties: false
+      required:
+        - revisionId
+        - mutationId
+        - deviceId
+      properties:
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identifier of the tombstone revision.
+        mutationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identity of this operation, which makes a retry safe.
+        deviceId:
+          allOf:
+            - $ref: '#/components/schemas/DeviceId'
+          description: The device that submitted the deletion.
+        message:
+          allOf:
+            - $ref: '#/components/schemas/CheckpointMessage'
+          description: Reason for the deletion, or null.
+    ContentInput:
+      type: object
+      description: >-
+        The immutable content of one submitted revision. Markdown carries its
+        text; an attachment names a finalized object of the same workspace.
+      additionalProperties: false
+      required:
+        - kind
+        - digest
+      properties:
+        kind:
+          type: string
+          description: Which of the two content forms this revision carries.
+          enum:
+            - markdown
+            - attachment
+        digest:
+          allOf:
+            - $ref: '#/components/schemas/ContentDigest'
+          description: >-
+            Digest of the content. The server recomputes it from the submitted
+            bytes and refuses a revision that declares another value.
+        text:
+          allOf:
+            - $ref: '#/components/schemas/MarkdownText'
+          description: The Markdown of this revision. Absent for an attachment.
+        attachmentObjectId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: >-
+            The finalized attachment object of this revision. Absent for
+            Markdown.
+    RevisionInput:
+      type: object
+      description: One revision that a client submits inside a changeset.
+      additionalProperties: false
+      required:
+        - revisionId
+        - fileId
+        - parents
+        - path
+        - deleted
+        - content
+        - clientTime
+      properties:
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identifier that the client assigned to this revision.
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: The file that this revision belongs to.
+        parents:
+          type: array
+          description: >-
+            The parents of this revision. A parent is either an earlier
+            revision of the same file in this submission or an accepted
+            revision of that file.
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/Uuid'
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          description: The path that the file has after this revision.
+        deleted:
+          type: boolean
+          description: True for a tombstone, which records a deletion.
+        content:
+          allOf:
+            - $ref: '#/components/schemas/ContentInput'
+          description: The content of this revision.
+        clientTime:
+          type: string
+          description: The device clock at the moment of the change.
+          format: date-time
+          minLength: 20
+          maxLength: 64
+        message:
+          allOf:
+            - $ref: '#/components/schemas/CheckpointMessage'
+          description: Name of this checkpoint, or null.
+        restoredFrom:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          description: The historic revision that this one restores, or null.
+    ExpectedHeads:
+      type: object
+      description: >-
+        The accepted head that the client saw for each file of the changeset,
+        keyed by file identifier. The value null states that the file must not
+        exist in accepted state, which is the precondition of a new file. Every
+        file that the changeset changes needs an entry, and an entry for a file
+        that it does not change is refused. The limit below is a coarse bound
+        that protects the parser; the rule that a changeset may change at most
+        1000 files is applied by the workspace and answers 422.
+      maxProperties: 4000
+      propertyNames:
+        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+      additionalProperties:
+        oneOf:
+          - $ref: '#/components/schemas/Uuid'
+          - type: 'null'
+    ChangesetInput:
+      type: object
+      description: One atomic change of one or more files.
+      additionalProperties: false
+      required:
+        - mutationId
+        - deviceId
+        - expectedHeads
+        - revisions
+      properties:
+        mutationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: >-
+            Identity of this operation. A retry with the same identity and the
+            same body returns the first outcome.
+        deviceId:
+          allOf:
+            - $ref: '#/components/schemas/DeviceId'
+          description: The device that submitted the changeset.
+        expectedHeads:
+          allOf:
+            - $ref: '#/components/schemas/ExpectedHeads'
+          description: The precondition of every file that the changeset changes.
+        revisions:
+          type: array
+          description: >-
+            The revisions to accept, in submission order. The revisions of one
+            file form one chain, and the last one becomes its head. One
+            changeset may change at most 1000 files, and a file may carry
+            several revisions, so the limit below is above the file limit.
+          minItems: 1
+          maxItems: 4000
+          items:
+            $ref: '#/components/schemas/RevisionInput'

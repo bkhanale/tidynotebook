@@ -68,12 +68,23 @@ export const mediaTypeHandling: Readonly<Record<string, MediaHandling>> = {
   'image/webp': 'binary',
 };
 
-/** One response produced by an operation handler. */
+/**
+ * One response produced by an operation handler.
+ *
+ * An empty media type means an answer with no body, which the operation must
+ * declare without content. A 304 is the case that exists today: RFC 9110
+ * forbids a body there, so no schema can describe it.
+ */
 export type HandlerResult = {
   readonly status: number;
   readonly mediaType: string;
   readonly body: unknown;
 };
+
+/** An answer with no body, for a status that the operation declares empty. */
+export function noContent(status: number): HandlerResult {
+  return { status, mediaType: '', body: undefined };
+}
 
 /** Handler of one contract operation. */
 export type OperationHandler = (
@@ -190,9 +201,10 @@ export type BodyMediaTypeIssue = 'no_body_allowed' | 'unsupported_media_type';
 /**
  * Compares a request body with the body the operation declares.
  *
- * No operation accepts a request body yet, so this function is covered by unit
- * tests only. The first operation that declares a `requestBody`, in Task 5 or
- * Task 6, adds the integration test that sends a wrong media type.
+ * An operation that declares no request body accepts none, and one that does
+ * accepts only its declared media type. `tests/integration/revisions.test.ts`
+ * sends a wrong media type to a file operation, and the identity tests send
+ * one to an authentication route.
  */
 export function checkBodyMediaType(
   declared: string | null,
@@ -263,6 +275,21 @@ function checkHandlerResult(
     declaredMediaTypes,
     issues: [],
   };
+  if (result.mediaType === '') {
+    // An empty answer is permitted only where the contract declares the status
+    // without content, and it carries no body of its own.
+    if (!declaresNoContent(operationId, result.status))
+      rejectResponse(request, {
+        ...shared,
+        reason: 'the operation declares no empty answer for this status',
+      });
+    if (result.body !== undefined)
+      rejectResponse(request, {
+        ...shared,
+        reason: 'an empty answer cannot carry a body',
+      });
+    return;
+  }
   if (!declaredMediaTypes.includes(result.mediaType))
     rejectResponse(request, {
       ...shared,
@@ -278,6 +305,11 @@ function checkHandlerResult(
       ...shared,
       reason: 'a JSON answer must be an object or an array, not bytes or text',
     });
+}
+
+/** Whether the operation declares this status without a response body. */
+function declaresNoContent(id: OperationId, status: number): boolean {
+  return (findOperation(id)?.noContent ?? []).includes(status);
 }
 
 /** The part of an operation that the startup checks read. */
@@ -527,6 +559,13 @@ export function registerOperations(
         const result = await handler(request, reply);
         checkHandlerResult(request, operation.id, result);
         reply.status(result.status);
+        if (result.mediaType === '') {
+          // The framework serializes nothing here, so no response schema check
+          // applies and no content type is written.
+          reply.removeHeader('content-type');
+          await reply.send();
+          return undefined;
+        }
         reply.header('content-type', `${result.mediaType}; charset=utf-8`);
         return result.body;
       },

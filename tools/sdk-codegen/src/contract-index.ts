@@ -61,6 +61,14 @@ export type OperationEntry = {
   parameters: ParameterSerialization[];
   request: RequestSchemas;
   responses: ResponseSchema[];
+  /**
+   * Statuses that the operation declares without a response body.
+   *
+   * A `304` answer is the case that exists today. Such a status has no media
+   * type and no schema, so the boundary needs the declared list to tell a
+   * permitted empty answer from an answer that left the contract.
+   */
+  noContent: number[];
 };
 
 /** Extension that names the protocol library behind an operation. */
@@ -267,6 +275,20 @@ function responseSchemas(
   return entries;
 }
 
+/** Statuses that the operation declares with no response body. */
+function noContentStatuses(
+  operation: Record<string, unknown>,
+  where: string,
+): number[] {
+  const responses = asRecord(operation.responses, `${where} responses`);
+  const codes: number[] = [];
+  for (const [code, value] of Object.entries(responses)) {
+    const response = asRecord(value, `${where} response ${code}`);
+    if (optionalRecord(response.content) === null) codes.push(Number(code));
+  }
+  return codes.sort((left, right) => left - right);
+}
+
 /** Security requirements of an operation, or the document default. */
 function readSecurity(
   operation: Record<string, unknown>,
@@ -337,6 +359,7 @@ export function buildContractIndex(document: unknown): ContractIndex {
         parameters,
         request,
         responses,
+        noContent: noContentStatuses(operation, where),
       });
     }
   }

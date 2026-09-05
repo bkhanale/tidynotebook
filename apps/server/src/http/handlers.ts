@@ -5,12 +5,13 @@
  * that body against the declared response schema before it is sent, so a
  * handler never has to repeat the contract shape.
  */
-import type { WorkspaceAdminStore } from '@notesapp/core';
+import type { WorkspaceAdminStore, WorkspaceStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import type { InvitationAccounts } from '../auth/invitations.ts';
 import type { MailTransport } from '../auth/mail.ts';
 import { readProperty } from '../values.ts';
 import { createAccountHandlers } from './accounts.ts';
+import { createFileHandlers, missingWorkspaceStore } from './files.ts';
 import { createWorkspaceHandlers } from './workspaces.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
 import { createProblem, problemMediaType } from './problem.ts';
@@ -33,6 +34,8 @@ function missingStore(): WorkspaceAdminStore {
 export type HandlerDependencies = {
   /** The account and workspace store of the deployment. */
   readonly store?: WorkspaceAdminStore;
+  /** The workspace content store of the deployment. */
+  readonly content?: WorkspaceStore;
   /** The invitation sign-up path. */
   readonly invitations?: InvitationAccounts;
   /** Mail transport, or `null` when the deployment has none. */
@@ -120,6 +123,7 @@ export function createHandlers(
   const store = dependencies.store ?? missingStore();
   return {
     ...createAccountHandlers(store, dependencies.now),
+    ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createWorkspaceHandlers(
       store,
       {

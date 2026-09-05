@@ -25,13 +25,48 @@ export { fail, ok } from './files/model.ts';
 export type { PathKind } from './files/path.ts';
 export { normalizePath } from './files/path.ts';
 export { validateGraph } from './files/graph.ts';
+export {
+  CanonicalJsonError,
+  canonicalJson,
+  contentDigest,
+  requestDigest,
+} from './files/digest.ts';
 export type {
+  FileKind,
+  FilePage,
+  FileRecord,
   MutationReceipt,
   OperationalErrorKind,
+  PageRequest,
+  RevisionRecord,
   WorkspaceStore,
   WorkspaceTransaction,
 } from './files/ports.ts';
 export { isOperationalError, OperationalError } from './files/ports.ts';
+export { commitChangeset, maxFilesPerChangeset } from './files/commit.ts';
+export type {
+  CreateFileInput,
+  FolderMember,
+  RenameFolderInput,
+  SubmissionIds,
+  UpdateFileInput,
+} from './files/operations.ts';
+export {
+  createFileChangeset,
+  markdownContent,
+  renameFolderChangeset,
+  tombstoneContent,
+  updateFileChangeset,
+} from './files/operations.ts';
+export type { FileWithHead } from './files/read.ts';
+export {
+  defaultPageSize,
+  listFiles,
+  maxPageSize,
+  pageSize,
+  readFile,
+  readRevision,
+} from './files/read.ts';
 export type {
   AccountTransaction,
   AgentTokenInput,

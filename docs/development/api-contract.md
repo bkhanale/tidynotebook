@@ -81,6 +81,15 @@ these across commits, and never edit a file under a `src/generated/` directory.
   declares no member of that kind. An operation without a query parameter
   therefore rejects every query parameter. Headers stay open, because a proxy
   and a browser add headers that no contract describes.
+- A query value arrives as text on the wire, so the query validator converts it
+  to the declared type before a handler reads it. This is the parameter
+  serialization that OpenAPI describes, and it is the only slot that converts:
+  the body and the header validators reject the string `"1"` where a number is
+  declared, because a JSON body already carries typed values.
+- A status that the contract declares without content, such as `304`, is
+  answered with no body. A handler returns `noContent(status)` for it, and the
+  boundary refuses an empty answer for every other status and a body on an
+  empty one.
 - An operation that declares no `requestBody` accepts no request body. A
   request that carries one is rejected with a `400` `invalid_request`, because
   the size limit of a body the operation never accepts is not the useful

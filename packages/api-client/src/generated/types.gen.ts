@@ -5,6 +5,24 @@ export type ClientOptions = {
 };
 
 /**
+ * The outcome of one accepted changeset.
+ */
+export type AcceptedChangeset = {
+    /**
+     * The mutation identity that the client submitted.
+     */
+    readonly mutationId: Uuid;
+    /**
+     * Every revision that this changeset accepted, in submitted order. A retry of the same mutation returns exactly these identifiers again.
+     */
+    readonly revisionIds: Array<Uuid>;
+    /**
+     * The commit ordered position of this change in the workspace. A sync client asks for changes after a cursor it already applied.
+     */
+    readonly cursor: string;
+};
+
+/**
  * The signed in account and its settings.
  */
 export type Account = {
@@ -314,6 +332,214 @@ export type AuthUser = {
 };
 
 /**
+ * One atomic change of one or more files.
+ */
+export type ChangesetInput = {
+    /**
+     * Identity of this operation. A retry with the same identity and the same body returns the first outcome.
+     */
+    mutationId: Uuid;
+    /**
+     * The device that submitted the changeset.
+     */
+    deviceId: DeviceId;
+    /**
+     * The precondition of every file that the changeset changes.
+     */
+    expectedHeads: ExpectedHeads;
+    /**
+     * The revisions to accept, in submission order. The revisions of one file form one chain, and the last one becomes its head. One changeset may change at most 1000 files, and a file may carry several revisions, so the limit below is above the file limit.
+     */
+    revisions: Array<RevisionInput>;
+};
+
+/**
+ * Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.
+ */
+export type CheckpointMessage = string | null;
+
+/**
+ * The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.
+ */
+export type ContentDigest = string;
+
+/**
+ * The immutable content of one submitted revision. Markdown carries its text; an attachment names a finalized object of the same workspace.
+ */
+export type ContentInput = {
+    /**
+     * Which of the two content forms this revision carries.
+     */
+    kind: 'markdown' | 'attachment';
+    /**
+     * Digest of the content. The server recomputes it from the submitted bytes and refuses a revision that declares another value.
+     */
+    digest: ContentDigest;
+    /**
+     * The Markdown of this revision. Absent for an attachment.
+     */
+    text?: MarkdownText;
+    /**
+     * The finalized attachment object of this revision. Absent for Markdown.
+     */
+    attachmentObjectId?: Uuid;
+};
+
+/**
+ * The identifiers, the path, and the first content of a new file.
+ */
+export type CreateFileInput = {
+    /**
+     * Identifier of the new file. The client assigns it, so a file that was written offline keeps one identity everywhere.
+     */
+    fileId: Uuid;
+    /**
+     * Identifier of the first revision.
+     */
+    revisionId: Uuid;
+    /**
+     * Identity of this operation. A retry that repeats it returns the first outcome instead of writing a second time.
+     */
+    mutationId: Uuid;
+    /**
+     * The device that submitted the change.
+     */
+    deviceId: DeviceId;
+    /**
+     * Path of the new note, which must end in .md.
+     */
+    path: FilePath;
+    /**
+     * Markdown of the first revision.
+     */
+    text: MarkdownText;
+    /**
+     * Name of this checkpoint, or null.
+     */
+    message?: CheckpointMessage;
+};
+
+/**
+ * The identifiers of a tombstone revision.
+ */
+export type DeleteFileInput = {
+    /**
+     * Identifier of the tombstone revision.
+     */
+    revisionId: Uuid;
+    /**
+     * Identity of this operation, which makes a retry safe.
+     */
+    mutationId: Uuid;
+    /**
+     * The device that submitted the deletion.
+     */
+    deviceId: DeviceId;
+    /**
+     * Reason for the deletion, or null.
+     */
+    message?: CheckpointMessage;
+};
+
+/**
+ * The device that submitted the change. It is informational and appears in the history of the workspace.
+ */
+export type DeviceId = string;
+
+/**
+ * The accepted head that the client saw for each file of the changeset, keyed by file identifier. The value null states that the file must not exist in accepted state, which is the precondition of a new file. Every file that the changeset changes needs an entry, and an entry for a file that it does not change is refused. The limit below is a coarse bound that protects the parser; the rule that a changeset may change at most 1000 files is applied by the workspace and answers 422.
+ */
+export type ExpectedHeads = {
+    [key: string]: Uuid | null;
+};
+
+/**
+ * The revision that one single file operation accepted.
+ */
+export type FileChange = {
+    /**
+     * The accepted revision. It is also the entity tag of the answer.
+     */
+    readonly revision: FileRevision;
+    /**
+     * The outcome of the changeset that carried the revision.
+     */
+    readonly accepted: AcceptedChangeset;
+};
+
+/**
+ * Whether a file holds Markdown or an attachment.
+ */
+export type FileKind = 'note' | 'attachment';
+
+/**
+ * Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.
+ */
+export type FilePath = string;
+
+/**
+ * One immutable revision. Its identity, its parents, and its content never change after acceptance.
+ */
+export type FileRevision = {
+    /**
+     * Identifier of this revision.
+     */
+    readonly revisionId: Uuid;
+    /**
+     * The file that this revision belongs to.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The path of the file at this revision.
+     */
+    readonly path: FilePath;
+    /**
+     * Whether this revision holds Markdown or an attachment.
+     */
+    readonly kind: FileKind;
+    /**
+     * True for a tombstone, which is how a deletion is recorded.
+     */
+    readonly deleted: boolean;
+    /**
+     * The parents of this revision, in submitted order. A first revision has none, a normal revision has one, and an explicit merge has two.
+     */
+    readonly parents: Array<Uuid>;
+    /**
+     * Digest of the content of this revision.
+     */
+    readonly digest: ContentDigest;
+    /**
+     * Size of the content in bytes.
+     */
+    readonly size: number;
+    /**
+     * The Markdown of this revision, or null for an attachment revision.
+     */
+    readonly text: MarkdownText | null;
+    /**
+     * The immutable attachment object of this revision, or null for a Markdown revision. Its bytes are transferred separately.
+     */
+    readonly attachmentObjectId: Uuid | null;
+    /**
+     * The checkpoint name of this revision, or null.
+     */
+    readonly message: CheckpointMessage;
+    /**
+     * The historic revision that this one restored, or null. A restore never rewinds history; it adds a revision.
+     */
+    readonly restoredFrom: Uuid | null;
+    /**
+     * The clock of the device that wrote the revision. It stays informational, because a device clock cannot be trusted.
+     */
+    readonly clientTime: string;
+    /**
+     * Instant at which the workspace accepted the revision.
+     */
+    readonly serverTime: string;
+};
+
+/**
  * Liveness report of the service process.
  */
 export type HealthReport = {
@@ -398,6 +624,11 @@ export type InvitationInput = {
      */
     role: AssignableRole;
 };
+
+/**
+ * The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.
+ */
+export type MarkdownText = string;
 
 /**
  * One member of one workspace.
@@ -529,6 +760,10 @@ export type ProblemDetails = {
      * Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.
      */
     readonly issues?: Array<ValidationIssue>;
+    /**
+     * The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.
+     */
+    readonly fileIds?: Array<Uuid>;
     [key: string]: unknown;
 };
 
@@ -575,6 +810,48 @@ export type Removed = {
 };
 
 /**
+ * One revision that a client submits inside a changeset.
+ */
+export type RevisionInput = {
+    /**
+     * Identifier that the client assigned to this revision.
+     */
+    revisionId: Uuid;
+    /**
+     * The file that this revision belongs to.
+     */
+    fileId: Uuid;
+    /**
+     * The parents of this revision. A parent is either an earlier revision of the same file in this submission or an accepted revision of that file.
+     */
+    parents: Array<Uuid>;
+    /**
+     * The path that the file has after this revision.
+     */
+    path: FilePath;
+    /**
+     * True for a tombstone, which records a deletion.
+     */
+    deleted: boolean;
+    /**
+     * The content of this revision.
+     */
+    content: ContentInput;
+    /**
+     * The device clock at the moment of the change.
+     */
+    clientTime: string;
+    /**
+     * Name of this checkpoint, or null.
+     */
+    message?: CheckpointMessage;
+    /**
+     * The historic revision that this one restores, or null.
+     */
+    restoredFrom?: Uuid | null;
+};
+
+/**
  * Workspace membership role. A viewer reads, an editor also writes, an administrator also manages membership and shares, and the owner also purges and transfers the workspace.
  */
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
@@ -583,6 +860,36 @@ export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
  * Palette choice. The value system follows the device preference between the Tokyo Night Day and Night palettes.
  */
 export type Theme = 'system' | 'light' | 'dark';
+
+/**
+ * The identifiers and the new content or path of a file.
+ */
+export type UpdateFileInput = {
+    /**
+     * Identifier of the new revision.
+     */
+    revisionId: Uuid;
+    /**
+     * Identity of this operation, which makes a retry safe.
+     */
+    mutationId: Uuid;
+    /**
+     * The device that submitted the change.
+     */
+    deviceId: DeviceId;
+    /**
+     * New path of the file. The path of the expected head is kept when this member is absent.
+     */
+    path?: FilePath;
+    /**
+     * New Markdown of the file. The content of the expected head is kept when this member is absent, which is how a plain rename is written.
+     */
+    text?: MarkdownText;
+    /**
+     * Name of this checkpoint, or null.
+     */
+    message?: CheckpointMessage;
+};
 
 /**
  * A UUID that names one record.
@@ -623,6 +930,76 @@ export type Workspace = {
      * True for the workspace that was created with the account.
      */
     readonly personal: boolean;
+};
+
+/**
+ * One live file and the content of its accepted head.
+ */
+export type WorkspaceFile = {
+    /**
+     * Stable identifier of the file.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The accepted path of the file.
+     */
+    readonly path: FilePath;
+    /**
+     * Whether the file holds Markdown or an attachment.
+     */
+    readonly kind: FileKind;
+    /**
+     * The accepted head, which is also the entity tag.
+     */
+    readonly headRevisionId: Uuid | null;
+    /**
+     * Instant at which the workspace accepted the last change.
+     */
+    readonly updatedAt: string;
+    /**
+     * The head revision with its content, or null for a file that has no accepted revision yet.
+     */
+    readonly head: FileRevision | null;
+};
+
+/**
+ * One page of the live files of a workspace.
+ */
+export type WorkspaceFileList = {
+    /**
+     * The files of this page, ordered by identifier.
+     */
+    readonly files: Array<WorkspaceFileSummary>;
+    /**
+     * Cursor of the next page, or null when this page is the last one.
+     */
+    readonly nextCursor: Uuid | null;
+};
+
+/**
+ * One live file of a workspace, without its content.
+ */
+export type WorkspaceFileSummary = {
+    /**
+     * Stable identifier of the file. A rename never changes it.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The accepted path of the file.
+     */
+    readonly path: FilePath;
+    /**
+     * Whether the file holds Markdown or an attachment.
+     */
+    readonly kind: FileKind;
+    /**
+     * The accepted head of the file, which is also its entity tag, or null for a file that has no accepted revision yet.
+     */
+    readonly headRevisionId: Uuid | null;
+    /**
+     * Instant at which the workspace accepted the last change.
+     */
+    readonly updatedAt: string;
 };
 
 /**
@@ -700,6 +1077,13 @@ export type AuthSignOutWritable = {
 };
 
 /**
+ * The accepted head that the client saw for each file of the changeset, keyed by file identifier. The value null states that the file must not exist in accepted state, which is the precondition of a new file. Every file that the changeset changes needs an entry, and an entry for a file that it does not change is refused. The limit below is a coarse bound that protects the parser; the rule that a changeset may change at most 1000 files is applied by the workspace and answers 422.
+ */
+export type ExpectedHeadsWritable = {
+    [key: string]: Uuid | null;
+};
+
+/**
  * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
  */
 export type RequestId = string;
@@ -723,6 +1107,36 @@ export type AccountId = Uuid;
  * Identifier of the agent token that the operation acts on.
  */
 export type TokenId = Uuid;
+
+/**
+ * Identifier of the file that the operation acts on.
+ */
+export type FileId = Uuid;
+
+/**
+ * Identifier of the revision that the operation reads.
+ */
+export type RevisionId = Uuid;
+
+/**
+ * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
+ */
+export type PageCursor = Uuid;
+
+/**
+ * Largest number of entries in one page. The server uses 100 when the parameter is absent and never returns more than 500.
+ */
+export type PageLimit = number;
+
+/**
+ * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it: a request without it answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error.
+ */
+export type IfMatch = string;
+
+/**
+ * Entity tag that the client already holds. The answer is 304 with no body when it names the current head.
+ */
+export type IfNoneMatch = string;
 
 /**
  * The settings to store for the signed in account.
@@ -758,6 +1172,26 @@ export type InvitationAcceptance = InvitationAcceptanceInput;
  * The name, the expiry, and the scope of the new token.
  */
 export type AgentTokenRequest = AgentTokenInput;
+
+/**
+ * The identifiers, the path, and the first content of a new file.
+ */
+export type CreateFile = CreateFileInput;
+
+/**
+ * The identifiers and the new content or path of a file.
+ */
+export type UpdateFile = UpdateFileInput;
+
+/**
+ * The identifiers of the tombstone revision.
+ */
+export type DeleteFile = DeleteFileInput;
+
+/**
+ * One atomic change of one or more files.
+ */
+export type Changeset = ChangesetInput;
 
 export type GetAccountData = {
     body?: never;
@@ -1679,6 +2113,467 @@ export type UpdateWorkspaceResponses = {
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
 
+export type CommitChangesetData = {
+    /**
+     * One atomic change of one or more files.
+     */
+    body: Changeset;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/changesets';
+};
+
+export type CommitChangesetErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CommitChangesetError = CommitChangesetErrors[keyof CommitChangesetErrors];
+
+export type CommitChangesetResponses = {
+    /**
+     * The outcome of one accepted changeset.
+     */
+    200: AcceptedChangeset;
+};
+
+export type CommitChangesetResponse = CommitChangesetResponses[keyof CommitChangesetResponses];
+
+export type ListFilesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: {
+        /**
+         * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
+         */
+        cursor?: Uuid;
+        /**
+         * Largest number of entries in one page. The server uses 100 when the parameter is absent and never returns more than 500.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/files';
+};
+
+export type ListFilesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListFilesError = ListFilesErrors[keyof ListFilesErrors];
+
+export type ListFilesResponses = {
+    /**
+     * One page of the live files of a workspace.
+     */
+    200: WorkspaceFileList;
+};
+
+export type ListFilesResponse = ListFilesResponses[keyof ListFilesResponses];
+
+export type CreateFileData = {
+    /**
+     * The identifiers, the path, and the first content of a new file.
+     */
+    body: CreateFile;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files';
+};
+
+export type CreateFileErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateFileError = CreateFileErrors[keyof CreateFileErrors];
+
+export type CreateFileResponses = {
+    /**
+     * The accepted revision and the outcome of its changeset.
+     */
+    201: FileChange;
+};
+
+export type CreateFileResponse = CreateFileResponses[keyof CreateFileResponses];
+
+export type DeleteFileData = {
+    /**
+     * The identifiers of the tombstone revision.
+     */
+    body: DeleteFile;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+        /**
+         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it: a request without it answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error.
+         */
+        'if-match'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}';
+};
+
+export type DeleteFileErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The operation needs a precondition and the request carried none. Repeat the request with the entity tag of the head that was read.
+     */
+    428: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type DeleteFileError = DeleteFileErrors[keyof DeleteFileErrors];
+
+export type DeleteFileResponses = {
+    /**
+     * The accepted revision and the outcome of its changeset.
+     */
+    200: FileChange;
+};
+
+export type DeleteFileResponse = DeleteFileResponses[keyof DeleteFileResponses];
+
+export type GetFileData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+        /**
+         * Entity tag that the client already holds. The answer is 304 with no body when it names the current head.
+         */
+        'if-none-match'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}';
+};
+
+export type GetFileErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetFileError = GetFileErrors[keyof GetFileErrors];
+
+export type GetFileResponses = {
+    /**
+     * One live file and the content of its accepted head.
+     */
+    200: WorkspaceFile;
+};
+
+export type GetFileResponse = GetFileResponses[keyof GetFileResponses];
+
+export type UpdateFileData = {
+    /**
+     * The identifiers and the new content or path of a file.
+     */
+    body: UpdateFile;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+        /**
+         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". The operation needs it: a request without it answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error.
+         */
+        'if-match'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}';
+};
+
+export type UpdateFileErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The operation needs a precondition and the request carried none. Repeat the request with the entity tag of the head that was read.
+     */
+    428: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateFileError = UpdateFileErrors[keyof UpdateFileErrors];
+
+export type UpdateFileResponses = {
+    /**
+     * The accepted revision and the outcome of its changeset.
+     */
+    200: FileChange;
+};
+
+export type UpdateFileResponse = UpdateFileResponses[keyof UpdateFileResponses];
+
 export type ListMembersData = {
     body?: never;
     headers?: {
@@ -1979,3 +2874,59 @@ export type TransferOwnershipResponses = {
 };
 
 export type TransferOwnershipResponse = TransferOwnershipResponses[keyof TransferOwnershipResponses];
+
+export type GetRevisionData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the revision that the operation reads.
+         */
+        revisionId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/revisions/{revisionId}';
+};
+
+export type GetRevisionErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetRevisionError = GetRevisionErrors[keyof GetRevisionErrors];
+
+export type GetRevisionResponses = {
+    /**
+     * One immutable revision of a workspace.
+     */
+    200: FileRevision;
+};
+
+export type GetRevisionResponse = GetRevisionResponses[keyof GetRevisionResponses];

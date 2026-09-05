@@ -19,6 +19,64 @@ export type MutationReceipt = {
   readonly outcome: AcceptedChangeset;
 };
 
+/** Whether a file holds Markdown or an attachment. */
+export type FileKind = 'note' | 'attachment';
+
+/**
+ * The accepted state of one file.
+ *
+ * These are the public members of a file. A storage row also holds the
+ * workspace and internal bookkeeping, which never leaves the storage layer.
+ */
+export type FileRecord = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: FileKind;
+  /** The accepted head, or `null` for a file that has no accepted revision. */
+  readonly headRevisionId: string | null;
+  readonly deleted: boolean;
+  /** Instant of the last accepted change, as an ISO 8601 string. */
+  readonly updatedAt: string;
+};
+
+/** One page of accepted files, ordered by file identifier. */
+export type FilePage = {
+  readonly files: readonly FileRecord[];
+  /** The cursor of the next page, or `null` when this page is the last. */
+  readonly nextCursor: string | null;
+};
+
+/** What a caller asks for when it reads a page of files. */
+export type PageRequest = {
+  /** The last file identifier of the previous page, or `null` to start. */
+  readonly cursor: string | null;
+  readonly limit: number;
+};
+
+/**
+ * One immutable revision and the content it names.
+ *
+ * `text` carries Markdown. An attachment revision carries `objectId` instead,
+ * and its bytes are transferred through the attachment operations.
+ */
+export type RevisionRecord = {
+  readonly revisionId: string;
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: FileKind;
+  readonly deleted: boolean;
+  readonly parents: readonly string[];
+  readonly digest: string;
+  /** Size of the content in bytes. */
+  readonly size: number;
+  readonly text: string | null;
+  readonly objectId: string | null;
+  readonly message: string | null;
+  readonly restoredFrom: string | null;
+  readonly clientTime: string;
+  readonly serverTime: string;
+};
+
 /** Reads and the one write of an open workspace transaction. */
 export type WorkspaceTransaction = {
   /** The account's current role in this workspace, or `null` for a stranger. */
@@ -48,6 +106,17 @@ export type WorkspaceTransaction = {
   /** Whether the file identifier was permanently purged in this workspace. */
   isPurged(fileId: string): Promise<boolean>;
   /**
+   * One page of the live files of this workspace, ordered by identifier.
+   *
+   * A deleted file is left out, because it holds no place in the file tree.
+   * Its history stays reachable through its revisions.
+   */
+  listFiles(page: PageRequest): Promise<FilePage>;
+  /** One file of this workspace, or `null` when it holds no such file. */
+  file(fileId: string): Promise<FileRecord | null>;
+  /** One revision of this workspace, or `null` when it holds no such one. */
+  revision(revisionId: string): Promise<RevisionRecord | null>;
+  /**
    * Performs the atomic write of one changeset.
    *
    * The implementation writes the immutable content and revisions, advances
@@ -68,6 +137,23 @@ export type WorkspaceTransaction = {
     input: ChangesetInput,
     digest: string,
   ): Promise<Result<AcceptedChangeset>>;
+  /**
+   * Removes the accepted side records of files that a changeset deleted.
+   *
+   * A deletion revokes the shares of the file and removes it from normal
+   * search, and both have to happen in the transaction that accepted the
+   * tombstone. Otherwise a share would stay readable, or a crash between two
+   * transactions would leave one behind.
+   *
+   * There is one port method rather than one per index, because every caller
+   * needs all of them and a later index must not be forgotten at a call site.
+   * The implementation revokes shares and drops link records today; the search
+   * task extends the same implementation, and no caller changes.
+   *
+   * The call runs after `accept` inside the same transaction. It never adds
+   * content, so a full workspace can still delete a file.
+   */
+  onFilesDeleted(fileIds: readonly string[]): Promise<void>;
 };
 
 /** Opens one workspace transaction for a verified actor. */

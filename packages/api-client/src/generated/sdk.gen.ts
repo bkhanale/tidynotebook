@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import type { Client, ClientMeta, Options as Options2, RequestResult, TDataShape } from './client/index.js';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses } from './types.gen.js';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -275,6 +275,112 @@ export const updateWorkspace = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
+ * Accept one atomic change of one or more files.
+ *
+ * Accepts a complete changeset: every revision commits or none does. The request states an expected head for each file it changes, and null for a file that must not exist yet. It is the operation that the sync engine uses, and it also performs a folder change of up to 1000 files. A retry with the same mutation identity and the same body returns the first outcome; the same identity with a different body is refused.
+ */
+export const commitChangeset = <ThrowOnError extends boolean = false>(options: Options<CommitChangesetData, ThrowOnError>): RequestResult<CommitChangesetResponses, CommitChangesetErrors, ThrowOnError> => (options.client ?? client).post<CommitChangesetResponses, CommitChangesetErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/changesets',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the live files of a workspace.
+ *
+ * Lists the accepted files of the workspace, ordered by identifier and paged with a cursor. A deleted file is not listed, because it holds no place in the file tree; its history stays readable through its revisions. The answer carries metadata only, so a file tree can be drawn without downloading any note.
+ */
+export const listFiles = <ThrowOnError extends boolean = false>(options: Options<ListFilesData, ThrowOnError>): RequestResult<ListFilesResponses, ListFilesErrors, ThrowOnError> => (options.client ?? client).get<ListFilesResponses, ListFilesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files',
+    ...options
+});
+
+/**
+ * Create a file with its first revision.
+ *
+ * Creates a file that does not exist yet, together with the first revision of its content. The client assigns the file, revision, and mutation identifiers, so a retry that lost its answer repeats the same operation instead of creating a second file. The answer carries a strong entity tag that names the accepted revision.
+ */
+export const createFile = <ThrowOnError extends boolean = false>(options: Options<CreateFileData, ThrowOnError>): RequestResult<CreateFileResponses, CreateFileErrors, ThrowOnError> => (options.client ?? client).post<CreateFileResponses, CreateFileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Delete a file by writing a tombstone revision.
+ *
+ * Deletes one file. The deletion is a revision, so the history of the file stays complete and a later restore is possible. The tombstone carries no note text. Deleting revokes every share of the file and removes it from search, and it adds no content, so a workspace at its storage limit can still be tidied. The request must carry the entity tag of the head that the client saw.
+ */
+export const deleteFile = <ThrowOnError extends boolean = false>(options: Options<DeleteFileData, ThrowOnError>): RequestResult<DeleteFileResponses, DeleteFileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteFileResponses, DeleteFileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read a file and the content of its accepted head.
+ *
+ * Reports the metadata of one live file and the Markdown of its accepted head revision. The answer carries a strong entity tag that names that revision, so a later conditional read answers 304 and a later conditional write answers 412 when the head has moved. A deleted file answers 404; its revisions stay readable.
+ */
+export const getFile = <ThrowOnError extends boolean = false>(options: Options<GetFileData, ThrowOnError>): RequestResult<GetFileResponses, GetFileErrors, ThrowOnError> => (options.client ?? client).get<GetFileResponses, GetFileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}',
+    ...options
+});
+
+/**
+ * Replace the content or the path of a file.
+ *
+ * Writes one revision of an existing file. The request must carry the entity tag of the head that the client saw in If-Match; a request without it answers 428, and a head that has moved answers 412. The request states the new text, the new path, or both; a member that is absent keeps the value of the expected head.
+ */
+export const updateFile = <ThrowOnError extends boolean = false>(options: Options<UpdateFileData, ThrowOnError>): RequestResult<UpdateFileResponses, UpdateFileErrors, ThrowOnError> => (options.client ?? client).put<UpdateFileResponses, UpdateFileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List the members of a workspace.
  *
  * Lists every member of the workspace with the current role. An owner or an administrator also sees the open invitations.
@@ -359,4 +465,19 @@ export const transferOwnership = <ThrowOnError extends boolean = false>(options:
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * Read one immutable revision.
+ *
+ * Reports one accepted revision of the workspace with its parents, its path at that time, and its content. A Markdown revision carries its text. An attachment revision carries the identity of its immutable object; its bytes are transferred through the attachment operations.
+ */
+export const getRevision = <ThrowOnError extends boolean = false>(options: Options<GetRevisionData, ThrowOnError>): RequestResult<GetRevisionResponses, GetRevisionErrors, ThrowOnError> => (options.client ?? client).get<GetRevisionResponses, GetRevisionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/revisions/{revisionId}',
+    ...options
 });

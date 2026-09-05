@@ -6,6 +6,8 @@
  * rejected value, or a stack trace.
  */
 import type { ValidationIssue } from '@notesapp/api-contract';
+import type { DomainError, DomainErrorCode } from '@notesapp/core';
+import { WorkspaceUnavailableError } from '@notesapp/storage-server';
 import { readProperty } from '../values.ts';
 
 /** Media type of every error response. */
@@ -22,6 +24,15 @@ export type ProblemCode =
   | 'origin_required'
   | 'oidc_required'
   | 'not_found'
+  | 'stale_head'
+  | 'path_conflict'
+  | 'mutation_reused'
+  | 'purged'
+  | 'precondition_required'
+  | 'invalid_path'
+  | 'invalid_graph'
+  | 'invalid_content'
+  | 'quota_exceeded'
   | 'rate_limited'
   | 'route_not_found'
   | 'not_ready'
@@ -38,6 +49,8 @@ export type Problem = {
   readonly code: ProblemCode;
   readonly requestId: string;
   readonly issues?: readonly ValidationIssue[];
+  /** Files that a content failure refers to. Identifiers only. */
+  readonly fileIds?: readonly string[];
 };
 
 const titles: Readonly<Record<ProblemCode, string>> = {
@@ -52,6 +65,16 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   oidc_required:
     'This installation signs in through the configured provider only.',
   not_found: 'The requested resource does not exist.',
+  stale_head: 'The accepted head of a file has moved on.',
+  path_conflict: 'Another live file already holds that path.',
+  mutation_reused:
+    'That mutation identity was already used for another operation.',
+  purged: 'The file was permanently deleted and cannot be written again.',
+  precondition_required: 'The operation needs a precondition.',
+  invalid_path: 'The path does not follow the workspace path rules.',
+  invalid_graph: 'The submitted revisions are not a valid change.',
+  invalid_content: 'The submitted content does not match its digest.',
+  quota_exceeded: 'The workspace has no room left for new content.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
@@ -142,6 +165,79 @@ export class OidcRequiredError extends Error {
   }
 }
 
+/**
+ * A precondition that the operation needs, and the request did not carry.
+ *
+ * A write of an existing file needs the entity tag of the head that the client
+ * read. Without it the server would have to guess, and a lost update would
+ * follow, so the request is answered with 428 and repeated with the tag.
+ */
+export class PreconditionRequiredError extends Error {
+  constructor(detail = 'The operation needs a precondition.') {
+    super(detail);
+    this.name = 'PreconditionRequiredError';
+  }
+}
+
+/**
+ * An expected outcome of a content operation, on its way out of the boundary.
+ *
+ * The core returns a `DomainError` rather than throwing one. A handler that
+ * cannot continue turns it into this error, so the mapping from a domain code
+ * to a status and a problem code lives in one table below.
+ */
+export class DomainProblemError extends Error {
+  readonly domain: DomainError;
+
+  constructor(error: DomainError) {
+    super(domainTitles[error.code]);
+    this.name = 'DomainProblemError';
+    this.domain = error;
+  }
+}
+
+/**
+ * The status and the problem code of every domain failure.
+ *
+ * The statuses follow RFC 9110: a failed precondition is 412, a state that
+ * cannot hold both values is 409, a permanently removed record is 410, a well
+ * formed request whose content cannot be accepted is 422, and a workspace
+ * without room answers 413 like any other body that is too large for the
+ * limit.
+ */
+const domainStatus: Readonly<
+  Record<DomainErrorCode, { status: number; code: ProblemCode }>
+> = {
+  forbidden: { status: 403, code: 'forbidden' },
+  not_found: { status: 404, code: 'not_found' },
+  stale_head: { status: 412, code: 'stale_head' },
+  path_conflict: { status: 409, code: 'path_conflict' },
+  mutation_reused: { status: 409, code: 'mutation_reused' },
+  purged: { status: 410, code: 'purged' },
+  invalid_path: { status: 422, code: 'invalid_path' },
+  invalid_graph: { status: 422, code: 'invalid_graph' },
+  invalid_content: { status: 422, code: 'invalid_content' },
+  quota: { status: 413, code: 'quota_exceeded' },
+};
+
+/** The explanation of one domain failure. It names no path and no content. */
+const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
+  forbidden: 'The actor may not perform this operation.',
+  not_found: 'The requested resource does not exist.',
+  stale_head:
+    'The accepted head of a file has moved on. Read it again and resolve the difference.',
+  path_conflict: 'Another live file already holds one of the requested paths.',
+  mutation_reused:
+    'That mutation identity was already used for another operation.',
+  purged:
+    'The file was permanently deleted, so this identifier can never be written again.',
+  invalid_path: 'A submitted path does not follow the workspace path rules.',
+  invalid_graph:
+    'The submitted revisions are not a valid change of the stored history.',
+  invalid_content: 'Submitted content does not match its declared digest.',
+  quota: 'The workspace has no room left for new content.',
+};
+
 /** The named resource does not exist, or the actor may not see that it does. */
 export class NotFoundError extends Error {
   constructor(detail = 'The requested resource does not exist.') {
@@ -176,8 +272,10 @@ export function createProblem(input: {
   readonly instance: string;
   readonly requestId: string;
   readonly issues?: readonly ValidationIssue[];
+  readonly fileIds?: readonly string[];
 }): Problem {
   const issues = input.issues ?? [];
+  const fileIds = input.fileIds ?? [];
   return {
     type: `https://notesapp.invalid/problems/${input.code}`,
     title: titles[input.code],
@@ -187,6 +285,7 @@ export function createProblem(input: {
     code: input.code,
     requestId: input.requestId,
     ...(issues.length > 0 ? { issues } : {}),
+    ...(fileIds.length > 0 ? { fileIds } : {}),
   };
 }
 
@@ -196,7 +295,36 @@ export function classifyError(error: unknown): {
   code: ProblemCode;
   detail: string;
   issues: readonly ValidationIssue[];
+  fileIds?: readonly string[];
 } {
+  if (error instanceof DomainProblemError) {
+    const mapped = domainStatus[error.domain.code];
+    return {
+      status: mapped.status,
+      code: mapped.code,
+      detail: domainTitles[error.domain.code],
+      issues: [],
+      ...(error.domain.fileIds.length > 0
+        ? { fileIds: error.domain.fileIds }
+        : {}),
+    };
+  }
+  if (error instanceof PreconditionRequiredError)
+    return {
+      status: 428,
+      code: 'precondition_required',
+      detail: error.message,
+      issues: [],
+    };
+  // A workspace that the actor cannot see and a workspace that does not exist
+  // answer the same way, so the answer never discloses that it exists.
+  if (error instanceof WorkspaceUnavailableError)
+    return {
+      status: 404,
+      code: 'not_found',
+      detail: titles.not_found,
+      issues: [],
+    };
   if (error instanceof RequestContractError)
     return {
       status: 400,
