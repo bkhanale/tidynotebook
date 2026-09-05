@@ -682,39 +682,57 @@ constructs cost time that grows faster than the document does. Measured on the
 development machine before the caps existed: 80 KB of `[` and `]` took 16
 seconds, 200 KB took 205 seconds, a line of one million `>` characters never
 finished, a 220 KB table took 83 seconds, 195 KB of list items took 12 seconds,
-and 1 MiB of prose written as one paragraph took 12 seconds.
+1 MiB of prose written as one paragraph took 12 seconds, 250 KB of tiny setext
+headings took 2.7 seconds, and 64 KiB of dense emphasis took 2.2 seconds.
 
 `packages/markdown/src/limits.ts` therefore runs a pre-scan before any parse, in
 every public entry point of the package. It is one pass over the text, and it
-caps the shapes whose cost grows faster than their size:
+caps every shape whose cost grows faster than its size:
 
-| Limit                               | Value  | Reason code     |
-| ----------------------------------- | ------ | --------------- |
-| Document size                       | 1 MiB  | `input-size`    |
-| Line size                           | 64 KiB | `line-length`   |
-| Plain block (paragraph) size        | 64 KiB | `block-size`    |
-| Run of one delimiter character      | 1000   | `delimiter-run` |
-| Nesting levels written by an author | 100    | `nesting-depth` |
-| Link openings in one document       | 2000   | `link-count`    |
-| Table rows in one document          | 2000   | `table-rows`    |
-| List lines in one document          | 5000   | `list-items`    |
+| Limit                               | Value   | Reason code         |
+| ----------------------------------- | ------- | ------------------- |
+| Document size                       | 1 MiB   | `input-size`        |
+| Line size                           | 64 KiB  | `line-length`       |
+| Plain block (paragraph) size        | 64 KiB  | `block-size`        |
+| Run of one delimiter character      | 1000    | `delimiter-run`     |
+| Nesting levels written by an author | 100     | `nesting-depth`     |
+| Inline delimiters in one block      | 2000    | `inline-delimiters` |
+| Inline delimiters in one document   | 100,000 | `inline-delimiters` |
+| Link openings in one document       | 2000    | `link-count`        |
+| Table rows in one document          | 2000    | `table-rows`        |
+| List lines in one document          | 5000    | `list-items`        |
+| Blocks in one document              | 15,000  | `block-count`       |
 
-The delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. A table row is a line
-that starts with `|` after at most three spaces. A list line is a line that
-starts with a bullet or an ordered marker after its indentation. Nesting counts
-the block quote markers, the list markers, and the four-column indentation
-levels at the start of one line; the parsed tree is measured again afterwards,
-because inline constructs such as repeated emphasis nest without a line prefix,
-and the levels every document has are subtracted so that the number means what
-an author wrote.
+The run delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. The inline
+delimiter set is the subset the parser pairs inside a paragraph:
+`* _ ~ $ ` [ ] ! < >`. A table row is a line that starts with `|` after at most
+three spaces. A list line is a line that starts with a bullet or an ordered
+marker after its indentation. A block is a run of neighbouring lines: one
+paragraph, one fence, one whole table, or one whole list.
+
+Nesting counts the block quote markers, the list markers, and the four-column
+indentation levels at the start of one line. The parsed tree is measured again
+afterwards, because inline constructs such as repeated emphasis nest without a
+line prefix. Both counts are in levels an author wrote: the `list` wrapper
+above each list item does not count, and the leaf block with its text is
+subtracted, so 100 nested block quotes and 100 nested list items are both
+accepted and 101 of either is refused.
 
 A plain block is a run of neighbouring lines that is not blank, not a table
 row, not a list line, and not inside a code fence. The parser reads the inline
 content of a paragraph as one unit, and that cost grows faster than the
-paragraph does. The fence is the one construct the scan recognizes, and it
-recognizes it only for this cap: a long fence is cheap because its content is
-never read as inline text. Every other cap still applies inside a fence, so a
-1 MiB block of generated YAML inside a fence can still trip the list cap.
+paragraph does.
+
+The fence is the one Markdown construct the scan recognizes, and it recognizes
+it only to exempt the two plain block caps, because the parser never reads the
+content of a fence as inline text. Every other cap keeps counting inside a
+fence: a `|` line inside a fence is still a table row, a bullet is still a list
+line, and the fence is one block. An opening fence therefore cannot turn a cap
+off for the rest of the document, and neither can an unterminated one. The scan
+also refuses to read a backtick fence whose info string holds a backtick,
+because CommonMark calls that line a paragraph; reading it as a fence was a
+bypass that let 540 KB of table rows through, and that document took 305
+seconds.
 
 There is no wall-clock timeout. A timeout would bound one render on one machine
 and would make the outcome depend on the load of that machine, so the same note
@@ -731,26 +749,34 @@ value from `markdownLimits`.
 `limits.test.ts` builds every capped shape at exactly its cap, renders it, and
 prints the time. The measurements on the development machine are:
 
-| Shape at its cap                   | Size    | Render time |
-| ---------------------------------- | ------- | ----------- |
-| Table of 2000 rows                 | 39 KB   | 0.36 s      |
-| List of 5000 lines                 | 94 KB   | 0.33 s      |
-| 2000 link openings                 | 92 KB   | 0.21 s      |
-| 100 nesting levels                 | 205 B   | 0.001 s     |
-| One paragraph of 64 KiB            | 66 KB   | 0.04 s      |
-| 1 MiB of prose in short paragraphs | 1.0 MiB | 1.13 s      |
-| 1 MiB fenced code block            | 1.0 MiB | 0.15 s      |
+| Shape at its cap                    | Size    | Render time |
+| ----------------------------------- | ------- | ----------- |
+| Table of 2000 rows                  | 39 KB   | 0.33 s      |
+| List of 5000 lines                  | 94 KB   | 0.30 s      |
+| 2000 link openings                  | 92 KB   | 0.15 s      |
+| 100 nesting levels                  | 205 B   | 0.001 s     |
+| One paragraph of 64 KiB             | 66 KB   | 0.03 s      |
+| One block of 2000 inline delimiters | 4 KB    | 0.01 s      |
+| 100,000 inline delimiters           | 200 KB  | 0.82 s      |
+| 15,000 minimal blocks               | 75 KB   | 0.64 s      |
+| 1 MiB spread over 15,000 blocks     | 1.0 MiB | 0.81 s      |
+| 1 MiB of prose in short paragraphs  | 1.0 MiB | 0.87 s      |
+| 1 MiB fenced code block             | 1.0 MiB | 0.15 s      |
 
-The list cap was lowered from 10,000 to 5000 during calibration. A list of
-10,000 lines measured between 0.84 and 1.9 seconds depending on what else the
-machine was doing, which is too close to the budget to be a stable bound.
+Two caps were lowered below their first value during calibration, because the
+first value measured too close to the budget to be a stable bound: the list cap
+from 10,000 to 5000 lines, where 10,000 measured between 0.84 and 1.9 seconds,
+and the block cap from 20,000 to 15,000, where 20,000 measured 1.4 seconds
+inside the test run. One megabyte of ordinary prose uses about 7900 blocks and
+about 47,000 inline delimiters, so a real note keeps room to spare under both.
 
-Every shape is under one second except the full 1 MiB prose document, and that
-one is a size cost rather than a shape cost: the same prose measures 0.10, 0.15,
-0.35, and 0.63 seconds at an eighth, a quarter, a half, and the whole of the
-cap, which is linear. The design requires a 1 MiB stress file to render, so the
-document cap cannot go below it. Each shape one step past its cap is refused in
-under 100 ms; the tests assert both.
+The shapes a reviewer found are measured too, and each is refused in a few
+milliseconds: 1 MiB of alternating `*_` on one line as `line-length`, the same
+text in blocks as `inline-delimiters`, 64 KiB of dense emphasis as
+`inline-delimiters`, 50,000 setext headings as `block-count`, and both the
+fence bypass and an unterminated fence before 30,000 table rows as
+`table-rows`. Each shape one step past its cap is refused in under 100 ms; the
+tests assert all of it.
 
 ### Byte order marks and reported ranges
 
@@ -776,7 +802,7 @@ resolve during the type check.
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 83 tests, including the
+- `pnpm --filter @notesapp/markdown test:unit` runs 104 tests, including the
   resource limit measurements above.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.

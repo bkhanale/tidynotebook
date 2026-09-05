@@ -4,16 +4,20 @@
  * A note is untrusted input. The parser this package uses is fast on ordinary
  * prose, but several of its constructs cost time that grows faster than the
  * document does. Measured before these limits existed: 80 KB of `[` and `]`
- * took 16 seconds, a 220 KB table took 83 seconds, and a line of one million
- * `>` characters never finished. A byte cap alone therefore does not bound the
- * work.
+ * took 16 seconds, a 220 KB table took 83 seconds, a line of one million `>`
+ * characters never finished, one megabyte of prose written as a single
+ * paragraph took 12 seconds, 250 KB of tiny headings took 2.7 seconds, and
+ * 64 KiB of dense emphasis took 2.2 seconds. A byte cap alone therefore does
+ * not bound the work.
  *
  * The answer is a pre-scan that runs before any parse, in every public entry
  * point of this package. It is a single pass over the text, so it costs a few
- * milliseconds on the largest accepted document, and it caps the shapes whose
- * cost grows faster than their size: the length of a line, the length of a
- * delimiter run, the block nesting one line opens, and the number of link
- * openings, table rows, and list lines in the document.
+ * milliseconds on the largest accepted document, and it caps every shape whose
+ * cost grows faster than its size: the size of the document, the size of a
+ * line, the size of one plain block, the length of a delimiter run, the
+ * nesting one line opens, the number of inline delimiters in a block and in
+ * the document, and the number of link openings, table rows, list lines, and
+ * blocks.
  *
  * There is no wall-clock timeout anywhere in this package. A timeout would
  * bound one render on one machine and would make the outcome depend on the
@@ -22,12 +26,15 @@
  * has a measured worst case, and the numbers are recorded in
  * `docs/development/toolchain.md` and asserted in `limits.test.ts`.
  *
- * The pre-scan is not Markdown aware and it does not exempt a fenced code
- * block. A line of code counts as a line, a row of a table drawn inside a code
- * fence counts as a table row, and a bullet inside a fence counts as a list
- * line. Exempting them would need the parse this scan exists to protect, and a
- * document that trips a cap inside a fence is already far outside what a note
- * holds.
+ * The scan recognizes one Markdown construct: a fenced code block. It does so
+ * only to exempt the two plain block caps, because the parser never reads the
+ * content of a fence as inline text, so a long fence is cheap. Every other cap
+ * keeps counting inside a fence: a line of code is still a line, a `|` line
+ * inside a fence is still a table row, a bullet inside a fence is still a list
+ * line, and the fence is still one block. An opening fence therefore cannot
+ * turn a cap off for the rest of the document. The scan also refuses to read
+ * a backtick fence whose info string holds a backtick, because CommonMark
+ * calls that a paragraph rather than a fence.
  *
  * A rejected document is not truncated. The caller catches `MarkdownLimitError`
  * and shows the source as plain text, because cutting a note in half would look
@@ -102,6 +109,41 @@ export const markdownLimits = {
    */
   maxListItems: 5000,
   /**
+   * Largest accepted number of inline delimiter characters in one plain block.
+   *
+   * The parser pairs the inline delimiters of a paragraph against each other,
+   * and that cost grows faster than their number. A run of one character is
+   * already capped, but alternating characters such as `*_ *_` never form a
+   * run, so the count is capped as well. Calibrated by measurement; see
+   * `limits.test.ts`.
+   */
+  maxBlockInlineDelimiters: 2000,
+  /**
+   * Largest accepted number of inline delimiter characters in one document.
+   *
+   * The per-block cap alone does not bound a whole document: one megabyte of
+   * short paragraphs, each inside the block cap, still costs about four
+   * seconds. Measured on the development machine, 100,000 delimiters cost 0.8
+   * seconds, 200,000 cost 1.5, and 300,000 cost 2.2. This value keeps the
+   * worst case near three quarters of a second, and one megabyte of ordinary
+   * prose holds about 47,000, so a real note keeps room to spare.
+   */
+  maxInlineDelimiters: 100000,
+  /**
+   * Largest accepted number of blocks in one document.
+   *
+   * A block is a run of neighbouring lines: one paragraph, one fenced code
+   * block, one whole table, or one whole list. Each block carries a fixed
+   * setup cost, so a document of tiny blocks costs more than its size
+   * suggests: 50,000 of the smallest possible blocks took 2.7 seconds.
+   *
+   * One megabyte of ordinary prose holds about 7900 paragraphs, so this leaves
+   * a real note room to spare. One megabyte spread over this many blocks
+   * renders in about 0.75 seconds; over 20,000 it reaches 1.4 seconds inside
+   * the test run, which is too close to the budget to be a stable bound.
+   */
+  maxBlocks: 15000,
+  /**
    * Largest accepted plain block, in UTF-8 bytes.
    *
    * A plain block is a run of neighbouring lines that is not blank, not a
@@ -117,11 +159,11 @@ export const markdownLimits = {
 /**
  * Tree levels that every document has, whatever its author wrote.
  *
- * The shallowest possible document is a root, one leaf block, and its text, so
- * `maxNestingDepth` counts the levels above those three. A document of one
- * hundred nested block quotes therefore reports one hundred levels.
+ * The shallowest document holds one leaf block and its text under the root.
+ * Those two are subtracted, and the root itself is level zero, so a document
+ * of one hundred nested block quotes reports one hundred levels.
  */
-const documentDepth = 3;
+const documentDepth = 2;
 
 /**
  * Columns of leading white space that count as one nesting level.
@@ -140,7 +182,9 @@ export type MarkdownLimitReason =
   | 'link-count'
   | 'table-rows'
   | 'list-items'
-  | 'block-size';
+  | 'block-size'
+  | 'block-count'
+  | 'inline-delimiters';
 
 /** The sentence that explains one refusal. */
 const reasons: Record<MarkdownLimitReason, string> = {
@@ -155,6 +199,9 @@ const reasons: Record<MarkdownLimitReason, string> = {
   'list-items': 'Markdown holds %actual list lines and the limit is %limit.',
   'block-size':
     'A Markdown paragraph is %actual bytes and the limit is %limit.',
+  'block-count': 'Markdown holds %actual blocks and the limit is %limit.',
+  'inline-delimiters':
+    'A Markdown paragraph holds %actual inline delimiters and the limit is %limit.',
 };
 
 /**
@@ -239,6 +286,28 @@ const delimiters = new Set([
   '<',
 ]);
 
+/**
+ * The characters that can open an inline construct.
+ *
+ * These are the characters micromark tries to pair inside a paragraph:
+ * attention (`*`, `_`, `~`), math (`$`), a code span (`` ` ``), a link or an
+ * image (`[`, `]`, `!`), and an autolink or raw span (`<`, `>`). A line marker
+ * such as `-` is a block construct and costs nothing to pair, so it is not
+ * counted here.
+ */
+const inlineDelimiters = new Set([
+  '*',
+  '_',
+  '~',
+  '$',
+  '`',
+  '[',
+  ']',
+  '!',
+  '<',
+  '>',
+]);
+
 /** A line marker that opens a bullet list item. */
 const bulletMarkers = new Set(['-', '+', '*']);
 
@@ -257,6 +326,15 @@ function isDigit(source: string, index: number): boolean {
 /** What one line contributes to the structural counts of the document. */
 type LineShape = { readonly tableRow: boolean; readonly listItem: boolean };
 
+/**
+ * The kind of block a line belongs to.
+ *
+ * Neighbouring lines of the same kind are one block: a run of table rows is
+ * one table, a run of list lines is one list, and a fence is one block from
+ * its opener to its closer. A blank line closes whatever was open.
+ */
+type BlockKind = 'none' | 'plain' | 'table' | 'list' | 'fence';
+
 /** The shortest run of characters that opens or closes a code fence. */
 const fenceRun = 3;
 
@@ -265,8 +343,13 @@ const fenceRun = 3;
  *
  * A fence is the one construct the scan recognizes, and it recognizes it only
  * to exempt the plain block cap: a long code fence is cheap to parse because
- * the parser never reads its content as inline text. Every other cap still
- * applies inside a fence.
+ * the parser never reads its content as inline text. Every other cap keeps
+ * counting inside a fence.
+ *
+ * CommonMark forbids a backtick in the info string of a backtick fence, so a
+ * line such as ```` ```a`b ```` is a paragraph and not a fence. Reading it as
+ * a fence here would hand an author a way to turn the block cap off for the
+ * rest of the document, so that shape returns no marker.
  */
 function fenceMarker(
   source: string,
@@ -280,7 +363,11 @@ function fenceMarker(
   if (char !== '`' && char !== '~') return null;
   let length = 0;
   while (index + length < to && source[index + length] === char) length += 1;
-  return length >= fenceRun ? { char, length } : null;
+  if (length < fenceRun) return null;
+  if (char === '`')
+    for (let rest = index + length; rest < to; rest += 1)
+      if (source[rest] === '`') return null;
+  return { char, length };
 }
 
 /** Reports whether the line holds nothing but white space. */
@@ -399,32 +486,52 @@ export function assertParseCost(source: string): void {
   );
   let lineStart = 0;
   let lineBytes = 0;
+  let lineDelimiters = 0;
   let linkOpenings = 0;
   let tableRows = 0;
   let listItems = 0;
+  let blocks = 0;
   let blockBytes = 0;
+  let blockDelimiters = 0;
+  let documentDelimiters = 0;
+  let openBlock: BlockKind = 'none';
   let fence: { char: string; length: number } | null = null;
   let runChar = '';
   let runLength = 0;
-  /** Counts what one finished line contributes to the document. */
+  /** Opens a block when the previous line did not already open this kind. */
+  const openBlockOfKind = (kind: BlockKind): void => {
+    if (openBlock !== kind) {
+      blocks += 1;
+      assertAtMost('block-count', markdownLimits.maxBlocks, blocks);
+    }
+    openBlock = kind;
+  };
+  /** Ends the run of plain lines that the block caps measure. */
+  const endPlainBlock = (): void => {
+    blockBytes = 0;
+    blockDelimiters = 0;
+  };
+  /**
+   * Counts what one finished line contributes to the document.
+   *
+   * A fenced line is exempt from the two plain block caps only. Nesting, table
+   * rows, list lines, and the block count all keep counting inside a fence,
+   * because a fence opener must never be able to turn a cap off for the rest
+   * of the document.
+   */
   const finishLine = (end: number): void => {
     assertAtMost('line-length', markdownLimits.maxLineBytes, lineBytes);
     const marker = fenceMarker(source, lineStart, end);
+    const wasFenced = fence !== null;
     if (fence === null) {
-      if (marker !== null) {
-        fence = { char: marker.char, length: marker.length };
-        blockBytes = 0;
-        return;
-      }
-    } else {
-      if (
-        marker !== null &&
-        marker.char === fence.char &&
-        marker.length >= fence.length
-      )
-        fence = null;
-      return;
-    }
+      if (marker !== null) fence = { char: marker.char, length: marker.length };
+    } else if (
+      marker !== null &&
+      marker.char === fence.char &&
+      marker.length >= fence.length
+    )
+      fence = null;
+    const fenced = wasFenced || marker !== null;
     const shape = assertLineNesting(source, lineStart, end);
     if (shape.tableRow) {
       tableRows += 1;
@@ -434,14 +541,42 @@ export function assertParseCost(source: string): void {
       listItems += 1;
       assertAtMost('list-items', markdownLimits.maxListItems, listItems);
     }
-    // A blank line ends a block, and a row or a list line belongs to a
-    // structure that has its own cap, so only plain lines accumulate.
-    if (shape.tableRow || shape.listItem || isBlank(source, lineStart, end)) {
-      blockBytes = 0;
+    if (fenced) {
+      // The opening line starts one block; the rest of the fence continues it.
+      openBlockOfKind('fence');
+      endPlainBlock();
       return;
     }
+    if (isBlank(source, lineStart, end)) {
+      openBlock = 'none';
+      endPlainBlock();
+      return;
+    }
+    if (shape.tableRow) {
+      openBlockOfKind('table');
+      endPlainBlock();
+      return;
+    }
+    if (shape.listItem) {
+      openBlockOfKind('list');
+      endPlainBlock();
+      return;
+    }
+    openBlockOfKind('plain');
     blockBytes += lineBytes;
     assertAtMost('block-size', markdownLimits.maxBlockBytes, blockBytes);
+    blockDelimiters += lineDelimiters;
+    assertAtMost(
+      'inline-delimiters',
+      markdownLimits.maxBlockInlineDelimiters,
+      blockDelimiters,
+    );
+    documentDelimiters += lineDelimiters;
+    assertAtMost(
+      'inline-delimiters',
+      markdownLimits.maxInlineDelimiters,
+      documentDelimiters,
+    );
   };
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index] ?? '';
@@ -449,6 +584,7 @@ export function assertParseCost(source: string): void {
       finishLine(index);
       lineStart = index + 1;
       lineBytes = 0;
+      lineDelimiters = 0;
       runChar = '';
       runLength = 0;
       continue;
@@ -463,6 +599,7 @@ export function assertParseCost(source: string): void {
     }
     if (delimiters.has(char))
       assertAtMost('delimiter-run', markdownLimits.maxDelimiterRun, runLength);
+    if (inlineDelimiters.has(char)) lineDelimiters += 1;
     if (char === '[') {
       linkOpenings += 1;
       assertAtMost('link-count', markdownLimits.maxLinkOpenings, linkOpenings);
@@ -478,29 +615,42 @@ type TreeNode = {
 };
 
 /**
+ * Node types that add no level of their own.
+ *
+ * A list and its items are one level to an author, but two nodes in the tree:
+ * `list` holds `listItem`. Counting the item and not the list makes one
+ * written level count once, so a list and a block quote cost the same.
+ */
+const transparentNodes = new Set(['list']);
+
+/**
  * Rejects a parsed tree that is nested deeper than the limit.
  *
  * The pre-scan bounds the nesting one line can open, and this bounds what a
  * whole document can build, including inline nesting such as repeated
- * emphasis. The levels every document has are subtracted first, so the limit
- * counts what an author wrote. The walk is iterative on purpose: a recursive
- * check would itself run out of stack on the trees this guard exists to
- * refuse.
+ * emphasis. The count is in written levels: the root is level zero, a `list`
+ * wrapper adds nothing, and the leaf block with its text is subtracted, so one
+ * hundred nested block quotes and one hundred nested list items both report
+ * one hundred. The walk is iterative on purpose: a recursive check would
+ * itself run out of stack on the trees this guard exists to refuse.
  */
 export function assertNestingDepth(tree: TreeNode): void {
   let deepest = 0;
-  const pending: Array<{ node: TreeNode; depth: number }> = [
-    { node: tree, depth: 1 },
+  const pending: Array<{ node: TreeNode; level: number }> = [
+    { node: tree, level: 0 },
   ];
   let item = pending.pop();
   while (item !== undefined) {
-    if (item.depth > deepest) deepest = item.depth;
+    if (item.level > deepest) deepest = item.level;
     // Stop one level past the point where the limit is already exceeded. The
     // bound includes the levels subtracted below, otherwise the walk would
     // stop before it can report a document that is too deep.
-    if (item.depth <= markdownLimits.maxNestingDepth + documentDepth)
+    if (item.level <= markdownLimits.maxNestingDepth + documentDepth)
       for (const child of item.node.children ?? [])
-        pending.push({ node: child, depth: item.depth + 1 });
+        pending.push({
+          node: child,
+          level: item.level + (transparentNodes.has(child.type) ? 0 : 1),
+        });
     item = pending.pop();
   }
   assertAtMost(
