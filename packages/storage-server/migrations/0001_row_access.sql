@@ -120,7 +120,9 @@ CREATE FUNCTION public.notesapp_next_cursor(p_workspace_id uuid) RETURNS bigint
 --
 -- The runtime role holds no UPDATE right on `workspace_usage`, so it cannot
 -- raise its own quota. This function changes the stored bytes only, requires a
--- membership, and refuses a change that would make the value negative.
+-- membership, and only ever adds. A member that could subtract would zero the
+-- stored bytes and then write past the quota without limit. Task 8 lowers the
+-- stored bytes through its own owner only purge function.
 CREATE FUNCTION public.notesapp_add_usage(p_workspace_id uuid, p_delta bigint)
 	RETURNS bigint
 	LANGUAGE plpgsql
@@ -133,6 +135,10 @@ CREATE FUNCTION public.notesapp_add_usage(p_workspace_id uuid, p_delta bigint)
 		IF NOT public.notesapp_is_member(p_workspace_id) THEN
 			RAISE EXCEPTION 'notesapp: the account is not a member of this workspace'
 				USING ERRCODE = '42501';
+		END IF;
+		IF p_delta < 0 THEN
+			RAISE EXCEPTION 'notesapp: workspace usage cannot be reduced through this path'
+				USING ERRCODE = '23514';
 		END IF;
 		UPDATE public.workspace_usage
 		SET bytes_used = bytes_used + p_delta

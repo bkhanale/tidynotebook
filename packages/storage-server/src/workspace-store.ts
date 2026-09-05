@@ -17,6 +17,7 @@ import {
   OperationalError,
   fail,
   ok,
+  type OperationalErrorKind,
   type AcceptedChangeset,
   type Actor,
   type ChangesetInput,
@@ -192,22 +193,38 @@ function failureName(value: unknown): string {
   return typeof value;
 }
 
+/**
+ * Failure codes that mean the database cannot be reached or cannot be used.
+ *
+ * The first four are Node socket codes that the driver reports in the same
+ * `code` field as a SQLSTATE. `3D000` is a missing database, `28000` and
+ * `28P01` are a refused login, `08*` is a broken connection, and `57P03` is a
+ * server that is still starting.
+ */
+const unavailableCodes = new Set([
+  'ECONNREFUSED',
+  'ENOTFOUND',
+  'ETIMEDOUT',
+  'EHOSTUNREACH',
+  '3D000',
+  '28000',
+  '28P01',
+  '57P03',
+]);
+
+/** The infrastructure failure kind of one database failure code. */
+function failureKind(code: string): OperationalErrorKind {
+  if (code === '40001' || code === '40P01') return 'serialization';
+  if (code === '57014') return 'timeout';
+  if (unavailableCodes.has(code) || code.startsWith('08')) return 'unavailable';
+  return 'unexpected';
+}
+
 /** Wraps an unexpected failure as an infrastructure failure. */
 function operational(value: unknown): OperationalError {
   if (value instanceof OperationalError) return value;
   const failure = postgresFailure(value);
-  const kind =
-    failure === null
-      ? 'unexpected'
-      : failure.code === '40001' || failure.code === '40P01'
-        ? 'serialization'
-        : failure.code.startsWith('08') || failure.code === '57P03'
-          ? 'unavailable'
-          : failure.code === '57014'
-            ? 'timeout'
-            : failure.code === '28P01' || failure.code === '28000'
-              ? 'unavailable'
-              : 'unexpected';
+  const kind = failure === null ? 'unexpected' : failureKind(failure.code);
   // The cause is rebuilt, never forwarded, so no statement text, no bound
   // parameter, and no PostgreSQL detail line can reach a log.
   return new OperationalError(kind, 'notesapp: the workspace store failed.', {
@@ -377,8 +394,12 @@ export function openWorkspaceStore(
           } catch {
             // The connection is already unusable; report the first failure.
           }
-          if (error instanceof WorkspaceUnavailableError) throw error;
-          throw operational(error);
+          // Only a database failure becomes an infrastructure failure. A value
+          // that the callback threw for its own reasons travels unchanged, so
+          // a use case above this port keeps its own error type.
+          if (error instanceof OperationalError) throw error;
+          if (postgresFailure(error) !== null) throw operational(error);
+          throw error;
         }
       } finally {
         client.release();

@@ -578,14 +578,31 @@ await test('privileged functions: a stranger cannot move a cursor or add usage',
   }
 });
 
-await test('privileged functions: usage cannot become negative', async () => {
+await test('privileged functions: a member cannot reduce the stored usage', async () => {
   const session = await openSession(database.runtimeUrl, escalation.ownerId);
   try {
-    const failure = await session.failure(
-      'select notesapp_add_usage($1, (-1000000)::bigint)',
+    // A member that could subtract would zero the stored bytes and then write
+    // past the quota without limit, so every negative delta is refused, not
+    // only one that would make the value negative.
+    const added = await session.query<{ notesapp_add_usage: string }>(
+      'select notesapp_add_usage($1, 4096::bigint)',
       [escalation.workspaceId],
     );
-    assert.equal(failure.code, '23514');
+    assert.equal(added[0]?.notesapp_add_usage, '4096');
+
+    for (const delta of ['-1', '-4096', '-1000000']) {
+      const failure = await session.failure(
+        `select notesapp_add_usage($1, (${delta})::bigint)`,
+        [escalation.workspaceId],
+      );
+      assert.equal(failure.code, '23514');
+    }
+
+    const current = await session.query<{ bytes_used: string }>(
+      'select bytes_used from workspace_usage where workspace_id = $1',
+      [escalation.workspaceId],
+    );
+    assert.equal(current[0]?.bytes_used, '4096');
   } finally {
     await session.close();
   }

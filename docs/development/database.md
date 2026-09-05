@@ -160,13 +160,13 @@ Row level security is enabled and forced on every workspace scoped table, on
 migrate, provision, and run the SECURITY DEFINER helpers. The runtime role gets
 narrower policies.
 
-| Table                        | Runtime role policy                                                                                                                                       |
-| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                         |
-| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                            |
-| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                        |
-| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner` or `admin`, never on the actor's own row, and the `owner` role only from an `owner` |
-| `accounts`                   | `id = notesapp_current_account()`                                                                                                                         |
+| Table                        | Runtime role policy                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                                                                                                                                                                                                                                       |
+| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                                                                                                                                                                                                                                          |
+| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                                                                                                                                                                                                                                      |
+| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner` or `admin`, never on the actor's own row, and the `owner` role only from an `owner`. The last owner rule is not expressed here: a policy sees one row at a time and cannot count the remaining owners. Task 5's workspace use case enforces it inside the same workspace lock as a content write. |
+| `accounts`                   | `id = notesapp_current_account()`                                                                                                                                                                                                                                                                                                                                       |
 
 Task 5 widens the account policy to the co-members that a membership list must
 show.
@@ -189,7 +189,10 @@ and both check membership first:
 - `notesapp_next_cursor(workspace_id)` moves the cursor forward by exactly one
   and returns it.
 - `notesapp_add_usage(workspace_id, delta)` changes the stored bytes only,
-  never the quota, and refuses a change that would make the value negative.
+  never the quota, and refuses every negative delta with SQLSTATE `23514`. A
+  member that could subtract would zero `bytes_used` and then write past the
+  quota without limit, so the runtime path only ever adds. Task 8 lowers the
+  stored bytes through its own owner only purge function.
 
 ### Identity per transaction
 
@@ -364,7 +367,9 @@ The workspace lock is an advisory transaction lock, not `SELECT ... FOR UPDATE`.
 A viewer holds no `UPDATE` right on the workspace row, and the update policy
 restricts the row to an owner or an admin, so a row lock would silently return
 no row for most actors. The advisory lock has neither problem. A hash collision
-between two workspaces costs extra serialization and nothing else.
+between two workspaces costs extra serialization and nothing else. `hashtext` is
+a PostgreSQL internal function whose result is not stable across releases; it is
+used only to pick a transient lock number, and no stored value depends on it.
 
 The visibility check runs after the lock. When the workspace row is not visible,
 `transact` throws `WorkspaceUnavailableError` before the callback runs. That is
@@ -403,6 +408,19 @@ named constraints below map to a domain code; every other SQL failure stays an
 
 The cursor is a PostgreSQL `bigint` and leaves the store as a decimal string,
 so no JavaScript number truncates it.
+
+### Which failures become an OperationalError
+
+`transact` wraps a failure as an `OperationalError` only when it is a database
+failure: the driver reported a SQLSTATE, or a socket code such as
+`ECONNREFUSED`, `ENOTFOUND`, or `ETIMEDOUT`. `3D000` (no such database), `28000`
+and `28P01` (refused login), every `08` code, and `57P03` (the server is
+starting) map to the kind `unavailable`; `40001` and `40P01` map to
+`serialization`; `57014` maps to `timeout`.
+
+Any other value that the callback throws travels out unchanged. A use case
+above this port, such as the commit use case of Task 6, therefore keeps its own
+error type instead of finding it replaced by a storage error.
 
 ### Content free failure reporting
 

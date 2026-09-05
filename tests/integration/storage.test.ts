@@ -19,6 +19,7 @@ import {
   runMigrations,
   runtimeRole,
   withCredentials,
+  withDatabaseName,
   WorkspaceUnavailableError,
   type WorkspaceStoreHandle,
 } from '@notesapp/storage-server';
@@ -775,6 +776,53 @@ await test('operational failures: the reported cause carries no stored content',
   const printed = inspect(error, { depth: 10 });
   assert.equal(printed.includes(marker), false);
   assert.equal(printed.includes(body.digest), false);
+});
+
+await test('operational failures: an unreachable server is unavailable', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  // Port 1 refuses the connection, so the driver reports ECONNREFUSED rather
+  // than a SQLSTATE.
+  const dead = openWorkspaceStore(
+    'postgres://notesapp_app:unused@127.0.0.1:1/notesapp_test',
+    { poolSize: 1 },
+  );
+  try {
+    const error = await thrownBy(() =>
+      dead.transact(actor, workspaceId, () => Promise.resolve(null)),
+    );
+    assert.ok(isOperationalError(error));
+    assert.equal(error.kind, 'unavailable');
+  } finally {
+    await dead.close();
+  }
+
+  const missing = openWorkspaceStore(
+    withDatabaseName(database.runtimeUrl, 'notesapp_test_absent_database'),
+    { poolSize: 1 },
+  );
+  try {
+    const error = await thrownBy(() =>
+      missing.transact(actor, workspaceId, () => Promise.resolve(null)),
+    );
+    assert.ok(isOperationalError(error));
+    assert.equal(error.kind, 'unavailable');
+  } finally {
+    await missing.close();
+  }
+});
+
+await test('callback failures: a value that is not a database failure travels unchanged', async () => {
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  class UseCaseStop extends Error {}
+  const error = await thrownBy(() =>
+    store.transact(actor, workspaceId, () =>
+      Promise.reject(new UseCaseStop('the use case stopped')),
+    ),
+  );
+  assert.ok(error instanceof UseCaseStop);
+  assert.equal(isOperationalError(error), false);
 });
 
 await test('acceptance time: server_time uses clock_timestamp', async () => {
