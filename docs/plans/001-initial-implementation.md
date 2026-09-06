@@ -239,7 +239,7 @@ Execution record (2026-09-06): commit `68cd2c1`. 344 unit tests, 14 attachment i
 
 Execution record (2026-09-06): commit `3c3daa6`. Checks: typecheck, lint, format check, contract lint, generated check, 353 unit tests, 12 history integration tests, plus revisions (29) and attachments (14) regression checks. Fixed lint (await test, unused, any) and removed debug log in history handler.
 
-### [ ] Task 9: Implement consistent snapshots and incremental sync reads
+### [x] Task 9: Implement consistent snapshots and incremental sync reads
 
 **Depends on:** Task 8.
 
@@ -247,11 +247,13 @@ Execution record (2026-09-06): commit `3c3daa6`. Checks: typecheck, lint, format
 
 **Interfaces:** Operation IDs are `startSnapshot`, `getSnapshotPage`, and `getChanges`. Snapshot responses contain token, expiry, immutable revision IDs, cursor, and pagination position. Change responses contain ordered changes, next cursor, and a documented `snapshot_required` error for expired cursors. Reuse `getRevision` for content transfer.
 
-- [ ] Capture accepted metadata and the workspace high-water cursor in one repeatable-read transaction. Materialize bounded metadata pages for 15 minutes. Recheck current membership on every page and content read; do not hold a database transaction open across network pages.
-- [ ] Allocate incremental cursors under the workspace lock used by every relevant write, including membership, deletion, and share revocation. Keep events for 90 days and retain accepted receipts until account/workspace purge. A snapshot cursor covers exactly the captured state.
-- [ ] Add pagination limits and admission limits per account/workspace. Clean expired snapshots and old events without deleting content history. Reject unsupported sync versions before applying a mutation.
-- [ ] Run `pnpm test:integration -- snapshots`. Interleave late commits and page reads; prove no skipped event, no mixed current-head content, correct expiry, denied revoked access, and preserved histories beyond the event window. Run `pnpm generated:check`.
-- [ ] Commit: `feat: add consistent workspace sync snapshots`.
+- [x] Capture accepted metadata and the workspace high-water cursor in one repeatable-read transaction. Materialize bounded metadata pages for 15 minutes. Recheck current membership on every page and content read; do not hold a database transaction open across network pages.
+- [x] Allocate incremental cursors under the workspace lock used by every relevant write, including membership, deletion, and share revocation. Keep events for 90 days and retain accepted receipts until account/workspace purge. A snapshot cursor covers exactly the captured state.
+- [x] Add pagination limits and admission limits per account/workspace. Clean expired snapshots and old events without deleting content history. Reject unsupported sync versions before applying a mutation.
+- [x] Run `pnpm test:integration -- snapshots`. Interleave late commits and page reads; prove no skipped event, no mixed current-head content, correct expiry, denied revoked access, and preserved histories beyond the event window. Run `pnpm generated:check`.
+- [x] Commit: `feat: add consistent workspace sync snapshots`.
+
+Execution record (2026-09-06): commit `8a01e85`. Checks: typecheck, lint, format, contract lint, generated check, 364 unit tests, 8 snapshots integration tests, plus history (12), revisions (29), storage (24) regression checks.
 
 ### [ ] Task 10: Implement local drafts, checkpoints, and queue persistence
 
