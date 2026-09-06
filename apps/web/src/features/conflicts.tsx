@@ -32,7 +32,7 @@ import {
   type BranchResolutionInput,
   type RevisionInput,
 } from '@notesapp/api-client';
-import { contentDigest, normalizePath } from '@notesapp/core';
+import { contentDigest, generateUUID, normalizePath } from '@notesapp/core';
 import { mergeHunks, type DiffHunk, type HunkDecision } from '@notesapp/editor';
 import type { LocalStore, QueueEntry } from '@notesapp/sync';
 import { Button, StatusRegion, TextField } from '@notesapp/ui';
@@ -836,7 +836,7 @@ function ConflictGroup({
           fileId: draft.fileId,
           expectedHead: draft.expectedHead,
           branchTip: draft.branchTip,
-          revisionId: crypto.randomUUID(),
+          revisionId: generateUUID(),
           path: draft.path,
           content: {
             kind: 'markdown',
@@ -851,7 +851,7 @@ function ConflictGroup({
           fileId: draft.fileId,
           expectedHead: draft.expectedHead,
           branchTip: draft.branchTip,
-          revisionId: crypto.randomUUID(),
+          revisionId: generateUUID(),
           path: draft.path,
           content: {
             kind: 'attachment',
@@ -866,7 +866,7 @@ function ConflictGroup({
     const result = await resolveBranches({
       path: { workspaceId },
       body: {
-        mutationId: crypto.randomUUID(),
+        mutationId: generateUUID(),
         deviceId: store?.deviceId ?? 'web-device',
         clientTime: new Date().toISOString(),
         conflictGroupId: groupId,
@@ -1609,9 +1609,9 @@ function PendingConflicts({
     const result = await submitBranch({
       path: { workspaceId },
       body: {
-        mutationId: crypto.randomUUID(),
+        mutationId: generateUUID(),
         deviceId: store?.deviceId ?? 'web-device',
-        conflictGroupId: crypto.randomUUID(),
+        conflictGroupId: generateUUID(),
         expectedHeads: { ...entry.input.expectedHeads },
         revisions,
       },

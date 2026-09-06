@@ -21,6 +21,7 @@ import {
   getFile,
   uploadAttachment,
 } from '@notesapp/api-client';
+import { generateUUID } from '@notesapp/core';
 import {
   createCheckpointScheduler,
   isLocalStorageError,
@@ -232,7 +233,7 @@ export function NoteEditor({
   >(new Map());
   const [mathReady, setMathReady] = useState(false);
   const workingCopyId = useMemo(
-    () => initialWorkingCopyId ?? crypto.randomUUID(),
+    () => initialWorkingCopyId ?? generateUUID(),
     [initialWorkingCopyId],
   );
   const mathRenderRef = useRef<
@@ -619,8 +620,8 @@ export function NoteEditor({
             );
             continue;
           }
-          const fileId = crypto.randomUUID();
-          const revisionId = crypto.randomUUID();
+          const fileId = generateUUID();
+          const revisionId = generateUUID();
           const safeName = sanitizeAttachmentName(file.name);
           const finalized = await finalizeAttachment({
             path: {
@@ -630,7 +631,7 @@ export function NoteEditor({
             body: {
               fileId,
               revisionId,
-              mutationId: crypto.randomUUID(),
+              mutationId: generateUUID(),
               deviceId: current.store.deviceId,
               path: `attachments/${fileId}-${safeName}`,
               digest: uploaded.data.digest,

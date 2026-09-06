@@ -33,6 +33,7 @@ import {
   submitBranch,
 } from '@notesapp/api-client';
 import {
+  generateUUID,
   requestDigest,
   type AcceptedChangeset,
   type ChangesetInput,
@@ -163,7 +164,7 @@ export type EngineOptions = {
   readonly clock?: () => number;
   /** Randomness for backoff jitter. Defaults to `Math.random`. */
   readonly random?: () => number;
-  /** Client generated identifiers. Defaults to `crypto.randomUUID`. */
+  /** Client generated identifiers. Defaults to `generateUUID`. */
   readonly id?: () => string;
   /** Abortable wait. Defaults to a timer. */
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
@@ -226,7 +227,7 @@ export function createSyncEngine(
 ): SyncEngine {
   const clock = options.clock ?? Date.now;
   const random = options.random ?? Math.random;
-  const newId = options.id ?? ((): string => crypto.randomUUID());
+  const newId = options.id ?? ((): string => generateUUID());
   const sleep = options.sleep ?? defaultSleep;
   const pollIntervalMs = options.pollIntervalMs ?? 15_000;
   const leaseTtlMs = options.leaseTtlMs ?? 30_000;

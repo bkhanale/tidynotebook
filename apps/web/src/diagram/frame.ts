@@ -24,6 +24,7 @@
  * the diagram chunk later. The parent side of this module holds no diagram
  * library at all.
  */
+import { generateUUID } from '@notesapp/core';
 
 /** The palette name the frame renders with. */
 export type DiagramTheme = 'light' | 'dark';
@@ -167,7 +168,7 @@ export function createDiagramFrame(options: DiagramFrameOptions): {
   wrapper.className = 'notes-diagram';
   wrapper.setAttribute('data-notesapp-diagram', 'pending');
 
-  const requestId = crypto.randomUUID();
+  const requestId = generateUUID();
   const timeoutMs = options.timeoutMs ?? diagramLimits.maxRenderMs;
   let settled = false;
   let timer = 0;

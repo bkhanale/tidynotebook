@@ -1,6 +1,7 @@
 /** Creates a local-first note without loading the editor implementation. */
 import { useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
+import { generateUUID } from '@notesapp/core';
 import {
   isLocalStorageError,
   type Draft,
@@ -52,8 +53,8 @@ export function NewNoteButton({
               setError('Local storage is unavailable.');
               return;
             }
-            const fileId = crypto.randomUUID();
-            const workingCopyId = crypto.randomUUID();
+            const fileId = generateUUID();
+            const workingCopyId = generateUUID();
             const draft: Draft = {
               accountId,
               workspaceId,

@@ -17,7 +17,7 @@
  * The clock and the identifier source are injected, so a test produces the
  * same records twice.
  */
-import { contentDigest } from '@notesapp/core';
+import { contentDigest, generateUUID } from '@notesapp/core';
 import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
 import {
   LocalStorageError,
@@ -96,7 +96,7 @@ export async function openLocalStore(
   if (serverOrigin === '')
     throw new LocalStorageError('unavailable', 'the server origin is empty');
   const clock = options.now ?? Date.now;
-  const newId = options.id ?? ((): string => crypto.randomUUID());
+  const newId = options.id ?? ((): string => generateUUID());
   const nowIso = (): string => new Date(clock()).toISOString();
   const backend: {
     indexedDB?: IDBFactory;

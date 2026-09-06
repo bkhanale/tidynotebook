@@ -5,6 +5,7 @@ import {
   canonicalJson,
   contentDigest,
   requestDigest,
+  sha256Fallback,
 } from './digest.ts';
 
 /**
@@ -42,6 +43,45 @@ await test('a content digest applies no unicode normalization', async () => {
     await contentDigest('caf\u00e9'),
     await contentDigest('cafe\u0301'),
   );
+});
+
+await test('sha256Fallback matches known answers exactly', () => {
+  const hexDigits = '0123456789abcdef';
+  function toHex(bytes: Uint8Array): string {
+    let text = '';
+    for (const byte of bytes) {
+      text += hexDigits[(byte >> 4) & 0xf] ?? '0';
+      text += hexDigits[byte & 0xf] ?? '0';
+    }
+    return text;
+  }
+  for (const [text, expected] of knownDigests) {
+    const bytes = new TextEncoder().encode(text);
+    assert.equal(toHex(sha256Fallback(bytes)), expected, JSON.stringify(text));
+  }
+});
+
+await test('contentDigest falls back when crypto.subtle is unavailable', async () => {
+  const originalCrypto = globalThis.crypto;
+  try {
+    // Insecure browser context where subtle is undefined
+    Object.defineProperty(globalThis, 'crypto', {
+      value: {
+        getRandomValues: originalCrypto.getRandomValues.bind(originalCrypto),
+      },
+      configurable: true,
+      writable: true,
+    });
+    for (const [text, expected] of knownDigests) {
+      assert.equal(await contentDigest(text), expected, JSON.stringify(text));
+    }
+  } finally {
+    Object.defineProperty(globalThis, 'crypto', {
+      value: originalCrypto,
+      configurable: true,
+      writable: true,
+    });
+  }
 });
 
 await test('canonical json sorts object keys at every depth', () => {

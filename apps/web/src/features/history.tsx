@@ -25,6 +25,7 @@ import {
   restoreRevision,
   type HistoryRevisionItem,
 } from '@notesapp/api-client';
+import { generateUUID } from '@notesapp/core';
 import { alignLines, type DiffHunk } from '@notesapp/editor';
 import type { CheckpointRecord, LocalStore } from '@notesapp/sync';
 import { Button, StatusRegion, TextField } from '@notesapp/ui';
@@ -449,7 +450,7 @@ function HistoryDetail({
       headers: { 'if-match': head.etag },
       path: { workspaceId, fileId },
       body: {
-        mutationId: crypto.randomUUID(),
+        mutationId: generateUUID(),
         deviceId: store?.deviceId ?? 'web-device',
         clientTime: new Date().toISOString(),
         name,
@@ -473,12 +474,12 @@ function HistoryDetail({
     const result = await restoreRevision({
       path: { workspaceId, fileId },
       body: {
-        mutationId: crypto.randomUUID(),
+        mutationId: generateUUID(),
         deviceId: store?.deviceId ?? 'web-device',
         clientTime: new Date().toISOString(),
         targetRevisionId,
         expectedHead: head.headRevisionId,
-        revisionId: crypto.randomUUID(),
+        revisionId: generateUUID(),
         message: null,
       },
     });

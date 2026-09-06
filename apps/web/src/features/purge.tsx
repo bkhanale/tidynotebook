@@ -28,7 +28,7 @@ import {
   type PurgePreview,
   type WorkspaceFileSummary,
 } from '@notesapp/api-client';
-import { normalizePath } from '@notesapp/core';
+import { generateUUID, normalizePath } from '@notesapp/core';
 import type { LocalStore } from '@notesapp/sync';
 import { Button, StatusRegion, TextField } from '@notesapp/ui';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
@@ -278,7 +278,7 @@ function PurgeDetail({
     setCaptured(texts);
     const result = await purgeFiles({
       path: { workspaceId },
-      body: { mutationId: crypto.randomUUID(), fileIds: [...selected] },
+      body: { mutationId: generateUUID(), fileIds: [...selected] },
     });
     setBusy(false);
     if (result.error !== undefined || result.data === undefined) {
@@ -307,15 +307,15 @@ function PurgeDetail({
       );
       return;
     }
-    const fileId = crypto.randomUUID();
+    const fileId = generateUUID();
     const result = await createFile({
       path: { workspaceId },
       body: {
         fileId,
         path: pathCheck.value,
         text: entry.text,
-        revisionId: crypto.randomUUID(),
-        mutationId: crypto.randomUUID(),
+        revisionId: generateUUID(),
+        mutationId: generateUUID(),
         deviceId: store?.deviceId ?? 'web-device',
       },
     });

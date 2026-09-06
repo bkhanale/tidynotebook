@@ -159,12 +159,17 @@ function useStoreLoader(origin: string): StoreValue {
         if (!cancelled) setStore(opened);
         else await opened.close();
       } catch (failure: unknown) {
-        if (!cancelled)
+        if (!cancelled) {
+          const detail =
+            failure instanceof Error && failure.cause instanceof Error
+              ? `: ${failure.cause.message}`
+              : '';
           setError(
             failure instanceof Error
-              ? failure.message
+              ? `${failure.message}${detail}`
               : 'Local storage is unavailable.',
           );
+        }
       }
     }
     void open();

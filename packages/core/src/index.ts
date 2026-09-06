@@ -12,6 +12,7 @@
  */
 export type { Action, Actor, Grant, Role } from './identity/actor.ts';
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
+export { generateUUID } from './identity/uuid.ts';
 export type {
   AcceptedChangeset,
   AcceptedRevision,
