@@ -383,7 +383,7 @@ Execution record (2026-09-06): commit `80240e4`. Checks: 448 unit, history 12, s
 
 Execution record (2026-09-06): commit `6a31f79`. Checks: offline-lifecycle 12, browser-storage 12, unit 448, typecheck/lint/format/build clean.
 
-### [ ] Task 18: Implement stable links, backlinks, and search
+### [x] Task 18: Implement stable links, backlinks, and search
 
 **Depends on:** Tasks 12 and 17.
 
@@ -391,11 +391,13 @@ Execution record (2026-09-06): commit `6a31f79`. Checks: offline-lifecycle 12, b
 
 **Interfaces:** Operation IDs are `searchFiles` and `getBacklinks`. Define `SearchHit = { fileId: string; path: string; revisionId: string; excerpt: string }` in the domain search module. Produces `searchLocal(query: string, files: readonly { fileId: string; path: string; revisionId: string; text: string }[]): readonly SearchHit[]`. Transport maps domain hits into generated response schemas.
 
-- [ ] Add workspace-filtered PostgreSQL text search with the `simple` configuration on accepted titles/content. Update indexes in the acceptance transaction. Exclude deleted files, branch tips, and history from normal results.
-- [ ] Add wiki-link completion that requires selection for ambiguous titles and writes the stable ID syntax from Task 12. Follow-up from the Task 12 review: the Markdown policy blocks author-written `#fragment` links because rendered headings carry no ids yet. When heading slugs are added (here or in Task 15), allow `^#[A-Za-z0-9_-]+$` against `user-content-` namespaced heading ids and add corpus tests. Keep unresolved references visible. Build backlinks from accepted source revisions and check access to both ends before returning metadata.
-- [ ] Search downloaded accepted content plus current local drafts offline. Prefer a draft over its accepted version for local results and do not mix accounts/workspaces. Add the search dialog, outline, and backlinks panel without changing editor selection.
-- [ ] Run `pnpm test:integration -- search` and sync/Markdown unit tests. Verify rename-safe links, ambiguity, no private target metadata, deletion index removal, and pending draft search. Run `pnpm generated:check` and `pnpm build`.
-- [ ] Commit: `feat: add linked notes and workspace search`.
+- [x] Add workspace-filtered PostgreSQL text search with the `simple` configuration on accepted titles/content. Update indexes in the acceptance transaction. Exclude deleted files, branch tips, and history from normal results.
+- [x] Add wiki-link completion that requires selection for ambiguous titles and writes the stable ID syntax from Task 12. Follow-up from the Task 12 review: the Markdown policy blocks author-written `#fragment` links because rendered headings carry no ids yet. When heading slugs are added (here or in Task 15), allow `^#[A-Za-z0-9_-]+$` against `user-content-` namespaced heading ids and add corpus tests. Keep unresolved references visible. Build backlinks from accepted source revisions and check access to both ends before returning metadata.
+- [x] Search downloaded accepted content plus current local drafts offline. Prefer a draft over its accepted version for local results and do not mix accounts/workspaces. Add the search dialog, outline, and backlinks panel without changing editor selection.
+- [x] Run `pnpm test:integration -- search` and sync/Markdown unit tests. Verify rename-safe links, ambiguity, no private target metadata, deletion index removal, and pending draft search. Run `pnpm generated:check` and `pnpm build`.
+- [x] Commit: `feat: add linked notes and workspace search`.
+
+Execution record (2026-09-06): commit `6ab5270`. Checks: search 5, sync 32, Markdown 133, contract 25, generated check, typecheck/lint/format/build clean.
 
 ### [ ] Task 19: Implement pinned public sharing
 
