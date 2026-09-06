@@ -10,6 +10,7 @@
 import {
   lazy,
   Suspense,
+  useCallback,
   useEffect,
   useMemo,
   useState,
@@ -17,13 +18,30 @@ import {
 } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
-import { Button, CollapsibleSection, StatusRegion } from '@notesapp/ui';
+import {
+  Badge,
+  Button,
+  ChevronDownIcon,
+  ChevronRightIcon,
+  CollapsibleSection,
+  FileTextIcon,
+  FolderIcon,
+  FolderOpenIcon,
+  HistoryIcon,
+  MenuIcon,
+  MoonIcon,
+  StatusRegion,
+  SunIcon,
+  UserIcon,
+  WorkspaceIcon,
+} from '@notesapp/ui';
 import '../shell.css';
 import {
   problemMessage,
   useLocalSnapshotStatus,
   useLocalStore,
   useSession,
+  useTheme,
   useWorkspaceSync,
 } from '../app.tsx';
 import {
@@ -36,6 +54,7 @@ import {
 import { NewNoteButton } from './new-note.tsx';
 import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
 import { SearchDialog } from './search.tsx';
+
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
 }));
@@ -77,11 +96,16 @@ function recentFiles(
 }
 
 /** One node of the rendered file tree. */
-type TreeNode =
-  | { readonly kind: 'file'; readonly file: WorkspaceFileSummary }
+export type TreeNode =
+  | {
+      readonly kind: 'file';
+      readonly file: WorkspaceFileSummary;
+      readonly basename: string;
+    }
   | {
       readonly kind: 'folder';
       readonly name: string;
+      readonly fullPath: string;
       readonly children: readonly TreeNode[];
     };
 
@@ -91,7 +115,10 @@ export function buildFileTree(
 ): readonly TreeNode[] {
   type MutableFolder = {
     readonly folders: Map<string, MutableFolder>;
-    readonly files: WorkspaceFileSummary[];
+    readonly files: Array<{
+      readonly file: WorkspaceFileSummary;
+      readonly basename: string;
+    }>;
   };
   const root: MutableFolder = { folders: new Map(), files: [] };
   const ordered = [...files].sort((a, b) => (a.path < b.path ? -1 : 1));
@@ -107,60 +134,117 @@ export function buildFileTree(
       }
       current = next;
     }
-    current.files.push(file);
+    const basename = segments.at(-1) ?? file.path;
+    current.files.push({ file, basename });
   }
-  const render = (folder: MutableFolder): readonly TreeNode[] => {
+  const render = (
+    folder: MutableFolder,
+    prefix: string,
+  ): readonly TreeNode[] => {
     const folders = [...folder.folders.entries()]
       .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      .map(([name, child]): TreeNode => ({
-        kind: 'folder',
-        name,
-        children: render(child),
-      }));
-    const leaves = folder.files.map((file): TreeNode => ({
+      .map(([name, child]): TreeNode => {
+        const fullPath = prefix === '' ? name : `${prefix}/${name}`;
+        return {
+          kind: 'folder',
+          name,
+          fullPath,
+          children: render(child, fullPath),
+        };
+      });
+    const leaves = folder.files.map(({ file, basename }): TreeNode => ({
       kind: 'file',
       file,
+      basename,
     }));
     return [...folders, ...leaves];
   };
-  return render(root);
+  return render(root, '');
 }
 
-/** Renders one tree node as nested lists. */
+/** Renders the tree nodes as interactive collapsible lists. */
 function TreeView({
   nodes,
   workspaceId,
+  activeFileId,
+  openFolders,
+  onToggleFolder,
   onNavigate,
 }: {
   readonly nodes: readonly TreeNode[];
   readonly workspaceId: string;
+  readonly activeFileId: string | null;
+  readonly openFolders: ReadonlySet<string>;
+  readonly onToggleFolder: (path: string) => void;
   readonly onNavigate: () => void;
 }): ReactNode {
-  if (nodes.length === 0) return <p>No files yet.</p>;
+  if (nodes.length === 0) {
+    return <p className="notes-status-region">No files yet.</p>;
+  }
+
   return (
-    <ul className="notes-tree">
-      {nodes.map((node) =>
-        node.kind === 'file' ? (
-          <li key={node.file.fileId}>
-            <Link
-              className="notes-tree-link"
-              to={`/w/${workspaceId}/notes/${node.file.fileId}`}
-              onClick={onNavigate}
+    <ul className="notes-tree-list">
+      {nodes.map((node) => {
+        if (node.kind === 'file') {
+          const isActive = node.file.fileId === activeFileId;
+          return (
+            <li key={node.file.fileId}>
+              <Link
+                className={`notes-tree-item${isActive ? ' active' : ''}`}
+                to={`/w/${workspaceId}/notes/${node.file.fileId}`}
+                onClick={onNavigate}
+                title={node.file.path}
+                aria-current={isActive ? 'page' : undefined}
+              >
+                <span className="notes-tree-icon" aria-hidden="true">
+                  <FileTextIcon size={14} />
+                </span>
+                <span className="notes-tree-file-name">{node.basename}</span>
+              </Link>
+            </li>
+          );
+        }
+
+        const isOpen = openFolders.has(node.fullPath);
+        return (
+          <li key={`folder:${node.fullPath}`}>
+            <button
+              type="button"
+              className="notes-tree-folder-btn"
+              onClick={() => onToggleFolder(node.fullPath)}
+              aria-expanded={isOpen}
             >
-              {node.file.path}
-            </Link>
+              <span className="notes-tree-icon" aria-hidden="true">
+                {isOpen ? (
+                  <ChevronDownIcon size={13} />
+                ) : (
+                  <ChevronRightIcon size={13} />
+                )}
+              </span>
+              <span className="notes-tree-icon" aria-hidden="true">
+                {isOpen ? (
+                  <FolderOpenIcon size={15} />
+                ) : (
+                  <FolderIcon size={15} />
+                )}
+              </span>
+              <span className="notes-tree-file-name">{node.name}</span>
+            </button>
+            {isOpen ? (
+              <div className="notes-tree-nested">
+                <TreeView
+                  nodes={node.children}
+                  workspaceId={workspaceId}
+                  activeFileId={activeFileId}
+                  openFolders={openFolders}
+                  onToggleFolder={onToggleFolder}
+                  onNavigate={onNavigate}
+                />
+              </div>
+            ) : null}
           </li>
-        ) : (
-          <li key={`folder:${node.name}`}>
-            <span className="notes-tree-folder">{node.name}/</span>
-            <TreeView
-              nodes={node.children}
-              workspaceId={workspaceId}
-              onNavigate={onNavigate}
-            />
-          </li>
-        ),
-      )}
+        );
+      })}
     </ul>
   );
 }
@@ -177,23 +261,55 @@ function Sidebar({
   const params = useParams();
   const fileId = typeof params.fileId === 'string' ? params.fileId : null;
   const session = useSession();
-  const local = useLocalStore();
+  const store = useLocalStore();
   const [filter, setFilter] = useState('');
   const [files, setFiles] = useState<readonly WorkspaceFileSummary[]>([]);
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(false);
+  const [openFolders, setOpenFolders] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+
+  const activeWorkspace = useMemo(() => {
+    if (state.status !== 'ready' || workspaceId === null) return null;
+    return findWorkspace(state.workspaces, workspaceId);
+  }, [state, workspaceId]);
+
+  const toggleFolder = useCallback((folderPath: string): void => {
+    setOpenFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderPath)) next.delete(folderPath);
+      else next.add(folderPath);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (workspaceId === null) {
       setFiles([]);
       return;
     }
-    const activeWorkspace = workspaceId;
+    const activeWs = workspaceId;
     let cancelled = false;
     async function load(): Promise<void> {
       try {
-        const loaded = await loadAllFiles(activeWorkspace);
-        if (!cancelled) setFiles(loaded.files);
+        const loaded = await loadAllFiles(activeWs);
+        if (!cancelled) {
+          setFiles(loaded.files);
+          // Expand all folders by default on initial file load
+          const allFolders = new Set<string>();
+          for (const file of loaded.files) {
+            const parts = file.path.split('/');
+            let current = '';
+            for (let i = 0; i < parts.length - 1; i += 1) {
+              const segment = parts[i] ?? '';
+              if (segment === '') continue;
+              current = current === '' ? segment : `${current}/${segment}`;
+              allFolders.add(current);
+            }
+          }
+          setOpenFolders(allFolders);
+        }
       } catch {
         if (!cancelled) setFiles([]);
       }
@@ -210,66 +326,129 @@ function Sidebar({
     return files.filter((file) => file.path.toLowerCase().includes(needle));
   }, [files, filter]);
 
+  const canEdit = activeWorkspace !== null && canWrite(activeWorkspace.role);
+
   return (
-    <div className="notes-sidebar-body">
-      <nav aria-label="Workspaces">
-        <h2>Workspace</h2>
+    <>
+      {activeWorkspace !== null ? (
+        <div className="notes-sidebar-workspace">
+          <div className="notes-sidebar-workspace-info">
+            <span className="notes-tree-icon" aria-hidden="true">
+              <WorkspaceIcon size={16} />
+            </span>
+            <span className="notes-sidebar-workspace-name">
+              {activeWorkspace.name}
+            </span>
+          </div>
+          <Badge
+            variant={activeWorkspace.role === 'owner' ? 'accent' : 'default'}
+          >
+            {activeWorkspace.role}
+          </Badge>
+        </div>
+      ) : null}
+
+      {workspaceId !== null && canEdit && session.account !== null ? (
+        <div className="notes-sidebar-action">
+          <NewNoteButton
+            store={store.store}
+            accountId={session.account.accountId}
+            workspaceId={workspaceId}
+            variant="primary"
+          />
+        </div>
+      ) : null}
+
+      <nav aria-label="Workspaces" className="notes-sidebar-section">
+        <h2 className="notes-sidebar-heading">Workspaces</h2>
         {state.status === 'ready' ? (
-          <ul>
-            {state.workspaces.map((entry) => (
-              <li key={entry.workspaceId}>
-                <Link
-                  className="notes-tree-link"
-                  to={`/w/${entry.workspaceId}`}
-                  onClick={onNavigate}
-                  aria-current={
-                    entry.workspaceId === workspaceId ? 'page' : undefined
-                  }
-                >
-                  {entry.name}
-                </Link>
-              </li>
-            ))}
+          <ul className="notes-tree-list">
+            {state.workspaces.map((entry) => {
+              const isActive = entry.workspaceId === workspaceId;
+              return (
+                <li key={entry.workspaceId}>
+                  <Link
+                    className={`notes-tree-item${isActive ? ' active' : ''}`}
+                    to={`/w/${entry.workspaceId}`}
+                    onClick={onNavigate}
+                    aria-current={isActive ? 'page' : undefined}
+                  >
+                    <span className="notes-tree-icon" aria-hidden="true">
+                      <WorkspaceIcon size={14} />
+                    </span>
+                    <span className="notes-tree-file-name">{entry.name}</span>
+                    <Badge
+                      variant={entry.role === 'owner' ? 'accent' : 'default'}
+                    >
+                      {entry.role}
+                    </Badge>
+                  </Link>
+                </li>
+              );
+            })}
           </ul>
         ) : (
           <StatusRegion message="Loading workspaces." />
         )}
       </nav>
+
       {workspaceId === null ? null : (
         <>
           <SearchDialog
-            store={local.store}
+            store={store.store}
             accountId={session.account?.accountId ?? null}
             workspaceId={workspaceId}
             onNavigate={onNavigate}
           />
-          <section aria-labelledby="recent-heading">
-            <h2 id="recent-heading">Recent files</h2>
-            <ul>
-              {recentFiles(files).map((file) => (
-                <li key={file.fileId}>
-                  <Link
-                    className="notes-tree-link"
-                    to={`/w/${workspaceId}/notes/${file.fileId}`}
-                    onClick={onNavigate}
-                  >
-                    {file.path}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </section>
-          <section aria-labelledby="tree-heading">
-            <h2 id="tree-heading">Files</h2>
-            <label className="notes-label" htmlFor="notes-filter">
-              Filter files
-            </label>
+
+          {recentFiles(files).length > 0 ? (
+            <section
+              aria-labelledby="recent-heading"
+              className="notes-sidebar-section"
+            >
+              <h2 id="recent-heading" className="notes-sidebar-heading">
+                Recent files
+              </h2>
+              <ul className="notes-tree-list">
+                {recentFiles(files).map((file) => {
+                  const isActive = file.fileId === fileId;
+                  const basename = file.path.split('/').at(-1) ?? file.path;
+                  return (
+                    <li key={file.fileId}>
+                      <Link
+                        className={`notes-tree-item${isActive ? ' active' : ''}`}
+                        to={`/w/${workspaceId}/notes/${file.fileId}`}
+                        onClick={onNavigate}
+                        title={file.path}
+                        aria-current={isActive ? 'page' : undefined}
+                      >
+                        <span className="notes-tree-icon" aria-hidden="true">
+                          <HistoryIcon size={14} />
+                        </span>
+                        <span className="notes-tree-file-name">{basename}</span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          ) : null}
+
+          <section
+            aria-labelledby="tree-heading"
+            className="notes-sidebar-section"
+          >
+            <h2 id="tree-heading" className="notes-sidebar-heading">
+              <span>Files</span>
+              <span className="notes-collapsible-count">{files.length}</span>
+            </h2>
             <input
               id="notes-filter"
               className="notes-input"
-              type="text"
+              type="search"
               value={filter}
-              placeholder="Type to filter"
+              placeholder="Filter files..."
+              aria-label="Filter files"
               onChange={(event): void => {
                 setFilter(event.target.value);
               }}
@@ -277,9 +456,13 @@ function Sidebar({
             <TreeView
               nodes={buildFileTree(visible)}
               workspaceId={workspaceId}
+              activeFileId={fileId}
+              openFolders={openFolders}
+              onToggleFolder={toggleFolder}
               onNavigate={onNavigate}
             />
           </section>
+
           <CollapsibleSection
             id="notes-outline"
             title="Outline"
@@ -288,6 +471,7 @@ function Sidebar({
           >
             <OutlinePanel workspaceId={workspaceId} fileId={fileId} />
           </CollapsibleSection>
+
           <CollapsibleSection
             id="notes-backlinks"
             title="Backlinks"
@@ -302,7 +486,7 @@ function Sidebar({
           </CollapsibleSection>
         </>
       )}
-    </div>
+    </>
   );
 }
 
@@ -320,6 +504,15 @@ export function Shell(): ReactNode {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const session = useSession();
   const store = useLocalStore();
+  const { resolved, setChoice } = useTheme();
+  const { state: workspaceState } = useWorkspaces();
+
+  const activeWorkspace = useMemo(() => {
+    if (workspaceState.status !== 'ready' || workspaceId === null) return null;
+    return findWorkspace(workspaceState.workspaces, workspaceId);
+  }, [workspaceState, workspaceId]);
+
+  const canEdit = activeWorkspace !== null && canWrite(activeWorkspace.role);
   const accountId = session.account?.accountId ?? null;
   const syncMessage = useWorkspaceSync(store.store, accountId, workspaceId);
   const localMessage = useLocalSnapshotStatus(
@@ -342,29 +535,98 @@ export function Shell(): ReactNode {
     };
   }, []);
 
+  const toggleTheme = (): void => {
+    setChoice(resolved === 'dark' ? 'light' : 'dark');
+  };
+
   return (
     <div className={`notes-shell${drawerOpen ? ' drawer-open' : ''}`}>
       <a className="notes-skip-link" href="#notes-content">
         Skip to content
       </a>
+
       <header className="notes-header">
         <Button
-          variant="secondary"
+          variant="ghost"
+          size="sm"
+          className="notes-header-menu-btn"
           label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+          icon={<MenuIcon size={18} />}
           onClick={() => {
             setDrawerOpen((open) => !open);
           }}
         >
           Menu
         </Button>
-        <Link className="notes-brand" to="/">
-          Notesapp
-        </Link>
+
+        <div className="notes-header-brand-group">
+          <Link className="notes-brand" to="/">
+            <span className="notes-brand-badge" aria-hidden="true">
+              <WorkspaceIcon size={16} />
+            </span>
+            <span>Notesapp</span>
+          </Link>
+          {activeWorkspace !== null ? (
+            <Link
+              to={`/w/${activeWorkspace.workspaceId}`}
+              className="notes-header-workspace-badge"
+              title={`Active workspace: ${activeWorkspace.name}`}
+            >
+              <span>{activeWorkspace.name}</span>
+            </Link>
+          ) : null}
+        </div>
+
         <span className="notes-header-spacer" />
-        <Link className="notes-tree-link" to="/settings">
-          {session.account?.email ?? 'Account'}
-        </Link>
+
+        <div className="notes-header-actions">
+          {workspaceId !== null && canEdit && session.account !== null ? (
+            <NewNoteButton
+              store={store.store}
+              accountId={session.account.accountId}
+              workspaceId={workspaceId}
+              variant="primary"
+              size="sm"
+            />
+          ) : null}
+
+          <Button
+            variant="ghost"
+            size="sm"
+            label={
+              resolved === 'dark'
+                ? 'Switch to light mode'
+                : 'Switch to dark mode'
+            }
+            icon={
+              resolved === 'dark' ? (
+                <SunIcon size={16} />
+              ) : (
+                <MoonIcon size={16} />
+              )
+            }
+            onClick={toggleTheme}
+          >
+            {resolved === 'dark' ? 'Light' : 'Dark'}
+          </Button>
+
+          <Link
+            className="notes-account-pill"
+            to="/settings"
+            title="Account settings"
+          >
+            <UserIcon size={14} />
+            <span>{session.account?.email ?? 'Account'}</span>
+          </Link>
+        </div>
       </header>
+
+      <div
+        className="notes-drawer-backdrop"
+        onClick={() => setDrawerOpen(false)}
+        aria-hidden="true"
+      />
+
       <aside
         id="notes-sidebar"
         className="notes-sidebar"
@@ -374,10 +636,7 @@ export function Shell(): ReactNode {
           workspaceId={workspaceId}
           onNavigate={() => setDrawerOpen(false)}
         />
-      </aside>
-      <div id="notes-content" className="notes-content">
-        <Outlet />
-        <footer>
+        <div className="notes-sidebar-footer">
           <StatusRegion message={syncMessage} />
           {localMessage !== '' ? <StatusRegion message={localMessage} /> : null}
           {store.error !== null ? (
@@ -385,7 +644,11 @@ export function Shell(): ReactNode {
               {store.error}
             </p>
           ) : null}
-        </footer>
+        </div>
+      </aside>
+
+      <div id="notes-content" className="notes-content">
+        <Outlet />
       </div>
     </div>
   );
@@ -464,47 +727,60 @@ function WorkspaceDetail({
   const writable = canWrite(role);
   const session = useSession();
   const store = useLocalStore();
+
   return (
     <main>
-      <h1>{name}</h1>
-      <p>
-        Role: {role}
-        {personal ? ' (personal)' : ''}
-      </p>
+      <div className="notes-doc-header">
+        <div className="notes-doc-toolbar">
+          <div>
+            <h1 style={{ margin: '0 0 4px 0' }}>{name}</h1>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <Badge variant={role === 'owner' ? 'accent' : 'default'}>
+                Role: {role}
+              </Badge>
+              {personal ? <Badge variant="default">Personal</Badge> : null}
+            </div>
+          </div>
+          {writable && session.account !== null ? (
+            <NewNoteButton
+              store={store.store}
+              accountId={session.account.accountId}
+              workspaceId={workspaceId}
+              variant="primary"
+            />
+          ) : null}
+        </div>
+        <div className="notes-doc-nav-links">
+          <Link to={`/w/${workspaceId}/conflicts`}>Conflicts</Link>
+          <span>•</span>
+          <Link to={`/w/${workspaceId}/purge`}>Deletion and purge</Link>
+          <span>•</span>
+          <Link to={`/w/${workspaceId}/offline`}>Offline status</Link>
+          <span>•</span>
+          <Link to={`/w/${workspaceId}/recovery`}>Access and recovery</Link>
+        </div>
+      </div>
+
       {!writable ? (
-        <p>
+        <p className="notes-status-region">
           This workspace is read-only for viewers. File editing and membership
           controls are hidden for this role.
         </p>
       ) : null}
-      {writable && session.account !== null ? (
-        <NewNoteButton
-          store={store.store}
-          accountId={session.account.accountId}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <WorkspaceMembers
           workspaceId={workspaceId}
-        />
-      ) : null}
-      <p>Open a note from the sidebar to edit it in the one-pane editor.</p>
-      <p>
-        <Link to={`/w/${workspaceId}/conflicts`}>Conflicts.</Link>
-        {' | '}
-        <Link to={`/w/${workspaceId}/purge`}>Deletion and purge.</Link>
-        {' | '}
-        <Link to={`/w/${workspaceId}/offline`}>Offline status.</Link>
-        {' | '}
-        <Link to={`/w/${workspaceId}/recovery`}>Access and recovery.</Link>
-      </p>
-      <WorkspaceMembers
-        workspaceId={workspaceId}
-        role={role}
-        onChanged={onChanged}
-      />
-      {role === 'owner' ? (
-        <WorkspaceOwnerControls
-          workspace={{ workspaceId, name, role, personal }}
+          role={role}
           onChanged={onChanged}
         />
-      ) : null}
+        {role === 'owner' ? (
+          <WorkspaceOwnerControls
+            workspace={{ workspaceId, name, role, personal }}
+            onChanged={onChanged}
+          />
+        ) : null}
+      </div>
     </main>
   );
 }
@@ -544,15 +820,16 @@ export function NoteView(): ReactNode {
 
   return (
     <>
-      <p>
+      <div className="notes-doc-nav-links" style={{ marginBottom: '12px' }}>
         <Link to={`/w/${workspaceId}/notes/${fileId}/history`}>
-          History, checkpoints, and restore.
+          <HistoryIcon size={14} />
+          <span>History and checkpoints</span>
         </Link>
-        {' | '}
+        <span>•</span>
         <Link to={`/w/${workspaceId}/conflicts?fileId=${fileId}`}>
-          Conflicts of this file.
+          <span>Conflicts of this file</span>
         </Link>
-      </p>
+      </div>
       {role === 'owner' || role === 'admin' ? (
         <Suspense fallback={<StatusRegion message="Loading sharing tools." />}>
           <SharingPanel workspaceId={workspaceId} fileId={fileId} />

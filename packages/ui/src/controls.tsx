@@ -3,44 +3,91 @@
  *
  * Every control is a thin wrapper over a native element, so keyboard use,
  * focus, labels, and touch target size come from the platform. Styling uses
- * the classes in `tokens.css`, which guarantees a 44 pixel minimum target,
- * a visible focus ring, and reduced motion support. Controls take plain
- * props and know nothing about accounts, workspaces, or the network.
+ * the classes in `tokens.css`, which guarantees visible focus rings,
+ * reduced motion support, and clear interactive feedback.
  */
-import type { ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
+import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
 
 /** A labeled push button. */
 export function Button({
   type,
-  variant,
+  variant = 'primary',
+  size = 'md',
   disabled,
   onClick,
   children,
   label,
+  icon,
+  className: extraClassName,
+  style,
+  title,
 }: {
   readonly type?: 'button' | 'submit' | undefined;
-  readonly variant?: 'primary' | 'secondary' | 'danger' | undefined;
+  readonly variant?:
+    'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle' | undefined;
+  readonly size?: 'sm' | 'md' | undefined;
   readonly disabled?: boolean | undefined;
   readonly onClick?: (() => void) | undefined;
   readonly children: ReactNode;
   readonly label?: string | undefined;
+  readonly icon?: ReactNode | undefined;
+  readonly className?: string | undefined;
+  readonly style?: CSSProperties | undefined;
+  readonly title?: string | undefined;
 }): ReactNode {
-  const className =
+  const variantClass =
     variant === 'secondary'
-      ? 'notes-button notes-button-secondary'
+      ? 'notes-button-secondary'
       : variant === 'danger'
-        ? 'notes-button notes-button-danger'
-        : 'notes-button';
+        ? 'notes-button-danger'
+        : variant === 'ghost'
+          ? 'notes-button-ghost'
+          : variant === 'subtle'
+            ? 'notes-button-subtle'
+            : 'notes-button-primary';
+
+  const sizeClass = size === 'sm' ? 'notes-button-sm' : '';
+  const classes = [
+    'notes-button',
+    variantClass,
+    sizeClass,
+    extraClassName ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   return (
     <button
       type={type ?? 'button'}
-      className={className}
+      className={classes}
       disabled={disabled ?? false}
       onClick={onClick}
       aria-label={label}
+      style={style}
+      title={title}
     >
-      {children}
+      {icon !== undefined ? (
+        <span className="notes-button-icon" aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
+      <span className="notes-button-label">{children}</span>
     </button>
+  );
+}
+
+/** A small status badge pill. */
+export function Badge({
+  children,
+  variant = 'default',
+}: {
+  readonly children: ReactNode;
+  readonly variant?:
+    'default' | 'accent' | 'success' | 'danger' | 'warning' | undefined;
+}): ReactNode {
+  return (
+    <span className={`notes-badge notes-badge-${variant}`}>{children}</span>
   );
 }
 
@@ -68,7 +115,7 @@ export function TextField({
 }): ReactNode {
   const errorId = `${id}-error`;
   return (
-    <div>
+    <div className="notes-field-group">
       <label className="notes-label" htmlFor={id}>
         {label}
       </label>
@@ -118,7 +165,7 @@ export function SelectField({
   readonly onChange: (value: string) => void;
 }): ReactNode {
   return (
-    <div>
+    <div className="notes-field-group">
       <label className="notes-label" htmlFor={id}>
         {label}
       </label>
@@ -149,33 +196,50 @@ export function SelectField({
 export function CollapsibleSection({
   id,
   title,
+  count,
   open,
   onToggle,
   children,
 }: {
   readonly id: string;
   readonly title: string;
+  readonly count?: number | undefined;
   readonly open: boolean;
   readonly onToggle: (open: boolean) => void;
   readonly children: ReactNode;
 }): ReactNode {
   const panelId = `${id}-panel`;
   return (
-    <section aria-labelledby={id}>
+    <section className="notes-collapsible" aria-labelledby={id}>
       <button
         id={id}
         type="button"
-        className="notes-button notes-button-secondary"
+        className="notes-collapsible-trigger"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={(): void => {
           onToggle(!open);
         }}
       >
-        {title}
+        <span className="notes-collapsible-icon" aria-hidden="true">
+          {open ? (
+            <ChevronDownIcon size={14} />
+          ) : (
+            <ChevronRightIcon size={14} />
+          )}
+        </span>
+        <span className="notes-collapsible-title">{title}</span>
+        {count !== undefined && count > 0 ? (
+          <span className="notes-collapsible-count">{count}</span>
+        ) : null}
       </button>
       {open ? (
-        <div id={panelId} role="region" aria-label={title}>
+        <div
+          id={panelId}
+          className="notes-collapsible-content"
+          role="region"
+          aria-label={title}
+        >
           {children}
         </div>
       ) : null}
@@ -195,7 +259,7 @@ export function StatusRegion({
   readonly message: string;
 }): ReactNode {
   return (
-    <p role="status" aria-live="polite">
+    <p className="notes-status-region" role="status" aria-live="polite">
       {message}
     </p>
   );

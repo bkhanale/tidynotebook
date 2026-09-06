@@ -209,6 +209,7 @@ export type ThemePropertyName = (typeof themePropertyNames)[number];
  */
 export function themePropertyName(name: ThemePropertyName): string {
   if (name === 'background') return '--notes-bg';
+  if (name === 'surface') return '--notes-surface';
   if (name === 'textStrong') return '--notes-text-strong';
   if (name === 'textMuted') return '--notes-text-muted';
   if (name === 'accentText') return '--notes-accent-text';

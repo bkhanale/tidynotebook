@@ -20,7 +20,13 @@ import {
   type Action,
   type AgentToken,
 } from '@notesapp/api-client';
-import { Button, SelectField, StatusRegion, TextField } from '@notesapp/ui';
+import {
+  Button,
+  SelectField,
+  StatusRegion,
+  TextField,
+  WorkspaceIcon,
+} from '@notesapp/ui';
 import {
   problemMessage,
   useLocalStore,
@@ -97,54 +103,85 @@ export function LoginPage(): ReactNode {
   if (session.status === 'signed-in') return <Navigate to="/" replace />;
 
   return (
-    <main>
-      <h1>Sign in to notesapp</h1>
-      <form
-        onSubmit={(event): void => {
-          event.preventDefault();
-          void submitPassword();
-        }}
-      >
-        <TextField
-          id="login-email"
-          label="Address"
-          value={email}
-          inputType="email"
-          autoComplete="email"
-          required
-          onChange={setEmail}
-        />
-        <TextField
-          id="login-password"
-          label="Password"
-          value={password}
-          inputType="password"
-          autoComplete="current-password"
-          required
-          onChange={setPassword}
-        />
-        {error !== '' ? (
-          <p className="notes-status-error" role="alert">
-            {error}
+    <div className="notes-auth-page">
+      <div className="notes-auth-card">
+        <div className="notes-auth-logo">
+          <span className="notes-brand-badge" aria-hidden="true">
+            <WorkspaceIcon size={18} />
+          </span>
+          <span>Notesapp</span>
+        </div>
+        <h1 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '20px' }}>
+          Sign in to notesapp
+        </h1>
+        <form
+          onSubmit={(event): void => {
+            event.preventDefault();
+            void submitPassword();
+          }}
+        >
+          <TextField
+            id="login-email"
+            label="Address"
+            value={email}
+            inputType="email"
+            autoComplete="email"
+            required
+            onChange={setEmail}
+          />
+          <TextField
+            id="login-password"
+            label="Password"
+            value={password}
+            inputType="password"
+            autoComplete="current-password"
+            required
+            onChange={setPassword}
+          />
+          {error !== '' ? (
+            <p className="notes-status-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div style={{ marginTop: '16px' }}>
+            <Button type="submit" disabled={busy} style={{ width: '100%' }}>
+              {busy ? 'Signing in.' : 'Sign in'}
+            </Button>
+          </div>
+        </form>
+        <div className="notes-auth-divider">
+          <span>single sign-on</span>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.8125rem',
+              color: 'var(--notes-text-muted)',
+            }}
+          >
+            When the administrator configured a provider, start there instead.
           </p>
-        ) : null}
-        <Button type="submit" disabled={busy}>
-          {busy ? 'Signing in.' : 'Sign in'}
-        </Button>
-      </form>
-      <h2>Single sign-on</h2>
-      <p>When the administrator configured a provider, start there instead.</p>
-      <Button
-        variant="secondary"
-        disabled={busy}
-        onClick={() => void startOidc()}
-      >
-        Continue with the configured provider
-      </Button>
-      <p>
-        <Link to="/invite">Have an invitation token? Accept it here.</Link>
-      </p>
-    </main>
+          <Button
+            variant="secondary"
+            disabled={busy}
+            onClick={() => void startOidc()}
+            style={{ width: '100%' }}
+          >
+            Continue with the configured provider
+          </Button>
+          <p
+            style={{
+              textAlign: 'center',
+              fontSize: '0.8125rem',
+              margin: '8px 0 0',
+            }}
+          >
+            <Link to="/invite">Have an invitation token? Accept it here.</Link>
+          </p>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -205,53 +242,78 @@ export function InvitePage(): ReactNode {
   }
 
   return (
-    <main>
-      <h1>Accept an invitation</h1>
-      {session.status === 'signed-out' ? (
-        <p>
-          Without an account, add a password to create one with the invitation.
-          Under a provider-only installation, sign in first with{' '}
-          <Link to="/login">the provider</Link> instead.
-        </p>
-      ) : null}
-      <form
-        onSubmit={(event): void => {
-          event.preventDefault();
-          void accept();
-        }}
-      >
-        <TextField
-          id="invite-token"
-          label="Invitation token"
-          value={token}
-          required
-          onChange={setToken}
-        />
+    <div className="notes-auth-page">
+      <div className="notes-auth-card">
+        <div className="notes-auth-logo">
+          <span className="notes-brand-badge" aria-hidden="true">
+            <WorkspaceIcon size={18} />
+          </span>
+          <span>Notesapp</span>
+        </div>
+        <h1 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '16px' }}>
+          Accept workspace invitation
+        </h1>
         {session.status === 'signed-out' ? (
+          <p style={{ fontSize: '0.84rem', color: 'var(--notes-text-muted)' }}>
+            Without an account, add a password to create one with the
+            invitation. Under a provider-only installation, sign in first with{' '}
+            <Link to="/login">the provider</Link> instead.
+          </p>
+        ) : null}
+        <form
+          onSubmit={(event): void => {
+            event.preventDefault();
+            void accept();
+          }}
+        >
           <TextField
-            id="invite-password"
-            label="New password (leave empty when signing in first)"
-            value={password}
-            inputType="password"
-            autoComplete="new-password"
-            onChange={setPassword}
+            id="invite-token"
+            label="Invitation token"
+            value={token}
+            required
+            onChange={setToken}
           />
-        ) : null}
-        {error !== '' ? (
-          <p className="notes-status-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        {accepted !== null ? (
-          <p className="notes-status-ok" role="status">
-            {accepted}
-          </p>
-        ) : null}
-        <Button type="submit" disabled={busy || token === ''}>
-          {busy ? 'Accepting.' : 'Accept invitation'}
-        </Button>
-      </form>
-    </main>
+          {session.status === 'signed-out' ? (
+            <TextField
+              id="invite-password"
+              label="New password (leave empty when signing in first)"
+              value={password}
+              inputType="password"
+              autoComplete="new-password"
+              onChange={setPassword}
+            />
+          ) : null}
+          {error !== '' ? (
+            <p className="notes-status-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {accepted !== null ? (
+            <p className="notes-status-ok" role="status">
+              {accepted}
+            </p>
+          ) : null}
+          <div style={{ marginTop: '16px' }}>
+            <Button
+              type="submit"
+              disabled={busy || token === ''}
+              style={{ width: '100%' }}
+            >
+              {busy ? 'Accepting.' : 'Accept invitation'}
+            </Button>
+          </div>
+        </form>
+        <p
+          style={{
+            textAlign: 'center',
+            fontSize: '0.8125rem',
+            marginTop: '16px',
+          }}
+        >
+          <Link to="/login">Back to sign in</Link>
+        </p>
+      </div>
+    </div>
   );
 }
 

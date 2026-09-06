@@ -15,6 +15,8 @@ import {
   relativeLuminance,
   resolveTheme,
   textContrastMinimum,
+  themePropertyName,
+  themePropertyNames,
   themeTokens,
   uiContrastMinimum,
   type ResolvedTheme,
@@ -130,4 +132,13 @@ await test('day text uses the design table value on the main background', () => 
   assert.equal(themeTokens.dark.background, '#1a1b26');
   assert.equal(themeTokens.dark.surface, '#16161e');
   assert.equal(themeTokens.dark.text, '#c0caf5');
+});
+
+await test('themePropertyName maps surface correctly', () => {
+  assert.equal(themePropertyName('surface'), '--notes-surface');
+  assert.equal(themePropertyName('background'), '--notes-bg');
+  assert.equal(themePropertyName('focus'), '--notes-focus');
+  for (const name of themePropertyNames) {
+    assert.ok(themePropertyName(name).startsWith('--notes-'));
+  }
 });

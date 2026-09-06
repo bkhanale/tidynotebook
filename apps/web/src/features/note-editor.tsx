@@ -38,7 +38,13 @@ import {
   type LinkTarget,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
-import { Button, StatusRegion } from '@notesapp/ui';
+import {
+  Badge,
+  Button,
+  CheckIcon,
+  StatusRegion,
+  TrashIcon,
+} from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { canWrite } from './workspaces.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
@@ -671,35 +677,107 @@ export function NoteEditor({
   };
 
   return (
-    <div>
-      <div>
-        <label className="notes-label" htmlFor={`notes-path-${fileId}`}>
-          File path
-        </label>
-        <input
-          id={`notes-path-${fileId}`}
-          className="notes-input"
-          type="text"
-          value={path}
-          disabled={readOnly}
-          onChange={(event): void => {
-            const next = event.target.value;
-            setPath(next);
-            pathRef.current = next;
-            if (!live.current.readOnly) {
-              sequenceRef.current += 1;
-              setDraftPending(true);
-              if (saveTimerRef.current !== null)
-                window.clearTimeout(saveTimerRef.current);
-              saveTimerRef.current = window.setTimeout(() => {
-                saveTimerRef.current = null;
-                void saveDraftNow.current();
-              }, draftSaveDelayMs);
-              schedulerRef.current?.onInput();
-            }
-          }}
-        />
+    <div className="notes-editor-wrap">
+      <div className="notes-doc-header">
+        <div className="notes-doc-path-row">
+          <input
+            id={`notes-path-${fileId}`}
+            className="notes-doc-title-input"
+            type="text"
+            value={path}
+            disabled={readOnly}
+            aria-label="File path"
+            placeholder="File path (e.g. notes/my-note.md)"
+            onChange={(event): void => {
+              const next = event.target.value;
+              setPath(next);
+              pathRef.current = next;
+              if (!live.current.readOnly) {
+                sequenceRef.current += 1;
+                setDraftPending(true);
+                if (saveTimerRef.current !== null)
+                  window.clearTimeout(saveTimerRef.current);
+                saveTimerRef.current = window.setTimeout(() => {
+                  saveTimerRef.current = null;
+                  void saveDraftNow.current();
+                }, draftSaveDelayMs);
+                schedulerRef.current?.onInput();
+              }
+            }}
+          />
+        </div>
+
+        <div className="notes-doc-toolbar">
+          <SaveStatus
+            state={saveState}
+            bufferText={bufferText}
+            onCopyBuffer={copyToClipboard}
+          />
+
+          {!readOnly ? (
+            <div className="notes-doc-actions">
+              <Button
+                variant="secondary"
+                size="sm"
+                icon={<CheckIcon size={14} />}
+                label="Save a checkpoint now"
+                title="Save checkpoint (Ctrl+S)"
+                onClick={() => {
+                  void (async (): Promise<void> => {
+                    if (saveTimerRef.current !== null) {
+                      window.clearTimeout(saveTimerRef.current);
+                      saveTimerRef.current = null;
+                    }
+                    await saveDraftNow.current();
+                    schedulerRef.current?.onSave();
+                  })();
+                }}
+              >
+                Save
+              </Button>
+              {confirmingDelete ? (
+                <div
+                  style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
+                >
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    icon={<TrashIcon size={14} />}
+                    label="Confirm deletion of this note"
+                    onClick={handleDelete}
+                  >
+                    Confirm delete
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    label="Keep this note"
+                    onClick={() => {
+                      setConfirmingDelete(false);
+                    }}
+                  >
+                    Keep
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<TrashIcon size={14} />}
+                  label="Delete this note"
+                  title="Delete this note"
+                  onClick={handleDelete}
+                >
+                  Delete
+                </Button>
+              )}
+            </div>
+          ) : (
+            <Badge variant="default">Read-only</Badge>
+          )}
+        </div>
       </div>
+
       <div
         ref={containerRef}
         role="textbox"
@@ -722,55 +800,6 @@ export function NoteEditor({
         }}
       />
       {pasteNotice !== '' ? <StatusRegion message={pasteNotice} /> : null}
-      {!readOnly ? (
-        <div>
-          <Button
-            variant="primary"
-            label="Save a checkpoint now"
-            onClick={() => {
-              void (async (): Promise<void> => {
-                if (saveTimerRef.current !== null) {
-                  window.clearTimeout(saveTimerRef.current);
-                  saveTimerRef.current = null;
-                }
-                await saveDraftNow.current();
-                schedulerRef.current?.onSave();
-              })();
-            }}
-          >
-            Save
-          </Button>
-          <Button
-            variant="danger"
-            label={
-              confirmingDelete
-                ? 'Confirm deletion of this note'
-                : 'Delete this note'
-            }
-            onClick={handleDelete}
-          >
-            {confirmingDelete ? 'Confirm delete' : 'Delete'}
-          </Button>
-          {confirmingDelete ? (
-            <Button
-              variant="secondary"
-              label="Keep this note"
-              onClick={() => {
-                setConfirmingDelete(false);
-              }}
-            >
-              Keep
-            </Button>
-          ) : null}
-        </div>
-      ) : (
-        <p>This workspace is read-only for viewers.</p>
-      )}
-      <SaveStatus
-        state={saveState}
-        bufferText={bufferText}
-        onCopyBuffer={copyToClipboard}
-      />
     </div>
   );
 }

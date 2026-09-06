@@ -9,6 +9,14 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import type { LocalStorageErrorKind } from '@notesapp/sync';
+import {
+  AlertCircleIcon,
+  Button,
+  CheckIcon,
+  CloudCheckIcon,
+  CloudUploadIcon,
+  CopyIcon,
+} from '@notesapp/ui';
 
 /** Every save state the editor can report. */
 export type SaveState =
@@ -62,7 +70,7 @@ export const saveStateLabels: Record<SaveState, string> = {
 };
 
 /** A text symbol of one save state, so color is never the only signal. */
-const saveStateSymbols: Record<SaveState, string> = {
+export const saveStateSymbols: Record<SaveState, string> = {
   'saving-local': '...',
   'saved-local': '[saved]',
   'saved-server': '[synced]',
@@ -113,21 +121,41 @@ export function SaveStatus({
   const canCopy =
     failed && bufferText !== undefined && onCopyBuffer !== undefined;
 
+  const pillClass =
+    state === 'saving-local'
+      ? 'notes-save-pill-saving'
+      : state === 'saved-local' || state === 'saved-server'
+        ? 'notes-save-pill-saved'
+        : 'notes-save-pill-error';
+
+  const icon =
+    state === 'saving-local' ? (
+      <CloudUploadIcon size={14} />
+    ) : state === 'saved-local' || state === 'saved-server' ? (
+      <CloudCheckIcon size={14} />
+    ) : (
+      <AlertCircleIcon size={14} />
+    );
+
   return (
-    <div>
-      <p role="status" aria-live="polite">
-        {saveStateSymbols[state]} {saveStateLabels[state]}
-        {detail !== undefined && detail !== '' ? ` (${detail})` : null}
-      </p>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <div className={`notes-save-pill ${pillClass}`}>
+        <span aria-hidden="true">{icon}</span>
+        <span role="status" aria-live="polite">
+          {saveStateSymbols[state]} {saveStateLabels[state]}
+          {detail !== undefined && detail !== '' ? ` (${detail})` : null}
+        </span>
+      </div>
       {failed ? (
-        <p role="alert">
+        <p className="notes-status-error" role="alert">
           The note stays open with its text. Copy it before you close the tab.
         </p>
       ) : null}
       {canCopy ? (
-        <button
-          type="button"
-          className="notes-button notes-button-secondary"
+        <Button
+          variant="secondary"
+          size="sm"
+          icon={copied ? <CheckIcon size={14} /> : <CopyIcon size={14} />}
           onClick={() => {
             const text = bufferText ?? '';
             const copy =
@@ -138,7 +166,7 @@ export function SaveStatus({
           }}
         >
           {copied ? 'Copied' : 'Copy note text'}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

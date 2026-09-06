@@ -6,7 +6,7 @@ import {
   type Draft,
   type LocalStore,
 } from '@notesapp/sync';
-import { Button } from '@notesapp/ui';
+import { Button, PlusIcon } from '@notesapp/ui';
 
 /**
  * Creates a new note file and opens it.
@@ -20,19 +20,30 @@ export function NewNoteButton({
   accountId,
   workspaceId,
   disabled,
+  variant = 'primary',
+  size = 'md',
+  className,
+  children,
 }: {
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
   readonly disabled?: boolean | undefined;
+  readonly variant?:
+    'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle' | undefined;
+  readonly size?: 'sm' | 'md' | undefined;
+  readonly className?: string | undefined;
+  readonly children?: ReactNode | undefined;
 }): ReactNode {
   const navigate = useNavigate();
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div>
+    <div className={className}>
       <Button
-        variant="primary"
+        variant={variant}
+        size={size}
+        icon={<PlusIcon size={size === 'sm' ? 14 : 16} />}
         label="Create a new note"
         disabled={disabled ?? store === null}
         onClick={() => {
@@ -77,7 +88,7 @@ export function NewNoteButton({
           })();
         }}
       >
-        New note
+        {children ?? 'New note'}
       </Button>
       {error !== null ? (
         <p className="notes-status-error" role="alert">

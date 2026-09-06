@@ -25,7 +25,15 @@ import {
   type Workspace,
 } from '@notesapp/api-client';
 import { normalizePath } from '@notesapp/core';
-import { Button, SelectField, StatusRegion, TextField } from '@notesapp/ui';
+import {
+  Badge,
+  Button,
+  PlusIcon,
+  SelectField,
+  StatusRegion,
+  TextField,
+  WorkspaceIcon,
+} from '@notesapp/ui';
 import { problemMessage, useSession } from '../app.tsx';
 
 /** The loaded workspaces with their load state. */
@@ -142,44 +150,109 @@ export function WorkspaceHome(): ReactNode {
 
   return (
     <main>
-      <h1>Workspaces</h1>
-      <ul>
+      <div style={{ marginBottom: '24px' }}>
+        <h1 style={{ margin: '0 0 6px 0' }}>Workspaces</h1>
+        <p
+          style={{
+            margin: 0,
+            color: 'var(--notes-text-muted)',
+            fontSize: '0.9rem',
+          }}
+        >
+          Select an active workspace to open your notes or manage workspace
+          members.
+        </p>
+      </div>
+
+      <ul className="notes-workspaces-grid">
         {state.workspaces.map((entry) => (
-          <li key={entry.workspaceId}>
-            <Link to={`/w/${entry.workspaceId}`}>{entry.name}</Link>{' '}
-            <span>
-              ({entry.role}
-              {entry.personal ? ', personal' : ''})
-            </span>
+          <li key={entry.workspaceId} style={{ listStyle: 'none' }}>
+            <Link
+              to={`/w/${entry.workspaceId}`}
+              className="notes-workspace-card"
+            >
+              <div className="notes-workspace-card-header">
+                <div className="notes-workspace-card-title">
+                  <span className="notes-tree-icon" aria-hidden="true">
+                    <WorkspaceIcon size={18} />
+                  </span>
+                  <span>{entry.name}</span>
+                </div>
+                <Badge variant={entry.role === 'owner' ? 'accent' : 'default'}>
+                  {entry.role}
+                </Badge>
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginTop: 'auto',
+                  paddingTop: '8px',
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: '0.75rem',
+                    color: 'var(--notes-text-muted)',
+                  }}
+                >
+                  {entry.personal ? 'Personal' : 'Team'}
+                </span>
+                <span
+                  style={{
+                    fontSize: '0.8125rem',
+                    color: 'var(--notes-accent-text)',
+                    fontWeight: 500,
+                  }}
+                >
+                  Open →
+                </span>
+              </div>
+            </Link>
           </li>
         ))}
       </ul>
       {state.workspaces.length === 0 ? (
-        <p>No workspace yet. Create the first one below.</p>
+        <p className="notes-status-region">
+          No workspace yet. Create the first one below.
+        </p>
       ) : null}
-      <h2>Create a workspace</h2>
-      <form
-        onSubmit={(event): void => {
-          event.preventDefault();
-          void create();
-        }}
-      >
-        <TextField
-          id="workspace-name"
-          label="Workspace name"
-          value={name}
-          required
-          onChange={setName}
-        />
-        {error !== '' ? (
-          <p className="notes-status-error" role="alert">
-            {error}
-          </p>
-        ) : null}
-        <Button type="submit" disabled={busy || name.trim() === ''}>
-          {busy ? 'Creating.' : 'Create workspace'}
-        </Button>
-      </form>
+
+      <div className="notes-card" style={{ marginTop: '32px' }}>
+        <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '1.15rem' }}>
+          Create a workspace
+        </h2>
+        <form
+          onSubmit={(event): void => {
+            event.preventDefault();
+            void create();
+          }}
+        >
+          <TextField
+            id="workspace-name"
+            label="Workspace name"
+            value={name}
+            required
+            placeholder="e.g. Personal Notes, Engineering"
+            onChange={setName}
+          />
+          {error !== '' ? (
+            <p className="notes-status-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+          <div style={{ marginTop: '14px' }}>
+            <Button
+              type="submit"
+              icon={<PlusIcon size={16} />}
+              disabled={busy || name.trim() === ''}
+            >
+              {busy ? 'Creating.' : 'Create workspace'}
+            </Button>
+          </div>
+        </form>
+      </div>
     </main>
   );
 }
