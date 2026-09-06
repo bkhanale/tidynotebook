@@ -41,6 +41,7 @@
     "oxlint-tsgolint": "7.0.2001",
     "pg": "8.23.0",
     "prettier": "3.9.6",
+    "sharp": "0.35.4",
     "typescript": "7.0.2"
   }
 }

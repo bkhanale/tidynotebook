@@ -59,6 +59,16 @@ export {
   tombstoneContent,
   updateFileChangeset,
 } from './files/operations.ts';
+export type {
+  AttachmentMediaType,
+  AttachmentObjectRecord,
+  AttachmentState,
+} from './files/attachments.ts';
+export {
+  allowedMediaTypes,
+  createAttachmentChangeset,
+  isAllowedMediaType,
+} from './files/attachments.ts';
 export type { FileWithHead } from './files/read.ts';
 export {
   defaultPageSize,

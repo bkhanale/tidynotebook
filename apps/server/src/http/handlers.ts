@@ -16,6 +16,9 @@ import { createWorkspaceHandlers } from './workspaces.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
 import { createProblem, problemMediaType } from './problem.ts';
 
+import type { AttachmentStore } from '@notesapp/storage-server';
+import { createAttachmentHandlers } from './attachments.ts';
+
 /**
  * A store that is not there yet.
  *
@@ -30,12 +33,31 @@ function missingStore(): WorkspaceAdminStore {
   return { account: fail, workspace: fail };
 }
 
+function missingAttachmentStore(): AttachmentStore {
+  const fail = (): never => {
+    throw new Error(
+      'notesapp: the server was built without an attachment store.',
+    );
+  };
+  return {
+    saveTemporaryAttachment: fail,
+    getAttachmentObject: fail,
+    finalizeAttachmentObject: fail,
+    readAttachmentRevision: fail,
+    reclaimAttachments: fail,
+    temporaryPath: fail,
+    immutablePath: fail,
+  };
+}
+
 /** What the account and workspace handlers need from the composition. */
 export type HandlerDependencies = {
   /** The account and workspace store of the deployment. */
   readonly store?: WorkspaceAdminStore;
   /** The workspace content store of the deployment. */
   readonly content?: WorkspaceStore;
+  /** The attachment store of the deployment. */
+  readonly attachments?: AttachmentStore;
   /** The invitation sign-up path. */
   readonly invitations?: InvitationAccounts;
   /** Mail transport, or `null` when the deployment has none. */
@@ -124,6 +146,10 @@ export function createHandlers(
   return {
     ...createAccountHandlers(store, dependencies.now),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
+    ...createAttachmentHandlers(
+      dependencies.content ?? missingWorkspaceStore(),
+      dependencies.attachments ?? missingAttachmentStore(),
+    ),
     ...createWorkspaceHandlers(
       store,
       {

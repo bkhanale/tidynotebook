@@ -30,6 +30,7 @@ import { createIdentityAdapter } from './auth/actor.ts';
 import { createInvitationAccounts } from './auth/invitations.ts';
 import { createMailTransport } from './auth/mail.ts';
 import {
+  openAttachmentStore,
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -221,6 +222,10 @@ export async function createApp(
   // because a content transaction holds the workspace lock for the length of a
   // changeset and must not queue behind an identity lookup.
   const content = openWorkspaceStore(config.databaseUrl);
+  const attachments = openAttachmentStore(
+    config.databaseUrl,
+    config.storageRoot,
+  );
   const mail = createMailTransport(config.mail);
   // The protocol library writes into the application log. The sink is filled
   // once the instance exists, so nothing reaches the console in between.
@@ -248,6 +253,7 @@ export async function createApp(
     handlers: createHandlers(config, undefined, {
       store: identity,
       content,
+      attachments,
       invitations,
       mail,
     }),
@@ -267,6 +273,7 @@ export async function createApp(
     await invitations.close();
     await auth.close();
     await authPool.end();
+    await attachments.close();
     await content.close();
     await identity.close();
   });

@@ -662,6 +662,110 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/attachments:
+    post:
+      operationId: uploadAttachment
+      summary: Upload a temporary attachment image file.
+      description: >-
+        Uploads an image as multipart/form-data. The server stores the bytes in
+        a temporary object, validates format, dimensions, and pixel count in an
+        isolated worker, and computes the SHA-256 digest.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/UploadAttachment'
+      responses:
+        '201':
+          $ref: '#/components/responses/AttachmentUploaded'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/attachments/{objectId}/finalize:
+    post:
+      operationId: finalizeAttachment
+      summary: Finalize an attachment object and create an immutable revision.
+      description: >-
+        Finalizes an uploaded temporary attachment object and commits an
+        attachment revision to the workspace file tree in one transaction. An
+        existing file requires an If-Match header naming the accepted head.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/ObjectId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        $ref: '#/components/requestBodies/FinalizeAttachment'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/attachments/{revisionId}:
+    get:
+      operationId: getAttachmentRevision
+      summary: Read the binary image of an accepted attachment revision.
+      description: >-
+        Streams the immutable binary bytes of an accepted attachment revision
+        with its declared media type.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/RevisionId'
+      responses:
+        '200':
+          $ref: '#/components/responses/AttachmentBinary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/invitations/acceptance:
     post:
       operationId: acceptInvitation
@@ -877,6 +981,15 @@ components:
       description: Identifier of the revision that the operation reads.
       schema:
         $ref: '#/components/schemas/Uuid'
+    ObjectId:
+      name: objectId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the attachment object that the operation acts on.
+      schema:
+        $ref: '#/components/schemas/Uuid'
     PageCursor:
       name: cursor
       in: query
@@ -1009,6 +1122,20 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ChangesetInput'
+    UploadAttachment:
+      description: Multipart form upload that contains the binary attachment file.
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/UploadAttachmentInput'
+    FinalizeAttachment:
+      description: Payload to finalize an attachment and create an immutable revision.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/FinalizeAttachmentInput'
   responses:
     Health:
       description: The service process is running.
@@ -1212,6 +1339,31 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AcceptedChangeset'
+    AttachmentUploaded:
+      description: The uploaded temporary attachment object and its verified digest.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AttachmentUploadResult'
+    AttachmentBinary:
+      description: Binary bytes of the immutable attachment.
+      content:
+        image/png:
+          schema:
+            type: string
+            format: binary
+        image/jpeg:
+          schema:
+            type: string
+            format: binary
+        image/gif:
+          schema:
+            type: string
+            format: binary
+        image/webp:
+          schema:
+            type: string
+            format: binary
   schemas:
     HealthReport:
       type: object
@@ -2553,3 +2705,94 @@ components:
           maxItems: 4000
           items:
             $ref: '#/components/schemas/RevisionInput'
+    UploadAttachmentInput:
+      type: object
+      description: Multipart form upload payload that contains the binary attachment file.
+      additionalProperties: false
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Binary bytes of the image attachment.
+    AttachmentUploadResult:
+      type: object
+      description: The uploaded temporary attachment object and its verified digest.
+      additionalProperties: false
+      required:
+        - objectId
+        - digest
+        - size
+        - mediaType
+        - width
+        - height
+      properties:
+        objectId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Unique identifier of the uploaded attachment object.
+        digest:
+          allOf:
+            - $ref: '#/components/schemas/ContentDigest'
+          description: SHA-256 digest of the validated image bytes.
+        size:
+          type: integer
+          minimum: 1
+          description: Size of the attachment in bytes.
+        mediaType:
+          type: string
+          description: Validated MIME type of the uploaded image.
+          enum:
+            - image/png
+            - image/jpeg
+            - image/gif
+            - image/webp
+        width:
+          type: integer
+          minimum: 1
+          description: Width of the image in pixels.
+        height:
+          type: integer
+          minimum: 1
+          description: Height of the image in pixels.
+    FinalizeAttachmentInput:
+      type: object
+      description: Payload to finalize an attachment and create an immutable revision.
+      additionalProperties: false
+      required:
+        - fileId
+        - revisionId
+        - mutationId
+        - deviceId
+        - path
+        - digest
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identifier of the file that holds this attachment revision.
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identifier of the new revision.
+        mutationId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          description: Identity of this operation, which makes a retry safe.
+        deviceId:
+          allOf:
+            - $ref: '#/components/schemas/DeviceId'
+          description: The device that submitted the change.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          description: Path of the attachment file in the workspace.
+        digest:
+          allOf:
+            - $ref: '#/components/schemas/ContentDigest'
+          description: The verified SHA-256 digest of the attachment object.
+        message:
+          allOf:
+            - $ref: '#/components/schemas/CheckpointMessage'
+          description: Name of this checkpoint, or null.

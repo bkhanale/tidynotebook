@@ -195,6 +195,36 @@ export type AgentTokenScope = {
 export type AssignableRole = 'admin' | 'editor' | 'viewer';
 
 /**
+ * The uploaded temporary attachment object and its verified digest.
+ */
+export type AttachmentUploadResult = {
+    /**
+     * Unique identifier of the uploaded attachment object.
+     */
+    objectId: Uuid;
+    /**
+     * SHA-256 digest of the validated image bytes.
+     */
+    digest: ContentDigest;
+    /**
+     * Size of the attachment in bytes.
+     */
+    size: number;
+    /**
+     * Validated MIME type of the uploaded image.
+     */
+    mediaType: 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+    /**
+     * Width of the image in pixels.
+     */
+    width: number;
+    /**
+     * Height of the image in pixels.
+     */
+    height: number;
+};
+
+/**
  * The current session, or null when there is none.
  */
 export type AuthCurrentSession = {
@@ -595,6 +625,40 @@ export type FileRevision = {
 };
 
 /**
+ * Payload to finalize an attachment and create an immutable revision.
+ */
+export type FinalizeAttachmentInput = {
+    /**
+     * Identifier of the file that holds this attachment revision.
+     */
+    fileId: Uuid;
+    /**
+     * Identifier of the new revision.
+     */
+    revisionId: Uuid;
+    /**
+     * Identity of this operation, which makes a retry safe.
+     */
+    mutationId: Uuid;
+    /**
+     * The device that submitted the change.
+     */
+    deviceId: DeviceId;
+    /**
+     * Path of the attachment file in the workspace.
+     */
+    path: FilePath;
+    /**
+     * The verified SHA-256 digest of the attachment object.
+     */
+    digest: ContentDigest;
+    /**
+     * Name of this checkpoint, or null.
+     */
+    message?: CheckpointMessage;
+};
+
+/**
  * Liveness report of the service process.
  */
 export type HealthReport = {
@@ -947,6 +1011,16 @@ export type UpdateFileInput = {
 };
 
 /**
+ * Multipart form upload payload that contains the binary attachment file.
+ */
+export type UploadAttachmentInput = {
+    /**
+     * Binary bytes of the image attachment.
+     */
+    file: Blob | File;
+};
+
+/**
  * A UUID that names one record.
  */
 export type Uuid = string;
@@ -1174,6 +1248,11 @@ export type FileId = Uuid;
 export type RevisionId = Uuid;
 
 /**
+ * Identifier of the attachment object that the operation acts on.
+ */
+export type ObjectId = Uuid;
+
+/**
  * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
  */
 export type PageCursor = Uuid;
@@ -1247,6 +1326,16 @@ export type DeleteFile = DeleteFileInput;
  * One atomic change of one or more files.
  */
 export type Changeset = ChangesetInput;
+
+/**
+ * Multipart form upload that contains the binary attachment file.
+ */
+export type UploadAttachment = UploadAttachmentInput;
+
+/**
+ * Payload to finalize an attachment and create an immutable revision.
+ */
+export type FinalizeAttachment = FinalizeAttachmentInput;
 
 export type GetAccountData = {
     body?: never;
@@ -2167,6 +2256,220 @@ export type UpdateWorkspaceResponses = {
 };
 
 export type UpdateWorkspaceResponse = UpdateWorkspaceResponses[keyof UpdateWorkspaceResponses];
+
+export type UploadAttachmentData = {
+    /**
+     * Multipart form upload that contains the binary attachment file.
+     */
+    body: UploadAttachment;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/attachments';
+};
+
+export type UploadAttachmentErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UploadAttachmentError = UploadAttachmentErrors[keyof UploadAttachmentErrors];
+
+export type UploadAttachmentResponses = {
+    /**
+     * The uploaded temporary attachment object and its verified digest.
+     */
+    201: AttachmentUploadResult;
+};
+
+export type UploadAttachmentResponse = UploadAttachmentResponses[keyof UploadAttachmentResponses];
+
+export type FinalizeAttachmentData = {
+    /**
+     * Payload to finalize an attachment and create an immutable revision.
+     */
+    body: FinalizeAttachment;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+        /**
+         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is accepted and the request proceeds when any of them names the current head. The operation needs a tag: a request without one answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error. The value * is refused with 428 as well: it would permit a write against a state the client never read, which is the lost update that this precondition exists to prevent.
+         */
+        'if-match'?: EntityTagCondition;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the attachment object that the operation acts on.
+         */
+        objectId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/attachments/{objectId}/finalize';
+};
+
+export type FinalizeAttachmentErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The operation needs a precondition and the request carried none. Repeat the request with the entity tag of the head that was read.
+     */
+    428: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type FinalizeAttachmentError = FinalizeAttachmentErrors[keyof FinalizeAttachmentErrors];
+
+export type FinalizeAttachmentResponses = {
+    /**
+     * The accepted revision and the outcome of its changeset.
+     */
+    200: FileChange;
+};
+
+export type FinalizeAttachmentResponse = FinalizeAttachmentResponses[keyof FinalizeAttachmentResponses];
+
+export type GetAttachmentRevisionData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the revision that the operation reads.
+         */
+        revisionId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/attachments/{revisionId}';
+};
+
+export type GetAttachmentRevisionErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetAttachmentRevisionError = GetAttachmentRevisionErrors[keyof GetAttachmentRevisionErrors];
+
+export type GetAttachmentRevisionResponses = {
+    /**
+     * Binary bytes of the immutable attachment.
+     */
+    200: Blob | File;
+};
+
+export type GetAttachmentRevisionResponse = GetAttachmentRevisionResponses[keyof GetAttachmentRevisionResponses];
 
 export type CommitChangesetData = {
     /**

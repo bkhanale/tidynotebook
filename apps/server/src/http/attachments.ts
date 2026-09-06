@@ -1,0 +1,394 @@
+/**
+ * Attachment HTTP handlers.
+ *
+ * Implements uploadAttachment, finalizeAttachment, and getAttachmentRevision.
+ */
+import { createHash, randomUUID } from 'node:crypto';
+import { createWriteStream, existsSync } from 'node:fs';
+import { mkdir, unlink } from 'node:fs/promises';
+import { dirname } from 'node:path';
+import { Busboy } from '@fastify/busboy';
+import type { AttachmentStore } from '@notesapp/storage-server';
+import type { WorkspaceStore } from '@notesapp/core';
+import {
+  commitChangeset,
+  createAttachmentChangeset,
+  isAllowedMediaType,
+  readHeadForWrite,
+  readMutationReceipt,
+  requestDigest,
+} from '@notesapp/core';
+import { requireActor } from '../auth/actor.ts';
+import { inspectImage } from '../jobs/inspect-image.ts';
+import {
+  answerAccepted,
+  header,
+  parseTagList,
+  readOptionalText,
+  readText,
+} from './files.ts';
+import {
+  DomainProblemError,
+  ForbiddenError,
+  InvalidContentError,
+  NotFoundError,
+  PayloadTooLargeError,
+  PreconditionRequiredError,
+  RequestContractError,
+  UnsupportedMediaTypeError,
+} from './problem.ts';
+import type { HandlerMap, HandlerResult } from './register.ts';
+
+const maxAttachmentBytes = 20 * 1024 * 1024;
+
+/** Builds the attachment operation handlers. */
+export function createAttachmentHandlers(
+  workspaceStore: WorkspaceStore,
+  attachmentStore: AttachmentStore,
+): HandlerMap {
+  return {
+    uploadAttachment: async (request): Promise<HandlerResult> => {
+      const actor = requireActor(request).actor;
+      const workspaceId = readText(request.params, 'workspaceId');
+      const grant = actor.grants.find(
+        (item) => item.workspaceId === workspaceId,
+      );
+      if (!grant || !grant.actions.includes('write')) {
+        throw new ForbiddenError();
+      }
+
+      const objectId = randomUUID();
+      const tmpPath = attachmentStore.temporaryPath(objectId);
+      await mkdir(dirname(tmpPath), { recursive: true });
+
+      const hasher = createHash('sha256');
+      let bytesCount = 0;
+      let declaredMimeType = '';
+      let fileReceived = false;
+      let streamError: Error | null = null;
+      let writeFinishedResolve: () => void;
+      let writeFinishedReject: (err: Error) => void;
+      const writeFinished = new Promise<void>((resolve, reject) => {
+        writeFinishedResolve = resolve;
+        writeFinishedReject = reject;
+      });
+
+      const bb = new Busboy({
+        headers: request.headers as { 'content-type': string },
+        limits: {
+          fileSize: maxAttachmentBytes,
+          files: 1,
+          parts: 10,
+        },
+      });
+
+      bb.on(
+        'file',
+        (_fieldname, fileStream, _filename, _encoding, mimetype) => {
+          if (fileReceived) {
+            fileStream.resume();
+            return;
+          }
+          fileReceived = true;
+          declaredMimeType = mimetype.toLowerCase();
+          if (!isAllowedMediaType(declaredMimeType)) {
+            streamError = new UnsupportedMediaTypeError(
+              `Unsupported media type ${declaredMimeType}.`,
+            );
+            fileStream.resume();
+            writeFinishedResolve();
+            return;
+          }
+
+          const out = createWriteStream(tmpPath);
+          out.on('error', (err) => {
+            if (!streamError) {
+              streamError = err;
+              writeFinishedReject(err);
+            } else {
+              writeFinishedResolve();
+            }
+          });
+          out.on('finish', () => {
+            writeFinishedResolve();
+          });
+
+          const stopWriting = (err: Error): void => {
+            if (!streamError) {
+              streamError = err;
+            }
+            fileStream.unpipe(out);
+            out.destroy();
+            fileStream.resume();
+          };
+
+          fileStream.on('data', (chunk: Buffer) => {
+            bytesCount += chunk.length;
+            if (bytesCount > maxAttachmentBytes) {
+              stopWriting(
+                new PayloadTooLargeError('Attachment exceeds 20 MiB limit.'),
+              );
+              return;
+            }
+            hasher.update(chunk);
+          });
+
+          fileStream.on('limit', () => {
+            stopWriting(
+              new PayloadTooLargeError('Attachment exceeds 20 MiB limit.'),
+            );
+          });
+
+          fileStream.on('error', (err) => {
+            if (!streamError) {
+              streamError = err;
+              writeFinishedReject(err);
+            } else {
+              writeFinishedResolve();
+            }
+          });
+
+          fileStream.pipe(out);
+        },
+      );
+
+      bb.on('filesLimit', () => {
+        streamError = new PayloadTooLargeError('Too many files uploaded.');
+      });
+
+      bb.on('partsLimit', () => {
+        streamError = new PayloadTooLargeError('Too many form parts uploaded.');
+      });
+
+      const parseFinished = new Promise<void>((resolve, reject) => {
+        bb.on('finish', () => {
+          resolve();
+        });
+        bb.on('error', (err) => {
+          reject(err as Error);
+        });
+      });
+
+      try {
+        request.raw.pipe(bb);
+        await parseFinished;
+        await writeFinished;
+      } catch (err: unknown) {
+        if (existsSync(tmpPath)) {
+          await unlink(tmpPath).catch(() => {});
+        }
+        if (streamError) throw streamError;
+        throw err;
+      }
+
+      if (streamError) {
+        if (existsSync(tmpPath)) {
+          await unlink(tmpPath).catch(() => {});
+        }
+        throw streamError;
+      }
+
+      if (!fileReceived || bytesCount === 0) {
+        if (existsSync(tmpPath)) {
+          await unlink(tmpPath).catch(() => {});
+        }
+        throw new RequestContractError('body', [
+          { path: '/file', message: 'Missing file in upload payload.' },
+        ]);
+      }
+
+      const digest = hasher.digest('hex');
+      const inspection = await inspectImage(tmpPath, declaredMimeType);
+      if (!inspection.ok) {
+        if (existsSync(tmpPath)) {
+          await unlink(tmpPath).catch(() => {});
+        }
+        if (inspection.error === 'payload_too_large') {
+          throw new PayloadTooLargeError(inspection.reason);
+        }
+        if (inspection.error === 'unsupported_media_type') {
+          throw new UnsupportedMediaTypeError(inspection.reason);
+        }
+        throw new InvalidContentError(inspection.reason);
+      }
+
+      await attachmentStore.saveTemporaryAttachment(actor, workspaceId, {
+        id: objectId,
+        digest,
+        size: BigInt(bytesCount),
+        mediaType: inspection.mediaType,
+        width: inspection.width,
+        height: inspection.height,
+      });
+
+      return {
+        status: 201,
+        mediaType: 'application/json',
+        body: {
+          objectId,
+          digest,
+          size: bytesCount,
+          mediaType: inspection.mediaType,
+          width: inspection.width,
+          height: inspection.height,
+        },
+      };
+    },
+
+    finalizeAttachment: async (request, reply): Promise<HandlerResult> => {
+      const actor = requireActor(request).actor;
+      const workspaceId = readText(request.params, 'workspaceId');
+      const objectId = readText(request.params, 'objectId');
+      const grant = actor.grants.find(
+        (item) => item.workspaceId === workspaceId,
+      );
+      if (!grant || !grant.actions.includes('write')) {
+        throw new ForbiddenError();
+      }
+
+      const body = request.body;
+      const fileId = readText(body, 'fileId');
+      const revisionId = readText(body, 'revisionId');
+      const mutationId = readText(body, 'mutationId');
+      const deviceId = readText(body, 'deviceId');
+      const path = readText(body, 'path');
+      const digest = readText(body, 'digest').toLowerCase();
+      const message = readOptionalText(body, 'message');
+
+      const ifMatchHeader = header(request, 'if-match');
+      const tags =
+        ifMatchHeader !== undefined
+          ? parseTagList(ifMatchHeader).revisionIds
+          : null;
+
+      const reqDigest = await requestDigest(
+        'finalizeAttachment',
+        { workspaceId, objectId, ifMatch: tags },
+        body,
+      );
+
+      const receiptResult = await readMutationReceipt(
+        workspaceStore,
+        actor,
+        workspaceId,
+        mutationId,
+      );
+      if (receiptResult.ok && receiptResult.value !== null) {
+        const receipt = receiptResult.value;
+        if (receipt.digest !== reqDigest) {
+          throw new DomainProblemError({
+            code: 'mutation_reused',
+            fileIds: [fileId],
+          });
+        }
+        return answerAccepted(reply, receipt.outcome, 200);
+      }
+
+      const headResult = await readHeadForWrite(
+        workspaceStore,
+        actor,
+        workspaceId,
+        fileId,
+      );
+      let expectedHead: string | null = null;
+      if (headResult.ok) {
+        if (tags === null) {
+          throw new PreconditionRequiredError(
+            'This operation needs the If-Match entity tag of the head that was read.',
+          );
+        }
+        if (!tags.includes(headResult.value.revisionId)) {
+          throw new DomainProblemError({
+            code: 'stale_head',
+            fileIds: [fileId],
+          });
+        }
+        expectedHead = headResult.value.revisionId;
+      } else {
+        if (tags !== null) {
+          throw new DomainProblemError({
+            code: 'stale_head',
+            fileIds: [fileId],
+          });
+        }
+        expectedHead = null;
+      }
+
+      const finalization = await attachmentStore.finalizeAttachmentObject(
+        actor,
+        workspaceId,
+        objectId,
+        digest,
+      );
+      if (!finalization.ok) {
+        if (finalization.error === 'not_found') {
+          throw new NotFoundError('The attachment object does not exist.');
+        }
+        if (finalization.error === 'already_unavailable') {
+          throw new NotFoundError('The attachment object is unavailable.');
+        }
+        throw new DomainProblemError({
+          code: 'invalid_content',
+          fileIds: [fileId],
+        });
+      }
+
+      const changeset = createAttachmentChangeset({
+        workspaceId,
+        fileId,
+        revisionId,
+        path,
+        objectId,
+        digest,
+        expectedHead,
+        message,
+        ids: {
+          mutationId,
+          deviceId,
+          clientTime: new Date().toISOString(),
+        },
+      });
+
+      const acceptResult = await commitChangeset(
+        workspaceStore,
+        actor,
+        changeset,
+        reqDigest,
+      );
+      if (!acceptResult.ok) {
+        throw new DomainProblemError(acceptResult.error);
+      }
+
+      return answerAccepted(reply, acceptResult.value, 200);
+    },
+
+    getAttachmentRevision: async (request, reply): Promise<HandlerResult> => {
+      const actor = requireActor(request).actor;
+      const workspaceId = readText(request.params, 'workspaceId');
+      const revisionId = readText(request.params, 'revisionId');
+      const grant = actor.grants.find(
+        (item) => item.workspaceId === workspaceId,
+      );
+      if (!grant || !grant.actions.includes('read')) {
+        throw new ForbiddenError();
+      }
+
+      const result = await attachmentStore.readAttachmentRevision(
+        actor,
+        workspaceId,
+        revisionId,
+      );
+      if (result === null) {
+        throw new NotFoundError('The attachment revision does not exist.');
+      }
+
+      reply.header('content-length', String(result.size));
+      reply.header('etag', `"${result.revisionId}"`);
+      return {
+        status: 200,
+        mediaType: result.mediaType,
+        body: result.stream,
+      };
+    },
+  };
+}

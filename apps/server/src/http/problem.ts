@@ -180,6 +180,42 @@ export class PreconditionRequiredError extends Error {
 }
 
 /**
+ * A payload that exceeds the configured size or pixel limit.
+ */
+export class PayloadTooLargeError extends Error {
+  constructor(detail = titles.payload_too_large) {
+    super(detail);
+    this.name = 'PayloadTooLargeError';
+  }
+}
+
+/**
+ * A media type that the operation does not accept.
+ */
+export class UnsupportedMediaTypeError extends Error {
+  constructor(detail = titles.unsupported_media_type) {
+    super(detail);
+    this.name = 'UnsupportedMediaTypeError';
+  }
+}
+
+/**
+ * Submitted content that is invalid or malformed.
+ */
+export class InvalidContentError extends Error {
+  readonly fileIds: readonly string[];
+
+  constructor(
+    detail = titles.invalid_content,
+    fileIds: readonly string[] = [],
+  ) {
+    super(detail);
+    this.name = 'InvalidContentError';
+    this.fileIds = fileIds;
+  }
+}
+
+/**
  * An expected outcome of a content operation, on its way out of the boundary.
  *
  * The core returns a `DomainError` rather than throwing one. A handler that
@@ -380,6 +416,28 @@ export function classifyError(error: unknown): {
       code: 'unsupported_media_type',
       detail: error.message,
       issues: [],
+    };
+  if (error instanceof UnsupportedMediaTypeError)
+    return {
+      status: 415,
+      code: 'unsupported_media_type',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof PayloadTooLargeError)
+    return {
+      status: 413,
+      code: 'payload_too_large',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof InvalidContentError)
+    return {
+      status: 422,
+      code: 'invalid_content',
+      detail: error.message,
+      issues: [],
+      ...(error.fileIds !== undefined ? { fileIds: error.fileIds } : {}),
     };
   const code = fastifyErrorCode(error);
   if (code === 'FST_ERR_CTP_BODY_TOO_LARGE')

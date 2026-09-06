@@ -82,7 +82,10 @@ export function parseTag(value: unknown): string | null {
 }
 
 /** One header value, or undefined when the request carries none. */
-function header(request: FastifyRequest, name: string): string | undefined {
+export function header(
+  request: FastifyRequest,
+  name: string,
+): string | undefined {
   const value = request.headers[name];
   if (typeof value === 'string') return value;
   if (Array.isArray(value) && typeof value[0] === 'string') return value[0];
@@ -90,7 +93,7 @@ function header(request: FastifyRequest, name: string): string | undefined {
 }
 
 /** A validated string member of a request body. */
-function readText(value: unknown, key: string): string {
+export function readText(value: unknown, key: string): string {
   const member = readProperty(value, key);
   if (typeof member !== 'string')
     throw new Error(`notesapp: the validated body has no ${key}.`);
@@ -98,7 +101,7 @@ function readText(value: unknown, key: string): string {
 }
 
 /** An optional string member, or `null` when it is absent or null. */
-function readOptionalText(value: unknown, key: string): string | null {
+export function readOptionalText(value: unknown, key: string): string | null {
   const member = readProperty(value, key);
   return typeof member === 'string' ? member : null;
 }
@@ -338,7 +341,7 @@ export function missingWorkspaceStore(): WorkspaceStore {
  * somewhere else can make it stale, and the next conditional write then answers
  * 412, which is the documented way to notice it.
  */
-function answerAccepted(
+export function answerAccepted(
   reply: FastifyReply,
   accepted: AcceptedChangeset,
   status: number,

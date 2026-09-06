@@ -14,6 +14,12 @@ export {
   type WorkspaceStoreOptions,
 } from './workspace-store.ts';
 export {
+  openAttachmentStore,
+  type AttachmentStore,
+  type AttachmentStoreHandle,
+  type AttachmentStoreOptions,
+} from './attachments.ts';
+export {
   authRole,
   main as runMigrationCommand,
   migrationsFolder,

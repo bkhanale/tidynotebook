@@ -426,6 +426,15 @@ export function registerOperations(
     protocols,
   );
 
+  if (!app.hasContentTypeParser('multipart/form-data')) {
+    app.addContentTypeParser(
+      'multipart/form-data',
+      (_request, payload, done) => {
+        done(null, payload);
+      },
+    );
+  }
+
   const served = operations.filter((operation) => operation.protocol === null);
   const routeOperations = new Map<string, OperationId>();
   for (const operation of served) {
@@ -536,9 +545,17 @@ export function registerOperations(
       querystring: operation.request.query,
       headers: operation.request.headers,
     };
-    if (operation.request.body !== null) schema.body = operation.request.body;
+    if (
+      operation.request.body !== null &&
+      operation.request.bodyMediaType !== 'multipart/form-data'
+    ) {
+      schema.body = operation.request.body;
+    }
     const response: Record<string, unknown> = {};
     for (const declaredResponse of operation.responses) {
+      if (mediaTypeHandling[declaredResponse.mediaType] === 'binary') {
+        continue;
+      }
       const key = String(declaredResponse.status);
       if (key in response)
         throw new Error(
@@ -554,6 +571,9 @@ export function registerOperations(
       method: routeMethods[operation.method],
       url: toRoutePath(operation.path),
       config: { operationId: operation.id },
+      ...(operation.id === 'uploadAttachment'
+        ? { bodyLimit: 25 * 1024 * 1024 }
+        : {}),
       schema,
       handler: async (request, reply) => {
         const result = await handler(request, reply);
@@ -565,6 +585,10 @@ export function registerOperations(
           reply.removeHeader('content-type');
           await reply.send();
           return undefined;
+        }
+        if (mediaTypeHandling[result.mediaType] === 'binary') {
+          reply.header('content-type', result.mediaType);
+          return reply.send(result.body);
         }
         reply.header('content-type', `${result.mediaType}; charset=utf-8`);
         return result.body;
