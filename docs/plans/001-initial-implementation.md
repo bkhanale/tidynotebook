@@ -303,7 +303,7 @@ Execution record (2026-09-06): commit `6faeb96`. Checks: 380 unit pass (30 sync)
 
 Execution record (2026-09-06): commits `8b1760e`, `4e5c07d`, `6a4dfb8`, `b06635b`, `0d03776`, `d9d79d0`. Six independent review rounds; final verdict Ready. The sanitizer and URL policy passed about 60 adversarial inputs from the first round unchanged. Resource limits were the repeated finding: micromark parsing is quadratic for several ordinary shapes, so `packages/markdown/src/limits.ts` now runs a source pre-scan before every entry point with measured caps (1 MiB input, 64 KiB line and paragraph, 1,000 delimiter run, 100 nesting levels, 2,000 links, 2,000 table rows, 10,000 table cells, 100 table columns, 5,000 list lines, 15,000 blocks, 2,000 inline delimiters per block and 100,000 per document, and a combined cost score at or below 2.3). Every at-cap shape renders in about one second and every out-of-cap shape is refused in under 100 ms; measurements are recorded in `docs/development/toolchain.md`. Deviations recorded there: corpus as a TypeScript template literal, `MarkdownLimitError` instead of a result variant, math and Mermaid as placeholders until Task 15, external images as placeholders, `#fragment` links blocked until heading slugs exist (Task 18 follow-up), `@types/<name>` accepted by the boundary checker for type-only imports.
 
-### [ ] Task 13: Build the Tokyo Night shell and account screens
+### [x] Task 13: Build the Tokyo Night shell and account screens
 
 **Depends on:** Tasks 5 and 11.
 
@@ -311,11 +311,13 @@ Execution record (2026-09-06): commits `8b1760e`, `4e5c07d`, `6a4dfb8`, `b06635b
 
 **Interfaces:** Produces `resolveTheme(choice: 'system' | 'light' | 'dark', prefersDark: boolean): 'light' | 'dark'`. Web composition configures the generated client, local store, and sync engine. Screens consume generated account/workspace operations; they do not create a second network layer.
 
-- [ ] Add React routing, responsive sidebar/drawer, workspace selector, recent files, file tree, status region, and collapsible outline/backlinks region. Add login/OIDC redirect, invitations, member roles, owner controls, theme settings, and agent token management with one-time secret display.
-- [ ] Copy Tokyo Night Night/Day tokens and the upstream license. Derive semantic text/control colors that meet WCAG contrast, apply the saved preference before paint, and sync preferences without delaying local changes. Use system fonts or locally served font assets.
-- [ ] Connect account and workspace loading to generated operations and local snapshot status. Keep unknown or unavailable notes distinct from empty files. Show viewer controls as read-only and clear private screen state when accounts change.
-- [ ] Run `pnpm --filter @notesapp/ui test:unit`, `pnpm typecheck`, and `pnpm build`. Check theme resolution and contrast calculations with unit tests. Inspect the shell manually for keyboard focus, reduced motion, touch controls, and responsive layout; do not add a browser harness.
-- [ ] Commit: `feat: add Tokyo Night application shell`.
+- [x] Add React routing, responsive sidebar/drawer, workspace selector, recent files, file tree, status region, and collapsible outline/backlinks region. Add login/OIDC redirect, invitations, member roles, owner controls, theme settings, and agent token management with one-time secret display.
+- [x] Copy Tokyo Night Night/Day tokens and the upstream license. Derive semantic text/control colors that meet WCAG contrast, apply the saved preference before paint, and sync preferences without delaying local changes. Use system fonts or locally served font assets.
+- [x] Connect account and workspace loading to generated operations and local snapshot status. Keep unknown or unavailable notes distinct from empty files. Show viewer controls as read-only and clear private screen state when accounts change.
+- [x] Run `pnpm --filter @notesapp/ui test:unit`, `pnpm typecheck`, and `pnpm build`. Check theme resolution and contrast calculations with unit tests. Inspect the shell manually for keyboard focus, reduced motion, touch controls, and responsive layout; do not add a browser harness.
+- [x] Commit: `feat: add Tokyo Night application shell`.
+
+Execution record (2026-09-06): commit `851471e`. Checks: typecheck, lint, format, 396 unit (16 ui), build with web bundle.
 
 ### [ ] Task 14: Build one-pane live editing and local save feedback
 
