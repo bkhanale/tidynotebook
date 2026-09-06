@@ -207,7 +207,7 @@ commit once; return exact accepted revision IDs
 
 Execution record (2026-09-06): commits `66f63b4` and `b89f000`. One review round found and closed: write-only token 403 response, tombstones carrying new Markdown, `If-Match: *` handling, and denied read disguised as 412. Decisions recorded in `docs/development/files-and-revisions.md`: write responses built from the accepted result returned by the use case; note tombstones must be empty; tag lists accepted in `If-Match`. 344 unit tests and 29 revision integration tests pass.
 
-### [ ] Task 7: Implement immutable attachment transfer and cleanup
+### [x] Task 7: Implement immutable attachment transfer and cleanup
 
 **Depends on:** Task 6.
 
@@ -215,11 +215,13 @@ Execution record (2026-09-06): commits `66f63b4` and `b89f000`. One review round
 
 **Interfaces:** Produces operation IDs `uploadAttachment`, `finalizeAttachment`, and `getAttachmentRevision`. Upload returns object identity and verified digest; finalization creates an immutable attachment revision through the file transaction. Authenticated reads return binary content with declared MIME type and immutable revision identity. Produces `reclaimAttachments(now: Date): Promise<number>` as a composition-bound job function.
 
-- [ ] Stream uploads to private temporary files, enforce 20 MiB and 40 megapixels, and inspect them with Sharp using an explicit pixel limit and accepted format list. Reject SVG, inconsistent media declarations, and malformed files. Include animation frame dimensions in the resource check. Keep inspection in a bounded child process with a timeout, retain original validated bytes, and never trust the declared MIME type alone.
-- [ ] Verify the digest before finalization. Make bytes immutable and deduplicate only inside one workspace. Permit note revisions to reference only finalized attachment revisions in their workspace. Replacing an attachment produces a new revision ID.
-- [ ] Use workspace/object locking for both reference creation and cleanup. Reclaim temporary and finalized unreferenced objects after 24 hours; retain every object referenced by history, branches, or shares. Persist cleanup state so interrupted file deletion is safe to retry.
-- [ ] Run `pnpm test:integration -- attachments` and `pnpm generated:check`. Test generated multipart serialization, binary response types, truncation, forged MIME, oversize dimensions, duplicate finalization, cleanup races, quota accounting, old revision reads, and denied cross-workspace access.
-- [ ] Commit: `feat: add versioned attachment storage`.
+- [x] Stream uploads to private temporary files, enforce 20 MiB and 40 megapixels, and inspect them with Sharp using an explicit pixel limit and accepted format list. Reject SVG, inconsistent media declarations, and malformed files. Include animation frame dimensions in the resource check. Keep inspection in a bounded child process with a timeout, retain original validated bytes, and never trust the declared MIME type alone.
+- [x] Verify the digest before finalization. Make bytes immutable and deduplicate only inside one workspace. Permit note revisions to reference only finalized attachment revisions in their workspace. Replacing an attachment produces a new revision ID.
+- [x] Use workspace/object locking for both reference creation and cleanup. Reclaim temporary and finalized unreferenced objects after 24 hours; retain every object referenced by history, branches, or shares. Persist cleanup state so interrupted file deletion is safe to retry.
+- [x] Run `pnpm test:integration -- attachments` and `pnpm generated:check`. Test generated multipart serialization, binary response types, truncation, forged MIME, oversize dimensions, duplicate finalization, cleanup races, quota accounting, old revision reads, and denied cross-workspace access.
+- [x] Commit: `feat: add versioned attachment storage`.
+
+Execution record (2026-09-06): commit `68cd2c1`. 344 unit tests, 14 attachment integration tests, and 177 total integration tests pass. Verification proves streaming upload, image dimension and format limits in worker subprocess, multipart handling, receipt replay before precondition validation, quota limits, deduplication in workspace, and background reclamation.
 
 ### [ ] Task 8: Implement branches, history, restore, and permanent deletion
 
