@@ -399,7 +399,7 @@ Execution record (2026-09-06): commit `6a31f79`. Checks: offline-lifecycle 12, b
 
 Execution record (2026-09-06): commit `6ab5270`. Checks: search 5, sync 32, Markdown 133, contract 25, generated check, typecheck/lint/format/build clean.
 
-### [ ] Task 19: Implement pinned public sharing
+### [x] Task 19: Implement pinned public sharing
 
 **Depends on:** Task 18.
 
@@ -407,11 +407,13 @@ Execution record (2026-09-06): commit `6ab5270`. Checks: search 5, sync 32, Mark
 
 **Interfaces:** Operation IDs are `createShare`, `updateShare`, `revokeShare`, `listShares`, `getPublicShare`, and `getPublicAttachment`. Public routes are `/s/{token}` and `/s/{token}/attachments/{revisionId}`. Share responses return a URL only to authorized administrators; persisted records contain its token hash.
 
-- [ ] Allow admins/owners to publish an accepted revision, explicitly update its pinned revision, set expiry, and revoke. Bind public image access to the pinned revision's attachment allowlist. Do not permit branch publication.
-- [ ] Render useful sanitized HTML on the server without the editor bundle. Apply the same rich-content policy, theme tokens, and source fallback. Do not resolve private target titles/snippets. Recheck token, expiry, creator role, file state, and attachment membership on every public request.
-- [ ] Add no-store, noindex, no-referrer, security headers, and token-redacted access logs. Revoke on accepted file deletion, workspace deletion, or loss of sharing permission. Add UI preview and explicit publication update without republishing on save.
-- [ ] Run `pnpm test:integration -- sharing`, Markdown tests, and `pnpm generated:check`. Test revoked page/image routes, expiry, unpublished later edits, unauthorized historical attachment requests, creator downgrade, script content, and private target metadata.
-- [ ] Commit: `feat: add pinned public note sharing`.
+- [x] Allow admins/owners to publish an accepted revision, explicitly update its pinned revision, set expiry, and revoke. Bind public image access to the pinned revision's attachment allowlist. Do not permit branch publication.
+- [x] Render useful sanitized HTML on the server without the editor bundle. Apply the same rich-content policy, theme tokens, and source fallback. Do not resolve private target titles/snippets. Recheck token, expiry, creator role, file state, and attachment membership on every public request.
+- [x] Add no-store, noindex, no-referrer, security headers, and token-redacted access logs. Revoke on accepted file deletion, workspace deletion, or loss of sharing permission. Add UI preview and explicit publication update without republishing on save.
+- [x] Run `pnpm test:integration -- sharing`, Markdown tests, and `pnpm generated:check`. Test revoked page/image routes, expiry, unpublished later edits, unauthorized historical attachment requests, creator downgrade, script content, and private target metadata.
+- [x] Commit: `feat: add pinned public note sharing`.
+
+Execution record (2026-09-06): commit `b1af1c0`. Checks: sharing (10), history (12), search (5), Markdown (133), generated check, typecheck, lint, format check, and build all clean. Migration 0008 updated with `notesapp_purge_files` to clean search index. Problem details instance set to `/s/redacted` for valid URI reference.
 
 ### [ ] Task 20: Implement remote and local MCP access
 
