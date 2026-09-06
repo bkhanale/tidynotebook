@@ -1,0 +1,157 @@
+/**
+ * Tokyo Night tokens for notesapp.
+ *
+ * Palette source: Tokyo Night by Folke Lemaitre, Apache License 2.0.
+ * Repository: https://github.com/folke/tokyonight.nvim
+ * Night palette: extras/lua/tokyonight_night.lua
+ * Day palette: extras/lua/tokyonight_day.lua
+ *
+ * The six values per palette come from the design table. The semantic
+ * `*-text`, fill, border, and focus variants are derived within the palette
+ * so that text meets WCAG 2.2 AA contrast (4.5 to 1) on both the main
+ * background and the sidebar surface.
+ *
+ * The runtime source is `theme.ts`: `applyTheme` writes these same values as
+ * inline custom properties before paint. Keep the two files in sync by hand.
+ * See also packages/ui/THIRD_PARTY_LICENSES.md for the upstream license.
+ */
+
+:root {
+  color-scheme: light dark;
+  --notes-font-text: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --notes-font-code: ui-monospace, 'Cascadia Code', Menlo, Consolas, monospace;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+  --notes-bg: #1a1b26;
+  --notes-surface: #16161e;
+  --notes-text: #c0caf5;
+  --notes-text-strong: #e8ecff;
+  --notes-text-muted: #8b93b8;
+  --notes-accent: #7aa2f7;
+  --notes-accent-text: #7aa2f7;
+  --notes-accent-fill: #7aa2f7;
+  --notes-accent-on-fill: #0c0c14;
+  --notes-success: #9ece6a;
+  --notes-success-text: #9ece6a;
+  --notes-danger: #f7768e;
+  --notes-danger-text: #f7768e;
+  --notes-border: #6b7499;
+  --notes-focus: #7aa2f7;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --notes-bg: #e1e2e7;
+  --notes-surface: #d0d5e3;
+  --notes-text: #3760bf;
+  --notes-text-strong: #2f3d67;
+  --notes-text-muted: #4a4e69;
+  --notes-accent: #2e7de9;
+  --notes-accent-text: #1f4fd8;
+  --notes-accent-fill: #1f4fd8;
+  --notes-accent-on-fill: #ffffff;
+  --notes-success: #587539;
+  --notes-success-text: #3f5e2a;
+  --notes-danger: #f52a65;
+  --notes-danger-text: #a8154a;
+  --notes-border: #5a6a8a;
+  --notes-focus: #1f4fd8;
+}
+
+body {
+  background: var(--notes-bg);
+  color: var(--notes-text);
+  font-family: var(--notes-font-text);
+  line-height: 1.5;
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 3px solid var(--notes-focus);
+  outline-offset: 2px;
+}
+
+.notes-button,
+.notes-input,
+.notes-select {
+  font: inherit;
+  min-height: 44px;
+}
+
+input[type='checkbox'] {
+  min-height: 24px;
+  min-width: 24px;
+}
+
+.notes-button {
+  background: var(--notes-accent-fill);
+  border: 1px solid var(--notes-accent-fill);
+  border-radius: 6px;
+  color: var(--notes-accent-on-fill);
+  cursor: pointer;
+  padding: 8px 16px;
+}
+
+.notes-button[disabled] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.notes-button-secondary {
+  background: transparent;
+  color: var(--notes-accent-text);
+  border-color: var(--notes-border);
+}
+
+.notes-button-danger {
+  background: var(--notes-danger-text);
+  border-color: var(--notes-danger-text);
+  color: #ffffff;
+}
+
+[data-theme='dark'] .notes-button-danger {
+  color: #0c0c14;
+}
+
+.notes-input,
+.notes-select {
+  background: var(--notes-bg);
+  border: 1px solid var(--notes-border);
+  border-radius: 6px;
+  color: var(--notes-text-strong);
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.notes-label {
+  color: var(--notes-text-strong);
+  display: block;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.notes-field-error {
+  color: var(--notes-danger-text);
+  margin-top: 4px;
+}
+
+.notes-status-error {
+  color: var(--notes-danger-text);
+}
+
+.notes-status-ok {
+  color: var(--notes-success-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms;
+    animation-iteration-count: 1;
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "name": "@notesapp/web",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/app.d.ts",
+      "default": "./dist/app.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.build.json && tsc -p tsconfig.json",
+    "build": "tsc -b tsconfig.build.json && vite build",
+    "test:unit": "node ../../tools/run-tests.mjs unit",
+    "dev": "vite"
+  },
+  "dependencies": {
+    "@notesapp/api-client": "workspace:*",
+    "@notesapp/core": "workspace:*",
+    "@notesapp/storage-browser": "workspace:*",
+    "@notesapp/sync": "workspace:*",
+    "@notesapp/ui": "workspace:*",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router": "8.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "@types/react": "19.2.8",
+    "@types/react-dom": "19.2.7",
+    "typescript": "7.0.2",
+    "vite": "8.2.2"
+  }
+}

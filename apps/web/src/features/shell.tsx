@@ -1,0 +1,586 @@
+/**
+ * Application shell: responsive layout, workspace navigation, and file tree.
+ *
+ * The shell owns routing chrome only: a header, a sidebar that becomes a
+ * drawer on phones, the workspace selector, recent files, the file tree, the
+ * status region, and the collapsible outline and backlinks region. Note
+ * content editing belongs to a later task; the note view below tells an
+ * unknown note apart from an empty file and otherwise shows its identity.
+ */
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { Link, Outlet, useLocation, useParams } from 'react-router';
+import {
+  getFile,
+  listFiles,
+  type WorkspaceFileSummary,
+} from '@notesapp/api-client';
+import { Button, CollapsibleSection, StatusRegion } from '@notesapp/ui';
+import '../shell.css';
+import {
+  problemMessage,
+  useLocalSnapshotStatus,
+  useLocalStore,
+  useSession,
+  useWorkspaceSync,
+} from '../app.tsx';
+import {
+  canWrite,
+  findWorkspace,
+  useWorkspaces,
+  WorkspaceMembers,
+  WorkspaceOwnerControls,
+} from './workspaces.tsx';
+
+/** One page of files merged into a full list. */
+async function loadAllFiles(
+  workspaceId: string,
+): Promise<{ readonly files: readonly WorkspaceFileSummary[] }> {
+  const files: WorkspaceFileSummary[] = [];
+  let cursor: string | null = null;
+  let firstPage = true;
+  for (;;) {
+    const query: { readonly cursor?: string; readonly limit?: number } =
+      firstPage || cursor === null ? { limit: 100 } : { cursor, limit: 100 };
+    firstPage = false;
+    const result = await listFiles({
+      path: { workspaceId },
+      query: { ...query },
+    });
+    if (result.error !== undefined || result.data === undefined)
+      throw new Error(problemMessage(result.error));
+    files.push(...result.data.files);
+    if (result.data.nextCursor === null) break;
+    cursor = result.data.nextCursor;
+  }
+  return { files };
+}
+
+/** The newest files first, at most five. */
+function recentFiles(
+  files: readonly WorkspaceFileSummary[],
+): readonly WorkspaceFileSummary[] {
+  return [...files]
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
+    .slice(0, 5);
+}
+
+/** One node of the rendered file tree. */
+type TreeNode =
+  | { readonly kind: 'file'; readonly file: WorkspaceFileSummary }
+  | {
+      readonly kind: 'folder';
+      readonly name: string;
+      readonly children: readonly TreeNode[];
+    };
+
+/** Groups flat file paths into a folder tree. */
+export function buildFileTree(
+  files: readonly WorkspaceFileSummary[],
+): readonly TreeNode[] {
+  type MutableFolder = {
+    readonly folders: Map<string, MutableFolder>;
+    readonly files: WorkspaceFileSummary[];
+  };
+  const root: MutableFolder = { folders: new Map(), files: [] };
+  const ordered = [...files].sort((a, b) => (a.path < b.path ? -1 : 1));
+  for (const file of ordered) {
+    const segments = file.path.split('/');
+    let current = root;
+    for (let index = 0; index < segments.length - 1; index += 1) {
+      const segment = segments[index] ?? '';
+      let next = current.folders.get(segment);
+      if (next === undefined) {
+        next = { folders: new Map(), files: [] };
+        current.folders.set(segment, next);
+      }
+      current = next;
+    }
+    current.files.push(file);
+  }
+  const render = (folder: MutableFolder): readonly TreeNode[] => {
+    const folders = [...folder.folders.entries()]
+      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .map(([name, child]): TreeNode => ({
+        kind: 'folder',
+        name,
+        children: render(child),
+      }));
+    const leaves = folder.files.map((file): TreeNode => ({
+      kind: 'file',
+      file,
+    }));
+    return [...folders, ...leaves];
+  };
+  return render(root);
+}
+
+/** Renders one tree node as nested lists. */
+function TreeView({
+  nodes,
+  workspaceId,
+  onNavigate,
+}: {
+  readonly nodes: readonly TreeNode[];
+  readonly workspaceId: string;
+  readonly onNavigate: () => void;
+}): ReactNode {
+  if (nodes.length === 0) return <p>No files yet.</p>;
+  return (
+    <ul className="notes-tree">
+      {nodes.map((node) =>
+        node.kind === 'file' ? (
+          <li key={node.file.fileId}>
+            <Link
+              className="notes-tree-link"
+              to={`/w/${workspaceId}/notes/${node.file.fileId}`}
+              onClick={onNavigate}
+            >
+              {node.file.path}
+            </Link>
+          </li>
+        ) : (
+          <li key={`folder:${node.name}`}>
+            <span className="notes-tree-folder">{node.name}/</span>
+            <TreeView
+              nodes={node.children}
+              workspaceId={workspaceId}
+              onNavigate={onNavigate}
+            />
+          </li>
+        ),
+      )}
+    </ul>
+  );
+}
+
+/** The sidebar: selector, filter, recent files, tree, and panels. */
+function Sidebar({
+  workspaceId,
+  onNavigate,
+}: {
+  readonly workspaceId: string | null;
+  readonly onNavigate: () => void;
+}): ReactNode {
+  const { state } = useWorkspaces();
+  const [filter, setFilter] = useState('');
+  const [files, setFiles] = useState<readonly WorkspaceFileSummary[]>([]);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [backlinksOpen, setBacklinksOpen] = useState(false);
+
+  useEffect(() => {
+    if (workspaceId === null) {
+      setFiles([]);
+      return;
+    }
+    const activeWorkspace = workspaceId;
+    let cancelled = false;
+    async function load(): Promise<void> {
+      try {
+        const loaded = await loadAllFiles(activeWorkspace);
+        if (!cancelled) setFiles(loaded.files);
+      } catch {
+        if (!cancelled) setFiles([]);
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const visible = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    if (needle === '') return files;
+    return files.filter((file) => file.path.toLowerCase().includes(needle));
+  }, [files, filter]);
+
+  return (
+    <div className="notes-sidebar-body">
+      <nav aria-label="Workspaces">
+        <h2>Workspace</h2>
+        {state.status === 'ready' ? (
+          <ul>
+            {state.workspaces.map((entry) => (
+              <li key={entry.workspaceId}>
+                <Link
+                  className="notes-tree-link"
+                  to={`/w/${entry.workspaceId}`}
+                  onClick={onNavigate}
+                  aria-current={
+                    entry.workspaceId === workspaceId ? 'page' : undefined
+                  }
+                >
+                  {entry.name}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <StatusRegion message="Loading workspaces." />
+        )}
+      </nav>
+      {workspaceId === null ? null : (
+        <>
+          <section aria-labelledby="recent-heading">
+            <h2 id="recent-heading">Recent files</h2>
+            <ul>
+              {recentFiles(files).map((file) => (
+                <li key={file.fileId}>
+                  <Link
+                    className="notes-tree-link"
+                    to={`/w/${workspaceId}/notes/${file.fileId}`}
+                    onClick={onNavigate}
+                  >
+                    {file.path}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+          <section aria-labelledby="tree-heading">
+            <h2 id="tree-heading">Files</h2>
+            <label className="notes-label" htmlFor="notes-filter">
+              Filter files
+            </label>
+            <input
+              id="notes-filter"
+              className="notes-input"
+              type="text"
+              value={filter}
+              placeholder="Type to filter"
+              onChange={(event): void => {
+                setFilter(event.target.value);
+              }}
+            />
+            <TreeView
+              nodes={buildFileTree(visible)}
+              workspaceId={workspaceId}
+              onNavigate={onNavigate}
+            />
+          </section>
+          <CollapsibleSection
+            id="notes-outline"
+            title="Outline"
+            open={outlineOpen}
+            onToggle={setOutlineOpen}
+          >
+            <p>The outline appears when a note is open.</p>
+          </CollapsibleSection>
+          <CollapsibleSection
+            id="notes-backlinks"
+            title="Backlinks"
+            open={backlinksOpen}
+            onToggle={setBacklinksOpen}
+          >
+            <p>Backlinks appear when a note is open.</p>
+          </CollapsibleSection>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The application frame.
+ *
+ * On wide screens the sidebar sits next to the content. On phones it is a
+ * drawer that the header button opens and that closes on navigation.
+ */
+export function Shell(): ReactNode {
+  const location = useLocation();
+  const params = useParams();
+  const workspaceId =
+    typeof params.workspaceId === 'string' ? params.workspaceId : null;
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const session = useSession();
+  const store = useLocalStore();
+  const accountId = session.account?.accountId ?? null;
+  const syncMessage = useWorkspaceSync(store.store, accountId, workspaceId);
+  const localMessage = useLocalSnapshotStatus(
+    store.store,
+    accountId,
+    workspaceId,
+  );
+
+  useEffect(() => {
+    setDrawerOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setDrawerOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  return (
+    <div className={`notes-shell${drawerOpen ? ' drawer-open' : ''}`}>
+      <a className="notes-skip-link" href="#notes-content">
+        Skip to content
+      </a>
+      <header className="notes-header">
+        <Button
+          variant="secondary"
+          label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+          onClick={() => {
+            setDrawerOpen((open) => !open);
+          }}
+        >
+          Menu
+        </Button>
+        <Link className="notes-brand" to="/">
+          Notesapp
+        </Link>
+        <span className="notes-header-spacer" />
+        <Link className="notes-tree-link" to="/settings">
+          {session.account?.email ?? 'Account'}
+        </Link>
+      </header>
+      <aside
+        id="notes-sidebar"
+        className="notes-sidebar"
+        aria-label="Notes navigation"
+      >
+        <Sidebar
+          workspaceId={workspaceId}
+          onNavigate={() => setDrawerOpen(false)}
+        />
+      </aside>
+      <div id="notes-content" className="notes-content">
+        <Outlet />
+        <footer>
+          <StatusRegion message={syncMessage} />
+          {localMessage !== '' ? <StatusRegion message={localMessage} /> : null}
+          {store.error !== null ? (
+            <p className="notes-status-error" role="alert">
+              {store.error}
+            </p>
+          ) : null}
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+/** One workspace: files, membership, and owner controls. */
+export function WorkspaceView(): ReactNode {
+  const params = useParams();
+  const workspaceId =
+    typeof params.workspaceId === 'string' ? params.workspaceId : null;
+  const { state, reload } = useWorkspaces();
+
+  if (workspaceId === null)
+    return (
+      <main>
+        <h1>Workspace not found</h1>
+        <p>The address names no workspace.</p>
+      </main>
+    );
+  if (state.status === 'loading')
+    return (
+      <main>
+        <StatusRegion message="Loading the workspace." />
+      </main>
+    );
+  if (state.status === 'error')
+    return (
+      <main>
+        <h1>Workspace</h1>
+        <p className="notes-status-error" role="alert">
+          {state.message}
+        </p>
+      </main>
+    );
+
+  const workspace = findWorkspace(state.workspaces, workspaceId);
+  if (workspace === null)
+    return (
+      <main>
+        <h1>Workspace not found</h1>
+        <p>
+          This account has no workspace with that ID. It may be removed, or the
+          address may be wrong.
+        </p>
+        <p>
+          <Link to="/">Back to workspaces.</Link>
+        </p>
+      </main>
+    );
+
+  return (
+    <WorkspaceDetail
+      workspaceId={workspace.workspaceId}
+      name={workspace.name}
+      role={workspace.role}
+      personal={workspace.personal}
+      onChanged={reload}
+    />
+  );
+}
+
+/** The workspace detail after its membership is known. */
+function WorkspaceDetail({
+  workspaceId,
+  name,
+  role,
+  personal,
+  onChanged,
+}: {
+  readonly workspaceId: string;
+  readonly name: string;
+  readonly role: 'owner' | 'admin' | 'editor' | 'viewer';
+  readonly personal: boolean;
+  readonly onChanged: () => void;
+}): ReactNode {
+  const writable = canWrite(role);
+  return (
+    <main>
+      <h1>{name}</h1>
+      <p>
+        Role: {role}
+        {personal ? ' (personal)' : ''}
+      </p>
+      {!writable ? (
+        <p>
+          This workspace is read-only for viewers. File editing and membership
+          controls are hidden for this role.
+        </p>
+      ) : null}
+      <p>
+        Open a note from the sidebar. Creating and editing notes arrives with
+        the editor screen; this shell covers navigation and settings.
+      </p>
+      <WorkspaceMembers
+        workspaceId={workspaceId}
+        role={role}
+        onChanged={onChanged}
+      />
+      {role === 'owner' ? (
+        <WorkspaceOwnerControls
+          workspace={{ workspaceId, name, role, personal }}
+          onChanged={onChanged}
+        />
+      ) : null}
+    </main>
+  );
+}
+
+/** One note: unknown, purged, empty, and readable states stay distinct. */
+export function NoteView(): ReactNode {
+  const params = useParams();
+  const workspaceId =
+    typeof params.workspaceId === 'string' ? params.workspaceId : null;
+  const fileId = typeof params.fileId === 'string' ? params.fileId : null;
+  const { state } = useWorkspaces();
+  const [status, setStatus] = useState<
+    | { readonly kind: 'loading' }
+    | { readonly kind: 'unknown' }
+    | { readonly kind: 'purged' }
+    | { readonly kind: 'unavailable'; readonly message: string }
+    | {
+        readonly kind: 'ready';
+        readonly path: string;
+        readonly headRevisionId: string | null;
+      }
+  >({ kind: 'loading' });
+
+  useEffect(() => {
+    if (workspaceId === null || fileId === null) {
+      setStatus({ kind: 'unknown' });
+      return;
+    }
+    const activeWorkspace = workspaceId;
+    const activeFile = fileId;
+    let cancelled = false;
+    async function load(): Promise<void> {
+      setStatus({ kind: 'loading' });
+      const result = await getFile({
+        path: { workspaceId: activeWorkspace, fileId: activeFile },
+      });
+      if (cancelled) return;
+      if (result.error !== undefined || result.data === undefined) {
+        const code = result.response?.status ?? 0;
+        if (code === 404) setStatus({ kind: 'unknown' });
+        else if (code === 410) setStatus({ kind: 'purged' });
+        else
+          setStatus({
+            kind: 'unavailable',
+            message: problemMessage(result.error),
+          });
+        return;
+      }
+      setStatus({
+        kind: 'ready',
+        path: result.data.path,
+        headRevisionId: result.data.headRevisionId,
+      });
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId, fileId]);
+
+  const role =
+    state.status === 'ready' && workspaceId !== null
+      ? (findWorkspace(state.workspaces, workspaceId)?.role ?? null)
+      : null;
+
+  if (status.kind === 'loading')
+    return (
+      <main>
+        <StatusRegion message="Loading the note." />
+      </main>
+    );
+  if (status.kind === 'unknown')
+    return (
+      <main>
+        <h1>Note not found</h1>
+        <p>
+          The server knows no file with that ID in this workspace. It may be
+          removed, or the address may be wrong. This is not an empty note.
+        </p>
+      </main>
+    );
+  if (status.kind === 'purged')
+    return (
+      <main>
+        <h1>Note permanently deleted</h1>
+        <p>
+          This file was purged by the workspace owner. Pending offline work for
+          it stays on this device for recovery into a new file.
+        </p>
+      </main>
+    );
+  if (status.kind === 'unavailable')
+    return (
+      <main>
+        <h1>Note unavailable</h1>
+        <p className="notes-status-error" role="alert">
+          {status.message}
+        </p>
+      </main>
+    );
+  return (
+    <main>
+      <h1>{status.path}</h1>
+      {role !== null && !canWrite(role) ? (
+        <p>This workspace is read-only for viewers.</p>
+      ) : null}
+      {status.headRevisionId === null ? (
+        <p>
+          This file has no accepted revision yet, so it is empty. The editor
+          screen arrives in a later task.
+        </p>
+      ) : (
+        <p>
+          Accepted head {status.headRevisionId}. The one-pane editor renders and
+          edits this note in a later task.
+        </p>
+      )}
+    </main>
+  );
+}
