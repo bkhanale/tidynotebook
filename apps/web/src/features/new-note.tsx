@@ -1,0 +1,89 @@
+/** Creates a local-first note without loading the editor implementation. */
+import { useState, type ReactNode } from 'react';
+import { useNavigate } from 'react-router';
+import {
+  isLocalStorageError,
+  type Draft,
+  type LocalStore,
+} from '@notesapp/sync';
+import { Button } from '@notesapp/ui';
+
+/**
+ * Creates a new note file and opens it.
+ *
+ * The file starts as a local draft through the store, then the router opens
+ * the editor with the handoff state. The first checkpoint submits the
+ * creation. Until then, the file lives only on this device.
+ */
+export function NewNoteButton({
+  store,
+  accountId,
+  workspaceId,
+  disabled,
+}: {
+  readonly store: LocalStore | null;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly disabled?: boolean | undefined;
+}): ReactNode {
+  const navigate = useNavigate();
+  const [error, setError] = useState<string | null>(null);
+
+  return (
+    <div>
+      <Button
+        variant="primary"
+        label="Create a new note"
+        disabled={disabled ?? store === null}
+        onClick={() => {
+          void (async (): Promise<void> => {
+            if (store === null) {
+              setError('Local storage is unavailable.');
+              return;
+            }
+            const fileId = crypto.randomUUID();
+            const workingCopyId = crypto.randomUUID();
+            const draft: Draft = {
+              accountId,
+              workspaceId,
+              workingCopyId,
+              fileId,
+              baseRevisionId: null,
+              text: '',
+              path: 'untitled.md',
+              deleted: false,
+              sequence: 1,
+            };
+            try {
+              await store.saveDraft(draft);
+            } catch (failure: unknown) {
+              setError(
+                isLocalStorageError(failure)
+                  ? `The note could not be created on this device (${failure.kind}).`
+                  : 'The note could not be created on this device.',
+              );
+              return;
+            }
+            setError(null);
+            await navigate(`/w/${workspaceId}/notes/${fileId}`, {
+              state: {
+                fresh: true,
+                fileId,
+                workingCopyId,
+                initialText: '',
+                initialPath: 'untitled.md',
+              },
+            });
+          })();
+        }}
+      >
+        New note
+      </Button>
+      {error !== null ? (
+        <p className="notes-status-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}

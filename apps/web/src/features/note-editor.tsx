@@ -54,6 +54,20 @@ import {
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
 
+/** Records a bounded browser timing entry without affecting the operation. */
+function recordTiming(name: string, startedAt: number): void {
+  try {
+    performance.measure(name, {
+      start: startedAt,
+      end: performance.now(),
+    });
+    if (performance.getEntriesByName(name).length > 200)
+      performance.clearMeasures(name);
+  } catch {
+    // User Timing is development evidence only. It cannot break note work.
+  }
+}
+
 /**
  * The built diagram frame document.
  *
@@ -116,6 +130,7 @@ const queuePollMs = 5_000;
 type FreshFileState = {
   readonly fresh: true;
   readonly fileId: string;
+  readonly workingCopyId: string;
   readonly initialText: string;
   readonly initialPath: string;
 };
@@ -126,11 +141,13 @@ function readFreshState(value: unknown, fileId: string): FreshFileState | null {
   const record = value as Record<string, unknown>;
   if (record['fresh'] !== true) return null;
   if (record['fileId'] !== fileId) return null;
+  if (typeof record['workingCopyId'] !== 'string') return null;
   if (typeof record['initialText'] !== 'string') return null;
   if (typeof record['initialPath'] !== 'string') return null;
   return {
     fresh: true,
     fileId,
+    workingCopyId: record['workingCopyId'],
     initialText: record['initialText'],
     initialPath: record['initialPath'],
   };
@@ -159,6 +176,7 @@ export type NoteEditorProps = {
   readonly initialText: string;
   readonly initialPath: string;
   readonly readOnly: boolean;
+  readonly initialWorkingCopyId?: string | undefined;
   readonly onOpenLink?: ((target: LinkTarget) => void) | undefined;
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
 };
@@ -180,6 +198,7 @@ export function NoteEditor({
   initialText,
   initialPath,
   readOnly,
+  initialWorkingCopyId,
   onOpenLink,
   onQueued,
 }: NoteEditorProps): ReactNode {
@@ -206,7 +225,10 @@ export function NoteEditor({
     ReadonlyMap<string, string>
   >(new Map());
   const [mathReady, setMathReady] = useState(false);
-  const workingCopyId = useMemo(() => crypto.randomUUID(), []);
+  const workingCopyId = useMemo(
+    () => initialWorkingCopyId ?? crypto.randomUUID(),
+    [initialWorkingCopyId],
+  );
   const mathRenderRef = useRef<
     ((source: string, display: boolean) => string) | null
   >(null);
@@ -285,8 +307,10 @@ export function NoteEditor({
     const current = live.current;
     const savedSequence = sequenceRef.current;
     setDraftPending(true);
+    const startedAt = performance.now();
     try {
       await current.store.saveDraft(buildDraft(false));
+      recordTiming('notesapp.local-draft-save', startedAt);
       // A newer keystroke may have arrived while the write ran; only that
       // newer write clears the pending flag.
       if (sequenceRef.current === savedSequence) setDraftPending(false);
@@ -487,6 +511,7 @@ export function NoteEditor({
       container,
       bufferRef.current,
       (text) => {
+        const startedAt = performance.now();
         bufferRef.current = text;
         setBufferText(text);
         sequenceRef.current += 1;
@@ -500,6 +525,7 @@ export function NoteEditor({
           }, draftSaveDelayMs);
           schedulerRef.current?.onInput();
         }
+        recordTiming('notesapp.typing-handler', startedAt);
       },
       {
         navigation: {
@@ -754,12 +780,14 @@ type LoaderStatus =
   | { readonly kind: 'loading' }
   | { readonly kind: 'unknown' }
   | { readonly kind: 'purged' }
+  | { readonly kind: 'deleted'; readonly path: string }
   | { readonly kind: 'unavailable'; readonly message: string }
   | {
       readonly kind: 'ready';
       readonly path: string;
       readonly text: string;
       readonly headRevisionId: string | null;
+      readonly workingCopyId?: string | undefined;
     };
 
 /**
@@ -795,12 +823,41 @@ export function NoteEditorLoader({
         path: fresh.initialPath,
         text: fresh.initialText,
         headRevisionId: null,
+        workingCopyId: fresh.workingCopyId,
       });
       return;
     }
     let cancelled = false;
     async function load(): Promise<void> {
       setStatus({ kind: 'loading' });
+      if (store !== null) {
+        try {
+          const startedAt = performance.now();
+          const cached = await store.readCachedNote(
+            accountId,
+            workspaceId,
+            fileId,
+          );
+          if (cancelled) return;
+          if (cached !== null) {
+            recordTiming('notesapp.cached-note-open', startedAt);
+            if (cached.deleted) {
+              setStatus({ kind: 'deleted', path: cached.path });
+              return;
+            }
+            setStatus({
+              kind: 'ready',
+              path: cached.path,
+              text: cached.text,
+              headRevisionId: cached.baseRevisionId,
+            });
+            return;
+          }
+        } catch {
+          // A server read can still show content. A later local write failure
+          // keeps the in-memory buffer visible and closes unsafe reload.
+        }
+      }
       const result = await getFile({
         path: { workspaceId, fileId },
       });
@@ -827,7 +884,7 @@ export function NoteEditorLoader({
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, fileId, location.state]);
+  }, [store, accountId, workspaceId, fileId, location.state]);
 
   if (status.kind === 'loading')
     return (
@@ -855,6 +912,19 @@ export function NoteEditorLoader({
         <p>
           This file was purged by the workspace owner. Pending offline work for
           it stays on this device for recovery into a new file.
+        </p>
+      </main>
+    );
+  if (status.kind === 'deleted')
+    return (
+      <main>
+        <h1>Note deleted on this device</h1>
+        <p>
+          {status.path} is deleted locally. The deletion stays queued until this
+          device can sync it.
+        </p>
+        <p>
+          <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
         </p>
       </main>
     );
@@ -894,6 +964,7 @@ export function NoteEditorLoader({
         initialText={status.text}
         initialPath={status.path}
         readOnly={!writable}
+        initialWorkingCopyId={status.workingCopyId}
         onOpenLink={(target: LinkTarget): void => {
           if (target.kind === 'url' && target.target.startsWith('/notes/')) {
             const noteId =
@@ -911,84 +982,5 @@ export function NoteEditorLoader({
         }}
       />
     </main>
-  );
-}
-
-/**
- * Creates a new note file and opens it.
- *
- * The file starts as a local draft through the store, then the router opens
- * the editor with the handoff state. The first checkpoint submits the
- * creation; until then the file lives only on this device.
- */
-export function NewNoteButton({
-  store,
-  accountId,
-  workspaceId,
-  disabled,
-}: {
-  readonly store: LocalStore | null;
-  readonly accountId: string;
-  readonly workspaceId: string;
-  readonly disabled?: boolean | undefined;
-}): ReactNode {
-  const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <div>
-      <Button
-        variant="primary"
-        label="Create a new note"
-        disabled={disabled ?? store === null}
-        onClick={() => {
-          void (async (): Promise<void> => {
-            if (store === null) {
-              setError('Local storage is unavailable.');
-              return;
-            }
-            const fileId = crypto.randomUUID();
-            const workingCopyId = crypto.randomUUID();
-            const draft: Draft = {
-              accountId,
-              workspaceId,
-              workingCopyId,
-              fileId,
-              baseRevisionId: null,
-              text: '',
-              path: 'untitled.md',
-              deleted: false,
-              sequence: 1,
-            };
-            try {
-              await store.saveDraft(draft);
-            } catch (failure: unknown) {
-              setError(
-                isLocalStorageError(failure)
-                  ? `The note could not be created on this device (${failure.kind}).`
-                  : 'The note could not be created on this device.',
-              );
-              return;
-            }
-            setError(null);
-            await navigate(`/w/${workspaceId}/notes/${fileId}`, {
-              state: {
-                fresh: true,
-                fileId,
-                initialText: '',
-                initialPath: 'untitled.md',
-              },
-            });
-          })();
-        }}
-      >
-        New note
-      </Button>
-      {error !== null ? (
-        <p className="notes-status-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </div>
   );
 }

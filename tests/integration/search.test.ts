@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
+import pg from 'pg';
 import {
   commitChangeset,
   getBacklinks,
@@ -158,6 +159,36 @@ await test('search requires the current role and a read grant', async () => {
     ok: false,
     error: { code: 'forbidden', fileIds: [] },
   });
+});
+
+await test('the indexed search function checks transaction membership directly', async () => {
+  const client = new pg.Client({ connectionString: database.runtimeUrl });
+  await client.connect();
+  try {
+    await client.query('begin');
+    await client.query("select set_config('notesapp.account_id', $1, true)", [
+      accountId,
+    ]);
+    const member = await client.query<{ file_id: string }>(
+      'select file_id from public.notesapp_search($1, $2, $3)',
+      [workspaceId, 'Duplicate', 10],
+    );
+    assert.ok(member.rows.length > 0);
+    await client.query('rollback');
+
+    await client.query('begin');
+    await client.query("select set_config('notesapp.account_id', $1, true)", [
+      randomUUID(),
+    ]);
+    const stranger = await client.query<{ file_id: string }>(
+      'select file_id from public.notesapp_search($1, $2, $3)',
+      [workspaceId, 'Duplicate', 10],
+    );
+    assert.deepEqual(stranger.rows, []);
+    await client.query('rollback');
+  } finally {
+    await client.end();
+  }
 });
 
 await test('local draft search stays inside its account and workspace', async () => {

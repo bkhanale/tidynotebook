@@ -5,7 +5,7 @@
  * protection wraps every private route; public routes are login, invitation
  * acceptance, and the post-provider landing page.
  */
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
 import { Link, RouterProvider, createBrowserRouter } from 'react-router';
 import {
   AccountSettingsPage,
@@ -14,13 +14,48 @@ import {
   RequireSession,
   SignedInLanding,
 } from './features/accounts.tsx';
-import { NoteView, Shell, WorkspaceView } from './features/shell.tsx';
-import { WorkspaceHome } from './features/workspaces.tsx';
-import { HistoryView } from './features/history.tsx';
-import { ConflictsView } from './features/conflicts.tsx';
-import { PurgeView } from './features/purge.tsx';
-import { OfflineStatusRoute } from './features/offline-status.tsx';
-import { RecoveryRoute } from './features/recovery.tsx';
+const Shell = lazy(async () => ({
+  default: (await import('./features/shell.tsx')).Shell,
+}));
+const NoteView = lazy(async () => ({
+  default: (await import('./features/shell.tsx')).NoteView,
+}));
+const WorkspaceView = lazy(async () => ({
+  default: (await import('./features/shell.tsx')).WorkspaceView,
+}));
+const WorkspaceHome = lazy(async () => ({
+  default: (await import('./features/workspaces.tsx')).WorkspaceHome,
+}));
+const HistoryView = lazy(async () => ({
+  default: (await import('./features/history.tsx')).HistoryView,
+}));
+const ConflictsView = lazy(async () => ({
+  default: (await import('./features/conflicts.tsx')).ConflictsView,
+}));
+const PurgeView = lazy(async () => ({
+  default: (await import('./features/purge.tsx')).PurgeView,
+}));
+const OfflineStatusRoute = lazy(async () => ({
+  default: (await import('./features/offline-status.tsx')).OfflineStatusRoute,
+}));
+const RecoveryRoute = lazy(async () => ({
+  default: (await import('./features/recovery.tsx')).RecoveryRoute,
+}));
+
+/** Holds a route while its deferred module loads. */
+function deferred(element: ReactNode): ReactNode {
+  return (
+    <Suspense
+      fallback={
+        <main>
+          <p role="status">Loading this screen.</p>
+        </main>
+      }
+    >
+      {element}
+    </Suspense>
+  );
+}
 
 /** Shown for an address that names no route. */
 function NotFoundPage(): ReactNode {
@@ -49,23 +84,31 @@ const router = createBrowserRouter([
   },
   {
     path: '/',
-    element: (
-      <RequireSession>
-        <Shell />
-      </RequireSession>
-    ),
+    element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
     children: [
-      { index: true, element: <WorkspaceHome /> },
-      { path: 'w/:workspaceId', element: <WorkspaceView /> },
-      { path: 'w/:workspaceId/notes/:fileId', element: <NoteView /> },
+      { index: true, element: deferred(<WorkspaceHome />) },
+      { path: 'w/:workspaceId', element: deferred(<WorkspaceView />) },
+      {
+        path: 'w/:workspaceId/notes/:fileId',
+        element: deferred(<NoteView />),
+      },
       {
         path: 'w/:workspaceId/notes/:fileId/history',
-        element: <HistoryView />,
+        element: deferred(<HistoryView />),
       },
-      { path: 'w/:workspaceId/conflicts', element: <ConflictsView /> },
-      { path: 'w/:workspaceId/purge', element: <PurgeView /> },
-      { path: 'w/:workspaceId/offline', element: <OfflineStatusRoute /> },
-      { path: 'w/:workspaceId/recovery', element: <RecoveryRoute /> },
+      {
+        path: 'w/:workspaceId/conflicts',
+        element: deferred(<ConflictsView />),
+      },
+      { path: 'w/:workspaceId/purge', element: deferred(<PurgeView />) },
+      {
+        path: 'w/:workspaceId/offline',
+        element: deferred(<OfflineStatusRoute />),
+      },
+      {
+        path: 'w/:workspaceId/recovery',
+        element: deferred(<RecoveryRoute />),
+      },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

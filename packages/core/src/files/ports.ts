@@ -451,6 +451,14 @@ export type TransactOptions = {
    * leaves this absent and keeps the default level.
    */
   readonly isolation?: 'repeatable-read';
+  /**
+   * True when the callback cannot change workspace state.
+   *
+   * A read-only transaction does not take the exclusive workspace write lock,
+   * so independent readers can run together. PostgreSQL also rejects a write
+   * if a caller marks a callback incorrectly.
+   */
+  readonly readOnly?: true;
 };
 
 /** Opens one workspace transaction for a verified actor. */

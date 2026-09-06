@@ -248,6 +248,13 @@ await test('a draft save and a checkpoint commit as one transaction each', async
 
   await store.saveDraft(draft);
   assert.deepEqual(await store.readDraft(account, workspace, 'copy-a'), draft);
+  assert.deepEqual(await store.readCachedNote(account, workspace, file), {
+    fileId: file,
+    path: 'notes/one.md',
+    text: '# One\n',
+    deleted: false,
+    baseRevisionId: null,
+  });
 
   const entry = await store.checkpoint(draft, null);
   assert.notEqual(entry, null);
@@ -308,6 +315,16 @@ await test('an unchanged working copy of an accepted file writes nothing', async
   const entry = await store.checkpoint(first, null);
   const revisionId = entry?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(entry, account, '10'));
+  await withRawDatabase(backend, async (tables) => {
+    await tables.drafts.delete([origin, account, workspace, 'copy-a']);
+  });
+  assert.deepEqual(await store.readCachedNote(account, workspace, file), {
+    fileId: file,
+    path: 'notes/one.md',
+    text: 'body\n',
+    deleted: false,
+    baseRevisionId: revisionId,
+  });
 
   // A second tab opens the accepted head and leaves without typing.
   const reopened = draftOf(account, workspace, file, 'copy-b', 'body\n', {
@@ -316,6 +333,29 @@ await test('an unchanged working copy of an accepted file writes nothing', async
   await store.saveDraft(reopened);
   assert.equal(await store.checkpoint(reopened, null), null);
   assert.deepEqual(await store.pending(account, workspace), []);
+  await store.close();
+});
+
+await test('a cached local deletion does not reopen accepted content', async () => {
+  const backend = createBackend('deleted-cache');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const deleted = {
+    ...draftOf(account, workspace, file, 'copy-a', 'old body\n'),
+    deleted: true,
+  };
+
+  await store.saveDraft(deleted);
+
+  assert.deepEqual(await store.readCachedNote(account, workspace, file), {
+    fileId: file,
+    path: 'notes/one.md',
+    text: 'old body\n',
+    deleted: true,
+    baseRevisionId: null,
+  });
   await store.close();
 });
 
@@ -643,7 +683,7 @@ await test('a database this application cannot read is refused', async () => {
   );
 });
 
-await test('a draft save stays inside the local persistence target', async () => {
+await test('local save and cached opening stay inside their targets', async () => {
   const backend = createBackend('latency');
   const store = await openLocalStore(origin, backend.options());
   const account = randomUUID();
@@ -651,7 +691,7 @@ await test('a draft save stays inside the local persistence target', async () =>
   const file = randomUUID();
   // A typical note in the design's corpus is 5 to 20 KiB.
   const body = 'The quick brown fox jumps over the lazy dog.\n'.repeat(300);
-  const samples: number[] = [];
+  const saveSamples: number[] = [];
   for (let index = 0; index < 60; index += 1) {
     const draft = draftOf(
       account,
@@ -663,21 +703,38 @@ await test('a draft save stays inside the local persistence target', async () =>
     );
     const started = performance.now();
     await store.saveDraft(draft);
-    samples.push(performance.now() - started);
+    saveSamples.push(performance.now() - started);
   }
-  samples.sort((left, right) => left - right);
-  const at = (fraction: number): number =>
+  const readSamples: number[] = [];
+  for (let index = 0; index < 60; index += 1) {
+    const started = performance.now();
+    const cached = await store.readCachedNote(account, workspace, file);
+    readSamples.push(performance.now() - started);
+    assert.equal(cached?.text.endsWith(`${String(59)}\n`), true);
+  }
+  saveSamples.sort((left, right) => left - right);
+  readSamples.sort((left, right) => left - right);
+  const at = (samples: readonly number[], fraction: number): number =>
     samples[
-      Math.min(samples.length - 1, Math.floor(samples.length * fraction))
+      Math.min(samples.length - 1, Math.ceil(samples.length * fraction) - 1)
     ] ?? 0;
   console.log(
-    `draft save over ${String(samples.length)} runs: p50 ${at(0.5).toFixed(2)} ms, ` +
-      `p95 ${at(0.95).toFixed(2)} ms, max ${(samples.at(-1) ?? 0).toFixed(2)} ms ` +
+    `draft save over ${String(saveSamples.length)} runs: p50 ${at(saveSamples, 0.5).toFixed(2)} ms, ` +
+      `p95 ${at(saveSamples, 0.95).toFixed(2)} ms, max ${(saveSamples.at(-1) ?? 0).toFixed(2)} ms ` +
       `(fake-indexeddb in Node, not browser durability)`,
   );
+  console.log(
+    `cached note open over ${String(readSamples.length)} runs: p50 ${at(readSamples, 0.5).toFixed(2)} ms, ` +
+      `p95 ${at(readSamples, 0.95).toFixed(2)} ms, max ${(readSamples.at(-1) ?? 0).toFixed(2)} ms ` +
+      `(fake-indexeddb in Node, not a browser paint)`,
+  );
   assert.ok(
-    at(0.95) < 150,
-    `the design target is 150 ms, measured ${at(0.95).toFixed(2)} ms`,
+    at(saveSamples, 0.95) < 150,
+    `the save target is 150 ms, measured ${at(saveSamples, 0.95).toFixed(2)} ms`,
+  );
+  assert.ok(
+    at(readSamples, 0.95) < 150,
+    `the cached open target is 150 ms, measured ${at(readSamples, 0.95).toFixed(2)} ms`,
   );
   await store.close();
 });

@@ -8,7 +8,6 @@ import {
   updateShare,
   type Share,
 } from '@notesapp/api-client';
-import { renderMarkdown } from '@notesapp/markdown';
 import { Button, StatusRegion } from '@notesapp/ui';
 import { problemMessage } from '../app.tsx';
 
@@ -63,6 +62,7 @@ export function SharingPanel({
 
   async function showPreview(): Promise<void> {
     if (head === null) return;
+    const { renderMarkdown } = await import('@notesapp/markdown');
     setPreview(await renderMarkdown(head.text));
   }
 

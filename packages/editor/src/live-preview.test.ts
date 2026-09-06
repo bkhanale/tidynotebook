@@ -8,6 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { markdown } from '@codemirror/lang-markdown';
 import { EditorState } from '@codemirror/state';
 import {
   findTaskBox,
@@ -18,6 +19,7 @@ import {
 import {
   isRevealed,
   partitionMarkers,
+  scanBlockMarkers,
   scanTextMarkers,
 } from './live-preview.ts';
 
@@ -199,4 +201,32 @@ await test('link targets resolve at a position and miss plain text', () => {
     title: 'Shopping',
   });
   assert.equal(linkTargetAt(text, 0), null);
+});
+
+await test('typical note typing stays inside the module response target', () => {
+  const paragraph =
+    'A **typical** note has [links](/notes/example), tasks, and plain text.\n';
+  const document = `# Performance note\n\n${paragraph.repeat(300)}`;
+  let state = EditorState.create({ doc: document, extensions: [markdown()] });
+  const samples: number[] = [];
+  for (let index = 0; index < 60; index += 1) {
+    const started = performance.now();
+    state = state.update({
+      changes: { from: state.doc.length, insert: 'x' },
+      userEvent: 'input.type',
+    }).state;
+    const line = state.doc.lineAt(state.doc.length);
+    scanBlockMarkers(line.text, line.from);
+    samples.push(performance.now() - started);
+  }
+  samples.sort((left, right) => left - right);
+  const p95 = samples[Math.ceil(samples.length * 0.95) - 1] ?? 0;
+  console.log(
+    `typing transaction over ${String(samples.length)} runs: p95 ${p95.toFixed(2)} ms ` +
+      `(Node module check, without browser paint or IME)`,
+  );
+  assert.ok(
+    p95 < 50,
+    `the typing target is 50 ms, measured ${p95.toFixed(2)} ms`,
+  );
 });

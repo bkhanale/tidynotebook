@@ -26,6 +26,7 @@ import {
   type CheckpointRecord,
   type Draft,
   type LocalAcceptedFile,
+  type LocalCachedNote,
   type LocalStore,
   type QueueEntry,
   type RecoveryInput,
@@ -895,6 +896,124 @@ export async function openLocalStore(
             .map((row: unknown) => validateAcceptedFile(row))
             .sort((left, right) => (left.path < right.path ? -1 : 1));
         }),
+      );
+    },
+
+    readCachedNote(
+      accountId: string,
+      workspaceId: string,
+      fileId: string,
+    ): Promise<LocalCachedNote | null> {
+      return guard('reading a cached note', () =>
+        db.transaction(
+          'r',
+          [
+            tables.acceptedFiles,
+            tables.checkpoints,
+            tables.contents,
+            tables.drafts,
+          ],
+          async () => {
+            const draftRows: unknown[] = await tables.drafts
+              .where('[serverOrigin+accountId+workspaceId+fileId]')
+              .equals([serverOrigin, accountId, workspaceId, fileId])
+              .toArray();
+            const drafts = draftRows.map((row: unknown) => validateDraft(row));
+            const draft = drafts.sort((left, right) => {
+              if (left.savedAt !== right.savedAt)
+                return left.savedAt < right.savedAt ? 1 : -1;
+              return left.workingCopyId < right.workingCopyId ? 1 : -1;
+            })[0];
+            if (draft !== undefined) {
+              return {
+                fileId,
+                path: draft.path,
+                text: draft.text,
+                deleted: draft.deleted,
+                baseRevisionId: draft.lastCheckpointId ?? draft.baseRevisionId,
+              };
+            }
+
+            const storedFile: unknown = await tables.acceptedFiles.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+            ]);
+            if (storedFile === undefined) return null;
+            const file = validateAcceptedFile(storedFile);
+            if (file.kind !== 'note') return null;
+            if (file.deleted)
+              return {
+                fileId,
+                path: file.path,
+                text: '',
+                deleted: true,
+                baseRevisionId: file.localHeadRevisionId,
+              };
+
+            const localHead = file.localHeadRevisionId;
+            if (
+              localHead !== null &&
+              localHead !== file.acceptedHeadRevisionId
+            ) {
+              const storedCheckpoint: unknown = await tables.checkpoints.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                localHead,
+              ]);
+              if (storedCheckpoint === undefined) return null;
+              const checkpoint = validateCheckpoint(storedCheckpoint);
+              if (checkpoint.deleted)
+                return {
+                  fileId,
+                  path: checkpoint.path,
+                  text: '',
+                  deleted: true,
+                  baseRevisionId: checkpoint.revisionId,
+                };
+              const storedContent: unknown = await tables.contents.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                checkpoint.digest,
+              ]);
+              if (storedContent === undefined) return null;
+              const content = validateContent(storedContent);
+              if (content.text === null) return null;
+              return {
+                fileId,
+                path: checkpoint.path,
+                text: content.text,
+                deleted: false,
+                baseRevisionId: checkpoint.revisionId,
+              };
+            }
+
+            if (
+              file.acceptedHeadRevisionId === null ||
+              file.acceptedHeadDigest === null
+            )
+              return null;
+            const storedContent: unknown = await tables.contents.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              file.acceptedHeadDigest,
+            ]);
+            if (storedContent === undefined) return null;
+            const content = validateContent(storedContent);
+            if (content.text === null) return null;
+            return {
+              fileId,
+              path: file.path,
+              text: content.text,
+              deleted: false,
+              baseRevisionId: file.acceptedHeadRevisionId,
+            };
+          },
+        ),
       );
     },
 

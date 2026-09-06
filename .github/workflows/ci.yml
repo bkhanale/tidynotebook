@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up the pinned Node release
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+
+      - name: Install the pinned package manager
+        run: npm install --global pnpm@12.3.4
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Start disposable integration services
+        run: docker compose -f compose.test.yaml up -d --wait
+
+      - name: Verify source, generated output, tests, and builds
+        run: pnpm verify
+
+      - name: Enforce the initial JavaScript budget
+        run: pnpm perf:bundle
+
+      - name: Enforce service performance budgets
+        run: pnpm perf:service
+
+      - name: Stop disposable integration services
+        if: always()
+        run: docker compose -f compose.test.yaml down --volumes

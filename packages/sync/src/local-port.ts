@@ -163,6 +163,16 @@ export type LocalAcceptedFile = {
   readonly updatedAt: string;
 };
 
+/** One Markdown note that is ready to open from local storage. */
+export type LocalCachedNote = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly text: string;
+  readonly deleted: boolean;
+  /** The local parent that the next checkpoint must name. */
+  readonly baseRevisionId: string | null;
+};
+
 /**
  * Immutable content, addressed by its digest inside one partition.
  *
@@ -483,6 +493,13 @@ export type LocalStore = {
     accountId: string,
     workspaceId: string,
   ): Promise<readonly LocalAcceptedFile[]>;
+
+  /** Reads one cached note, with the newest saved draft applied. */
+  readCachedNote(
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+  ): Promise<LocalCachedNote | null>;
 
   /** Accepted local note bodies with current drafts applied over them. */
   listSearchFiles(

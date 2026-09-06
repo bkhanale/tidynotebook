@@ -192,6 +192,10 @@ class FakeStore implements LocalStore {
     return Promise.resolve([]);
   }
 
+  readCachedNote(): Promise<null> {
+    return Promise.resolve(null);
+  }
+
   listSearchFiles(): Promise<readonly []> {
     return Promise.resolve([]);
   }

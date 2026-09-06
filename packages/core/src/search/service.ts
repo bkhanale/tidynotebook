@@ -62,6 +62,7 @@ export function searchFiles(
       if (!permitted.ok) return permitted;
       return ok(await tx.search(normalized, searchLimit(limit)));
     },
+    { readOnly: true },
   );
 }
 
@@ -84,5 +85,6 @@ export function getBacklinks(
         return fail('not_found', [fileId]);
       return ok(await tx.backlinks(fileId, searchLimit(limit)));
     },
+    { readOnly: true },
   );
 }

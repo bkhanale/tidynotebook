@@ -184,7 +184,7 @@ export function migrationProbe(databaseUrl: string): ReadinessProbe {
       );
       await client.end();
       const version = result.rows[0]?.version ?? 0;
-      if (version >= 10) {
+      if (version >= 11) {
         return {
           name: 'migration',
           status: 'ok',
@@ -194,7 +194,7 @@ export function migrationProbe(databaseUrl: string): ReadinessProbe {
       return {
         name: 'migration',
         status: 'degraded',
-        detail: `Database schema version ${version} is incomplete; version 10 is required.`,
+        detail: `Database schema version ${version} is incomplete; version 11 is required.`,
       };
     } catch {
       try {

@@ -7,7 +7,14 @@
  * content editing lives in the note editor screen; the note view tells an
  * unknown note apart from an empty file and otherwise opens that editor.
  */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
 import { Button, CollapsibleSection, StatusRegion } from '@notesapp/ui';
@@ -26,10 +33,15 @@ import {
   WorkspaceMembers,
   WorkspaceOwnerControls,
 } from './workspaces.tsx';
-import { NewNoteButton, NoteEditorLoader } from './note-editor.tsx';
+import { NewNoteButton } from './new-note.tsx';
 import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
 import { SearchDialog } from './search.tsx';
-import { SharingPanel } from './sharing.tsx';
+const NoteEditorLoader = lazy(async () => ({
+  default: (await import('./note-editor.tsx')).NoteEditorLoader,
+}));
+const SharingPanel = lazy(async () => ({
+  default: (await import('./sharing.tsx')).SharingPanel,
+}));
 
 /** One page of files merged into a full list. */
 async function loadAllFiles(
@@ -542,15 +554,19 @@ export function NoteView(): ReactNode {
         </Link>
       </p>
       {role === 'owner' || role === 'admin' ? (
-        <SharingPanel workspaceId={workspaceId} fileId={fileId} />
+        <Suspense fallback={<StatusRegion message="Loading sharing tools." />}>
+          <SharingPanel workspaceId={workspaceId} fileId={fileId} />
+        </Suspense>
       ) : null}
-      <NoteEditorLoader
-        store={store.store}
-        accountId={accountId}
-        workspaceId={workspaceId}
-        fileId={fileId}
-        role={role}
-      />
+      <Suspense fallback={<StatusRegion message="Loading the editor." />}>
+        <NoteEditorLoader
+          store={store.store}
+          accountId={accountId}
+          workspaceId={workspaceId}
+          fileId={fileId}
+          role={role}
+        />
+      </Suspense>
     </>
   );
 }

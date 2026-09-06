@@ -71,6 +71,13 @@
       "when": 1788711633419,
       "tag": "0009_operations_readiness",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1788714156329,
+      "tag": "0010_indexed_search",
+      "breakpoints": true
     }
   ]
 }

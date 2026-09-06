@@ -650,6 +650,9 @@ export function openWorkspaceStore(
               'set transaction isolation level repeatable read',
             );
           }
+          if (options.readOnly === true) {
+            await client.query('set transaction read only');
+          }
           await client.query(
             "select set_config('notesapp.account_id', $1, true)",
             [actor.accountId],
@@ -659,10 +662,12 @@ export function openWorkspaceStore(
           // It is an advisory lock, not `SELECT ... FOR UPDATE`, because a
           // viewer holds no UPDATE right on the workspace row. A hash
           // collision between two workspaces costs extra serialization only.
-          await client.query(
-            'select pg_advisory_xact_lock(hashtext($1::text)::bigint)',
-            [workspaceId],
-          );
+          if (options.readOnly !== true) {
+            await client.query(
+              'select pg_advisory_xact_lock(hashtext($1::text)::bigint)',
+              [workspaceId],
+            );
+          }
           const seen = await client.query<{ id: string }>(
             'select id from workspaces where id = $1',
             [workspaceId],
@@ -964,23 +969,7 @@ function createTransaction(
         revision_id: string;
         excerpt: string;
       }>(
-        `select file_id, path, revision_id,
-                left(replace(replace(
-                  ts_headline('simple', search_text,
-                    websearch_to_tsquery('simple', $2),
-                    'MaxWords=30, MinWords=8, ShortWord=2'),
-                  '<b>', ''), '</b>', ''), 1024) as excerpt
-           from public.search_index
-          where workspace_id = $1
-            and to_tsvector('simple', search_text)
-                @@ websearch_to_tsquery('simple', $2)
-          order by ts_rank_cd(
-                     to_tsvector('simple', search_text),
-                     websearch_to_tsquery('simple', $2)
-                   ) desc,
-                   path,
-                   file_id
-          limit $3`,
+        'select file_id, path, revision_id, excerpt from public.notesapp_search($1, $2, $3)',
         [workspaceId, query, limit],
       );
       return result.rows.map((row) => ({

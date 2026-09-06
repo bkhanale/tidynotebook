@@ -26,6 +26,7 @@ export type {
   Draft,
   LocalAcceptedFile,
   LocalBranch,
+  LocalCachedNote,
   LocalContent,
   LocalCursor,
   LocalFileKind,
