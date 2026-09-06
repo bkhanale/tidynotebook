@@ -178,7 +178,7 @@ Execution record (2026-09-06): commits `9914c5d`, `0066de9`, `55b09a1`. Two inde
 
 Execution record (2026-09-06): commits `8e54d5a`, `36a75cb`, `b246967`, `4d256ab`. Three independent security-focused review rounds found no authentication bypass, and found and closed: membership writes outside the workspace lock without sync or audit, a deletion audit destroyed by the delete, a mismatched auth fragment and a raw session token in the get-session response, no product path for an invitee without an account, Better Auth tables readable and writable by the runtime role, a stranger bypass in two `SECURITY DEFINER` guards (null comparison), an origin check lost when `acceptInvitation` became unauthenticated, an undeclared 500 on a bodyless DELETE with a JSON content type, and an unbound account-discard function. Decisions recorded in `docs/development/identity.md` and `database.md`: third database role `notesapp_auth` for the Better Auth pool with narrow lookup functions for the application; declarative auth fragment validated on protocol routes; token-plus-password invitation acceptance with server-side account creation; `account_audit_events` for account-scoped audit; cookie writes require `Origin` or `Sec-Fetch-Site`; `NOTESAPP_AUTH_DATABASE_URL`, `NOTESAPP_SMTP_URL`, `NOTESAPP_OIDC_REQUIRED` configuration. 41 identity and 32 row-access integration tests.
 
-### [ ] Task 6: Implement accepted revisions and atomic file changes
+### [x] Task 6: Implement accepted revisions and atomic file changes
 
 **Depends on:** Task 5.
 
@@ -186,9 +186,9 @@ Execution record (2026-09-06): commits `8e54d5a`, `36a75cb`, `b246967`, `4d256ab
 
 **Interfaces:** Produces `commitChangeset(store: WorkspaceStore, actor: Actor, input: ChangesetInput): Promise<Result<AcceptedChangeset>>`. Operation IDs are `listFiles`, `getFile`, `getRevision`, `createFile`, `updateFile`, `deleteFile`, and `commitChangeset`. All single-file write handlers map to the same changeset use case. Read schemas expose selected metadata and Markdown, never storage paths.
 
-- [ ] Server-side digest verification is mandatory (Task 4 review finding): content is deduplicated per workspace digest, so a client that reuses a stored digest with different text would otherwise make its revision resolve to the earlier bytes. `accept` verifies Markdown digests and returns the `invalid_content` domain error; `commitChangeset` must reject before storage as well, and HTTP maps `invalid_content` to 422.
-- [ ] Define SHA-256 content digests over UTF-8 Markdown or original attachment bytes. For a request digest, recursively sort object keys, preserve array order and explicit nulls, exclude transport-only fields, serialize validated values to UTF-8, and hash them with the operation identity and preconditions. Reject non-finite numbers through the schema. Require strong `If-Match` on existing-file HTTP writes and per-file expected heads on batch sync; missing preconditions return 428 and stale heads return 412.
-- [ ] Implement this transaction order, using the ports from Task 3:
+- [x] Server-side digest verification is mandatory (Task 4 review finding): content is deduplicated per workspace digest, so a client that reuses a stored digest with different text would otherwise make its revision resolve to the earlier bytes. `accept` verifies Markdown digests and returns the `invalid_content` domain error; `commitChangeset` must reject before storage as well, and HTTP maps `invalid_content` to 422.
+- [x] Define SHA-256 content digests over UTF-8 Markdown or original attachment bytes. For a request digest, recursively sort object keys, preserve array order and explicit nulls, exclude transport-only fields, serialize validated values to UTF-8, and hash them with the operation identity and preconditions. Reject non-finite numbers through the schema. Require strong `If-Match` on existing-file HTTP writes and per-file expected heads on batch sync; missing preconditions return 428 and stale heads return 412.
+- [x] Implement this transaction order, using the ports from Task 3:
 
 ```text
 lock workspace, mutation identity, sorted affected files
@@ -201,9 +201,11 @@ advance all heads, update indexes, allocate cursor, store receipt
 commit once; return exact accepted revision IDs
 ```
 
-- [ ] Implement create, rename, delete, named checkpoints, and folder changes up to 1,000 files. Store deletion as a revision, revoke associated shares, and remove accepted search entries within the transaction. Reserve control-operation capacity at quota. A full workspace cannot accept new content through a disguised delete.
-- [ ] Run `pnpm --filter @notesapp/core test:unit` and `pnpm test:integration -- revisions`. Test lost response replay after later heads, changed digest reuse, stale heads, a 1,000-file rename, atomic path swaps, rollback on one conflict, forged actor fields, and quota-safe deletion. Run contract generation and checks.
-- [ ] Commit: `feat: add immutable revisions and atomic file changes`.
+- [x] Implement create, rename, delete, named checkpoints, and folder changes up to 1,000 files. Store deletion as a revision, revoke associated shares, and remove accepted search entries within the transaction. Reserve control-operation capacity at quota. A full workspace cannot accept new content through a disguised delete.
+- [x] Run `pnpm --filter @notesapp/core test:unit` and `pnpm test:integration -- revisions`. Test lost response replay after later heads, changed digest reuse, stale heads, a 1,000-file rename, atomic path swaps, rollback on one conflict, forged actor fields, and quota-safe deletion. Run contract generation and checks.
+- [x] Commit: `feat: add immutable revisions and atomic file changes`.
+
+Execution record (2026-09-06): commits `66f63b4` and `b89f000`. One review round found and closed: write-only token 403 response, tombstones carrying new Markdown, `If-Match: *` handling, and denied read disguised as 412. Decisions recorded in `docs/development/files-and-revisions.md`: write responses built from the accepted result returned by the use case; note tombstones must be empty; tag lists accepted in `If-Match`. 344 unit tests and 29 revision integration tests pass.
 
 ### [ ] Task 7: Implement immutable attachment transfer and cleanup
 
