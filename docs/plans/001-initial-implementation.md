@@ -351,7 +351,7 @@ Execution record (2026-09-06): commit `4c039a3`. Checks: 411 unit (15 editor), t
 
 Execution record (2026-09-06): commit `65e4b91`. Checks: 430 unit, attachments 14, typecheck/lint/format/build clean.
 
-### [ ] Task 16: Add history and conflict resolution screens
+### [x] Task 16: Add history and conflict resolution screens
 
 **Depends on:** Tasks 8, 11, and 15.
 
@@ -359,11 +359,13 @@ Execution record (2026-09-06): commit `65e4b91`. Checks: 430 unit, attachments 1
 
 **Interfaces:** Define `DiffHunk = { before: readonly string[]; after: readonly string[]; beforeStart: number; afterStart: number }` and `DiffResult = { kind: 'complete'; hunks: readonly DiffHunk[] } | { kind: 'limit' }`. Produces `compareLines(before: string, after: string): DiffResult`. Screens consume generated history/branch/restore/purge operations and locally stored pending checkpoints. The merge result is submitted as a changeset with both tips and current expected heads.
 
-- [ ] Add paginated server history, local pending history, named checkpoints, old revision viewing, and restore. Preserve the current draft when opening history. Offer binary revision selection for attachments.
-- [ ] Run jsdiff line comparison in a worker with a 500 ms timeout and a 10,000-edit limit. Preserve whitespace and line endings and map library changes into `DiffHunk` records. Show one unified inline diff in the main pane. On a limit, show a message and permit explicit whole-version selection or source editing while retaining both branches. Permit hunk selection or editing, display every file in a conflict group, and require final paths for collisions. If heads move again, retain the edited result and return to resolution.
-- [ ] Add deletion history and owner purge preview/confirmation with blockers and backup retention text. After a purge rejection, preserve local work for explicit creation under a new file ID. Do not label a copied local recovery file as a server restore.
-- [ ] Run editor unit tests plus `pnpm test:integration -- history` and `pnpm test:integration -- sync`. Verify line diff behavior, restore parentage, atomic resolution, and a retained draft after a second conflict. Inspect the single-pane flow manually.
-- [ ] Commit: `feat: add file history and conflict recovery UI`.
+- [x] Add paginated server history, local pending history, named checkpoints, old revision viewing, and restore. Preserve the current draft when opening history. Offer binary revision selection for attachments.
+- [x] Run jsdiff line comparison in a worker with a 500 ms timeout and a 10,000-edit limit. Preserve whitespace and line endings and map library changes into `DiffHunk` records. Show one unified inline diff in the main pane. On a limit, show a message and permit explicit whole-version selection or source editing while retaining both branches. Permit hunk selection or editing, display every file in a conflict group, and require final paths for collisions. If heads move again, retain the edited result and return to resolution.
+- [x] Add deletion history and owner purge preview/confirmation with blockers and backup retention text. After a purge rejection, preserve local work for explicit creation under a new file ID. Do not label a copied local recovery file as a server restore.
+- [x] Run editor unit tests plus `pnpm test:integration -- history` and `pnpm test:integration -- sync`. Verify line diff behavior, restore parentage, atomic resolution, and a retained draft after a second conflict. Inspect the single-pane flow manually.
+- [x] Commit: `feat: add file history and conflict recovery UI`.
+
+Execution record (2026-09-06): commit `80240e4`. Checks: 448 unit, history 12, sync 7, typecheck/lint/format/build clean. Extra file `diff-worker-impl.ts` for real worker bundle.
 
 ### [ ] Task 17: Complete PWA installation, updates, and offline access recovery
 
