@@ -447,7 +447,7 @@ Execution record (2026-09-06): commit `30f0509`. Checks: MCP integration (6), un
 
 Execution record (2026-09-06): commit `99e1e5d`. Checks: typecheck, lint and boundaries, format, Compose configuration, amd64 image build, arm64 image build, and operations integration (9) all clean. The operations test includes an encrypted backup and verified restore against disposable PostgreSQL 18.6. The final amd64 image is 413,450,617 bytes and runs as UID/GID 10001. The host used Docker Engine 26.1.5 and Compose 2.26.1, which differ from the reference versions. No image was published and no external deployment ran.
 
-### [ ] Task 22: Complete implementation review and performance checks
+### [x] Task 22: Complete implementation review and performance checks
 
 **Depends on:** Tasks 1 through 21 complete.
 
@@ -455,11 +455,13 @@ Execution record (2026-09-06): commit `99e1e5d`. Checks: typecheck, lint and bou
 
 **Interfaces:** Root `pnpm verify` runs contract lint, generated comparison, typecheck, lint, formatting, unit/integration tests, and build in dependency order. `pnpm perf:service` seeds a disposable corpus and measures save/search service time; `pnpm perf:bundle` measures compressed initial JS. Test reports record environment, sample size, percentiles, and pass/fail without note content.
 
-- [ ] Review all design requirements against completed tasks. Check package imports, request/response validation, role/scope checks, replay order, immutable history, multi-file atomicity, local draft preservation, and cleanup/purge races. Fix findings and rerun only the affected tests before the final complete gate.
-- [ ] Generate 10,000 notes of 5 to 20 KiB plus a 1 MiB stress file. Measure 20 active users on a recorded 2-core/4 GiB test server. Require p95 save service time below 200 ms, search below 300 ms, and initial JS below 250 KiB gzip excluding deferred editor/rich modules.
-- [ ] Measure typing/local save/cached opening during manual development checks: p95 below 50/150/150 ms respectively. Record p75 LCP below 2.5 seconds and INP below 200 ms with sample limits stated. Add timing marks and source-preserving render limits where needed. Do not claim field performance from a small local sample; browser/device release measurements remain in Task 24.
-- [ ] Add CI for frozen installation, exact peer checks, deterministic generation, strict compilation, lint/boundaries, formatting, Node unit tests, disposable integration services, and builds. Run `pnpm install --frozen-lockfile`, `pnpm verify`, `pnpm perf:service`, and `pnpm perf:bundle`. Record actual results and remaining device evidence.
-- [ ] Commit: `test: enforce implementation quality and performance gates`.
+- [x] Review all design requirements against completed tasks. Check package imports, request/response validation, role/scope checks, replay order, immutable history, multi-file atomicity, local draft preservation, and cleanup/purge races. Fix findings and rerun only the affected tests before the final complete gate.
+- [x] Generate 10,000 notes of 5 to 20 KiB plus a 1 MiB stress file. Measure 20 active users on a recorded 2-core/4 GiB test server. Require p95 save service time below 200 ms, search below 300 ms, and initial JS below 250 KiB gzip excluding deferred editor/rich modules.
+- [x] Measure typing/local save/cached opening during manual development checks: p95 below 50/150/150 ms respectively. Record p75 LCP below 2.5 seconds and INP below 200 ms with sample limits stated. Add timing marks and source-preserving render limits where needed. Do not claim field performance from a small local sample; browser/device release measurements remain in Task 24.
+- [x] Add CI for frozen installation, exact peer checks, deterministic generation, strict compilation, lint/boundaries, formatting, Node unit tests, disposable integration services, and builds. Run `pnpm install --frozen-lockfile`, `pnpm verify`, `pnpm perf:service`, and `pnpm perf:bundle`. Record actual results and remaining device evidence.
+- [x] Commit: `test: enforce implementation quality and performance gates`.
+
+Execution record (2026-09-06): commit `8c4163d`. Frozen installation and the complete `pnpm verify` gate passed with 459 unit tests, 248 integration tests, and all builds. The 2-core/4 GiB service run against PostgreSQL 18.6 and 20 active users measured save p95 at 189.45 ms and search p95 at 26.34 ms across 100 samples each. Initial JavaScript was 144,544 bytes gzip. The 60-sample module checks measured typing p95 at 3.13 ms, draft save p95 at 0.25 ms, and cached opening p95 at 0.15 ms. Five warm local Chrome 152 samples measured LCP p75 at 44 ms and INP p75 at 24 ms on the signed-out route. This small browser sample is not field or device evidence. Task 24 still requires that evidence.
 
 ### [ ] Task 23: Author and run E2E tests after explicit user go-ahead
 
