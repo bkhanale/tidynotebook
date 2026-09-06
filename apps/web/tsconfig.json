@@ -9,6 +9,7 @@
   "references": [
     { "path": "../../packages/api-client/tsconfig.build.json" },
     { "path": "../../packages/core/tsconfig.build.json" },
+    { "path": "../../packages/editor/tsconfig.build.json" },
     { "path": "../../packages/storage-browser/tsconfig.build.json" },
     { "path": "../../packages/sync/tsconfig.build.json" },
     { "path": "../../packages/ui/tsconfig.build.json" }

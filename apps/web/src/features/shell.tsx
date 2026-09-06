@@ -4,16 +4,12 @@
  * The shell owns routing chrome only: a header, a sidebar that becomes a
  * drawer on phones, the workspace selector, recent files, the file tree, the
  * status region, and the collapsible outline and backlinks region. Note
- * content editing belongs to a later task; the note view below tells an
- * unknown note apart from an empty file and otherwise shows its identity.
+ * content editing lives in the note editor screen; the note view tells an
+ * unknown note apart from an empty file and otherwise opens that editor.
  */
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
-import {
-  getFile,
-  listFiles,
-  type WorkspaceFileSummary,
-} from '@notesapp/api-client';
+import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
 import { Button, CollapsibleSection, StatusRegion } from '@notesapp/ui';
 import '../shell.css';
 import {
@@ -30,6 +26,7 @@ import {
   WorkspaceMembers,
   WorkspaceOwnerControls,
 } from './workspaces.tsx';
+import { NewNoteButton, NoteEditorLoader } from './note-editor.tsx';
 
 /** One page of files merged into a full list. */
 async function loadAllFiles(
@@ -436,6 +433,8 @@ function WorkspaceDetail({
   readonly onChanged: () => void;
 }): ReactNode {
   const writable = canWrite(role);
+  const session = useSession();
+  const store = useLocalStore();
   return (
     <main>
       <h1>{name}</h1>
@@ -449,10 +448,14 @@ function WorkspaceDetail({
           controls are hidden for this role.
         </p>
       ) : null}
-      <p>
-        Open a note from the sidebar. Creating and editing notes arrives with
-        the editor screen; this shell covers navigation and settings.
-      </p>
+      {writable && session.account !== null ? (
+        <NewNoteButton
+          store={store.store}
+          accountId={session.account.accountId}
+          workspaceId={workspaceId}
+        />
+      ) : null}
+      <p>Open a note from the sidebar to edit it in the one-pane editor.</p>
       <WorkspaceMembers
         workspaceId={workspaceId}
         role={role}
@@ -475,112 +478,39 @@ export function NoteView(): ReactNode {
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
   const fileId = typeof params.fileId === 'string' ? params.fileId : null;
   const { state } = useWorkspaces();
-  const [status, setStatus] = useState<
-    | { readonly kind: 'loading' }
-    | { readonly kind: 'unknown' }
-    | { readonly kind: 'purged' }
-    | { readonly kind: 'unavailable'; readonly message: string }
-    | {
-        readonly kind: 'ready';
-        readonly path: string;
-        readonly headRevisionId: string | null;
-      }
-  >({ kind: 'loading' });
+  const session = useSession();
+  const store = useLocalStore();
 
-  useEffect(() => {
-    if (workspaceId === null || fileId === null) {
-      setStatus({ kind: 'unknown' });
-      return;
-    }
-    const activeWorkspace = workspaceId;
-    const activeFile = fileId;
-    let cancelled = false;
-    async function load(): Promise<void> {
-      setStatus({ kind: 'loading' });
-      const result = await getFile({
-        path: { workspaceId: activeWorkspace, fileId: activeFile },
-      });
-      if (cancelled) return;
-      if (result.error !== undefined || result.data === undefined) {
-        const code = result.response?.status ?? 0;
-        if (code === 404) setStatus({ kind: 'unknown' });
-        else if (code === 410) setStatus({ kind: 'purged' });
-        else
-          setStatus({
-            kind: 'unavailable',
-            message: problemMessage(result.error),
-          });
-        return;
-      }
-      setStatus({
-        kind: 'ready',
-        path: result.data.path,
-        headRevisionId: result.data.headRevisionId,
-      });
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId, fileId]);
+  if (workspaceId === null || fileId === null)
+    return (
+      <main>
+        <h1>Note not found</h1>
+        <p>
+          The address names no file in this workspace. It may be removed, or the
+          address may be wrong. This is not an empty note.
+        </p>
+      </main>
+    );
 
   const role =
-    state.status === 'ready' && workspaceId !== null
+    state.status === 'ready'
       ? (findWorkspace(state.workspaces, workspaceId)?.role ?? null)
       : null;
-
-  if (status.kind === 'loading')
+  const accountId = session.account?.accountId ?? null;
+  if (accountId === null)
     return (
       <main>
         <StatusRegion message="Loading the note." />
       </main>
     );
-  if (status.kind === 'unknown')
-    return (
-      <main>
-        <h1>Note not found</h1>
-        <p>
-          The server knows no file with that ID in this workspace. It may be
-          removed, or the address may be wrong. This is not an empty note.
-        </p>
-      </main>
-    );
-  if (status.kind === 'purged')
-    return (
-      <main>
-        <h1>Note permanently deleted</h1>
-        <p>
-          This file was purged by the workspace owner. Pending offline work for
-          it stays on this device for recovery into a new file.
-        </p>
-      </main>
-    );
-  if (status.kind === 'unavailable')
-    return (
-      <main>
-        <h1>Note unavailable</h1>
-        <p className="notes-status-error" role="alert">
-          {status.message}
-        </p>
-      </main>
-    );
+
   return (
-    <main>
-      <h1>{status.path}</h1>
-      {role !== null && !canWrite(role) ? (
-        <p>This workspace is read-only for viewers.</p>
-      ) : null}
-      {status.headRevisionId === null ? (
-        <p>
-          This file has no accepted revision yet, so it is empty. The editor
-          screen arrives in a later task.
-        </p>
-      ) : (
-        <p>
-          Accepted head {status.headRevisionId}. The one-pane editor renders and
-          edits this note in a later task.
-        </p>
-      )}
-    </main>
+    <NoteEditorLoader
+      store={store.store}
+      accountId={accountId}
+      workspaceId={workspaceId}
+      fileId={fileId}
+      role={role}
+    />
   );
 }

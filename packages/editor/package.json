@@ -1,0 +1,28 @@
+{
+  "name": "@notesapp/editor",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.build.json && tsc -p tsconfig.json",
+    "build": "tsc -b tsconfig.build.json",
+    "test:unit": "node ../../tools/run-tests.mjs unit"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.0",
+    "@codemirror/lang-markdown": "6.5.2",
+    "@codemirror/language": "6.12.4",
+    "@codemirror/state": "6.7.4",
+    "@codemirror/view": "6.43.11"
+  },
+  "devDependencies": {
+    "@types/node": "26.4.1",
+    "typescript": "7.0.2"
+  }
+}

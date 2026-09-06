@@ -18,6 +18,7 @@
   "dependencies": {
     "@notesapp/api-client": "workspace:*",
     "@notesapp/core": "workspace:*",
+    "@notesapp/editor": "workspace:*",
     "@notesapp/storage-browser": "workspace:*",
     "@notesapp/sync": "workspace:*",
     "@notesapp/ui": "workspace:*",
