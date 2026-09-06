@@ -111,9 +111,13 @@ const namespacedId = /^user-content-[A-Za-z0-9]/;
  * disabled task-list checkbox, the footnote section with its back references,
  * and the placeholder elements for math and diagrams.
  *
- * Math is a placeholder in this task. KaTeX arrives with Task 15 and needs
- * more elements and attributes. That task extends this schema at this point;
- * it does not relax the URL rules above.
+ * Math renders through `./math.ts`, which sanitizes KaTeX HTML on its own
+ * and inserts it after this schema ran. The main pipeline therefore keeps
+ * only the `data-math` placeholder. The class and `aria-hidden` entries below
+ * exist so that a second pass of this schema over already rendered math, for
+ * example on the public share page, keeps the KaTeX layout classes without
+ * reopening a style or URL surface: `style` stays dropped here and is owned
+ * by the math sanitizer alone.
  *
  * `clobberPrefix` is empty on purpose. The renderer already asks
  * mdast-util-to-hast for the `user-content-` prefix, so a footnote identifier
@@ -226,6 +230,44 @@ export const sanitizeSchema: SanitizeSchema = {
       ['dataMath', 'inline', 'display'],
       ['dataBlocked', 'link', 'image'],
       'dataExternalImage',
+      'ariaHidden',
+      [
+        'className',
+        'notes-math',
+        'notes-math-inline',
+        'notes-math-display',
+        'katex',
+        'katex-display',
+        'katex-html',
+        'base',
+        'strut',
+        'mord',
+        'mop',
+        'mbin',
+        'mrel',
+        'mopen',
+        'mclose',
+        'mpunct',
+        'minner',
+        'vlist-t',
+        'vlist-r',
+        'vlist',
+        'pstrut',
+        'mtight',
+        'mspace',
+        'msupsub',
+        'sizing',
+        'delimsizing',
+        'fontsize-ensurer',
+        'svg-align',
+        'hide-tail',
+        'thinbox',
+        'mathnormal',
+        'text',
+        /^katex[a-z-]*$/,
+        /^reset-size[0-9]*$/,
+        /^size[0-9]*$/,
+      ],
     ],
     td: [['align', 'center', 'left', 'right']],
     th: [['align', 'center', 'left', 'right']],

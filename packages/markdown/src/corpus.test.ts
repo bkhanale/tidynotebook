@@ -122,11 +122,11 @@ await test('front matter renders as document content', () => {
   assert.ok(!types.has('toml'));
 });
 
-await test('math and diagram placeholders keep their source verbatim', () => {
-  assert.ok(html.includes('<span data-math="inline">E = mc^2</span>'));
-  assert.ok(
-    html.includes('<span data-math="display">\\int_0^1 x^2 \\, dx</span>'),
-  );
+await test('math renders to sanitized KaTeX and diagrams stay source', () => {
+  assert.ok(html.includes('class="notes-math notes-math-inline"'));
+  assert.ok(html.includes('class="notes-math notes-math-display"'));
+  assert.ok(html.includes('class="katex"'));
+  assert.ok(!html.includes('<span data-math="inline">E = mc^2</span>'));
   assert.ok(html.includes('<pre data-diagram="mermaid">graph TD;\n  A-->B;'));
 });
 

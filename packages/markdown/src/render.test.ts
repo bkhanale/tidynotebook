@@ -75,12 +75,14 @@ await test('a heading renders with no attribute at all', async () => {
   assert.equal(html.trim(), '<h1>Heading</h1>');
 });
 
-await test('text inside a math or diagram placeholder is escaped', async () => {
+await test('hostile text inside math or a diagram stays inert', async () => {
   const html = await renderMarkdown(
     '$</span><script>x</script>$\n\n```mermaid\n</pre><script>y</script>\n```\n',
   );
   assert.ok(!html.includes('<script'));
-  assert.ok(html.includes('&#x3C;script>x&#x3C;/script>'));
+  // KaTeX renders the brackets as relation symbols, so the source appears as
+  // escaped text inside sanitized spans rather than as markup.
+  assert.ok(html.includes('&lt;'));
   assert.ok(html.includes('<pre data-diagram="mermaid">'));
 });
 

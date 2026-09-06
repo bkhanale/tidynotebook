@@ -25,4 +25,6 @@ export type { MarkdownLimitReason } from './limits.ts';
 export { markdownLimits, MarkdownLimitError } from './limits.ts';
 export type { ContentUrl } from './policy.ts';
 export { classifyUrl, isIdentifier } from './policy.ts';
+export type { MathRenderReason } from './math.ts';
+export { mathLimits, MathRenderError, renderMath } from './math.ts';
 export { renderMarkdown } from './render.ts';

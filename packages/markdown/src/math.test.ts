@@ -1,0 +1,89 @@
+/**
+ * KaTeX rendering checks.
+ *
+ * These tests prove the three promises of `./math.ts`: valid math renders to
+ * sanitized spans, hostile or oversized sources never produce markup, and
+ * failures throw `MathRenderError` so the caller can keep editable source.
+ */
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  mathLimits,
+  MathRenderError,
+  renderMath,
+  sanitizeMathHtml,
+} from './math.ts';
+
+await test('inline math renders to KaTeX spans with no script surface', () => {
+  const html = renderMath('E = mc^2', false);
+  assert.ok(html.includes('class="katex"'));
+  assert.ok(!html.includes('<script'));
+  assert.ok(!html.includes('javascript:'));
+  assert.ok(!/\son[a-z]+=/i.test(html));
+});
+
+await test('display math renders in display mode', () => {
+  const html = renderMath('\\int_0^1 x^2', true);
+  assert.ok(html.includes('class="katex"'));
+});
+
+await test('an untrusted command renders as text and never as a link', () => {
+  const href = renderMath('\\href{https://evil.example}{x}', false);
+  assert.ok(!href.includes('<a'));
+  assert.ok(!href.includes('https://evil.example'));
+  assert.ok(href.includes('class="katex"'));
+  const include = renderMath('\\includegraphics{evil.png}', false);
+  assert.ok(!include.includes('<img'));
+});
+
+await test('the sanitizer drops non span elements but keeps their text', () => {
+  const cleaned = sanitizeMathHtml(
+    '<span class="katex">ok</span><script>alert(1)</script><a href="https://evil.example">text</a>',
+  );
+  assert.ok(cleaned.includes('<span class="katex">ok</span>'));
+  assert.ok(!cleaned.includes('<script'));
+  assert.ok(!cleaned.includes('<a'));
+  assert.ok(cleaned.includes('text'));
+});
+
+await test('the sanitizer drops event handlers and unsafe styles', () => {
+  const cleaned = sanitizeMathHtml(
+    '<span class="katex" onclick="alert(1)" style="height:0.68em;background:url(evil)">x</span>',
+  );
+  assert.ok(!cleaned.includes('onclick'));
+  assert.ok(!cleaned.includes('url('));
+  assert.ok(!cleaned.includes('background'));
+  assert.ok(cleaned.includes('height:0.68em'));
+});
+
+await test('an oversized source throws a limit error', () => {
+  const source = `x+${'y'.repeat(mathLimits.maxSourceChars)}`;
+  assert.throws(() => renderMath(source, false), MathRenderError);
+  try {
+    renderMath(source, false);
+    assert.fail('renderMath did not throw');
+  } catch (error: unknown) {
+    assert.ok(error instanceof MathRenderError);
+    assert.equal(error.reason, 'limit');
+  }
+});
+
+await test('a macro flood throws a limit error', () => {
+  const source = '\\frac '.repeat(mathLimits.maxMacros + 1);
+  assert.throws(() => renderMath(source, false), MathRenderError);
+});
+
+await test('invalid syntax throws a syntax error', () => {
+  assert.throws(() => renderMath('\\htmlData{a}{b}', false), MathRenderError);
+  try {
+    renderMath('\\htmlData{a}{b}', false);
+    assert.fail('renderMath did not throw');
+  } catch (error: unknown) {
+    assert.ok(error instanceof MathRenderError);
+    assert.equal(error.reason, 'syntax');
+  }
+});
+
+await test('an unclosed source throws rather than emitting markup', () => {
+  assert.throws(() => renderMath('\\frac{1}{', false), MathRenderError);
+});

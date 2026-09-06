@@ -27,6 +27,7 @@ import {
   type LinkTarget,
 } from './commands.ts';
 import { livePreview } from './live-preview.ts';
+import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
 /** Optional behavior beyond the required creation signature. */
 export type CreateEditorOptions = {
@@ -38,6 +39,15 @@ export type CreateEditorOptions = {
   readonly readOnly?: boolean | undefined;
   /** Starting palette. Later changes use `setEditorTheme` without rebuild. */
   readonly theme?: 'light' | 'dark' | undefined;
+  /**
+   * Rich preview resolvers for images, tables, math, and diagrams.
+   *
+   * The web composition injects attachment URLs, lazily loaded math, and the
+   * isolated diagram frame here. When absent, rich regions still scan but
+   * render as loading placeholders with their source, so the editor works
+   * before the deferred modules arrive.
+   */
+  readonly rich?: RichWidgetResolvers | undefined;
 };
 
 /** Re-resolution of a link target for keyboard activation. */
@@ -55,6 +65,9 @@ function positionInTaskBox(view: EditorView, position: number): boolean {
 
 /** The theme compartment, so palette changes never rebuild the editor. */
 const themeCompartment = new Compartment();
+
+/** The rich preview compartment, so resolver changes never rebuild it. */
+const richCompartment = new Compartment();
 
 /** Editor chrome for one palette. */
 function themeExtension(theme: 'light' | 'dark'): Extension {
@@ -129,6 +142,7 @@ export function createEditor(
       history(),
       markdown(),
       livePreview(),
+      richCompartment.of(richWidgets(options.rich ?? {})),
       EditorView.lineWrapping,
       themeCompartment.of(themeExtension(options.theme ?? 'dark')),
       saveKeymap,
@@ -189,6 +203,23 @@ export function setEditorTheme(
     effects: themeCompartment.reconfigure(themeExtension(theme)),
   });
   view.dom.setAttribute('data-notesapp-theme', theme);
+}
+
+/**
+ * Switches the rich preview resolvers without rebuilding the editor.
+ *
+ * Only the rich compartment is reconfigured, so the document, undo history,
+ * selection, and any active IME composition stay exactly where they are. The
+ * web composition calls this when lazily loaded math arrives, when
+ * attachment URLs resolve, and when the theme changes the diagram palette.
+ */
+export function setEditorRich(
+  view: EditorView,
+  resolvers: RichWidgetResolvers,
+): void {
+  view.dispatch({
+    effects: richCompartment.reconfigure(richWidgets(resolvers)),
+  });
 }
 
 /**

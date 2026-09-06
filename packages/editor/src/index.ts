@@ -6,7 +6,12 @@
  * client; navigation leaves through injected callbacks.
  */
 export type { CreateEditorOptions } from './create-editor.ts';
-export { applyHeading, createEditor, setEditorTheme } from './create-editor.ts';
+export {
+  applyHeading,
+  createEditor,
+  setEditorRich,
+  setEditorTheme,
+} from './create-editor.ts';
 export type { EditorNavigation, LinkTarget, TaskBox } from './commands.ts';
 export type { EditorView } from '@codemirror/view';
 export {
@@ -21,6 +26,19 @@ export type {
   MarkerScan,
   StyledSpan,
 } from './live-preview.ts';
+export type {
+  RichWidget,
+  RichWidgetKind,
+  RichWidgetResolvers,
+} from './widgets.ts';
+export {
+  buildRichWidgetDecorations,
+  findRichWidgets,
+  parseTableSource,
+  richLimits,
+  richWidgets,
+  shouldPreserveAsSource,
+} from './widgets.ts';
 export {
   buildLivePreviewDecorations,
   isRevealed,

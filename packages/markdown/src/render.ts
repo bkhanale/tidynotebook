@@ -17,10 +17,13 @@
  * - It never runs unbounded work. `./limits.ts` bounds the document before the
  *   parser sees it and bounds the parsed tree afterwards.
  *
- * Math and Mermaid are placeholders in this task. KaTeX and the isolated
- * diagram frame arrive with Task 15. Until then the source is preserved
- * verbatim inside the placeholder, so no content is lost and the editor can
- * still show the region as text.
+ * Math and Mermaid are handled differently. Math sources render through
+ * `./math.ts` into sanitized KaTeX after the main sanitizer ran, so KaTeX
+ * styles survive without reopening the main schema. A Mermaid fence stays a
+ * `data-diagram` placeholder in HTML; the editor renders it inside an isolated
+ * frame. In both cases a failure keeps the source verbatim inside the
+ * placeholder, so no content is lost and the editor can still show the region
+ * as text.
  */
 import type { Element, ElementContent, Root as HastRoot } from 'hast';
 import type { Code, Nodes } from 'mdast';
@@ -29,6 +32,7 @@ import rehypeStringify from 'rehype-stringify';
 import remarkRehype from 'remark-rehype';
 import { visit } from 'unist-util-visit';
 import { createMarkdownProcessor, parseMarkdown } from './parse.ts';
+import { renderMath } from './math.ts';
 import { classifyUrl, sanitizeSchema } from './policy.ts';
 
 /** Builds a text-only HTML element. */
@@ -58,8 +62,10 @@ type MathNode = Extract<Nodes, { type: 'math' }>;
 /**
  * Turns a math node into a placeholder that keeps its source.
  *
- * Task 15 replaces this with sanitized KaTeX output. The placeholder holds the
- * source as text, so it is escaped on serialization and cannot inject markup.
+ * The placeholder holds the source as text, so it is escaped on
+ * serialization and cannot inject markup. `renderMarkdown` replaces it with
+ * sanitized KaTeX afterwards; a failure keeps this placeholder, so the region
+ * stays editable source.
  */
 function mathPlaceholder(node: InlineMathNode | MathNode): Element {
   return textElement(
@@ -75,10 +81,10 @@ const languagePattern = /^[a-z0-9_-]+$/;
 /**
  * Renders a fenced or indented code block.
  *
- * A `mermaid` fence becomes a diagram placeholder that keeps its source. Task
- * 15 renders it inside an isolated frame. Every other block becomes normal
- * preformatted code with a language class when the info string is a plain
- * word.
+ * A `mermaid` fence stays a diagram placeholder that keeps its source. The
+ * editor renders it inside an isolated frame; HTML never renders it inline.
+ * Every other block becomes normal preformatted code with a language class
+ * when the info string is a plain word.
  */
 function codeBlock(node: Code): Element {
   const language = (node.lang ?? '').toLowerCase();
@@ -192,6 +198,56 @@ function applyUrlPolicy() {
   };
 }
 
+/**
+ * Decodes the text content of one math placeholder back into source.
+ *
+ * The serializer escapes `<`, `>`, `&`, and quotes as named or numeric
+ * entities. Only those entities are decoded here, so an author written
+ * `&unknown;` stays exactly as written and cannot smuggle a tag boundary.
+ */
+function decodePlaceholderText(value: string): string {
+  return value
+    .replace(/&#x3[Cc];/g, '<')
+    .replace(/&#x3[Ee];/g, '>')
+    .replace(/&#x22;/g, '"')
+    .replace(/&#x27;/g, "'")
+    .replace(/&#x26;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&amp;/g, '&');
+}
+
+/** One rendered math placeholder with its display mode and escaped source. */
+const mathPlaceholderPattern =
+  /<span data-math="(inline|display)">([\s\S]*?)<\/span>/g;
+
+/**
+ * Replaces math placeholders with sanitized KaTeX markup.
+ *
+ * Each placeholder is decoded back to its source and rendered through
+ * `./math.ts`. A source that exceeds a limit or that KaTeX refuses keeps its
+ * placeholder, so the region stays editable source in the same pane. The
+ * KaTeX HTML is already sanitized, so inserting it here does not reopen the
+ * main sanitizer.
+ */
+function renderMathPlaceholders(html: string): string {
+  return html.replace(
+    mathPlaceholderPattern,
+    (full, mode: string, escaped: string): string => {
+      const display = mode === 'display';
+      const source = decodePlaceholderText(escaped);
+      let rendered: string;
+      try {
+        rendered = renderMath(source, display);
+      } catch {
+        return full;
+      }
+      const variant = display ? 'notes-math-display' : 'notes-math-inline';
+      return `<span class="notes-math ${variant}" data-math="${mode}">${rendered}</span>`;
+    },
+  );
+}
 const renderProcessor = createMarkdownProcessor()
   .use(remarkRehype, {
     // Raw HTML is dropped here. This is the reason the renderer needs no raw
@@ -215,13 +271,15 @@ const renderProcessor = createMarkdownProcessor()
  * Renders `source` into sanitized HTML.
  *
  * Rejects with `MarkdownLimitError` when the document exceeds a fixed limit of
- * this package; see `./limits.ts`. Every other document renders, and unknown
- * syntax simply stays text.
+ * this package; see `./limits.ts`. Math that renders becomes sanitized KaTeX;
+ * math that fails keeps its source placeholder. Every other document renders,
+ * and unknown syntax simply stays text.
  */
 export async function renderMarkdown(source: string): Promise<string> {
   // `parseMarkdown` applies the pre-scan and the depth guard, and it uses the
   // same Markdown plugins as this processor, so the tree it returns is the
   // tree this processor would have produced.
   const tree = parseMarkdown(source);
-  return renderProcessor.stringify(await renderProcessor.run(tree));
+  const html = renderProcessor.stringify(await renderProcessor.run(tree));
+  return renderMathPlaceholders(html);
 }

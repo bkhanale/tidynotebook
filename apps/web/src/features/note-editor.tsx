@@ -16,7 +16,11 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
-import { getFile } from '@notesapp/api-client';
+import {
+  finalizeAttachment,
+  getFile,
+  uploadAttachment,
+} from '@notesapp/api-client';
 import {
   createCheckpointScheduler,
   isLocalStorageError,
@@ -28,13 +32,17 @@ import {
 } from '@notesapp/sync';
 import {
   createEditor,
+  setEditorRich,
   setEditorTheme,
   type EditorView,
   type LinkTarget,
+  type RichWidgetResolvers,
 } from '@notesapp/editor';
 import { Button, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { canWrite } from './workspaces.tsx';
+import { createAttachmentLoader } from './attachment-content.ts';
+import { createDiagramFrame } from '../diagram/frame.ts';
 import {
   resolveSaveState,
   SaveStatus,
@@ -44,6 +52,61 @@ import {
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
+
+/**
+ * The built diagram frame document.
+ *
+ * A plain path string on purpose: this names a static Vite entry, not an
+ * application API route, so it stays a literal instead of constructed URL.
+ */
+const diagramFramePath = '/src/diagram/frame.html';
+
+/** Attachment revision references in stored Markdown. */
+const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
+
+/** Largest pasted file the editor uploads directly, matching the server cap. */
+const maxPastedBytes = 20 * 1024 * 1024;
+
+/** The revision IDs referenced by one Markdown source, deduplicated. */
+function extractAttachmentIds(text: string): string[] {
+  const found: string[] = [];
+  attachmentReferencePattern.lastIndex = 0;
+  for (;;) {
+    const match = attachmentReferencePattern.exec(text);
+    if (match === null) return found;
+    const id = match[1] ?? '';
+    if (id !== '' && !found.includes(id)) found.push(id);
+  }
+}
+
+/** Makes a pasted file name safe for an attachment path segment. */
+function sanitizeAttachmentName(name: string): string {
+  const cleaned = name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return cleaned === '' || cleaned === '.' || cleaned === '..'
+    ? 'pasted-image'
+    : cleaned;
+}
+
+/**
+ * Reads the Mermaid source out of one fenced widget source.
+ *
+ * Drops the opening fence line and the closing fence line, keeping the inner
+ * text verbatim for the isolated frame.
+ */
+function diagramInnerSource(fence: string): string {
+  const lines = fence.split('\n');
+  lines.shift();
+  while (lines.length > 0) {
+    const last = lines.at(-1) ?? '';
+    const trimmed = last.trim();
+    if (trimmed === '' || /^(```+|~~~+)/.test(trimmed)) lines.pop();
+    else break;
+  }
+  return lines.join('\n');
+}
 
 /** How often the screen re-reads the local queue for save feedback. */
 const queuePollMs = 5_000;
@@ -137,7 +200,20 @@ export function NoteEditor({
     useState<LocalStorageErrorKind | null>(null);
   const [acknowledged, setAcknowledged] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [pasteNotice, setPasteNotice] = useState('');
+  const [attachmentUrls, setAttachmentUrls] = useState<
+    ReadonlyMap<string, string>
+  >(new Map());
+  const [mathReady, setMathReady] = useState(false);
   const workingCopyId = useMemo(() => crypto.randomUUID(), []);
+  const mathRenderRef = useRef<
+    ((source: string, display: boolean) => string) | null
+  >(null);
+  const ownedUrlsRef = useRef<
+    Map<string, { url: string; dispose: () => void }>
+  >(new Map());
+  const loaderRef = useRef(createAttachmentLoader(workspaceId));
+  loaderRef.current = createAttachmentLoader(workspaceId);
 
   const live = useRef({
     store,
@@ -268,9 +344,112 @@ export function NoteEditor({
     };
   }, [workingCopyId]);
 
+  // The KaTeX renderer loads after the first paint, so the initial bundle
+  // stays inside its budget. Widgets show a loading placeholder until it
+  // arrives; the rich compartment below refreshes them without touching the
+  // document. The chunk is retained for later offline precaching.
+  useEffect(() => {
+    let cancelled = false;
+    void import('@notesapp/markdown').then((module) => {
+      if (cancelled) return;
+      mathRenderRef.current = module.renderMath;
+      setMathReady(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Resolves attachment revision IDs in the current text to local object
+  // URLs through the generated binary operation. Old revision selections
+  // load their own bytes. URLs that leave the text are revoked, and every
+  // remaining URL is revoked when the working copy closes.
+  useEffect(() => {
+    const loader = loaderRef.current;
+    const wanted = extractAttachmentIds(bufferText);
+    const owned = ownedUrlsRef.current;
+    for (const [id, entry] of owned) {
+      if (!wanted.includes(id)) {
+        entry.dispose();
+        owned.delete(id);
+      }
+    }
+    if (wanted.every((id) => owned.has(id))) {
+      setAttachmentUrls(
+        new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
+      );
+      return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    void (async (): Promise<void> => {
+      for (const id of wanted) {
+        if (cancelled || owned.has(id)) continue;
+        try {
+          const loaded = await loader.loadAttachment(id, controller.signal);
+          if (cancelled) {
+            loaded.dispose();
+            continue;
+          }
+          owned.set(id, { url: loaded.url, dispose: loaded.dispose });
+        } catch {
+          // A missing or denied revision stays a fallback in its widget;
+          // the text itself is untouched.
+        }
+      }
+      if (!cancelled)
+        setAttachmentUrls(
+          new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
+        );
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [workspaceId, bufferText]);
+
+  // Revokes every remaining object URL when the working copy closes.
+  useEffect(
+    () => () => {
+      for (const entry of ownedUrlsRef.current.values()) entry.dispose();
+      ownedUrlsRef.current.clear();
+    },
+    [],
+  );
+
+  /** The resolvers the widget extension renders with right now. */
+  const richResolvers = useMemo<RichWidgetResolvers>(
+    () => ({
+      renderMath:
+        mathRenderRef.current === null
+          ? undefined
+          : (source: string, display: boolean): string => {
+              const render = mathRenderRef.current;
+              if (render === null) throw new Error('Math is still loading.');
+              return render(source, display);
+            },
+      resolveAttachment: (revisionId: string): string | null =>
+        attachmentUrls.get(revisionId) ?? null,
+      createDiagram: (fence: string): HTMLElement =>
+        createDiagramFrame({
+          source: diagramInnerSource(fence),
+          theme: themeRef.current,
+          framePath: diagramFramePath,
+        }).element,
+    }),
+    [attachmentUrls, mathReady, resolved],
+  );
+
+  // Resolver changes reconfigure one compartment, keeping document, undo,
+  // selection, and composition exactly where they are.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view !== null) setEditorRich(view, richResolvers);
+  }, [richResolvers]);
+
   // One editor instance per working copy. This effect never reruns for text,
   // path, or theme changes: those travel through transactions, the store, or
-  // the theme compartment below.
+  // the compartments below.
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
@@ -337,6 +516,81 @@ export function NoteEditor({
   // copy again when storage fails. Both cases block an unsafe reload.
   useBlockUnsafeReload(draftPending || storageError !== null);
 
+  /** Inserts Markdown at the current cursor through an editor transaction. */
+  const insertAtCursor = (text: string): void => {
+    const view = viewRef.current;
+    if (view === null) return;
+    const { from, to } = view.state.selection.main;
+    view.dispatch(view.state.update({ changes: { from, to, insert: text } }));
+    view.focus();
+  };
+
+  /**
+   * Uploads pasted or dropped image files with user supplied bytes.
+   *
+   * Each file is read locally first, uploaded through the generated
+   * operation, finalized as an immutable attachment revision, and embedded
+   * as `/attachments/<revisionId>`. No external URL is ever fetched through
+   * the server: importing an external image means the user supplies its bytes
+   * here. A failure keeps the buffer and reports a notice.
+   */
+  const uploadPastedFiles = (files: readonly File[]): void => {
+    const images = files.filter((file) => file.type.startsWith('image/'));
+    if (images.length === 0 || live.current.readOnly) return;
+    void (async (): Promise<void> => {
+      const current = live.current;
+      for (const file of images) {
+        if (file.size > maxPastedBytes) {
+          setPasteNotice(
+            `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
+          );
+          continue;
+        }
+        try {
+          const uploaded = await uploadAttachment({
+            path: { workspaceId: current.workspaceId },
+            body: { file },
+          });
+          if (uploaded.error !== undefined || uploaded.data === undefined) {
+            setPasteNotice(
+              `The image ${file.name} did not upload: ${problemMessage(uploaded.error)}`,
+            );
+            continue;
+          }
+          const fileId = crypto.randomUUID();
+          const revisionId = crypto.randomUUID();
+          const safeName = sanitizeAttachmentName(file.name);
+          const finalized = await finalizeAttachment({
+            path: {
+              workspaceId: current.workspaceId,
+              objectId: uploaded.data.objectId,
+            },
+            body: {
+              fileId,
+              revisionId,
+              mutationId: crypto.randomUUID(),
+              deviceId: current.store.deviceId,
+              path: `attachments/${fileId}-${safeName}`,
+              digest: uploaded.data.digest,
+            },
+          });
+          if (finalized.error !== undefined) {
+            setPasteNotice(
+              `The image ${file.name} did not finalize: ${problemMessage(finalized.error)}`,
+            );
+            continue;
+          }
+          insertAtCursor(`![${safeName}](/attachments/${revisionId})`);
+          setPasteNotice('');
+        } catch {
+          setPasteNotice(
+            `The image ${file.name} could not be read on this device.`,
+          );
+        }
+      }
+    })();
+  };
+
   const handleDelete = (): void => {
     if (!confirmingDelete) {
       setConfirmingDelete(true);
@@ -396,7 +650,22 @@ export function NoteEditor({
         aria-label={`Note ${path}`}
         aria-readonly={readOnly}
         tabIndex={-1}
+        onPaste={(event): void => {
+          const files = Array.from(event.clipboardData?.files ?? []);
+          if (files.some((file) => file.type.startsWith('image/'))) {
+            event.preventDefault();
+            uploadPastedFiles(files);
+          }
+        }}
+        onDrop={(event): void => {
+          const files = Array.from(event.dataTransfer?.files ?? []);
+          if (files.some((file) => file.type.startsWith('image/'))) {
+            event.preventDefault();
+            uploadPastedFiles(files);
+          }
+        }}
       />
+      {pasteNotice !== '' ? <StatusRegion message={pasteNotice} /> : null}
       {!readOnly ? (
         <div>
           <Button
