@@ -415,7 +415,7 @@ Execution record (2026-09-06): commit `6ab5270`. Checks: search 5, sync 32, Mark
 
 Execution record (2026-09-06): commit `b1af1c0`. Checks: sharing (10), history (12), search (5), Markdown (133), generated check, typecheck, lint, format check, and build all clean. Migration 0008 updated with `notesapp_purge_files` to clean search index. Problem details instance set to `/s/redacted` for valid URI reference.
 
-### [ ] Task 20: Implement remote and local MCP access
+### [x] Task 20: Implement remote and local MCP access
 
 **Depends on:** Task 19.
 
@@ -423,11 +423,13 @@ Execution record (2026-09-06): commit `b1af1c0`. Checks: sharing (10), history (
 
 **Interfaces:** The operation-to-tool map covers workspace/file reads, writes, attachments, search, links, history, checkpoints, branches, merge, restore, and sharing. Tool JSON schemas derive from the shared contract. The remote adapter maps validated input to core use cases; stdio calls generated HTTP functions. Root `pnpm mcp:stdio` starts the local process with a server origin and protected token source.
 
-- [ ] Use the selected split MCP SDK packages and their Streamable HTTP/stdio adapters. Verify the designed protocol versions and compatibility mode against the installed SDK. Validate Host/Origin and use the parsed Fastify body; add no custom protocol translator.
-- [ ] Configure OAuth protected-resource metadata, audience binding, PKCE, consent, and explicit registered clients. Keep browser OIDC login separate from resource authorization. Resolve roles and action grants on each tool call, including direct-core remote calls.
-- [ ] Expose expected revision preconditions and conflict outcomes to agents. Bound file and attachment responses; do not embed arbitrary note instructions as tool authority. Keep stdio diagnostics off stdout and tokens out of logs and process arguments.
-- [ ] Run `pnpm test:integration -- mcp` using SDK clients against both transports. Verify content-operation coverage, history/restore, stale writes, scope denial, token revocation, unsupported client behavior, and identical core outcomes through HTTP and remote MCP. Run `pnpm build`.
-- [ ] Commit: `feat: expose notes through authenticated MCP adapters`.
+- [x] Use the selected split MCP SDK packages and their Streamable HTTP/stdio adapters. Verify the designed protocol versions and compatibility mode against the installed SDK. Validate Host/Origin and use the parsed Fastify body; add no custom protocol translator.
+- [x] Configure OAuth protected-resource metadata, audience binding, PKCE, consent, and explicit registered clients. Keep browser OIDC login separate from resource authorization. Resolve roles and action grants on each tool call, including direct-core remote calls.
+- [x] Expose expected revision preconditions and conflict outcomes to agents. Bound file and attachment responses; do not embed arbitrary note instructions as tool authority. Keep stdio diagnostics off stdout and tokens out of logs and process arguments.
+- [x] Run `pnpm test:integration -- mcp` using SDK clients against both transports. Verify content-operation coverage, history/restore, stale writes, scope denial, token revocation, unsupported client behavior, and identical core outcomes through HTTP and remote MCP. Run `pnpm build`.
+- [x] Commit: `feat: expose notes through authenticated MCP adapters`.
+
+Execution record (2026-09-06): commit `30f0509`. Checks: MCP integration (6), unit tests (458), all integration tests (237), typecheck (14 workspaces), lint (202 files), boundary check (13 packages), format check, and build all clean.
 
 ### [ ] Task 21: Package Docker deployment, encryption checks, and recovery
 
