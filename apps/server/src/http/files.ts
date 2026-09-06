@@ -155,7 +155,7 @@ export function parseTagList(value: string): {
  * would accept whatever the head is now, which is the lost update that this
  * precondition exists to prevent.
  */
-function requiredTags(request: FastifyRequest): readonly string[] {
+export function requiredTags(request: FastifyRequest): readonly string[] {
   const value = header(request, 'if-match');
   if (value === undefined)
     throw new PreconditionRequiredError(
@@ -203,7 +203,7 @@ function revisionBody(revision: RevisionRecord): Record<string, unknown> {
 }
 
 /** The public members of one accepted revision. */
-function acceptedRevisionBody(
+export function acceptedRevisionBody(
   revision: AcceptedRevision,
 ): Record<string, unknown> {
   return {
@@ -221,7 +221,9 @@ function acceptedRevisionBody(
 }
 
 /** The public members of one accepted changeset. */
-function acceptedBody(outcome: AcceptedChangeset): Record<string, unknown> {
+export function acceptedBody(
+  outcome: AcceptedChangeset,
+): Record<string, unknown> {
   return {
     mutationId: outcome.mutationId,
     revisionIds: [...outcome.revisionIds],
@@ -244,7 +246,7 @@ function contentOf(revision: RevisionRecord): ContentRef {
 }
 
 /** The content that one submitted revision carries. */
-function submittedContent(entry: unknown, fileId: string): ContentRef {
+export function submittedContent(entry: unknown, fileId: string): ContentRef {
   const content = readProperty(entry, 'content');
   const kind = readText(content, 'kind');
   const digest = readText(content, 'digest');
@@ -261,7 +263,7 @@ function submittedContent(entry: unknown, fileId: string): ContentRef {
 }
 
 /** The submitted revisions of a changeset request. */
-function submittedRevisions(body: unknown): readonly RevisionInput[] {
+export function submittedRevisions(body: unknown): readonly RevisionInput[] {
   const value = readProperty(body, 'revisions');
   if (!Array.isArray(value))
     throw new Error('notesapp: the validated body has no revisions.');
@@ -287,7 +289,7 @@ function submittedRevisions(body: unknown): readonly RevisionInput[] {
 }
 
 /** The expected heads of a changeset request. */
-function submittedHeads(
+export function submittedHeads(
   body: unknown,
 ): Readonly<Record<string, string | null>> {
   const value = readProperty(body, 'expectedHeads');

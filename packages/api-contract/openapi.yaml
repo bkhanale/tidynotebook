@@ -496,6 +496,8 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
         '500':
           $ref: '#/components/responses/ServerError'
     put:
@@ -764,6 +766,286 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files/{fileId}/history:
+    get:
+      operationId: listHistory
+      summary: Read the revision history of a file.
+      description: >-
+        Lists the immutable revisions of one file in reverse chronological
+        order. The result supports cursor pagination. Each item reports byte
+        size, author identity, checkpoint status, and restored-from references.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/HistoryLimit'
+      responses:
+        '200':
+          $ref: '#/components/responses/HistoryPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files/{fileId}/checkpoint:
+    post:
+      operationId: createCheckpoint
+      summary: Create a named checkpoint revision for a file.
+      description: >-
+        Creates an immutable named checkpoint revision. If path and content are
+        omitted, the checkpoint preserves the content and path of the expected
+        head.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        $ref: '#/components/requestBodies/CreateCheckpoint'
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptedChangeset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files/{fileId}/restore:
+    post:
+      operationId: restoreRevision
+      summary: Restore a file to a historic revision.
+      description: >-
+        Appends a child revision to the current accepted head referencing the
+        historic target revision in restoredFrom, reusing existing content bytes
+        without rewriting history.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+      requestBody:
+        $ref: '#/components/requestBodies/RestoreRevision'
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptedChangeset'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/branches:
+    get:
+      operationId: listBranches
+      summary: List divergent branches in a workspace.
+      description: >-
+        Lists open or resolved divergent branches of the workspace, optionally
+        filtered by file, conflict group, or resolution state.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/BranchFileId'
+        - $ref: '#/components/parameters/ConflictGroupId'
+        - $ref: '#/components/parameters/BranchState'
+      responses:
+        '200':
+          $ref: '#/components/responses/BranchList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: submitBranch
+      summary: Submit a divergent conflict branch atomically.
+      description: >-
+        Stores divergent revisions and records an open branch without advancing
+        accepted heads or reserving live paths.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/SubmitBranch'
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptedBranch'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/branches/resolve:
+    post:
+      operationId: resolveBranches
+      summary: Explicitly resolve divergent branches.
+      description: >-
+        Creates resolution revisions naming both the expected accepted head and
+        the branch tip as parents, advances accepted heads, and marks the
+        resolved branches.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/ResolveBranches'
+      responses:
+        '200':
+          $ref: '#/components/responses/AcceptedBranchResolution'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/purge/preview:
+    post:
+      operationId: previewPurge
+      summary: Preview permanent deletion of files.
+      description: >-
+        Reports affected revisions, reclaimable bytes, and blocking references
+        such as attachments referenced by external revisions. Restricted to
+        workspace owners.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/PreviewPurge'
+      responses:
+        '200':
+          $ref: '#/components/responses/PurgePreview'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/purge:
+    post:
+      operationId: purgeFiles
+      summary: Permanently delete files and write purge markers.
+      description: >-
+        Permanently purges files, revisions, branches, and shares, writes
+        purge markers, and reclaims storage. Subsequent writes to purged file
+        identifiers answer 410 Gone. Restricted to workspace owners.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/PurgeFiles'
+      responses:
+        '200':
+          $ref: '#/components/responses/PurgedFiles'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/invitations/acceptance:
@@ -1044,6 +1326,47 @@ components:
         means any representation, so it answers 304 for a file that exists.
       schema:
         $ref: '#/components/schemas/EntityTagCondition'
+    HistoryLimit:
+      name: limit
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: Largest number of history items to return. Defaults to 50.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+    BranchFileId:
+      name: fileId
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: Optional file identifier to filter branches.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    ConflictGroupId:
+      name: conflictGroupId
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: Optional conflict group identifier to filter branches.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    BranchState:
+      name: state
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: Optional branch state to filter branches.
+      schema:
+        type: string
+        enum:
+          - unresolved
+          - resolved
   requestBodies:
     Preferences:
       description: The settings to store for the signed in account.
@@ -1136,6 +1459,48 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/FinalizeAttachmentInput'
+    CreateCheckpoint:
+      description: Checkpoint creation payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateCheckpointInput'
+    SubmitBranch:
+      description: Divergent branch submission payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SubmitBranchInput'
+    ResolveBranches:
+      description: Branch resolution payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ResolveBranchesInput'
+    RestoreRevision:
+      description: Revision restore payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RestoreRevisionInput'
+    PreviewPurge:
+      description: Purge preview payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PreviewPurgeInput'
+    PurgeFiles:
+      description: File purge payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PurgeFilesInput'
   responses:
     Health:
       description: The service process is running.
@@ -1364,6 +1729,42 @@ components:
           schema:
             type: string
             format: binary
+    HistoryPage:
+      description: One page of file history revisions.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HistoryPage'
+    BranchList:
+      description: List of divergent branches.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BranchList'
+    AcceptedBranch:
+      description: Stored branch outcome.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AcceptedBranch'
+    AcceptedBranchResolution:
+      description: Stored branch resolution outcome.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AcceptedBranchResolution'
+    PurgePreview:
+      description: Preview of permanent file purge.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PurgePreview'
+    PurgedFiles:
+      description: Outcome of executed permanent file purge.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/PurgedFiles'
   schemas:
     HealthReport:
       type: object
@@ -2796,3 +3197,428 @@ components:
           allOf:
             - $ref: '#/components/schemas/CheckpointMessage'
           description: Name of this checkpoint, or null.
+    HistoryRevisionItem:
+      type: object
+      description: One historic revision of a file.
+      additionalProperties: false
+      required:
+        - revisionId
+        - fileId
+        - path
+        - deleted
+        - parents
+        - digest
+        - size
+        - actorAccountId
+        - clientTime
+        - serverTime
+        - message
+        - isCheckpoint
+        - checkpointName
+        - restoredFrom
+        - text
+        - objectId
+      properties:
+        revisionId:
+          $ref: '#/components/schemas/Uuid'
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        path:
+          $ref: '#/components/schemas/FilePath'
+        deleted:
+          type: boolean
+        parents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        digest:
+          $ref: '#/components/schemas/ContentDigest'
+        size:
+          type: integer
+        actorAccountId:
+          $ref: '#/components/schemas/Uuid'
+        clientTime:
+          type: string
+          format: date-time
+        serverTime:
+          type: string
+          format: date-time
+        message:
+          $ref: '#/components/schemas/CheckpointMessage'
+        isCheckpoint:
+          type: boolean
+        checkpointName:
+          $ref: '#/components/schemas/CheckpointMessage'
+        restoredFrom:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        text:
+          type:
+            - string
+            - 'null'
+        objectId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+    HistoryPage:
+      type: object
+      description: One page of file history revisions.
+      additionalProperties: false
+      required:
+        - revisions
+        - nextCursor
+      properties:
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryRevisionItem'
+        nextCursor:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+    BranchItem:
+      type: object
+      description: One divergent branch record.
+      additionalProperties: false
+      required:
+        - id
+        - workspaceId
+        - fileId
+        - baseRevisionId
+        - tipRevisionId
+        - conflictGroupId
+        - state
+        - createdAt
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        workspaceId:
+          $ref: '#/components/schemas/Uuid'
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        baseRevisionId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        tipRevisionId:
+          $ref: '#/components/schemas/Uuid'
+        conflictGroupId:
+          $ref: '#/components/schemas/Uuid'
+        state:
+          type: string
+          enum:
+            - unresolved
+            - resolved
+        createdAt:
+          type: string
+          format: date-time
+    BranchList:
+      type: object
+      description: List of divergent branches.
+      additionalProperties: false
+      required:
+        - branches
+      properties:
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchItem'
+    AcceptedBranch:
+      type: object
+      description: Stored branch outcome.
+      additionalProperties: false
+      required:
+        - mutationId
+        - conflictGroupId
+        - revisionIds
+        - branches
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        conflictGroupId:
+          $ref: '#/components/schemas/Uuid'
+        revisionIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        branches:
+          type: array
+          items:
+            $ref: '#/components/schemas/BranchItem'
+    AcceptedBranchResolution:
+      type: object
+      description: Stored branch resolution outcome.
+      additionalProperties: false
+      required:
+        - mutationId
+        - revisions
+        - resolvedBranchIds
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        revisions:
+          type: array
+          items:
+            $ref: '#/components/schemas/AcceptedRevision'
+        resolvedBranchIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+    BranchResolutionInput:
+      type: object
+      description: Explicit merge resolution for one file.
+      additionalProperties: false
+      required:
+        - fileId
+        - expectedHead
+        - branchTip
+        - revisionId
+        - path
+        - content
+        - deleted
+      properties:
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        expectedHead:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        branchTip:
+          $ref: '#/components/schemas/Uuid'
+        revisionId:
+          $ref: '#/components/schemas/Uuid'
+        path:
+          $ref: '#/components/schemas/FilePath'
+        content:
+          $ref: '#/components/schemas/ContentInput'
+        deleted:
+          type: boolean
+        message:
+          $ref: '#/components/schemas/CheckpointMessage'
+    ResolveBranchesInput:
+      type: object
+      description: Payload to explicitly resolve divergent branches.
+      additionalProperties: false
+      required:
+        - mutationId
+        - deviceId
+        - clientTime
+        - resolutions
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        deviceId:
+          $ref: '#/components/schemas/DeviceId'
+        clientTime:
+          type: string
+          format: date-time
+          minLength: 20
+          maxLength: 64
+        conflictGroupId:
+          $ref: '#/components/schemas/Uuid'
+        resolutions:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/BranchResolutionInput'
+    CreateCheckpointInput:
+      type: object
+      description: Checkpoint creation payload.
+      additionalProperties: false
+      required:
+        - mutationId
+        - deviceId
+        - clientTime
+        - name
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        deviceId:
+          $ref: '#/components/schemas/DeviceId'
+        clientTime:
+          type: string
+          format: date-time
+          minLength: 20
+          maxLength: 64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        revisionId:
+          $ref: '#/components/schemas/Uuid'
+        path:
+          $ref: '#/components/schemas/FilePath'
+        content:
+          $ref: '#/components/schemas/ContentInput'
+    SubmitBranchInput:
+      type: object
+      description: Divergent branch changeset payload.
+      additionalProperties: false
+      required:
+        - mutationId
+        - deviceId
+        - conflictGroupId
+        - expectedHeads
+        - revisions
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        deviceId:
+          $ref: '#/components/schemas/DeviceId'
+        conflictGroupId:
+          $ref: '#/components/schemas/Uuid'
+        expectedHeads:
+          $ref: '#/components/schemas/ExpectedHeads'
+        revisions:
+          type: array
+          minItems: 1
+          maxItems: 4000
+          items:
+            $ref: '#/components/schemas/RevisionInput'
+    RestoreRevisionInput:
+      type: object
+      description: Payload to restore a file to an earlier historic revision.
+      additionalProperties: false
+      required:
+        - mutationId
+        - deviceId
+        - clientTime
+        - targetRevisionId
+        - revisionId
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        deviceId:
+          $ref: '#/components/schemas/DeviceId'
+        clientTime:
+          type: string
+          format: date-time
+          minLength: 20
+          maxLength: 64
+        targetRevisionId:
+          $ref: '#/components/schemas/Uuid'
+        expectedHead:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+        revisionId:
+          $ref: '#/components/schemas/Uuid'
+        path:
+          $ref: '#/components/schemas/FilePath'
+        message:
+          $ref: '#/components/schemas/CheckpointMessage'
+    PreviewPurgeInput:
+      type: object
+      description: Payload to preview permanent deletion of files.
+      additionalProperties: false
+      required:
+        - fileIds
+      properties:
+        fileIds:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Uuid'
+    PurgeFilesInput:
+      type: object
+      description: Payload to permanently purge files.
+      additionalProperties: false
+      required:
+        - mutationId
+        - fileIds
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        fileIds:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Uuid'
+    BlockingReference:
+      type: object
+      description: A reference that blocks permanent deletion.
+      additionalProperties: false
+      required:
+        - kind
+        - targetId
+        - referrerId
+        - description
+      properties:
+        kind:
+          type: string
+          enum:
+            - revision
+            - branch
+            - share
+        targetId:
+          type: string
+        referrerId:
+          type: string
+        description:
+          type: string
+    PurgePreview:
+      type: object
+      description: Summary preview of an intended permanent file purge.
+      additionalProperties: false
+      required:
+        - fileIds
+        - revisionIds
+        - contentDigests
+        - attachmentObjectIds
+        - blockingReferences
+        - dependentRevisionCount
+        - reclaimableBytes
+        - canPurge
+      properties:
+        fileIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        revisionIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        contentDigests:
+          type: array
+          items:
+            type: string
+        attachmentObjectIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        blockingReferences:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlockingReference'
+        dependentRevisionCount:
+          type: integer
+        reclaimableBytes:
+          type: integer
+        canPurge:
+          type: boolean
+    PurgedFiles:
+      type: object
+      description: Outcome of executed permanent file purge.
+      additionalProperties: false
+      required:
+        - mutationId
+        - purgedFileIds
+        - purgedRevisionIds
+        - reclaimedBytes
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        purgedFileIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        purgedRevisionIds:
+          type: array
+          items:
+            $ref: '#/components/schemas/Uuid'
+        reclaimedBytes:
+          type: integer

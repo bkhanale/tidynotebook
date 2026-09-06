@@ -32,12 +32,23 @@ import {
   type Role,
   type WorkspaceStore,
   type WorkspaceTransaction,
+  type AcceptedBranch,
+  type BlockingReference,
+  type BranchFilter,
+  type BranchRecord,
+  type BranchState,
+  type HistoryPage,
+  type MutationReceipt,
+  type PurgePreview,
+  type PurgedFilesResult,
+  type SubmitBranchInput,
 } from '@notesapp/core';
-import { and, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import {
   attachmentObjects,
+  branches,
   changesets,
   contents,
   files,
@@ -256,18 +267,18 @@ function operational(value: unknown): OperationalError {
 function domainFailure(
   value: unknown,
   fileIds: readonly string[],
-): Result<AcceptedChangeset> | null {
+): Result<never> | null {
   const failure = postgresFailure(value);
   if (failure === null) return null;
   const constraint = failure.constraint ?? '';
   if (failure.code === '23505') {
     if (constraint === 'live_paths_path_key')
-      return fail('path_conflict', fileIds);
+      return fail<never>('path_conflict', fileIds);
     if (constraint === 'changesets_mutation_key') {
-      return fail('mutation_reused', fileIds);
+      return fail<never>('mutation_reused', fileIds);
     }
     if (constraint.startsWith('mutation_receipts')) {
-      return fail('mutation_reused', fileIds);
+      return fail<never>('mutation_reused', fileIds);
     }
     return null;
   }
@@ -280,12 +291,12 @@ function domainFailure(
       constraint === 'revisions_file_fk' ||
       constraint === 'files_head_revision_fk'
     ) {
-      return fail('invalid_graph', fileIds);
+      return fail<never>('invalid_graph', fileIds);
     }
     return null;
   }
   if (failure.code === '23514' && constraint.startsWith('revision_parents')) {
-    return fail('invalid_graph', fileIds);
+    return fail<never>('invalid_graph', fileIds);
   }
   return null;
 }
@@ -340,7 +351,7 @@ function parseAcceptedRevision(value: unknown): AcceptedRevision {
 }
 
 /** Reads the stored outcome of a mutation receipt. */
-function parseOutcome(value: unknown): AcceptedChangeset {
+function parseOutcome<T = AcceptedChangeset>(value: unknown): T {
   if (
     typeof value === 'object' &&
     value !== null &&
@@ -359,7 +370,10 @@ function parseOutcome(value: unknown): AcceptedChangeset {
       cursor: value.cursor,
       revisionIds: [...value.revisionIds],
       revisions: value.revisions.map(parseAcceptedRevision),
-    };
+    } as unknown as T;
+  }
+  if (typeof value === 'object' && value !== null && 'mutationId' in value) {
+    return value as unknown as T;
   }
   throw new OperationalError(
     'unexpected',
@@ -502,7 +516,10 @@ function createTransaction(
       return rows[0]?.role ?? null;
     },
 
-    async receipt(mutationId: string, accountId: string) {
+    async receipt<T = AcceptedChangeset>(
+      mutationId: string,
+      accountId: string,
+    ): Promise<MutationReceipt<T> | null> {
       assertUuid(mutationId, 'the mutation');
       assertUuid(accountId, 'the account');
       const rows = await db
@@ -520,7 +537,7 @@ function createTransaction(
         );
       const row = rows[0];
       if (row === undefined) return null;
-      return { digest: row.digest, outcome: parseOutcome(row.outcome) };
+      return { digest: row.digest, outcome: parseOutcome<T>(row.outcome) };
     },
 
     async heads(
@@ -598,6 +615,7 @@ function createTransaction(
           and(
             eq(files.workspaceId, workspaceId),
             eq(files.deleted, false),
+            isNotNull(files.headRevisionId),
             page.cursor === null ? undefined : gt(files.id, page.cursor),
           ),
         )
@@ -779,6 +797,364 @@ function createTransaction(
         await client.query('rollback to savepoint notesapp_accept');
         const mapped = domainFailure(error, fileIds);
         if (mapped !== null) return mapped;
+        throw operational(error);
+      }
+    },
+
+    async listHistory(fileId: string, page: PageRequest): Promise<HistoryPage> {
+      assertUuid(fileId, 'the file');
+      const limit = Math.max(1, Math.min(page.limit, maxPageSize));
+
+      let cursorCondition = sql`true`;
+      if (page.cursor !== null && page.cursor !== '') {
+        assertUuid(page.cursor, 'the cursor');
+        cursorCondition = sql`(${revisions.serverTime}, ${revisions.id}) < (
+          SELECT r_cur.server_time, r_cur.id FROM ${revisions} r_cur
+          WHERE r_cur.workspace_id = ${workspaceId}::uuid AND r_cur.id = ${page.cursor}::uuid
+        )`;
+      }
+
+      const rows = await db
+        .select({
+          id: revisions.id,
+          fileId: revisions.fileId,
+          path: revisions.path,
+          deleted: revisions.deleted,
+          contentDigest: revisions.contentDigest,
+          actorAccountId: revisions.actorAccountId,
+          clientTime: revisions.clientTime,
+          serverTime: revisions.serverTime,
+          message: revisions.message,
+          restoredFrom: revisions.restoredFrom,
+          size: contents.size,
+          markdown: contents.markdown,
+          objectId: contents.objectId,
+        })
+        .from(revisions)
+        .innerJoin(
+          contents,
+          and(
+            eq(contents.workspaceId, revisions.workspaceId),
+            eq(contents.digest, revisions.contentDigest),
+          ),
+        )
+        .where(
+          and(
+            eq(revisions.workspaceId, workspaceId),
+            eq(revisions.fileId, fileId),
+            cursorCondition,
+          ),
+        )
+        .orderBy(sql`${revisions.serverTime} DESC`, sql`${revisions.id} DESC`)
+        .limit(limit + 1);
+
+      const wanted = rows.slice(0, limit);
+      const revIds = wanted.map((r) => r.id);
+
+      const parentsByChild = new Map<string, string[]>();
+      if (revIds.length > 0) {
+        const parentRows = await db
+          .select({
+            childId: revisionParents.childId,
+            parentId: revisionParents.parentId,
+            ordinal: revisionParents.ordinal,
+          })
+          .from(revisionParents)
+          .where(
+            and(
+              eq(revisionParents.workspaceId, workspaceId),
+              inArray(revisionParents.childId, revIds),
+            ),
+          )
+          .orderBy(revisionParents.ordinal);
+        for (const p of parentRows) {
+          const list = parentsByChild.get(p.childId) ?? [];
+          list.push(p.parentId);
+          parentsByChild.set(p.childId, list);
+        }
+      }
+
+      return {
+        revisions: wanted.map((row) => ({
+          revisionId: row.id,
+          fileId: row.fileId,
+          path: row.path,
+          deleted: row.deleted,
+          parents: parentsByChild.get(row.id) ?? [],
+          digest: row.contentDigest,
+          size: Number(row.size),
+          actorAccountId: row.actorAccountId,
+          clientTime: row.clientTime.toISOString(),
+          serverTime: row.serverTime.toISOString(),
+          message: row.message,
+          isCheckpoint: row.message !== null,
+          checkpointName: row.message,
+          restoredFrom: row.restoredFrom,
+          text: row.markdown,
+          objectId: row.objectId,
+        })),
+        nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
+      };
+    },
+
+    async listBranches(
+      filter?: BranchFilter,
+    ): Promise<readonly BranchRecord[]> {
+      const conditions = [eq(branches.workspaceId, workspaceId)];
+      if (filter?.fileId) {
+        assertUuid(filter.fileId, 'the file');
+        conditions.push(eq(branches.fileId, filter.fileId));
+      }
+      if (filter?.conflictGroupId) {
+        assertUuid(filter.conflictGroupId, 'the conflict group');
+        conditions.push(eq(branches.conflictGroupId, filter.conflictGroupId));
+      }
+      if (filter?.state) {
+        conditions.push(eq(branches.state, filter.state));
+      }
+      const rows = await db
+        .select({
+          id: branches.id,
+          workspaceId: branches.workspaceId,
+          fileId: branches.fileId,
+          baseRevisionId: branches.baseRevisionId,
+          tipRevisionId: branches.tipRevisionId,
+          conflictGroupId: branches.conflictGroupId,
+          state: branches.state,
+          createdAt: branches.createdAt,
+        })
+        .from(branches)
+        .where(and(...conditions))
+        .orderBy(branches.createdAt);
+
+      return rows.map((r) => ({
+        id: r.id,
+        workspaceId: r.workspaceId,
+        fileId: r.fileId,
+        baseRevisionId: r.baseRevisionId,
+        tipRevisionId: r.tipRevisionId,
+        conflictGroupId: r.conflictGroupId,
+        state: r.state as BranchState,
+        createdAt: r.createdAt.toISOString(),
+      }));
+    },
+
+    async markBranchesResolved(
+      branchTipRevisionIds: readonly string[],
+    ): Promise<readonly string[]> {
+      if (branchTipRevisionIds.length === 0) return [];
+      for (const id of branchTipRevisionIds) {
+        assertUuid(id, 'the branch tip');
+      }
+      const result = await client.query<{ id: string }>(
+        `UPDATE public.branches
+         SET state = 'resolved'
+         WHERE workspace_id = $1
+           AND tip_revision_id = ANY($2::uuid[])
+           AND state = 'unresolved'
+         RETURNING id`,
+        [workspaceId, [...branchTipRevisionIds]],
+      );
+      return result.rows.map((r) => r.id);
+    },
+
+    async acceptBranch(
+      writer: Actor,
+      input: SubmitBranchInput,
+      digest: string,
+    ): Promise<Result<AcceptedBranch>> {
+      if (input.workspaceId !== workspaceId) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the branch belongs to another workspace.',
+        );
+      }
+      if (writer.accountId !== actor.accountId) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the writing actor differs from the transaction actor.',
+        );
+      }
+      if (input.revisions.length === 0) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: a branch must carry at least one revision.',
+        );
+      }
+      const fileIds = [
+        ...new Set(input.revisions.map((revision) => revision.fileId)),
+      ].sort();
+      await client.query('savepoint notesapp_accept_branch');
+      try {
+        const outcome = await writeBranch(
+          client,
+          db,
+          writer,
+          workspaceId,
+          input,
+          digest,
+          fileIds,
+        );
+        if (!outcome.ok) {
+          await client.query('rollback to savepoint notesapp_accept_branch');
+          return outcome;
+        }
+        await client.query('release savepoint notesapp_accept_branch');
+        return outcome;
+      } catch (error) {
+        await client.query('rollback to savepoint notesapp_accept_branch');
+        const mapped = domainFailure(error, fileIds);
+        if (mapped !== null) return mapped;
+        throw operational(error);
+      }
+    },
+
+    async previewPurge(
+      fileIds: readonly string[],
+    ): Promise<Result<PurgePreview>> {
+      if (fileIds.length === 0) {
+        return ok({
+          fileIds: [],
+          revisionIds: [],
+          contentDigests: [],
+          attachmentObjectIds: [],
+          blockingReferences: [],
+          dependentRevisionCount: 0,
+          reclaimableBytes: 0,
+          canPurge: true,
+        });
+      }
+      for (const fileId of fileIds) assertUuid(fileId, 'the file');
+      const result = await client.query<{
+        file_ids: string[];
+        revision_ids: string[];
+        content_digests: string[];
+        attachment_object_ids: string[];
+        blocking_kind: string[];
+        blocking_target_id: string[];
+        blocking_referrer_id: string[];
+        blocking_description: string[];
+      }>('SELECT * FROM public.notesapp_preview_purge($1, $2)', [
+        workspaceId,
+        [...fileIds],
+      ]);
+      const row = result.rows[0];
+      if (!row) {
+        return ok({
+          fileIds: [],
+          revisionIds: [],
+          contentDigests: [],
+          attachmentObjectIds: [],
+          blockingReferences: [],
+          dependentRevisionCount: 0,
+          reclaimableBytes: 0,
+          canPurge: true,
+        });
+      }
+      const blockingReferences: BlockingReference[] = [];
+      const count = row.blocking_kind?.length ?? 0;
+      for (let i = 0; i < count; i++) {
+        blockingReferences.push({
+          kind: row.blocking_kind[i] as 'revision' | 'branch' | 'share',
+          targetId: row.blocking_target_id[i] ?? '',
+          referrerId: row.blocking_referrer_id[i] ?? '',
+          description: row.blocking_description[i] ?? '',
+        });
+      }
+
+      let reclaimableBytes = (row.file_ids?.length ?? 0) * 512;
+      if (row.content_digests && row.content_digests.length > 0) {
+        const reclaimResult = await client.query<{ bytes: string }>(
+          `SELECT coalesce(sum(size), 0) as bytes
+           FROM public.contents c
+           WHERE c.workspace_id = $1
+             AND c.digest = ANY($2::text[])
+             AND NOT EXISTS (
+               SELECT 1 FROM public.revisions r
+               WHERE r.workspace_id = $1
+                 AND r.content_digest = c.digest
+                 AND NOT (r.file_id = ANY($3::uuid[]))
+             )`,
+          [workspaceId, row.content_digests, row.file_ids ?? []],
+        );
+        reclaimableBytes += Number(reclaimResult.rows[0]?.bytes ?? 0);
+      }
+
+      return ok({
+        fileIds: row.file_ids ?? [],
+        revisionIds: row.revision_ids ?? [],
+        contentDigests: row.content_digests ?? [],
+        attachmentObjectIds: row.attachment_object_ids ?? [],
+        blockingReferences,
+        dependentRevisionCount: row.revision_ids?.length ?? 0,
+        reclaimableBytes,
+        canPurge: blockingReferences.length === 0,
+      });
+    },
+
+    async purgeFiles(
+      purger: Actor,
+      mutationId: string,
+      fileIds: readonly string[],
+      digest: string,
+    ): Promise<Result<PurgedFilesResult>> {
+      assertUuid(mutationId, 'the mutation');
+      for (const fileId of fileIds) assertUuid(fileId, 'the file');
+
+      const existingReceipt = await client.query<{
+        request_digest: string;
+        outcome: PurgedFilesResult;
+      }>(
+        'SELECT request_digest, outcome FROM mutation_receipts WHERE workspace_id = $1 AND actor_account_id = $2 AND mutation_id = $3',
+        [workspaceId, purger.accountId, mutationId],
+      );
+      const existing = existingReceipt.rows[0];
+      if (existing !== undefined) {
+        if (existing.request_digest === digest) {
+          return ok(existing.outcome);
+        }
+        return fail('mutation_reused', fileIds);
+      }
+
+      try {
+        const res = await client.query<{
+          purged_file_ids: string[];
+          purged_revision_ids: string[];
+          reclaimed_bytes: string;
+          unreferenced_object_ids: string[];
+        }>('SELECT * FROM public.notesapp_purge_files($1, $2)', [
+          workspaceId,
+          [...fileIds],
+        ]);
+        const row = res.rows[0];
+        const purgedFileIds = row?.purged_file_ids ?? [];
+        const purgedRevisionIds = row?.purged_revision_ids ?? [];
+        const reclaimedBytes = Number(row?.reclaimed_bytes ?? 0);
+
+        const outcome: PurgedFilesResult = {
+          mutationId,
+          purgedFileIds,
+          purgedRevisionIds,
+          reclaimedBytes,
+        };
+
+        await db.insert(mutationReceipts).values({
+          workspaceId,
+          actorAccountId: purger.accountId,
+          mutationId,
+          requestDigest: digest,
+          outcome,
+        });
+
+        return ok(outcome);
+      } catch (error) {
+        const failure = postgresFailure(error);
+        if (failure?.code === '23503') {
+          return fail('invalid_content', fileIds);
+        }
+        if (failure?.code === '42501') {
+          return fail('forbidden');
+        }
         throw operational(error);
       }
     },
@@ -1139,5 +1515,299 @@ async function writeChangeset(
   // of this call rather than a failure at commit time.
   await client.query('set constraints all immediate');
   await client.query('set constraints all deferred');
+  return ok(outcome);
+}
+
+/** Performs the atomic write of one validated branch submission. */
+async function writeBranch(
+  client: pg.PoolClient,
+  db: NodePgDatabase,
+  actor: Actor,
+  workspaceId: string,
+  input: SubmitBranchInput,
+  digest: string,
+  fileIds: readonly string[],
+): Promise<Result<AcceptedBranch>> {
+  assertUuid(input.mutationId, 'the mutation');
+  assertUuid(input.conflictGroupId, 'the conflict group');
+  for (const revision of input.revisions) {
+    assertUuid(revision.id, 'a revision');
+    assertUuid(revision.fileId, 'a file');
+    for (const parent of revision.parents) assertUuid(parent, 'a parent');
+  }
+
+  const branchTips = tips(input);
+
+  const locked = await db
+    .select({ id: files.id })
+    .from(files)
+    .where(
+      and(eq(files.workspaceId, workspaceId), inArray(files.id, [...fileIds])),
+    )
+    .orderBy(files.id)
+    .for('update');
+  const known = new Set(locked.map((row) => row.id));
+
+  const missing = fileIds.filter((fileId) => !known.has(fileId));
+  if (missing.length > 0) {
+    await db
+      .insert(files)
+      .values(
+        missing.map((fileId) => {
+          const tip = branchTips.get(fileId);
+          if (tip === undefined) {
+            throw new OperationalError(
+              'unexpected',
+              'notesapp: a locked file has no submitted revision.',
+            );
+          }
+          return {
+            workspaceId,
+            id: fileId,
+            path: tip.path,
+            kind: tip.content.kind === 'markdown' ? 'note' : 'attachment',
+            headRevisionId: null,
+            deleted: false,
+          } as const;
+        }),
+      )
+      .onConflictDoNothing();
+  }
+
+  const objectIds = [
+    ...new Set(
+      input.revisions.flatMap((revision) =>
+        revision.content.kind === 'attachment'
+          ? [revision.content.objectId]
+          : [],
+      ),
+    ),
+  ];
+  const objects = new Map<string, { size: bigint; digest: string }>();
+  if (objectIds.length > 0) {
+    for (const objectId of objectIds) assertUuid(objectId, 'an attachment');
+    const rows = await db
+      .select({
+        id: attachmentObjects.id,
+        size: attachmentObjects.size,
+        digest: attachmentObjects.digest,
+        state: attachmentObjects.state,
+      })
+      .from(attachmentObjects)
+      .where(
+        and(
+          eq(attachmentObjects.workspaceId, workspaceId),
+          inArray(attachmentObjects.id, objectIds),
+        ),
+      );
+    for (const row of rows) {
+      if (row.state === 'finalized') {
+        objects.set(row.id, { size: row.size, digest: row.digest });
+      }
+    }
+    const unusable = input.revisions.filter(
+      (revision) =>
+        revision.content.kind === 'attachment' &&
+        !objects.has(revision.content.objectId),
+    );
+    if (unusable.length > 0) {
+      return fail(
+        'invalid_graph',
+        unusable.map((revision) => revision.fileId),
+      );
+    }
+  }
+
+  const mismatched = input.revisions.filter((revision) => {
+    const content = revision.content;
+    if (content.kind === 'markdown') {
+      return markdownDigest(content.text) !== content.digest.toLowerCase();
+    }
+    return objects.get(content.objectId)?.digest !== content.digest;
+  });
+  if (mismatched.length > 0) {
+    return fail(
+      'invalid_content',
+      mismatched.map((revision) => revision.fileId),
+    );
+  }
+
+  const contentRows = new Map<
+    string,
+    {
+      workspaceId: string;
+      digest: string;
+      kind: 'markdown' | 'attachment';
+      size: bigint;
+      markdown: string | null;
+      objectId: string | null;
+    }
+  >();
+  for (const revision of input.revisions) {
+    const content = revision.content;
+    if (contentRows.has(content.digest)) continue;
+    contentRows.set(content.digest, {
+      workspaceId,
+      digest: content.digest,
+      kind: content.kind,
+      size:
+        content.kind === 'markdown'
+          ? BigInt(Buffer.byteLength(content.text, 'utf8'))
+          : (objects.get(content.objectId)?.size ?? 0n),
+      markdown: content.kind === 'markdown' ? content.text : null,
+      objectId: content.kind === 'attachment' ? content.objectId : null,
+    });
+  }
+
+  const existingContents = await db
+    .select({ digest: contents.digest })
+    .from(contents)
+    .where(
+      and(
+        eq(contents.workspaceId, workspaceId),
+        inArray(contents.digest, [...contentRows.keys()]),
+      ),
+    );
+  const knownDigests = new Set(existingContents.map((row) => row.digest));
+  const newContentRows = [...contentRows.values()].filter(
+    (row) => !knownDigests.has(row.digest),
+  );
+
+  const newContentBytes = newContentRows.reduce(
+    (total, row) => total + row.size,
+    0n,
+  );
+  const chargedBytes =
+    newContentBytes +
+    BigInt(input.revisions.length) * revisionOverheadBytes +
+    receiptOverheadBytes;
+
+  const usageRows = await db
+    .select({
+      bytesUsed: workspaceUsage.bytesUsed,
+      quotaBytes: workspaceUsage.quotaBytes,
+    })
+    .from(workspaceUsage)
+    .where(eq(workspaceUsage.workspaceId, workspaceId));
+  const usage = usageRows[0];
+  if (usage === undefined) {
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: the workspace has no usage record.',
+    );
+  }
+  if (newContentBytes > 0n) {
+    if (
+      usage.bytesUsed + chargedBytes >
+      usage.quotaBytes - controlReserveBytes
+    ) {
+      return fail('quota');
+    }
+  } else if (usage.bytesUsed + chargedBytes > usage.quotaBytes) {
+    return fail('quota');
+  }
+
+  if (newContentRows.length > 0) {
+    await db.insert(contents).values(newContentRows).onConflictDoNothing();
+  }
+
+  const cursorResult = await client.query<{ next_cursor: string }>(
+    'select public.notesapp_next_cursor($1) as next_cursor',
+    [workspaceId],
+  );
+  const cursorValue = cursorResult.rows[0]?.next_cursor;
+  if (cursorValue === undefined) {
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: failed to allocate cursor.',
+    );
+  }
+  const cursor = BigInt(cursorValue);
+
+  const changesetId = randomUUID();
+  await db.insert(changesets).values({
+    workspaceId,
+    id: changesetId,
+    mutationId: input.mutationId,
+    actorAccountId: actor.accountId,
+    deviceId: input.deviceId,
+    requestDigest: digest,
+    cursor,
+  });
+
+  const revisionRows = input.revisions.map((revision) => ({
+    workspaceId,
+    id: revision.id,
+    fileId: revision.fileId,
+    contentDigest: revision.content.digest,
+    path: revision.path,
+    deleted: revision.deleted,
+    changesetId,
+    actorAccountId: actor.accountId,
+    clientTime: new Date(revision.clientTime),
+    message: revision.message,
+    restoredFrom: revision.restoredFrom,
+  }));
+  await db.insert(revisions).values(revisionRows);
+
+  const parentRows = input.revisions.flatMap((revision) =>
+    revision.parents.map((parent, ordinal) => ({
+      workspaceId,
+      childId: revision.id,
+      parentId: parent,
+      ordinal,
+    })),
+  );
+  if (parentRows.length > 0) {
+    await db.insert(revisionParents).values(parentRows);
+  }
+
+  const createdBranches: BranchRecord[] = [];
+  for (const [fileId, tipRevision] of branchTips.entries()) {
+    const branchId = randomUUID();
+    const baseRevisionId = input.expectedHeads[fileId] ?? null;
+    const now = new Date();
+    await db.insert(branches).values({
+      workspaceId,
+      id: branchId,
+      fileId,
+      baseRevisionId,
+      tipRevisionId: tipRevision.id,
+      conflictGroupId: input.conflictGroupId,
+      state: 'unresolved',
+      createdAt: now,
+    });
+    createdBranches.push({
+      id: branchId,
+      workspaceId,
+      fileId,
+      baseRevisionId,
+      tipRevisionId: tipRevision.id,
+      conflictGroupId: input.conflictGroupId,
+      state: 'unresolved',
+      createdAt: now.toISOString(),
+    });
+  }
+
+  await client.query('select public.notesapp_add_usage($1, $2)', [
+    workspaceId,
+    chargedBytes.toString(),
+  ]);
+
+  const outcome: AcceptedBranch = {
+    mutationId: input.mutationId,
+    conflictGroupId: input.conflictGroupId,
+    revisionIds: input.revisions.map((r) => r.id),
+    branches: createdBranches,
+  };
+
+  await db.insert(mutationReceipts).values({
+    workspaceId,
+    actorAccountId: actor.accountId,
+    mutationId: input.mutationId,
+    requestDigest: digest,
+    outcome,
+  });
+
   return ok(outcome);
 }

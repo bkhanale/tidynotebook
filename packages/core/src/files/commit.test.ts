@@ -63,8 +63,11 @@ class FakeWorkspace {
 function fakeStore(state: FakeWorkspace): WorkspaceStore {
   const transaction: WorkspaceTransaction = {
     role: (id: string) => Promise.resolve(state.roles.get(id) ?? null),
-    receipt: (mutationId: string, id: string) =>
-      Promise.resolve(state.receipts.get(`${id}:${mutationId}`) ?? null),
+    receipt: <T = AcceptedChangeset>(mutationId: string, id: string) =>
+      Promise.resolve(
+        (state.receipts.get(`${id}:${mutationId}`) as
+          MutationReceipt<T> | undefined) ?? null,
+      ),
     heads: (fileIds: readonly string[]) =>
       Promise.resolve(
         new Map(
@@ -166,6 +169,40 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
       state.deletions.push([...fileIds]);
       return Promise.resolve();
     },
+    listHistory: () => Promise.resolve({ revisions: [], nextCursor: null }),
+    listBranches: () => Promise.resolve([]),
+    markBranchesResolved: () => Promise.resolve([]),
+    acceptBranch: () =>
+      Promise.resolve(
+        ok({
+          mutationId: '',
+          conflictGroupId: '',
+          revisionIds: [],
+          branches: [],
+        }),
+      ),
+    previewPurge: () =>
+      Promise.resolve(
+        ok({
+          fileIds: [],
+          revisionIds: [],
+          contentDigests: [],
+          attachmentObjectIds: [],
+          blockingReferences: [],
+          dependentRevisionCount: 0,
+          reclaimableBytes: 0,
+          canPurge: true,
+        }),
+      ),
+    purgeFiles: () =>
+      Promise.resolve(
+        ok({
+          mutationId: '',
+          purgedFileIds: [],
+          purgedRevisionIds: [],
+          reclaimedBytes: 0,
+        }),
+      ),
   };
   return {
     transact: <T>(

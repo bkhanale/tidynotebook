@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -329,6 +329,59 @@ export const getAttachmentRevision = <ThrowOnError extends boolean = false>(opti
 });
 
 /**
+ * List divergent branches in a workspace.
+ *
+ * Lists open or resolved divergent branches of the workspace, optionally filtered by file, conflict group, or resolution state.
+ */
+export const listBranches = <ThrowOnError extends boolean = false>(options: Options<ListBranchesData, ThrowOnError>): RequestResult<ListBranchesResponses, ListBranchesErrors, ThrowOnError> => (options.client ?? client).get<ListBranchesResponses, ListBranchesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/branches',
+    ...options
+});
+
+/**
+ * Submit a divergent conflict branch atomically.
+ *
+ * Stores divergent revisions and records an open branch without advancing accepted heads or reserving live paths.
+ */
+export const submitBranch = <ThrowOnError extends boolean = false>(options: Options<SubmitBranchData, ThrowOnError>): RequestResult<SubmitBranchResponses, SubmitBranchErrors, ThrowOnError> => (options.client ?? client).post<SubmitBranchResponses, SubmitBranchErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/branches',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Explicitly resolve divergent branches.
+ *
+ * Creates resolution revisions naming both the expected accepted head and the branch tip as parents, advances accepted heads, and marks the resolved branches.
+ */
+export const resolveBranches = <ThrowOnError extends boolean = false>(options: Options<ResolveBranchesData, ThrowOnError>): RequestResult<ResolveBranchesResponses, ResolveBranchesErrors, ThrowOnError> => (options.client ?? client).post<ResolveBranchesResponses, ResolveBranchesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/branches/resolve',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Accept one atomic change of one or more files.
  *
  * Accepts a complete changeset: every revision commits or none does. The request states an expected head for each file it changes, and null for a file that must not exist yet. It is the operation that the sync engine uses, and it also performs a folder change of up to 1000 files. A retry with the same mutation identity and the same body returns the first outcome; the same identity with a different body is refused.
@@ -435,6 +488,59 @@ export const updateFile = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
+ * Create a named checkpoint revision for a file.
+ *
+ * Creates an immutable named checkpoint revision. If path and content are omitted, the checkpoint preserves the content and path of the expected head.
+ */
+export const createCheckpoint = <ThrowOnError extends boolean = false>(options: Options<CreateCheckpointData, ThrowOnError>): RequestResult<CreateCheckpointResponses, CreateCheckpointErrors, ThrowOnError> => (options.client ?? client).post<CreateCheckpointResponses, CreateCheckpointErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/checkpoint',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read the revision history of a file.
+ *
+ * Lists the immutable revisions of one file in reverse chronological order. The result supports cursor pagination. Each item reports byte size, author identity, checkpoint status, and restored-from references.
+ */
+export const listHistory = <ThrowOnError extends boolean = false>(options: Options<ListHistoryData, ThrowOnError>): RequestResult<ListHistoryResponses, ListHistoryErrors, ThrowOnError> => (options.client ?? client).get<ListHistoryResponses, ListHistoryErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/history',
+    ...options
+});
+
+/**
+ * Restore a file to a historic revision.
+ *
+ * Appends a child revision to the current accepted head referencing the historic target revision in restoredFrom, reusing existing content bytes without rewriting history.
+ */
+export const restoreRevision = <ThrowOnError extends boolean = false>(options: Options<RestoreRevisionData, ThrowOnError>): RequestResult<RestoreRevisionResponses, RestoreRevisionErrors, ThrowOnError> => (options.client ?? client).post<RestoreRevisionResponses, RestoreRevisionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/restore',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * List the members of a workspace.
  *
  * Lists every member of the workspace with the current role. An owner or an administrator also sees the open invitations.
@@ -514,6 +620,44 @@ export const transferOwnership = <ThrowOnError extends boolean = false>(options:
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/api/workspaces/{workspaceId}/ownership',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Permanently delete files and write purge markers.
+ *
+ * Permanently purges files, revisions, branches, and shares, writes purge markers, and reclaims storage. Subsequent writes to purged file identifiers answer 410 Gone. Restricted to workspace owners.
+ */
+export const purgeFiles = <ThrowOnError extends boolean = false>(options: Options<PurgeFilesData, ThrowOnError>): RequestResult<PurgeFilesResponses, PurgeFilesErrors, ThrowOnError> => (options.client ?? client).post<PurgeFilesResponses, PurgeFilesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/purge',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Preview permanent deletion of files.
+ *
+ * Reports affected revisions, reclaimable bytes, and blocking references such as attachments referenced by external revisions. Restricted to workspace owners.
+ */
+export const previewPurge = <ThrowOnError extends boolean = false>(options: Options<PreviewPurgeData, ThrowOnError>): RequestResult<PreviewPurgeResponses, PreviewPurgeErrors, ThrowOnError> => (options.client ?? client).post<PreviewPurgeResponses, PreviewPurgeErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/purge/preview',
     ...options,
     headers: {
         'Content-Type': 'application/json',

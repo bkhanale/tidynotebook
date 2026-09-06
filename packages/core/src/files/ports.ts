@@ -14,9 +14,9 @@ import type { Actor, Role } from '../identity/actor.ts';
 import type { AcceptedChangeset, ChangesetInput, Result } from './model.ts';
 
 /** A stored outcome of an earlier accepted changeset, kept for safe retries. */
-export type MutationReceipt = {
+export type MutationReceipt<T = AcceptedChangeset> = {
   readonly digest: string;
-  readonly outcome: AcceptedChangeset;
+  readonly outcome: T;
 };
 
 /** Whether a file holds Markdown or an attachment. */
@@ -86,10 +86,10 @@ export type WorkspaceTransaction = {
    * lookup is bound to the actor, so a replay cannot use another account's
    * outcome.
    */
-  receipt(
+  receipt<T = AcceptedChangeset>(
     mutationId: string,
     accountId: string,
-  ): Promise<MutationReceipt | null>;
+  ): Promise<MutationReceipt<T> | null>;
   /**
    * The accepted head of each requested file. The value is `null` when the
    * file does not exist in accepted state. A missing key means the same.
@@ -160,6 +160,118 @@ export type WorkspaceTransaction = {
    * content, so a full workspace can still delete a file.
    */
   onFilesDeleted(fileIds: readonly string[]): Promise<void>;
+  /** One page of history revisions for one file, ordered newest first. */
+  listHistory(fileId: string, page: PageRequest): Promise<HistoryPage>;
+  /** Divergent branches of this workspace. */
+  listBranches(filter?: BranchFilter): Promise<readonly BranchRecord[]>;
+  /** Marks open branches resolved by their tip revision identifiers. */
+  markBranchesResolved(
+    branchTipRevisionIds: readonly string[],
+  ): Promise<readonly string[]>;
+  /** Submits a branch without advancing accepted heads. */
+  acceptBranch(
+    actor: Actor,
+    input: SubmitBranchInput,
+    digest: string,
+  ): Promise<Result<AcceptedBranch>>;
+  /** Previews permanent deletion of the requested files. */
+  previewPurge(fileIds: readonly string[]): Promise<Result<PurgePreview>>;
+  /** Permanently deletes files and writes purge markers. */
+  purgeFiles(
+    actor: Actor,
+    mutationId: string,
+    fileIds: readonly string[],
+    digest: string,
+  ): Promise<Result<PurgedFilesResult>>;
+};
+
+/** One historic revision item for history listing. */
+export type HistoryRevision = {
+  readonly revisionId: string;
+  readonly fileId: string;
+  readonly path: string;
+  readonly deleted: boolean;
+  readonly parents: readonly string[];
+  readonly digest: string;
+  readonly size: number;
+  readonly actorAccountId: string;
+  readonly clientTime: string;
+  readonly serverTime: string;
+  readonly message: string | null;
+  readonly isCheckpoint: boolean;
+  readonly checkpointName: string | null;
+  readonly restoredFrom: string | null;
+  readonly text: string | null;
+  readonly objectId: string | null;
+};
+
+/** One page of history revisions. */
+export type HistoryPage = {
+  readonly revisions: readonly HistoryRevision[];
+  readonly nextCursor: string | null;
+};
+
+/** State of a divergent branch. */
+export type BranchState = 'unresolved' | 'resolved';
+
+/** One recorded divergent branch. */
+export type BranchRecord = {
+  readonly id: string;
+  readonly workspaceId: string;
+  readonly fileId: string;
+  readonly baseRevisionId: string | null;
+  readonly tipRevisionId: string;
+  readonly conflictGroupId: string;
+  readonly state: BranchState;
+  readonly createdAt: string;
+};
+
+/** Optional filter criteria when querying branches. */
+export type BranchFilter = {
+  readonly fileId?: string;
+  readonly conflictGroupId?: string;
+  readonly state?: BranchState;
+};
+
+/** Input payload when submitting a divergent branch. */
+export type SubmitBranchInput = ChangesetInput & {
+  readonly conflictGroupId: string;
+};
+
+/** Stored outcome of an accepted branch submission. */
+export type AcceptedBranch = {
+  readonly mutationId: string;
+  readonly conflictGroupId: string;
+  readonly revisionIds: readonly string[];
+  readonly branches: readonly BranchRecord[];
+};
+
+/** A reference that prevents permanent deletion of a file. */
+export type BlockingReference = {
+  readonly kind: 'revision' | 'branch' | 'share';
+  readonly targetId: string;
+  readonly referrerId: string;
+  readonly description: string;
+};
+
+/** Preview summary of an intended purge operation. */
+export type PurgePreview = {
+  readonly fileIds: readonly string[];
+  readonly revisionIds: readonly string[];
+  readonly contentDigests: readonly string[];
+  readonly attachmentObjectIds: readonly string[];
+  readonly blockingReferences: readonly BlockingReference[];
+  readonly dependentRevisionCount: number;
+  readonly reclaimableBytes: number;
+  readonly canPurge: boolean;
+};
+
+/** Outcome of an executed permanent file purge. */
+export type PurgedFilesResult = {
+  readonly mutationId: string;
+  readonly purgedFileIds: readonly string[];
+  readonly purgedRevisionIds: readonly string[];
+  readonly reclaimedBytes: number;
 };
 
 /** Opens one workspace transaction for a verified actor. */

@@ -33,13 +33,23 @@ export {
   requestDigest,
 } from './files/digest.ts';
 export type {
+  AcceptedBranch,
+  BlockingReference,
+  BranchFilter,
+  BranchRecord,
+  BranchState,
   FileKind,
   FilePage,
   FileRecord,
+  HistoryPage,
+  HistoryRevision,
   MutationReceipt,
   OperationalErrorKind,
   PageRequest,
+  PurgePreview,
+  PurgedFilesResult,
   RevisionRecord,
+  SubmitBranchInput,
   WorkspaceStore,
   WorkspaceTransaction,
 } from './files/ports.ts';
@@ -119,3 +129,21 @@ export {
   updatePreferences,
   updateWorkspace,
 } from './workspaces/service.ts';
+export type {
+  AcceptedBranchResolution,
+  BranchResolution,
+  CreateCheckpointInput,
+  ResolveBranchesInput,
+  RestoreRevisionInput,
+} from './history/service.ts';
+export {
+  createCheckpoint,
+  defaultHistoryLimit,
+  listBranches,
+  listHistory,
+  maxHistoryLimit,
+  resolveBranches,
+  restoreRevision,
+  submitBranch,
+} from './history/service.ts';
+export { previewPurge, purgeFiles } from './history/purge.ts';

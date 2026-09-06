@@ -10,6 +10,7 @@ export type OperationId =
   | 'acceptInvitation'
   | 'commitChangeset'
   | 'createAgentToken'
+  | 'createCheckpoint'
   | 'createFile'
   | 'createWorkspace'
   | 'deleteFile'
@@ -24,16 +25,23 @@ export type OperationId =
   | 'getRevision'
   | 'inviteMember'
   | 'listAgentTokens'
+  | 'listBranches'
   | 'listFiles'
+  | 'listHistory'
   | 'listMembers'
   | 'listWorkspaces'
+  | 'previewPurge'
+  | 'purgeFiles'
   | 'removeMember'
   | 'requestPasswordReset'
   | 'resetPassword'
+  | 'resolveBranches'
+  | 'restoreRevision'
   | 'revokeAgentToken'
   | 'signInWithPassword'
   | 'signInWithProvider'
   | 'signOut'
+  | 'submitBranch'
   | 'transferOwnership'
   | 'updateFile'
   | 'updateMember'
@@ -3400,6 +3408,1717 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "createCheckpoint",
+    "method": "post",
+    "path": "/api/workspaces/{workspaceId}/files/{fileId}/checkpoint",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "fileId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "if-match",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "fileId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "fileId",
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "if-match": {
+            "type": "string",
+            "description": "A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^(?:\\*|(?:W/)?\"[^\"]*\"(?:[ \\t]*,[ \\t]*(?:W/)?\"[^\"]*\")*)$"
+          }
+        }
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "Checkpoint creation payload.",
+        "additionalProperties": false,
+        "required": [
+          "mutationId",
+          "deviceId",
+          "clientTime",
+          "name"
+        ],
+        "properties": {
+          "mutationId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "The device that submitted the change. It is informational and appears in the history of the workspace.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "clientTime": {
+            "type": "string",
+            "format": "date-time",
+            "minLength": 20,
+            "maxLength": 64
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "revisionId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "path": {
+            "type": "string",
+            "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "content": {
+            "type": "object",
+            "description": "The immutable content of one submitted revision. Markdown carries its text; an attachment names a finalized object of the same workspace.",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "digest"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "description": "Which of the two content forms this revision carries.",
+                "enum": [
+                  "markdown",
+                  "attachment"
+                ]
+              },
+              "digest": {
+                "allOf": [
+                  {
+                    "type": "string",
+                    "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                    "minLength": 64,
+                    "maxLength": 64,
+                    "pattern": "^[0-9a-f]{64}$"
+                  }
+                ],
+                "description": "Digest of the content. The server recomputes it from the submitted bytes and refuses a revision that declares another value."
+              },
+              "text": {
+                "allOf": [
+                  {
+                    "type": "string",
+                    "description": "The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.",
+                    "maxLength": 1048576
+                  }
+                ],
+                "description": "The Markdown of this revision. Absent for an attachment."
+              },
+              "attachmentObjectId": {
+                "allOf": [
+                  {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                ],
+                "description": "The finalized attachment object of this revision. Absent for Markdown."
+              }
+            }
+          }
+        }
+      },
+      "bodyMediaType": "application/json"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The outcome of one accepted changeset.",
+          "additionalProperties": false,
+          "required": [
+            "mutationId",
+            "revisionIds",
+            "cursor",
+            "revisions"
+          ],
+          "properties": {
+            "mutationId": {
+              "allOf": [
+                {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              ],
+              "readOnly": true,
+              "description": "The mutation identity that the client submitted."
+            },
+            "revisionIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every revision that this changeset accepted, in submitted order. A retry of the same mutation returns exactly these identifiers again.",
+              "minItems": 1,
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "cursor": {
+              "type": "string",
+              "readOnly": true,
+              "description": "The commit ordered position of this change in the workspace. A sync client asks for changes after a cursor it already applied.",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[0-9]+$"
+            },
+            "revisions": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.",
+              "minItems": 1,
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                "additionalProperties": false,
+                "required": [
+                  "revisionId",
+                  "fileId",
+                  "parents",
+                  "path",
+                  "deleted",
+                  "digest",
+                  "size",
+                  "actorAccountId",
+                  "serverTime",
+                  "message"
+                ],
+                "properties": {
+                  "revisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Identifier of the accepted revision."
+                  },
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file that the revision belongs to."
+                  },
+                  "parents": {
+                    "type": "array",
+                    "readOnly": true,
+                    "description": "The parents of the revision, in submitted order.",
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "path": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted path, in its normalized form."
+                  },
+                  "deleted": {
+                    "type": "boolean",
+                    "readOnly": true,
+                    "description": "True for a tombstone, which is how a deletion is recorded."
+                  },
+                  "digest": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                        "minLength": 64,
+                        "maxLength": 64,
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Digest of the content of the revision."
+                  },
+                  "size": {
+                    "type": "integer",
+                    "readOnly": true,
+                    "description": "Size of the content in bytes.",
+                    "minimum": 0
+                  },
+                  "actorAccountId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                  },
+                  "serverTime": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the workspace accepted the revision.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  },
+                  "message": {
+                    "allOf": [
+                      {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                        "maxLength": 512
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 409,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 410,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 412,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 422,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 428,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -13265,6 +14984,115 @@ export const operations: readonly OperationEntry[] = [
         }
       },
       {
+        "status": 410,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
         "status": 500,
         "mediaType": "application/problem+json",
         "schema": {
@@ -16558,6 +18386,661 @@ export const operations: readonly OperationEntry[] = [
     "noContent": []
   },
   {
+    "id": "listBranches",
+    "method": "get",
+    "path": "/api/workspaces/{workspaceId}/branches",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "fileId",
+        "location": "query",
+        "required": false,
+        "style": "form",
+        "explode": true
+      },
+      {
+        "name": "conflictGroupId",
+        "location": "query",
+        "required": false,
+        "style": "form",
+        "explode": true
+      },
+      {
+        "name": "state",
+        "location": "query",
+        "required": false,
+        "style": "form",
+        "explode": true
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "fileId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "conflictGroupId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "unresolved",
+              "resolved"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "List of divergent branches.",
+          "additionalProperties": false,
+          "required": [
+            "branches"
+          ],
+          "properties": {
+            "branches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "One divergent branch record.",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "workspaceId",
+                  "fileId",
+                  "baseRevisionId",
+                  "tipRevisionId",
+                  "conflictGroupId",
+                  "state",
+                  "createdAt"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "fileId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "baseRevisionId": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tipRevisionId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "conflictGroupId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "unresolved",
+                      "resolved"
+                    ]
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
     "id": "listFiles",
     "method": "get",
     "path": "/api/workspaces/{workspaceId}/files",
@@ -17101,6 +19584,953 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "listHistory",
+    "method": "get",
+    "path": "/api/workspaces/{workspaceId}/files/{fileId}/history",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "fileId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "cursor",
+        "location": "query",
+        "required": false,
+        "style": "form",
+        "explode": true
+      },
+      {
+        "name": "limit",
+        "location": "query",
+        "required": false,
+        "style": "form",
+        "explode": true
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "fileId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "fileId",
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "cursor": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 100
+          }
+        },
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "One page of file history revisions.",
+          "additionalProperties": false,
+          "required": [
+            "revisions",
+            "nextCursor"
+          ],
+          "properties": {
+            "revisions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "One historic revision of a file.",
+                "additionalProperties": false,
+                "required": [
+                  "revisionId",
+                  "fileId",
+                  "path",
+                  "deleted",
+                  "parents",
+                  "digest",
+                  "size",
+                  "actorAccountId",
+                  "clientTime",
+                  "serverTime",
+                  "message",
+                  "isCheckpoint",
+                  "checkpointName",
+                  "restoredFrom",
+                  "text",
+                  "objectId"
+                ],
+                "properties": {
+                  "revisionId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "fileId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "path": {
+                    "type": "string",
+                    "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "deleted": {
+                    "type": "boolean"
+                  },
+                  "parents": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "digest": {
+                    "type": "string",
+                    "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                    "minLength": 64,
+                    "maxLength": 64,
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "size": {
+                    "type": "integer"
+                  },
+                  "actorAccountId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "clientTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "serverTime": {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  "message": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                    "maxLength": 512
+                  },
+                  "isCheckpoint": {
+                    "type": "boolean"
+                  },
+                  "checkpointName": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                    "maxLength": 512
+                  },
+                  "restoredFrom": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "text": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "objectId": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            },
+            "nextCursor": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 410,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -18453,6 +21883,1996 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "previewPurge",
+    "method": "post",
+    "path": "/api/workspaces/{workspaceId}/purge/preview",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "Payload to preview permanent deletion of files.",
+        "additionalProperties": false,
+        "required": [
+          "fileIds"
+        ],
+        "properties": {
+          "fileIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "type": "string",
+              "description": "A UUID that names one record.",
+              "format": "uuid",
+              "minLength": 36,
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      },
+      "bodyMediaType": "application/json"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "Summary preview of an intended permanent file purge.",
+          "additionalProperties": false,
+          "required": [
+            "fileIds",
+            "revisionIds",
+            "contentDigests",
+            "attachmentObjectIds",
+            "blockingReferences",
+            "dependentRevisionCount",
+            "reclaimableBytes",
+            "canPurge"
+          ],
+          "properties": {
+            "fileIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "revisionIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "contentDigests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "attachmentObjectIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "blockingReferences": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "A reference that blocks permanent deletion.",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "targetId",
+                  "referrerId",
+                  "description"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "revision",
+                      "branch",
+                      "share"
+                    ]
+                  },
+                  "targetId": {
+                    "type": "string"
+                  },
+                  "referrerId": {
+                    "type": "string"
+                  },
+                  "description": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "dependentRevisionCount": {
+              "type": "integer"
+            },
+            "reclaimableBytes": {
+              "type": "integer"
+            },
+            "canPurge": {
+              "type": "boolean"
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 422,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "purgeFiles",
+    "method": "post",
+    "path": "/api/workspaces/{workspaceId}/purge",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "Payload to permanently purge files.",
+        "additionalProperties": false,
+        "required": [
+          "mutationId",
+          "fileIds"
+        ],
+        "properties": {
+          "mutationId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "fileIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "type": "string",
+              "description": "A UUID that names one record.",
+              "format": "uuid",
+              "minLength": 36,
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            }
+          }
+        }
+      },
+      "bodyMediaType": "application/json"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "Outcome of executed permanent file purge.",
+          "additionalProperties": false,
+          "required": [
+            "mutationId",
+            "purgedFileIds",
+            "purgedRevisionIds",
+            "reclaimedBytes"
+          ],
+          "properties": {
+            "mutationId": {
+              "type": "string",
+              "description": "A UUID that names one record.",
+              "format": "uuid",
+              "minLength": 36,
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "purgedFileIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "purgedRevisionIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "reclaimedBytes": {
+              "type": "integer"
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 409,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 422,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -20999,6 +26419,3073 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 429,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "resolveBranches",
+    "method": "post",
+    "path": "/api/workspaces/{workspaceId}/branches/resolve",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "Payload to explicitly resolve divergent branches.",
+        "additionalProperties": false,
+        "required": [
+          "mutationId",
+          "deviceId",
+          "clientTime",
+          "resolutions"
+        ],
+        "properties": {
+          "mutationId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "The device that submitted the change. It is informational and appears in the history of the workspace.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "clientTime": {
+            "type": "string",
+            "format": "date-time",
+            "minLength": 20,
+            "maxLength": 64
+          },
+          "conflictGroupId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "resolutions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1000,
+            "items": {
+              "type": "object",
+              "description": "Explicit merge resolution for one file.",
+              "additionalProperties": false,
+              "required": [
+                "fileId",
+                "expectedHead",
+                "branchTip",
+                "revisionId",
+                "path",
+                "content",
+                "deleted"
+              ],
+              "properties": {
+                "fileId": {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "expectedHead": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "branchTip": {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "revisionId": {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                "path": {
+                  "type": "string",
+                  "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "content": {
+                  "type": "object",
+                  "description": "The immutable content of one submitted revision. Markdown carries its text; an attachment names a finalized object of the same workspace.",
+                  "additionalProperties": false,
+                  "required": [
+                    "kind",
+                    "digest"
+                  ],
+                  "properties": {
+                    "kind": {
+                      "type": "string",
+                      "description": "Which of the two content forms this revision carries.",
+                      "enum": [
+                        "markdown",
+                        "attachment"
+                      ]
+                    },
+                    "digest": {
+                      "allOf": [
+                        {
+                          "type": "string",
+                          "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                          "minLength": 64,
+                          "maxLength": 64,
+                          "pattern": "^[0-9a-f]{64}$"
+                        }
+                      ],
+                      "description": "Digest of the content. The server recomputes it from the submitted bytes and refuses a revision that declares another value."
+                    },
+                    "text": {
+                      "allOf": [
+                        {
+                          "type": "string",
+                          "description": "The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.",
+                          "maxLength": 1048576
+                        }
+                      ],
+                      "description": "The Markdown of this revision. Absent for an attachment."
+                    },
+                    "attachmentObjectId": {
+                      "allOf": [
+                        {
+                          "type": "string",
+                          "description": "A UUID that names one record.",
+                          "format": "uuid",
+                          "minLength": 36,
+                          "maxLength": 36,
+                          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                        }
+                      ],
+                      "description": "The finalized attachment object of this revision. Absent for Markdown."
+                    }
+                  }
+                },
+                "deleted": {
+                  "type": "boolean"
+                },
+                "message": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                  "maxLength": 512
+                }
+              }
+            }
+          }
+        }
+      },
+      "bodyMediaType": "application/json"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "Stored branch resolution outcome.",
+          "additionalProperties": false,
+          "required": [
+            "mutationId",
+            "revisions",
+            "resolvedBranchIds"
+          ],
+          "properties": {
+            "mutationId": {
+              "type": "string",
+              "description": "A UUID that names one record.",
+              "format": "uuid",
+              "minLength": 36,
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "revisions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                "additionalProperties": false,
+                "required": [
+                  "revisionId",
+                  "fileId",
+                  "parents",
+                  "path",
+                  "deleted",
+                  "digest",
+                  "size",
+                  "actorAccountId",
+                  "serverTime",
+                  "message"
+                ],
+                "properties": {
+                  "revisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Identifier of the accepted revision."
+                  },
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file that the revision belongs to."
+                  },
+                  "parents": {
+                    "type": "array",
+                    "readOnly": true,
+                    "description": "The parents of the revision, in submitted order.",
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "path": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted path, in its normalized form."
+                  },
+                  "deleted": {
+                    "type": "boolean",
+                    "readOnly": true,
+                    "description": "True for a tombstone, which is how a deletion is recorded."
+                  },
+                  "digest": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                        "minLength": 64,
+                        "maxLength": 64,
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Digest of the content of the revision."
+                  },
+                  "size": {
+                    "type": "integer",
+                    "readOnly": true,
+                    "description": "Size of the content in bytes.",
+                    "minimum": 0
+                  },
+                  "actorAccountId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                  },
+                  "serverTime": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the workspace accepted the revision.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  },
+                  "message": {
+                    "allOf": [
+                      {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                        "maxLength": 512
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
+            },
+            "resolvedBranchIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 409,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 410,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 412,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 422,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "restoreRevision",
+    "method": "post",
+    "path": "/api/workspaces/{workspaceId}/files/{fileId}/restore",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "fileId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "fileId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "fileId",
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "Payload to restore a file to an earlier historic revision.",
+        "additionalProperties": false,
+        "required": [
+          "mutationId",
+          "deviceId",
+          "clientTime",
+          "targetRevisionId",
+          "revisionId"
+        ],
+        "properties": {
+          "mutationId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "The device that submitted the change. It is informational and appears in the history of the workspace.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "clientTime": {
+            "type": "string",
+            "format": "date-time",
+            "minLength": 20,
+            "maxLength": 64
+          },
+          "targetRevisionId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedHead": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisionId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "path": {
+            "type": "string",
+            "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+            "maxLength": 512
+          }
+        }
+      },
+      "bodyMediaType": "application/json"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The outcome of one accepted changeset.",
+          "additionalProperties": false,
+          "required": [
+            "mutationId",
+            "revisionIds",
+            "cursor",
+            "revisions"
+          ],
+          "properties": {
+            "mutationId": {
+              "allOf": [
+                {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                }
+              ],
+              "readOnly": true,
+              "description": "The mutation identity that the client submitted."
+            },
+            "revisionIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every revision that this changeset accepted, in submitted order. A retry of the same mutation returns exactly these identifiers again.",
+              "minItems": 1,
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "cursor": {
+              "type": "string",
+              "readOnly": true,
+              "description": "The commit ordered position of this change in the workspace. A sync client asks for changes after a cursor it already applied.",
+              "minLength": 1,
+              "maxLength": 32,
+              "pattern": "^[0-9]+$"
+            },
+            "revisions": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.",
+              "minItems": 1,
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "description": "One revision as the workspace accepted it. The record carries the values that the workspace assigned, and no note text: the client that wrote the revision already holds its content, and an actor that may write but not read must not receive content through a write answer.",
+                "additionalProperties": false,
+                "required": [
+                  "revisionId",
+                  "fileId",
+                  "parents",
+                  "path",
+                  "deleted",
+                  "digest",
+                  "size",
+                  "actorAccountId",
+                  "serverTime",
+                  "message"
+                ],
+                "properties": {
+                  "revisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Identifier of the accepted revision."
+                  },
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file that the revision belongs to."
+                  },
+                  "parents": {
+                    "type": "array",
+                    "readOnly": true,
+                    "description": "The parents of the revision, in submitted order.",
+                    "maxItems": 2,
+                    "items": {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "path": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted path, in its normalized form."
+                  },
+                  "deleted": {
+                    "type": "boolean",
+                    "readOnly": true,
+                    "description": "True for a tombstone, which is how a deletion is recorded."
+                  },
+                  "digest": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                        "minLength": 64,
+                        "maxLength": 64,
+                        "pattern": "^[0-9a-f]{64}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "Digest of the content of the revision."
+                  },
+                  "size": {
+                    "type": "integer",
+                    "readOnly": true,
+                    "description": "Size of the content in bytes.",
+                    "minimum": 0
+                  },
+                  "actorAccountId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The account that the workspace recorded as the author. It comes from the verified request; a client cannot supply it."
+                  },
+                  "serverTime": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the workspace accepted the revision.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  },
+                  "message": {
+                    "allOf": [
+                      {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                        "maxLength": 512
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 409,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 410,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 412,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 422,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -24529,6 +33016,1420 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 429,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "submitBranch",
+    "method": "post",
+    "path": "/api/workspaces/{workspaceId}/branches",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      },
+      {
+        "agentToken": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "workspaceId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          }
+        },
+        "required": [
+          "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          }
+        }
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "Divergent branch changeset payload.",
+        "additionalProperties": false,
+        "required": [
+          "mutationId",
+          "deviceId",
+          "conflictGroupId",
+          "expectedHeads",
+          "revisions"
+        ],
+        "properties": {
+          "mutationId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "deviceId": {
+            "type": "string",
+            "description": "The device that submitted the change. It is informational and appears in the history of the workspace.",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "conflictGroupId": {
+            "type": "string",
+            "description": "A UUID that names one record.",
+            "format": "uuid",
+            "minLength": 36,
+            "maxLength": 36,
+            "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+          },
+          "expectedHeads": {
+            "type": "object",
+            "description": "The accepted head that the client saw for each file of the changeset, keyed by file identifier. The value null states that the file must not exist in accepted state, which is the precondition of a new file. Every file that the changeset changes needs an entry, and an entry for a file that it does not change is refused. The limit below is a coarse bound that protects the parser; the rule that a changeset may change at most 1000 files is applied by the workspace and answers 422.",
+            "maxProperties": 4000,
+            "propertyNames": {
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "additionalProperties": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "description": "A UUID that names one record.",
+                  "format": "uuid",
+                  "minLength": 36,
+                  "maxLength": 36,
+                  "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "revisions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4000,
+            "items": {
+              "type": "object",
+              "description": "One revision that a client submits inside a changeset.",
+              "additionalProperties": false,
+              "required": [
+                "revisionId",
+                "fileId",
+                "parents",
+                "path",
+                "deleted",
+                "content",
+                "clientTime"
+              ],
+              "properties": {
+                "revisionId": {
+                  "allOf": [
+                    {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  ],
+                  "description": "Identifier that the client assigned to this revision."
+                },
+                "fileId": {
+                  "allOf": [
+                    {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    }
+                  ],
+                  "description": "The file that this revision belongs to."
+                },
+                "parents": {
+                  "type": "array",
+                  "description": "The parents of this revision. A parent is either an earlier revision of the same file in this submission or an accepted revision of that file.",
+                  "maxItems": 2,
+                  "items": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  }
+                },
+                "path": {
+                  "allOf": [
+                    {
+                      "type": "string",
+                      "description": "Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    }
+                  ],
+                  "description": "The path that the file has after this revision."
+                },
+                "deleted": {
+                  "type": "boolean",
+                  "description": "True for a tombstone, which records a deletion."
+                },
+                "content": {
+                  "allOf": [
+                    {
+                      "type": "object",
+                      "description": "The immutable content of one submitted revision. Markdown carries its text; an attachment names a finalized object of the same workspace.",
+                      "additionalProperties": false,
+                      "required": [
+                        "kind",
+                        "digest"
+                      ],
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "description": "Which of the two content forms this revision carries.",
+                          "enum": [
+                            "markdown",
+                            "attachment"
+                          ]
+                        },
+                        "digest": {
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "description": "The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.",
+                              "minLength": 64,
+                              "maxLength": 64,
+                              "pattern": "^[0-9a-f]{64}$"
+                            }
+                          ],
+                          "description": "Digest of the content. The server recomputes it from the submitted bytes and refuses a revision that declares another value."
+                        },
+                        "text": {
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "description": "The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.",
+                              "maxLength": 1048576
+                            }
+                          ],
+                          "description": "The Markdown of this revision. Absent for an attachment."
+                        },
+                        "attachmentObjectId": {
+                          "allOf": [
+                            {
+                              "type": "string",
+                              "description": "A UUID that names one record.",
+                              "format": "uuid",
+                              "minLength": 36,
+                              "maxLength": 36,
+                              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                            }
+                          ],
+                          "description": "The finalized attachment object of this revision. Absent for Markdown."
+                        }
+                      }
+                    }
+                  ],
+                  "description": "The content of this revision."
+                },
+                "clientTime": {
+                  "type": "string",
+                  "description": "The device clock at the moment of the change.",
+                  "format": "date-time",
+                  "minLength": 20,
+                  "maxLength": 64
+                },
+                "message": {
+                  "allOf": [
+                    {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.",
+                      "maxLength": 512
+                    }
+                  ],
+                  "description": "Name of this checkpoint, or null."
+                },
+                "restoredFrom": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "description": "A UUID that names one record.",
+                      "format": "uuid",
+                      "minLength": 36,
+                      "maxLength": 36,
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The historic revision that this one restores, or null."
+                }
+              }
+            }
+          }
+        }
+      },
+      "bodyMediaType": "application/json"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "Stored branch outcome.",
+          "additionalProperties": false,
+          "required": [
+            "mutationId",
+            "conflictGroupId",
+            "revisionIds",
+            "branches"
+          ],
+          "properties": {
+            "mutationId": {
+              "type": "string",
+              "description": "A UUID that names one record.",
+              "format": "uuid",
+              "minLength": 36,
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "conflictGroupId": {
+              "type": "string",
+              "description": "A UUID that names one record.",
+              "format": "uuid",
+              "minLength": 36,
+              "maxLength": 36,
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+            },
+            "revisionIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            },
+            "branches": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "One divergent branch record.",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "workspaceId",
+                  "fileId",
+                  "baseRevisionId",
+                  "tipRevisionId",
+                  "conflictGroupId",
+                  "state",
+                  "createdAt"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "workspaceId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "fileId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "baseRevisionId": {
+                    "oneOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "tipRevisionId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "conflictGroupId": {
+                    "type": "string",
+                    "description": "A UUID that names one record.",
+                    "format": "uuid",
+                    "minLength": 36,
+                    "maxLength": 36,
+                    "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                  },
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "unresolved",
+                      "resolved"
+                    ]
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "format": "date-time"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 409,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 410,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.",
+          "additionalProperties": true,
+          "required": [
+            "type",
+            "title",
+            "status",
+            "code",
+            "requestId"
+          ],
+          "properties": {
+            "type": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable URI reference that identifies the problem type.",
+              "format": "uri-reference",
+              "maxLength": 256
+            },
+            "title": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Short human readable summary of the problem type.",
+              "maxLength": 256
+            },
+            "status": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "HTTP status code of this response.",
+              "minimum": 100,
+              "maximum": 599
+            },
+            "detail": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Explanation of this occurrence. The field never contains note content, a secret, or a stack trace.",
+              "maxLength": 1024
+            },
+            "instance": {
+              "type": "string",
+              "readOnly": true,
+              "description": "URI reference of the request that produced the problem.",
+              "format": "uri-reference",
+              "maxLength": 1024
+            },
+            "code": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Stable application error code.",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "maxLength": 64
+            },
+            "requestId": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Identifier of the request, repeated in the x-request-id header.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "issues": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Values that a boundary check rejected. Each entry names the value by JSON Pointer and never repeats the value itself.",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "description": "One value that a boundary check rejected.",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "message"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "JSON Pointer of the rejected value inside its request slot.",
+                    "maxLength": 256
+                  },
+                  "message": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Reason the value was rejected. It never repeats the value.",
+                    "maxLength": 256
+                  }
+                }
+              }
+            },
+            "fileIds": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The files that a content failure refers to, for example every file whose accepted head moved on. The list is absent when the failure names no file. It carries identifiers only, never a path or note content.",
+              "maxItems": 4000,
+              "items": {
+                "type": "string",
+                "description": "A UUID that names one record.",
+                "format": "uuid",
+                "minLength": 36,
+                "maxLength": 36,
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 422,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",

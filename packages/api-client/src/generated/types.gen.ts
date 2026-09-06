@@ -5,6 +5,25 @@ export type ClientOptions = {
 };
 
 /**
+ * Stored branch outcome.
+ */
+export type AcceptedBranch = {
+    mutationId: Uuid;
+    conflictGroupId: Uuid;
+    revisionIds: Array<Uuid>;
+    branches: Array<BranchItem>;
+};
+
+/**
+ * Stored branch resolution outcome.
+ */
+export type AcceptedBranchResolution = {
+    mutationId: Uuid;
+    revisions: Array<AcceptedRevision>;
+    resolvedBranchIds: Array<Uuid>;
+};
+
+/**
  * The outcome of one accepted changeset.
  */
 export type AcceptedChangeset = {
@@ -412,6 +431,51 @@ export type AuthUser = {
 };
 
 /**
+ * A reference that blocks permanent deletion.
+ */
+export type BlockingReference = {
+    kind: 'revision' | 'branch' | 'share';
+    targetId: string;
+    referrerId: string;
+    description: string;
+};
+
+/**
+ * One divergent branch record.
+ */
+export type BranchItem = {
+    id: Uuid;
+    workspaceId: Uuid;
+    fileId: Uuid;
+    baseRevisionId: Uuid | null;
+    tipRevisionId: Uuid;
+    conflictGroupId: Uuid;
+    state: 'unresolved' | 'resolved';
+    createdAt: string;
+};
+
+/**
+ * List of divergent branches.
+ */
+export type BranchList = {
+    branches: Array<BranchItem>;
+};
+
+/**
+ * Explicit merge resolution for one file.
+ */
+export type BranchResolutionInput = {
+    fileId: Uuid;
+    expectedHead: Uuid | null;
+    branchTip: Uuid;
+    revisionId: Uuid;
+    path: FilePath;
+    content: ContentInput;
+    deleted: boolean;
+    message?: CheckpointMessage;
+};
+
+/**
  * One atomic change of one or more files.
  */
 export type ChangesetInput = {
@@ -463,6 +527,19 @@ export type ContentInput = {
      * The finalized attachment object of this revision. Absent for Markdown.
      */
     attachmentObjectId?: Uuid;
+};
+
+/**
+ * Checkpoint creation payload.
+ */
+export type CreateCheckpointInput = {
+    mutationId: Uuid;
+    deviceId: DeviceId;
+    clientTime: string;
+    name: string;
+    revisionId?: Uuid;
+    path?: FilePath;
+    content?: ContentInput;
 };
 
 /**
@@ -669,6 +746,36 @@ export type HealthReport = {
 };
 
 /**
+ * One page of file history revisions.
+ */
+export type HistoryPage = {
+    revisions: Array<HistoryRevisionItem>;
+    nextCursor: Uuid | null;
+};
+
+/**
+ * One historic revision of a file.
+ */
+export type HistoryRevisionItem = {
+    revisionId: Uuid;
+    fileId: Uuid;
+    path: FilePath;
+    deleted: boolean;
+    parents: Array<Uuid>;
+    digest: ContentDigest;
+    size: number;
+    actorAccountId: Uuid;
+    clientTime: string;
+    serverTime: string;
+    message: CheckpointMessage;
+    isCheckpoint: boolean;
+    checkpointName: CheckpointMessage;
+    restoredFrom: Uuid | null;
+    text: string | null;
+    objectId: Uuid | null;
+};
+
+/**
  * One invitation to one workspace. The token itself is never stored.
  */
 export type Invitation = {
@@ -844,6 +951,13 @@ export type PreferencesInput = {
 };
 
 /**
+ * Payload to preview permanent deletion of files.
+ */
+export type PreviewPurgeInput = {
+    fileIds: Array<Uuid>;
+};
+
+/**
  * RFC 9457 problem details. The code field carries the stable application error code that a client can branch on.
  */
 export type ProblemDetails = {
@@ -887,6 +1001,38 @@ export type ProblemDetails = {
 };
 
 /**
+ * Payload to permanently purge files.
+ */
+export type PurgeFilesInput = {
+    mutationId: Uuid;
+    fileIds: Array<Uuid>;
+};
+
+/**
+ * Summary preview of an intended permanent file purge.
+ */
+export type PurgePreview = {
+    fileIds: Array<Uuid>;
+    revisionIds: Array<Uuid>;
+    contentDigests: Array<string>;
+    attachmentObjectIds: Array<Uuid>;
+    blockingReferences: Array<BlockingReference>;
+    dependentRevisionCount: number;
+    reclaimableBytes: number;
+    canPurge: boolean;
+};
+
+/**
+ * Outcome of executed permanent file purge.
+ */
+export type PurgedFiles = {
+    mutationId: Uuid;
+    purgedFileIds: Array<Uuid>;
+    purgedRevisionIds: Array<Uuid>;
+    reclaimedBytes: number;
+};
+
+/**
  * State of one startup requirement.
  */
 export type ReadinessCheck = {
@@ -926,6 +1072,31 @@ export type Removed = {
      * Always true. The record no longer exists.
      */
     readonly removed: boolean;
+};
+
+/**
+ * Payload to explicitly resolve divergent branches.
+ */
+export type ResolveBranchesInput = {
+    mutationId: Uuid;
+    deviceId: DeviceId;
+    clientTime: string;
+    conflictGroupId?: Uuid;
+    resolutions: Array<BranchResolutionInput>;
+};
+
+/**
+ * Payload to restore a file to an earlier historic revision.
+ */
+export type RestoreRevisionInput = {
+    mutationId: Uuid;
+    deviceId: DeviceId;
+    clientTime: string;
+    targetRevisionId: Uuid;
+    expectedHead?: Uuid | null;
+    revisionId: Uuid;
+    path?: FilePath;
+    message?: CheckpointMessage;
 };
 
 /**
@@ -974,6 +1145,17 @@ export type RevisionInput = {
  * Workspace membership role. A viewer reads, an editor also writes, an administrator also manages membership and shares, and the owner also purges and transfers the workspace.
  */
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
+
+/**
+ * Divergent branch changeset payload.
+ */
+export type SubmitBranchInput = {
+    mutationId: Uuid;
+    deviceId: DeviceId;
+    conflictGroupId: Uuid;
+    expectedHeads: ExpectedHeads;
+    revisions: Array<RevisionInput>;
+};
 
 /**
  * Palette choice. The value system follows the device preference between the Tokyo Night Day and Night palettes.
@@ -1152,6 +1334,15 @@ export type WorkspaceNameInput = {
 };
 
 /**
+ * Stored branch resolution outcome.
+ */
+export type AcceptedBranchResolutionWritable = {
+    mutationId: Uuid;
+    revisions: Array<unknown>;
+    resolvedBranchIds: Array<Uuid>;
+};
+
+/**
  * One agent token without its secret.
  */
 export type AgentTokenWritable = {
@@ -1273,6 +1464,26 @@ export type IfMatch = EntityTagCondition;
 export type IfNoneMatch = EntityTagCondition;
 
 /**
+ * Largest number of history items to return. Defaults to 50.
+ */
+export type HistoryLimit = number;
+
+/**
+ * Optional file identifier to filter branches.
+ */
+export type BranchFileId = Uuid;
+
+/**
+ * Optional conflict group identifier to filter branches.
+ */
+export type ConflictGroupId = Uuid;
+
+/**
+ * Optional branch state to filter branches.
+ */
+export type BranchState = 'unresolved' | 'resolved';
+
+/**
  * The settings to store for the signed in account.
  */
 export type Preferences2 = PreferencesInput;
@@ -1336,6 +1547,36 @@ export type UploadAttachment = UploadAttachmentInput;
  * Payload to finalize an attachment and create an immutable revision.
  */
 export type FinalizeAttachment = FinalizeAttachmentInput;
+
+/**
+ * Checkpoint creation payload.
+ */
+export type CreateCheckpoint = CreateCheckpointInput;
+
+/**
+ * Divergent branch submission payload.
+ */
+export type SubmitBranch = SubmitBranchInput;
+
+/**
+ * Branch resolution payload.
+ */
+export type ResolveBranches = ResolveBranchesInput;
+
+/**
+ * Revision restore payload.
+ */
+export type RestoreRevision = RestoreRevisionInput;
+
+/**
+ * Purge preview payload.
+ */
+export type PreviewPurge = PreviewPurgeInput;
+
+/**
+ * File purge payload.
+ */
+export type PurgeFiles = PurgeFilesInput;
 
 export type GetAccountData = {
     body?: never;
@@ -2471,6 +2712,213 @@ export type GetAttachmentRevisionResponses = {
 
 export type GetAttachmentRevisionResponse = GetAttachmentRevisionResponses[keyof GetAttachmentRevisionResponses];
 
+export type ListBranchesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: {
+        /**
+         * Optional file identifier to filter branches.
+         */
+        fileId?: Uuid;
+        /**
+         * Optional conflict group identifier to filter branches.
+         */
+        conflictGroupId?: Uuid;
+        /**
+         * Optional branch state to filter branches.
+         */
+        state?: 'unresolved' | 'resolved';
+    };
+    url: '/api/workspaces/{workspaceId}/branches';
+};
+
+export type ListBranchesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListBranchesError = ListBranchesErrors[keyof ListBranchesErrors];
+
+export type ListBranchesResponses = {
+    /**
+     * List of divergent branches.
+     */
+    200: BranchList;
+};
+
+export type ListBranchesResponse = ListBranchesResponses[keyof ListBranchesResponses];
+
+export type SubmitBranchData = {
+    /**
+     * Divergent branch submission payload.
+     */
+    body: SubmitBranch;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/branches';
+};
+
+export type SubmitBranchErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type SubmitBranchError = SubmitBranchErrors[keyof SubmitBranchErrors];
+
+export type SubmitBranchResponses = {
+    /**
+     * Stored branch outcome.
+     */
+    200: AcceptedBranch;
+};
+
+export type SubmitBranchResponse = SubmitBranchResponses[keyof SubmitBranchResponses];
+
+export type ResolveBranchesData = {
+    /**
+     * Branch resolution payload.
+     */
+    body: ResolveBranches;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/branches/resolve';
+};
+
+export type ResolveBranchesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ResolveBranchesError = ResolveBranchesErrors[keyof ResolveBranchesErrors];
+
+export type ResolveBranchesResponses = {
+    /**
+     * Stored branch resolution outcome.
+     */
+    200: AcceptedBranchResolution;
+};
+
+export type ResolveBranchesResponse = ResolveBranchesResponses[keyof ResolveBranchesResponses];
+
 export type CommitChangesetData = {
     /**
      * One atomic change of one or more files.
@@ -2825,6 +3273,10 @@ export type GetFileErrors = {
      */
     404: ProblemDetails;
     /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
@@ -2931,6 +3383,249 @@ export type UpdateFileResponses = {
 };
 
 export type UpdateFileResponse = UpdateFileResponses[keyof UpdateFileResponses];
+
+export type CreateCheckpointData = {
+    /**
+     * Checkpoint creation payload.
+     */
+    body: CreateCheckpoint;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+        /**
+         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is accepted and the request proceeds when any of them names the current head. The operation needs a tag: a request without one answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error. The value * is refused with 428 as well: it would permit a write against a state the client never read, which is the lost update that this precondition exists to prevent.
+         */
+        'if-match'?: EntityTagCondition;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/checkpoint';
+};
+
+export type CreateCheckpointErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The operation needs a precondition and the request carried none. Repeat the request with the entity tag of the head that was read.
+     */
+    428: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateCheckpointError = CreateCheckpointErrors[keyof CreateCheckpointErrors];
+
+export type CreateCheckpointResponses = {
+    /**
+     * The outcome of one accepted changeset.
+     */
+    200: AcceptedChangeset;
+};
+
+export type CreateCheckpointResponse = CreateCheckpointResponses[keyof CreateCheckpointResponses];
+
+export type ListHistoryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: {
+        /**
+         * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
+         */
+        cursor?: Uuid;
+        /**
+         * Largest number of history items to return. Defaults to 50.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/history';
+};
+
+export type ListHistoryErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListHistoryError = ListHistoryErrors[keyof ListHistoryErrors];
+
+export type ListHistoryResponses = {
+    /**
+     * One page of file history revisions.
+     */
+    200: HistoryPage;
+};
+
+export type ListHistoryResponse = ListHistoryResponses[keyof ListHistoryResponses];
+
+export type RestoreRevisionData = {
+    /**
+     * Revision restore payload.
+     */
+    body: RestoreRevision;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/restore';
+};
+
+export type RestoreRevisionErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RestoreRevisionError = RestoreRevisionErrors[keyof RestoreRevisionErrors];
+
+export type RestoreRevisionResponses = {
+    /**
+     * The outcome of one accepted changeset.
+     */
+    200: AcceptedChangeset;
+};
+
+export type RestoreRevisionResponse = RestoreRevisionResponses[keyof RestoreRevisionResponses];
 
 export type ListMembersData = {
     body?: never;
@@ -3232,6 +3927,136 @@ export type TransferOwnershipResponses = {
 };
 
 export type TransferOwnershipResponse = TransferOwnershipResponses[keyof TransferOwnershipResponses];
+
+export type PurgeFilesData = {
+    /**
+     * File purge payload.
+     */
+    body: PurgeFiles;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/purge';
+};
+
+export type PurgeFilesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type PurgeFilesError = PurgeFilesErrors[keyof PurgeFilesErrors];
+
+export type PurgeFilesResponses = {
+    /**
+     * Outcome of executed permanent file purge.
+     */
+    200: PurgedFiles;
+};
+
+export type PurgeFilesResponse = PurgeFilesResponses[keyof PurgeFilesResponses];
+
+export type PreviewPurgeData = {
+    /**
+     * Purge preview payload.
+     */
+    body: PreviewPurge;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/purge/preview';
+};
+
+export type PreviewPurgeErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type PreviewPurgeError = PreviewPurgeErrors[keyof PreviewPurgeErrors];
+
+export type PreviewPurgeResponses = {
+    /**
+     * Preview of permanent file purge.
+     */
+    200: PurgePreview;
+};
+
+export type PreviewPurgeResponse = PreviewPurgeResponses[keyof PreviewPurgeResponses];
 
 export type GetRevisionData = {
     body?: never;

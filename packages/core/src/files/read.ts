@@ -89,6 +89,8 @@ export function readFile(
     async (tx) => {
       const permitted = await permitRead(tx, actor, workspaceId);
       if (!permitted.ok) return permitted;
+      const purged = await tx.purgedFiles([fileId]);
+      if (purged.length > 0) return fail('purged', [fileId]);
       const file = await tx.file(fileId);
       if (file === null || file.deleted) return fail('not_found', [fileId]);
       const head =
@@ -132,6 +134,8 @@ export function readHeadForWrite(
       if (role === null) return fail('forbidden');
       const permitted = authorize(actor, workspaceId, role, 'write');
       if (!permitted.ok) return permitted;
+      const purged = await tx.purgedFiles([fileId]);
+      if (purged.length > 0) return fail('purged', [fileId]);
       const file = await tx.file(fileId);
       if (file === null || file.deleted || file.headRevisionId === null)
         return fail('not_found', [fileId]);
