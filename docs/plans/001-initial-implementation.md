@@ -255,7 +255,7 @@ Execution record (2026-09-06): commit `3c3daa6`. Checks: typecheck, lint, format
 
 Execution record (2026-09-06): commit `8a01e85`. Checks: typecheck, lint, format, contract lint, generated check, 364 unit tests, 8 snapshots integration tests, plus history (12), revisions (29), storage (24) regression checks.
 
-### [ ] Task 10: Implement local drafts, checkpoints, and queue persistence
+### [x] Task 10: Implement local drafts, checkpoints, and queue persistence
 
 **Depends on:** Tasks 3 and 9 for final contract mapping.
 
@@ -263,11 +263,13 @@ Execution record (2026-09-06): commit `8a01e85`. Checks: typecheck, lint, format
 
 **Interfaces:** Define `Draft = { accountId: string; workspaceId: string; workingCopyId: string; fileId: string; baseRevisionId: string | null; text: string; path: string; deleted: boolean; sequence: number }` and `QueueEntry = { accountId: string; input: ChangesetInput; state: 'pending' | 'sending' | 'conflict'; digest: string | null }`. Define `LocalStore.saveDraft(draft: Draft): Promise<void>`, `checkpoint(draft: Draft, message: string | null): Promise<QueueEntry | null>`, `pending(accountId: string, workspaceId: string): Promise<readonly QueueEntry[]>`, and `acknowledge(accountId: string, result: AcceptedChangeset): Promise<void>`. Define `openLocalStore(serverOrigin: string): Promise<LocalStore>` in browser storage.
 
-- [ ] Create versioned Dexie tables for drafts, immutable checkpoints, contents/blobs, accepted metadata, branches, queue, receipts, staged snapshots, cursors, preferences, and recovery state. Partition all private keys by origin/account/workspace. Validate stored records when read or migrated.
-- [ ] Save drafts within the 150 ms target; save checkpoint content, parents, and queue metadata in one transaction. Checkpoint after 750 ms idle, every 30 seconds of continuous editing, Save, and file leave. Do not coalesce immutable checkpoints. Named unchanged checkpoints remain valid.
-- [ ] Give each working copy its own ID. Use transactional local head checks to preserve concurrent tab edits as branches. Acknowledge whole changesets atomically and preserve drafts/checkpoints created after submission. Inject clocks and ID sources for tests.
-- [ ] Run `pnpm --filter @notesapp/sync test:unit` and `pnpm test:integration -- browser-storage`. Inject `fake-indexeddb`'s `indexedDB` and `IDBKeyRange` into Dexie for Node module tests; this does not establish real browser durability. Test aborted transactions, full storage, concurrent working copies, interruption during migration, duplicate acknowledgment, and unchanged checkpoint suppression.
-- [ ] Commit: `feat: persist local drafts and immutable checkpoints`.
+- [x] Create versioned Dexie tables for drafts, immutable checkpoints, contents/blobs, accepted metadata, branches, queue, receipts, staged snapshots, cursors, preferences, and recovery state. Partition all private keys by origin/account/workspace. Validate stored records when read or migrated.
+- [x] Save drafts within the 150 ms target; save checkpoint content, parents, and queue metadata in one transaction. Checkpoint after 750 ms idle, every 30 seconds of continuous editing, Save, and file leave. Do not coalesce immutable checkpoints. Named unchanged checkpoints remain valid.
+- [x] Give each working copy its own ID. Use transactional local head checks to preserve concurrent tab edits as branches. Acknowledge whole changesets atomically and preserve drafts/checkpoints created after submission. Inject clocks and ID sources for tests.
+- [x] Run `pnpm --filter @notesapp/sync test:unit` and `pnpm test:integration -- browser-storage`. Inject `fake-indexeddb`'s `indexedDB` and `IDBKeyRange` into Dexie for Node module tests; this does not establish real browser durability. Test aborted transactions, full storage, concurrent working copies, interruption during migration, duplicate acknowledgment, and unchanged checkpoint suppression.
+- [x] Commit: `feat: persist local drafts and immutable checkpoints`.
+
+Execution record (2026-09-06): implemented in `e7f6790`, final review after Task 9. Checks: sync unit 14 pass, browser-storage integration 12 pass, typecheck/lint/format clean. No contract change needed; staged snapshot table already reserved for Task 11.
 
 ### [ ] Task 11: Implement the foreground sync state machine
 
