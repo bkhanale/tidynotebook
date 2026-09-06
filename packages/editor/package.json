@@ -19,7 +19,8 @@
     "@codemirror/lang-markdown": "6.5.2",
     "@codemirror/language": "6.12.4",
     "@codemirror/state": "6.7.4",
-    "@codemirror/view": "6.43.11"
+    "@codemirror/view": "6.43.11",
+    "diff": "9.0.0"
   },
   "devDependencies": {
     "@types/node": "26.4.1",

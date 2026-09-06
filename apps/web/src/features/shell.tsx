@@ -456,6 +456,11 @@ function WorkspaceDetail({
         />
       ) : null}
       <p>Open a note from the sidebar to edit it in the one-pane editor.</p>
+      <p>
+        <Link to={`/w/${workspaceId}/conflicts`}>Conflicts.</Link>
+        {' | '}
+        <Link to={`/w/${workspaceId}/purge`}>Deletion and purge.</Link>
+      </p>
       <WorkspaceMembers
         workspaceId={workspaceId}
         role={role}
@@ -505,12 +510,23 @@ export function NoteView(): ReactNode {
     );
 
   return (
-    <NoteEditorLoader
-      store={store.store}
-      accountId={accountId}
-      workspaceId={workspaceId}
-      fileId={fileId}
-      role={role}
-    />
+    <>
+      <p>
+        <Link to={`/w/${workspaceId}/notes/${fileId}/history`}>
+          History, checkpoints, and restore.
+        </Link>
+        {' | '}
+        <Link to={`/w/${workspaceId}/conflicts?fileId=${fileId}`}>
+          Conflicts of this file.
+        </Link>
+      </p>
+      <NoteEditorLoader
+        store={store.store}
+        accountId={accountId}
+        workspaceId={workspaceId}
+        fileId={fileId}
+        role={role}
+      />
+    </>
   );
 }

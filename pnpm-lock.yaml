@@ -322,6 +322,9 @@ importers:
       '@codemirror/view':
         specifier: 6.43.11
         version: 6.43.11
+      diff:
+        specifier: 9.0.0
+        version: 9.0.0
     devDependencies:
       '@types/node':
         specifier: 26.4.1
@@ -2349,6 +2352,10 @@ packages:
 
   dexie@4.4.5:
     resolution: {integrity: sha512-wWCHdihT3dmlUSuNhn5mMZDWSpG0suxjAni7YjjiZdzabZcKmy3uNZGZ7AeYYXBoLbpSXX35fikPLkPC44Osiw==}
+
+  diff@9.0.0:
+    resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
+    engines: {node: '>=0.3.1'}
 
   dompurify@3.4.14:
     resolution: {integrity: sha512-dVoH9z+MY+C9IilgGCk3YfFqjLi3fChm2OiKJMzh6axrJ5qwxqWaZamgmHrpv22CN/KdbZJuGEGgfQoL00LTdg==}
@@ -4743,6 +4750,8 @@ snapshots:
       dequal: 2.0.3
 
   dexie@4.4.5: {}
+
+  diff@9.0.0: {}
 
   dompurify@3.4.14:
     optionalDependencies:

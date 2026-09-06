@@ -16,6 +16,9 @@ import {
 } from './features/accounts.tsx';
 import { NoteView, Shell, WorkspaceView } from './features/shell.tsx';
 import { WorkspaceHome } from './features/workspaces.tsx';
+import { HistoryView } from './features/history.tsx';
+import { ConflictsView } from './features/conflicts.tsx';
+import { PurgeView } from './features/purge.tsx';
 
 /** Shown for an address that names no route. */
 function NotFoundPage(): ReactNode {
@@ -53,6 +56,12 @@ const router = createBrowserRouter([
       { index: true, element: <WorkspaceHome /> },
       { path: 'w/:workspaceId', element: <WorkspaceView /> },
       { path: 'w/:workspaceId/notes/:fileId', element: <NoteView /> },
+      {
+        path: 'w/:workspaceId/notes/:fileId/history',
+        element: <HistoryView />,
+      },
+      { path: 'w/:workspaceId/conflicts', element: <ConflictsView /> },
+      { path: 'w/:workspaceId/purge', element: <PurgeView /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },
