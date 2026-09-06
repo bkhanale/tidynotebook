@@ -223,7 +223,7 @@ Execution record (2026-09-06): commits `66f63b4` and `b89f000`. One review round
 
 Execution record (2026-09-06): commit `68cd2c1`. 344 unit tests, 14 attachment integration tests, and 177 total integration tests pass. Verification proves streaming upload, image dimension and format limits in worker subprocess, multipart handling, receipt replay before precondition validation, quota limits, deduplication in workspace, and background reclamation.
 
-### [ ] Task 8: Implement branches, history, restore, and permanent deletion
+### [x] Task 8: Implement branches, history, restore, and permanent deletion
 
 **Depends on:** Task 7.
 
@@ -231,11 +231,13 @@ Execution record (2026-09-06): commit `68cd2c1`. 344 unit tests, 14 attachment i
 
 **Interfaces:** Operation IDs are `listHistory`, `createCheckpoint`, `listBranches`, `submitBranch`, `resolveBranches`, `restoreRevision`, `previewPurge`, and `purgeFiles`. Branch input uses `ChangesetInput` plus `conflictGroupId: string`; it preserves submitted IDs and does not advance accepted heads. Merge input includes both tips and expected current heads. Purge preview returns affected IDs and blocking references; purge revalidates them inside its transaction.
 
-- [ ] Store divergent checkpoint chains and complete multi-file conflict groups atomically. Support branch-only new files without reserving a live path. Require same-workspace and same-file parents, and retain branches after failed resolution.
-- [ ] Implement a merge as a new revision with two parents and a restore as a child of the current head with `restoredFrom`. Require explicit final paths and head preconditions. Return historic content and authors through paginated permission-checked reads.
-- [ ] Add owner-only purge with a content-free permanent marker. Reject attachment purge while retained revisions outside the purge set refer to it. Remove shares and branches before reclaiming bytes, preserve audit/receipt metadata without note content, and reject late writes with 410. Workspace deletion revokes sessions' workspace access and removes its records as a controlled operation.
-- [ ] Run `pnpm --filter @notesapp/core test:unit` and `pnpm test:integration -- history`. Cover edit/delete conflicts, atomic group resolution, resolution races, restore without rewind or republish, attachment blockers, full-quota purge, and late offline writes after purge.
-- [ ] Commit: `feat: add conflict history and explicit recovery`.
+- [x] Store divergent checkpoint chains and complete multi-file conflict groups atomically. Support branch-only new files without reserving a live path. Require same-workspace and same-file parents, and retain branches after failed resolution.
+- [x] Implement a merge as a new revision with two parents and a restore as a child of the current head with `restoredFrom`. Require explicit final paths and head preconditions. Return historic content and authors through paginated permission-checked reads.
+- [x] Add owner-only purge with a content-free permanent marker. Reject attachment purge while retained revisions outside the purge set refer to it. Remove shares and branches before reclaiming bytes, preserve audit/receipt metadata without note content, and reject late writes with 410. Workspace deletion revokes sessions' workspace access and removes its records as a controlled operation.
+- [x] Run `pnpm --filter @notesapp/core test:unit` and `pnpm test:integration -- history`. Cover edit/delete conflicts, atomic group resolution, resolution races, restore without rewind or republish, attachment blockers, full-quota purge, and late offline writes after purge.
+- [x] Commit: `feat: add conflict history and explicit recovery`.
+
+Execution record (2026-09-06): commit `3c3daa6`. Checks: typecheck, lint, format check, contract lint, generated check, 353 unit tests, 12 history integration tests, plus revisions (29) and attachments (14) regression checks. Fixed lint (await test, unused, any) and removed debug log in history handler.
 
 ### [ ] Task 9: Implement consistent snapshots and incremental sync reads
 
