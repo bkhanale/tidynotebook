@@ -271,7 +271,7 @@ Execution record (2026-09-06): commit `8a01e85`. Checks: typecheck, lint, format
 
 Execution record (2026-09-06): implemented in `e7f6790`, final review after Task 9. Checks: sync unit 14 pass, browser-storage integration 12 pass, typecheck/lint/format clean. No contract change needed; staged snapshot table already reserved for Task 11.
 
-### [ ] Task 11: Implement the foreground sync state machine
+### [x] Task 11: Implement the foreground sync state machine
 
 **Depends on:** Task 10.
 
@@ -279,11 +279,13 @@ Execution record (2026-09-06): implemented in `e7f6790`, final review after Task
 
 **Interfaces:** Produces `createSyncEngine(local: LocalStore, accountId: string, workspaceId: string): { run(signal: AbortSignal): Promise<void>; stop(): void }`. Network operations are direct imports of generated functions from Tasks 5 through 9; do not introduce a handwritten transport wrapper. Extend `LocalStore` with `acquireLease(ownerId: string, expiresAt: number): Promise<boolean>`, `releaseLease(ownerId: string): Promise<void>`, `stageSnapshot(token: string, revisionIds: readonly string[], cursor: string): Promise<void>`, and `activateSnapshot(token: string): Promise<void>`; activation checks all required content exists and preserves local work.
 
-- [ ] Verify session/membership, finalize pending assets, submit fixed mutations in parent order, and acknowledge exact results. Serialize all affected files of a batch. Freeze the mutation body and digest on first send; retry that same identity after lost responses.
-- [ ] Classify network/temporary failures for bounded exponential backoff with jitter. Pause on 401; recover on role loss; preserve conflict groups on 412/path collision; preserve local copies on quota, purge, or invalid graph errors. Submit branches explicitly rather than repeatedly retrying a stale head write.
-- [ ] Stage snapshots and fetch their immutable revisions. Activate only complete snapshots, then pull ordered changes on start/focus/reconnect and every 15 seconds. Never replace a dirty working copy with a remote head. Renew a transactional worker lease and permit takeover after failure; messages only announce state changes.
-- [ ] Run `pnpm --filter @notesapp/sync test:unit` and `pnpm test:integration -- sync` against the actual generated client and disposable server/database. Test offline A/B changes, dropped accepted response, lease takeover, later local edits during acknowledgment, purged assets needing upload, expired cursor, and incomplete snapshot restart.
-- [ ] Commit: `feat: sync offline changes without losing revisions`.
+- [x] Verify session/membership, finalize pending assets, submit fixed mutations in parent order, and acknowledge exact results. Serialize all affected files of a batch. Freeze the mutation body and digest on first send; retry that same identity after lost responses.
+- [x] Classify network/temporary failures for bounded exponential backoff with jitter. Pause on 401; recover on role loss; preserve conflict groups on 412/path collision; preserve local copies on quota, purge, or invalid graph errors. Submit branches explicitly rather than repeatedly retrying a stale head write.
+- [x] Stage snapshots and fetch their immutable revisions. Activate only complete snapshots, then pull ordered changes on start/focus/reconnect and every 15 seconds. Never replace a dirty working copy with a remote head. Renew a transactional worker lease and permit takeover after failure; messages only announce state changes.
+- [x] Run `pnpm --filter @notesapp/sync test:unit` and `pnpm test:integration -- sync` against the actual generated client and disposable server/database. Test offline A/B changes, dropped accepted response, lease takeover, later local edits during acknowledgment, purged assets needing upload, expired cursor, and incomplete snapshot restart.
+- [x] Commit: `feat: sync offline changes without losing revisions`.
+
+Execution record (2026-09-06): commit `6faeb96`. Checks: 380 unit pass (30 sync), 7 sync integration pass, browser-storage 12 pass, typecheck/lint/format/boundaries/build clean. Deviation: stageSnapshot takes accountId/workspaceId for partition rule.
 
 ### [x] Task 12: Build the shared Markdown parser and safe renderer
 
