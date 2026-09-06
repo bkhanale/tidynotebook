@@ -319,7 +319,7 @@ Execution record (2026-09-06): commits `8b1760e`, `4e5c07d`, `6a4dfb8`, `b06635b
 
 Execution record (2026-09-06): commit `851471e`. Checks: typecheck, lint, format, 396 unit (16 ui), build with web bundle.
 
-### [ ] Task 14: Build one-pane live editing and local save feedback
+### [x] Task 14: Build one-pane live editing and local save feedback
 
 **Depends on:** Tasks 10, 12, and 13.
 
@@ -327,11 +327,13 @@ Execution record (2026-09-06): commit `851471e`. Checks: typecheck, lint, format
 
 **Interfaces:** Produces `createEditor(parent: HTMLElement, initialText: string, onChange: (text: string) => void): EditorView` using CodeMirror's `EditorView`. The web screen connects changes to `LocalStore.saveDraft` and checkpoint scheduling. Editor commands operate on CodeMirror transactions and receive callbacks for navigation; they do not import the API client or storage packages.
 
-- [ ] Implement viewport-based marker decorations for headings, emphasis, lists, tasks, and links. Reveal syntax in the active selection and preserve source outside it. Toggle tasks through editor transactions and activate links through modifier click or an explicit touch action.
-- [ ] Keep one editor instance per open working copy. Preserve undo, IME composition, selection, and Markdown clipboard content across React rerenders and theme changes. Never replace the document just to update a decoration.
-- [ ] Bind file create/edit/rename/delete, Save, leave-file checkpoint, and the local queue. Show Saving on this device until a transaction commits, Saved on this device after it, and Saved to server only for the acknowledged content. On storage failure keep the buffer and clipboard access and block unsafe reload.
-- [ ] Run `pnpm --filter @notesapp/editor test:unit`, `pnpm --filter @notesapp/sync test:unit`, and `pnpm build`. Unit-test decoration ranges and editor state transactions. Manually inspect inline editing and composition during development; reserve automated browser journeys for Task 23.
-- [ ] Commit: `feat: add source-preserving live Markdown editor`.
+- [x] Implement viewport-based marker decorations for headings, emphasis, lists, tasks, and links. Reveal syntax in the active selection and preserve source outside it. Toggle tasks through editor transactions and activate links through modifier click or an explicit touch action.
+- [x] Keep one editor instance per open working copy. Preserve undo, IME composition, selection, and Markdown clipboard content across React rerenders and theme changes. Never replace the document just to update a decoration.
+- [x] Bind file create/edit/rename/delete, Save, leave-file checkpoint, and the local queue. Show Saving on this device until a transaction commits, Saved on this device after it, and Saved to server only for the acknowledged content. On storage failure keep the buffer and clipboard access and block unsafe reload.
+- [x] Run `pnpm --filter @notesapp/editor test:unit`, `pnpm --filter @notesapp/sync test:unit`, and `pnpm build`. Unit-test decoration ranges and editor state transactions. Manually inspect inline editing and composition during development; reserve automated browser journeys for Task 23.
+- [x] Commit: `feat: add source-preserving live Markdown editor`.
+
+Execution record (2026-09-06): commit `4c039a3`. Checks: 411 unit (15 editor), typecheck/lint/format/build clean.
 
 ### [ ] Task 15: Add inline images, tables, math, and Mermaid
 
