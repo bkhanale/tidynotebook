@@ -78,6 +78,38 @@ export type RevisionRecord = {
   readonly serverTime: string;
 };
 
+/** One public link that pins an accepted note revision. */
+export type ShareRecord = {
+  readonly id: string;
+  readonly fileId: string;
+  readonly pinnedRevisionId: string;
+  readonly creatorAccountId: string;
+  readonly expiresAt: string | null;
+  readonly revokedAt: string | null;
+  readonly createdAt: string;
+};
+
+/** Values that storage needs to create one public link. */
+export type CreateShareRecord = {
+  readonly id: string;
+  readonly fileId: string;
+  readonly pinnedRevisionId: string;
+  readonly tokenHash: string;
+  readonly creatorAccountId: string;
+  readonly expiresAt: string | null;
+};
+
+/** Content that an anonymous public request may read. */
+export type PublicShareRecord = {
+  readonly shareId: string;
+  readonly workspaceId: string;
+  readonly fileId: string;
+  readonly pinnedRevisionId: string;
+  readonly path: string;
+  readonly markdown: string;
+  readonly allowedAttachmentRevisionIds: readonly string[];
+};
+
 /** Reads and the one write of an open workspace transaction. */
 export type WorkspaceTransaction = {
   /** The account's current role in this workspace, or `null` for a stranger. */
@@ -127,6 +159,21 @@ export type WorkspaceTransaction = {
   search(query: string, limit: number): Promise<readonly SearchHit[]>;
   /** Reads accepted live notes that link to the requested live note. */
   backlinks(fileId: string, limit: number): Promise<readonly Backlink[]>;
+  /** True when the revision is in the current accepted history of the file. */
+  isAcceptedRevision(fileId: string, revisionId: string): Promise<boolean>;
+  /** Creates one public link and derives its attachment allowlist. */
+  createShare(input: CreateShareRecord): Promise<ShareRecord>;
+  /** Moves a live public link to another accepted revision and expiry. */
+  updateShare(
+    shareId: string,
+    fileId: string,
+    pinnedRevisionId: string,
+    expiresAt: string | null,
+  ): Promise<ShareRecord | null>;
+  /** Revokes one live public link. */
+  revokeShare(shareId: string): Promise<ShareRecord | null>;
+  /** Lists all public links of the workspace for its administrators. */
+  listShares(): Promise<readonly ShareRecord[]>;
   /**
    * Performs the atomic write of one changeset.
    *
@@ -420,6 +467,14 @@ export type WorkspaceStore = {
     options?: TransactOptions,
   ): Promise<T>;
 };
+
+/** Anonymous read path that resolves only an active hashed public token. */
+export type PublicShareReader = {
+  readPublicShare(tokenHash: string): Promise<PublicShareRecord | null>;
+};
+
+/** Store used by both authenticated share management and public reads. */
+export type SharingStore = WorkspaceStore & PublicShareReader;
 
 /** The kind of infrastructure failure that an adapter reports. */
 export type OperationalErrorKind =

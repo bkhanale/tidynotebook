@@ -34,6 +34,8 @@ tags:
     description: >-
       Files, their immutable revisions, and the atomic changesets that accept
       them.
+  - name: sharing
+    description: Administrator-managed public links to pinned note revisions.
   - name: auth
     description: >-
       Authentication protocol endpoints. Better Auth implements them; the
@@ -516,6 +518,163 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/shares:
+    get:
+      operationId: listShares
+      summary: List the public links of a workspace.
+      description: Returns public link records only after a current share permission check.
+      tags:
+        - sharing
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/ShareList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createShare
+      summary: Publish one accepted note revision through a new public link.
+      description: >-
+        Creates an opaque public link to one accepted note revision. Later note
+        edits stay private until an administrator updates this publication.
+      tags:
+        - sharing
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/CreateShare'
+      responses:
+        '201':
+          $ref: '#/components/responses/Share'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/shares/{shareId}:
+    put:
+      operationId: updateShare
+      summary: Move a public link to an explicitly selected accepted revision.
+      description: >-
+        Replaces the pinned accepted revision and optional expiry without
+        changing the public token.
+      tags:
+        - sharing
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/ShareId'
+      requestBody:
+        $ref: '#/components/requestBodies/UpdateShare'
+      responses:
+        '200':
+          $ref: '#/components/responses/Share'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    delete:
+      operationId: revokeShare
+      summary: Revoke a public link.
+      description: Makes the public token and each of its attachment routes unavailable.
+      tags:
+        - sharing
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/ShareId'
+      responses:
+        '200':
+          $ref: '#/components/responses/Share'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /s/{token}:
+    get:
+      operationId: getPublicShare
+      summary: Read one active pinned public note.
+      description: >-
+        Returns standalone sanitized HTML when the token is active, unexpired,
+        and still owned by a workspace administrator.
+      tags:
+        - sharing
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/PublicShareToken'
+      responses:
+        '200':
+          $ref: '#/components/responses/PublicSharePage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /s/{token}/attachments/{revisionId}:
+    get:
+      operationId: getPublicAttachment
+      summary: Read an attachment allowed by one active public note.
+      description: >-
+        Returns immutable image bytes only when the active pinned note named
+        this exact attachment revision.
+      tags:
+        - sharing
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/PublicShareToken'
+        - $ref: '#/components/parameters/RevisionId'
+      responses:
+        '200':
+          $ref: '#/components/responses/AttachmentBinary'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1426,6 +1585,27 @@ components:
       description: Identifier of the revision that the operation reads.
       schema:
         $ref: '#/components/schemas/Uuid'
+    ShareId:
+      name: shareId
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Identifier of the public link that the operation changes.
+      schema:
+        $ref: '#/components/schemas/Uuid'
+    PublicShareToken:
+      name: token
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: Opaque public link secret.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
+        pattern: ^[A-Za-z0-9_-]{43}$
     ObjectId:
       name: objectId
       in: path
@@ -1621,6 +1801,20 @@ components:
         minimum: 1
         maximum: 500
   requestBodies:
+    CreateShare:
+      description: The accepted revision and optional expiry to publish.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CreateShareInput'
+    UpdateShare:
+      description: The accepted revision and optional expiry to publish now.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/UpdateShareInput'
     Preferences:
       description: The settings to store for the signed in account.
       required: true
@@ -1958,6 +2152,25 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/BacklinkResults'
+    Share:
+      description: One administrator-visible public link and its public URL.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Share'
+    ShareList:
+      description: Public links managed by this workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ShareList'
+    PublicSharePage:
+      description: Sanitized HTML of one active pinned note revision.
+      content:
+        text/html:
+          schema:
+            type: string
+            maxLength: 8388608
     FileChange:
       description: The accepted revision and the outcome of its changeset.
       content:
@@ -2892,6 +3105,93 @@ components:
           type: string
           readOnly: true
           maxLength: 1024
+    ShareExpiry:
+      oneOf:
+        - type: string
+          format: date-time
+          maxLength: 64
+        - type: 'null'
+      description: Optional instant after which the public link stops working.
+    CreateShareInput:
+      type: object
+      description: One explicit request to publish an accepted note revision.
+      additionalProperties: false
+      required:
+        - fileId
+        - pinnedRevisionId
+        - expiresAt
+      properties:
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        pinnedRevisionId:
+          $ref: '#/components/schemas/Uuid'
+        expiresAt:
+          $ref: '#/components/schemas/ShareExpiry'
+    UpdateShareInput:
+      type: object
+      description: One explicit update of the revision and expiry to publish.
+      additionalProperties: false
+      required:
+        - fileId
+        - pinnedRevisionId
+        - expiresAt
+      properties:
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        pinnedRevisionId:
+          $ref: '#/components/schemas/Uuid'
+        expiresAt:
+          $ref: '#/components/schemas/ShareExpiry'
+    Share:
+      type: object
+      description: Administrator-visible state of one public link.
+      additionalProperties: false
+      required:
+        - shareId
+        - fileId
+        - pinnedRevisionId
+        - creatorAccountId
+        - expiresAt
+        - revokedAt
+        - createdAt
+      properties:
+        shareId:
+          $ref: '#/components/schemas/Uuid'
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        pinnedRevisionId:
+          $ref: '#/components/schemas/Uuid'
+        creatorAccountId:
+          $ref: '#/components/schemas/Uuid'
+        expiresAt:
+          $ref: '#/components/schemas/ShareExpiry'
+        revokedAt:
+          oneOf:
+            - type: string
+              format: date-time
+              maxLength: 64
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+          maxLength: 64
+        url:
+          type: string
+          format: uri
+          maxLength: 2048
+          description: The one-time public URL returned only when a link is created.
+    ShareList:
+      type: object
+      description: Administrator-visible public links of one workspace.
+      additionalProperties: false
+      required:
+        - shares
+      properties:
+        shares:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/Share'
     SearchResults:
       type: object
       description: Search results from current accepted note revisions.

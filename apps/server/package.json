@@ -22,6 +22,7 @@
     "@fastify/busboy": "3.2.2",
     "@notesapp/api-contract": "workspace:*",
     "@notesapp/core": "workspace:*",
+    "@notesapp/markdown": "workspace:*",
     "@notesapp/storage-server": "workspace:*",
     "better-auth": "1.7.2",
     "better-call": "1.4.0",

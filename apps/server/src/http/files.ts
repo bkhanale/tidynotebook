@@ -21,6 +21,7 @@ import type {
   Result,
   RevisionInput,
   RevisionRecord,
+  SharingStore,
   WorkspaceStore,
 } from '@notesapp/core';
 import {
@@ -322,9 +323,14 @@ function submissionIds(body: unknown): {
  * A test that checks the HTTP boundary only may leave it out. A file operation
  * then answers with a generic server error instead of pretending to work.
  */
-export function missingWorkspaceStore(): WorkspaceStore {
+export function missingWorkspaceStore(): SharingStore {
   return {
     transact: () => {
+      throw new Error(
+        'notesapp: the server was built without a workspace store.',
+      );
+    },
+    readPublicShare: () => {
       throw new Error(
         'notesapp: the server was built without a workspace store.',
       );

@@ -29,6 +29,7 @@ import {
 import { NewNoteButton, NoteEditorLoader } from './note-editor.tsx';
 import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
 import { SearchDialog } from './search.tsx';
+import { SharingPanel } from './sharing.tsx';
 
 /** One page of files merged into a full list. */
 async function loadAllFiles(
@@ -540,6 +541,9 @@ export function NoteView(): ReactNode {
           Conflicts of this file.
         </Link>
       </p>
+      {role === 'owner' || role === 'admin' ? (
+        <SharingPanel workspaceId={workspaceId} fileId={fileId} />
+      ) : null}
       <NoteEditorLoader
         store={store.store}
         accountId={accountId}

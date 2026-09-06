@@ -5,7 +5,7 @@
  * that body against the declared response schema before it is sent, so a
  * handler never has to repeat the contract shape.
  */
-import type { WorkspaceAdminStore, WorkspaceStore } from '@notesapp/core';
+import type { SharingStore, WorkspaceAdminStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import type { InvitationAccounts } from '../auth/invitations.ts';
 import type { MailTransport } from '../auth/mail.ts';
@@ -21,6 +21,7 @@ import { createAttachmentHandlers } from './attachments.ts';
 import { createHistoryHandlers } from './history.ts';
 import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
+import { createSharingHandlers } from './sharing.ts';
 
 /**
  * A store that is not there yet.
@@ -47,6 +48,7 @@ function missingAttachmentStore(): AttachmentStore {
     getAttachmentObject: fail,
     finalizeAttachmentObject: fail,
     readAttachmentRevision: fail,
+    readPublicShareAttachment: fail,
     reclaimAttachments: fail,
     temporaryPath: fail,
     immutablePath: fail,
@@ -58,7 +60,7 @@ export type HandlerDependencies = {
   /** The account and workspace store of the deployment. */
   readonly store?: WorkspaceAdminStore;
   /** The workspace content store of the deployment. */
-  readonly content?: WorkspaceStore;
+  readonly content?: SharingStore;
   /** The attachment store of the deployment. */
   readonly attachments?: AttachmentStore;
   /** The invitation sign-up path. */
@@ -152,6 +154,12 @@ export function createHandlers(
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSearchHandlers(dependencies.content ?? missingWorkspaceStore()),
+    ...createSharingHandlers(
+      dependencies.content ?? missingWorkspaceStore(),
+      dependencies.attachments ?? missingAttachmentStore(),
+      config.origin,
+      dependencies.now,
+    ),
     ...createAttachmentHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),

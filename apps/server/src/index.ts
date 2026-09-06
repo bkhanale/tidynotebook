@@ -12,7 +12,7 @@ export type {
 } from './config.ts';
 export { ConfigError, loadServerConfig } from './config.ts';
 export type { AppOptions } from './app.ts';
-export { createApp, createAppWithHandlers } from './app.ts';
+export { createApp, createAppWithHandlers, redactAccessUrl } from './app.ts';
 export type {
   HandlerDependencies,
   ReadinessCheck,
@@ -82,3 +82,5 @@ export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createSearchHandlers } from './http/search.ts';
+export { createSharingHandlers, publicTokenHash } from './http/sharing.ts';
+export { publicSharePage } from './public/page.ts';

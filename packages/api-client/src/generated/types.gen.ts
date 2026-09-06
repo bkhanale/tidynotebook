@@ -595,6 +595,15 @@ export type CreateFileInput = {
 };
 
 /**
+ * One explicit request to publish an accepted note revision.
+ */
+export type CreateShareInput = {
+    fileId: Uuid;
+    pinnedRevisionId: Uuid;
+    expiresAt: ShareExpiry;
+};
+
+/**
  * The identifiers of a tombstone revision.
  */
 export type DeleteFileInput = {
@@ -1182,6 +1191,35 @@ export type SearchResults = {
 };
 
 /**
+ * Administrator-visible state of one public link.
+ */
+export type Share = {
+    shareId: Uuid;
+    fileId: Uuid;
+    pinnedRevisionId: Uuid;
+    creatorAccountId: Uuid;
+    expiresAt: ShareExpiry;
+    revokedAt: string | null;
+    createdAt: string;
+    /**
+     * The one-time public URL returned only when a link is created.
+     */
+    url?: string;
+};
+
+/**
+ * Optional instant after which the public link stops working.
+ */
+export type ShareExpiry = string | null;
+
+/**
+ * Administrator-visible public links of one workspace.
+ */
+export type ShareList = {
+    shares: Array<Share>;
+};
+
+/**
  * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
  */
 export type SnapshotItem = {
@@ -1353,6 +1391,15 @@ export type UpdateFileInput = {
      * Name of this checkpoint, or null.
      */
     message?: CheckpointMessage;
+};
+
+/**
+ * One explicit update of the revision and expiry to publish.
+ */
+export type UpdateShareInput = {
+    fileId: Uuid;
+    pinnedRevisionId: Uuid;
+    expiresAt: ShareExpiry;
 };
 
 /**
@@ -1639,6 +1686,16 @@ export type FileId = Uuid;
 export type RevisionId = Uuid;
 
 /**
+ * Identifier of the public link that the operation changes.
+ */
+export type ShareId = Uuid;
+
+/**
+ * Opaque public link secret.
+ */
+export type PublicShareToken = string;
+
+/**
  * Identifier of the attachment object that the operation acts on.
  */
 export type ObjectId = Uuid;
@@ -1717,6 +1774,16 @@ export type SyncCursor = string;
  * Largest number of change records in one answer. The server uses 100 when the parameter is absent and never returns more than 500.
  */
 export type SyncLimit = number;
+
+/**
+ * The accepted revision and optional expiry to publish.
+ */
+export type CreateShare = CreateShareInput;
+
+/**
+ * The accepted revision and optional expiry to publish now.
+ */
+export type UpdateShare = UpdateShareInput;
 
 /**
  * The settings to store for the signed in account.
@@ -4476,6 +4543,252 @@ export type SearchFilesResponses = {
 
 export type SearchFilesResponse = SearchFilesResponses[keyof SearchFilesResponses];
 
+export type ListSharesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/shares';
+};
+
+export type ListSharesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListSharesError = ListSharesErrors[keyof ListSharesErrors];
+
+export type ListSharesResponses = {
+    /**
+     * Public links managed by this workspace.
+     */
+    200: ShareList;
+};
+
+export type ListSharesResponse = ListSharesResponses[keyof ListSharesResponses];
+
+export type CreateShareData = {
+    /**
+     * The accepted revision and optional expiry to publish.
+     */
+    body: CreateShare;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/shares';
+};
+
+export type CreateShareErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateShareError = CreateShareErrors[keyof CreateShareErrors];
+
+export type CreateShareResponses = {
+    /**
+     * One administrator-visible public link and its public URL.
+     */
+    201: Share;
+};
+
+export type CreateShareResponse = CreateShareResponses[keyof CreateShareResponses];
+
+export type RevokeShareData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the public link that the operation changes.
+         */
+        shareId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/shares/{shareId}';
+};
+
+export type RevokeShareErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeShareError = RevokeShareErrors[keyof RevokeShareErrors];
+
+export type RevokeShareResponses = {
+    /**
+     * One administrator-visible public link and its public URL.
+     */
+    200: Share;
+};
+
+export type RevokeShareResponse = RevokeShareResponses[keyof RevokeShareResponses];
+
+export type UpdateShareData = {
+    /**
+     * The accepted revision and optional expiry to publish now.
+     */
+    body: UpdateShare;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the public link that the operation changes.
+         */
+        shareId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/shares/{shareId}';
+};
+
+export type UpdateShareErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateShareError = UpdateShareErrors[keyof UpdateShareErrors];
+
+export type UpdateShareResponses = {
+    /**
+     * One administrator-visible public link and its public URL.
+     */
+    200: Share;
+};
+
+export type UpdateShareResponse = UpdateShareResponses[keyof UpdateShareResponses];
+
 export type GetChangesData = {
     body?: never;
     headers?: {
@@ -4680,3 +4993,95 @@ export type GetSnapshotPageResponses = {
 };
 
 export type GetSnapshotPageResponse = GetSnapshotPageResponses[keyof GetSnapshotPageResponses];
+
+export type GetPublicShareData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Opaque public link secret.
+         */
+        token: string;
+    };
+    query?: never;
+    url: '/s/{token}';
+};
+
+export type GetPublicShareErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetPublicShareError = GetPublicShareErrors[keyof GetPublicShareErrors];
+
+export type GetPublicShareResponses = {
+    /**
+     * Sanitized HTML of one active pinned note revision.
+     */
+    200: string;
+};
+
+export type GetPublicShareResponse = GetPublicShareResponses[keyof GetPublicShareResponses];
+
+export type GetPublicAttachmentData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Opaque public link secret.
+         */
+        token: string;
+        /**
+         * Identifier of the revision that the operation reads.
+         */
+        revisionId: Uuid;
+    };
+    query?: never;
+    url: '/s/{token}/attachments/{revisionId}';
+};
+
+export type GetPublicAttachmentErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetPublicAttachmentError = GetPublicAttachmentErrors[keyof GetPublicAttachmentErrors];
+
+export type GetPublicAttachmentResponses = {
+    /**
+     * Binary bytes of the immutable attachment.
+     */
+    200: Blob | File;
+};
+
+export type GetPublicAttachmentResponse = GetPublicAttachmentResponses[keyof GetPublicAttachmentResponses];

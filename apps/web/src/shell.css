@@ -112,6 +112,28 @@
   overflow-wrap: anywhere;
 }
 
+.notes-sharing {
+  margin-block: 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--notes-border);
+  border-radius: 0.5rem;
+}
+
+.notes-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block: 0.5rem;
+}
+
+.notes-share-preview {
+  max-height: 24rem;
+  overflow: auto;
+  padding: 1rem;
+  border: 1px solid var(--notes-border);
+  background: var(--notes-panel);
+}
+
 .notes-tree-folder {
   color: var(--notes-text-muted);
   display: inline-block;

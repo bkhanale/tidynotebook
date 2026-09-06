@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateShareData, CreateShareErrors, CreateShareResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetPublicAttachmentData, GetPublicAttachmentErrors, GetPublicAttachmentResponses, GetPublicShareData, GetPublicShareErrors, GetPublicShareResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListSharesData, ListSharesErrors, ListSharesResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, RevokeShareData, RevokeShareErrors, RevokeShareResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateShareData, UpdateShareErrors, UpdateShareResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -711,6 +711,74 @@ export const searchFiles = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
+ * List the public links of a workspace.
+ *
+ * Returns public link records only after a current share permission check.
+ */
+export const listShares = <ThrowOnError extends boolean = false>(options: Options<ListSharesData, ThrowOnError>): RequestResult<ListSharesResponses, ListSharesErrors, ThrowOnError> => (options.client ?? client).get<ListSharesResponses, ListSharesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/shares',
+    ...options
+});
+
+/**
+ * Publish one accepted note revision through a new public link.
+ *
+ * Creates an opaque public link to one accepted note revision. Later note edits stay private until an administrator updates this publication.
+ */
+export const createShare = <ThrowOnError extends boolean = false>(options: Options<CreateShareData, ThrowOnError>): RequestResult<CreateShareResponses, CreateShareErrors, ThrowOnError> => (options.client ?? client).post<CreateShareResponses, CreateShareErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/shares',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke a public link.
+ *
+ * Makes the public token and each of its attachment routes unavailable.
+ */
+export const revokeShare = <ThrowOnError extends boolean = false>(options: Options<RevokeShareData, ThrowOnError>): RequestResult<RevokeShareResponses, RevokeShareErrors, ThrowOnError> => (options.client ?? client).delete<RevokeShareResponses, RevokeShareErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/shares/{shareId}',
+    ...options
+});
+
+/**
+ * Move a public link to an explicitly selected accepted revision.
+ *
+ * Replaces the pinned accepted revision and optional expiry without changing the public token.
+ */
+export const updateShare = <ThrowOnError extends boolean = false>(options: Options<UpdateShareData, ThrowOnError>): RequestResult<UpdateShareResponses, UpdateShareErrors, ThrowOnError> => (options.client ?? client).put<UpdateShareResponses, UpdateShareErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/shares/{shareId}',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
  * Read ordered incremental changes after a cursor.
  *
  * Reads the commit ordered change records after a cursor the client already applied, oldest first. Every relevant write allocates its cursor under the workspace lock, including membership, deletion, purge, and share revocation, so the stream cannot skip a transaction that commits late. Change records are kept for 90 days; an older cursor answers 410 with the code snapshot_required, while saved revision identifiers stay valid beyond that window.
@@ -758,3 +826,17 @@ export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: O
     url: '/api/workspaces/{workspaceId}/sync/snapshots/{token}',
     ...options
 });
+
+/**
+ * Read one active pinned public note.
+ *
+ * Returns standalone sanitized HTML when the token is active, unexpired, and still owned by a workspace administrator.
+ */
+export const getPublicShare = <ThrowOnError extends boolean = false>(options: Options<GetPublicShareData, ThrowOnError>): RequestResult<GetPublicShareResponses, GetPublicShareErrors, ThrowOnError> => (options.client ?? client).get<GetPublicShareResponses, GetPublicShareErrors, ThrowOnError>({ url: '/s/{token}', ...options });
+
+/**
+ * Read an attachment allowed by one active public note.
+ *
+ * Returns immutable image bytes only when the active pinned note named this exact attachment revision.
+ */
+export const getPublicAttachment = <ThrowOnError extends boolean = false>(options: Options<GetPublicAttachmentData, ThrowOnError>): RequestResult<GetPublicAttachmentResponses, GetPublicAttachmentErrors, ThrowOnError> => (options.client ?? client).get<GetPublicAttachmentResponses, GetPublicAttachmentErrors, ThrowOnError>({ url: '/s/{token}/attachments/{revisionId}', ...options });

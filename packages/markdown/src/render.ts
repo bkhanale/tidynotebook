@@ -146,7 +146,12 @@ function isFootnoteLink(node: Element): boolean {
  * blocked destination keeps its visible text and loses its destination, so the
  * reader still sees what the author wrote.
  */
-function applyUrlPolicy() {
+export type RenderMarkdownOptions = {
+  /** Maps an allowed attachment revision to its transport-specific path. */
+  readonly attachmentHref?: (revisionId: string) => string;
+};
+
+function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
   return (tree: HastRoot): undefined => {
     visit(tree, 'element', (node) => {
       if (node.tagName === 'a') {
@@ -177,10 +182,8 @@ function applyUrlPolicy() {
         source === null ? { kind: 'blocked' as const } : classifyUrl(source);
       if (target.kind === 'attachment') {
         const title = stringProperty(node, 'title');
-        node.properties =
-          title === null
-            ? { src: target.href, alt }
-            : { src: target.href, alt, title };
+        const src = options.attachmentHref?.(target.id) ?? target.href;
+        node.properties = title === null ? { src, alt } : { src, alt, title };
         return;
       }
       // The design requires an explicit user action before an external image
@@ -285,25 +288,29 @@ function renderMathPlaceholders(html: string): string {
     },
   );
 }
-const renderProcessor = createMarkdownProcessor()
-  .use(remarkRehype, {
-    // Raw HTML is dropped here. This is the reason the renderer needs no raw
-    // HTML pass and no dangerous-HTML option anywhere later.
-    allowDangerousHtml: false,
-    // Footnote identifiers are namespaced here, so the sanitizer does not have
-    // to namespace them a second time. See `sanitizeSchema`.
-    clobberPrefix: 'user-content-',
-    handlers: {
-      code: (_state, node: Code) => codeBlock(node),
-      inlineMath: (_state, node: InlineMathNode) => mathPlaceholder(node),
-      math: (_state, node: MathNode) => mathPlaceholder(node),
-    },
-  })
-  .use(addHeadingIdentifiers)
-  .use(applyUrlPolicy)
-  .use(rehypeSanitize, sanitizeSchema)
-  .use(rehypeStringify)
-  .freeze();
+function buildRenderProcessor(options: RenderMarkdownOptions = {}) {
+  return createMarkdownProcessor()
+    .use(remarkRehype, {
+      // Raw HTML is dropped here. This is the reason the renderer needs no raw
+      // HTML pass and no dangerous-HTML option anywhere later.
+      allowDangerousHtml: false,
+      // Footnote identifiers are namespaced here, so the sanitizer does not have
+      // to namespace them a second time. See `sanitizeSchema`.
+      clobberPrefix: 'user-content-',
+      handlers: {
+        code: (_state, node: Code) => codeBlock(node),
+        inlineMath: (_state, node: InlineMathNode) => mathPlaceholder(node),
+        math: (_state, node: MathNode) => mathPlaceholder(node),
+      },
+    })
+    .use(addHeadingIdentifiers)
+    .use(applyUrlPolicy, options)
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeStringify)
+    .freeze();
+}
+
+const renderProcessor = buildRenderProcessor();
 
 /**
  * Renders `source` into sanitized HTML.
@@ -313,11 +320,18 @@ const renderProcessor = createMarkdownProcessor()
  * math that fails keeps its source placeholder. Every other document renders,
  * and unknown syntax simply stays text.
  */
-export async function renderMarkdown(source: string): Promise<string> {
+export async function renderMarkdown(
+  source: string,
+  options: RenderMarkdownOptions = {},
+): Promise<string> {
   // `parseMarkdown` applies the pre-scan and the depth guard, and it uses the
   // same Markdown plugins as this processor, so the tree it returns is the
   // tree this processor would have produced.
   const tree = parseMarkdown(source);
-  const html = renderProcessor.stringify(await renderProcessor.run(tree));
+  const processor =
+    options.attachmentHref === undefined
+      ? renderProcessor
+      : buildRenderProcessor(options);
+  const html = processor.stringify(await processor.run(tree));
   return renderMathPlaceholders(html);
 }

@@ -79,6 +79,7 @@ export type HandlerResult = {
   readonly status: number;
   readonly mediaType: string;
   readonly body: unknown;
+  readonly headers?: readonly (readonly [string, string])[];
 };
 
 /** An answer with no body, for a status that the operation declares empty. */
@@ -579,6 +580,8 @@ export function registerOperations(
         const result = await handler(request, reply);
         checkHandlerResult(request, operation.id, result);
         reply.status(result.status);
+        for (const [name, value] of result.headers ?? [])
+          reply.header(name, value);
         if (result.mediaType === '') {
           // The framework serializes nothing here, so no response schema check
           // applies and no content type is written.

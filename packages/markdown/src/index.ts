@@ -27,4 +27,5 @@ export type { ContentUrl } from './policy.ts';
 export { classifyUrl, isIdentifier } from './policy.ts';
 export type { MathRenderReason } from './math.ts';
 export { mathLimits, MathRenderError, renderMath } from './math.ts';
+export type { RenderMarkdownOptions } from './render.ts';
 export { headingSlug, renderMarkdown } from './render.ts';

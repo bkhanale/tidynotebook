@@ -69,6 +69,14 @@ export function hostName(host: string | undefined): string {
   return value.split(':')[0] ?? '';
 }
 
+/** Removes a public share secret before a request URL reaches a log. */
+export function redactAccessUrl(url: string): string {
+  return url.replace(
+    /^(\/s\/)[^/?]+(?:\/attachments\/[^/?]+)?/,
+    '$1[redacted]',
+  );
+}
+
 function instanceOf(request: FastifyRequest): string {
   return request.url.split('?')[0] ?? request.url;
 }
@@ -114,6 +122,27 @@ export function createAppWithHandlers(
         ? false
         : {
             level: config.logLevel,
+            serializers: {
+              req: (request: {
+                readonly method?: unknown;
+                readonly url?: unknown;
+                readonly hostname?: unknown;
+                readonly remoteAddress?: unknown;
+              }) => ({
+                method:
+                  typeof request.method === 'string' ? request.method : '',
+                url:
+                  typeof request.url === 'string'
+                    ? redactAccessUrl(request.url)
+                    : '',
+                hostname:
+                  typeof request.hostname === 'string' ? request.hostname : '',
+                remoteAddress:
+                  typeof request.remoteAddress === 'string'
+                    ? request.remoteAddress
+                    : '',
+              }),
+            },
             ...(options.logStream === undefined
               ? {}
               : { stream: options.logStream }),

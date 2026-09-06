@@ -74,6 +74,11 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
   const tx: WorkspaceTransaction = {
     search: () => Promise.resolve([]),
     backlinks: () => Promise.resolve([]),
+    isAcceptedRevision: () => Promise.resolve(false),
+    createShare: () => Promise.reject(new Error('unused share operation')),
+    updateShare: () => Promise.resolve(null),
+    revokeShare: () => Promise.resolve(null),
+    listShares: () => Promise.resolve([]),
     role: (id: string) => Promise.resolve(state.roles.get(id) ?? null),
     receipt: <T = AcceptedChangeset>(mutationId: string, id: string) =>
       Promise.resolve(

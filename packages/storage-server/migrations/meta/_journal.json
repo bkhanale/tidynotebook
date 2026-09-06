@@ -57,6 +57,13 @@
       "when": 1788691248915,
       "tag": "0007_gorgeous_gauntlet",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1788693600000,
+      "tag": "0008_public_sharing",
+      "breakpoints": true
     }
   ]
 }
