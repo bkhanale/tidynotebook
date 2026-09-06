@@ -27,6 +27,8 @@ import {
   type LocalStore,
   type QueueEntry,
   type RecoveryRecord,
+  type RemoteChange,
+  type SnapshotRevision,
 } from '@notesapp/sync';
 import {
   createDatabase,
@@ -37,14 +39,20 @@ import {
   type DraftRow,
   type FileRow,
   type QueueRow,
+  type SnapshotItemRow,
 } from './database.ts';
 import {
   ensureSchema,
   validateAcceptedFile,
   validateCheckpoint,
+  validateContent,
+  validateCursor,
   validateDraft,
+  validateLease,
   validateQueueRow,
   validateRecovery,
+  validateSnapshot,
+  validateSnapshotItem,
 } from './migrations.ts';
 
 /** What `openLocalStore` accepts. */
@@ -195,6 +203,9 @@ export async function openLocalStore(
       .first();
     return stored === undefined ? null : validateQueueRow(stored);
   };
+
+  /** The key of the single sync worker lease row. */
+  const leaseKey = 'worker';
 
   const store: LocalStore = {
     serverOrigin,
@@ -606,6 +617,307 @@ export async function openLocalStore(
             .toArray();
           return rows.map((row: unknown) => validateRecovery(row));
         }),
+      );
+    },
+
+    acquireLease(ownerId: string, expiresAt: number): Promise<boolean> {
+      return guard('acquiring the sync lease', () =>
+        db.transaction('rw', tables.leases, async () => {
+          const stored: unknown = await tables.leases.get(leaseKey);
+          if (stored !== undefined) {
+            const lease = validateLease(stored);
+            // Another worker holds a live lease. An expired lease, or one
+            // this owner already holds, may be taken over or renewed.
+            if (lease.ownerId !== ownerId && lease.expiresAt > clock())
+              return false;
+          }
+          await tables.leases.put({
+            key: leaseKey,
+            ownerId,
+            expiresAt,
+          });
+          return true;
+        }),
+      );
+    },
+
+    releaseLease(ownerId: string): Promise<void> {
+      return guard('releasing the sync lease', () =>
+        db.transaction('rw', tables.leases, async () => {
+          const stored: unknown = await tables.leases.get(leaseKey);
+          if (stored === undefined) return;
+          // Releasing a lease that another worker took over does nothing.
+          if (validateLease(stored).ownerId !== ownerId) return;
+          await tables.leases.delete(leaseKey);
+        }),
+      );
+    },
+
+    stageSnapshot(
+      accountId: string,
+      workspaceId: string,
+      token: string,
+      revisionIds: readonly string[],
+      cursor: string,
+    ): Promise<void> {
+      return guard('staging a snapshot', () =>
+        db.transaction(
+          'rw',
+          [tables.stagedSnapshots, tables.snapshotItems],
+          async () => {
+            await tables.stagedSnapshots.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              token,
+              revisionIds: [...revisionIds],
+              cursor,
+              state: 'staging',
+              createdAt: nowIso(),
+            });
+            // A restarted download under the same token drops the items of
+            // the previous attempt before new ones arrive.
+            await tables.snapshotItems
+              .where('[serverOrigin+accountId+workspaceId+token]')
+              .equals([serverOrigin, accountId, workspaceId, token])
+              .delete();
+          },
+        ),
+      );
+    },
+
+    storeSnapshotRevision(
+      accountId: string,
+      workspaceId: string,
+      revision: SnapshotRevision,
+    ): Promise<void> {
+      return guard('storing a snapshot revision', () =>
+        db.transaction(
+          'rw',
+          [tables.contents, tables.snapshotItems],
+          async () => {
+            if (revision.text !== null) {
+              await tables.contents.put({
+                serverOrigin,
+                accountId,
+                workspaceId,
+                digest: revision.digest,
+                text: revision.text,
+                bytes: null,
+                size: byteLength(revision.text),
+              });
+            }
+            const item: SnapshotItemRow = {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              token: revision.token,
+              revisionId: revision.revisionId,
+              fileId: revision.fileId,
+              path: revision.path,
+              kind: revision.kind,
+              deleted: revision.deleted,
+              digest: revision.digest,
+              storedAt: nowIso(),
+            };
+            await tables.snapshotItems.put(item);
+          },
+        ),
+      );
+    },
+
+    activateSnapshot(token: string): Promise<void> {
+      return guard('activating a snapshot', () =>
+        db.transaction(
+          'rw',
+          [
+            tables.stagedSnapshots,
+            tables.snapshotItems,
+            tables.contents,
+            tables.acceptedFiles,
+            tables.cursors,
+          ],
+          async () => {
+            const plans: unknown[] = await tables.stagedSnapshots.toArray();
+            const plan =
+              plans
+                .map((row: unknown) => validateSnapshot(row))
+                .find((row) => row.token === token) ?? null;
+            if (plan === null)
+              throw new LocalStorageError(
+                'corrupt',
+                'no staged snapshot carries this token',
+              );
+            if (plan.state === 'active') return;
+            const { accountId, workspaceId } = plan;
+            const stored: unknown[] = await tables.snapshotItems
+              .where('[serverOrigin+accountId+workspaceId+token]')
+              .equals([serverOrigin, accountId, workspaceId, token])
+              .toArray();
+            const byRevision = new Map(
+              stored.map((row: unknown) => {
+                const item = validateSnapshotItem(row);
+                return [item.revisionId, item] as const;
+              }),
+            );
+            for (const revisionId of plan.revisionIds) {
+              const item = byRevision.get(revisionId);
+              if (item === undefined)
+                throw new LocalStorageError(
+                  'aborted',
+                  'the staged snapshot is incomplete',
+                );
+              if (!item.deleted && item.kind === 'note') {
+                const body: unknown = await tables.contents.get([
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  item.digest,
+                ]);
+                if (body === undefined || validateContent(body).text === null)
+                  throw new LocalStorageError(
+                    'aborted',
+                    'the staged snapshot is incomplete',
+                  );
+              }
+            }
+            const byFile = new Map<string, SnapshotItemRow>();
+            for (const item of byRevision.values())
+              byFile.set(item.fileId, item);
+            for (const item of byFile.values()) {
+              const known: unknown = await tables.acceptedFiles.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                item.fileId,
+              ]);
+              const file =
+                known === undefined ? null : validateAcceptedFile(known);
+              const dirty =
+                file !== null &&
+                file.localHeadRevisionId !== null &&
+                file.localHeadRevisionId !== file.acceptedHeadRevisionId;
+              if (!dirty) {
+                await tables.acceptedFiles.put({
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  fileId: item.fileId,
+                  kind: item.kind,
+                  path: item.path,
+                  deleted: item.deleted,
+                  acceptedHeadRevisionId: item.revisionId,
+                  acceptedHeadDigest: item.digest,
+                  localHeadRevisionId: item.revisionId,
+                  updatedAt: nowIso(),
+                });
+              } else if (file !== null) {
+                // The accepted head follows the snapshot, but the path, the
+                // deletion state, and the local head keep whatever local
+                // work set. A remote head never replaces a dirty copy.
+                await tables.acceptedFiles.put({
+                  ...file,
+                  acceptedHeadRevisionId: item.revisionId,
+                  acceptedHeadDigest: item.digest,
+                  updatedAt: nowIso(),
+                });
+              }
+            }
+            await tables.cursors.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              cursor: plan.cursor,
+              updatedAt: nowIso(),
+            });
+            await tables.stagedSnapshots.put({ ...plan, state: 'active' });
+          },
+        ),
+      );
+    },
+
+    readCursor(accountId: string, workspaceId: string): Promise<string | null> {
+      return guard('reading the sync cursor', () =>
+        db.transaction('r', tables.cursors, async () => {
+          const stored: unknown = await tables.cursors.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+          ]);
+          return stored === undefined ? null : validateCursor(stored).cursor;
+        }),
+      );
+    },
+
+    applyRemoteChanges(
+      accountId: string,
+      workspaceId: string,
+      changes: readonly RemoteChange[],
+      nextCursor: string,
+    ): Promise<void> {
+      return guard('applying remote changes', () =>
+        db.transaction(
+          'rw',
+          [tables.contents, tables.acceptedFiles, tables.cursors],
+          async () => {
+            for (const change of changes) {
+              const file = change.file;
+              if (file === null) continue;
+              if (file.text !== null) {
+                await tables.contents.put({
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  digest: file.digest,
+                  text: file.text,
+                  bytes: null,
+                  size: byteLength(file.text),
+                });
+              }
+              const known: unknown = await tables.acceptedFiles.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                file.fileId,
+              ]);
+              const current =
+                known === undefined ? null : validateAcceptedFile(known);
+              const dirty =
+                current !== null &&
+                current.localHeadRevisionId !== null &&
+                current.localHeadRevisionId !== current.acceptedHeadRevisionId;
+              if (current === null || !dirty) {
+                await tables.acceptedFiles.put({
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  fileId: file.fileId,
+                  kind: file.fileKind,
+                  path: file.path,
+                  deleted: file.deleted,
+                  acceptedHeadRevisionId: file.revisionId,
+                  acceptedHeadDigest: file.digest,
+                  localHeadRevisionId: file.revisionId,
+                  updatedAt: nowIso(),
+                });
+              } else {
+                await tables.acceptedFiles.put({
+                  ...current,
+                  acceptedHeadRevisionId: file.revisionId,
+                  acceptedHeadDigest: file.digest,
+                  updatedAt: nowIso(),
+                });
+              }
+            }
+            await tables.cursors.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              cursor: nextCursor,
+              updatedAt: nowIso(),
+            });
+          },
+        ),
       );
     },
 

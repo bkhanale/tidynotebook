@@ -217,6 +217,44 @@ export type StagedSnapshot = {
 };
 
 /**
+ * One file revision downloaded as part of a staged snapshot.
+ *
+ * `text` carries Markdown bodies. It is `null` for an attachment revision,
+ * whose bytes are fetched on use, and for a tombstone, which carries none.
+ */
+export type SnapshotRevision = {
+  readonly token: string;
+  readonly revisionId: string;
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: LocalFileKind;
+  readonly deleted: boolean;
+  readonly digest: string;
+  readonly text: string | null;
+};
+
+/**
+ * One file change read from the ordered change feed.
+ *
+ * `file` is `null` for a membership or share record, which advances the
+ * cursor without touching file metadata.
+ */
+export type RemoteFileChange = {
+  readonly fileId: string;
+  readonly revisionId: string;
+  readonly path: string;
+  readonly fileKind: LocalFileKind;
+  readonly deleted: boolean;
+  readonly digest: string;
+  readonly text: string | null;
+};
+
+/** One applied position of the ordered change feed. */
+export type RemoteChange = {
+  readonly file: RemoteFileChange | null;
+};
+
+/**
  * One stored setting.
  *
  * `workspaceId` is `accountWide` for a setting that belongs to the account.
@@ -397,6 +435,87 @@ export type LocalStore = {
     accountId: string,
     workspaceId: string,
   ): Promise<readonly RecoveryRecord[]>;
+
+  /**
+   * Takes the single sync worker lease of this store.
+   *
+   * Returns `true` and records `ownerId` with `expiresAt` (milliseconds since
+   * the Unix epoch) when no lease exists, when the stored one already expired,
+   * or when this owner already holds it. Returns `false` when another owner
+   * holds a live lease. A worker whose lease expired without renewal has
+   * failed, so another worker may take over.
+   */
+  acquireLease(ownerId: string, expiresAt: number): Promise<boolean>;
+
+  /**
+   * Gives up the sync worker lease.
+   *
+   * Removes the lease only when `ownerId` holds it. Releasing a lease that
+   * another worker took over does nothing.
+   */
+  releaseLease(ownerId: string): Promise<void>;
+
+  /**
+   * Records the plan of one downloaded snapshot before its content arrives.
+   *
+   * `revisionIds` names every immutable revision the snapshot captured, and
+   * `cursor` is the captured high-water position. Staging never touches
+   * drafts, checkpoints, the queue, or accepted metadata.
+   *
+   * The plan sketch names only the token, the revisions, and the cursor. The
+   * account and the workspace travel explicitly because every port method is
+   * partition bound: the token alone cannot place the staged row.
+   */
+  stageSnapshot(
+    accountId: string,
+    workspaceId: string,
+    token: string,
+    revisionIds: readonly string[],
+    cursor: string,
+  ): Promise<void>;
+
+  /**
+   * Stores one downloaded snapshot revision in the staging area.
+   *
+   * Markdown text is stored by its digest; attachment revisions keep their
+   * metadata so their bytes can be fetched on use. Nothing becomes accepted
+   * metadata until `activateSnapshot` runs.
+   */
+  storeSnapshotRevision(
+    accountId: string,
+    workspaceId: string,
+    revision: SnapshotRevision,
+  ): Promise<void>;
+
+  /**
+   * Makes a fully downloaded snapshot the accepted state.
+   *
+   * Rejects with an `aborted` failure when any staged revision or its
+   * required content is still missing; the caller then restarts the download
+   * and keeps its local work. Otherwise advances accepted heads and the
+   * cursor in one transaction. Files with unsubmitted local work keep their
+   * local head, their drafts, and their queued mutations: a remote head never
+   * replaces a dirty working copy.
+   */
+  activateSnapshot(token: string): Promise<void>;
+
+  /** The commit ordered position this device consumed, or `null`. */
+  readCursor(accountId: string, workspaceId: string): Promise<string | null>;
+
+  /**
+   * Applies ordered remote changes and advances the cursor.
+   *
+   * Every file change updates the accepted head and stores its content;
+   * files with unsubmitted local work keep their local head and drafts.
+   * Records without a file only advance the cursor. The whole batch and the
+   * cursor commit in one transaction.
+   */
+  applyRemoteChanges(
+    accountId: string,
+    workspaceId: string,
+    changes: readonly RemoteChange[],
+    nextCursor: string,
+  ): Promise<void>;
 
   /** Closes the database connection. A schema upgrade needs every tab to. */
   close(): Promise<void>;

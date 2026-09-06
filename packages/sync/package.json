@@ -15,6 +15,7 @@
     "test:unit": "node ../../tools/run-tests.mjs unit"
   },
   "dependencies": {
+    "@notesapp/api-client": "workspace:*",
     "@notesapp/core": "workspace:*"
   },
   "devDependencies": {

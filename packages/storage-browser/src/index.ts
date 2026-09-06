@@ -12,6 +12,7 @@ export type {
   CursorRow,
   DraftRow,
   FileRow,
+  LeaseRow,
   LocalDatabase,
   MetaRow,
   MigrationState,
@@ -19,6 +20,7 @@ export type {
   QueueRow,
   ReceiptRow,
   RecoveryRow,
+  SnapshotItemRow,
   SnapshotRow,
   Tables,
 } from './database.ts';
@@ -43,12 +45,14 @@ export {
   validateContent,
   validateCursor,
   validateDraft,
+  validateLease,
   validateMeta,
   validatePreference,
   validateQueueRow,
   validateReceipt,
   validateRecovery,
   validateSnapshot,
+  validateSnapshotItem,
 } from './migrations.ts';
 export type { LocalStoreOptions } from './local-store.ts';
 export { openLocalStore } from './local-store.ts';

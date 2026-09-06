@@ -25,6 +25,7 @@ import {
   type LocalBranch,
   type LocalContent,
   type LocalCursor,
+  type LocalFileKind,
   type LocalReceipt,
   type Preference,
   type QueueState,
@@ -87,6 +88,41 @@ export type ReceiptRow = LocalReceipt;
 /** The stored form of one staged snapshot. Task 11 fills this table. */
 export type SnapshotRow = StagedSnapshot;
 
+/**
+ * The stored form of one staged snapshot item.
+ *
+ * One row per captured revision: the file metadata the snapshot pinned and
+ * the digest whose body `storeSnapshotRevision` writes to the content table.
+ * Activation joins these rows against the staged plan and the stored
+ * content, so an incomplete download can never become accepted metadata.
+ */
+export type SnapshotItemRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly token: string;
+  readonly revisionId: string;
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: LocalFileKind;
+  readonly deleted: boolean;
+  readonly digest: string;
+  readonly storedAt: string;
+};
+
+/**
+ * The stored form of the single sync worker lease.
+ *
+ * One row coordinates every tab of this browser profile: the holding owner
+ * and the millisecond epoch at which its lease expires. A worker whose lease
+ * expired without renewal has failed, so another worker may take over.
+ */
+export type LeaseRow = {
+  readonly key: 'worker';
+  readonly ownerId: string;
+  readonly expiresAt: number;
+};
+
 /** The stored form of one consumed change position. */
 export type CursorRow = LocalCursor;
 
@@ -129,6 +165,11 @@ export type Tables = {
     SnapshotRow,
     [string, string, string, string]
   >;
+  readonly snapshotItems: Table<
+    SnapshotItemRow,
+    [string, string, string, string, string]
+  >;
+  readonly leases: Table<LeaseRow, string>;
   readonly cursors: Table<CursorRow, [string, string, string]>;
   readonly preferences: Table<PreferenceRow, [string, string, string, string]>;
   readonly recovery: Table<RecoveryRow, [string, string, string, string]>;
@@ -142,7 +183,8 @@ export type Tables = {
  * `./migrations.ts`. An entry is never edited once it is released, because a
  * released browser already ran it.
  *
- * The sync worker lease of Task 11 arrives as version 2 with its own table.
+ * Version 2 adds the sync worker lease and the staged snapshot items of
+ * Task 11. Both tables start empty; the migration only revalidates.
  */
 export const schemaVersions: readonly {
   readonly version: number;
@@ -171,6 +213,32 @@ export const schemaVersions: readonly {
       meta: 'key',
     },
   },
+  {
+    version: 2,
+    stores: {
+      drafts:
+        '[serverOrigin+accountId+workspaceId+workingCopyId], [serverOrigin+accountId+workspaceId+fileId]',
+      checkpoints:
+        '[serverOrigin+accountId+workspaceId+revisionId], [serverOrigin+accountId+workspaceId+fileId], [serverOrigin+accountId+workspaceId+mutationId], [serverOrigin+accountId+workspaceId+sequence]',
+      contents: '[serverOrigin+accountId+workspaceId+digest]',
+      acceptedFiles:
+        '[serverOrigin+accountId+workspaceId+fileId], [serverOrigin+accountId+workspaceId+path]',
+      branches:
+        '[serverOrigin+accountId+workspaceId+branchId], [serverOrigin+accountId+workspaceId+fileId]',
+      queue:
+        '[serverOrigin+accountId+workspaceId+mutationId], [serverOrigin+accountId+workspaceId+sequence], [serverOrigin+accountId+mutationId]',
+      receipts: '[serverOrigin+accountId+workspaceId+mutationId]',
+      stagedSnapshots: '[serverOrigin+accountId+workspaceId+token]',
+      snapshotItems:
+        '[serverOrigin+accountId+workspaceId+token+revisionId], [serverOrigin+accountId+workspaceId+token]',
+      leases: 'key',
+      cursors: '[serverOrigin+accountId+workspaceId]',
+      preferences: '[serverOrigin+accountId+workspaceId+name]',
+      recovery:
+        '[serverOrigin+accountId+workspaceId+recoveryId], [serverOrigin+accountId+workspaceId+createdAt]',
+      meta: 'key',
+    },
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */
@@ -183,6 +251,8 @@ export const tableNames: readonly string[] = [
   'queue',
   'receipts',
   'stagedSnapshots',
+  'snapshotItems',
+  'leases',
   'cursors',
   'preferences',
   'recovery',
@@ -240,6 +310,11 @@ export function createDatabase(
     stagedSnapshots: db.table<SnapshotRow, [string, string, string, string]>(
       'stagedSnapshots',
     ),
+    snapshotItems: db.table<
+      SnapshotItemRow,
+      [string, string, string, string, string]
+    >('snapshotItems'),
+    leases: db.table<LeaseRow, string>('leases'),
     cursors: db.table<CursorRow, [string, string, string]>('cursors'),
     preferences: db.table<PreferenceRow, [string, string, string, string]>(
       'preferences',

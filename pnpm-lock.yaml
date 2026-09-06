@@ -159,7 +159,7 @@ importers:
         version: 3.9.6
       sharp:
         specifier: 0.35.4
-        version: 0.35.4
+        version: 0.35.4(@types/node@26.4.1)
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -339,6 +339,9 @@ importers:
 
   packages/sync:
     dependencies:
+      '@notesapp/api-client':
+        specifier: workspace:*
+        version: link:../api-client
       '@notesapp/core':
         specifier: workspace:*
         version: link:../core

@@ -24,12 +24,14 @@ import {
   type CursorRow,
   type DraftRow,
   type FileRow,
+  type LeaseRow,
   type MetaRow,
   type MigrationState,
   type PreferenceRow,
   type QueueRow,
   type ReceiptRow,
   type RecoveryRow,
+  type SnapshotItemRow,
   type SnapshotRow,
   type Tables,
 } from './database.ts';
@@ -332,6 +334,34 @@ export function validateSnapshot(value: unknown): SnapshotRow {
   };
 }
 
+/** Narrows one staged snapshot item. */
+export function validateSnapshotItem(value: unknown): SnapshotItemRow {
+  const row = object(value, 'snapshot item');
+  return {
+    ...partition(row, 'snapshot item'),
+    token: text(row, 'token', 'snapshot item'),
+    revisionId: text(row, 'revisionId', 'snapshot item'),
+    fileId: text(row, 'fileId', 'snapshot item'),
+    path: text(row, 'path', 'snapshot item'),
+    kind: member(row, 'kind', ['note', 'attachment'] as const, 'snapshot item'),
+    deleted: flag(row, 'deleted', 'snapshot item'),
+    digest: text(row, 'digest', 'snapshot item'),
+    storedAt: text(row, 'storedAt', 'snapshot item'),
+  };
+}
+
+/** Narrows the single sync worker lease. */
+export function validateLease(value: unknown): LeaseRow {
+  const row = object(value, 'lease');
+  if (text(row, 'key', 'lease') !== 'worker')
+    corrupt('lease.key is unexpected');
+  return {
+    key: 'worker',
+    ownerId: text(row, 'ownerId', 'lease'),
+    expiresAt: count(row, 'expiresAt', 'lease'),
+  };
+}
+
 /** Narrows one stored change position. */
 export function validateCursor(value: unknown): CursorRow {
   const row = object(value, 'cursor');
@@ -387,15 +417,22 @@ export function validateMeta(value: unknown): MetaRow {
 /**
  * One step from one schema version to the next.
  *
- * Version 1 is the first released schema, so there is no step yet. A later
- * task appends a step and its schema entry together. A gap between two stored
- * versions with no step is a refusal, never a silent continuation.
+ * Version 1 is the first released schema. Version 2 adds the sync worker
+ * lease and the staged snapshot items; both tables start empty, so the step
+ * only records the move. A gap between two stored versions with no step is
+ * a refusal, never a silent continuation.
  */
 export const migrationSteps: readonly {
   readonly from: number;
   readonly to: number;
   readonly run: (tables: Tables) => Promise<void>;
-}[] = [];
+}[] = [
+  {
+    from: 1,
+    to: 2,
+    run: () => Promise.resolve(),
+  },
+];
 
 /**
  * Reads and validates every record of every partitioned table.
@@ -415,6 +452,9 @@ async function revalidate(tables: Tables): Promise<void> {
   for (const row of await tables.receipts.toArray()) validateReceipt(row);
   for (const row of await tables.stagedSnapshots.toArray())
     validateSnapshot(row);
+  for (const row of await tables.snapshotItems.toArray())
+    validateSnapshotItem(row);
+  for (const row of await tables.leases.toArray()) validateLease(row);
   for (const row of await tables.cursors.toArray()) validateCursor(row);
   for (const row of await tables.preferences.toArray()) validatePreference(row);
   for (const row of await tables.recovery.toArray()) validateRecovery(row);

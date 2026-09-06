@@ -44,3 +44,47 @@ export {
   isLocalStorageError,
   LocalStorageError,
 } from './local-port.ts';
+export type {
+  RemoteChange,
+  RemoteFileChange,
+  SnapshotRevision,
+} from './local-port.ts';
+export type {
+  BranchInput,
+  BranchResult,
+  CommitResult,
+  Problem,
+  PushOutcome,
+  QueueNetwork,
+  ServiceOutcome,
+  SyncContext,
+  SyncNotice,
+} from './queue.ts';
+export {
+  backoffBaseMs,
+  backoffCapMs,
+  backoffDelay,
+  isRetryableStatus,
+  maxAttempts,
+  pushQueue,
+  sendWithRetry,
+  SnapshotRestartNeeded,
+  SyncFailedError,
+} from './queue.ts';
+export type {
+  ChangeRecord,
+  PullOutcome,
+  RevisionData,
+  SnapshotItemData,
+  SnapshotNetwork,
+} from './snapshot.ts';
+export { pullNew } from './snapshot.ts';
+export type { WorkerLease } from './lease.ts';
+export { acquireWorkerLease, releaseWorkerLease } from './lease.ts';
+export type {
+  EngineOptions,
+  EngineOperations,
+  SessionNetwork,
+  SyncEngine,
+} from './engine.ts';
+export { createSyncEngine } from './engine.ts';
