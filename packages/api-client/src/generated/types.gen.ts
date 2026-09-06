@@ -1147,6 +1147,97 @@ export type RevisionInput = {
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
 
 /**
+ * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
+ */
+export type SnapshotItem = {
+    fileId: Uuid;
+    revisionId: Uuid;
+    path: FilePath;
+    /**
+     * Whether the file holds Markdown or an attachment.
+     */
+    readonly kind: 'note' | 'attachment';
+    /**
+     * Whether the file was deleted when captured. Always false.
+     */
+    readonly deleted: boolean;
+};
+
+/**
+ * One page of the items that a snapshot captured.
+ */
+export type SnapshotPage = {
+    /**
+     * The token of the snapshot, echoed for the client.
+     */
+    readonly token: string;
+    /**
+     * The captured high-water cursor.
+     */
+    readonly cursor: string;
+    /**
+     * Instant at which the snapshot expires.
+     */
+    readonly expiresAt: string;
+    /**
+     * Ordinal of the first item of this page.
+     */
+    readonly position: number;
+    /**
+     * Ordinal of the next page, or null on the last page.
+     */
+    readonly nextPosition: number | null;
+    /**
+     * How many items the snapshot holds now.
+     */
+    readonly totalItems: number;
+    /**
+     * The captured items of this page, ordered by file.
+     */
+    readonly items: Array<SnapshotItem>;
+};
+
+/**
+ * The captured snapshot and its opaque page token.
+ */
+export type SnapshotStarted = {
+    /**
+     * Opaque token that addresses the materialized pages for 15 minutes.
+     */
+    readonly token: string;
+    /**
+     * Instant at which the snapshot expires.
+     */
+    readonly expiresAt: string;
+    /**
+     * The captured high-water cursor. A sync client asks for changes after this position.
+     */
+    readonly cursor: string;
+    /**
+     * How many items the snapshot captured.
+     */
+    readonly itemCount: number;
+    /**
+     * The page size stored with the snapshot.
+     */
+    readonly pageSize: number;
+};
+
+/**
+ * Snapshot start payload.
+ */
+export type StartSnapshotInput = {
+    /**
+     * Sync protocol version of the client. Only version 1 is served; any other value is rejected without changing data.
+     */
+    syncVersion: 1;
+    /**
+     * Largest number of snapshot items in one page. The server uses 100 when the value is absent and never stores more than 500.
+     */
+    pageSize?: number;
+};
+
+/**
  * Divergent branch changeset payload.
  */
 export type SubmitBranchInput = {
@@ -1155,6 +1246,43 @@ export type SubmitBranchInput = {
     conflictGroupId: Uuid;
     expectedHeads: ExpectedHeads;
     revisions: Array<RevisionInput>;
+};
+
+/**
+ * One commit ordered incremental change record.
+ */
+export type SyncChangeItem = {
+    /**
+     * The commit ordered position of this change.
+     */
+    readonly cursor: string;
+    /**
+     * The kind of entity that the record refers to.
+     */
+    readonly entityKind: 'file' | 'membership' | 'share';
+    entityId: Uuid;
+    /**
+     * The revision of a file change, or null otherwise.
+     */
+    readonly revisionId: Uuid | null;
+    /**
+     * Whether the change deletes its entity.
+     */
+    readonly deleted: boolean;
+};
+
+/**
+ * Ordered incremental changes after a cursor.
+ */
+export type SyncChanges = {
+    /**
+     * Ordered changes after the requested cursor, oldest first.
+     */
+    readonly changes: Array<SyncChangeItem>;
+    /**
+     * The cursor the client sends to continue.
+     */
+    readonly nextCursor: string;
 };
 
 /**
@@ -1404,6 +1532,36 @@ export type ExpectedHeadsWritable = {
 };
 
 /**
+ * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
+ */
+export type SnapshotItemWritable = {
+    fileId: Uuid;
+    revisionId: Uuid;
+    path: FilePath;
+};
+
+/**
+ * One page of the items that a snapshot captured.
+ */
+export type SnapshotPageWritable = {
+    [key: string]: never;
+};
+
+/**
+ * One commit ordered incremental change record.
+ */
+export type SyncChangeItemWritable = {
+    entityId: Uuid;
+};
+
+/**
+ * Ordered incremental changes after a cursor.
+ */
+export type SyncChangesWritable = {
+    [key: string]: never;
+};
+
+/**
  * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
  */
 export type RequestId = string;
@@ -1482,6 +1640,31 @@ export type ConflictGroupId = Uuid;
  * Optional branch state to filter branches.
  */
 export type BranchState = 'unresolved' | 'resolved';
+
+/**
+ * Opaque token of a materialized snapshot, issued by the snapshot start operation. Only its hash is stored, so the value cannot be guessed.
+ */
+export type SnapshotToken = string;
+
+/**
+ * Ordinal of the first snapshot item to return. Use the nextPosition value of the previous page. The first page starts at zero.
+ */
+export type SnapshotPosition = number;
+
+/**
+ * Largest number of snapshot items in one page. The server uses the page size stored with the snapshot when the parameter is absent and never returns more than 500.
+ */
+export type SnapshotPageLimit = number;
+
+/**
+ * Commit ordered cursor the client already applied. The answer carries the records after this position, oldest first. A cursor that predates the retained 90 day window needs a fresh snapshot instead.
+ */
+export type SyncCursor = string;
+
+/**
+ * Largest number of change records in one answer. The server uses 100 when the parameter is absent and never returns more than 500.
+ */
+export type SyncLimit = number;
 
 /**
  * The settings to store for the signed in account.
@@ -1577,6 +1760,11 @@ export type PreviewPurge = PreviewPurgeInput;
  * File purge payload.
  */
 export type PurgeFiles = PurgeFilesInput;
+
+/**
+ * Snapshot start payload.
+ */
+export type StartSnapshot = StartSnapshotInput;
 
 export type GetAccountData = {
     body?: never;
@@ -4113,3 +4301,208 @@ export type GetRevisionResponses = {
 };
 
 export type GetRevisionResponse = GetRevisionResponses[keyof GetRevisionResponses];
+
+export type GetChangesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query: {
+        /**
+         * Commit ordered cursor the client already applied. The answer carries the records after this position, oldest first. A cursor that predates the retained 90 day window needs a fresh snapshot instead.
+         */
+        cursor: string;
+        /**
+         * Largest number of change records in one answer. The server uses 100 when the parameter is absent and never returns more than 500.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/sync/changes';
+};
+
+export type GetChangesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The snapshot expired, is unknown, was invalidated by a purge, or the sync cursor predates the retained 90 day window. The code is snapshot_required. The client starts a fresh snapshot and keeps its local work.
+     */
+    410: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetChangesError = GetChangesErrors[keyof GetChangesErrors];
+
+export type GetChangesResponses = {
+    /**
+     * Ordered incremental changes after a cursor.
+     */
+    200: SyncChanges;
+};
+
+export type GetChangesResponse = GetChangesResponses[keyof GetChangesResponses];
+
+export type StartSnapshotData = {
+    /**
+     * Snapshot start payload.
+     */
+    body: StartSnapshot;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/sync/snapshots';
+};
+
+export type StartSnapshotErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type StartSnapshotError = StartSnapshotErrors[keyof StartSnapshotErrors];
+
+export type StartSnapshotResponses = {
+    /**
+     * The captured snapshot and its opaque page token.
+     */
+    200: SnapshotStarted;
+};
+
+export type StartSnapshotResponse = StartSnapshotResponses[keyof StartSnapshotResponses];
+
+export type GetSnapshotPageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Opaque token of a materialized snapshot, issued by the snapshot start operation. Only its hash is stored, so the value cannot be guessed.
+         */
+        token: string;
+    };
+    query?: {
+        /**
+         * Ordinal of the first snapshot item to return. Use the nextPosition value of the previous page. The first page starts at zero.
+         */
+        position?: number;
+        /**
+         * Largest number of snapshot items in one page. The server uses the page size stored with the snapshot when the parameter is absent and never returns more than 500.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/sync/snapshots/{token}';
+};
+
+export type GetSnapshotPageErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The snapshot expired, is unknown, was invalidated by a purge, or the sync cursor predates the retained 90 day window. The code is snapshot_required. The client starts a fresh snapshot and keeps its local work.
+     */
+    410: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetSnapshotPageError = GetSnapshotPageErrors[keyof GetSnapshotPageErrors];
+
+export type GetSnapshotPageResponses = {
+    /**
+     * One page of the items that a snapshot captured.
+     */
+    200: SnapshotPage;
+};
+
+export type GetSnapshotPageResponse = GetSnapshotPageResponses[keyof GetSnapshotPageResponses];

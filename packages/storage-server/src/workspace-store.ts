@@ -18,6 +18,7 @@ import {
   fail,
   maxPageSize,
   ok,
+  snapshotTtlMs,
   type OperationalErrorKind,
   type AcceptedChangeset,
   type AcceptedRevision,
@@ -30,6 +31,11 @@ import {
   type RevisionInput,
   type RevisionRecord,
   type Role,
+  type SnapshotPage,
+  type SnapshotStart,
+  type StartSnapshotInput,
+  type SyncChangeFeed,
+  type TransactOptions,
   type WorkspaceStore,
   type WorkspaceTransaction,
   type AcceptedBranch,
@@ -43,7 +49,7 @@ import {
   type PurgedFilesResult,
   type SubmitBranchInput,
 } from '@notesapp/core';
-import { and, eq, gt, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import {
@@ -59,10 +65,16 @@ import {
   purgeMarkers,
   revisionParents,
   revisions,
-  shares,
   syncChanges,
   workspaceUsage,
 } from './schema.ts';
+import {
+  captureSnapshot,
+  emitSyncRows,
+  readSnapshotPage,
+  readSyncChanges,
+  runSyncCleanup,
+} from './snapshots.ts';
 
 /**
  * Bytes charged for the metadata of one accepted revision.
@@ -105,6 +117,17 @@ export type WorkspaceStoreOptions = {
 
 /** A workspace store and the calls that a process needs to manage its pool. */
 export type WorkspaceStoreHandle = WorkspaceStore & {
+  /**
+   * Removes expired snapshots and change records older than the retention.
+   *
+   * Revisions, contents, receipts, and purge markers are left alone, so saved
+   * history stays valid beyond the event window. Returns how many snapshot
+   * rows and change rows were removed.
+   */
+  cleanupSync(now: Date): Promise<{
+    expiredSnapshots: number;
+    oldChanges: number;
+  }>;
   /**
    * The identity setting of one pooled connection outside a transaction.
    *
@@ -418,6 +441,7 @@ export function openWorkspaceStore(
       actor: Actor,
       workspaceId: string,
       run: (tx: WorkspaceTransaction) => Promise<T>,
+      options: TransactOptions = {},
     ): Promise<T> {
       assertUuid(actor.accountId, 'the actor account');
       assertUuid(workspaceId, 'the workspace');
@@ -433,6 +457,13 @@ export function openWorkspaceStore(
         const db = drizzle({ client });
         await client.query('begin');
         try {
+          // A snapshot capture reads the files and the high-water cursor from
+          // one stable view, so concurrent commits land after its cursor.
+          if (options.isolation === 'repeatable-read') {
+            await client.query(
+              'set transaction isolation level repeatable read',
+            );
+          }
           await client.query(
             "select set_config('notesapp.account_id', $1, true)",
             [actor.accountId],
@@ -471,6 +502,24 @@ export function openWorkspaceStore(
           if (postgresFailure(error) !== null) throw operational(error);
           throw error;
         }
+      } finally {
+        client.release();
+      }
+    },
+
+    async cleanupSync(
+      now: Date,
+    ): Promise<{ expiredSnapshots: number; oldChanges: number }> {
+      let client: pg.PoolClient;
+      try {
+        client = await pool.connect();
+      } catch (error) {
+        throw operational(error);
+      }
+      try {
+        return await runSyncCleanup(client, now);
+      } catch (error) {
+        throw operational(error);
       } finally {
         client.release();
       }
@@ -728,16 +777,35 @@ function createTransaction(
       const ids = [...fileIds];
       // A share of a deleted file is revoked, not removed, so the audit trail
       // of the publication survives the deletion.
-      await db
-        .update(shares)
-        .set({ revokedAt: sql`now()` })
-        .where(
-          and(
-            eq(shares.workspaceId, workspaceId),
-            inArray(shares.fileId, ids),
-            isNull(shares.revokedAt),
-          ),
+      let revoked: { id: string }[];
+      try {
+        const result = await client.query<{ id: string }>(
+          `update shares set revoked_at = now()
+            where workspace_id = $1 and file_id = any($2::uuid[]) and revoked_at is null
+            returning id`,
+          [workspaceId, ids],
         );
+        revoked = result.rows;
+      } catch (error) {
+        throw operational(error);
+      }
+      if (revoked.length > 0) {
+        // The revocation is part of the deleting commit, so it joins the same
+        // ordered stream under the workspace lock that this transaction holds.
+        try {
+          await emitSyncRows(client, {
+            workspaceId,
+            entries: revoked.map((share) => ({
+              entityKind: 'share' as const,
+              entityId: share.id,
+              revisionId: null,
+              deleted: true,
+            })),
+          });
+        } catch (error) {
+          throw operational(error);
+        }
+      }
       // The file leaves the link index, so it disappears from backlinks and
       // from normal search. The search task adds its own rows to this call.
       await db
@@ -1117,6 +1185,19 @@ function createTransaction(
       }
 
       try {
+        // A purge removes revisions that a live snapshot may pin. Their items
+        // are removed first, so the foreign key holds; the snapshot then fails
+        // its item count check and its readers restart with a fresh one.
+        const pinned = await client.query<{ id: string }>(
+          'select id from revisions where workspace_id = $1 and file_id = any($2::uuid[])',
+          [workspaceId, [...fileIds]],
+        );
+        if (pinned.rows.length > 0) {
+          await client.query(
+            'delete from snapshot_items where workspace_id = $1 and revision_id = any($2::uuid[])',
+            [workspaceId, pinned.rows.map((revision) => revision.id)],
+          );
+        }
         const res = await client.query<{
           purged_file_ids: string[];
           purged_revision_ids: string[];
@@ -1130,6 +1211,20 @@ function createTransaction(
         const purgedFileIds = row?.purged_file_ids ?? [];
         const purgedRevisionIds = row?.purged_revision_ids ?? [];
         const reclaimedBytes = Number(row?.reclaimed_bytes ?? 0);
+
+        // The permanent deletion joins the ordered sync stream under the
+        // workspace lock, so a sync client learns to drop the file.
+        if (purgedFileIds.length > 0) {
+          await emitSyncRows(client, {
+            workspaceId,
+            entries: purgedFileIds.map((fileId) => ({
+              entityKind: 'file' as const,
+              entityId: fileId,
+              revisionId: null,
+              deleted: true,
+            })),
+          });
+        }
 
         const outcome: PurgedFilesResult = {
           mutationId,
@@ -1155,6 +1250,82 @@ function createTransaction(
         if (failure?.code === '42501') {
           return fail('forbidden');
         }
+        throw operational(error);
+      }
+    },
+
+    async startSnapshot(input: StartSnapshotInput): Promise<SnapshotStart> {
+      if (!Number.isInteger(input.pageSize) || input.pageSize < 1) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the snapshot page size is outside the served range.',
+        );
+      }
+      try {
+        return await captureSnapshot(client, {
+          workspaceId,
+          accountId: actor.accountId,
+          pageSize: input.pageSize,
+          now: new Date(),
+          ttlMs: snapshotTtlMs,
+        });
+      } catch (error) {
+        throw operational(error);
+      }
+    },
+
+    async snapshotPage(
+      token: string,
+      position: number,
+      limit: number,
+    ): Promise<SnapshotPage | null> {
+      if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        !Number.isInteger(limit) ||
+        limit < 1
+      ) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the snapshot page range is outside the served range.',
+        );
+      }
+      try {
+        return await readSnapshotPage(client, {
+          workspaceId,
+          token,
+          position,
+          limit,
+          now: new Date(),
+        });
+      } catch (error) {
+        throw operational(error);
+      }
+    },
+
+    async syncChanges(
+      afterCursor: string,
+      limit: number,
+    ): Promise<SyncChangeFeed> {
+      if (!/^[0-9]{1,32}$/.test(afterCursor)) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the sync cursor is not a decimal string.',
+        );
+      }
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the sync limit is outside the served range.',
+        );
+      }
+      try {
+        return await readSyncChanges(client, {
+          workspaceId,
+          afterCursor,
+          limit,
+        });
+      } catch (error) {
         throw operational(error);
       }
     },

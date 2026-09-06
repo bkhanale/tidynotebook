@@ -80,3 +80,4 @@ export { createMailTransport } from './auth/mail.ts';
 export { invitationTokenHash } from './http/workspaces.ts';
 export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
+export { createSyncCleanup } from './jobs/sync-cleanup.ts';

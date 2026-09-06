@@ -19,6 +19,7 @@ import { createProblem, problemMediaType } from './problem.ts';
 import type { AttachmentStore } from '@notesapp/storage-server';
 import { createAttachmentHandlers } from './attachments.ts';
 import { createHistoryHandlers } from './history.ts';
+import { createSyncHandlers } from './sync.ts';
 
 /**
  * A store that is not there yet.
@@ -148,6 +149,7 @@ export function createHandlers(
     ...createAccountHandlers(store, dependencies.now),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
+    ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createAttachmentHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),

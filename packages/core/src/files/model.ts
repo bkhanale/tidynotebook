@@ -111,6 +111,13 @@ export type AcceptedChangeset = {
  * `invalid_content` means that submitted content does not match its declared
  * digest. Storage checks this, because a wrong digest would attach a revision
  * to bytes that the client never sent.
+ *
+ * `snapshot_required` means that a snapshot expired, is unknown, was
+ * invalidated by a purge, or that a sync cursor predates the retained event
+ * window. The client starts a fresh snapshot and keeps its local work.
+ *
+ * `unsupported_version` means that the client asked for a sync protocol
+ * version that this server does not serve. The request changes nothing.
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -122,6 +129,8 @@ export type DomainErrorCode =
   | 'quota'
   | 'purged'
   | 'mutation_reused'
+  | 'snapshot_required'
+  | 'unsupported_version'
   | 'not_found';
 
 /**

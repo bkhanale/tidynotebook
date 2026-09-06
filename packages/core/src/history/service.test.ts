@@ -275,6 +275,10 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
         }),
       );
     },
+    startSnapshot: () => Promise.reject(new Error('no snapshot in this test')),
+    snapshotPage: () => Promise.resolve(null),
+    syncChanges: () =>
+      Promise.resolve({ changes: [], highWater: '0', oldestRetained: null }),
   };
 
   return {

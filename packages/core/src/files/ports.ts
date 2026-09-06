@@ -183,6 +183,38 @@ export type WorkspaceTransaction = {
     fileIds: readonly string[],
     digest: string,
   ): Promise<Result<PurgedFilesResult>>;
+  /**
+   * Captures accepted metadata and the high-water cursor in one transaction.
+   *
+   * The implementation reads the live files and the workspace cursor under
+   * repeatable read (see `TransactOptions`), materializes one item per live
+   * file with its immutable head revision, stores the rows under a random
+   * opaque token kept as a hash, and returns the token with the captured
+   * cursor. It evicts the oldest open snapshot past the admission limit
+   * instead of refusing the call.
+   */
+  startSnapshot(input: StartSnapshotInput): Promise<SnapshotStart>;
+  /**
+   * Reads one page of a materialized snapshot.
+   *
+   * The read runs in its own short transaction: no transaction stays open
+   * across network pages. The answer is `null` when the token is unknown, the
+   * snapshot expired, or a purge removed one of its pinned revisions. The
+   * caller maps `null` to `snapshot_required`.
+   */
+  snapshotPage(
+    token: string,
+    position: number,
+    limit: number,
+  ): Promise<SnapshotPage | null>;
+  /**
+   * Reads the ordered change records after one cursor.
+   *
+   * The answer carries the rows, the current high-water cursor, and the oldest
+   * retained cursor, so the caller can tell an empty poll from a cursor that
+   * predates the retained window.
+   */
+  syncChanges(afterCursor: string, limit: number): Promise<SyncChangeFeed>;
 };
 
 /** One historic revision item for history listing. */
@@ -274,6 +306,101 @@ export type PurgedFilesResult = {
   readonly reclaimedBytes: number;
 };
 
+/** The kind of entity that one incremental sync record refers to. */
+export type SyncEntityKind = 'file' | 'membership' | 'share';
+
+/** What a caller asks for when it starts a snapshot. */
+export type StartSnapshotInput = {
+  /** Largest number of items in one snapshot page. */
+  readonly pageSize: number;
+};
+
+/**
+ * One pinned file inside a snapshot.
+ *
+ * The revision identifier is immutable: later commits cannot change what a
+ * page shows. Content transfer reuses the revision read by this identifier,
+ * never the later current head.
+ */
+export type SnapshotItem = {
+  readonly fileId: string;
+  readonly revisionId: string;
+  readonly path: string;
+  readonly kind: FileKind;
+  readonly deleted: boolean;
+};
+
+/** The captured state that a snapshot start returns. */
+export type SnapshotStart = {
+  /** Opaque token that addresses the materialized pages. */
+  readonly token: string;
+  /** Instant at which the snapshot expires, as an ISO 8601 string. */
+  readonly expiresAt: string;
+  /** The captured high-water cursor, as a decimal string. */
+  readonly cursor: string;
+  /** How many items the snapshot captured. */
+  readonly itemCount: number;
+  /** The page size stored with the snapshot. */
+  readonly pageSize: number;
+};
+
+/** One page of a materialized snapshot. */
+export type SnapshotPage = {
+  /** The token of the snapshot, echoed for the client. */
+  readonly token: string;
+  /** The captured high-water cursor, as a decimal string. */
+  readonly cursor: string;
+  /** Instant at which the snapshot expires, as an ISO 8601 string. */
+  readonly expiresAt: string;
+  /** Ordinal of the first item of this page. */
+  readonly position: number;
+  /** Ordinal of the next page, or `null` when this page is the last. */
+  readonly nextPosition: number | null;
+  /** How many items the snapshot holds now. */
+  readonly totalItems: number;
+  readonly items: readonly SnapshotItem[];
+};
+
+/** One commit ordered incremental change record. */
+export type SyncChange = {
+  /** The commit ordered position of this change, as a decimal string. */
+  readonly cursor: string;
+  readonly entityKind: SyncEntityKind;
+  readonly entityId: string;
+  /** The revision of a file change, or `null` for a non-file change. */
+  readonly revisionId: string | null;
+  readonly deleted: boolean;
+};
+
+/** The raw feed that one incremental sync read returns. */
+export type SyncChangeFeed = {
+  /** Ordered changes after the requested cursor, oldest first. */
+  readonly changes: readonly SyncChange[];
+  /** The current high-water cursor, as a decimal string. */
+  readonly highWater: string;
+  /** The oldest retained cursor, or `null` when no record is retained. */
+  readonly oldestRetained: string | null;
+};
+
+/** One page of incremental changes with the cursor to continue from. */
+export type SyncPage = {
+  readonly changes: readonly SyncChange[];
+  /** The cursor the client sends to continue, as a decimal string. */
+  readonly nextCursor: string;
+};
+
+/** Options of one open workspace transaction. */
+export type TransactOptions = {
+  /**
+   * The isolation level of the transaction.
+   *
+   * A snapshot capture asks for `repeatable-read`, so the captured metadata
+   * and its high-water cursor come from one stable view. Every other use case
+   * leaves this absent and keeps the default level.
+   */
+  readonly isolation?: 'repeatable-read';
+};
+
 /** Opens one workspace transaction for a verified actor. */
 export type WorkspaceStore = {
   /**
@@ -285,6 +412,7 @@ export type WorkspaceStore = {
     actor: Actor,
     workspaceId: string,
     run: (tx: WorkspaceTransaction) => Promise<T>,
+    options?: TransactOptions,
   ): Promise<T>;
 };
 

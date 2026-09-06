@@ -28,6 +28,7 @@ export type ProblemCode =
   | 'path_conflict'
   | 'mutation_reused'
   | 'purged'
+  | 'snapshot_required'
   | 'precondition_required'
   | 'invalid_path'
   | 'invalid_graph'
@@ -70,6 +71,8 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   mutation_reused:
     'That mutation identity was already used for another operation.',
   purged: 'The file was permanently deleted and cannot be written again.',
+  snapshot_required:
+    'The snapshot expired or the cursor predates the retained window. Start a fresh snapshot.',
   precondition_required: 'The operation needs a precondition.',
   invalid_path: 'The path does not follow the workspace path rules.',
   invalid_graph: 'The submitted revisions are not a valid change.',
@@ -250,6 +253,8 @@ const domainStatus: Readonly<
   path_conflict: { status: 409, code: 'path_conflict' },
   mutation_reused: { status: 409, code: 'mutation_reused' },
   purged: { status: 410, code: 'purged' },
+  snapshot_required: { status: 410, code: 'snapshot_required' },
+  unsupported_version: { status: 400, code: 'invalid_request' },
   invalid_path: { status: 422, code: 'invalid_path' },
   invalid_graph: { status: 422, code: 'invalid_graph' },
   invalid_content: { status: 422, code: 'invalid_content' },
@@ -267,6 +272,10 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
     'That mutation identity was already used for another operation.',
   purged:
     'The file was permanently deleted, so this identifier can never be written again.',
+  snapshot_required:
+    'The snapshot expired or the cursor predates the retained window. Start a fresh snapshot and keep local work.',
+  unsupported_version:
+    'The requested sync protocol version is not served. No data was changed.',
   invalid_path: 'A submitted path does not follow the workspace path rules.',
   invalid_graph:
     'The submitted revisions are not a valid change of the stored history.',

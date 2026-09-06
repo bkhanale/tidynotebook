@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -677,5 +677,54 @@ export const getRevision = <ThrowOnError extends boolean = false>(options: Optio
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/api/workspaces/{workspaceId}/revisions/{revisionId}',
+    ...options
+});
+
+/**
+ * Read ordered incremental changes after a cursor.
+ *
+ * Reads the commit ordered change records after a cursor the client already applied, oldest first. Every relevant write allocates its cursor under the workspace lock, including membership, deletion, purge, and share revocation, so the stream cannot skip a transaction that commits late. Change records are kept for 90 days; an older cursor answers 410 with the code snapshot_required, while saved revision identifiers stay valid beyond that window.
+ */
+export const getChanges = <ThrowOnError extends boolean = false>(options: Options<GetChangesData, ThrowOnError>): RequestResult<GetChangesResponses, GetChangesErrors, ThrowOnError> => (options.client ?? client).get<GetChangesResponses, GetChangesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/sync/changes',
+    ...options
+});
+
+/**
+ * Capture a consistent download snapshot of a workspace.
+ *
+ * Captures the accepted file metadata and the workspace high-water cursor in one repeatable-read transaction and materializes bounded metadata pages for 15 minutes. Each item names an immutable revision identifier; content transfer reuses the revision read by that identifier, never a later current head. The syncVersion names the sync protocol version; only version 1 is served and any other value is rejected without changing data.
+ */
+export const startSnapshot = <ThrowOnError extends boolean = false>(options: Options<StartSnapshotData, ThrowOnError>): RequestResult<StartSnapshotResponses, StartSnapshotErrors, ThrowOnError> => (options.client ?? client).post<StartSnapshotResponses, StartSnapshotErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/sync/snapshots',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read one page of a materialized snapshot.
+ *
+ * Reads one page of the items that the snapshot captured. The page runs in its own short transaction and rechecks the current membership; no database transaction stays open across network pages. A missing token, an expired snapshot, and a snapshot that a purge invalidated all answer 410 with the code snapshot_required: the client starts a fresh snapshot and keeps its local work.
+ */
+export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: Options<GetSnapshotPageData, ThrowOnError>): RequestResult<GetSnapshotPageResponses, GetSnapshotPageErrors, ThrowOnError> => (options.client ?? client).get<GetSnapshotPageResponses, GetSnapshotPageErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/sync/snapshots/{token}',
     ...options
 });

@@ -1048,6 +1048,114 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/sync/snapshots:
+    post:
+      operationId: startSnapshot
+      summary: Capture a consistent download snapshot of a workspace.
+      description: >-
+        Captures the accepted file metadata and the workspace high-water cursor
+        in one repeatable-read transaction and materializes bounded metadata
+        pages for 15 minutes. Each item names an immutable revision identifier;
+        content transfer reuses the revision read by that identifier, never a
+        later current head. The syncVersion names the sync protocol version;
+        only version 1 is served and any other value is rejected without
+        changing data.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/StartSnapshot'
+      responses:
+        '200':
+          $ref: '#/components/responses/SnapshotStarted'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/sync/snapshots/{token}:
+    get:
+      operationId: getSnapshotPage
+      summary: Read one page of a materialized snapshot.
+      description: >-
+        Reads one page of the items that the snapshot captured. The page runs
+        in its own short transaction and rechecks the current membership; no
+        database transaction stays open across network pages. A missing token,
+        an expired snapshot, and a snapshot that a purge invalidated all answer
+        410 with the code snapshot_required: the client starts a fresh snapshot
+        and keeps its local work.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SnapshotToken'
+        - $ref: '#/components/parameters/SnapshotPosition'
+        - $ref: '#/components/parameters/SnapshotPageLimit'
+      responses:
+        '200':
+          $ref: '#/components/responses/SnapshotPage'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/SnapshotRequired'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/sync/changes:
+    get:
+      operationId: getChanges
+      summary: Read ordered incremental changes after a cursor.
+      description: >-
+        Reads the commit ordered change records after a cursor the client
+        already applied, oldest first. Every relevant write allocates its
+        cursor under the workspace lock, including membership, deletion, purge,
+        and share revocation, so the stream cannot skip a transaction that
+        commits late. Change records are kept for 90 days; an older cursor
+        answers 410 with the code snapshot_required, while saved revision
+        identifiers stay valid beyond that window.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/SyncCursor'
+        - $ref: '#/components/parameters/SyncLimit'
+      responses:
+        '200':
+          $ref: '#/components/responses/SyncChanges'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/SnapshotRequired'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/invitations/acceptance:
     post:
       operationId: acceptInvitation
@@ -1367,6 +1475,74 @@ components:
         enum:
           - unresolved
           - resolved
+    SnapshotToken:
+      name: token
+      in: path
+      required: true
+      style: simple
+      explode: false
+      description: >-
+        Opaque token of a materialized snapshot, issued by the snapshot start
+        operation. Only its hash is stored, so the value cannot be guessed.
+      schema:
+        type: string
+        minLength: 43
+        maxLength: 43
+        pattern: ^[A-Za-z0-9_-]{43}$
+    SnapshotPosition:
+      name: position
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Ordinal of the first snapshot item to return. Use the nextPosition
+        value of the previous page. The first page starts at zero.
+      schema:
+        type: integer
+        minimum: 0
+    SnapshotPageLimit:
+      name: limit
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Largest number of snapshot items in one page. The server uses the page
+        size stored with the snapshot when the parameter is absent and never
+        returns more than 500.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+    SyncCursor:
+      name: cursor
+      in: query
+      required: true
+      style: form
+      explode: true
+      description: >-
+        Commit ordered cursor the client already applied. The answer carries
+        the records after this position, oldest first. A cursor that predates
+        the retained 90 day window needs a fresh snapshot instead.
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 32
+        pattern: ^[0-9]+$
+    SyncLimit:
+      name: limit
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Largest number of change records in one answer. The server uses 100
+        when the parameter is absent and never returns more than 500.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
   requestBodies:
     Preferences:
       description: The settings to store for the signed in account.
@@ -1501,6 +1677,13 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/PurgeFilesInput'
+    StartSnapshot:
+      description: Snapshot start payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StartSnapshotInput'
   responses:
     Health:
       description: The service process is running.
@@ -1765,6 +1948,34 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/PurgedFiles'
+    SnapshotStarted:
+      description: The captured snapshot and its opaque page token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SnapshotStarted'
+    SnapshotPage:
+      description: One page of the items that a snapshot captured.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SnapshotPage'
+    SyncChanges:
+      description: Ordered incremental changes after a cursor.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SyncChanges'
+    SnapshotRequired:
+      description: >-
+        The snapshot expired, is unknown, was invalidated by a purge, or the
+        sync cursor predates the retained 90 day window. The code is
+        snapshot_required. The client starts a fresh snapshot and keeps its
+        local work.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
   schemas:
     HealthReport:
       type: object
@@ -3622,3 +3833,214 @@ components:
             $ref: '#/components/schemas/Uuid'
         reclaimedBytes:
           type: integer
+    StartSnapshotInput:
+      type: object
+      description: Snapshot start payload.
+      additionalProperties: false
+      required:
+        - syncVersion
+      properties:
+        syncVersion:
+          type: integer
+          description: >-
+            Sync protocol version of the client. Only version 1 is served; any
+            other value is rejected without changing data.
+          enum:
+            - 1
+        pageSize:
+          type: integer
+          description: >-
+            Largest number of snapshot items in one page. The server uses 100
+            when the value is absent and never stores more than 500.
+          minimum: 1
+          maximum: 500
+    SnapshotItem:
+      type: object
+      description: >-
+        One pinned file of a snapshot. The revision identifier is immutable, so
+        a later commit cannot change what a page shows.
+      additionalProperties: false
+      required:
+        - fileId
+        - revisionId
+        - path
+        - kind
+        - deleted
+      properties:
+        fileId:
+          $ref: '#/components/schemas/Uuid'
+        revisionId:
+          $ref: '#/components/schemas/Uuid'
+        path:
+          $ref: '#/components/schemas/FilePath'
+        kind:
+          type: string
+          readOnly: true
+          description: Whether the file holds Markdown or an attachment.
+          enum:
+            - note
+            - attachment
+        deleted:
+          type: boolean
+          readOnly: true
+          description: Whether the file was deleted when captured. Always false.
+    SnapshotStarted:
+      type: object
+      description: The captured snapshot and its opaque page token.
+      additionalProperties: false
+      required:
+        - token
+        - expiresAt
+        - cursor
+        - itemCount
+        - pageSize
+      properties:
+        token:
+          type: string
+          readOnly: true
+          description: >-
+            Opaque token that addresses the materialized pages for 15 minutes.
+          minLength: 43
+          maxLength: 43
+          pattern: ^[A-Za-z0-9_-]{43}$
+        expiresAt:
+          type: string
+          readOnly: true
+          description: Instant at which the snapshot expires.
+          format: date-time
+        cursor:
+          type: string
+          readOnly: true
+          description: >-
+            The captured high-water cursor. A sync client asks for changes
+            after this position.
+          minLength: 1
+          maxLength: 32
+          pattern: ^[0-9]+$
+        itemCount:
+          type: integer
+          readOnly: true
+          description: How many items the snapshot captured.
+          minimum: 0
+        pageSize:
+          type: integer
+          readOnly: true
+          description: The page size stored with the snapshot.
+          minimum: 1
+          maximum: 500
+    SnapshotPage:
+      type: object
+      description: One page of the items that a snapshot captured.
+      additionalProperties: false
+      required:
+        - token
+        - cursor
+        - expiresAt
+        - position
+        - nextPosition
+        - totalItems
+        - items
+      properties:
+        token:
+          type: string
+          readOnly: true
+          description: The token of the snapshot, echoed for the client.
+          minLength: 43
+          maxLength: 43
+          pattern: ^[A-Za-z0-9_-]{43}$
+        cursor:
+          type: string
+          readOnly: true
+          description: The captured high-water cursor.
+          minLength: 1
+          maxLength: 32
+          pattern: ^[0-9]+$
+        expiresAt:
+          type: string
+          readOnly: true
+          description: Instant at which the snapshot expires.
+          format: date-time
+        position:
+          type: integer
+          readOnly: true
+          description: Ordinal of the first item of this page.
+          minimum: 0
+        nextPosition:
+          oneOf:
+            - type: integer
+              minimum: 0
+            - type: 'null'
+          readOnly: true
+          description: Ordinal of the next page, or null on the last page.
+        totalItems:
+          type: integer
+          readOnly: true
+          description: How many items the snapshot holds now.
+          minimum: 0
+        items:
+          type: array
+          readOnly: true
+          description: The captured items of this page, ordered by file.
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/SnapshotItem'
+    SyncChangeItem:
+      type: object
+      description: One commit ordered incremental change record.
+      additionalProperties: false
+      required:
+        - cursor
+        - entityKind
+        - entityId
+        - revisionId
+        - deleted
+      properties:
+        cursor:
+          type: string
+          readOnly: true
+          description: The commit ordered position of this change.
+          minLength: 1
+          maxLength: 32
+          pattern: ^[0-9]+$
+        entityKind:
+          type: string
+          readOnly: true
+          description: The kind of entity that the record refers to.
+          enum:
+            - file
+            - membership
+            - share
+        entityId:
+          $ref: '#/components/schemas/Uuid'
+        revisionId:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: The revision of a file change, or null otherwise.
+        deleted:
+          type: boolean
+          readOnly: true
+          description: Whether the change deletes its entity.
+    SyncChanges:
+      type: object
+      description: Ordered incremental changes after a cursor.
+      additionalProperties: false
+      required:
+        - changes
+        - nextCursor
+      properties:
+        changes:
+          type: array
+          readOnly: true
+          description: Ordered changes after the requested cursor, oldest first.
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/SyncChangeItem'
+        nextCursor:
+          type: string
+          readOnly: true
+          description: The cursor the client sends to continue.
+          minLength: 1
+          maxLength: 32
+          pattern: ^[0-9]+$

@@ -203,6 +203,10 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           reclaimedBytes: 0,
         }),
       ),
+    startSnapshot: () => Promise.reject(new Error('no snapshot in this test')),
+    snapshotPage: () => Promise.resolve(null),
+    syncChanges: () =>
+      Promise.resolve({ changes: [], highWater: '0', oldestRetained: null }),
   };
   return {
     transact: <T>(

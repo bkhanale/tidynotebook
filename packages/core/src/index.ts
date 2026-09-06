@@ -49,7 +49,16 @@ export type {
   PurgePreview,
   PurgedFilesResult,
   RevisionRecord,
+  SnapshotItem,
+  SnapshotPage,
+  SnapshotStart,
+  StartSnapshotInput,
   SubmitBranchInput,
+  SyncChange,
+  SyncChangeFeed,
+  SyncEntityKind,
+  SyncPage,
+  TransactOptions,
   WorkspaceStore,
   WorkspaceTransaction,
 } from './files/ports.ts';
@@ -147,3 +156,27 @@ export {
   submitBranch,
 } from './history/service.ts';
 export { previewPurge, purgeFiles } from './history/purge.ts';
+export type {
+  SnapshotPageOptions,
+  StartSnapshotOptions,
+  SyncChangesOptions,
+} from './files/snapshot.ts';
+export {
+  formatSyncCursor,
+  getChanges,
+  getSnapshotPage,
+  isSupportedSyncVersion,
+  maxOpenSnapshots,
+  parseSyncCursor,
+  snapshotDefaultPageSize,
+  snapshotMaxPageSize,
+  snapshotPageSize,
+  snapshotPosition,
+  snapshotTtlMs,
+  startSnapshot,
+  supportedSyncVersions,
+  syncDefaultLimit,
+  syncLimit,
+  syncMaxLimit,
+  syncRetentionDays,
+} from './files/snapshot.ts';
