@@ -124,6 +124,11 @@ export type TestServerOptions = {
   readonly identity?: IdentityResolver;
   /** Maintained protocol libraries that serve part of the HTTP surface. */
   readonly protocols?: readonly ProtocolAdapter[];
+  /** Hook to configure or mount additional adapters on the Fastify instance before listen. */
+  readonly onApp?: (
+    app: Awaited<ReturnType<typeof createAppWithHandlers>>,
+    config: ServerConfig,
+  ) => void | Promise<void>;
 };
 
 /** Starts the server on an ephemeral loopback port. */
@@ -143,6 +148,9 @@ export async function startTestServer(
     identity: options.identity ?? anonymousIdentity,
     protocols: options.protocols ?? [stubProtocol],
   });
+  if (options.onApp !== undefined) {
+    await options.onApp(app, config);
+  }
   await app.listen({ host: '127.0.0.1', port: 0 });
   const address: string | AddressInfo | null = app.server.address();
   if (address === null || typeof address === 'string') {

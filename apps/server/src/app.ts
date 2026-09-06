@@ -39,6 +39,8 @@ import {
   createProblem,
   problemMediaType,
 } from './http/problem.ts';
+import { McpAuthorizationServer } from './mcp/authorization.ts';
+import { mountMcpServer } from './mcp/server.ts';
 
 /**
  * Accepted shape of a caller supplied correlation id. It matches the contract
@@ -54,20 +56,8 @@ export function requestId(supplied: unknown): string {
     : randomUUID();
 }
 
-/**
- * Host header value without its port, lowercased.
- *
- * An IPv6 literal keeps its brackets, because `[::1]:8080` and `[::1]` name
- * the same host and a plain split on the colon would cut the address.
- */
-export function hostName(host: string | undefined): string {
-  const value = (host ?? '').trim().toLowerCase();
-  if (value.startsWith('[')) {
-    const end = value.indexOf(']');
-    return end === -1 ? value : value.slice(0, end + 1);
-  }
-  return value.split(':')[0] ?? '';
-}
+import { hostName } from './http/host.ts';
+export { hostName } from './http/host.ts';
 
 /** Removes a public share secret before a request URL reaches a log. */
 export function redactAccessUrl(url: string): string {
@@ -288,6 +278,18 @@ export async function createApp(
     }),
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],
+  });
+  const authServer = new McpAuthorizationServer({
+    config,
+    identity,
+    resolveSessionActor: (req) => adapter.resolveActor(req).catch(() => null),
+  });
+  mountMcpServer(app, {
+    config,
+    content,
+    attachments,
+    identity,
+    authServer,
   });
   sink.write = (record): void => {
     const where = { source: 'better-auth' };

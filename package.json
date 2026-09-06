@@ -22,12 +22,17 @@
     "db:generate": "pnpm --filter @notesapp/storage-server run db:generate",
     "db:migrate": "node packages/storage-server/src/migrate.ts",
     "owner:bootstrap": "node apps/server/src/cli/bootstrap.ts",
-    "account:recover": "node apps/server/src/cli/recover-account.ts"
+    "account:recover": "node apps/server/src/cli/recover-account.ts",
+    "mcp:stdio": "node apps/mcp-stdio/dist/main.js"
   },
   "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/node": "2.0.0",
+    "@modelcontextprotocol/server": "2.0.0",
     "@notesapp/api-client": "workspace:*",
     "@notesapp/api-contract": "workspace:*",
     "@notesapp/core": "workspace:*",
+    "@notesapp/mcp-stdio": "workspace:*",
     "@notesapp/server": "workspace:*",
     "@notesapp/storage-browser": "workspace:*",
     "@notesapp/storage-server": "workspace:*",
