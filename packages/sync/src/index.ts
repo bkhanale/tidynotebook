@@ -95,3 +95,5 @@ export type {
   SyncEngine,
 } from './engine.ts';
 export { createSyncEngine } from './engine.ts';
+export type { LocalSearchFile } from './local-search.ts';
+export { searchLocal } from './local-search.ts';

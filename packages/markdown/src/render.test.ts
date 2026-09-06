@@ -70,9 +70,21 @@ await test('raw HTML and its content are dropped', async () => {
   assert.ok(html.includes('text  more'));
 });
 
-await test('a heading renders with no attribute at all', async () => {
-  const html = await renderMarkdown('# Heading\n');
-  assert.equal(html.trim(), '<h1>Heading</h1>');
+await test('headings get unique namespaced fragment identifiers', async () => {
+  const html = await renderMarkdown(
+    '# Heading\n\n## Heading\n\n[local](#heading)\n',
+  );
+  assert.ok(html.includes('<h1 id="user-content-heading">Heading</h1>'));
+  assert.ok(html.includes('<h2 id="user-content-heading-2">Heading</h2>'));
+  assert.ok(html.includes('<a href="#user-content-heading">local</a>'));
+});
+
+await test('a note link can name a safe heading fragment', async () => {
+  const html = await renderMarkdown(`[a](/notes/${noteIdA}#heading_2)\n`);
+  assert.equal(
+    html.trim(),
+    `<p><a href="/notes/${noteIdA}#user-content-heading_2">a</a></p>`,
+  );
 });
 
 await test('hostile text inside math or a diagram stays inert', async () => {

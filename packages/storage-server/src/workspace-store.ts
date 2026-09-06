@@ -48,7 +48,10 @@ import {
   type PurgePreview,
   type PurgedFilesResult,
   type SubmitBranchInput,
+  type Backlink,
+  type SearchHit,
 } from '@notesapp/core';
+import { extractLinks, parseWikiLink } from '@notesapp/markdown';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -65,6 +68,7 @@ import {
   purgeMarkers,
   revisionParents,
   revisions,
+  searchIndex,
   syncChanges,
   workspaceUsage,
 } from './schema.ts';
@@ -423,6 +427,114 @@ function clientTime(revision: RevisionInput): Date {
   return parsed;
 }
 
+/** A case folded title key used only to resolve author written wiki links. */
+function titleKey(value: string): string {
+  return value.normalize('NFC').trim().toLocaleLowerCase('en-US');
+}
+
+/** The full path title and basename title of one Markdown path. */
+function titleKeys(path: string): readonly string[] {
+  const withoutExtension = path.toLowerCase().endsWith('.md')
+    ? path.slice(0, -3)
+    : path;
+  const basename = withoutExtension.split('/').at(-1) ?? withoutExtension;
+  return basename === withoutExtension
+    ? [titleKey(withoutExtension)]
+    : [titleKey(withoutExtension), titleKey(basename)];
+}
+
+/**
+ * Replaces the search and backlink rows of every accepted head in this write.
+ *
+ * This runs after the file heads and paths move, inside the same transaction.
+ * A reader can therefore observe either the old head with its old indexes or
+ * the new head with its new indexes, but never a mixed state.
+ */
+async function updateAcceptedIndexes(
+  db: NodePgDatabase,
+  workspaceId: string,
+  acceptedHeads: ReadonlyMap<string, RevisionInput>,
+): Promise<void> {
+  const fileIds = [...acceptedHeads.keys()];
+  if (fileIds.length === 0) return;
+  await db
+    .delete(linkIndex)
+    .where(
+      and(
+        eq(linkIndex.workspaceId, workspaceId),
+        inArray(linkIndex.sourceFileId, fileIds),
+      ),
+    );
+  await db
+    .delete(searchIndex)
+    .where(
+      and(
+        eq(searchIndex.workspaceId, workspaceId),
+        inArray(searchIndex.fileId, fileIds),
+      ),
+    );
+
+  const searchable = [...acceptedHeads.values()].filter(
+    (tip) => !tip.deleted && tip.content.kind === 'markdown',
+  );
+  if (searchable.length === 0) return;
+
+  await db.insert(searchIndex).values(
+    searchable.map((tip) => ({
+      workspaceId,
+      fileId: tip.fileId,
+      revisionId: tip.id,
+      path: tip.path,
+      searchText: `${tip.path}\n${tip.content.kind === 'markdown' ? tip.content.text : ''}`,
+    })),
+  );
+
+  const live = await db
+    .select({ id: files.id, path: files.path })
+    .from(files)
+    .where(
+      and(
+        eq(files.workspaceId, workspaceId),
+        eq(files.kind, 'note'),
+        eq(files.deleted, false),
+        isNotNull(files.headRevisionId),
+      ),
+    );
+  const liveIds = new Set(live.map((file) => file.id));
+  const byTitle = new Map<string, string[]>();
+  for (const file of live) {
+    for (const key of titleKeys(file.path)) {
+      const matches = byTitle.get(key) ?? [];
+      if (!matches.includes(file.id)) matches.push(file.id);
+      byTitle.set(key, matches);
+    }
+  }
+
+  const rows = searchable.flatMap((tip) => {
+    if (tip.content.kind !== 'markdown') return [];
+    return extractLinks(tip.content.text).map((link, ordinal) => {
+      let targetFileId: string | null = null;
+      if (link.targetId !== null && liveIds.has(link.targetId)) {
+        targetFileId = link.targetId;
+      } else {
+        const wiki = parseWikiLink(link.source);
+        const candidates =
+          wiki === null ? [] : (byTitle.get(titleKey(wiki.title)) ?? []);
+        if (candidates.length === 1) targetFileId = candidates[0] ?? null;
+      }
+      return {
+        workspaceId,
+        sourceFileId: tip.fileId,
+        sourceRevisionId: tip.id,
+        ordinal,
+        targetFileId,
+        sourceText: link.source,
+      };
+    });
+  });
+  if (rows.length > 0) await db.insert(linkIndex).values(rows);
+}
+
 /** Opens a workspace store over one PostgreSQL connection pool. */
 export function openWorkspaceStore(
   databaseUrl: string,
@@ -771,6 +883,84 @@ function createTransaction(
       };
     },
 
+    async search(query: string, limit: number): Promise<readonly SearchHit[]> {
+      const result = await client.query<{
+        file_id: string;
+        path: string;
+        revision_id: string;
+        excerpt: string;
+      }>(
+        `select file_id, path, revision_id,
+                left(replace(replace(
+                  ts_headline('simple', search_text,
+                    websearch_to_tsquery('simple', $2),
+                    'MaxWords=30, MinWords=8, ShortWord=2'),
+                  '<b>', ''), '</b>', ''), 1024) as excerpt
+           from public.search_index
+          where workspace_id = $1
+            and to_tsvector('simple', search_text)
+                @@ websearch_to_tsquery('simple', $2)
+          order by ts_rank_cd(
+                     to_tsvector('simple', search_text),
+                     websearch_to_tsquery('simple', $2)
+                   ) desc,
+                   path,
+                   file_id
+          limit $3`,
+        [workspaceId, query, limit],
+      );
+      return result.rows.map((row) => ({
+        fileId: row.file_id,
+        path: row.path,
+        revisionId: row.revision_id,
+        excerpt: row.excerpt,
+      }));
+    },
+
+    async backlinks(
+      fileId: string,
+      limit: number,
+    ): Promise<readonly Backlink[]> {
+      assertUuid(fileId, 'the backlink target');
+      const result = await client.query<{
+        file_id: string;
+        path: string;
+        revision_id: string;
+        excerpt: string;
+        source_text: string;
+      }>(
+        `select source.id as file_id,
+                source.path,
+                links.source_revision_id as revision_id,
+                left(content.markdown, 240) as excerpt,
+                links.source_text
+           from public.link_index links
+           join public.files source
+             on source.workspace_id = links.workspace_id
+            and source.id = links.source_file_id
+            and source.head_revision_id = links.source_revision_id
+            and source.deleted = false
+           join public.revisions revision
+             on revision.workspace_id = links.workspace_id
+            and revision.id = links.source_revision_id
+           join public.contents content
+             on content.workspace_id = revision.workspace_id
+            and content.digest = revision.content_digest
+          where links.workspace_id = $1
+            and links.target_file_id = $2
+          order by source.path, source.id, links.ordinal
+          limit $3`,
+        [workspaceId, fileId, limit],
+      );
+      return result.rows.map((row) => ({
+        fileId: row.file_id,
+        path: row.path,
+        revisionId: row.revision_id,
+        excerpt: row.excerpt,
+        sourceText: row.source_text,
+      }));
+    },
+
     async onFilesDeleted(fileIds: readonly string[]): Promise<void> {
       if (fileIds.length === 0) return;
       for (const fileId of fileIds) assertUuid(fileId, 'a file');
@@ -814,6 +1004,14 @@ function createTransaction(
           and(
             eq(linkIndex.workspaceId, workspaceId),
             inArray(linkIndex.sourceFileId, ids),
+          ),
+        );
+      await db
+        .delete(searchIndex)
+        .where(
+          and(
+            eq(searchIndex.workspaceId, workspaceId),
+            inArray(searchIndex.fileId, ids),
           ),
         );
     },
@@ -1636,6 +1834,8 @@ async function writeChangeset(
         set: { path: sql`excluded.path` },
       });
   }
+
+  await updateAcceptedIndexes(db, workspaceId, heads);
 
   await db.insert(syncChanges).values(
     [...heads.values()].map((tip) => ({

@@ -180,3 +180,11 @@ export {
   syncMaxLimit,
   syncRetentionDays,
 } from './files/snapshot.ts';
+export type { Backlink, SearchHit } from './search/service.ts';
+export {
+  defaultSearchLimit,
+  getBacklinks,
+  maxSearchLimit,
+  searchFiles,
+  searchLimit,
+} from './search/service.ts';

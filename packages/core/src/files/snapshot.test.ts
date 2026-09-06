@@ -48,6 +48,8 @@ function fakeStore(
   seen: { token?: string },
 ): WorkspaceStore {
   const tx: WorkspaceTransaction = {
+    search: () => Promise.resolve([]),
+    backlinks: () => Promise.resolve([]),
     role: (id: string) => Promise.resolve(roles.get(id) ?? null),
     receipt: () => Promise.resolve(null),
     heads: () => Promise.resolve(new Map()),

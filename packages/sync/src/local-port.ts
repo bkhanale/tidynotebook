@@ -16,6 +16,7 @@
  * Local browser data is not a backup. It is the working copy of one device.
  */
 import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
+import type { LocalSearchFile } from './local-search.ts';
 
 /**
  * The partition of one set of private local records.
@@ -482,6 +483,12 @@ export type LocalStore = {
     accountId: string,
     workspaceId: string,
   ): Promise<readonly LocalAcceptedFile[]>;
+
+  /** Accepted local note bodies with current drafts applied over them. */
+  listSearchFiles(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly LocalSearchFile[]>;
 
   /** Whether the content body of one digest is stored locally. */
   hasContent(

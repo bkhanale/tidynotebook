@@ -95,6 +95,23 @@
   overflow-wrap: anywhere;
 }
 
+.notes-search-results,
+.notes-outline-list {
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+
+.notes-search-results li {
+  padding: 0.5rem 0;
+  border-block-end: 1px solid var(--notes-border);
+}
+
+.notes-search-results p {
+  margin: 0.25rem 0;
+  overflow-wrap: anywhere;
+}
+
 .notes-tree-folder {
   color: var(--notes-text-muted);
   display: inline-block;

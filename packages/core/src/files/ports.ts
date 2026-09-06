@@ -12,6 +12,7 @@
  */
 import type { Actor, Role } from '../identity/actor.ts';
 import type { AcceptedChangeset, ChangesetInput, Result } from './model.ts';
+import type { Backlink, SearchHit } from '../search/service.ts';
 
 /** A stored outcome of an earlier accepted changeset, kept for safe retries. */
 export type MutationReceipt<T = AcceptedChangeset> = {
@@ -122,6 +123,10 @@ export type WorkspaceTransaction = {
   file(fileId: string): Promise<FileRecord | null>;
   /** One revision of this workspace, or `null` when it holds no such one. */
   revision(revisionId: string): Promise<RevisionRecord | null>;
+  /** Searches the accepted live note index of this workspace. */
+  search(query: string, limit: number): Promise<readonly SearchHit[]>;
+  /** Reads accepted live notes that link to the requested live note. */
+  backlinks(fileId: string, limit: number): Promise<readonly Backlink[]>;
   /**
    * Performs the atomic write of one changeset.
    *

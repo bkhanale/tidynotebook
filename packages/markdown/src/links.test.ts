@@ -98,6 +98,11 @@ await test('an identifier in upper case is reported in lower case', () => {
   assert.equal(found[0]?.targetId, noteIdA);
 });
 
+await test('a stable note link keeps a safe heading fragment', () => {
+  const found = extractLinks(`[a](/notes/${noteIdA}#heading_2)`);
+  assert.equal(found[0]?.targetId, noteIdA);
+});
+
 await test('the corpus attachment image is found', () => {
   const image = `![diagram attachment](/attachments/${attachmentIdA})`;
   const from = offsetOf(image);

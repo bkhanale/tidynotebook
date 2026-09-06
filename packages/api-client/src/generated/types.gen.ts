@@ -431,6 +431,24 @@ export type AuthUser = {
 };
 
 /**
+ * A current accepted note and its stored link source.
+ */
+export type Backlink = {
+    fileId: Uuid;
+    path: FilePath;
+    revisionId: Uuid;
+    excerpt: string;
+    sourceText: string;
+};
+
+/**
+ * Backlinks from current accepted note revisions.
+ */
+export type BacklinkResults = {
+    readonly backlinks: Array<Backlink>;
+};
+
+/**
  * A reference that blocks permanent deletion.
  */
 export type BlockingReference = {
@@ -1147,6 +1165,23 @@ export type RevisionInput = {
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
 
 /**
+ * One accepted live note that matched a search.
+ */
+export type SearchHit = {
+    readonly fileId: Uuid;
+    readonly path: FilePath;
+    readonly revisionId: Uuid;
+    readonly excerpt: string;
+};
+
+/**
+ * Search results from current accepted note revisions.
+ */
+export type SearchResults = {
+    readonly hits: Array<SearchHit>;
+};
+
+/**
  * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
  */
 export type SnapshotItem = {
@@ -1525,6 +1560,13 @@ export type AuthSignOutWritable = {
 };
 
 /**
+ * Backlinks from current accepted note revisions.
+ */
+export type BacklinkResultsWritable = {
+    [key: string]: never;
+};
+
+/**
  * The accepted head that the client saw for each file of the changeset, keyed by file identifier. The value null states that the file must not exist in accepted state, which is the precondition of a new file. Every file that the changeset changes needs an entry, and an entry for a file that it does not change is refused. The limit below is a coarse bound that protects the parser; the rule that a changeset may change at most 1000 files is applied by the workspace and answers 422.
  */
 export type ExpectedHeadsWritable = {
@@ -1625,6 +1667,16 @@ export type IfNoneMatch = EntityTagCondition;
  * Largest number of history items to return. Defaults to 50.
  */
 export type HistoryLimit = number;
+
+/**
+ * Words to find in accepted note paths and Markdown content.
+ */
+export type SearchQuery = string;
+
+/**
+ * Largest number of search or backlink results to return.
+ */
+export type SearchLimit = number;
 
 /**
  * Optional file identifier to filter branches.
@@ -3572,6 +3624,67 @@ export type UpdateFileResponses = {
 
 export type UpdateFileResponse = UpdateFileResponses[keyof UpdateFileResponses];
 
+export type GetBacklinksData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: {
+        /**
+         * Largest number of search or backlink results to return.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/backlinks';
+};
+
+export type GetBacklinksErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetBacklinksError = GetBacklinksErrors[keyof GetBacklinksErrors];
+
+export type GetBacklinksResponses = {
+    /**
+     * Accepted live notes that link to the requested note.
+     */
+    200: BacklinkResults;
+};
+
+export type GetBacklinksResponse = GetBacklinksResponses[keyof GetBacklinksResponses];
+
 export type CreateCheckpointData = {
     /**
      * Checkpoint creation payload.
@@ -4301,6 +4414,67 @@ export type GetRevisionResponses = {
 };
 
 export type GetRevisionResponse = GetRevisionResponses[keyof GetRevisionResponses];
+
+export type SearchFilesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query: {
+        /**
+         * Words to find in accepted note paths and Markdown content.
+         */
+        query: string;
+        /**
+         * Largest number of search or backlink results to return.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/search';
+};
+
+export type SearchFilesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session or agent token.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type SearchFilesError = SearchFilesErrors[keyof SearchFilesErrors];
+
+export type SearchFilesResponses = {
+    /**
+     * Accepted live notes that match the search query.
+     */
+    200: SearchResults;
+};
+
+export type SearchFilesResponse = SearchFilesResponses[keyof SearchFilesResponses];
 
 export type GetChangesData = {
     body?: never;

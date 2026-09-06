@@ -609,6 +609,37 @@ export const linkIndex = pgTable(
   ],
 );
 
+/** The current accepted searchable text of one live note. */
+export const searchIndex = pgTable(
+  'search_index',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    fileId: uuid('file_id').notNull(),
+    revisionId: uuid('revision_id').notNull(),
+    path: text('path').notNull(),
+    searchText: text('search_text').notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.fileId] }),
+    foreignKey({
+      name: 'search_index_file_fk',
+      columns: [table.workspaceId, table.fileId],
+      foreignColumns: [files.workspaceId, files.id],
+    }),
+    foreignKey({
+      name: 'search_index_revision_fk',
+      columns: [table.workspaceId, table.revisionId],
+      foreignColumns: [revisions.workspaceId, revisions.id],
+    }),
+    index('search_index_document_idx').using(
+      'gin',
+      sql`to_tsvector('simple', ${table.searchText})`,
+    ),
+  ],
+);
+
 /** A read only public publication of one pinned accepted revision. */
 export const shares = pgTable(
   'shares',

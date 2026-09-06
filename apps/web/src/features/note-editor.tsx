@@ -43,6 +43,7 @@ import { problemMessage, useTheme } from '../app.tsx';
 import { canWrite } from './workspaces.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
 import { createDiagramFrame } from '../diagram/frame.ts';
+import { stableNoteLink, type StableLinkRequest } from './search.tsx';
 import {
   resolveSaveState,
   SaveStatus,
@@ -314,6 +315,35 @@ export function NoteEditor({
   // The checkpoint scheduler of this working copy. Real timers drive the
   // design's 750 ms idle and 30 s interval rules through the shared pure
   // scheduler from the sync package.
+  useEffect(() => {
+    const insertStableLink = (event: Event): void => {
+      const detail = (event as CustomEvent<StableLinkRequest>).detail;
+      const view = viewRef.current;
+      if (view === null || readOnly) return;
+      const selection = view.state.selection.main;
+      if (selection.empty) {
+        setPasteNotice('Select text before you insert a stable note link.');
+        return;
+      }
+      const selected = view.state.doc.sliceString(selection.from, selection.to);
+      const value = stableNoteLink({
+        fileId: detail.fileId,
+        label: selected === '' ? detail.label : selected,
+      });
+      view.dispatch({
+        changes: { from: selection.from, to: selection.to, insert: value },
+        selection: { anchor: selection.from + value.length },
+        userEvent: 'input.complete',
+      });
+      view.focus();
+      setPasteNotice('Stable note link inserted.');
+    };
+    window.addEventListener('notesapp:insert-link', insertStableLink);
+    return () => {
+      window.removeEventListener('notesapp:insert-link', insertStableLink);
+    };
+  }, [readOnly]);
+
   useEffect(() => {
     const scheduler = createCheckpointScheduler({
       now: () => Date.now(),

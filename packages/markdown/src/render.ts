@@ -198,6 +198,43 @@ function applyUrlPolicy() {
   };
 }
 
+/** Plain text inside one rendered heading. */
+function headingText(node: Element): string {
+  let value = '';
+  const collect = (children: readonly ElementContent[]): void => {
+    for (const child of children) {
+      if (child.type === 'text') value += child.value;
+      else if (child.type === 'element') collect(child.children);
+    }
+  };
+  collect(node.children);
+  return value;
+}
+
+/** One safe fragment identifier derived from heading text. */
+export function headingSlug(value: string): string {
+  return value
+    .normalize('NFKD')
+    .toLocaleLowerCase('en-US')
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/** Adds unique, namespaced identifiers to headings for safe fragments. */
+function addHeadingIdentifiers() {
+  return (tree: HastRoot): undefined => {
+    const used = new Map<string, number>();
+    visit(tree, 'element', (node) => {
+      if (!/^h[1-6]$/.test(node.tagName)) return;
+      const base = headingSlug(headingText(node));
+      if (base === '') return;
+      const count = used.get(base) ?? 0;
+      used.set(base, count + 1);
+      node.properties.id = `user-content-${base}${count === 0 ? '' : `-${String(count + 1)}`}`;
+    });
+  };
+}
+
 /**
  * Decodes the text content of one math placeholder back into source.
  *
@@ -262,6 +299,7 @@ const renderProcessor = createMarkdownProcessor()
       math: (_state, node: MathNode) => mathPlaceholder(node),
     },
   })
+  .use(addHeadingIdentifiers)
   .use(applyUrlPolicy)
   .use(rehypeSanitize, sanitizeSchema)
   .use(rehypeStringify)

@@ -32,6 +32,7 @@ export function isIdentifier(value: string): boolean {
 export type ContentUrl =
   | { readonly kind: 'note'; readonly id: string; readonly href: string }
   | { readonly kind: 'attachment'; readonly id: string; readonly href: string }
+  | { readonly kind: 'fragment'; readonly href: string }
   | { readonly kind: 'external'; readonly href: string }
   | { readonly kind: 'blocked' };
 
@@ -54,8 +55,9 @@ function hasControlCharacter(value: string): boolean {
 
 /** The only schemes an author may write. */
 const allowedScheme = /^(?:https?|mailto):/i;
-const notePath = /^\/notes\/([^/?#]+)$/;
+const notePath = /^\/notes\/([^/?#]+)(#[A-Za-z0-9_-]+)?$/;
 const attachmentPath = /^\/attachments\/([^/?#]+)$/;
+const localFragment = /^#([A-Za-z0-9_-]+)$/;
 
 /**
  * Classifies an author-supplied destination.
@@ -70,12 +72,24 @@ export function classifyUrl(raw: string): ContentUrl {
   const url = raw.trim();
   if (url === '' || hasControlCharacter(url)) return blocked;
   if (url.startsWith('//')) return blocked;
+  const fragment = localFragment.exec(url)?.[1];
+  if (fragment !== undefined)
+    return { kind: 'fragment', href: `#user-content-${fragment}` };
   if (url.startsWith('/')) {
-    const note = notePath.exec(url)?.[1];
+    const noteMatch = notePath.exec(url);
+    const note = noteMatch?.[1];
     if (note !== undefined) {
       const id = note.toLowerCase();
       return isIdentifier(id)
-        ? { kind: 'note', id, href: `/notes/${id}` }
+        ? {
+            kind: 'note',
+            id,
+            href: `/notes/${id}${
+              noteMatch?.[2] === undefined
+                ? ''
+                : `#user-content-${noteMatch[2].slice(1)}`
+            }`,
+          }
         : blocked;
     }
     const attachment = attachmentPath.exec(url)?.[1];
@@ -98,6 +112,7 @@ export function classifyUrl(raw: string): ContentUrl {
  * character keeps every identifier inside that namespace.
  */
 const namespacedId = /^user-content-[A-Za-z0-9]/;
+const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
 
 /**
  * The sanitization schema for rendered notes.
@@ -203,11 +218,16 @@ export const sanitizeSchema: SanitizeSchema = {
       ['id', namespacedId],
       ['rel', 'noopener', 'noreferrer'],
     ],
+    h1: [['id', namespacedId]],
     code: [['className', /^language-[a-z0-9_-]+$/]],
     h2: [
       ['className', 'sr-only'],
-      ['id', 'footnote-label'],
+      ['id', headingOrFootnoteId],
     ],
+    h3: [['id', namespacedId]],
+    h4: [['id', namespacedId]],
+    h5: [['id', namespacedId]],
+    h6: [['id', namespacedId]],
     img: ['alt', 'src', 'title'],
     input: [
       ['type', 'checkbox'],

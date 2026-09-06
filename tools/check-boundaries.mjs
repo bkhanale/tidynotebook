@@ -28,7 +28,10 @@ const allowed = {
   'api-contract': [],
   'api-client': [],
   core: [],
-  'storage-server': ['core'],
+  // Accepted index updates parse Markdown inside the same database
+  // transaction that advances a head. This server-only adapter may therefore
+  // use the shared pure parser, and the edge stays acyclic.
+  'storage-server': ['core', 'markdown'],
   'storage-browser': ['core', 'sync'],
   sync: ['core', 'api-client'],
   markdown: ['core'],

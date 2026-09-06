@@ -898,6 +898,84 @@ export async function openLocalStore(
       );
     },
 
+    listSearchFiles(accountId: string, workspaceId: string) {
+      return guard('reading local search content', () =>
+        db.transaction(
+          'r',
+          [tables.acceptedFiles, tables.contents, tables.drafts],
+          async () => {
+            const range = partitionRange(serverOrigin, accountId, workspaceId);
+            const acceptedRows: unknown[] = await tables.acceptedFiles
+              .where('[serverOrigin+accountId+workspaceId+fileId]')
+              .between(range.lower, range.upper, true, true)
+              .toArray();
+            const result = new Map<
+              string,
+              {
+                fileId: string;
+                path: string;
+                revisionId: string;
+                text: string;
+              }
+            >();
+            for (const raw of acceptedRows) {
+              const file = validateAcceptedFile(raw);
+              if (
+                file.deleted ||
+                file.kind !== 'note' ||
+                file.acceptedHeadRevisionId === null ||
+                file.acceptedHeadDigest === null
+              )
+                continue;
+              const body: unknown = await tables.contents.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                file.acceptedHeadDigest,
+              ]);
+              if (body === undefined) continue;
+              const content = validateContent(body);
+              if (content.text === null) continue;
+              result.set(file.fileId, {
+                fileId: file.fileId,
+                path: file.path,
+                revisionId: file.acceptedHeadRevisionId,
+                text: content.text,
+              });
+            }
+
+            const drafts: unknown[] = await tables.drafts.toArray();
+            const latest = new Map<string, DraftRow>();
+            for (const raw of drafts) {
+              const draft = validateDraft(raw);
+              if (!matchesPartition(draft, accountId, workspaceId)) continue;
+              const seen = latest.get(draft.fileId);
+              if (seen === undefined || seen.sequence < draft.sequence)
+                latest.set(draft.fileId, draft);
+            }
+            for (const draft of latest.values()) {
+              if (draft.deleted) {
+                result.delete(draft.fileId);
+                continue;
+              }
+              result.set(draft.fileId, {
+                fileId: draft.fileId,
+                path: draft.path,
+                revisionId:
+                  draft.lastCheckpointId ??
+                  draft.baseRevisionId ??
+                  draft.workingCopyId,
+                text: draft.text,
+              });
+            }
+            return [...result.values()].sort((left, right) =>
+              left.path < right.path ? -1 : 1,
+            );
+          },
+        ),
+      );
+    },
+
     hasContent(
       accountId: string,
       workspaceId: string,

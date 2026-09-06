@@ -27,6 +27,8 @@ import {
   WorkspaceOwnerControls,
 } from './workspaces.tsx';
 import { NewNoteButton, NoteEditorLoader } from './note-editor.tsx';
+import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
+import { SearchDialog } from './search.tsx';
 
 /** One page of files merged into a full list. */
 async function loadAllFiles(
@@ -159,6 +161,10 @@ function Sidebar({
   readonly onNavigate: () => void;
 }): ReactNode {
   const { state } = useWorkspaces();
+  const params = useParams();
+  const fileId = typeof params.fileId === 'string' ? params.fileId : null;
+  const session = useSession();
+  const local = useLocalStore();
   const [filter, setFilter] = useState('');
   const [files, setFiles] = useState<readonly WorkspaceFileSummary[]>([]);
   const [outlineOpen, setOutlineOpen] = useState(false);
@@ -218,6 +224,12 @@ function Sidebar({
       </nav>
       {workspaceId === null ? null : (
         <>
+          <SearchDialog
+            store={local.store}
+            accountId={session.account?.accountId ?? null}
+            workspaceId={workspaceId}
+            onNavigate={onNavigate}
+          />
           <section aria-labelledby="recent-heading">
             <h2 id="recent-heading">Recent files</h2>
             <ul>
@@ -261,7 +273,7 @@ function Sidebar({
             open={outlineOpen}
             onToggle={setOutlineOpen}
           >
-            <p>The outline appears when a note is open.</p>
+            <OutlinePanel workspaceId={workspaceId} fileId={fileId} />
           </CollapsibleSection>
           <CollapsibleSection
             id="notes-backlinks"
@@ -269,7 +281,11 @@ function Sidebar({
             open={backlinksOpen}
             onToggle={setBacklinksOpen}
           >
-            <p>Backlinks appear when a note is open.</p>
+            <BacklinksPanel
+              workspaceId={workspaceId}
+              fileId={fileId}
+              onNavigate={onNavigate}
+            />
           </CollapsibleSection>
         </>
       )}

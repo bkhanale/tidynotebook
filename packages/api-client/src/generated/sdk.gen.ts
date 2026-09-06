@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -488,6 +488,21 @@ export const updateFile = <ThrowOnError extends boolean = false>(options: Option
 });
 
 /**
+ * List accepted notes that link to one note.
+ *
+ * Returns backlinks from current accepted note revisions. Access checks apply to the workspace and both ends of every returned link.
+ */
+export const getBacklinks = <ThrowOnError extends boolean = false>(options: Options<GetBacklinksData, ThrowOnError>): RequestResult<GetBacklinksResponses, GetBacklinksErrors, ThrowOnError> => (options.client ?? client).get<GetBacklinksResponses, GetBacklinksErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/backlinks',
+    ...options
+});
+
+/**
  * Create a named checkpoint revision for a file.
  *
  * Creates an immutable named checkpoint revision. If path and content are omitted, the checkpoint preserves the content and path of the expected head.
@@ -677,6 +692,21 @@ export const getRevision = <ThrowOnError extends boolean = false>(options: Optio
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/api/workspaces/{workspaceId}/revisions/{revisionId}',
+    ...options
+});
+
+/**
+ * Search accepted live notes in a workspace.
+ *
+ * Searches accepted titles and Markdown content with the PostgreSQL simple text configuration. Deleted files, branch tips, and historic revisions are excluded.
+ */
+export const searchFiles = <ThrowOnError extends boolean = false>(options: Options<SearchFilesData, ThrowOnError>): RequestResult<SearchFilesResponses, SearchFilesErrors, ThrowOnError> => (options.client ?? client).get<SearchFilesResponses, SearchFilesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }, { scheme: 'bearer', type: 'http' }],
+    url: '/api/workspaces/{workspaceId}/search',
     ...options
 });
 

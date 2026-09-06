@@ -78,7 +78,6 @@ await test('every other scheme and shape is blocked', () => {
     'file:///etc/passwd',
     'ftp://example.com/file',
     '//evil.example.com/steal',
-    '#a-fragment',
     'relative/path.md',
     './sibling.md',
     '/notes/not-a-uuid',
@@ -89,6 +88,14 @@ await test('every other scheme and shape is blocked', () => {
     '/',
   ])
     assert.deepEqual(classifyUrl(url), { kind: 'blocked' }, url);
+});
+
+await test('safe heading fragments are namespaced', () => {
+  assert.deepEqual(classifyUrl('#a-fragment'), {
+    kind: 'fragment',
+    href: '#user-content-a-fragment',
+  });
+  assert.deepEqual(classifyUrl('#bad.fragment'), { kind: 'blocked' });
 });
 
 await test('surrounding white space is ignored', () => {
