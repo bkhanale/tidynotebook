@@ -19,6 +19,8 @@ import { WorkspaceHome } from './features/workspaces.tsx';
 import { HistoryView } from './features/history.tsx';
 import { ConflictsView } from './features/conflicts.tsx';
 import { PurgeView } from './features/purge.tsx';
+import { OfflineStatusRoute } from './features/offline-status.tsx';
+import { RecoveryRoute } from './features/recovery.tsx';
 
 /** Shown for an address that names no route. */
 function NotFoundPage(): ReactNode {
@@ -62,6 +64,8 @@ const router = createBrowserRouter([
       },
       { path: 'w/:workspaceId/conflicts', element: <ConflictsView /> },
       { path: 'w/:workspaceId/purge', element: <PurgeView /> },
+      { path: 'w/:workspaceId/offline', element: <OfflineStatusRoute /> },
+      { path: 'w/:workspaceId/recovery', element: <RecoveryRoute /> },
     ],
   },
   { path: '*', element: <NotFoundPage /> },

@@ -116,6 +116,27 @@ export type CheckpointRecord = {
 export type LocalFileKind = 'note' | 'attachment';
 
 /**
+ * What a caller supplies to keep pending work after access ends.
+ *
+ * The store adds the partition, the identifier, and the creation time, so
+ * the caller names only the file and the reason it was preserved.
+ */
+export type RecoveryInput = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly text: string;
+  readonly reason: RecoveryReason;
+  readonly recoveryId?: string;
+  readonly createdAt?: string;
+};
+
+/** The pin state of one attachment digest inside one workspace. */
+export type AttachmentPin = {
+  readonly digest: string;
+  readonly pinned: boolean;
+};
+
+/**
  * What this device knows about one file.
  *
  * The record mirrors accepted server metadata and adds the local head. The
@@ -428,13 +449,108 @@ export type LocalStore = {
   /**
    * The recovery area of one account and workspace.
    *
-   * Task 17 adds the writers and the removal actions. The read exists now so
-   * the table and its partition rule are fixed with the rest of the schema.
+   * Recovery records stay bound to the account that wrote them. A caller
+   * shows them only after that same account signs in again.
    */
   recover(
     accountId: string,
     workspaceId: string,
   ): Promise<readonly RecoveryRecord[]>;
+
+  /**
+   * Keeps one pending text in the account-bound recovery area.
+   *
+   * Used when revoked access, a viewer downgrade, or a purge leaves local
+   * work the server can no longer accept. The record stays under the
+   * original account for clipboard copying or explicit removal.
+   */
+  addRecovery(
+    accountId: string,
+    workspaceId: string,
+    entry: RecoveryInput,
+  ): Promise<RecoveryRecord>;
+
+  /** Removes one recovery record of the calling account. */
+  removeRecovery(
+    accountId: string,
+    workspaceId: string,
+    recoveryId: string,
+  ): Promise<void>;
+
+  /** The accepted file metadata of one workspace, ordered by path. */
+  listAcceptedFiles(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly LocalAcceptedFile[]>;
+
+  /** Whether the content body of one digest is stored locally. */
+  hasContent(
+    accountId: string,
+    workspaceId: string,
+    digest: string,
+  ): Promise<boolean>;
+
+  /** Pins or unpins one attachment digest for offline use. */
+  setAttachmentPinned(
+    accountId: string,
+    workspaceId: string,
+    digest: string,
+    pinned: boolean,
+  ): Promise<void>;
+
+  /** Whether one attachment digest is pinned for offline use. */
+  isAttachmentPinned(
+    accountId: string,
+    workspaceId: string,
+    digest: string,
+  ): Promise<boolean>;
+
+  /** Pins or unpins one historic revision for offline use. */
+  setHistoryPinned(
+    accountId: string,
+    workspaceId: string,
+    revisionId: string,
+    pinned: boolean,
+  ): Promise<void>;
+
+  /** Whether one historic revision is pinned for offline use. */
+  isHistoryPinned(
+    accountId: string,
+    workspaceId: string,
+    revisionId: string,
+  ): Promise<boolean>;
+
+  /**
+   * Records that one account signed out while offline.
+   *
+   * The marker survives `clearPrivateData` so reconnect can revoke the
+   * server session before any private content is restored. It is cleared
+   * only after that revocation succeeds.
+   */
+  setSignOutMarker(accountId: string): Promise<void>;
+
+  /** Whether one account carries a pending offline sign-out marker. */
+  hasSignOutMarker(accountId: string): Promise<boolean>;
+
+  /** Clears the offline sign-out marker after revocation succeeds. */
+  clearSignOutMarker(accountId: string): Promise<void>;
+
+  /**
+   * Deletes the private local data of one account.
+   *
+   * With a workspace ID only that partition is cleared, otherwise every
+   * workspace of the account. Drafts, checkpoints, contents, accepted
+   * metadata, branches, queue entries, receipts, staged snapshots, cursors,
+   * recovery records, and workspace preferences are removed. The
+   * account-wide sign-out marker and the device identity survive.
+   */
+  clearPrivateData(accountId: string, workspaceId?: string): Promise<void>;
+
+  /** The current sync worker lease, or `null` when none is stored. */
+  readLeaseState(): Promise<{
+    readonly ownerId: string;
+    readonly expiresAt: number;
+  } | null>;
 
   /**
    * Takes the single sync worker lease of this store.

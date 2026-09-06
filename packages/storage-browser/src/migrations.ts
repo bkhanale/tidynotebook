@@ -548,3 +548,40 @@ export async function ensureSchema(
   await tables.meta.put(done);
   return { meta: done, repaired: true };
 }
+
+/**
+ * Whether a schema failure blocks an application upgrade.
+ *
+ * A database written by a newer application, or one whose interrupted
+ * migration cannot be repaired, keeps the old application usable: the caller
+ * shows the blocked-upgrade instructions and keeps drafts in memory instead
+ * of discarding them or retrying the migration. Any other local failure is
+ * not a blocked upgrade.
+ */
+export function isBlockedUpgradeError(value: unknown): boolean {
+  if (!(value instanceof LocalStorageError)) return false;
+  if (value.kind !== 'corrupt') return false;
+  return (
+    value.message.includes('newer than this application') ||
+    value.message.includes('no migration step leads away') ||
+    value.message.includes('is not a record') ||
+    value.message.includes('is not text') ||
+    value.message.includes('is not a flag') ||
+    value.message.includes('is not a finite number') ||
+    value.message.includes('is not text or null') ||
+    value.message.includes('found an unreadable database')
+  );
+}
+
+/**
+ * The blocked-upgrade instructions shown without losing drafts.
+ *
+ * The user keeps the in-memory buffer with clipboard access, closes every
+ * other tab of this application, then reloads this tab so the newest
+ * application runs the migration once. Nothing is discarded by the upgrade.
+ */
+export const blockedUpgradeInstructions =
+  'Another tab runs a newer version or the local upgrade is blocked. ' +
+  'Keep this tab open so drafts stay in memory, close every other tab of ' +
+  'this application, then reload this tab to finish the upgrade. ' +
+  'No draft is discarded by these steps.';

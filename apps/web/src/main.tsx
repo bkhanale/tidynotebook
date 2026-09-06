@@ -11,8 +11,10 @@ import { createRoot } from 'react-dom/client';
 import { configureClient } from '@notesapp/api-client';
 import { AppProviders } from './app.tsx';
 import { AppRouter } from './router.tsx';
+import { registerServiceWorker } from './pwa/lifecycle.ts';
 
 configureClient(window.location.origin, undefined);
+registerServiceWorker();
 
 const root = document.getElementById('root');
 if (root === null) throw new Error('The application root is missing.');

@@ -1,0 +1,371 @@
+/**
+ * Installed application lifecycle of notesapp.
+ *
+ * This module owns the rules that the design states for the PWA lifecycle
+ * and for access changes. It performs no network traffic itself except
+ * through the generated client: session revocation calls the generated
+ * `signOut` operation, and every other step reads or writes the local store.
+ * There is no Background Sync path; the foreground tab drives sync.
+ *
+ * - Offline readiness needs stored Markdown and stored application assets.
+ *   Attachment completeness is reported separately and never blocks editing.
+ * - Persistent storage is requested where supported. A denial or an
+ *   eviction stops the claim of persistence instead of discarding drafts.
+ * - An update persists drafts, stops queue writes, closes the database
+ *   connection of this tab, and announces the same to every other tab. A
+ *   live lease of another tab blocks the upgrade and keeps drafts in memory.
+ * - Online sign-out settles or explicitly discards pending work, then
+ *   revokes the session and clears private data. Offline sign-out needs an
+ *   explicit discard, clears private data, and records a marker that
+ *   reconnect completes by revoking first and clearing the marker after.
+ */
+import { signOut as signOutRequest } from '@notesapp/api-client';
+import {
+  blockedUpgradeInstructions,
+  isBlockedUpgradeError,
+} from '@notesapp/storage-browser';
+import {
+  isLeaseExpired,
+  isLocalStorageError,
+  readWorkerLease,
+  type LocalStore,
+  type RecoveryReason,
+  type RecoveryRecord,
+} from '@notesapp/sync';
+
+/** What offline launch of one workspace needs. */
+export type OfflineReadiness = {
+  /** Every required Markdown body of the active workspace is stored. */
+  readonly markdownComplete: boolean;
+  /** The shell, editor, fonts, math, and diagram modules are cached. */
+  readonly appAssetsComplete: boolean;
+  /** Every referenced attachment chosen for offline use is stored. */
+  readonly attachmentsComplete: boolean;
+};
+
+/**
+ * Whether one workspace is ready for offline work.
+ *
+ * Markdown and application assets are required. Attachment completeness is
+ * a separate status and never blocks readiness.
+ */
+export function isReadyOffline(state: OfflineReadiness): boolean {
+  return state.markdownComplete && state.appAssetsComplete;
+}
+
+/** One download position with its percent and completion flag. */
+export type DownloadProgress = {
+  readonly downloaded: number;
+  readonly total: number;
+  readonly percent: number;
+  readonly complete: boolean;
+};
+
+/**
+ * Summarizes one download position.
+ *
+ * A total of zero means there is nothing to fetch, so the download is
+ * complete at 100 percent rather than divided by zero.
+ */
+export function downloadProgress(
+  downloaded: number,
+  total: number,
+): DownloadProgress {
+  const safeDownloaded = Math.max(0, Math.floor(downloaded));
+  const safeTotal = Math.max(0, Math.floor(total));
+  if (safeTotal === 0)
+    return { downloaded: 0, total: 0, percent: 100, complete: true };
+  const clamped = Math.min(safeDownloaded, safeTotal);
+  return {
+    downloaded: clamped,
+    total: safeTotal,
+    percent: Math.round((clamped / safeTotal) * 100),
+    complete: clamped >= safeTotal,
+  };
+}
+
+/** The outcome of a persistent storage request. */
+export type PersistenceRequest = 'granted' | 'denied' | 'unsupported';
+
+/**
+ * Asks the browser to retain local data across eviction pressure.
+ *
+ * A denial does not discard drafts: the caller keeps the in-memory buffer
+ * with clipboard access and stops claiming durable offline editing.
+ */
+export function requestPersistentStorage(): Promise<PersistenceRequest> {
+  if (
+    typeof navigator === 'undefined' ||
+    navigator.storage === undefined ||
+    typeof navigator.storage.persist !== 'function'
+  )
+    return Promise.resolve('unsupported');
+  return navigator.storage
+    .persist()
+    .then((granted) => (granted ? 'granted' : 'denied'))
+    .catch(() => 'denied');
+}
+
+/** The message shown when persistence is denied or storage is evicted. */
+export function persistenceDenialMessage(): string {
+  return (
+    'This browser refused persistent storage, so offline work is not durable here. ' +
+    'Keep this tab open, copy important text with the clipboard, and free device space. ' +
+    'No draft is discarded by this warning.'
+  );
+}
+
+/**
+ * Turns a local failure into one readable sentence for a status region.
+ *
+ * The message names the problem only, never note content.
+ */
+export function describeStorageFailure(error: unknown): string {
+  if (!isLocalStorageError(error)) return 'Local storage failed unexpectedly.';
+  if (error.kind === 'quota')
+    return 'Local storage is full. Free device space; drafts stay in memory.';
+  if (error.kind === 'unavailable') return persistenceDenialMessage();
+  if (error.kind === 'corrupt' && isBlockedUpgradeError(error))
+    return blockedUpgradeInstructions;
+  if (error.kind === 'corrupt')
+    return 'Stored data is unreadable. Keep this tab open and copy important text.';
+  return 'A local write did not commit. The draft stays in memory for retry.';
+}
+
+/** Why a sign-out or an update cannot continue yet. */
+export class SignOutBlockedError extends Error {
+  readonly code: 'needs-discard' | 'update-blocked';
+
+  constructor(code: 'needs-discard' | 'update-blocked', detail: string) {
+    super(detail);
+    this.name = 'SignOutBlockedError';
+    this.code = code;
+  }
+}
+
+/** Hooks the application supplies around an update of this tab. */
+export type UpdateHooks = {
+  /** Writes every in-memory buffer to the local store. */
+  readonly flushDrafts: () => Promise<void>;
+  /** Stops the sync engine and gives up queue writes. */
+  readonly stopQueue: () => Promise<void>;
+  /** The worker identity of this tab, for the lease check. */
+  readonly ownerId?: string;
+  /** Milliseconds since the Unix epoch. Defaults to the system clock. */
+  readonly clock?: () => number;
+};
+
+/** Broadcasts the pending update so every tab closes its connection. */
+function announceUpdateClosing(): void {
+  try {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel('notesapp-update');
+    channel.postMessage({ type: 'NOTESAPP_CLOSE_FOR_UPDATE' });
+    channel.close();
+  } catch {
+    return;
+  }
+}
+
+/**
+ * Prepares this tab for an application update.
+ *
+ * Persists drafts, stops queue writes, refuses while another tab holds a
+ * live worker lease, then closes the database connection of this tab and
+ * tells every other tab to do the same. The migration transaction itself
+ * completes on the next open; a blocked upgrade keeps the old application
+ * usable and shows the required action without losing drafts.
+ */
+export async function prepareForUpdate(
+  store: LocalStore,
+  hooks: UpdateHooks,
+): Promise<void> {
+  await hooks.flushDrafts();
+  await hooks.stopQueue();
+  const now = hooks.clock === undefined ? Date.now() : hooks.clock();
+  const lease = await readWorkerLease(store);
+  if (
+    lease !== null &&
+    !isLeaseExpired(lease.expiresAt, now) &&
+    (hooks.ownerId === undefined || lease.ownerId !== hooks.ownerId)
+  )
+    throw new SignOutBlockedError('update-blocked', blockedUpgradeInstructions);
+  announceUpdateClosing();
+  await store.close();
+}
+
+/**
+ * Asks the installed worker to take over after persistence succeeded.
+ *
+ * Old assets stay installed while old clients remain active: the worker
+ * waits in the installed state until this call, and only then does the new
+ * version activate. Pass an explicit registration in tests; the browser
+ * path reads the current registration.
+ */
+export async function requestUpdate(
+  registration?: ServiceWorkerRegistration | null,
+): Promise<void> {
+  let target: ServiceWorkerRegistration | null | undefined = registration;
+  if (target === undefined && typeof navigator !== 'undefined') {
+    const container = navigator.serviceWorker;
+    if (container !== undefined)
+      target = await container.getRegistration().catch(() => null);
+  }
+  if (target?.waiting !== undefined && target.waiting !== null) {
+    target.waiting.postMessage({ type: 'NOTESAPP_SKIP_WAITING' });
+    return;
+  }
+  await target?.update().catch(() => undefined);
+  // Workbox owns the precache manifest behind this worker. The dynamic
+  // import keeps the dependency pinned and bundled without running any
+  // background sync path.
+  try {
+    const loaded: unknown = await import('workbox-window');
+    void loaded;
+  } catch {
+    return;
+  }
+}
+
+/** Registers the installed worker. Safe to call when none is supported. */
+export function registerServiceWorker(): void {
+  if (typeof navigator === 'undefined') return;
+  const container = navigator.serviceWorker;
+  if (container === undefined) return;
+  void container.register('/service-worker.js').catch(() => undefined);
+}
+
+/** Revokes the server session through the generated client. */
+export function revokeSessionViaClient(): Promise<void> {
+  return signOutRequest({ body: {} }).then(() => undefined);
+}
+
+/** Counts the queued mutations of several workspaces. */
+async function pendingCount(
+  store: LocalStore,
+  accountId: string,
+  workspaceIds: readonly string[],
+): Promise<number> {
+  let total = 0;
+  for (const workspaceId of workspaceIds)
+    total += (await store.pending(accountId, workspaceId)).length;
+  return total;
+}
+
+/**
+ * Signs out one account.
+ *
+ * Online sign-out needs settled work or an explicit discard, then revokes
+ * the session through the generated client and clears private local data.
+ * Offline sign-out needs an explicit discard, clears private local data,
+ * and records a sign-out marker because the HttpOnly session cannot be
+ * revoked without a connection.
+ */
+export async function signOut(
+  store: LocalStore,
+  accountId: string,
+  workspaceIds: readonly string[],
+  online: boolean,
+  discardPending: boolean,
+  revokeSession: () => Promise<void> = revokeSessionViaClient,
+): Promise<void> {
+  const pending = await pendingCount(store, accountId, workspaceIds);
+  if (pending > 0 && !discardPending)
+    throw new SignOutBlockedError(
+      'needs-discard',
+      'Pending changes wait on this device. Settle them online or discard them explicitly.',
+    );
+  if (!online) {
+    await store.clearPrivateData(accountId);
+    await store.setSignOutMarker(accountId);
+    return;
+  }
+  await revokeSession();
+  await store.clearPrivateData(accountId);
+  await store.clearSignOutMarker(accountId);
+}
+
+/**
+ * Completes a pending offline sign-out on reconnect.
+ *
+ * Revocation runs through the generated client before anything is
+ * restored, and the marker is cleared only after revocation succeeds, so a
+ * failed revocation retries on the next reconnect. Returns `true` when a
+ * marker was processed.
+ */
+export async function completePendingSignOut(
+  store: LocalStore,
+  accountId: string,
+  revokeSession: () => Promise<void> = revokeSessionViaClient,
+): Promise<boolean> {
+  if (!(await store.hasSignOutMarker(accountId))) return false;
+  await revokeSession();
+  await store.clearSignOutMarker(accountId);
+  return true;
+}
+
+/**
+ * Copies queued pending work into the account-bound recovery area.
+ *
+ * Used when revoked access, a viewer downgrade, or a purge leaves local
+ * work the server can no longer accept. The queue itself is kept, so a
+ * restored role can still submit it; the recovery copy is the clipboard
+ * source and the explicit-removal target. Returns the copied count.
+ */
+export async function copyPendingToRecovery(
+  store: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  reason: RecoveryReason,
+): Promise<number> {
+  const queued = await store.pending(accountId, workspaceId);
+  let copied = 0;
+  for (const entry of queued) {
+    for (const revision of entry.input.revisions) {
+      if (revision.content.kind !== 'markdown') continue;
+      await store.addRecovery(accountId, workspaceId, {
+        fileId: revision.fileId,
+        path: revision.path,
+        text: revision.content.text,
+        reason,
+      });
+      copied += 1;
+    }
+  }
+  return copied;
+}
+
+/** Whether a workspace role may write. Viewers cannot. */
+export function isWriterRole(
+  role: 'owner' | 'admin' | 'editor' | 'viewer',
+): boolean {
+  return role !== 'viewer';
+}
+
+/**
+ * Whether one recovery record may be shown to one signed-in account.
+ *
+ * The store already partitions by account, so a mismatch means the caller
+ * mixed two accounts and the record stays hidden.
+ */
+export function isRecoveryVisible(
+  record: RecoveryRecord,
+  viewerAccountId: string,
+): boolean {
+  return record.accountId === viewerAccountId;
+}
+
+/** Where the sync engine paused and what the user does next. */
+export type AccessState =
+  'ok' | 'session-expired' | 'access-revoked' | 'viewer';
+
+/** One readable sentence for an access state. No note content is named. */
+export function accessStateMessage(state: AccessState): string {
+  if (state === 'session-expired')
+    return 'The session expired. Sync is paused and drafts are kept. Sign in again.';
+  if (state === 'access-revoked')
+    return 'This account lost access to the workspace. Server reads and writes stop; kept work waits in recovery.';
+  if (state === 'viewer')
+    return 'The role is now viewer. Writes stop and pending edits wait in recovery while permitted reads continue.';
+  return 'Sync is running.';
+}

@@ -21,6 +21,7 @@ export {
   shouldCheckpoint,
 } from './checkpoints.ts';
 export type {
+  AttachmentPin,
   CheckpointRecord,
   Draft,
   LocalAcceptedFile,
@@ -35,6 +36,7 @@ export type {
   Preference,
   QueueEntry,
   QueueState,
+  RecoveryInput,
   RecoveryReason,
   RecoveryRecord,
   StagedSnapshot,
@@ -80,7 +82,12 @@ export type {
 } from './snapshot.ts';
 export { pullNew } from './snapshot.ts';
 export type { WorkerLease } from './lease.ts';
-export { acquireWorkerLease, releaseWorkerLease } from './lease.ts';
+export {
+  acquireWorkerLease,
+  isLeaseExpired,
+  readWorkerLease,
+  releaseWorkerLease,
+} from './lease.ts';
 export type {
   EngineOptions,
   EngineOperations,

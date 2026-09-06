@@ -12,8 +12,11 @@ import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
 import {
   LocalStorageError,
   type Draft,
+  type LocalAcceptedFile,
   type LocalStore,
   type QueueEntry,
+  type RecoveryInput,
+  type RecoveryRecord,
   type RemoteChange,
   type SnapshotRevision,
 } from './local-port.ts';
@@ -56,6 +59,9 @@ class FakeStore implements LocalStore {
   staged = new Map<string, Staged>();
   lease: { ownerId: string; expiresAt: number } | null = null;
   drafts = new Map<string, Draft>();
+  recovery: RecoveryRecord[] = [];
+  recoverySeq = 1;
+  markers = new Set<string>();
   applied: {
     readonly changes: readonly RemoteChange[];
     readonly nextCursor: string;
@@ -151,6 +157,105 @@ class FakeStore implements LocalStore {
     return Promise.resolve([]);
   }
 
+  addRecovery(
+    account: string,
+    workspace: string,
+    entry: RecoveryInput,
+  ): Promise<RecoveryRecord> {
+    const record: RecoveryRecord = {
+      serverOrigin: this.serverOrigin,
+      accountId: account,
+      workspaceId: workspace,
+      recoveryId: entry.recoveryId ?? `recovery-${String(this.recoverySeq++)}`,
+      fileId: entry.fileId,
+      path: entry.path,
+      text: entry.text,
+      reason: entry.reason,
+      createdAt: entry.createdAt ?? new Date(this.nowMs).toISOString(),
+    };
+    this.recovery.push(record);
+    return Promise.resolve(record);
+  }
+
+  removeRecovery(
+    _account: string,
+    _workspace: string,
+    recoveryId: string,
+  ): Promise<void> {
+    this.recovery = this.recovery.filter(
+      (entry) => entry.recoveryId !== recoveryId,
+    );
+    return Promise.resolve();
+  }
+
+  listAcceptedFiles(): Promise<readonly LocalAcceptedFile[]> {
+    return Promise.resolve([]);
+  }
+
+  hasContent(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  setAttachmentPinned(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  isAttachmentPinned(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  setHistoryPinned(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  isHistoryPinned(): Promise<boolean> {
+    return Promise.resolve(false);
+  }
+
+  setSignOutMarker(account: string): Promise<void> {
+    this.markers.add(account);
+    return Promise.resolve();
+  }
+
+  hasSignOutMarker(account: string): Promise<boolean> {
+    return Promise.resolve(this.markers.has(account));
+  }
+
+  clearSignOutMarker(account: string): Promise<void> {
+    this.markers.delete(account);
+    return Promise.resolve();
+  }
+
+  clearPrivateData(account: string, workspace?: string): Promise<void> {
+    if (workspace === undefined) {
+      this.entries.clear();
+      this.order = [];
+      this.drafts.clear();
+      this.recovery = this.recovery.filter(
+        (entry) => entry.accountId !== account,
+      );
+      return Promise.resolve();
+    }
+    for (const [id, entry] of [...this.entries]) {
+      if (
+        entry.accountId === account &&
+        entry.input.workspaceId === workspace
+      ) {
+        this.entries.delete(id);
+        this.order = this.order.filter((kept) => kept !== id);
+      }
+    }
+    for (const [id, draft] of [...this.drafts]) {
+      if (draft.accountId === account && draft.workspaceId === workspace)
+        this.drafts.delete(id);
+    }
+    this.recovery = this.recovery.filter(
+      (entry) =>
+        !(entry.accountId === account && entry.workspaceId === workspace),
+    );
+    return Promise.resolve();
+  }
+
   acquireLease(ownerId: string, expiresAt: number): Promise<boolean> {
     if (
       this.lease !== null &&
@@ -165,6 +270,13 @@ class FakeStore implements LocalStore {
   releaseLease(ownerId: string): Promise<void> {
     if (this.lease?.ownerId === ownerId) this.lease = null;
     return Promise.resolve();
+  }
+
+  readLeaseState(): Promise<{
+    readonly ownerId: string;
+    readonly expiresAt: number;
+  } | null> {
+    return Promise.resolve(this.lease);
   }
 
   stageSnapshot(

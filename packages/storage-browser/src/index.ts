@@ -35,8 +35,10 @@ export {
 } from './database.ts';
 export type { SchemaState } from './migrations.ts';
 export {
+  blockedUpgradeInstructions,
   currentSchemaVersion,
   ensureSchema,
+  isBlockedUpgradeError,
   migrationSteps,
   validateAcceptedFile,
   validateBranch,

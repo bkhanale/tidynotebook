@@ -21,11 +21,14 @@ import { contentDigest } from '@notesapp/core';
 import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
 import {
   LocalStorageError,
+  accountWide,
   shouldCheckpoint,
   type CheckpointRecord,
   type Draft,
+  type LocalAcceptedFile,
   type LocalStore,
   type QueueEntry,
+  type RecoveryInput,
   type RecoveryRecord,
   type RemoteChange,
   type SnapshotRevision,
@@ -44,12 +47,15 @@ import {
 import {
   ensureSchema,
   validateAcceptedFile,
+  validateBranch,
   validateCheckpoint,
   validateContent,
   validateCursor,
   validateDraft,
   validateLease,
+  validatePreference,
   validateQueueRow,
+  validateReceipt,
   validateRecovery,
   validateSnapshot,
   validateSnapshotItem,
@@ -206,6 +212,207 @@ export async function openLocalStore(
 
   /** The key of the single sync worker lease row. */
   const leaseKey = 'worker';
+
+  /** The account-wide preference that records an offline sign-out. */
+  const signOutMarkerName = 'signout-marker';
+
+  type AccountRow = {
+    readonly serverOrigin: string;
+    readonly accountId: string;
+    readonly workspaceId: string;
+  };
+
+  /** Whether a stored row belongs to one account of this origin. */
+  const matchesAccount = (row: AccountRow, accountId: string): boolean =>
+    row.serverOrigin === serverOrigin && row.accountId === accountId;
+
+  /** Whether a stored row belongs to one workspace partition. */
+  const matchesPartition = (
+    row: AccountRow,
+    accountId: string,
+    workspaceId: string,
+  ): boolean =>
+    row.serverOrigin === serverOrigin &&
+    row.accountId === accountId &&
+    row.workspaceId === workspaceId;
+
+  /** Deletes every private row of one workspace partition. */
+  const clearWorkspacePartition = async (
+    accountId: string,
+    workspaceId: string,
+  ): Promise<void> => {
+    for (const row of await tables.drafts.toArray()) {
+      const parsed = validateDraft(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.drafts.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.workingCopyId,
+        ]);
+    }
+    for (const row of await tables.checkpoints.toArray()) {
+      const parsed = validateCheckpoint(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.checkpoints.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.revisionId,
+        ]);
+    }
+    for (const row of await tables.contents.toArray()) {
+      const parsed = validateContent(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.contents.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.digest,
+        ]);
+    }
+    for (const row of await tables.acceptedFiles.toArray()) {
+      const parsed = validateAcceptedFile(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.acceptedFiles.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.fileId,
+        ]);
+    }
+    for (const row of await tables.branches.toArray()) {
+      const parsed = validateBranch(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.branches.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.branchId,
+        ]);
+    }
+    for (const row of await tables.queue.toArray()) {
+      const parsed = validateQueueRow(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.queue.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.mutationId,
+        ]);
+    }
+    for (const row of await tables.receipts.toArray()) {
+      const parsed = validateReceipt(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.receipts.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.mutationId,
+        ]);
+    }
+    for (const row of await tables.stagedSnapshots.toArray()) {
+      const parsed = validateSnapshot(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.stagedSnapshots.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.token,
+        ]);
+    }
+    for (const row of await tables.snapshotItems.toArray()) {
+      const parsed = validateSnapshotItem(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.snapshotItems.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.token,
+          parsed.revisionId,
+        ]);
+    }
+    await tables.cursors.delete([serverOrigin, accountId, workspaceId]);
+    for (const row of await tables.recovery.toArray()) {
+      const parsed = validateRecovery(row);
+      if (matchesPartition(parsed, accountId, workspaceId))
+        await tables.recovery.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.recoveryId,
+        ]);
+    }
+    // Workspace preferences go, but the account-wide sign-out marker stays:
+    // reconnect must see it before any private content is restored.
+    for (const row of await tables.preferences.toArray()) {
+      const parsed = validatePreference(row);
+      if (!matchesPartition(parsed, accountId, workspaceId)) continue;
+      if (
+        parsed.workspaceId === accountWide &&
+        parsed.name === signOutMarkerName
+      )
+        continue;
+      await tables.preferences.delete([
+        parsed.serverOrigin,
+        parsed.accountId,
+        parsed.workspaceId,
+        parsed.name,
+      ]);
+    }
+  };
+
+  /** Deletes every workspace partition of one account, keeping the marker. */
+  const clearAccountPartition = async (accountId: string): Promise<void> => {
+    const workspaces = new Set<string>();
+    const collect = (row: AccountRow): void => {
+      if (matchesAccount(row, accountId)) workspaces.add(row.workspaceId);
+    };
+    for (const row of await tables.drafts.toArray())
+      collect(validateDraft(row));
+    for (const row of await tables.checkpoints.toArray())
+      collect(validateCheckpoint(row));
+    for (const row of await tables.contents.toArray())
+      collect(validateContent(row));
+    for (const row of await tables.acceptedFiles.toArray())
+      collect(validateAcceptedFile(row));
+    for (const row of await tables.branches.toArray())
+      collect(validateBranch(row));
+    for (const row of await tables.queue.toArray())
+      collect(validateQueueRow(row));
+    for (const row of await tables.receipts.toArray())
+      collect(validateReceipt(row));
+    for (const row of await tables.stagedSnapshots.toArray())
+      collect(validateSnapshot(row));
+    for (const row of await tables.snapshotItems.toArray())
+      collect(validateSnapshotItem(row));
+    for (const row of await tables.cursors.toArray())
+      collect(validateCursor(row));
+    for (const row of await tables.recovery.toArray())
+      collect(validateRecovery(row));
+    for (const row of await tables.preferences.toArray())
+      collect(validatePreference(row));
+    workspaces.delete(accountWide);
+    for (const workspaceId of workspaces)
+      await clearWorkspacePartition(accountId, workspaceId);
+    // Any leftover account-wide preference other than the marker goes too.
+    for (const row of await tables.preferences.toArray()) {
+      const parsed = validatePreference(row);
+      if (!matchesAccount(parsed, accountId)) continue;
+      if (
+        parsed.workspaceId === accountWide &&
+        parsed.name === signOutMarkerName
+      )
+        continue;
+      if (parsed.workspaceId !== accountWide) continue;
+      await tables.preferences.delete([
+        parsed.serverOrigin,
+        parsed.accountId,
+        parsed.workspaceId,
+        parsed.name,
+      ]);
+    }
+  };
 
   const store: LocalStore = {
     serverOrigin,
@@ -620,6 +827,257 @@ export async function openLocalStore(
       );
     },
 
+    addRecovery(
+      accountId: string,
+      workspaceId: string,
+      entry: RecoveryInput,
+    ): Promise<RecoveryRecord> {
+      return guard('keeping a recovery copy', () =>
+        db.transaction('rw', tables.recovery, async () => {
+          if (entry.fileId === '' || entry.path === '')
+            throw new LocalStorageError(
+              'corrupt',
+              'the recovery copy names no file',
+            );
+          const record: RecoveryRecord = {
+            serverOrigin,
+            accountId,
+            workspaceId,
+            recoveryId: entry.recoveryId ?? newId(),
+            fileId: entry.fileId,
+            path: entry.path,
+            text: entry.text,
+            reason: entry.reason,
+            createdAt: entry.createdAt ?? nowIso(),
+          };
+          await tables.recovery.put(validateRecovery(record));
+          return record;
+        }),
+      );
+    },
+
+    removeRecovery(
+      accountId: string,
+      workspaceId: string,
+      recoveryId: string,
+    ): Promise<void> {
+      return guard('removing a recovery copy', () =>
+        db.transaction('rw', tables.recovery, async () => {
+          const stored: unknown = await tables.recovery.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            recoveryId,
+          ]);
+          if (stored === undefined) return;
+          await tables.recovery.delete([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            recoveryId,
+          ]);
+        }),
+      );
+    },
+
+    listAcceptedFiles(
+      accountId: string,
+      workspaceId: string,
+    ): Promise<readonly LocalAcceptedFile[]> {
+      return guard('reading accepted files', () =>
+        db.transaction('r', tables.acceptedFiles, async () => {
+          const range = partitionRange(serverOrigin, accountId, workspaceId);
+          const rows: unknown[] = await tables.acceptedFiles
+            .where('[serverOrigin+accountId+workspaceId+fileId]')
+            .between(range.lower, range.upper, true, true)
+            .toArray();
+          return rows
+            .map((row: unknown) => validateAcceptedFile(row))
+            .sort((left, right) => (left.path < right.path ? -1 : 1));
+        }),
+      );
+    },
+
+    hasContent(
+      accountId: string,
+      workspaceId: string,
+      digest: string,
+    ): Promise<boolean> {
+      return guard('reading stored content', () =>
+        db.transaction('r', tables.contents, async () => {
+          const stored: unknown = await tables.contents.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            digest,
+          ]);
+          return stored !== undefined;
+        }),
+      );
+    },
+
+    setAttachmentPinned(
+      accountId: string,
+      workspaceId: string,
+      digest: string,
+      pinned: boolean,
+    ): Promise<void> {
+      return guard('pinning an attachment', () =>
+        db.transaction('rw', tables.preferences, async () => {
+          const name = `pin-attachment:${digest}`;
+          const key: [string, string, string, string] = [
+            serverOrigin,
+            accountId,
+            workspaceId,
+            name,
+          ];
+          if (pinned)
+            await tables.preferences.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              name,
+              value: '1',
+            });
+          else await tables.preferences.delete(key);
+        }),
+      );
+    },
+
+    isAttachmentPinned(
+      accountId: string,
+      workspaceId: string,
+      digest: string,
+    ): Promise<boolean> {
+      return guard('reading an attachment pin', () =>
+        db.transaction('r', tables.preferences, async () => {
+          const stored: unknown = await tables.preferences.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            `pin-attachment:${digest}`,
+          ]);
+          return stored !== undefined;
+        }),
+      );
+    },
+
+    setHistoryPinned(
+      accountId: string,
+      workspaceId: string,
+      revisionId: string,
+      pinned: boolean,
+    ): Promise<void> {
+      return guard('pinning a historic revision', () =>
+        db.transaction('rw', tables.preferences, async () => {
+          const name = `pin-history:${revisionId}`;
+          const key: [string, string, string, string] = [
+            serverOrigin,
+            accountId,
+            workspaceId,
+            name,
+          ];
+          if (pinned)
+            await tables.preferences.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              name,
+              value: '1',
+            });
+          else await tables.preferences.delete(key);
+        }),
+      );
+    },
+
+    isHistoryPinned(
+      accountId: string,
+      workspaceId: string,
+      revisionId: string,
+    ): Promise<boolean> {
+      return guard('reading a history pin', () =>
+        db.transaction('r', tables.preferences, async () => {
+          const stored: unknown = await tables.preferences.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            `pin-history:${revisionId}`,
+          ]);
+          return stored !== undefined;
+        }),
+      );
+    },
+
+    setSignOutMarker(accountId: string): Promise<void> {
+      return guard('recording the sign-out marker', () =>
+        db.transaction('rw', tables.preferences, async () => {
+          await tables.preferences.put({
+            serverOrigin,
+            accountId,
+            workspaceId: accountWide,
+            name: signOutMarkerName,
+            value: 'signed-out',
+          });
+        }),
+      );
+    },
+
+    hasSignOutMarker(accountId: string): Promise<boolean> {
+      return guard('reading the sign-out marker', () =>
+        db.transaction('r', tables.preferences, async () => {
+          const stored: unknown = await tables.preferences.get([
+            serverOrigin,
+            accountId,
+            accountWide,
+            signOutMarkerName,
+          ]);
+          return stored !== undefined;
+        }),
+      );
+    },
+
+    clearSignOutMarker(accountId: string): Promise<void> {
+      return guard('clearing the sign-out marker', () =>
+        db.transaction('rw', tables.preferences, async () => {
+          await tables.preferences.delete([
+            serverOrigin,
+            accountId,
+            accountWide,
+            signOutMarkerName,
+          ]);
+        }),
+      );
+    },
+
+    clearPrivateData(accountId: string, workspaceId?: string): Promise<void> {
+      return guard('clearing private local data', () =>
+        db.transaction(
+          'rw',
+          [
+            tables.drafts,
+            tables.checkpoints,
+            tables.contents,
+            tables.acceptedFiles,
+            tables.branches,
+            tables.queue,
+            tables.receipts,
+            tables.stagedSnapshots,
+            tables.snapshotItems,
+            tables.cursors,
+            tables.preferences,
+            tables.recovery,
+          ],
+          async () => {
+            if (workspaceId === undefined) {
+              await clearAccountPartition(accountId);
+            } else {
+              await clearWorkspacePartition(accountId, workspaceId);
+            }
+          },
+        ),
+      );
+    },
+
     acquireLease(ownerId: string, expiresAt: number): Promise<boolean> {
       return guard('acquiring the sync lease', () =>
         db.transaction('rw', tables.leases, async () => {
@@ -649,6 +1107,20 @@ export async function openLocalStore(
           // Releasing a lease that another worker took over does nothing.
           if (validateLease(stored).ownerId !== ownerId) return;
           await tables.leases.delete(leaseKey);
+        }),
+      );
+    },
+
+    readLeaseState(): Promise<{
+      readonly ownerId: string;
+      readonly expiresAt: number;
+    } | null> {
+      return guard('reading the sync lease', () =>
+        db.transaction('r', tables.leases, async () => {
+          const stored: unknown = await tables.leases.get(leaseKey);
+          if (stored === undefined) return null;
+          const lease = validateLease(stored);
+          return { ownerId: lease.ownerId, expiresAt: lease.expiresAt };
         }),
       );
     },

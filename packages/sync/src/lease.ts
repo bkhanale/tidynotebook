@@ -48,3 +48,27 @@ export async function releaseWorkerLease(
 ): Promise<void> {
   await local.releaseLease(ownerId);
 }
+
+/**
+ * Whether a lease expiry lies in the past.
+ *
+ * A worker whose lease expired without renewal has failed, so another tab
+ * may take over. The comparison is strict: a lease that expires exactly now
+ * is already gone.
+ */
+export function isLeaseExpired(expiresAt: number, now: number): boolean {
+  return expiresAt <= now;
+}
+
+/**
+ * Reads the current sync worker lease without changing it.
+ *
+ * An update flow uses this to decide whether queue writes must stop before
+ * a schema migration: a live lease owned by another tab blocks the upgrade
+ * and the old application stays usable with its drafts intact.
+ */
+export async function readWorkerLease(
+  local: LocalStore,
+): Promise<{ readonly ownerId: string; readonly expiresAt: number } | null> {
+  return local.readLeaseState();
+}

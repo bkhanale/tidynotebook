@@ -460,6 +460,10 @@ function WorkspaceDetail({
         <Link to={`/w/${workspaceId}/conflicts`}>Conflicts.</Link>
         {' | '}
         <Link to={`/w/${workspaceId}/purge`}>Deletion and purge.</Link>
+        {' | '}
+        <Link to={`/w/${workspaceId}/offline`}>Offline status.</Link>
+        {' | '}
+        <Link to={`/w/${workspaceId}/recovery`}>Access and recovery.</Link>
       </p>
       <WorkspaceMembers
         workspaceId={workspaceId}
