@@ -367,7 +367,7 @@ Execution record (2026-09-06): commit `65e4b91`. Checks: 430 unit, attachments 1
 
 Execution record (2026-09-06): commit `80240e4`. Checks: 448 unit, history 12, sync 7, typecheck/lint/format/build clean. Extra file `diff-worker-impl.ts` for real worker bundle.
 
-### [ ] Task 17: Complete PWA installation, updates, and offline access recovery
+### [x] Task 17: Complete PWA installation, updates, and offline access recovery
 
 **Depends on:** Task 16.
 
@@ -375,11 +375,13 @@ Execution record (2026-09-06): commit `80240e4`. Checks: 448 unit, history 12, s
 
 **Interfaces:** Define `OfflineReadiness = { markdownComplete: boolean; appAssetsComplete: boolean; attachmentsComplete: boolean }`. Produces `isReadyOffline(state: OfflineReadiness): boolean`, requiring Markdown and application assets; attachment completeness is a separate status. Lifecycle operations include `requestUpdate(): Promise<void>` and `signOut(online: boolean, discardPending: boolean): Promise<void>` in web composition.
 
-- [ ] Precache the shell, editor, fonts, math, and diagram modules; cache no private API or public share response. Pin the active workspace's Markdown and expose image/history pin actions and completeness. Support an installed offline launch after provisioning, and never depend on Background Sync.
-- [ ] Request persistent browser storage and handle denial/eviction. Before updates, persist drafts, stop queue writes, close all tab database connections, and complete the migration transaction. Keep old assets while old clients remain active; show blocked-upgrade instructions without losing drafts.
-- [ ] Implement session expiry pause, viewer downgrade, removed-access recovery bound to the original account, and clipboard/removal actions. Online logout settles or discards work then revokes and clears. Offline logout requires explicit discard, clears private local data, and sets a sign-out marker; process revocation before restoring account content on reconnect.
-- [ ] Run `pnpm test:integration -- offline-lifecycle`, `pnpm test:integration -- browser-storage`, and `pnpm build`. Module tests cover readiness, blocked migrations, revocation order, marker persistence, and recovery isolation. Actual browser eviction/install behavior remains required evidence in Tasks 23 and 24.
-- [ ] Commit: `feat: complete offline PWA lifecycle and recovery`.
+- [x] Precache the shell, editor, fonts, math, and diagram modules; cache no private API or public share response. Pin the active workspace's Markdown and expose image/history pin actions and completeness. Support an installed offline launch after provisioning, and never depend on Background Sync.
+- [x] Request persistent browser storage and handle denial/eviction. Before updates, persist drafts, stop queue writes, close all tab database connections, and complete the migration transaction. Keep old assets while old clients remain active; show blocked-upgrade instructions without losing drafts.
+- [x] Implement session expiry pause, viewer downgrade, removed-access recovery bound to the original account, and clipboard/removal actions. Online logout settles or discards work then revokes and clears. Offline logout requires explicit discard, clears private local data, and sets a sign-out marker; process revocation before restoring account content on reconnect.
+- [x] Run `pnpm test:integration -- offline-lifecycle`, `pnpm test:integration -- browser-storage`, and `pnpm build`. Module tests cover readiness, blocked migrations, revocation order, marker persistence, and recovery isolation. Actual browser eviction/install behavior remains required evidence in Tasks 23 and 24.
+- [x] Commit: `feat: complete offline PWA lifecycle and recovery`.
+
+Execution record (2026-09-06): commit `6a31f79`. Checks: offline-lifecycle 12, browser-storage 12, unit 448, typecheck/lint/format/build clean.
 
 ### [ ] Task 18: Implement stable links, backlinks, and search
 
