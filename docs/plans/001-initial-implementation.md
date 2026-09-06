@@ -335,7 +335,7 @@ Execution record (2026-09-06): commit `851471e`. Checks: typecheck, lint, format
 
 Execution record (2026-09-06): commit `4c039a3`. Checks: 411 unit (15 editor), typecheck/lint/format/build clean.
 
-### [ ] Task 15: Add inline images, tables, math, and Mermaid
+### [x] Task 15: Add inline images, tables, math, and Mermaid
 
 **Depends on:** Tasks 7 and 14.
 
@@ -343,11 +343,13 @@ Execution record (2026-09-06): commit `4c039a3`. Checks: 411 unit (15 editor), t
 
 **Interfaces:** Produces `renderMath(source: string, display: boolean): string` returning sanitized KaTeX markup, and `loadAttachment(revisionId: string, signal: AbortSignal): Promise<{ url: string; dispose(): void }>` in web composition using the generated binary operation and local blobs. Define frame messages as `{ requestId: string; source: string; theme: 'light' | 'dark' }` and `{ requestId: string; ok: boolean; height: number }`; no arbitrary HTML is returned to the parent.
 
-- [ ] Add accessible inline widgets for images, tables, math, and diagrams that expose their source region on focus/click. Implement local paste/upload before network transfer and dispose object URLs when widgets close.
-- [ ] Use direct KaTeX with trust disabled, input/macro limits, and a math-aware sanitization schema. Render Mermaid in a sandboxed frame with strict configuration, no origin privileges or note-controlled settings, bounded graph size/time, and source fallback after failure. Validate message source and request ID.
-- [ ] Defer rich module loading, retain required modules for later offline precaching, and apply Tokyo Night colors. External images require explicit loading; importing one requires user-supplied bytes without a server URL proxy. Preserve unknown or oversized blocks as editable source in the same pane.
-- [ ] Run Markdown/editor unit tests and `pnpm test:integration -- attachments`, then `pnpm build`. Test math sanitization, widget source boundaries, failed rendering, fixed frame message schemas, and old attachment revision selection. Check focus entry and source editing manually.
-- [ ] Commit: `feat: render rich Markdown inside the editor`.
+- [x] Add accessible inline widgets for images, tables, math, and diagrams that expose their source region on focus/click. Implement local paste/upload before network transfer and dispose object URLs when widgets close.
+- [x] Use direct KaTeX with trust disabled, input/macro limits, and a math-aware sanitization schema. Render Mermaid in a sandboxed frame with strict configuration, no origin privileges or note-controlled settings, bounded graph size/time, and source fallback after failure. Validate message source and request ID.
+- [x] Defer rich module loading, retain required modules for later offline precaching, and apply Tokyo Night colors. External images require explicit loading; importing one requires user-supplied bytes without a server URL proxy. Preserve unknown or oversized blocks as editable source in the same pane.
+- [x] Run Markdown/editor unit tests and `pnpm test:integration -- attachments`, then `pnpm build`. Test math sanitization, widget source boundaries, failed rendering, fixed frame message schemas, and old attachment revision selection. Check focus entry and source editing manually.
+- [x] Commit: `feat: render rich Markdown inside the editor`.
+
+Execution record (2026-09-06): commit `65e4b91`. Checks: 430 unit, attachments 14, typecheck/lint/format/build clean.
 
 ### [ ] Task 16: Add history and conflict resolution screens
 
