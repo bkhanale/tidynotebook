@@ -14,9 +14,10 @@ import process from 'node:process';
 import { openIdentityStore } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import { createAuth } from '../auth/better-auth.ts';
-import { loadServerConfig } from '../config.ts';
+import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
 import { minimumPasswordLength } from './bootstrap.ts';
 import { readArgument, readSecret } from './prompt.ts';
+import { WritePauseCoordinator } from '../write-pause.ts';
 
 /** What the recovery command changed. */
 export type RecoveryResult = {
@@ -96,11 +97,17 @@ export async function main(argv: readonly string[]): Promise<void> {
     process.env,
     { input: process.stdin, output: process.stderr },
   );
-  const result = await recoverAccount({
-    config: loadServerConfig(process.env),
-    email,
-    password,
-  });
+  const config = loadServerConfig(await loadProtectedEnvironment(process.env));
+  const writePause = new WritePauseCoordinator(config.storageRoot);
+  const release = writePause.beginWrite();
+  if (release === null)
+    throw new Error('notesapp: writes are paused for operator maintenance.');
+  let result: RecoveryResult;
+  try {
+    result = await recoverAccount({ config, email, password });
+  } finally {
+    release();
+  }
   process.stdout.write(
     `notesapp: set a new password for ${result.email} and revoked its sessions\n`,
   );

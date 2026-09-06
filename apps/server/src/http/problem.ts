@@ -37,6 +37,7 @@ export type ProblemCode =
   | 'rate_limited'
   | 'route_not_found'
   | 'not_ready'
+  | 'write_paused'
   | 'invalid_response'
   | 'internal_error';
 
@@ -81,6 +82,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
+  write_paused: 'Write operations are paused for maintenance.',
   invalid_response: 'The service produced a response outside the contract.',
   internal_error: 'The service failed to complete the request.',
 };

@@ -8,6 +8,7 @@
  */
 import type { SchemaObject } from '@notesapp/api-contract';
 import { compileSchema, describeIssues } from '@notesapp/api-contract';
+import { readFile } from 'node:fs/promises';
 
 const logLevels = [
   'fatal',
@@ -131,8 +132,49 @@ const optionalVariables = [
   'NOTESAPP_SESSION_MAX_AGE_S',
 ] as const;
 
+const protectedFiles = {
+  NOTESAPP_DATABASE_URL: 'NOTESAPP_DATABASE_URL_FILE',
+  NOTESAPP_AUTH_DATABASE_URL: 'NOTESAPP_AUTH_DATABASE_URL_FILE',
+  NOTESAPP_AUTH_SECRET: 'NOTESAPP_AUTH_SECRET_FILE',
+  NOTESAPP_SMTP_URL: 'NOTESAPP_SMTP_URL_FILE',
+  NOTESAPP_OIDC_CLIENT_SECRET: 'NOTESAPP_OIDC_CLIENT_SECRET_FILE',
+} as const;
+
 type RawConfig = Record<(typeof variables)[number], string> &
   Partial<Record<(typeof optionalVariables)[number], string>>;
+
+/** Loads protected configuration values from explicit files. */
+export async function loadProtectedEnvironment(
+  environment: Readonly<Record<string, string | undefined>>,
+): Promise<Record<string, string | undefined>> {
+  const loaded: Record<string, string | undefined> = { ...environment };
+  for (const [valueName, fileName] of Object.entries(protectedFiles)) {
+    const direct = environment[valueName];
+    const path = environment[fileName];
+    if (
+      direct !== undefined &&
+      direct !== '' &&
+      path !== undefined &&
+      path !== ''
+    )
+      throw new ConfigError([
+        `${valueName}: set either ${valueName} or ${fileName}, not both.`,
+      ]);
+    if (path === undefined || path === '') continue;
+    let value: string;
+    try {
+      value = (await readFile(path, 'utf8')).trim();
+    } catch {
+      throw new ConfigError([
+        `${fileName}: the protected file cannot be read.`,
+      ]);
+    }
+    if (value === '')
+      throw new ConfigError([`${fileName}: the protected file is empty.`]);
+    loaded[valueName] = value;
+  }
+  return loaded;
+}
 
 const positiveInteger = { type: 'string', pattern: '^[1-9][0-9]{0,9}$' };
 

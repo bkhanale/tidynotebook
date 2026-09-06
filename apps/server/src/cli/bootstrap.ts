@@ -13,9 +13,10 @@ import process from 'node:process';
 import { openIdentityStore } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import { createAuth } from '../auth/better-auth.ts';
-import { loadServerConfig } from '../config.ts';
+import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
 import { readArgument, readSecret } from './prompt.ts';
 import { readProperty } from '../values.ts';
+import { WritePauseCoordinator } from '../write-pause.ts';
 
 /** What the bootstrap command created. */
 export type BootstrapResult = {
@@ -101,12 +102,17 @@ export async function main(argv: readonly string[]): Promise<void> {
     process.env,
     { input: process.stdin, output: process.stderr },
   );
-  const result = await bootstrapOwner({
-    config: loadServerConfig(process.env),
-    email,
-    name,
-    password,
-  });
+  const config = loadServerConfig(await loadProtectedEnvironment(process.env));
+  const writePause = new WritePauseCoordinator(config.storageRoot);
+  const release = writePause.beginWrite();
+  if (release === null)
+    throw new Error('notesapp: writes are paused for operator maintenance.');
+  let result: BootstrapResult;
+  try {
+    result = await bootstrapOwner({ config, email, name, password });
+  } finally {
+    release();
+  }
   // The address and the identifiers are operator data. The password is not
   // repeated anywhere.
   process.stdout.write(

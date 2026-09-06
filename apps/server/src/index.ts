@@ -10,7 +10,11 @@ export type {
   OidcConfig,
   ServerConfig,
 } from './config.ts';
-export { ConfigError, loadServerConfig } from './config.ts';
+export {
+  ConfigError,
+  loadProtectedEnvironment,
+  loadServerConfig,
+} from './config.ts';
 export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers, redactAccessUrl } from './app.ts';
 export type {
@@ -18,7 +22,21 @@ export type {
   ReadinessCheck,
   ReadinessProbe,
 } from './http/handlers.ts';
-export { createHandlers } from './http/handlers.ts';
+export {
+  configurationProbe,
+  createHandlers,
+  databaseProbe,
+  evaluateReadiness,
+  migrationProbe,
+  storageProbe,
+} from './http/handlers.ts';
+export { WritePauseCoordinator, type WritePauseState } from './write-pause.ts';
+export {
+  MetricsCollector,
+  attachObservability,
+  redactUrl,
+  type RequestLogRecord,
+} from './observability.ts';
 export type {
   HandlerMap,
   IdentityResolver,
@@ -81,6 +99,7 @@ export { invitationTokenHash } from './http/workspaces.ts';
 export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
+export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 export { createSearchHandlers } from './http/search.ts';
 export { createSharingHandlers, publicTokenHash } from './http/sharing.ts';
 export { publicSharePage } from './public/page.ts';

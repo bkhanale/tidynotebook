@@ -9,9 +9,22 @@ import type { WorkspaceStoreHandle } from '@notesapp/storage-server';
 
 export function createSyncCleanup(
   store: Pick<WorkspaceStoreHandle, 'cleanupSync'>,
+  writePause?: {
+    beginWrite: () => (() => void) | null;
+  },
 ): (now?: Date) => Promise<{
   expiredSnapshots: number;
   oldChanges: number;
 }> {
-  return (now = new Date()) => store.cleanupSync(now);
+  return async (now = new Date()) => {
+    const release = writePause?.beginWrite();
+    if (writePause !== undefined && release === null) {
+      return { expiredSnapshots: 0, oldChanges: 0 };
+    }
+    try {
+      return await store.cleanupSync(now);
+    } finally {
+      release?.();
+    }
+  };
 }

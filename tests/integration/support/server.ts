@@ -35,7 +35,7 @@ import {
  * It authenticates nothing, so every guarded operation answers 401. A test
  * that needs real identities supplies the real resolver instead.
  */
-const anonymousIdentity: IdentityResolver = () =>
+export const anonymousIdentity: IdentityResolver = () =>
   Promise.reject(
     new UnauthenticatedError('This test server authenticates nobody.'),
   );
@@ -47,7 +47,7 @@ const anonymousIdentity: IdentityResolver = () =>
  * still proves that every protocol operation has a route, and it answers with
  * a refusal rather than pretending to sign anybody in.
  */
-const stubProtocol: ProtocolAdapter = {
+export const stubProtocol: ProtocolAdapter = {
   protocol: betterAuthProtocol,
   routes: authRoutes,
   handle: (request): Promise<ProtocolResult> =>

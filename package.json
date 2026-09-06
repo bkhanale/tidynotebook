@@ -23,7 +23,8 @@
     "db:migrate": "node packages/storage-server/src/migrate.ts",
     "owner:bootstrap": "node apps/server/src/cli/bootstrap.ts",
     "account:recover": "node apps/server/src/cli/recover-account.ts",
-    "mcp:stdio": "node apps/mcp-stdio/dist/main.js"
+    "mcp:stdio": "node apps/mcp-stdio/dist/main.js",
+    "start": "node apps/server/dist/main.js"
   },
   "devDependencies": {
     "@modelcontextprotocol/client": "2.0.0",

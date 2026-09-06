@@ -1,0 +1,17 @@
+.git
+.github
+node_modules
+**/dist
+**/*.tsbuildinfo
+*.log
+.tooling
+.env
+.env.*
+!.env.example
+scratch
+brain
+docs
+backups
+tests
+tools/performance
+tools/test-database

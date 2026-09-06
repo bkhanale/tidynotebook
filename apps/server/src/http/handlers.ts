@@ -5,6 +5,8 @@
  * that body against the declared response schema before it is sent, so a
  * handler never has to repeat the contract shape.
  */
+import { access, constants } from 'node:fs/promises';
+import pg from 'pg';
 import type { SharingStore, WorkspaceAdminStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import type { InvitationAccounts } from '../auth/invitations.ts';
@@ -107,8 +109,7 @@ export function configurationProbe(config: ServerConfig): ReadinessProbe {
         ? {
             name: 'configuration',
             status: 'ok',
-            detail:
-              'Configuration was validated at startup. No database or attachment storage exists in this release, so nothing else is checked.',
+            detail: 'Configuration was validated at startup.',
           }
         : {
             name: 'configuration',
@@ -116,6 +117,98 @@ export function configurationProbe(config: ServerConfig): ReadinessProbe {
             detail: 'The deployment serves no Host value.',
           },
     );
+}
+
+/** Checks database connectivity and query response. */
+export function databaseProbe(databaseUrl: string): ReadinessProbe {
+  return async () => {
+    const client = new pg.Client({
+      connectionString: databaseUrl,
+      connectionTimeoutMillis: 3000,
+    });
+    try {
+      await client.connect();
+      await client.query('SELECT 1');
+      await client.end();
+      return {
+        name: 'database',
+        status: 'ok',
+        detail: 'Database connection is healthy.',
+      };
+    } catch {
+      try {
+        await client.end();
+      } catch {
+        // Ignore disconnect failure on already failed connection.
+      }
+      return {
+        name: 'database',
+        status: 'degraded',
+        detail: 'Database connection failed.',
+      };
+    }
+  };
+}
+
+/** Checks storage root accessibility and writability. */
+export function storageProbe(storageRoot: string): ReadinessProbe {
+  return async () => {
+    try {
+      await access(storageRoot, constants.R_OK | constants.W_OK);
+      return {
+        name: 'storage',
+        status: 'ok',
+        detail: 'Storage directory is accessible and writable.',
+      };
+    } catch {
+      return {
+        name: 'storage',
+        status: 'degraded',
+        detail: 'Storage directory is not accessible or writable.',
+      };
+    }
+  };
+}
+
+/** Checks schema migration status. */
+export function migrationProbe(databaseUrl: string): ReadinessProbe {
+  return async () => {
+    const client = new pg.Client({
+      connectionString: databaseUrl,
+      connectionTimeoutMillis: 3000,
+    });
+    try {
+      await client.connect();
+      const result = await client.query<{ version: number }>(
+        'SELECT public.notesapp_schema_version() AS version',
+      );
+      await client.end();
+      const version = result.rows[0]?.version ?? 0;
+      if (version >= 10) {
+        return {
+          name: 'migration',
+          status: 'ok',
+          detail: 'Database schema migrations are complete.',
+        };
+      }
+      return {
+        name: 'migration',
+        status: 'degraded',
+        detail: `Database schema version ${version} is incomplete; version 10 is required.`,
+      };
+    } catch {
+      try {
+        await client.end();
+      } catch {
+        // Ignore disconnect failure on already failed connection.
+      }
+      return {
+        name: 'migration',
+        status: 'degraded',
+        detail: 'Failed to verify schema migrations.',
+      };
+    }
+  };
 }
 
 /** Runs every probe and combines the result. */

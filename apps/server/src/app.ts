@@ -7,13 +7,22 @@
  * validation, contract response validation, and problem details for every
  * failure.
  */
+import { createReadStream, existsSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
-import { createHandlers } from './http/handlers.ts';
+import {
+  configurationProbe,
+  createHandlers,
+  databaseProbe,
+  migrationProbe,
+  storageProbe,
+  type ReadinessProbe,
+} from './http/handlers.ts';
 import type {
   HandlerMap,
   IdentityResolver,
@@ -41,6 +50,10 @@ import {
 } from './http/problem.ts';
 import { McpAuthorizationServer } from './mcp/authorization.ts';
 import { mountMcpServer } from './mcp/server.ts';
+import { WritePauseCoordinator } from './write-pause.ts';
+import { MetricsCollector, attachObservability } from './observability.ts';
+import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
+import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 
 /**
  * Accepted shape of a caller supplied correlation id. It matches the contract
@@ -61,10 +74,11 @@ export { hostName } from './http/host.ts';
 
 /** Removes a public share secret before a request URL reaches a log. */
 export function redactAccessUrl(url: string): string {
-  return url.replace(
+  const path = (url.split('?')[0] ?? url).replace(
     /^(\/s\/)[^/?]+(?:\/attachments\/[^/?]+)?/,
     '$1[redacted]',
   );
+  return url.includes('?') ? `${path}?[redacted]` : path;
 }
 
 function instanceOf(request: FastifyRequest): string {
@@ -84,6 +98,24 @@ function contractStatus(id: OperationId | undefined, status: number): number {
   return declared ? status : 500;
 }
 
+/** MIME content type mapping for web assets. */
+function mimeTypeFor(filePath: string): string {
+  if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
+  if (filePath.endsWith('.js') || filePath.endsWith('.mjs'))
+    return 'application/javascript; charset=utf-8';
+  if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
+  if (filePath.endsWith('.json')) return 'application/json; charset=utf-8';
+  if (filePath.endsWith('.webmanifest'))
+    return 'application/manifest+json; charset=utf-8';
+  if (filePath.endsWith('.svg')) return 'image/svg+xml';
+  if (filePath.endsWith('.png')) return 'image/png';
+  if (filePath.endsWith('.ico')) return 'image/x-icon';
+  if (filePath.endsWith('.woff')) return 'font/woff';
+  if (filePath.endsWith('.woff2')) return 'font/woff2';
+  if (filePath.endsWith('.map')) return 'application/json; charset=utf-8';
+  return 'application/octet-stream';
+}
+
 /** Everything that a deployment or a test supplies besides configuration. */
 export type AppOptions = {
   /** One handler per contract operation id. */
@@ -94,6 +126,14 @@ export type AppOptions = {
   readonly logStream?: { write: (line: string) => void };
   /** Maintained protocol libraries that serve part of the HTTP surface. */
   readonly protocols?: readonly ProtocolAdapter[];
+  /** Optional custom readiness probes. */
+  readonly probes?: readonly ReadinessProbe[];
+  /** Optional write-pause coordinator instance. */
+  readonly writePause?: WritePauseCoordinator;
+  /** Custom web assets directory or null to disable web asset serving. */
+  readonly webDist?: string | null;
+  /** Metrics collector instance. */
+  readonly metrics?: MetricsCollector;
 };
 
 /** Builds the application with an explicit handler map. */
@@ -101,6 +141,10 @@ export function createAppWithHandlers(
   config: ServerConfig,
   options: AppOptions,
 ): Promise<FastifyInstance> {
+  const writePause =
+    options.writePause ?? new WritePauseCoordinator(config.storageRoot);
+  const metrics = options.metrics ?? new MetricsCollector(config.storageRoot);
+
   const app = Fastify({
     // Request headers are never logged. Fastify's request serializer records
     // the method, the URL, the host name, and the peer address only, so a
@@ -146,6 +190,8 @@ export function createAppWithHandlers(
     genReqId: (request) => requestId(request.headers['x-request-id']),
   });
 
+  attachObservability(app, metrics);
+
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
   });
@@ -171,7 +217,131 @@ export function createAppWithHandlers(
       );
   });
 
+  // Write mutations are blocked with 503 write_paused when maintenance is active.
+  // This runs in onRequest so it fires before the preValidation identity check
+  // that registerOperations installs, and before any body parsing.
+  // The response is written through reply.raw and reply.hijack() so Fastify's
+  // preSerialization hook does not validate it against the operation contract.
+  // The write-pause 503 is a cross-cutting concern, not a per-operation response.
+  app.addHook('onRequest', async (request, reply) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
+      const release = writePause.beginWrite();
+      if (release === null) {
+        const body = JSON.stringify(
+          createProblem({
+            code: 'write_paused',
+            status: 503,
+            detail: 'Write operations are paused for maintenance.',
+            instance: instanceOf(request),
+            requestId: request.id,
+          }),
+        );
+        reply.hijack();
+        reply.raw.writeHead(503, {
+          'content-type': `${problemMediaType}; charset=utf-8`,
+          'retry-after': '30',
+          'content-length': Buffer.byteLength(body),
+        });
+        reply.raw.end(body);
+        return;
+      }
+      reply.raw.on('finish', release);
+      reply.raw.on('close', release);
+    }
+  });
+
+  // Root health and readiness aliases for load balancers and orchestrators.
+  app.get('/health', async (request, reply) => {
+    const result = await options.handlers.getHealth?.(request, reply);
+    if (result) {
+      return reply
+        .status(result.status)
+        .header('content-type', result.mediaType)
+        .send(result.body);
+    }
+    return reply.status(200).send({ status: 'ok' });
+  });
+
+  app.get('/ready', async (request, reply) => {
+    const result = await options.handlers.getReadiness?.(request, reply);
+    if (result) {
+      return reply
+        .status(result.status)
+        .header('content-type', result.mediaType)
+        .send(result.body);
+    }
+    return reply.status(503).send({ status: 'degraded' });
+  });
+
+  // Prometheus and JSON metrics endpoint.
+  app.get('/metrics', async (request, reply) => {
+    const accept = request.headers.accept ?? '';
+    if (accept.includes('application/json')) {
+      return reply
+        .status(200)
+        .type('application/json; charset=utf-8')
+        .send(await metrics.toJson());
+    }
+    return reply
+      .status(200)
+      .type('text/plain; version=0.0.4; charset=utf-8')
+      .send(await metrics.toPrometheusFormat());
+  });
+
+  const defaultWebDist = resolve(import.meta.dirname, '../../web/dist');
+  const webDist =
+    options.webDist !== undefined
+      ? options.webDist
+      : existsSync(defaultWebDist)
+        ? defaultWebDist
+        : null;
+
   app.setNotFoundHandler(async (request, reply) => {
+    if (
+      webDist !== null &&
+      (request.method === 'GET' || request.method === 'HEAD')
+    ) {
+      const rawPath = request.url.split('?')[0] ?? '/';
+      const isApiPrefix =
+        rawPath.startsWith('/api/') ||
+        rawPath.startsWith('/s/') ||
+        rawPath.startsWith('/mcp') ||
+        rawPath.startsWith('/.well-known/');
+
+      if (!isApiPrefix) {
+        let decodedPath: string | null = null;
+        try {
+          decodedPath = decodeURIComponent(rawPath);
+        } catch {
+          // A malformed path is not a web asset. The normal not-found problem
+          // response below handles it without exposing a filesystem detail.
+        }
+        if (decodedPath !== null) {
+          const targetPath = resolve(webDist, '.' + decodedPath);
+          if (
+            (targetPath === webDist || targetPath.startsWith(`${webDist}/`)) &&
+            existsSync(targetPath)
+          ) {
+            const stat = statSync(targetPath);
+            if (stat.isFile()) {
+              const contentType = mimeTypeFor(targetPath);
+              return reply
+                .status(200)
+                .header('content-type', contentType)
+                .send(createReadStream(targetPath));
+            }
+          }
+        }
+        const indexPath = resolve(webDist, 'index.html');
+        if (existsSync(indexPath)) {
+          return reply
+            .status(200)
+            .header('content-type', 'text/html; charset=utf-8')
+            .send(createReadStream(indexPath));
+        }
+      }
+    }
+
     await reply
       .status(404)
       .header('content-type', `${problemMediaType}; charset=utf-8`)
@@ -235,7 +405,18 @@ export function createAppWithHandlers(
  */
 export async function createApp(
   config: ServerConfig,
+  options?: Partial<AppOptions>,
 ): Promise<FastifyInstance> {
+  const probes = options?.probes ?? [
+    configurationProbe(config),
+    databaseProbe(config.databaseUrl),
+    storageProbe(config.storageRoot),
+    migrationProbe(config.databaseUrl),
+  ];
+  const writePause =
+    options?.writePause ?? new WritePauseCoordinator(config.storageRoot);
+  const metrics = options?.metrics ?? new MetricsCollector(config.storageRoot);
+
   const identity = openIdentityStore(config.databaseUrl);
   // The content store uses the same runtime role. It opens its own pool,
   // because a content transaction holds the workspace lock for the length of a
@@ -269,7 +450,7 @@ export async function createApp(
     resolveActor: (request) => adapter.resolveActor(request),
   });
   const app = await createAppWithHandlers(config, {
-    handlers: createHandlers(config, undefined, {
+    handlers: createHandlers(config, probes, {
       store: identity,
       content,
       attachments,
@@ -278,6 +459,13 @@ export async function createApp(
     }),
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],
+    probes,
+    writePause,
+    metrics,
+    ...(options?.logStream !== undefined
+      ? { logStream: options.logStream }
+      : {}),
+    ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
   });
   const authServer = new McpAuthorizationServer({
     config,
@@ -291,6 +479,23 @@ export async function createApp(
     identity,
     authServer,
   });
+  const cleanupSync = createSyncCleanup(content, writePause);
+  const cleanupAttachments = createAttachmentCleanup(attachments, writePause);
+  let cleanupRunning = false;
+  const runCleanup = async (): Promise<void> => {
+    if (cleanupRunning) return;
+    cleanupRunning = true;
+    try {
+      await cleanupSync();
+      await cleanupAttachments();
+    } catch {
+      app.log.error({ source: 'cleanup' }, 'A cleanup job failed.');
+    } finally {
+      cleanupRunning = false;
+    }
+  };
+  const cleanupTimer = setInterval(() => void runCleanup(), 60 * 60 * 1000);
+  cleanupTimer.unref();
   sink.write = (record): void => {
     const where = { source: 'better-auth' };
     // The level is chosen explicitly rather than by index, so the logger keeps
@@ -301,6 +506,7 @@ export async function createApp(
     else app.log.debug(where, record.message);
   };
   app.addHook('onClose', async () => {
+    clearInterval(cleanupTimer);
     await invitations.close();
     await auth.close();
     await authPool.end();

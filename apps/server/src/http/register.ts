@@ -643,7 +643,7 @@ function registerProtocol(
   app.register((scope, _options, done) => {
     scope.removeAllContentTypeParsers();
     scope.addContentTypeParser(
-      /.*/,
+      /^.*$/,
       { parseAs: 'buffer' },
       (_request, body, next) => {
         next(null, body);
