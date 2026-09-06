@@ -431,7 +431,7 @@ Execution record (2026-09-06): commit `b1af1c0`. Checks: sharing (10), history (
 
 Execution record (2026-09-06): commit `30f0509`. Checks: MCP integration (6), unit tests (458), all integration tests (237), typecheck (14 workspaces), lint (202 files), boundary check (13 packages), format check, and build all clean.
 
-### [ ] Task 21: Package Docker deployment, encryption checks, and recovery
+### [x] Task 21: Package Docker deployment, encryption checks, and recovery
 
 **Depends on:** Task 20.
 
@@ -439,11 +439,13 @@ Execution record (2026-09-06): commit `30f0509`. Checks: MCP integration (6), un
 
 **Interfaces:** Root `pnpm start` starts the production server. Compose provides app, PostgreSQL, and a one-shot migration service; the latter is a deployment step, not a persistent worker. `/health` reports liveness and `/ready` checks configured storage/database/migration readiness. Operator scripts take explicit protected configuration paths and fail if target storage or backup identity is inconsistent.
 
-- [ ] Build non-root multi-stage images, pin base image digests, keep PostgreSQL private, and serve web/REST/auth/MCP/public routes on one origin behind the operator's HTTPS proxy. Configure migration completion before readiness and fail closed on missing secrets or storage.
-- [ ] Document and check host encryption for data, WAL, attachments, persistent temporary files, swap, crash output, and backups. Do not claim that a Docker mount proves encryption. Describe external key storage, unlock, rotation, and recovery without automatic replacement keys.
-- [ ] Implement a persistent write-pause state used by every mutation and cleanup job. During backup, pause writers, wait for active writes, capture PostgreSQL plus its referenced assets, verify the manifest, then resume. Keep seven daily/four weekly encrypted copies on separate storage; restore into an empty target and verify every referenced object digest.
-- [ ] Add content-free request/operation logs and metrics for save failures, conflicts, usage, auth failures, and backup age. Redact bodies, query text, credentials, cookies, and share URLs. Run `docker compose config`, local amd64/arm64 builds, `pnpm test:integration -- operations`, and a disposable backup/restore check. Do not publish images or deploy externally during this task.
-- [ ] Commit: `feat: package self-hosted deployment and recovery`.
+- [x] Build non-root multi-stage images, pin base image digests, keep PostgreSQL private, and serve web/REST/auth/MCP/public routes on one origin behind the operator's HTTPS proxy. Configure migration completion before readiness and fail closed on missing secrets or storage.
+- [x] Document and check host encryption for data, WAL, attachments, persistent temporary files, swap, crash output, and backups. Do not claim that a Docker mount proves encryption. Describe external key storage, unlock, rotation, and recovery without automatic replacement keys.
+- [x] Implement a persistent write-pause state used by every mutation and cleanup job. During backup, pause writers, wait for active writes, capture PostgreSQL plus its referenced assets, verify the manifest, then resume. Keep seven daily/four weekly encrypted copies on separate storage; restore into an empty target and verify every referenced object digest.
+- [x] Add content-free request/operation logs and metrics for save failures, conflicts, usage, auth failures, and backup age. Redact bodies, query text, credentials, cookies, and share URLs. Run `docker compose config`, local amd64/arm64 builds, `pnpm test:integration -- operations`, and a disposable backup/restore check. Do not publish images or deploy externally during this task.
+- [x] Commit: `feat: package self-hosted deployment and recovery`.
+
+Execution record (2026-09-06): commit `99e1e5d`. Checks: typecheck, lint and boundaries, format, Compose configuration, amd64 image build, arm64 image build, and operations integration (9) all clean. The operations test includes an encrypted backup and verified restore against disposable PostgreSQL 18.6. The final amd64 image is 413,450,617 bytes and runs as UID/GID 10001. The host used Docker Engine 26.1.5 and Compose 2.26.1, which differ from the reference versions. No image was published and no external deployment ran.
 
 ### [ ] Task 22: Complete implementation review and performance checks
 
