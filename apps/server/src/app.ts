@@ -288,7 +288,7 @@ export function createAppWithHandlers(
       .send(await metrics.toPrometheusFormat());
   });
 
-  const defaultWebDist = resolve(import.meta.dirname, '../../web/dist');
+  const defaultWebDist = resolve(import.meta.dirname, '../../web/dist/web');
   const webDist =
     options.webDist !== undefined
       ? options.webDist

@@ -3,8 +3,9 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 // The JSX transform comes from Vite's built-in esbuild support with the
 // automatic runtime, so no framework plugin is needed for the production
-// build. The bundle keeps the tsc declarations in `dist` (emptyOutDir stays
-// off) because the package export points at the compiled composition root.
+// build. TypeScript package output stays in `dist`, while deployable browser
+// assets use `dist/web`. This separation lets every Vite build clean all old
+// hashed assets without deleting package declarations or compiled modules.
 //
 // The diagram frame is a second HTML entry. It bundles the Mermaid renderer
 // on its own, so the main application stays inside its initial JavaScript
@@ -24,8 +25,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 // incompatibility that already requires the flag in apps/server.
 export default defineConfig({
   build: {
-    outDir: 'dist',
-    emptyOutDir: false,
+    outDir: 'dist/web',
+    emptyOutDir: true,
     sourcemap: true,
     target: 'es2024',
     rollupOptions: {

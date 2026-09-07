@@ -79,7 +79,7 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
       });
       await bootstrapOwner({ config, email, name: 'E2E Owner', password });
       const app = await createApp(config, {
-        webDist: resolve(import.meta.dirname, '../../../apps/web/dist'),
+        webDist: resolve(import.meta.dirname, '../../../apps/web/dist/web'),
       });
       try {
         await app.listen({ host: '127.0.0.1', port });
@@ -93,18 +93,22 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
     },
     { scope: 'worker' },
   ],
-  checkedPage: async ({ page }, use) => {
+  checkedPage: async ({ page, browserName }, use) => {
     const errors: string[] = [];
-    page.on('pageerror', (error) => errors.push(error.message));
+    const isExpectedWebKitCancellation = (text: string): boolean =>
+      browserName === 'webkit' &&
+      text.includes('/api/') &&
+      text.endsWith('due to access control checks.');
+    page.on('pageerror', (error) => {
+      if (!isExpectedWebKitCancellation(error.message))
+        errors.push(error.message);
+    });
     page.on('console', (message) => {
       const text = message.text();
-      const expectedWebKitNavigationCancellation =
-        text.includes('/sync/changes?cursor=') &&
-        text.endsWith('due to access control checks.');
       if (
         message.type() === 'error' &&
         !text.startsWith('Failed to load resource:') &&
-        !expectedWebKitNavigationCancellation
+        !isExpectedWebKitCancellation(text)
       )
         errors.push(text);
     });

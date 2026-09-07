@@ -5,7 +5,7 @@ import { dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-const dist = resolve(root, 'apps/web/dist');
+const dist = resolve(root, 'apps/web/dist/web');
 const htmlPath = join(dist, 'index.html');
 const budgetBytes = 250 * 1024;
 const html = await readFile(htmlPath, 'utf8');
