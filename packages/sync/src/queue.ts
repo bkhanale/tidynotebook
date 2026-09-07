@@ -69,16 +69,22 @@ export type QueueNetwork = {
 
 /** A state change the sync run announces. Tab messages only announce. */
 export type SyncNotice =
-  | { readonly kind: 'pushed'; readonly mutationIds: readonly string[] }
+  | {
+      readonly kind: 'pushed';
+      readonly mutationIds: readonly string[];
+      readonly fileIds: readonly string[];
+    }
   | {
       readonly kind: 'conflict';
       readonly mutationId: string;
       readonly code: string;
+      readonly fileIds: readonly string[];
     }
   | {
       readonly kind: 'preserved';
       readonly mutationId: string;
       readonly code: string;
+      readonly fileIds: readonly string[];
     }
   | {
       readonly kind: 'retry';
@@ -341,6 +347,13 @@ async function submitBatch(
     ctx.announce({
       kind: 'pushed',
       mutationIds: batch.map((entry) => entry.input.mutationId),
+      fileIds: [
+        ...new Set(
+          batch.flatMap((entry) =>
+            entry.input.revisions.map((revision) => revision.fileId),
+          ),
+        ),
+      ],
     });
     return 'done';
   }
@@ -383,7 +396,11 @@ async function submitSingle(
       revisions: [...outcome.value.revisions],
       cursor: outcome.value.cursor,
     });
-    ctx.announce({ kind: 'pushed', mutationIds: [input.mutationId] });
+    ctx.announce({
+      kind: 'pushed',
+      mutationIds: [input.mutationId],
+      fileIds: [...new Set(input.revisions.map((revision) => revision.fileId))],
+    });
     return 'done';
   }
   const action = submissionAction(outcome.problem);
@@ -397,6 +414,7 @@ async function submitSingle(
     kind: 'preserved',
     mutationId: input.mutationId,
     code: outcome.problem.code,
+    fileIds: [...new Set(input.revisions.map((revision) => revision.fileId))],
   });
   return 'done';
 }
@@ -418,23 +436,39 @@ async function submitAsBranch(
   entry: QueueEntry,
   problem: Problem,
 ): Promise<PushOutcome> {
+  const branchMutationId = entry.branchMutationId ?? ctx.id();
+  const conflictGroupId = entry.conflictGroupId ?? ctx.id();
   const input: BranchInput = {
     workspaceId: entry.input.workspaceId,
-    mutationId: ctx.id(),
+    mutationId: branchMutationId,
     deviceId: entry.input.deviceId,
-    conflictGroupId: ctx.id(),
+    conflictGroupId,
     expectedHeads: { ...entry.input.expectedHeads },
     revisions: entry.input.revisions,
   };
+  await local.markConflict(accountId, entry.input.mutationId, {
+    conflictGroupId,
+    branchMutationId,
+    branchState: 'pending',
+    errorCode: null,
+  });
   const outcome = await sendWithRetry(ctx, (signal) =>
     net.submitBranch(input, signal),
   );
-  await local.markConflict(accountId, entry.input.mutationId);
   if (outcome === null) {
+    await local.markConflict(accountId, entry.input.mutationId, {
+      conflictGroupId,
+      branchMutationId,
+      branchState: 'failed',
+      errorCode: 'branch_failed',
+    });
     ctx.announce({
       kind: 'preserved',
       mutationId: entry.input.mutationId,
       code: 'branch_failed',
+      fileIds: [
+        ...new Set(entry.input.revisions.map((revision) => revision.fileId)),
+      ],
     });
     return 'done';
   }
@@ -442,17 +476,35 @@ async function submitAsBranch(
     if (outcome.problem.status === 401) return 'paused';
     if (outcome.problem.status === 403 || outcome.problem.status === 404)
       return 'access-lost';
+    await local.markConflict(accountId, entry.input.mutationId, {
+      conflictGroupId,
+      branchMutationId,
+      branchState: 'failed',
+      errorCode: outcome.problem.code,
+    });
     ctx.announce({
       kind: 'preserved',
       mutationId: entry.input.mutationId,
       code: outcome.problem.code,
+      fileIds: [
+        ...new Set(entry.input.revisions.map((revision) => revision.fileId)),
+      ],
     });
     return 'done';
   }
+  await local.markConflict(accountId, entry.input.mutationId, {
+    conflictGroupId,
+    branchMutationId,
+    branchState: 'submitted',
+    errorCode: null,
+  });
   ctx.announce({
     kind: 'conflict',
     mutationId: entry.input.mutationId,
     code: problem.code,
+    fileIds: [
+      ...new Set(entry.input.revisions.map((revision) => revision.fileId)),
+    ],
   });
   return 'done';
 }

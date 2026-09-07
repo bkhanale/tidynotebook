@@ -326,11 +326,27 @@ export function useWorkspaceSync(
     const engine = createSyncEngine(store, accountId, workspaceId, {
       announce: onNotice,
     });
+    const requestSync = (): void => {
+      engine.requestSync();
+    };
+    const unsubscribe = store.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        change.kind === 'queue'
+      )
+        requestSync();
+    });
+    window.addEventListener('online', requestSync);
+    window.addEventListener('focus', requestSync);
     setMessage('Sync started.');
     void engine.run(controller.signal).catch(() => {
       setMessage('Sync stopped.');
     });
     return () => {
+      unsubscribe();
+      window.removeEventListener('online', requestSync);
+      window.removeEventListener('focus', requestSync);
       controller.abort();
       engine.stop();
     };

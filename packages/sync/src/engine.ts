@@ -187,6 +187,8 @@ export type SyncEngine = {
    * releases an acquired lease before returning.
    */
   run(signal: AbortSignal): Promise<void>;
+  /** Requests a new pass without waiting for the safety interval. */
+  requestSync(): void;
   /** Stops a running engine and releases its lease. */
   stop(): void;
 };
@@ -236,6 +238,8 @@ export function createSyncEngine(
   const operations =
     options.operations ?? createOperations(workspaceId, extraHeaders);
   const internal = new AbortController();
+  let wakeRequested = false;
+  let wake: (() => void) | null = null;
 
   /** One session verification: the signed-in account or why it failed. */
   async function verifyOnce(
@@ -261,8 +265,19 @@ export function createSyncEngine(
 
   /** Waits out a delay; returns `false` when the run stopped meanwhile. */
   async function rest(ms: number, signal: AbortSignal): Promise<boolean> {
+    if (wakeRequested) {
+      wakeRequested = false;
+      return true;
+    }
     try {
-      await sleep(ms, signal);
+      await Promise.race([
+        sleep(ms, signal),
+        new Promise<void>((resolve) => {
+          wake = resolve;
+        }),
+      ]);
+      wake = null;
+      wakeRequested = false;
       return true;
     } catch (error: unknown) {
       if (signal.aborted) return false;
@@ -423,8 +438,18 @@ export function createSyncEngine(
         signal.removeEventListener('abort', onExternalAbort);
       });
     },
+    requestSync(): void {
+      if (internal.signal.aborted) return;
+      wakeRequested = true;
+      const resume = wake;
+      wake = null;
+      resume?.();
+    },
     stop(): void {
       internal.abort();
+      const resume = wake;
+      wake = null;
+      resume?.();
     },
   };
 }

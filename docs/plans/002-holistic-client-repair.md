@@ -61,13 +61,13 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: Task 1 `QueueEntry` metadata and committed local events.
 - Produces: `SyncEngine.requestSync(): void`; branch submission that stores one stable `branchMutationId` and `conflictGroupId`; sync notices that include affected file and mutation IDs.
 
-- [ ] Step 1: Extend `SyncEngine` with `requestSync()`. Replace the fixed sleep loop with an abortable wake gate that resolves on explicit request or the 15-second safety interval. Coalesce several wake requests and run no concurrent cycles.
-- [ ] Step 2: Keep one branch mutation ID and conflict group ID on the queue entry before the first branch request. Retry the identical branch body after a transport failure. Store `submitted` only after server acceptance and `failed` with the stable server error code after a retryable failure.
-- [ ] Step 3: Include file IDs in pushed, conflict, and preserved notices. Do not announce accepted state before `LocalStore.acknowledge` commits.
-- [ ] Step 4: Update `useWorkspaceSync` to expose a stable workspace runtime value with `requestSync`, current notice, and running state. Request sync for committed queue invalidations, browser `online`, and window focus. Keep the same engine until store, account, or workspace changes.
-- [ ] Step 5: Add deterministic tests with injected clock and sleep for immediate wake, wake coalescing, no concurrent cycles, safety polling, stopped engines, stable branch identities across retry, and file-scoped notices.
-- [ ] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/sync typecheck` and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/sync test:unit`. Expect all sync tests to pass.
-- [ ] Step 7: Commit with `feat(sync): wake sync for durable checkpoints`.
+- [x] Step 1: Extend `SyncEngine` with `requestSync()`. Replace the fixed sleep loop with an abortable wake gate that resolves on explicit request or the 15-second safety interval. Coalesce several wake requests and run no concurrent cycles.
+- [x] Step 2: Keep one branch mutation ID and conflict group ID on the queue entry before the first branch request. Retry the identical branch body after a transport failure. Store `submitted` only after server acceptance and `failed` with the stable server error code after a retryable failure.
+- [x] Step 3: Include file IDs in pushed, conflict, and preserved notices. Do not announce accepted state before `LocalStore.acknowledge` commits.
+- [x] Step 4: Update `useWorkspaceSync` to expose a stable workspace runtime value with `requestSync`, current notice, and running state. Request sync for committed queue invalidations, browser `online`, and window focus. Keep the same engine until store, account, or workspace changes.
+- [x] Step 5: Add deterministic tests with injected clock and sleep for immediate wake, wake coalescing, no concurrent cycles, safety polling, stopped engines, stable branch identities across retry, and file-scoped notices.
+- [x] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/sync typecheck` and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/sync test:unit`. Expect all sync tests to pass.
+- [x] Step 7: Commit with `feat(sync): wake sync for durable checkpoints`.
 
 ### Task 3: Durable note loading and reactive navigation
 

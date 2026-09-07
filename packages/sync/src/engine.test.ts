@@ -12,7 +12,10 @@ import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
 import {
   LocalStorageError,
   type Draft,
+  type FileSaveSnapshot,
   type LocalAcceptedFile,
+  type LocalConflict,
+  type LocalFileSummary,
   type LocalStore,
   type QueueEntry,
   type RecoveryInput,
@@ -69,6 +72,10 @@ class FakeStore implements LocalStore {
 
   private key(account: string, workspace: string): string {
     return `${account}/${workspace}`;
+  }
+
+  subscribe(): () => void {
+    return () => {};
   }
 
   enqueue(entry: QueueEntry): void {
@@ -134,10 +141,21 @@ class FakeStore implements LocalStore {
     return Promise.resolve();
   }
 
-  markConflict(_account: string, mutationId: string): Promise<void> {
+  markConflict(
+    _account: string,
+    mutationId: string,
+    details?: Parameters<LocalStore['markConflict']>[2],
+  ): Promise<void> {
     const entry = this.entries.get(mutationId);
     if (entry !== undefined)
-      this.entries.set(mutationId, { ...entry, state: 'conflict' });
+      this.entries.set(mutationId, {
+        ...entry,
+        state: 'conflict',
+        conflictGroupId: details?.conflictGroupId ?? entry.conflictGroupId,
+        branchMutationId: details?.branchMutationId ?? entry.branchMutationId,
+        branchState: details?.branchState ?? entry.branchState,
+        errorCode: details?.errorCode ?? entry.errorCode,
+      });
     return Promise.resolve();
   }
 
@@ -190,6 +208,35 @@ class FakeStore implements LocalStore {
 
   listAcceptedFiles(): Promise<readonly LocalAcceptedFile[]> {
     return Promise.resolve([]);
+  }
+
+  listLocalFiles(): Promise<readonly LocalFileSummary[]> {
+    return Promise.resolve([]);
+  }
+
+  readFileSaveSnapshot(
+    _account: string,
+    _workspace: string,
+    fileId: string,
+  ): Promise<FileSaveSnapshot> {
+    return Promise.resolve({
+      fileId,
+      latestDraftSequence: null,
+      latestMutationId: null,
+      queueState: null,
+      conflictGroupId: null,
+      acceptedHeadRevisionId: null,
+      localHeadRevisionId: null,
+      hasUncheckpointedDraft: false,
+    });
+  }
+
+  listLocalConflicts(): Promise<readonly LocalConflict[]> {
+    return Promise.resolve([]);
+  }
+
+  resolveConflict(): Promise<void> {
+    return Promise.resolve();
   }
 
   readCachedNote(): Promise<null> {
@@ -389,7 +436,16 @@ function queuedEntry(
       },
     ],
   };
-  return { accountId, input, state: 'pending', digest: null };
+  return {
+    accountId,
+    input,
+    state: 'pending',
+    digest: null,
+    conflictGroupId: null,
+    branchMutationId: null,
+    branchState: 'none',
+    errorCode: null,
+  };
 }
 
 /** A stubbed network with recorded calls. */
@@ -532,7 +588,9 @@ await test('a single entry submits and acknowledges its exact result', async () 
   assert.equal(ops.commitCalls.length, 1);
   assert.deepEqual(store.acks, [accepted('mutation-1', ['rev-a'], '7')]);
   assert.deepEqual((await store.pending(accountId, workspaceId)).length, 0);
-  assert.deepEqual(notices, [{ kind: 'pushed', mutationIds: ['mutation-1'] }]);
+  assert.deepEqual(notices, [
+    { kind: 'pushed', mutationIds: ['mutation-1'], fileIds: ['file-a'] },
+  ]);
 });
 
 await test('the digest freezes on first send and the retry repeats the body', async () => {
@@ -568,7 +626,7 @@ await test('the digest freezes on first send and the retry repeats the body', as
   assert.deepEqual(store.acks, [accepted('mutation-1', ['rev-a'], '8')]);
   assert.deepEqual(notices, [
     { kind: 'retry', attempt: 1, delayMs: 500 },
-    { kind: 'pushed', mutationIds: ['mutation-1'] },
+    { kind: 'pushed', mutationIds: ['mutation-1'], fileIds: ['file-a'] },
   ]);
 });
 
@@ -650,7 +708,12 @@ await test('a stale head submits an explicit branch and keeps the local body', a
   assert.equal(kept.state, 'conflict');
   assert.equal(kept.input.mutationId, 'mutation-2');
   assert.deepEqual(notices, [
-    { kind: 'conflict', mutationId: 'mutation-2', code: 'stale_head' },
+    {
+      kind: 'conflict',
+      mutationId: 'mutation-2',
+      code: 'stale_head',
+      fileIds: ['file-a'],
+    },
   ]);
 });
 
@@ -688,12 +751,22 @@ await test('a path collision branches while a purge is preserved without one', a
     if (problem.code === 'path_conflict') {
       assert.equal(ops.branchCalls.length, 1);
       assert.deepEqual(notices, [
-        { kind: 'conflict', mutationId: 'mutation-2', code: 'path_conflict' },
+        {
+          kind: 'conflict',
+          mutationId: 'mutation-2',
+          code: 'path_conflict',
+          fileIds: ['file-a'],
+        },
       ]);
     } else {
       assert.equal(ops.branchCalls.length, 0);
       assert.deepEqual(notices, [
-        { kind: 'preserved', mutationId: 'mutation-2', code: 'purged' },
+        {
+          kind: 'preserved',
+          mutationId: 'mutation-2',
+          code: 'purged',
+          fileIds: ['file-a'],
+        },
       ]);
     }
   }
@@ -723,7 +796,12 @@ await test('an invalid graph is preserved after exactly one attempt', async () =
   assert.equal(ops.branchCalls.length, 0);
   assert.equal(store.queued()?.state, 'conflict');
   assert.deepEqual(notices, [
-    { kind: 'preserved', mutationId: 'mutation-2', code: 'invalid_graph' },
+    {
+      kind: 'preserved',
+      mutationId: 'mutation-2',
+      code: 'invalid_graph',
+      fileIds: ['file-a'],
+    },
   ]);
 });
 
@@ -1040,6 +1118,37 @@ await test('a second worker never syncs while the lease is held', async () => {
   firstController.abort();
   await firstRunning;
   assert.equal(store.lease, null);
+});
+
+await test('an explicit request wakes the engine before its safety interval', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  let pulls = 0;
+  const ops = stubOperations({
+    changes: (cursor) => {
+      pulls += 1;
+      return Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      });
+    },
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-wake',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: () => new Promise<void>(() => {}),
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => pulls === 1);
+  engine.requestSync();
+  await waitFor(() => pulls === 2);
+  controller.abort();
+  engine.stop();
+  await running;
+  assert.equal(pulls, 2);
 });
 
 await test('an expired session pauses the run without sending anything', async () => {
