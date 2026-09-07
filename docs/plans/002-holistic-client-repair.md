@@ -151,14 +151,14 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: Existing `@notesapp/ui` controls and the repaired reactive web state.
 - Produces: Styled initial routes, a responsive shell, a primary editor surface, accessible drawers and panels, and reachable actions at supported widths.
 
-- [ ] Step 1: Import `shell.css` from `main.tsx` and remove the lazy-only import. Confirm that login, loading, not-found, invitation, and fatal states receive theme tokens and layout styles before authenticated code loads.
-- [ ] Step 2: Rework the shell grid with `minmax(0, 1fr)`, `min-width: 0`, bounded sidebar width, stable viewport height, and independent scrolling. Remove intrinsic widths that cause viewport shrink-to-fit.
-- [ ] Step 3: Simplify the header. Keep brand, workspace context, mobile menu, New note, theme, and account access. Use icon labels and responsive text rules so New note and Save stay reachable at 390 px.
-- [ ] Step 4: Make the editor the primary pane. Remove duplicate visible titles, constrain readable text width without creating unused canvas, and put sharing, history, outline, backlinks, and search in clearly labelled secondary panels or drawers.
-- [ ] Step 5: Make the mobile navigation drawer modal: manage focus, Escape, backdrop, `aria-expanded`, and return focus. Use at least 44 px touch targets for primary mobile controls. Respect reduced motion.
-- [ ] Step 6: Review all existing controls for visible focus, associated labels, status announcements, error messages, keyboard reachability, and contrast in Tokyo Night Night and Day.
-- [ ] Step 7: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web typecheck`, `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web build`, and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm perf:bundle`. Expect all commands and bundle budgets to pass.
-- [ ] Step 8: Commit with `feat(web): rebuild the responsive notes workspace`.
+- [x] Step 1: Import `shell.css` from `main.tsx` and remove the lazy-only import. Confirm that login, loading, not-found, invitation, and fatal states receive theme tokens and layout styles before authenticated code loads.
+- [x] Step 2: Rework the shell grid with `minmax(0, 1fr)`, `min-width: 0`, bounded sidebar width, stable viewport height, and independent scrolling. Remove intrinsic widths that cause viewport shrink-to-fit.
+- [x] Step 3: Simplify the header. Keep brand, workspace context, mobile menu, New note, theme, and account access. Use icon labels and responsive text rules so New note and Save stay reachable at 390 px.
+- [x] Step 4: Make the editor the primary pane. Remove duplicate visible titles, constrain readable text width without creating unused canvas, and put sharing, history, outline, backlinks, and search in clearly labelled secondary panels or drawers.
+- [x] Step 5: Make the mobile navigation drawer modal: manage focus, Escape, backdrop, `aria-expanded`, and return focus. Use at least 44 px touch targets for primary mobile controls. Respect reduced motion.
+- [x] Step 6: Review all existing controls for visible focus, associated labels, status announcements, error messages, keyboard reachability, and contrast in Tokyo Night Night and Day.
+- [x] Step 7: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web typecheck`, `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web build`, and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm perf:bundle`. Expect all commands and bundle budgets to pass.
+- [x] Step 8: Commit with `feat(web): rebuild the responsive notes workspace`.
 
 ### Task 7: Real browser verification infrastructure
 

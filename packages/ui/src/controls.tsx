@@ -6,7 +6,7 @@
  * the classes in `tokens.css`, which guarantees visible focus rings,
  * reduced motion support, and clear interactive feedback.
  */
-import type { CSSProperties, ReactNode } from 'react';
+import type { CSSProperties, ReactNode, Ref } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
 
 /** A labeled push button. */
@@ -22,6 +22,9 @@ export function Button({
   className: extraClassName,
   style,
   title,
+  buttonRef,
+  ariaControls,
+  ariaExpanded,
 }: {
   readonly type?: 'button' | 'submit' | undefined;
   readonly variant?:
@@ -35,6 +38,9 @@ export function Button({
   readonly className?: string | undefined;
   readonly style?: CSSProperties | undefined;
   readonly title?: string | undefined;
+  readonly buttonRef?: Ref<HTMLButtonElement> | undefined;
+  readonly ariaControls?: string | undefined;
+  readonly ariaExpanded?: boolean | undefined;
 }): ReactNode {
   const variantClass =
     variant === 'secondary'
@@ -59,11 +65,14 @@ export function Button({
 
   return (
     <button
+      ref={buttonRef}
       type={type ?? 'button'}
       className={classes}
       disabled={disabled ?? false}
       onClick={onClick}
       aria-label={label}
+      aria-controls={ariaControls}
+      aria-expanded={ariaExpanded}
       style={style}
       title={title}
     >

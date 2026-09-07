@@ -13,6 +13,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -35,7 +36,6 @@ import {
   UserIcon,
   WorkspaceIcon,
 } from '@notesapp/ui';
-import '../shell.css';
 import {
   problemMessage,
   useLocalSnapshotStatus,
@@ -524,6 +524,9 @@ export function Shell(): ReactNode {
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const drawerWasOpenRef = useRef(false);
   const session = useSession();
   const store = useLocalStore();
   const { resolved, setChoice } = useTheme();
@@ -548,14 +551,49 @@ export function Shell(): ReactNode {
   }, [location.pathname]);
 
   useEffect(() => {
+    if (!drawerOpen) {
+      if (drawerWasOpenRef.current) menuButtonRef.current?.focus();
+      drawerWasOpenRef.current = false;
+      return;
+    }
+    drawerWasOpenRef.current = true;
+    const sidebar = sidebarRef.current;
+    const focusable = (): HTMLElement[] =>
+      sidebar === null
+        ? []
+        : Array.from(
+            sidebar.querySelectorAll<HTMLElement>(
+              'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+            ),
+          );
+    window.requestAnimationFrame(() => focusable()[0]?.focus());
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     const onKey = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setDrawerOpen(false);
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setDrawerOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const targets = focusable();
+      const first = targets[0];
+      const last = targets.at(-1);
+      if (first === undefined || last === undefined) return;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => {
       window.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
     };
-  }, []);
+  }, [drawerOpen]);
 
   const toggleTheme = (): void => {
     setChoice(resolved === 'dark' ? 'light' : 'dark');
@@ -569,11 +607,14 @@ export function Shell(): ReactNode {
 
       <header className="notes-header">
         <Button
+          buttonRef={menuButtonRef}
           variant="ghost"
           size="sm"
           className="notes-header-menu-btn"
           label={drawerOpen ? 'Close navigation' : 'Open navigation'}
           icon={<MenuIcon size={18} />}
+          ariaControls="notes-sidebar"
+          ariaExpanded={drawerOpen}
           onClick={() => {
             setDrawerOpen((open) => !open);
           }}
@@ -650,9 +691,12 @@ export function Shell(): ReactNode {
       />
 
       <aside
+        ref={sidebarRef}
         id="notes-sidebar"
         className="notes-sidebar"
         aria-label="Notes navigation"
+        aria-modal={drawerOpen ? true : undefined}
+        role={drawerOpen ? 'dialog' : undefined}
       >
         <Sidebar
           workspaceId={workspaceId}
@@ -841,7 +885,7 @@ export function NoteView(): ReactNode {
     );
 
   return (
-    <>
+    <main className="notes-note-view">
       <div className="notes-doc-nav-links" style={{ marginBottom: '12px' }}>
         <Link to={`/w/${workspaceId}/notes/${fileId}/history`}>
           <HistoryIcon size={14} />
@@ -852,11 +896,6 @@ export function NoteView(): ReactNode {
           <span>Conflicts of this file</span>
         </Link>
       </div>
-      {role === 'owner' || role === 'admin' ? (
-        <Suspense fallback={<StatusRegion message="Loading sharing tools." />}>
-          <SharingPanel workspaceId={workspaceId} fileId={fileId} />
-        </Suspense>
-      ) : null}
       <Suspense fallback={<StatusRegion message="Loading the editor." />}>
         <NoteEditorLoader
           store={store.store}
@@ -866,6 +905,15 @@ export function NoteView(): ReactNode {
           role={role}
         />
       </Suspense>
-    </>
+      {role === 'owner' || role === 'admin' ? (
+        <aside className="notes-secondary-panel" aria-label="Note tools">
+          <Suspense
+            fallback={<StatusRegion message="Loading sharing tools." />}
+          >
+            <SharingPanel workspaceId={workspaceId} fileId={fileId} />
+          </Suspense>
+        </aside>
+      ) : null}
+    </main>
   );
 }
