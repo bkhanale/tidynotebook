@@ -112,8 +112,38 @@ transaction the store compares that parent with the file's local head:
   is a second tip over the same base. The store writes a `branches` row with
   the base and both tips, and the local head does not move.
 
-There is no automatic merge and no last write wins. Both tips stay, and Task 16
-resolves them with an inline diff.
+There is no automatic merge and no last write wins. Both tips stay until the
+conflict screen resolves them with an inline diff.
+
+## Committed change events and save state
+
+The local store publishes a `LocalChange` only after its IndexedDB transaction
+commits. The event contains the account, workspace, optional file identifier,
+and an invalidation kind. It never contains note text, a path, or attachment
+bytes. Listeners in the same page receive the event directly. Other tabs use a
+`BroadcastChannel` when the browser provides it. A focus listener and a
+30-second query refresh are safety nets when cross-tab messages are not
+available.
+
+`listLocalFiles` merges accepted file metadata with the newest local draft.
+This makes a local create, rename, or delete visible in navigation before a
+server round trip. `readFileSaveSnapshot` reports one file only. It includes
+the newest draft sequence, mutation and queue state, conflict identity, and
+accepted and local heads. The editor derives its status from this snapshot, so
+activity for another file cannot make the open note appear saved.
+
+Queue commits wake the foreground sync engine immediately. The 15-second poll
+remains a recovery check, not the normal save path. Several wake requests
+coalesce into one pass, and one engine never runs concurrent passes.
+
+## Conflict cleanup
+
+A stale head stores stable branch mutation and conflict group identifiers
+before its first submission. A retry sends the same identity and body. After
+the server accepts a resolution, `resolveConflict` applies the accepted heads,
+acknowledges related checkpoints, removes related queue rows, and marks every
+matching local branch resolved in one transaction. Local conflict state is not
+removed before server acceptance.
 
 ## Checkpoint timing
 
@@ -194,13 +224,11 @@ selection and clipboard copying.
 
 ## Extension points for later tasks
 
-- Task 11 adds `acquireLease`, `releaseLease`, `stageSnapshot`, and
-  `activateSnapshot` to the port, plus a lease table as schema version 2. The
-  `stagedSnapshots` table already exists so staged data stays separate from
-  local drafts.
-- Task 17 writes the `recovery` table on revoked access, a downgrade to viewer,
-  and sign-out. `LocalStore.recover` already reads it, bound to the account.
-- Task 16 reads `branches` for conflict resolution.
+- Snapshot staging stays separate from active local data until activation.
+- Revoked access, a downgrade to viewer, and sign-out put pending work in the
+  account-bound recovery area.
+- Conflict resolution reads and clears durable branch state through the local
+  store transaction described above.
 
 ## Tests
 
@@ -214,6 +242,7 @@ produce a branch, an interrupted migration, a database this application cannot
 read, duplicate acknowledgment, suppression, acknowledgment with later local
 work, partition isolation, and a measured draft save.
 
-This does not establish real browser durability. Eviction, the persistent
-storage permission, private mode limits, and actual quota behavior differ per
-browser and per device, and remain evidence for the authorized device stage.
+The Playwright gate also checks create, save, reload, rename, delete, offline
+reload, reconnect, and conflict resolution against real browser IndexedDB.
+Eviction, private mode limits, and physical-device quota behavior still differ
+by browser and device.

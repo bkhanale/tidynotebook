@@ -7,10 +7,10 @@ against a unique PostgreSQL database and storage directory for each worker. It
 creates the session through the visible login form. The tests use the real
 IndexedDB store, generated API client, and sync engine.
 
-Start the test database before the gate:
+Ensure that the test database is ready before the gate:
 
 ```sh
-docker compose -f compose.test.yaml up -d postgres-test
+tools/test-database/ensure-postgres.sh
 ```
 
 Install the supported browser runtimes and their host packages once:
@@ -35,9 +35,17 @@ phone viewport, and a 768 by 1024 Chromium tablet viewport. These emulated
 viewports verify responsive layout and touch settings. They are not evidence
 from a physical phone or tablet.
 
-This record covers the Task 22 implementation gate. It does not contain E2E,
-device, or release evidence. Those checks need the separate Task 23 approval
-and the Task 24 environments.
+The 2026-09-07 full run completed 19 active checks with no retry and skipped 16
+intentional duplicate cases. The create, save, reload, rename, and delete
+journey ran in all five projects. Three consecutive WebKit repeats also passed
+after the workspace role race fix.
+
+The critical journeys include login styles, responsive overflow, drawer focus,
+create, save, reload, rename, delete, offline reload, reconnect sync,
+two-context conflict resolution, history, sharing, search, outline, and
+backlinks. The capability test removes `crypto.randomUUID` and `crypto.subtle`
+before application startup to match the reduced API surface of a plain HTTP
+local-network origin.
 
 ## Complete implementation review
 
@@ -80,13 +88,14 @@ The root `pnpm verify` command runs these checks in order:
 CI installs pnpm 12.3.4, uses the frozen lockfile, starts the disposable
 PostgreSQL service, runs the complete gate, enforces both performance commands,
 and always removes the disposable volume. The workflow pins official actions
-to full commit identifiers. It contains no E2E job or browser tooling.
+to full commit identifiers. The local browser gate remains a separate command
+because it needs installed browser runtimes and host packages.
 
 ## Service performance
 
 Command: `pnpm perf:service`.
 
-The 2026-09-06 local run used Node 26.8.1 on Linux x64. The measurement process
+The 2026-09-07 local run used Node 26.8.1 on Linux x64. The measurement process
 ran with a two CPU cgroup limit, a 4 GiB memory limit, and 20 active users.
 PostgreSQL was version 18.6. The disposable corpus held 10,000 ordinary notes
 from exactly 5 KiB through 20 KiB, plus one exact 1,048,576 byte stress note.
@@ -94,8 +103,8 @@ No note content was printed.
 
 | Operation           | Samples |    Percentile |       Budget | Result |
 | ------------------- | ------: | ------------: | -----------: | ------ |
-| Save service time   |     100 | p95 189.45 ms | below 200 ms | Pass   |
-| Search service time |     100 |  p95 26.34 ms | below 300 ms | Pass   |
+| Save service time   |     100 | p95 169.25 ms | below 200 ms | Pass   |
+| Search service time |     100 |  p95 27.22 ms | below 300 ms | Pass   |
 
 Save load used one workspace per active user because accepted changes in one
 workspace have a required total order. Search load used one shared workspace
@@ -110,8 +119,12 @@ Command: `pnpm perf:bundle`.
 The budget script builds the production web application, reads only JavaScript
 referenced by the built `index.html` script and module preload tags, compresses
 each file with gzip level 9, and excludes deferred editor and rich rendering
-chunks. The 2026-09-06 final run measured 144,544 bytes against the 256,000
-byte budget. Result: Pass.
+chunks. Deployable assets use `apps/web/dist/web`; TypeScript package output
+uses `apps/web/dist`. Vite cleans the deployable directory on every build, so
+old hashed assets cannot collect in the service worker precache.
+
+The 2026-09-07 final run measured 149,929 bytes against the 256,000 byte
+budget. Result: Pass. Repeated builds produced the same 123 precache entries.
 
 ## Local interaction checks
 
@@ -149,9 +162,9 @@ This small headless sample covers only the signed-out page on a fast local
 connection. It is not field data and does not represent the editor, a phone,
 real network delay, or storage work.
 
-## Browser and device evidence still required
+## Evidence limits
 
-Task 23 must first receive explicit E2E authorization. Task 24 must then record
-the supported browser matrix, real device samples, editor LCP and INP, storage
-durability, accessibility, security, restore, and full operational evidence.
-The application is not release ready while that evidence is absent.
+The automated matrix is not physical-device evidence. A release assessment
+must still sample the supported physical devices, persistent storage behavior,
+accessibility tools, security controls, and restore procedure in its target
+environment.

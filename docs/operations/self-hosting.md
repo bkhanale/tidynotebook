@@ -4,6 +4,23 @@ NotesApp runs as one application service and one PostgreSQL service. A one-shot 
 
 Put an HTTPS reverse proxy in front of `127.0.0.1:3000`. Do not publish the PostgreSQL port. The Compose database network is private. The application also uses a second network for OIDC, SMTP, and other required outbound traffic.
 
+For temporary access on a trusted local network, bind the application to all
+interfaces and use the local-network URL as its origin:
+
+```bash
+NOTESAPP_HOST=0.0.0.0
+NOTESAPP_PORT=3000
+NOTESAPP_ORIGIN=http://192.0.2.10:3000
+NOTESAPP_ALLOWED_HOSTS=192.0.2.10,127.0.0.1,localhost
+```
+
+Replace the documentation address with the host address. Run only one
+application listener on port 3000. The core workspace, identifier, digest, and
+save paths work when a plain HTTP browser does not provide secure-context APIs.
+Some optional browser functions, such as service worker installation and the
+asynchronous clipboard, can still be unavailable on plain HTTP. Use HTTPS for
+a permanent deployment and for full offline installation behavior.
+
 ## Host requirements
 
 Install Docker Engine, Docker Compose, GnuPG, PostgreSQL client tools, and `lsblk`. The reference versions are Docker Engine 29.8.0, Compose 5.5.1, PostgreSQL 18.6, Node.js 26.8.1, and pnpm 12.3.4. A newer compatible host tool can work, but record the version in the installation record.

@@ -31,9 +31,17 @@ answer repeats the same operation instead of writing a second one.
 
 ## Digests
 
-`packages/core/src/files/digest.ts` holds both digests. Both are SHA-256
-through the WebCrypto `crypto.subtle` global, so the browser runs the same code
-as the server.
+`packages/core/src/files/digest.ts` holds both digests. Both are SHA-256. It
+uses WebCrypto when `crypto.subtle` is available. Plain HTTP browser contexts
+can omit that API, so the same module has a tested TypeScript SHA-256 fallback
+with known-answer tests. Both paths produce the same lower case hexadecimal
+value.
+
+Client identifiers use the shared `generateUUID` function. It prefers
+`crypto.randomUUID`, uses `crypto.getRandomValues` with RFC 4122 version 4 bit
+masks when needed, and has a final compatibility fallback for environments
+without Web Cryptography. Application code does not call
+`window.crypto.randomUUID` directly.
 
 A **content digest** is the SHA-256 of the UTF-8 bytes of the Markdown, in
 lower case hexadecimal. No Unicode normalization is applied: two spellings of
