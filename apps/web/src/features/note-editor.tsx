@@ -275,8 +275,8 @@ export function NoteEditor({
   };
 
   /** Writes the current buffer as the working draft. */
-  const saveDraftNow = useRef((): Promise<void> => Promise.resolve());
-  saveDraftNow.current = async (): Promise<void> => {
+  const saveDraftNow = useRef((): Promise<boolean> => Promise.resolve(true));
+  saveDraftNow.current = async (): Promise<boolean> => {
     const current = live.current;
     const savedSequence = sequenceRef.current;
     setDraftPending(true);
@@ -288,24 +288,46 @@ export function NoteEditor({
       // newer write clears the pending flag.
       if (sequenceRef.current === savedSequence) setDraftPending(false);
       setStorageError(null);
+      return true;
     } catch (failure: unknown) {
       setDraftPending(false);
       setStorageError(isLocalStorageError(failure) ? failure.kind : 'aborted');
+      return false;
     }
   };
 
   /** Creates one immutable checkpoint from the current buffer. */
-  const checkpointNow = useRef((): Promise<void> => Promise.resolve());
-  checkpointNow.current = async (): Promise<void> => {
-    const current = live.current;
-    try {
-      const entry = await current.store.checkpoint(buildDraft(false), null);
-      callbacks.current.onQueued?.(entry);
-      setStorageError(null);
-      await refreshQueue.current();
-    } catch (failure: unknown) {
-      setStorageError(isLocalStorageError(failure) ? failure.kind : 'aborted');
-    }
+  const checkpointInFlightRef = useRef<Promise<void> | null>(null);
+  const checkpointNow = useRef(
+    (_deleted = false): Promise<void> => Promise.resolve(),
+  );
+  checkpointNow.current = (deleted = false): Promise<void> => {
+    const existing = checkpointInFlightRef.current;
+    if (existing !== null)
+      return deleted
+        ? existing.then(() => checkpointNow.current(true))
+        : existing;
+    const run = (async (): Promise<void> => {
+      const saved = await saveDraftNow.current();
+      if (!saved) return;
+      const current = live.current;
+      try {
+        const entry = await current.store.checkpoint(buildDraft(deleted), null);
+        callbacks.current.onQueued?.(entry);
+        setStorageError(null);
+        await refreshQueue.current();
+      } catch (failure: unknown) {
+        setStorageError(
+          isLocalStorageError(failure) ? failure.kind : 'aborted',
+        );
+      }
+    })();
+    checkpointInFlightRef.current = run;
+    void run.finally(() => {
+      if (checkpointInFlightRef.current === run)
+        checkpointInFlightRef.current = null;
+    });
+    return run;
   };
 
   // The checkpoint scheduler of this working copy. Real timers drive the
@@ -521,8 +543,7 @@ export function NoteEditor({
               window.clearTimeout(saveTimerRef.current);
               saveTimerRef.current = null;
             }
-            await saveDraftNow.current();
-            schedulerRef.current?.onSave();
+            await checkpointNow.current();
           })();
         },
         readOnly: live.current.readOnly,
@@ -639,14 +660,9 @@ export function NoteEditor({
     }
     setConfirmingDelete(false);
     void (async (): Promise<void> => {
-      const current = live.current;
       sequenceRef.current += 1;
       try {
-        await current.store.checkpoint(
-          { ...buildDraft(true), deleted: true },
-          null,
-        );
-        await refreshQueue.current();
+        await checkpointNow.current(true);
       } catch (failure: unknown) {
         setStorageError(
           isLocalStorageError(failure) ? failure.kind : 'aborted',
@@ -707,8 +723,7 @@ export function NoteEditor({
                       window.clearTimeout(saveTimerRef.current);
                       saveTimerRef.current = null;
                     }
-                    await saveDraftNow.current();
-                    schedulerRef.current?.onSave();
+                    await checkpointNow.current();
                   })();
                 }}
               >

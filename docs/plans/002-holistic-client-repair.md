@@ -104,13 +104,13 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: Task 1 `FileSaveSnapshot`, Task 2 `requestSync`, and Task 3 local query adapter.
 - Produces: `resolveSaveState` based only on current-file durable state; Save, rename, delete, automatic checkpoint, and route-leave flows that wait for local commit and wake sync.
 
-- [ ] Step 1: Replace workspace queue counters and the component `acknowledged` guess with the current file's `FileSaveSnapshot`. Add the visible `syncing` state. Show `Saved to server` only when the newest local checkpoint mutation is acknowledged and there is no newer draft.
-- [ ] Step 2: Make draft persistence sequence-safe across content and path edits. Keep `Saving locally` until the exact write resolves. Clear a storage error only after a later local transaction succeeds.
-- [ ] Step 3: Make explicit Save await the draft write and checkpoint transaction, record the returned mutation ID, then call `requestSync`. Make auto-save, rename, delete, Ctrl+S, and route leave call the same checkpoint helper. Prevent double checkpoint creation when these events overlap.
-- [ ] Step 4: Keep an undurable editor buffer mounted after IndexedDB failure. Keep the copy action and before-unload warning. Disable destructive route actions until the write succeeds or the user explicitly leaves through the browser warning.
-- [ ] Step 5: Add tests for a brand-new empty note, local draft only, queued checkpoint, sending checkpoint, accepted checkpoint, newer uncheckpointed draft, file-specific conflict, storage quota, and overlapping Save calls.
-- [ ] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/sync test:unit` and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web test:unit`. Expect all selected tests to pass.
-- [ ] Step 7: Commit with `fix(web): report the durable note save state`.
+- [x] Step 1: Replace workspace queue counters and the component `acknowledged` guess with the current file's `FileSaveSnapshot`. Add the visible `syncing` state. Show `Saved to server` only when the newest local checkpoint mutation is acknowledged and there is no newer draft.
+- [x] Step 2: Make draft persistence sequence-safe across content and path edits. Keep `Saving locally` until the exact write resolves. Clear a storage error only after a later local transaction succeeds.
+- [x] Step 3: Make explicit Save await the draft write and checkpoint transaction, record the returned mutation ID, then call `requestSync`. Make auto-save, rename, delete, Ctrl+S, and route leave call the same checkpoint helper. Prevent double checkpoint creation when these events overlap.
+- [x] Step 4: Keep an undurable editor buffer mounted after IndexedDB failure. Keep the copy action and before-unload warning. Disable destructive route actions until the write succeeds or the user explicitly leaves through the browser warning.
+- [x] Step 5: Add tests for a brand-new empty note, local draft only, queued checkpoint, sending checkpoint, accepted checkpoint, newer uncheckpointed draft, file-specific conflict, storage quota, and overlapping Save calls.
+- [x] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/sync test:unit` and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web test:unit`. Expect all selected tests to pass.
+- [x] Step 7: Commit with `fix(web): report the durable note save state`.
 
 ### Task 5: Complete conflict resolution lifecycle
 
