@@ -34,6 +34,7 @@ import {
 } from '@notesapp/sync';
 import {
   createEditor,
+  setEditorReadOnly,
   setEditorRich,
   setEditorTheme,
   type EditorView,
@@ -51,6 +52,7 @@ import { problemMessage, useTheme } from '../app.tsx';
 import { canWrite } from './workspaces.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
 import { createDiagramFrame } from '../diagram/frame.ts';
+import { copyText } from '../platform.ts';
 import { stableNoteLink, type StableLinkRequest } from './search.tsx';
 import {
   resolveSaveState,
@@ -133,19 +135,6 @@ function diagramInnerSource(fence: string): string {
 
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
-
-/** Copies text to the clipboard, staying false when it is unavailable. */
-async function copyToClipboard(text: string): Promise<boolean> {
-  try {
-    if (typeof navigator === 'undefined') return false;
-    const clipboard = navigator.clipboard;
-    if (clipboard === undefined) return false;
-    await clipboard.writeText(text);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /** Props of the editing surface. `initialText` is read once at mount. */
 export type NoteEditorProps = {
@@ -564,6 +553,13 @@ export function NoteEditor({
     if (view !== null) setEditorTheme(view, resolved);
   }, [resolved]);
 
+  // Workspace access can finish loading after the editor mounts. Reconfigure
+  // the existing editor so an owner or editor can type without losing state.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view !== null) setEditorReadOnly(view, readOnly);
+  }, [readOnly]);
+
   const saveState: SaveState = resolveSaveState({
     draftWritePending: draftPending,
     queueState: saveSnapshot?.queueState ?? null,
@@ -704,7 +700,7 @@ export function NoteEditor({
           <SaveStatus
             state={saveState}
             bufferText={bufferText}
-            onCopyBuffer={copyToClipboard}
+            onCopyBuffer={copyText}
           />
 
           {!readOnly ? (

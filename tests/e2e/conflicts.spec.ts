@@ -39,31 +39,20 @@ test('two browser contexts create and explicitly resolve a conflict', async ({
     await signIn(second, stack);
     await second.goto(noteUrl);
     await expect(second.locator('.cm-content')).toContainText('Base');
-    await secondContext.route(
-      '**/api/workspaces/*/sync/changes**',
-      async (route) => {
-        const cursor = new URL(route.request().url()).searchParams.get(
-          'cursor',
-        );
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({ changes: [], nextCursor: cursor ?? '0' }),
-        });
-      },
-    );
+    await replaceEditorText(second, '# Shared\n\nIncoming version');
+    await waitForLocalWrite(second);
+    await secondContext.setOffline(true);
 
     await replaceEditorText(first, '# Shared\n\nCurrent version');
     await first.getByRole('button', { name: 'Save a checkpoint now' }).click();
     await waitForServerSave(first);
 
-    await replaceEditorText(second, '# Shared\n\nIncoming version');
-    await waitForLocalWrite(second);
     await second.getByRole('button', { name: 'Save a checkpoint now' }).click();
+    await secondContext.setOffline(false);
+    await second.evaluate(() => window.dispatchEvent(new Event('online')));
     await expect(
       second.locator('.notes-save-pill').getByRole('status'),
     ).toContainText('Conflict');
-    await secondContext.unroute('**/api/workspaces/*/sync/changes**');
     await second.goto(`${stack.baseUrl}/w/${workspaceId}/conflicts`);
     await expect(
       second.getByRole('heading', { name: 'Conflict group', exact: true }),

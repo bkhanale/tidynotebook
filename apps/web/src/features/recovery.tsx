@@ -29,6 +29,7 @@ import {
   type AccessState,
 } from '../pwa/lifecycle.ts';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
+import { copyText } from '../platform.ts';
 
 export { isRecordVisible };
 
@@ -243,12 +244,7 @@ export function RecoveryRoute(): ReactNode {
         pendingCount={pending}
         online={typeof navigator === 'undefined' ? true : navigator.onLine}
         hasSignOutMarker={marker}
-        onCopy={(text) =>
-          navigator.clipboard
-            .writeText(text)
-            .then(() => true)
-            .catch(() => false)
-        }
+        onCopy={copyText}
         onRemove={(recoveryId) => {
           void activeStore
             .removeRecovery(activeAccount, activeWorkspace, recoveryId)

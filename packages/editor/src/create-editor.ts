@@ -69,6 +69,9 @@ const themeCompartment = new Compartment();
 /** The rich preview compartment, so resolver changes never rebuild it. */
 const richCompartment = new Compartment();
 
+/** The access compartment, so a loaded role can unlock the same editor. */
+const readOnlyCompartment = new Compartment();
+
 /** Editor chrome for one palette. */
 function themeExtension(theme: 'light' | 'dark'): Extension {
   return EditorView.theme(
@@ -158,7 +161,7 @@ export function createEditor(
             y: event.clientY,
           });
           if (position === null || position === undefined) return false;
-          if (!readOnly && positionInTaskBox(view, position)) {
+          if (!view.state.readOnly && positionInTaskBox(view, position)) {
             const spec = toggleTaskSpec(view.state);
             if (spec === null) return false;
             view.dispatch(view.state.update(spec));
@@ -169,7 +172,7 @@ export function createEditor(
           const withModifier = event.metaKey || event.ctrlKey;
           const isTouchAction =
             target?.getAttribute('data-notesapp-touch-link') === 'true';
-          if ((withModifier || isTouchAction) && !readOnly) {
+          if ((withModifier || isTouchAction) && !view.state.readOnly) {
             const link = linkTargetAt(view.state.doc.toString(), position);
             if (link !== null) {
               navigation.onOpenLink?.(link);
@@ -180,7 +183,7 @@ export function createEditor(
           return false;
         },
       }),
-      EditorState.readOnly.of(readOnly),
+      readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
     ],
   });
 
@@ -203,6 +206,18 @@ export function setEditorTheme(
     effects: themeCompartment.reconfigure(themeExtension(theme)),
   });
   view.dom.setAttribute('data-notesapp-theme', theme);
+}
+
+/**
+ * Applies a changed workspace role without replacing the editor.
+ *
+ * The document, history, selection, and composition remain in the same
+ * editor state while CodeMirror updates its editing permission.
+ */
+export function setEditorReadOnly(view: EditorView, readOnly: boolean): void {
+  view.dispatch({
+    effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)),
+  });
 }
 
 /**

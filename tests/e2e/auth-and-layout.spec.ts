@@ -1,6 +1,11 @@
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
-import { openPersonalWorkspace, signIn } from './support/account.ts';
+import {
+  openPersonalWorkspace,
+  replaceEditorText,
+  signIn,
+  waitForServerSave,
+} from './support/account.ts';
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
@@ -27,8 +32,19 @@ test('login has loaded theme and layout styles', async ({
 
 test('workspace fits the viewport and the mobile drawer manages focus', async ({
   checkedPage: page,
+  context,
   stack,
 }, testInfo) => {
+  await context.addInitScript(() => {
+    Object.defineProperty(window.crypto, 'randomUUID', {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(window.crypto, 'subtle', {
+      configurable: true,
+      value: undefined,
+    });
+  });
   await signIn(page, stack);
   await openPersonalWorkspace(page);
   const overflow = await page.evaluate(() => ({
@@ -46,7 +62,7 @@ test('workspace fits the viewport and the mobile drawer manages focus', async ({
 
   const viewport = page.viewportSize();
   if ((viewport?.width ?? 1000) <= 768) {
-    const menu = page.getByRole('button', { name: 'Open navigation' });
+    const menu = page.getByRole('button', { name: /navigation/ });
     await expect(menu).toBeVisible();
     await menu.click();
     const drawer = page.getByRole('dialog', { name: 'Notes navigation' });
@@ -70,4 +86,38 @@ test('workspace fits the viewport and the mobile drawer manages focus', async ({
       page.getByRole('button', { name: /Switch to/ }),
     ).toBeInViewport();
   }
+});
+
+test('plain HTTP browser capabilities do not block note saves', async ({
+  checkedPage: page,
+  context,
+  stack,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name !== 'chromium',
+    'One engine covers the insecure-context capability contract.',
+  );
+  await context.addInitScript(() => {
+    Object.defineProperty(window.crypto, 'randomUUID', {
+      configurable: true,
+      value: undefined,
+    });
+    Object.defineProperty(window.crypto, 'subtle', {
+      configurable: true,
+      value: undefined,
+    });
+  });
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await page.getByRole('button', { name: 'Create a new note' }).first().click();
+  await page
+    .getByLabel('File path')
+    .fill(`plain-http-${Date.now().toString()}.md`);
+  await replaceEditorText(page, '# Plain HTTP\n\nThe note stays durable.');
+  await page.getByRole('button', { name: 'Save a checkpoint now' }).click();
+  await waitForServerSave(page);
+  await page.reload();
+  await expect(page.locator('.cm-content')).toContainText(
+    'The note stays durable.',
+  );
 });

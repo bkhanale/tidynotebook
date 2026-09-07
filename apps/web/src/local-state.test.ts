@@ -27,7 +27,9 @@ function local(extra: Partial<LocalFileSummary> = {}): LocalFileSummary {
 }
 
 await test('local file state adds, renames, and deletes navigation entries', () => {
-  assert.deepEqual(mergeFileSummaries([remote], [local()]), [remote]);
+  assert.deepEqual(mergeFileSummaries([remote], [local()]), [
+    { ...remote, updatedAt: '2026-09-07T10:01:00.000Z' },
+  ]);
   assert.equal(
     mergeFileSummaries(
       [remote],

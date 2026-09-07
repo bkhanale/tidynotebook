@@ -21,6 +21,7 @@ import {
   updatePreferences,
   type Account,
 } from '@notesapp/api-client';
+import { generateUUID } from '@notesapp/core';
 import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createSyncEngine,
@@ -35,6 +36,7 @@ import {
   type ResolvedTheme,
   type ThemeChoice,
 } from '@notesapp/ui';
+import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
 function readProperty(value: unknown, key: string): unknown {
@@ -137,11 +139,11 @@ function syncWorkerId(): string {
   try {
     const stored = window.sessionStorage.getItem(syncWorkerKey);
     if (stored !== null && stored !== '') return stored;
-    const created = window.crypto.randomUUID();
+    const created = generateUUID();
     window.sessionStorage.setItem(syncWorkerKey, created);
     return created;
   } catch {
-    return window.crypto.randomUUID();
+    return generateUUID();
   }
 }
 
@@ -295,21 +297,12 @@ function useThemeLoader(): ThemeValue & { readonly syncError: string | null } {
   const [choice, setChoiceState] = useState<ThemeChoice>(() =>
     readStoredChoice(),
   );
-  const [prefersDark, setPrefersDark] = useState<boolean>(
-    () => window.matchMedia('(prefers-color-scheme: dark)').matches,
-  );
+  const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark);
   const [syncError, setSyncError] = useState<string | null>(null);
   const resolved = resolveTheme(choice, prefersDark);
 
   useEffect(() => {
-    const query = window.matchMedia('(prefers-color-scheme: dark)');
-    const onChange = (event: MediaQueryListEvent): void => {
-      setPrefersDark(event.matches);
-    };
-    query.addEventListener('change', onChange);
-    return () => {
-      query.removeEventListener('change', onChange);
-    };
+    return subscribeToSystemTheme(setPrefersDark);
   }, []);
 
   useEffect(() => {
