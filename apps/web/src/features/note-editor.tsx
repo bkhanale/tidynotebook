@@ -15,7 +15,7 @@
  * request URL by hand.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import {
   finalizeAttachment,
   getFile,
@@ -27,6 +27,7 @@ import {
   isLocalStorageError,
   type CheckpointScheduler,
   type Draft,
+  type FileSaveSnapshot,
   type LocalStore,
   type LocalStorageErrorKind,
   type QueueEntry,
@@ -130,35 +131,8 @@ function diagramInnerSource(fence: string): string {
   return lines.join('\n');
 }
 
-/** How often the screen re-reads the local queue for save feedback. */
-const queuePollMs = 5_000;
-
-/** A fresh file carried through navigation state, read without trust. */
-type FreshFileState = {
-  readonly fresh: true;
-  readonly fileId: string;
-  readonly workingCopyId: string;
-  readonly initialText: string;
-  readonly initialPath: string;
-};
-
-/** Reads navigation state only when it proves to be a fresh file handoff. */
-function readFreshState(value: unknown, fileId: string): FreshFileState | null {
-  if (value === null || typeof value !== 'object') return null;
-  const record = value as Record<string, unknown>;
-  if (record['fresh'] !== true) return null;
-  if (record['fileId'] !== fileId) return null;
-  if (typeof record['workingCopyId'] !== 'string') return null;
-  if (typeof record['initialText'] !== 'string') return null;
-  if (typeof record['initialPath'] !== 'string') return null;
-  return {
-    fresh: true,
-    fileId,
-    workingCopyId: record['workingCopyId'],
-    initialText: record['initialText'],
-    initialPath: record['initialPath'],
-  };
-}
+/** Safety refresh when browser invalidation messages are unavailable. */
+const saveStateFallbackMs = 30_000;
 
 /** Copies text to the clipboard, staying false when it is unavailable. */
 async function copyToClipboard(text: string): Promise<boolean> {
@@ -217,15 +191,14 @@ export function NoteEditor({
   const bufferRef = useRef(initialText);
   const pathRef = useRef(initialPath);
   const sequenceRef = useRef(0);
-  const lastMutationRef = useRef<string | null>(null);
   const [path, setPath] = useState(initialPath);
   const [bufferText, setBufferText] = useState(initialText);
   const [draftPending, setDraftPending] = useState(false);
-  const [queueLength, setQueueLength] = useState(0);
-  const [conflicts, setConflicts] = useState(0);
+  const [saveSnapshot, setSaveSnapshot] = useState<FileSaveSnapshot | null>(
+    null,
+  );
   const [storageError, setStorageError] =
     useState<LocalStorageErrorKind | null>(null);
-  const [acknowledged, setAcknowledged] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pasteNotice, setPasteNotice] = useState('');
   const [attachmentUrls, setAttachmentUrls] = useState<
@@ -289,19 +262,12 @@ export function NoteEditor({
   refreshQueue.current = async (): Promise<void> => {
     const current = live.current;
     try {
-      const entries = await current.store.pending(
+      const snapshot = await current.store.readFileSaveSnapshot(
         current.accountId,
         current.workspaceId,
+        current.fileId,
       );
-      const ids = new Set(entries.map((entry) => entry.input.mutationId));
-      setQueueLength(entries.length);
-      setConflicts(
-        entries.filter((entry) => entry.state === 'conflict').length,
-      );
-      const newest = lastMutationRef.current;
-      setAcknowledged(
-        newest === null ? entries.length === 0 : !ids.has(newest),
-      );
+      setSaveSnapshot(snapshot);
     } catch {
       // Queue reads are feedback only. A failure here must not disturb the
       // buffer, the draft, or the checkpoint timers.
@@ -334,7 +300,6 @@ export function NoteEditor({
     const current = live.current;
     try {
       const entry = await current.store.checkpoint(buildDraft(false), null);
-      if (entry !== null) lastMutationRef.current = entry.input.mutationId;
       callbacks.current.onQueued?.(entry);
       setStorageError(null);
       await refreshQueue.current();
@@ -388,10 +353,20 @@ export function NoteEditor({
     });
     schedulerRef.current = scheduler;
     void refreshQueue.current();
+    const unsubscribe = live.current.store.subscribe((change) => {
+      const current = live.current;
+      if (
+        change.accountId === current.accountId &&
+        change.workspaceId === current.workspaceId &&
+        (change.fileId === null || change.fileId === current.fileId)
+      )
+        void refreshQueue.current();
+    });
     const polling = window.setInterval(() => {
       void refreshQueue.current();
-    }, queuePollMs);
+    }, saveStateFallbackMs);
     return () => {
+      unsubscribe();
       window.clearInterval(polling);
       if (saveTimerRef.current !== null) {
         window.clearTimeout(saveTimerRef.current);
@@ -570,10 +545,13 @@ export function NoteEditor({
 
   const saveState: SaveState = resolveSaveState({
     draftWritePending: draftPending,
-    queuedMutations: queueLength,
-    conflictingMutations: conflicts,
+    queueState: saveSnapshot?.queueState ?? null,
     storageError,
-    acknowledged,
+    hasUncheckpointedDraft:
+      saveSnapshot?.hasUncheckpointedDraft ?? true,
+    acceptedHeadRevisionId:
+      saveSnapshot?.acceptedHeadRevisionId ?? null,
+    localHeadRevisionId: saveSnapshot?.localHeadRevisionId ?? null,
   });
   // The buffer is the only copy until the draft commits, and it is the only
   // copy again when storage fails. Both cases block an unsafe reload.
@@ -841,22 +819,10 @@ export function NoteEditorLoader({
   readonly role: 'owner' | 'admin' | 'editor' | 'viewer' | null;
 }): ReactNode {
   const navigate = useNavigate();
-  const location = useLocation();
   const [status, setStatus] = useState<LoaderStatus>({ kind: 'loading' });
   const [linkNotice, setLinkNotice] = useState('');
 
   useEffect(() => {
-    const fresh = readFreshState(location.state, fileId);
-    if (fresh !== null) {
-      setStatus({
-        kind: 'ready',
-        path: fresh.initialPath,
-        text: fresh.initialText,
-        headRevisionId: null,
-        workingCopyId: fresh.workingCopyId,
-      });
-      return;
-    }
     let cancelled = false;
     async function load(): Promise<void> {
       setStatus({ kind: 'loading' });
@@ -914,7 +880,7 @@ export function NoteEditorLoader({
     return () => {
       cancelled = true;
     };
-  }, [store, accountId, workspaceId, fileId, location.state]);
+  }, [store, accountId, workspaceId, fileId]);
 
   if (status.kind === 'loading')
     return (

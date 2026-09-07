@@ -1,0 +1,108 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import type { WorkspaceFileSummary } from '@notesapp/api-client';
+import type { LocalChange, LocalFileSummary, LocalStore } from '@notesapp/sync';
+
+/** The result of one reactive durable local query. */
+export type LocalQueryState<T> =
+  | { readonly status: 'loading'; readonly value: T }
+  | { readonly status: 'ready'; readonly value: T }
+  | { readonly status: 'error'; readonly value: T };
+
+/**
+ * Runs a local query after matching committed changes, focus, and a safety
+ * interval. The query reads IndexedDB again. An event is never treated as data.
+ */
+export function useLocalQuery<T>(
+  store: LocalStore | null,
+  accountId: string | null,
+  workspaceId: string | null,
+  query: (store: LocalStore, accountId: string, workspaceId: string) => Promise<T>,
+  initial: T,
+  accepts: (change: LocalChange) => boolean = () => true,
+  fallbackMs = 30_000,
+): LocalQueryState<T> {
+  const queryRef = useRef(query);
+  const acceptsRef = useRef(accepts);
+  const generationRef = useRef(0);
+  queryRef.current = query;
+  acceptsRef.current = accepts;
+  const [state, setState] = useState<LocalQueryState<T>>({
+    status: 'loading',
+    value: initial,
+  });
+  const load = useCallback((): void => {
+    if (store === null || accountId === null || workspaceId === null) {
+      setState({ status: 'ready', value: initial });
+      return;
+    }
+    generationRef.current += 1;
+    const generation = generationRef.current;
+    void queryRef
+      .current(store, accountId, workspaceId)
+      .then((value) => {
+        if (generation === generationRef.current)
+          setState({ status: 'ready', value });
+      })
+      .catch(() => {
+        if (generation === generationRef.current)
+          setState((current) => ({ status: 'error', value: current.value }));
+      });
+  }, [store, accountId, workspaceId, initial]);
+
+  useEffect(() => {
+    load();
+    if (store === null || accountId === null || workspaceId === null) return;
+    const unsubscribe = store.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        acceptsRef.current(change)
+      )
+        load();
+    });
+    window.addEventListener('focus', load);
+    const timer = window.setInterval(load, fallbackMs);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', load);
+      window.clearInterval(timer);
+    };
+  }, [store, accountId, workspaceId, load, fallbackMs]);
+
+  return state;
+}
+
+/** Merges remote accepted metadata with newer local working state. */
+export function mergeFileSummaries(
+  remote: readonly WorkspaceFileSummary[],
+  local: readonly LocalFileSummary[],
+): readonly WorkspaceFileSummary[] {
+  const merged = new Map<string, WorkspaceFileSummary>(
+    remote.map((file) => [file.fileId, file]),
+  );
+  for (const file of local) {
+    if (file.deleted) {
+      merged.delete(file.fileId);
+      continue;
+    }
+    const accepted = merged.get(file.fileId);
+    const localIsNewer =
+      file.localOnly ||
+      file.localHeadRevisionId !== file.acceptedHeadRevisionId ||
+      accepted === undefined;
+    merged.set(file.fileId, {
+      fileId: file.fileId,
+      path: localIsNewer ? file.path : (accepted?.path ?? file.path),
+      kind: file.kind,
+      headRevisionId:
+        accepted?.headRevisionId ?? file.acceptedHeadRevisionId,
+      updatedAt:
+        localIsNewer || accepted === undefined
+          ? file.updatedAt
+          : accepted.updatedAt,
+    });
+  }
+  return [...merged.values()].sort((left, right) =>
+    left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+  );
+}

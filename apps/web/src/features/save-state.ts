@@ -1,0 +1,36 @@
+import type { LocalStorageErrorKind, QueueState } from '@notesapp/sync';
+
+export type SaveState =
+  | 'saving-local'
+  | 'saved-local'
+  | 'syncing'
+  | 'saved-server'
+  | 'conflict'
+  | 'storage-full'
+  | 'save-failed';
+
+export type SaveStateInput = {
+  readonly draftWritePending: boolean;
+  readonly queueState: QueueState | null;
+  readonly storageError: LocalStorageErrorKind | null;
+  readonly hasUncheckpointedDraft: boolean;
+  readonly acceptedHeadRevisionId: string | null;
+  readonly localHeadRevisionId: string | null;
+};
+
+/** Selects a label from durable facts about one file only. */
+export function resolveSaveState(input: SaveStateInput): SaveState {
+  if (input.storageError === 'quota') return 'storage-full';
+  if (input.storageError !== null) return 'save-failed';
+  if (input.queueState === 'conflict') return 'conflict';
+  if (input.draftWritePending) return 'saving-local';
+  if (input.hasUncheckpointedDraft) return 'saved-local';
+  if (input.queueState === 'sending') return 'syncing';
+  if (input.queueState === 'pending') return 'saved-local';
+  if (
+    input.acceptedHeadRevisionId !== null &&
+    input.localHeadRevisionId === input.acceptedHeadRevisionId
+  )
+    return 'saved-server';
+  return 'saved-local';
+}

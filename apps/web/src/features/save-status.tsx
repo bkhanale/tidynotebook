@@ -9,6 +9,9 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import type { LocalStorageErrorKind } from '@notesapp/sync';
+import type { SaveState } from './save-state.ts';
+export { resolveSaveState } from './save-state.ts';
+export type { SaveState, SaveStateInput } from './save-state.ts';
 import {
   AlertCircleIcon,
   Button,
@@ -18,51 +21,11 @@ import {
   CopyIcon,
 } from '@notesapp/ui';
 
-/** Every save state the editor can report. */
-export type SaveState =
-  | 'saving-local'
-  | 'saved-local'
-  | 'saved-server'
-  | 'conflict'
-  | 'storage-full'
-  | 'save-failed';
-
-/** What `resolveSaveState` decides from. */
-export type SaveStateInput = {
-  /** A draft write is in flight and its transaction has not committed. */
-  readonly draftWritePending: boolean;
-  /** Queued mutations of this workspace that wait for the server. */
-  readonly queuedMutations: number;
-  /** Queued mutations the server answered as a conflict. */
-  readonly conflictingMutations: number;
-  /** The last local storage failure, or null when writes succeed. */
-  readonly storageError: LocalStorageErrorKind | null;
-  /** The newest checkpoint of this working copy was acknowledged. */
-  readonly acknowledged: boolean;
-};
-
-/**
- * Selects the save state from local persistence facts.
- *
- * Storage failures win over everything, because the editor must stop
- * claiming persistence first. Conflicts win over progress, because they need
- * explicit resolution. A pending draft write means Saving on this device.
- * Saved to server requires an acknowledgment with an empty queue; anything
- * else that is stored is Saved on this device.
- */
-export function resolveSaveState(input: SaveStateInput): SaveState {
-  if (input.storageError === 'quota') return 'storage-full';
-  if (input.storageError !== null) return 'save-failed';
-  if (input.conflictingMutations > 0) return 'conflict';
-  if (input.draftWritePending) return 'saving-local';
-  if (input.acknowledged && input.queuedMutations === 0) return 'saved-server';
-  return 'saved-local';
-}
-
 /** The human readable label of one save state. */
 export const saveStateLabels: Record<SaveState, string> = {
   'saving-local': 'Saving on this device',
   'saved-local': 'Saved on this device',
+  syncing: 'Syncing',
   'saved-server': 'Saved to server',
   conflict: 'Conflict',
   'storage-full': 'Storage full',
@@ -73,6 +36,7 @@ export const saveStateLabels: Record<SaveState, string> = {
 export const saveStateSymbols: Record<SaveState, string> = {
   'saving-local': '...',
   'saved-local': '[saved]',
+  syncing: '[syncing]',
   'saved-server': '[synced]',
   conflict: '[!]',
   'storage-full': '[full]',
@@ -122,14 +86,14 @@ export function SaveStatus({
     failed && bufferText !== undefined && onCopyBuffer !== undefined;
 
   const pillClass =
-    state === 'saving-local'
+    state === 'saving-local' || state === 'syncing'
       ? 'notes-save-pill-saving'
       : state === 'saved-local' || state === 'saved-server'
         ? 'notes-save-pill-saved'
         : 'notes-save-pill-error';
 
   const icon =
-    state === 'saving-local' ? (
+    state === 'saving-local' || state === 'syncing' ? (
       <CloudUploadIcon size={14} />
     ) : state === 'saved-local' || state === 'saved-server' ? (
       <CloudCheckIcon size={14} />

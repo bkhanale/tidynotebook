@@ -55,6 +55,11 @@ export function NewNoteButton({
             }
             const fileId = generateUUID();
             const workingCopyId = generateUUID();
+            const stamp = new Date()
+              .toISOString()
+              .replace(/[-:]/g, '')
+              .replace(/\.\d{3}Z$/, '');
+            const path = `untitled-${stamp}.md`;
             const draft: Draft = {
               accountId,
               workspaceId,
@@ -62,7 +67,7 @@ export function NewNoteButton({
               fileId,
               baseRevisionId: null,
               text: '',
-              path: 'untitled.md',
+              path,
               deleted: false,
               sequence: 1,
             };
@@ -77,15 +82,7 @@ export function NewNoteButton({
               return;
             }
             setError(null);
-            await navigate(`/w/${workspaceId}/notes/${fileId}`, {
-              state: {
-                fresh: true,
-                fileId,
-                workingCopyId,
-                initialText: '',
-                initialPath: 'untitled.md',
-              },
-            });
+            await navigate(`/w/${workspaceId}/notes/${fileId}`);
           })();
         }}
       >

@@ -54,6 +54,7 @@ import {
 import { NewNoteButton } from './new-note.tsx';
 import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
 import { SearchDialog } from './search.tsx';
+import { mergeFileSummaries, useLocalQuery } from '../local-state.ts';
 
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
@@ -263,7 +264,28 @@ function Sidebar({
   const session = useSession();
   const store = useLocalStore();
   const [filter, setFilter] = useState('');
-  const [files, setFiles] = useState<readonly WorkspaceFileSummary[]>([]);
+  const [serverFiles, setServerFiles] = useState<
+    readonly WorkspaceFileSummary[]
+  >([]);
+  const emptyLocalFiles = useMemo(() => [], []);
+  const localFiles = useLocalQuery(
+    store.store,
+    session.account?.accountId ?? null,
+    workspaceId,
+    (activeStore, accountId, activeWorkspace) =>
+      activeStore.listLocalFiles(accountId, activeWorkspace),
+    emptyLocalFiles,
+    (change) =>
+      change.kind === 'draft' ||
+      change.kind === 'queue' ||
+      change.kind === 'file' ||
+      change.kind === 'conflict' ||
+      change.kind === 'reset',
+  );
+  const files = useMemo(
+    () => mergeFileSummaries(serverFiles, localFiles.value),
+    [serverFiles, localFiles.value],
+  );
   const [outlineOpen, setOutlineOpen] = useState(false);
   const [backlinksOpen, setBacklinksOpen] = useState(false);
   const [openFolders, setOpenFolders] = useState<ReadonlySet<string>>(
@@ -286,7 +308,7 @@ function Sidebar({
 
   useEffect(() => {
     if (workspaceId === null) {
-      setFiles([]);
+      setServerFiles([]);
       return;
     }
     const activeWs = workspaceId;
@@ -295,7 +317,7 @@ function Sidebar({
       try {
         const loaded = await loadAllFiles(activeWs);
         if (!cancelled) {
-          setFiles(loaded.files);
+          setServerFiles(loaded.files);
           // Expand all folders by default on initial file load
           const allFolders = new Set<string>();
           for (const file of loaded.files) {
@@ -311,7 +333,7 @@ function Sidebar({
           setOpenFolders(allFolders);
         }
       } catch {
-        if (!cancelled) setFiles([]);
+        if (!cancelled) setServerFiles([]);
       }
     }
     void load();

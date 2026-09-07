@@ -83,13 +83,13 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: Task 1 store subscription, `listLocalFiles`, `readCachedNote`, and Task 2 workspace runtime.
 - Produces: `useLocalQuery<T>(store, partition, query, fallbackMs)`, `mergeFileSummaries(local, remote)`, and note routes that load only from durable state.
 
-- [ ] Step 1: Implement `useLocalQuery` with a generation counter. Subscribe to matching local invalidations, reread on window focus, and use a 30-second fallback timer. Cancel obsolete reads when its partition or query changes.
-- [ ] Step 2: Remove `FreshFileState` and `readFreshState`. Make `NoteEditorLoader` call `readCachedNote` for every route load. Use the newest durable draft working copy and accepted cache from the store. Return a clear missing-note state only when the durable query returns null.
-- [ ] Step 3: Keep new-note creation local-first. Save the initial draft, then navigate with only the route. Give new paths a collision-resistant visible name such as `untitled-YYYYMMDD-HHMMSS.md`, while path validation remains authoritative.
-- [ ] Step 4: Make `Sidebar` query `listLocalFiles`, merge later server metadata without replacing newer local state, and update after create, rename, delete, acknowledgement, pull, and conflict resolution. Preserve folder expansion and active-file state.
-- [ ] Step 5: Add unit tests for local-over-remote merging, local-only files, newer local rename and delete, stable sorting, invalidation reload, and cleanup. Add an integration assertion that a newly created durable draft reloads without router state.
-- [ ] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web typecheck`, `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web test:unit`, and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:integration -- browser-storage`. Expect all checks to pass.
-- [ ] Step 7: Commit with `fix(web): load notes from durable local state`.
+- [x] Step 1: Implement `useLocalQuery` with a generation counter. Subscribe to matching local invalidations, reread on window focus, and use a 30-second fallback timer. Cancel obsolete reads when its partition or query changes.
+- [x] Step 2: Remove `FreshFileState` and `readFreshState`. Make `NoteEditorLoader` call `readCachedNote` for every route load. Use the newest durable draft working copy and accepted cache from the store. Return a clear missing-note state only when the durable query returns null.
+- [x] Step 3: Keep new-note creation local-first. Save the initial draft, then navigate with only the route. Give new paths a collision-resistant visible name such as `untitled-YYYYMMDD-HHMMSS.md`, while path validation remains authoritative.
+- [x] Step 4: Make `Sidebar` query `listLocalFiles`, merge later server metadata without replacing newer local state, and update after create, rename, delete, acknowledgement, pull, and conflict resolution. Preserve folder expansion and active-file state.
+- [x] Step 5: Add unit tests for local-over-remote merging, local-only files, newer local rename and delete, stable sorting, invalidation reload, and cleanup. Add an integration assertion that a newly created durable draft reloads without router state.
+- [x] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web typecheck`, `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web test:unit`, and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:integration -- browser-storage`. Expect all checks to pass.
+- [x] Step 7: Commit with `fix(web): load notes from durable local state`.
 
 ### Task 4: Accurate editor save lifecycle
 
