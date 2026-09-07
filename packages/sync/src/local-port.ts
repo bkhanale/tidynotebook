@@ -15,7 +15,11 @@
  *
  * Local browser data is not a backup. It is the working copy of one device.
  */
-import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
+import type {
+  AcceptedChangeset,
+  AcceptedRevision,
+  ChangesetInput,
+} from '@notesapp/core';
 import type { LocalSearchFile } from './local-search.ts';
 
 /**
@@ -123,12 +127,20 @@ export type FileSaveSnapshot = {
 
 /** Durable local record of a server conflict group. */
 export type LocalConflict = {
+  readonly accountId: string;
   readonly fileId: string;
   readonly mutationId: string;
+  readonly input: ChangesetInput;
   readonly conflictGroupId: string | null;
   readonly branchMutationId: string | null;
   readonly branchState: BranchSubmissionState;
   readonly errorCode: string | null;
+};
+
+/** Server result needed to clear a resolved conflict locally. */
+export type ResolvedConflict = {
+  readonly mutationId: string;
+  readonly revisions: readonly AcceptedRevision[];
 };
 
 /**
@@ -579,7 +591,7 @@ export type LocalStore = {
     accountId: string,
     workspaceId: string,
     conflictGroupId: string,
-    result: AcceptedChangeset,
+    result: ResolvedConflict,
   ): Promise<void>;
 
   /** Reads one cached note, with the newest saved draft applied. */

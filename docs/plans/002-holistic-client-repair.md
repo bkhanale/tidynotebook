@@ -126,13 +126,13 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: Task 1 `LocalConflict` and `resolveConflict`, Task 2 stable branch metadata, generated `listBranches`, `getRevision`, `submitBranch`, and `resolveBranches` operations.
 - Produces: A conflict list that joins local queue state to server groups, retry of only failed branch uploads, and successful local cleanup after server resolution.
 
-- [ ] Step 1: Replace the workspace-wide pending-conflict list with durable `LocalConflict` records. Show whether a branch upload is pending, failed, or submitted. Retry only `pending` or `failed` records with their stored branch mutation and group IDs.
-- [ ] Step 2: After `resolveBranches` succeeds, call `store.resolveConflict` with the server accepted changeset. Do not remove local state before the server response. Refresh branch data and file state after the local transaction commits.
-- [ ] Step 3: Before resolution submission, compare the loaded head to the current server head. If it moved, preserve edited resolution text in component state, reload the new comparison, and require review before submit.
-- [ ] Step 4: Keep both tips and final path choices visible. Preserve attachment whole-version selection and text hunk editing. Scope conflict badges and editor status to affected files.
-- [ ] Step 5: Add integration tests for stale content, stale rename, stable branch retry identity, one accepted merge with both parents, local cleanup, reload after resolution, and an idempotent repeated server reply.
-- [ ] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:integration -- sync revisions` and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web test:unit`. Expect all tests to pass.
-- [ ] Step 7: Commit with `fix(conflicts): clear resolved local branches`.
+- [x] Step 1: Replace the workspace-wide pending-conflict list with durable `LocalConflict` records. Show whether a branch upload is pending, failed, or submitted. Retry only `pending` or `failed` records with their stored branch mutation and group IDs.
+- [x] Step 2: After `resolveBranches` succeeds, call `store.resolveConflict` with the server accepted changeset. Do not remove local state before the server response. Refresh branch data and file state after the local transaction commits.
+- [x] Step 3: Before resolution submission, compare the loaded head to the current server head. If it moved, preserve edited resolution text in component state, reload the new comparison, and require review before submit.
+- [x] Step 4: Keep both tips and final path choices visible. Preserve attachment whole-version selection and text hunk editing. Scope conflict badges and editor status to affected files.
+- [x] Step 5: Add integration tests for stale content, stale rename, stable branch retry identity, one accepted merge with both parents, local cleanup, reload after resolution, and an idempotent repeated server reply.
+- [x] Step 6: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:integration -- sync revisions` and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm --filter @notesapp/web test:unit`. Expect all tests to pass.
+- [x] Step 7: Commit with `fix(conflicts): clear resolved local branches`.
 
 ### Task 6: Rebuild the application shell and responsive editor
 

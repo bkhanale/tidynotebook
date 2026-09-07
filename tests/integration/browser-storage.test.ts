@@ -805,3 +805,38 @@ await test('local files and save state follow committed writes per file', async 
   await otherStore.close();
   await store.close();
 });
+
+await test('server conflict resolution clears its local queue atomically', async () => {
+  const backend = createBackend('resolved-conflict');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const draft = draftOf(account, workspace, file, 'copy-a', 'branch text\n');
+  await store.saveDraft(draft);
+  const entry = await store.checkpoint(draft, null);
+  assert.ok(entry !== null);
+  const groupId = randomUUID();
+  await store.markConflict(account, entry.input.mutationId, {
+    conflictGroupId: groupId,
+    branchMutationId: randomUUID(),
+    branchState: 'submitted',
+    errorCode: null,
+  });
+  const accepted = acceptanceOf(entry, account, '8');
+  const mergedId = randomUUID();
+  await store.resolveConflict(account, workspace, groupId, {
+    mutationId: randomUUID(),
+    revisions: accepted.revisions.map((revision) => ({
+      ...revision,
+      revisionId: mergedId,
+      parents: [revision.revisionId, randomUUID()],
+    })),
+  });
+  assert.deepEqual(await store.pending(account, workspace), []);
+  assert.deepEqual(await store.listLocalConflicts(account, workspace), []);
+  const state = await store.readFileSaveSnapshot(account, workspace, file);
+  assert.equal(state.acceptedHeadRevisionId, mergedId);
+  assert.equal(state.localHeadRevisionId, mergedId);
+  await store.close();
+});

@@ -34,7 +34,7 @@ import {
 } from '@notesapp/api-client';
 import { contentDigest, generateUUID, normalizePath } from '@notesapp/core';
 import { mergeHunks, type DiffHunk, type HunkDecision } from '@notesapp/editor';
-import type { LocalStore, QueueEntry } from '@notesapp/sync';
+import type { LocalConflict, LocalStore } from '@notesapp/sync';
 import { Button, StatusRegion, TextField } from '@notesapp/ui';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import { canWrite, findWorkspace, useWorkspaces } from './workspaces.tsx';
@@ -399,7 +399,7 @@ function ConflictsDetail({
 }): ReactNode {
   const [branches, setBranches] = useState<readonly BranchItem[]>([]);
   const [branchesError, setBranchesError] = useState<string | null>(null);
-  const [pending, setPending] = useState<readonly QueueEntry[]>([]);
+  const [pending, setPending] = useState<readonly LocalConflict[]>([]);
   const [notice, setNotice] = useState('');
   const [reloadGeneration, setReloadGeneration] = useState(0);
 
@@ -438,16 +438,27 @@ function ConflictsDetail({
     let cancelled = false;
     async function load(): Promise<void> {
       try {
-        const entries = await activeStore.pending(accountId, workspaceId);
-        if (!cancelled)
-          setPending(entries.filter((entry) => entry.state === 'conflict'));
+        const entries = await activeStore.listLocalConflicts(
+          accountId,
+          workspaceId,
+        );
+        if (!cancelled) setPending(entries);
       } catch {
         if (!cancelled) setPending([]);
       }
     }
     void load();
+    const unsubscribe = activeStore.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        (change.kind === 'conflict' || change.kind === 'queue')
+      )
+        void load();
+    });
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, [store, accountId, workspaceId, reloadGeneration]);
 
@@ -494,6 +505,7 @@ function ConflictsDetail({
           <ConflictGroup
             key={groupId}
             store={store}
+            accountId={accountId}
             workspaceId={workspaceId}
             groupId={groupId}
             branches={groupBranches}
@@ -565,6 +577,7 @@ function startFile(branch: BranchItem, extraBranches: number): ConflictFile {
 /** Resolves every file of one conflict group together. */
 function ConflictGroup({
   store,
+  accountId,
   workspaceId,
   groupId,
   branches,
@@ -572,6 +585,7 @@ function ConflictGroup({
   onResolved,
 }: {
   readonly store: LocalStore | null;
+  readonly accountId: string;
   readonly workspaceId: string;
   readonly groupId: string;
   readonly branches: readonly BranchItem[];
@@ -891,6 +905,11 @@ function ConflictGroup({
     const accepted = result.data.revisions.map(
       (revision) => revision.revisionId,
     );
+    if (store !== null)
+      await store.resolveConflict(accountId, workspaceId, groupId, {
+        mutationId: result.data.mutationId,
+        revisions: result.data.revisions,
+      });
     setState((current) => ({
       ...current,
       resolving: false,
@@ -1557,7 +1576,7 @@ function PendingConflicts({
 }: {
   readonly store: LocalStore | null;
   readonly workspaceId: string;
-  readonly pending: readonly QueueEntry[];
+  readonly pending: readonly LocalConflict[];
   readonly writable: boolean;
   readonly onUploaded: (message: string) => void;
 }): ReactNode {
@@ -1565,10 +1584,11 @@ function PendingConflicts({
   const [error, setError] = useState<string | null>(null);
 
   if (store === null || pending.length === 0) return null;
+  const activeStore = store;
 
-  /** Retries the branch upload of one conflicting entry with fresh IDs. */
-  async function retry(entry: QueueEntry): Promise<void> {
-    setBusyId(entry.input.mutationId);
+  /** Retries the exact durable branch submission of one conflicting entry. */
+  async function retry(entry: LocalConflict): Promise<void> {
+    setBusyId(entry.mutationId);
     setError(null);
     const revisions: RevisionInput[] = [];
     for (const revision of entry.input.revisions) {
@@ -1606,23 +1626,43 @@ function PendingConflicts({
         });
       }
     }
+    const branchMutationId = entry.branchMutationId ?? generateUUID();
+    const conflictGroupId = entry.conflictGroupId ?? generateUUID();
+    await activeStore.markConflict(entry.accountId, entry.mutationId, {
+      branchMutationId,
+      conflictGroupId,
+      branchState: 'pending',
+      errorCode: null,
+    });
     const result = await submitBranch({
       path: { workspaceId },
       body: {
-        mutationId: generateUUID(),
-        deviceId: store?.deviceId ?? 'web-device',
-        conflictGroupId: generateUUID(),
+        mutationId: branchMutationId,
+        deviceId: activeStore.deviceId,
+        conflictGroupId,
         expectedHeads: { ...entry.input.expectedHeads },
         revisions,
       },
     });
     setBusyId(null);
     if (result.error !== undefined || result.data === undefined) {
+      await activeStore.markConflict(entry.accountId, entry.mutationId, {
+        branchMutationId,
+        conflictGroupId,
+        branchState: 'failed',
+        errorCode: problemCode(result.error) || 'branch_failed',
+      });
       setError(
         `The branch upload did not land: ${problemMessage(result.error)}. The local work stays queued; a rejection can also mean the branch already exists, in which case resolve it above.`,
       );
       return;
     }
+    await activeStore.markConflict(entry.accountId, entry.mutationId, {
+      branchMutationId,
+      conflictGroupId: result.data.conflictGroupId,
+      branchState: 'submitted',
+      errorCode: null,
+    });
     onUploaded(
       `The pending work is uploaded as conflict group ${result.data.conflictGroupId}. Resolve it above.`,
     );
@@ -1642,12 +1682,12 @@ function PendingConflicts({
       ) : null}
       <ol>
         {pending.map((entry) => (
-          <li key={entry.input.mutationId}>
-            {`Change ${entry.input.mutationId} touches ${Object.keys(entry.input.expectedHeads).join(', ')}.`}{' '}
-            {writable ? (
+          <li key={`${entry.mutationId}:${entry.fileId}`}>
+            {`Change ${entry.mutationId} touches ${entry.fileId}. Branch upload: ${entry.branchState}.`}{' '}
+            {writable && entry.branchState !== 'submitted' ? (
               <Button
                 variant="secondary"
-                label={`Retry the branch upload of ${entry.input.mutationId}`}
+                label={`Retry the branch upload of ${entry.mutationId}`}
                 disabled={busyId !== null}
                 onClick={() => {
                   void retry(entry);

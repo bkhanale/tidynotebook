@@ -45,6 +45,7 @@ export type {
   RecoveryInput,
   RecoveryReason,
   RecoveryRecord,
+  ResolvedConflict,
   StagedSnapshot,
 } from './local-port.ts';
 export {

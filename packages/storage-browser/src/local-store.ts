@@ -36,6 +36,7 @@ import {
   type RecoveryInput,
   type RecoveryRecord,
   type RemoteChange,
+  type ResolvedConflict,
   type SnapshotRevision,
 } from '@notesapp/sync';
 import {
@@ -809,7 +810,8 @@ export async function openLocalStore(
           if (entry === null) return;
           await tables.queue.put({
             ...entry,
-            state: 'conflict',
+            state:
+              details?.branchState === 'pending' ? 'sending' : 'conflict',
             conflictGroupId:
               details?.conflictGroupId ?? entry.conflictGroupId,
             branchMutationId:
@@ -1192,8 +1194,10 @@ export async function openLocalStore(
           .filter((entry) => entry.state === 'conflict')
           .flatMap((entry) =>
             entry.input.revisions.map((revision) => ({
+              accountId: entry.accountId,
               fileId: revision.fileId,
               mutationId: entry.input.mutationId,
+              input: entry.input,
               conflictGroupId: entry.conflictGroupId,
               branchMutationId: entry.branchMutationId,
               branchState: entry.branchState,
@@ -1207,7 +1211,7 @@ export async function openLocalStore(
       accountId: string,
       workspaceId: string,
       conflictGroupId: string,
-      result: AcceptedChangeset,
+      result: ResolvedConflict,
     ): Promise<void> {
       const affected = new Set<string>();
       await guard('clearing a resolved conflict', () =>
@@ -1218,7 +1222,6 @@ export async function openLocalStore(
             tables.checkpoints,
             tables.acceptedFiles,
             tables.branches,
-            tables.receipts,
           ],
           async () => {
             const rows: unknown[] = await tables.queue
@@ -1291,15 +1294,6 @@ export async function openLocalStore(
               )
                 await tables.branches.put({ ...branch, resolved: true });
             }
-            await tables.receipts.put({
-              serverOrigin,
-              accountId,
-              workspaceId,
-              mutationId: result.mutationId,
-              revisionIds: result.revisionIds,
-              cursor: result.cursor,
-              acknowledgedAt: nowIso(),
-            });
           },
         ),
       );
