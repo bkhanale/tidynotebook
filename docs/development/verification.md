@@ -1,5 +1,40 @@
 # Implementation verification
 
+## End-to-end browser gate
+
+The browser gate starts the production web build and the real Fastify server
+against a unique PostgreSQL database and storage directory for each worker. It
+creates the session through the visible login form. The tests use the real
+IndexedDB store, generated API client, and sync engine.
+
+Start the test database before the gate:
+
+```sh
+docker compose -f compose.test.yaml up -d postgres-test
+```
+
+Install the supported browser runtimes and their host packages once:
+
+```sh
+pnpm exec playwright install
+pnpm exec playwright install-deps
+```
+
+Run the complete matrix with:
+
+```sh
+pnpm test:e2e
+```
+
+Use `pnpm test:e2e:headed` for an interactive Chromium run. Failed and retried
+runs put traces, screenshots, and videos in `test-results/playwright`. The HTML
+report is in `playwright-report`.
+
+The projects cover desktop Chromium, Firefox, WebKit, a 390 by 844 Chromium
+phone viewport, and a 768 by 1024 Chromium tablet viewport. These emulated
+viewports verify responsive layout and touch settings. They are not evidence
+from a physical phone or tablet.
+
 This record covers the Task 22 implementation gate. It does not contain E2E,
 device, or release evidence. Those checks need the separate Task 23 approval
 and the Task 24 environments.

@@ -2,6 +2,8 @@ node_modules/
 .tooling/
 dist/
 coverage/
+playwright-report/
+test-results/
 pnpm-lock.yaml
 progress.md
 packages/api-client/src/generated/

@@ -605,13 +605,11 @@ function ConflictGroup({
 
   /** Patches one file of this group. */
   function patchFile(fileId: string, patch: Partial<ConflictFile>): void {
-    setState((current) => {
-      const files = current.files.map((file) =>
-        file.fileId === fileId ? { ...file, ...patch } : file,
-      );
-      filesRef.current = files;
-      return { ...current, files };
-    });
+    const files = filesRef.current.map((file) =>
+      file.fileId === fileId ? { ...file, ...patch } : file,
+    );
+    filesRef.current = files;
+    setState((current) => ({ ...current, files }));
   }
 
   /** The latest known state of one file, including user edits. */

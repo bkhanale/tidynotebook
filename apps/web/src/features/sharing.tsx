@@ -1,5 +1,5 @@
 /** Explicit preview, publication update, and revocation controls. */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   createShare,
   getFile,
@@ -9,7 +9,7 @@ import {
   type Share,
 } from '@notesapp/api-client';
 import { Button, StatusRegion } from '@notesapp/ui';
-import { problemMessage } from '../app.tsx';
+import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 
 /** Converts an optional local input value to an API timestamp. */
 function expiry(value: string): string | null {
@@ -24,6 +24,8 @@ export function SharingPanel({
   readonly workspaceId: string;
   readonly fileId: string;
 }): ReactNode {
+  const localStore = useLocalStore();
+  const session = useSession();
   const [head, setHead] = useState<{
     readonly revisionId: string;
     readonly text: string;
@@ -34,7 +36,7 @@ export function SharingPanel({
   const [message, setMessage] = useState('');
   const [createdUrl, setCreatedUrl] = useState('');
 
-  async function reload(): Promise<void> {
+  const reload = useCallback(async (): Promise<void> => {
     const [fileResult, sharesResult] = await Promise.all([
       getFile({ path: { workspaceId, fileId } }),
       listShares({ path: { workspaceId } }),
@@ -52,13 +54,30 @@ export function SharingPanel({
       setShares(
         sharesResult.data.shares.filter((share) => share.fileId === fileId),
       );
-  }
+  }, [fileId, workspaceId]);
 
   useEffect(() => {
     void reload().catch((error: unknown) =>
       setMessage(error instanceof Error ? error.message : 'Share load failed.'),
     );
-  }, [fileId, workspaceId]);
+    const accountId = session.account?.accountId;
+    if (localStore.store === null || accountId === undefined) return;
+    return localStore.store.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        change.fileId === fileId &&
+        change.kind === 'file'
+      )
+        void reload();
+    });
+  }, [
+    fileId,
+    localStore.store,
+    reload,
+    session.account?.accountId,
+    workspaceId,
+  ]);
 
   async function showPreview(): Promise<void> {
     if (head === null) return;

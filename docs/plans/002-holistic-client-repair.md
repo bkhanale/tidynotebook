@@ -25,6 +25,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 1: Durable local events and per-file state
 
 **Files:**
+
 - Modify: `packages/sync/src/local-port.ts`
 - Modify: `packages/sync/src/index.ts`
 - Modify: `packages/storage-browser/src/database.ts`
@@ -35,6 +36,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Modify: `tests/integration/offline-lifecycle.test.ts`
 
 **Interfaces:**
+
 - Consumes: Existing `Draft`, `QueueEntry`, `CheckpointRecord`, `LocalAcceptedFile`, and `LocalStore` contracts.
 - Produces: `LocalChange = { accountId: string; workspaceId: string; fileId: string | null; kind: 'draft' | 'queue' | 'file' | 'conflict' | 'cursor' | 'reset' }`; `LocalFileSummary`; `FileSaveSnapshot`; `LocalConflict`; `LocalStore.subscribe(listener: (change: LocalChange) => void): () => void`; `LocalStore.listLocalFiles(accountId: string, workspaceId: string): Promise<readonly LocalFileSummary[]>`; `LocalStore.readFileSaveSnapshot(accountId: string, workspaceId: string, fileId: string): Promise<FileSaveSnapshot>`; and `LocalStore.resolveConflict(accountId: string, workspaceId: string, conflictGroupId: string, result: AcceptedChangeset): Promise<void>`.
 
@@ -50,6 +52,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 2: Immediate sync and stable conflict submission
 
 **Files:**
+
 - Modify: `packages/sync/src/queue.ts`
 - Modify: `packages/sync/src/engine.ts`
 - Modify: `packages/sync/src/engine.test.ts`
@@ -58,6 +61,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Modify: `apps/web/src/app.tsx`
 
 **Interfaces:**
+
 - Consumes: Task 1 `QueueEntry` metadata and committed local events.
 - Produces: `SyncEngine.requestSync(): void`; branch submission that stores one stable `branchMutationId` and `conflictGroupId`; sync notices that include affected file and mutation IDs.
 
@@ -72,6 +76,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 3: Durable note loading and reactive navigation
 
 **Files:**
+
 - Create: `apps/web/src/local-state.ts`
 - Modify: `apps/web/src/app.tsx`
 - Modify: `apps/web/src/features/new-note.tsx`
@@ -80,6 +85,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Create: `apps/web/src/local-state.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 store subscription, `listLocalFiles`, `readCachedNote`, and Task 2 workspace runtime.
 - Produces: `useLocalQuery<T>(store, partition, query, fallbackMs)`, `mergeFileSummaries(local, remote)`, and note routes that load only from durable state.
 
@@ -94,6 +100,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 4: Accurate editor save lifecycle
 
 **Files:**
+
 - Modify: `apps/web/src/features/save-status.tsx`
 - Modify: `apps/web/src/features/note-editor.tsx`
 - Modify: `packages/sync/src/checkpoints.ts`
@@ -101,6 +108,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Create: `apps/web/src/features/save-status.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 `FileSaveSnapshot`, Task 2 `requestSync`, and Task 3 local query adapter.
 - Produces: `resolveSaveState` based only on current-file durable state; Save, rename, delete, automatic checkpoint, and route-leave flows that wait for local commit and wake sync.
 
@@ -115,6 +123,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 5: Complete conflict resolution lifecycle
 
 **Files:**
+
 - Modify: `apps/web/src/features/conflicts.tsx`
 - Modify: `apps/web/src/features/note-editor.tsx`
 - Modify: `packages/storage-browser/src/local-store.ts`
@@ -123,6 +132,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Create: `apps/web/src/features/conflicts.test.ts`
 
 **Interfaces:**
+
 - Consumes: Task 1 `LocalConflict` and `resolveConflict`, Task 2 stable branch metadata, generated `listBranches`, `getRevision`, `submitBranch`, and `resolveBranches` operations.
 - Produces: A conflict list that joins local queue state to server groups, retry of only failed branch uploads, and successful local cleanup after server resolution.
 
@@ -137,6 +147,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 6: Rebuild the application shell and responsive editor
 
 **Files:**
+
 - Modify: `apps/web/src/main.tsx`
 - Modify: `apps/web/src/shell.css`
 - Modify: `apps/web/src/features/shell.tsx`
@@ -148,6 +159,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Modify: `apps/web/src/features/backlinks.tsx`
 
 **Interfaces:**
+
 - Consumes: Existing `@notesapp/ui` controls and the repaired reactive web state.
 - Produces: Styled initial routes, a responsive shell, a primary editor surface, accessible drawers and panels, and reachable actions at supported widths.
 
@@ -163,6 +175,7 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 7: Real browser verification infrastructure
 
 **Files:**
+
 - Modify: `package.json`
 - Modify: `pnpm-lock.yaml`
 - Create: `playwright.config.ts`
@@ -174,9 +187,10 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Create: `tests/e2e/offline.spec.ts`
 - Create: `tests/e2e/conflicts.spec.ts`
 - Create: `tests/e2e/features.spec.ts`
-- Modify: `docs/dev/verification.md`
+- Modify: `docs/development/verification.md`
 
 **Interfaces:**
+
 - Consumes: Production server build, `compose.test.yaml`, owner bootstrap command, real browser routes, IndexedDB, and generated application operations.
 - Produces: `pnpm test:e2e`, isolated stack fixtures, reusable authenticated contexts, and artifact capture for failed journeys.
 
@@ -192,15 +206,17 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 8: Holistic regression pass and documentation
 
 **Files:**
-- Modify: `docs/dev/verification.md`
-- Modify: `docs/dev/local-storage.md`
-- Modify: `docs/dev/files-and-revisions.md`
-- Modify: `docs/ops/self-hosting.md`
+
+- Modify: `docs/development/verification.md`
+- Modify: `docs/development/local-storage.md`
+- Modify: `docs/development/files-and-revisions.md`
+- Modify: `docs/operations/self-hosting.md`
 - Modify: `README.md`
 - Modify: `progress.md`
 - Modify: `docs/plans/002-holistic-client-repair.md`
 
 **Interfaces:**
+
 - Consumes: All repaired code and automated suites from Tasks 1 through 7.
 - Produces: Accurate operation and verification documents, completed plan checkboxes, and one verified production build for handoff.
 
@@ -215,9 +231,11 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 ### Task 9: Main branch delivery
 
 **Files:**
+
 - Modify: No source files. This task changes Git references and the live process only.
 
 **Interfaces:**
+
 - Consumes: A clean, reviewed, fully verified `feat/holistic-app-repair` branch and the explicit request to deliver directly to `main`.
 - Produces: Local and remote `main` at the verified repair commit, without a force push, plus one live local-network application on port 3000.
 

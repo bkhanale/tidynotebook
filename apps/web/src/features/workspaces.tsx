@@ -42,6 +42,68 @@ export type WorkspacesState =
   | { readonly status: 'error'; readonly message: string }
   | { readonly status: 'ready'; readonly workspaces: readonly Workspace[] };
 
+const workspaceCachePrefix = 'notesapp.cached-workspaces:';
+
+function cachedRole(value: unknown): Role | null {
+  if (
+    value === 'owner' ||
+    value === 'admin' ||
+    value === 'editor' ||
+    value === 'viewer'
+  )
+    return value;
+  return null;
+}
+
+function cachedWorkspaces(accountId: string): readonly Workspace[] | null {
+  try {
+    const source = window.localStorage.getItem(
+      `${workspaceCachePrefix}${accountId}`,
+    );
+    if (source === null) return null;
+    const value: unknown = JSON.parse(source);
+    if (!Array.isArray(value)) return null;
+    const workspaces: Workspace[] = [];
+    for (const item of value) {
+      if (item === null || typeof item !== 'object') return null;
+      const row: Record<string, unknown> = Object.fromEntries(
+        Object.entries(item),
+      );
+      const role = cachedRole(row['role']);
+      if (
+        typeof row['workspaceId'] !== 'string' ||
+        typeof row['name'] !== 'string' ||
+        role === null ||
+        typeof row['personal'] !== 'boolean'
+      )
+        return null;
+      workspaces.push({
+        workspaceId: row['workspaceId'],
+        name: row['name'],
+        role,
+        personal: row['personal'],
+      });
+    }
+    return workspaces;
+  } catch {
+    return null;
+  }
+}
+
+function rememberWorkspaces(
+  accountId: string,
+  workspaces: readonly Workspace[],
+): void {
+  try {
+    window.localStorage.setItem(
+      `${workspaceCachePrefix}${accountId}`,
+      JSON.stringify(workspaces),
+    );
+  } catch {
+    // The live workspace list remains usable when cache storage fails.
+  }
+}
+
 /** Loads every workspace of the signed-in account. */
 export function useWorkspaces(): {
   readonly state: WorkspacesState;
@@ -61,15 +123,24 @@ export function useWorkspaces(): {
       setState({ status: 'loading' });
       const result = await listWorkspaces();
       if (cancelled) return;
-      if (result.error !== undefined || result.data === undefined)
-        setState({ status: 'error', message: problemMessage(result.error) });
-      else setState({ status: 'ready', workspaces: result.data.workspaces });
+      if (result.error !== undefined || result.data === undefined) {
+        const responseStatus = result.response?.status ?? 0;
+        const cached = cachedWorkspaces(session.account?.accountId ?? '');
+        if (cached !== null && (responseStatus === 0 || responseStatus >= 500))
+          setState({ status: 'ready', workspaces: cached });
+        else
+          setState({ status: 'error', message: problemMessage(result.error) });
+      } else {
+        if (session.account !== null)
+          rememberWorkspaces(session.account.accountId, result.data.workspaces);
+        setState({ status: 'ready', workspaces: result.data.workspaces });
+      }
     }
     void load();
     return () => {
       cancelled = true;
     };
-  }, [session.status, generation]);
+  }, [session.status, session.account, generation]);
 
   return {
     state,

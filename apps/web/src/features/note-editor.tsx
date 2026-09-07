@@ -298,8 +298,8 @@ export function NoteEditor({
 
   /** Creates one immutable checkpoint from the current buffer. */
   const checkpointInFlightRef = useRef<Promise<void> | null>(null);
-  const checkpointNow = useRef(
-    (_deleted = false): Promise<void> => Promise.resolve(),
+  const checkpointNow = useRef((_deleted?: boolean): Promise<void> =>
+    Promise.resolve(),
   );
   checkpointNow.current = (deleted = false): Promise<void> => {
     const existing = checkpointInFlightRef.current;
@@ -568,10 +568,8 @@ export function NoteEditor({
     draftWritePending: draftPending,
     queueState: saveSnapshot?.queueState ?? null,
     storageError,
-    hasUncheckpointedDraft:
-      saveSnapshot?.hasUncheckpointedDraft ?? true,
-    acceptedHeadRevisionId:
-      saveSnapshot?.acceptedHeadRevisionId ?? null,
+    hasUncheckpointedDraft: saveSnapshot?.hasUncheckpointedDraft ?? true,
+    acceptedHeadRevisionId: saveSnapshot?.acceptedHeadRevisionId ?? null,
     localHeadRevisionId: saveSnapshot?.localHeadRevisionId ?? null,
   });
   // The buffer is the only copy until the draft commits, and it is the only
@@ -962,8 +960,8 @@ export function NoteEditorLoader({
 
   const writable = role !== null && canWrite(role);
   return (
-    <main>
-      <h1>{status.path}</h1>
+    <div>
+      <h1 className="notes-visually-hidden">{status.path}</h1>
       {linkNotice !== '' ? <StatusRegion message={linkNotice} /> : null}
       <NoteEditor
         key={fileId}
@@ -992,6 +990,6 @@ export function NoteEditorLoader({
           else setLinkNotice('That link target opens in a later task.');
         }}
       />
-    </main>
+    </div>
   );
 }

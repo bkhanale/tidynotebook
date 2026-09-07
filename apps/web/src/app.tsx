@@ -82,6 +82,69 @@ const SessionContext = createContext<SessionValue>({
   signOut: () => {},
 });
 
+const cachedAccountKey = 'notesapp.cached-account';
+const syncWorkerKey = 'notesapp.sync-worker';
+
+/** Reads only a previously validated account shape from browser storage. */
+function readCachedAccount(): Account | null {
+  try {
+    const source = window.localStorage.getItem(cachedAccountKey);
+    if (source === null) return null;
+    const value: unknown = JSON.parse(source);
+    if (value === null || typeof value !== 'object') return null;
+    const row: Record<string, unknown> = Object.fromEntries(
+      Object.entries(value),
+    );
+    const preferences = readProperty(row['preferences'], 'theme');
+    if (
+      typeof row['accountId'] !== 'string' ||
+      !['system', 'light', 'dark'].includes(String(preferences))
+    )
+      return null;
+    const email = row['email'];
+    const name = row['name'];
+    if (email !== undefined && email !== null && typeof email !== 'string')
+      return null;
+    if (name !== undefined && name !== null && typeof name !== 'string')
+      return null;
+    return {
+      accountId: row['accountId'],
+      email: email ?? null,
+      name: name ?? null,
+      preferences: {
+        theme:
+          preferences === 'light' || preferences === 'dark'
+            ? preferences
+            : 'system',
+      },
+    };
+  } catch {
+    return null;
+  }
+}
+
+function rememberAccount(account: Account | null): void {
+  try {
+    if (account === null) window.localStorage.removeItem(cachedAccountKey);
+    else window.localStorage.setItem(cachedAccountKey, JSON.stringify(account));
+  } catch {
+    // The live session remains usable when browser preference storage fails.
+  }
+}
+
+/** Keeps one lease owner through reloads, but not across independent tabs. */
+function syncWorkerId(): string {
+  try {
+    const stored = window.sessionStorage.getItem(syncWorkerKey);
+    if (stored !== null && stored !== '') return stored;
+    const created = window.crypto.randomUUID();
+    window.sessionStorage.setItem(syncWorkerKey, created);
+    return created;
+  } catch {
+    return window.crypto.randomUUID();
+  }
+}
+
 /** Reads the current session value. */
 export function useSession(): SessionValue {
   return useContext(SessionContext);
@@ -107,8 +170,19 @@ function useSessionLoader(generation: number): {
       if (result.error !== undefined || result.data === undefined) {
         const responseStatus = result.response?.status ?? 0;
         if (responseStatus === 401) {
+          rememberAccount(null);
           setAccount(null);
           setStatus('signed-out');
+          return;
+        }
+        const cached = readCachedAccount();
+        if (
+          cached !== null &&
+          (responseStatus === 0 || responseStatus >= 500)
+        ) {
+          setAccount(cached);
+          setStatus('signed-in');
+          setError('The account is offline. Local notes remain available.');
           return;
         }
         setAccount(null);
@@ -116,6 +190,7 @@ function useSessionLoader(generation: number): {
         setError(problemMessage(result.error));
         return;
       }
+      rememberAccount(result.data);
       setAccount(result.data);
       setStatus('signed-in');
     }
@@ -279,6 +354,7 @@ export function useWorkspaceSync(
   workspaceId: string | null,
 ): string {
   const [message, setMessage] = useState<string>('Sync has not started yet.');
+  const ownerId = useMemo(syncWorkerId, []);
 
   useEffect(() => {
     if (store === null || accountId === null || workspaceId === null) {
@@ -325,6 +401,7 @@ export function useWorkspaceSync(
     };
     const engine = createSyncEngine(store, accountId, workspaceId, {
       announce: onNotice,
+      ownerId,
     });
     const requestSync = (): void => {
       engine.requestSync();
@@ -350,7 +427,7 @@ export function useWorkspaceSync(
       controller.abort();
       engine.stop();
     };
-  }, [store, accountId, workspaceId]);
+  }, [store, accountId, workspaceId, ownerId]);
 
   return message;
 }
@@ -424,6 +501,7 @@ export function AppProviders({
 
   const doSignOut = useCallback(() => {
     async function end(): Promise<void> {
+      rememberAccount(null);
       await signOut({ body: {} });
       refresh();
     }

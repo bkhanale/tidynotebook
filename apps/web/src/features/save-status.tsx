@@ -8,7 +8,6 @@
  * color alone, so the state survives themes and contrast limits.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import type { LocalStorageErrorKind } from '@notesapp/sync';
 import type { SaveState } from './save-state.ts';
 export { resolveSaveState } from './save-state.ts';
 export type { SaveState, SaveStateInput } from './save-state.ts';

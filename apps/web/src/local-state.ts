@@ -16,7 +16,11 @@ export function useLocalQuery<T>(
   store: LocalStore | null,
   accountId: string | null,
   workspaceId: string | null,
-  query: (store: LocalStore, accountId: string, workspaceId: string) => Promise<T>,
+  query: (
+    store: LocalStore,
+    accountId: string,
+    workspaceId: string,
+  ) => Promise<T>,
   initial: T,
   accepts: (change: LocalChange) => boolean = () => true,
   fallbackMs = 30_000,
@@ -86,16 +90,21 @@ export function mergeFileSummaries(
       continue;
     }
     const accepted = merged.get(file.fileId);
+    const localTimestamp = Date.parse(file.updatedAt);
+    const remoteTimestamp =
+      accepted === undefined
+        ? Number.NEGATIVE_INFINITY
+        : Date.parse(accepted.updatedAt);
     const localIsNewer =
       file.localOnly ||
       file.localHeadRevisionId !== file.acceptedHeadRevisionId ||
-      accepted === undefined;
+      accepted === undefined ||
+      localTimestamp > remoteTimestamp;
     merged.set(file.fileId, {
       fileId: file.fileId,
       path: localIsNewer ? file.path : (accepted?.path ?? file.path),
       kind: file.kind,
-      headRevisionId:
-        accepted?.headRevisionId ?? file.acceptedHeadRevisionId,
+      headRevisionId: accepted?.headRevisionId ?? file.acceptedHeadRevisionId,
       updatedAt:
         localIsNewer || accepted === undefined
           ? file.updatedAt

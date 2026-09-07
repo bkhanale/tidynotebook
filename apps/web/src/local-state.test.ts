@@ -35,17 +35,52 @@ await test('local file state adds, renames, and deletes navigation entries', () 
     )[0]?.path,
     'renamed.md',
   );
-  assert.deepEqual(mergeFileSummaries([remote], [local({ deleted: true })]), []);
+  assert.deepEqual(
+    mergeFileSummaries([remote], [local({ deleted: true })]),
+    [],
+  );
   assert.equal(
-    mergeFileSummaries([], [
-      local({
-        fileId: 'file-new',
-        path: 'new.md',
-        acceptedHeadRevisionId: null,
-        localHeadRevisionId: null,
-        localOnly: true,
-      }),
-    ])[0]?.path,
+    mergeFileSummaries(
+      [],
+      [
+        local({
+          fileId: 'file-new',
+          path: 'new.md',
+          acceptedHeadRevisionId: null,
+          localHeadRevisionId: null,
+          localOnly: true,
+        }),
+      ],
+    )[0]?.path,
     'new.md',
+  );
+});
+
+await test('newer accepted local metadata wins over a stale remote listing', () => {
+  assert.equal(
+    mergeFileSummaries(
+      [remote],
+      [
+        local({
+          path: 'accepted-rename.md',
+          acceptedHeadRevisionId: 'revision-b',
+          localHeadRevisionId: 'revision-b',
+        }),
+      ],
+    )[0]?.path,
+    'accepted-rename.md',
+  );
+  assert.equal(
+    mergeFileSummaries(
+      [
+        {
+          ...remote,
+          path: 'remote-rename.md',
+          updatedAt: '2026-09-07T10:02:00.000Z',
+        },
+      ],
+      [local()],
+    )[0]?.path,
+    'remote-rename.md',
   );
 });
