@@ -194,14 +194,14 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: Production server build, `compose.test.yaml`, owner bootstrap command, real browser routes, IndexedDB, and generated application operations.
 - Produces: `pnpm test:e2e`, isolated stack fixtures, reusable authenticated contexts, and artifact capture for failed journeys.
 
-- [ ] Step 1: Pin `@playwright/test` at `1.63.0`. Add `test:e2e` and `test:e2e:headed` scripts. Configure Chromium, Firefox, WebKit, 390 by 844 phone, 768 px tablet, and desktop projects. Keep trace, screenshot, and video only for failed or retried tests.
-- [ ] Step 2: Build a worker-scoped stack fixture that creates a unique PostgreSQL database and storage directory, runs migrations and owner bootstrap, starts one application server on a free loopback port, waits for readiness, and always cleans up its process, database, and directory.
-- [ ] Step 3: Add UI login helpers and browser-state helpers that clear cookies, service workers, caches, local storage, and IndexedDB between tests. Do not bypass session creation with an injected browser token.
-- [ ] Step 4: Cover login computed styles, desktop and phone overflow, drawer keyboard behavior, new-note local visibility, exact reload content, immediate Save acknowledgement, rename, delete, offline reload, reconnect sync, two-context conflict creation and resolution, history, sharing, search, outline, and backlinks.
-- [ ] Step 5: Use visible labels, roles, URLs, and API outcomes for waits. Forbid fixed sleeps longer than a short animation frame. Capture console errors and fail tests on unexpected page errors.
-- [ ] Step 6: Document exact local commands, required Docker service, browser installation, artifact paths, and the physical-device limitation.
-- [ ] Step 7: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:e2e`. Expect every supported browser project to pass. If a browser runtime is unavailable, install its documented system dependencies and rerun rather than skipping coverage silently.
-- [ ] Step 8: Commit with `test(e2e): cover critical browser journeys`.
+- [x] Step 1: Pin `@playwright/test` at `1.63.0`. Add `test:e2e` and `test:e2e:headed` scripts. Configure Chromium, Firefox, WebKit, 390 by 844 phone, 768 px tablet, and desktop projects. Keep trace, screenshot, and video only for failed or retried tests.
+- [x] Step 2: Build a worker-scoped stack fixture that creates a unique PostgreSQL database and storage directory, runs migrations and owner bootstrap, starts one application server on a free loopback port, waits for readiness, and always cleans up its process, database, and directory.
+- [x] Step 3: Add UI login helpers and browser-state helpers that clear cookies, service workers, caches, local storage, and IndexedDB between tests. Do not bypass session creation with an injected browser token.
+- [x] Step 4: Cover login computed styles, desktop and phone overflow, drawer keyboard behavior, new-note local visibility, exact reload content, immediate Save acknowledgement, rename, delete, offline reload, reconnect sync, two-context conflict creation and resolution, history, sharing, search, outline, and backlinks.
+- [x] Step 5: Use visible labels, roles, URLs, and API outcomes for waits. Forbid fixed sleeps longer than a short animation frame. Capture console errors and fail tests on unexpected page errors.
+- [x] Step 6: Document exact local commands, required Docker service, browser installation, artifact paths, and the physical-device limitation.
+- [x] Step 7: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:e2e`. Expect every supported browser project to pass. If a browser runtime is unavailable, install its documented system dependencies and rerun rather than skipping coverage silently.
+- [x] Step 8: Commit with `test(e2e): cover critical browser journeys`.
 
 ### Task 8: Holistic regression pass and documentation
 
@@ -220,13 +220,13 @@ The sequence number `002` was checked after `git fetch origin --prune`. The remo
 - Consumes: All repaired code and automated suites from Tasks 1 through 7.
 - Produces: Accurate operation and verification documents, completed plan checkboxes, and one verified production build for handoff.
 
-- [ ] Step 1: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm verify`. Fix every failure in its owning package and rerun until the command passes.
-- [ ] Step 2: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:e2e`, `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm perf:bundle`, and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm perf:service`. Fix every reproducible regression and rerun the affected full command.
+- [x] Step 1: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm verify`. Fix every failure in its owning package and rerun until the command passes.
+- [x] Step 2: Run `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm test:e2e`, `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm perf:bundle`, and `/home/bkhanale/workspace/bkhanale/notesapp/.tooling/bin/pnpm perf:service`. Fix every reproducible regression and rerun the affected full command.
 - [ ] Step 3: Build the production application. Stop the old notes application listener, start exactly one repaired process bound to `0.0.0.0:3000`, and verify the login, create, edit, Save, reload, rename, delete, and conflict flows through the host and local-network URL.
-- [ ] Step 4: Inspect desktop, 768 px, and 390 px screenshots. Check that `document.documentElement.scrollWidth` is not greater than `clientWidth`, primary actions are visible, focus order is useful, and both themes remain readable.
-- [ ] Step 5: Update the local storage, revisions, verification, self-hosting, README, and progress documents to match the implemented event, sync, conflict, test, and port behavior. Do not claim physical-device coverage.
-- [ ] Step 6: Check `git diff --check`, scan changed files for credentials and note content, and confirm that only intended worktree files changed.
-- [ ] Step 7: Commit with `docs: record repaired client workflows`.
+- [x] Step 4: Inspect desktop, 768 px, and 390 px screenshots. Check that `document.documentElement.scrollWidth` is not greater than `clientWidth`, primary actions are visible, focus order is useful, and both themes remain readable.
+- [x] Step 5: Update the local storage, revisions, verification, self-hosting, README, and progress documents to match the implemented event, sync, conflict, test, and port behavior. Do not claim physical-device coverage.
+- [x] Step 6: Check `git diff --check`, scan changed files for credentials and note content, and confirm that only intended worktree files changed.
+- [x] Step 7: Commit with `docs: record repaired client workflows`.
 
 ### Task 9: Main branch delivery
 
