@@ -418,10 +418,19 @@ await test('coordinated backup and verified restoration cycle', async () => {
       chmodSync(file, 0o600);
     const postgresContainer = execFileSync(
       'docker',
-      ['compose', '-f', 'compose.test.yaml', 'ps', '-q', 'postgres'],
+      [
+        'ps',
+        '--filter',
+        'publish=55432',
+        '--filter',
+        'label=com.docker.compose.service=postgres',
+        '--format',
+        '{{.ID}}',
+      ],
       { encoding: 'utf8' },
     ).trim();
     assert.notEqual(postgresContainer, '');
+    assert.equal(postgresContainer.includes('\n'), false);
 
     // Run backup script
     const backupScript = join(process.cwd(), 'tools/ops/backup.sh');
