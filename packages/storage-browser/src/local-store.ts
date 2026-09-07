@@ -68,10 +68,7 @@ import {
 } from './migrations.ts';
 
 /** In-process invalidation buses used when browser messaging is unavailable. */
-const fallbackBuses = new Map<
-  string,
-  Set<(change: LocalChange) => void>
->();
+const fallbackBuses = new Map<string, Set<(change: LocalChange) => void>>();
 
 /** What `openLocalStore` accepts. */
 export type LocalStoreOptions = {
@@ -810,10 +807,8 @@ export async function openLocalStore(
           if (entry === null) return;
           await tables.queue.put({
             ...entry,
-            state:
-              details?.branchState === 'pending' ? 'sending' : 'conflict',
-            conflictGroupId:
-              details?.conflictGroupId ?? entry.conflictGroupId,
+            state: details?.branchState === 'pending' ? 'sending' : 'conflict',
+            conflictGroupId: details?.conflictGroupId ?? entry.conflictGroupId,
             branchMutationId:
               details?.branchMutationId ?? entry.branchMutationId,
             branchState: details?.branchState ?? entry.branchState,
@@ -830,7 +825,10 @@ export async function openLocalStore(
       for (const change of changes) publish(change);
     },
 
-    async acknowledge(accountId: string, result: AcceptedChangeset): Promise<void> {
+    async acknowledge(
+      accountId: string,
+      result: AcceptedChangeset,
+    ): Promise<void> {
       const changes: LocalChange[] = [];
       await guard('acknowledging a mutation', () =>
         db.transaction(
@@ -1027,63 +1025,58 @@ export async function openLocalStore(
       workspaceId: string,
     ): Promise<readonly LocalFileSummary[]> {
       return guard('reading local files', () =>
-        db.transaction(
-          'r',
-          [tables.acceptedFiles, tables.drafts],
-          async () => {
-            const range = partitionRange(serverOrigin, accountId, workspaceId);
-            const acceptedRows: unknown[] = await tables.acceptedFiles
-              .where('[serverOrigin+accountId+workspaceId+fileId]')
-              .between(range.lower, range.upper, true, true)
-              .toArray();
-            const draftRows: unknown[] = await tables.drafts.toArray();
-            const result = new Map<string, LocalFileSummary>();
-            for (const raw of acceptedRows) {
-              const file = validateAcceptedFile(raw);
-              result.set(file.fileId, {
-                fileId: file.fileId,
-                path: file.path,
-                kind: file.kind,
-                deleted: file.deleted,
-                updatedAt: file.updatedAt,
-                acceptedHeadRevisionId: file.acceptedHeadRevisionId,
-                localHeadRevisionId: file.localHeadRevisionId,
-                localOnly: file.acceptedHeadRevisionId === null,
-              });
-            }
-            const newestDrafts = new Map<string, DraftRow>();
-            for (const raw of draftRows) {
-              const draft = validateDraft(raw);
-              if (!matchesPartition(draft, accountId, workspaceId)) continue;
-              const previous = newestDrafts.get(draft.fileId);
-              if (
-                previous === undefined ||
-                draft.savedAt > previous.savedAt ||
-                (draft.savedAt === previous.savedAt &&
-                  draft.sequence > previous.sequence)
-              )
-                newestDrafts.set(draft.fileId, draft);
-            }
-            for (const draft of newestDrafts.values()) {
-              const known = result.get(draft.fileId);
-              result.set(draft.fileId, {
-                fileId: draft.fileId,
-                path: draft.path,
-                kind: known?.kind ?? 'note',
-                deleted: draft.deleted,
-                updatedAt: draft.savedAt,
-                acceptedHeadRevisionId:
-                  known?.acceptedHeadRevisionId ?? null,
-                localHeadRevisionId:
-                  known?.localHeadRevisionId ?? draft.lastCheckpointId,
-                localOnly: known?.acceptedHeadRevisionId == null,
-              });
-            }
-            return [...result.values()].sort((left, right) =>
-              left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
-            );
-          },
-        ),
+        db.transaction('r', [tables.acceptedFiles, tables.drafts], async () => {
+          const range = partitionRange(serverOrigin, accountId, workspaceId);
+          const acceptedRows: unknown[] = await tables.acceptedFiles
+            .where('[serverOrigin+accountId+workspaceId+fileId]')
+            .between(range.lower, range.upper, true, true)
+            .toArray();
+          const draftRows: unknown[] = await tables.drafts.toArray();
+          const result = new Map<string, LocalFileSummary>();
+          for (const raw of acceptedRows) {
+            const file = validateAcceptedFile(raw);
+            result.set(file.fileId, {
+              fileId: file.fileId,
+              path: file.path,
+              kind: file.kind,
+              deleted: file.deleted,
+              updatedAt: file.updatedAt,
+              acceptedHeadRevisionId: file.acceptedHeadRevisionId,
+              localHeadRevisionId: file.localHeadRevisionId,
+              localOnly: file.acceptedHeadRevisionId === null,
+            });
+          }
+          const newestDrafts = new Map<string, DraftRow>();
+          for (const raw of draftRows) {
+            const draft = validateDraft(raw);
+            if (!matchesPartition(draft, accountId, workspaceId)) continue;
+            const previous = newestDrafts.get(draft.fileId);
+            if (
+              previous === undefined ||
+              draft.savedAt > previous.savedAt ||
+              (draft.savedAt === previous.savedAt &&
+                draft.sequence > previous.sequence)
+            )
+              newestDrafts.set(draft.fileId, draft);
+          }
+          for (const draft of newestDrafts.values()) {
+            const known = result.get(draft.fileId);
+            result.set(draft.fileId, {
+              fileId: draft.fileId,
+              path: draft.path,
+              kind: known?.kind ?? 'note',
+              deleted: draft.deleted,
+              updatedAt: draft.savedAt,
+              acceptedHeadRevisionId: known?.acceptedHeadRevisionId ?? null,
+              localHeadRevisionId:
+                known?.localHeadRevisionId ?? draft.lastCheckpointId,
+              localOnly: known?.acceptedHeadRevisionId == null,
+            });
+          }
+          return [...result.values()].sort((left, right) =>
+            left.path < right.path ? -1 : left.path > right.path ? 1 : 0,
+          );
+        }),
       );
     },
 
@@ -1175,8 +1168,7 @@ export async function openLocalStore(
               latestMutationId: queue?.mutationId ?? null,
               queueState: queue?.state ?? null,
               conflictGroupId: queue?.conflictGroupId ?? null,
-              acceptedHeadRevisionId:
-                file?.acceptedHeadRevisionId ?? null,
+              acceptedHeadRevisionId: file?.acceptedHeadRevisionId ?? null,
               localHeadRevisionId: file?.localHeadRevisionId ?? null,
               hasUncheckpointedDraft,
             };

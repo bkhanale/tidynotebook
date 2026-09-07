@@ -150,8 +150,7 @@ class FakeStore implements LocalStore {
     if (entry !== undefined)
       this.entries.set(mutationId, {
         ...entry,
-        state:
-          details?.branchState === 'pending' ? 'sending' : 'conflict',
+        state: details?.branchState === 'pending' ? 'sending' : 'conflict',
         conflictGroupId: details?.conflictGroupId ?? entry.conflictGroupId,
         branchMutationId: details?.branchMutationId ?? entry.branchMutationId,
         branchState: details?.branchState ?? entry.branchState,

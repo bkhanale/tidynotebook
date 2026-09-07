@@ -758,14 +758,10 @@ await test('local files and save state follow committed writes per file', async 
   const first = draftOf(account, workspace, firstFile, 'copy-a', 'first\n', {
     sequence: 1,
   });
-  const second = draftOf(
-    account,
-    workspace,
-    secondFile,
-    'copy-b',
-    'second\n',
-    { path: 'notes/two.md', sequence: 1 },
-  );
+  const second = draftOf(account, workspace, secondFile, 'copy-b', 'second\n', {
+    path: 'notes/two.md',
+    sequence: 1,
+  });
   await store.saveDraft(first);
   await store.saveDraft(second);
   assert.deepEqual(
