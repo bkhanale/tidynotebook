@@ -738,3 +738,70 @@ await test('local save and cached opening stay inside their targets', async () =
   );
   await store.close();
 });
+
+await test('local files and save state follow committed writes per file', async () => {
+  const backend = createBackend('reactive-files');
+  const store = await openLocalStore(origin, backend.options());
+  const otherStore = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const firstFile = randomUUID();
+  const secondFile = randomUUID();
+  const changes: string[] = [];
+  const otherChanges: string[] = [];
+  const unsubscribe = store.subscribe((change) => {
+    changes.push(`${change.kind}:${change.fileId ?? 'workspace'}`);
+  });
+  const unsubscribeOther = otherStore.subscribe((change) => {
+    otherChanges.push(`${change.kind}:${change.fileId ?? 'workspace'}`);
+  });
+  const first = draftOf(account, workspace, firstFile, 'copy-a', 'first\n', {
+    sequence: 1,
+  });
+  const second = draftOf(
+    account,
+    workspace,
+    secondFile,
+    'copy-b',
+    'second\n',
+    { path: 'notes/two.md', sequence: 1 },
+  );
+  await store.saveDraft(first);
+  await store.saveDraft(second);
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['notes/one.md', 'notes/two.md'],
+  );
+  assert.equal(
+    (await store.readFileSaveSnapshot(account, workspace, firstFile))
+      .hasUncheckpointedDraft,
+    true,
+  );
+  const queued = await store.checkpoint(first, null);
+  assert.ok(queued !== null);
+  const firstState = await store.readFileSaveSnapshot(
+    account,
+    workspace,
+    firstFile,
+  );
+  const secondState = await store.readFileSaveSnapshot(
+    account,
+    workspace,
+    secondFile,
+  );
+  assert.equal(firstState.latestMutationId, queued.input.mutationId);
+  assert.equal(firstState.queueState, 'pending');
+  assert.equal(firstState.hasUncheckpointedDraft, false);
+  assert.equal(secondState.latestMutationId, null);
+  assert.equal(secondState.hasUncheckpointedDraft, true);
+  assert.deepEqual(changes, [
+    `draft:${firstFile}`,
+    `draft:${secondFile}`,
+    `queue:${firstFile}`,
+  ]);
+  assert.deepEqual(otherChanges, changes);
+  unsubscribe();
+  unsubscribeOther();
+  await otherStore.close();
+  await store.close();
+});

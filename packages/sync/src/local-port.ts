@@ -67,6 +67,9 @@ export type Draft = {
 /** Where one queued mutation stands. */
 export type QueueState = 'pending' | 'sending' | 'conflict';
 
+/** Where the server-side branch submission of one conflict stands. */
+export type BranchSubmissionState = 'none' | 'pending' | 'submitted' | 'failed';
+
 /**
  * One mutation that waits for the server.
  *
@@ -80,6 +83,52 @@ export type QueueEntry = {
   readonly input: ChangesetInput;
   readonly state: QueueState;
   readonly digest: string | null;
+  readonly conflictGroupId: string | null;
+  readonly branchMutationId: string | null;
+  readonly branchState: BranchSubmissionState;
+  readonly errorCode: string | null;
+};
+
+/** Content-free notice that durable local state changed. */
+export type LocalChange = {
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly fileId: string | null;
+  readonly kind: 'draft' | 'queue' | 'file' | 'conflict' | 'cursor' | 'reset';
+};
+
+/** One file as it must appear in local navigation. */
+export type LocalFileSummary = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: LocalFileKind;
+  readonly deleted: boolean;
+  readonly updatedAt: string;
+  readonly acceptedHeadRevisionId: string | null;
+  readonly localHeadRevisionId: string | null;
+  readonly localOnly: boolean;
+};
+
+/** Durable save facts for one file only. */
+export type FileSaveSnapshot = {
+  readonly fileId: string;
+  readonly latestDraftSequence: number | null;
+  readonly latestMutationId: string | null;
+  readonly queueState: QueueState | null;
+  readonly conflictGroupId: string | null;
+  readonly acceptedHeadRevisionId: string | null;
+  readonly localHeadRevisionId: string | null;
+  readonly hasUncheckpointedDraft: boolean;
+};
+
+/** Durable local record of a server conflict group. */
+export type LocalConflict = {
+  readonly fileId: string;
+  readonly mutationId: string;
+  readonly conflictGroupId: string | null;
+  readonly branchMutationId: string | null;
+  readonly branchState: BranchSubmissionState;
+  readonly errorCode: string | null;
 };
 
 /**
@@ -388,6 +437,9 @@ export type LocalStore = {
    */
   readonly deviceId: string;
 
+  /** Subscribes to committed local changes. */
+  subscribe(listener: (change: LocalChange) => void): () => void;
+
   /**
    * Writes the working text of one editor in one transaction.
    *
@@ -437,7 +489,16 @@ export type LocalStore = {
   ): Promise<void>;
 
   /** Marks one queued mutation as conflicting, keeping its body. */
-  markConflict(accountId: string, mutationId: string): Promise<void>;
+  markConflict(
+    accountId: string,
+    mutationId: string,
+    details?: {
+      readonly conflictGroupId: string;
+      readonly branchMutationId: string;
+      readonly branchState: Exclude<BranchSubmissionState, 'none'>;
+      readonly errorCode: string | null;
+    },
+  ): Promise<void>;
 
   /**
    * Applies one server acknowledgment.
@@ -493,6 +554,33 @@ export type LocalStore = {
     accountId: string,
     workspaceId: string,
   ): Promise<readonly LocalAcceptedFile[]>;
+
+  /** Files known from accepted metadata or durable drafts. */
+  listLocalFiles(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly LocalFileSummary[]>;
+
+  /** Save state derived only from records of one file. */
+  readFileSaveSnapshot(
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+  ): Promise<FileSaveSnapshot>;
+
+  /** Unresolved local conflict queue records of one workspace. */
+  listLocalConflicts(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly LocalConflict[]>;
+
+  /** Clears one resolved server conflict from local durable state. */
+  resolveConflict(
+    accountId: string,
+    workspaceId: string,
+    conflictGroupId: string,
+    result: AcceptedChangeset,
+  ): Promise<void>;
 
   /** Reads one cached note, with the newest saved draft applied. */
   readCachedNote(

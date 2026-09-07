@@ -28,6 +28,7 @@ import {
   type LocalFileKind,
   type LocalReceipt,
   type Preference,
+  type BranchSubmissionState,
   type QueueState,
   type RecoveryRecord,
   type StagedSnapshot,
@@ -62,6 +63,10 @@ export type QueueRow = {
   readonly input: ChangesetInput;
   readonly state: QueueState;
   readonly digest: string | null;
+  readonly conflictGroupId: string | null;
+  readonly branchMutationId: string | null;
+  readonly branchState: BranchSubmissionState;
+  readonly errorCode: string | null;
   readonly createdAt: string;
 };
 
@@ -215,6 +220,32 @@ export const schemaVersions: readonly {
   },
   {
     version: 2,
+    stores: {
+      drafts:
+        '[serverOrigin+accountId+workspaceId+workingCopyId], [serverOrigin+accountId+workspaceId+fileId]',
+      checkpoints:
+        '[serverOrigin+accountId+workspaceId+revisionId], [serverOrigin+accountId+workspaceId+fileId], [serverOrigin+accountId+workspaceId+mutationId], [serverOrigin+accountId+workspaceId+sequence]',
+      contents: '[serverOrigin+accountId+workspaceId+digest]',
+      acceptedFiles:
+        '[serverOrigin+accountId+workspaceId+fileId], [serverOrigin+accountId+workspaceId+path]',
+      branches:
+        '[serverOrigin+accountId+workspaceId+branchId], [serverOrigin+accountId+workspaceId+fileId]',
+      queue:
+        '[serverOrigin+accountId+workspaceId+mutationId], [serverOrigin+accountId+workspaceId+sequence], [serverOrigin+accountId+mutationId]',
+      receipts: '[serverOrigin+accountId+workspaceId+mutationId]',
+      stagedSnapshots: '[serverOrigin+accountId+workspaceId+token]',
+      snapshotItems:
+        '[serverOrigin+accountId+workspaceId+token+revisionId], [serverOrigin+accountId+workspaceId+token]',
+      leases: 'key',
+      cursors: '[serverOrigin+accountId+workspaceId]',
+      preferences: '[serverOrigin+accountId+workspaceId+name]',
+      recovery:
+        '[serverOrigin+accountId+workspaceId+recoveryId], [serverOrigin+accountId+workspaceId+createdAt]',
+      meta: 'key',
+    },
+  },
+  {
+    version: 3,
     stores: {
       drafts:
         '[serverOrigin+accountId+workspaceId+workingCopyId], [serverOrigin+accountId+workspaceId+fileId]',

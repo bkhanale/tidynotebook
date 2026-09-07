@@ -12,7 +12,11 @@
  * and read-only server content, which is better than editing on top of records
  * whose shape is unknown.
  */
-import { LocalStorageError, type QueueState } from '@notesapp/sync';
+import {
+  LocalStorageError,
+  type BranchSubmissionState,
+  type QueueState,
+} from '@notesapp/sync';
 import type { ChangesetInput, ContentRef, RevisionInput } from '@notesapp/core';
 import {
   metaKey,
@@ -223,6 +227,12 @@ export function validateChangesetInput(value: unknown): ChangesetInput {
 export function validateQueueRow(value: unknown): QueueRow {
   const row = object(value, 'queue entry');
   const states: readonly QueueState[] = ['pending', 'sending', 'conflict'];
+  const branchStates: readonly BranchSubmissionState[] = [
+    'none',
+    'pending',
+    'submitted',
+    'failed',
+  ];
   return {
     ...partition(row, 'queue entry'),
     mutationId: text(row, 'mutationId', 'queue entry'),
@@ -230,6 +240,10 @@ export function validateQueueRow(value: unknown): QueueRow {
     input: validateChangesetInput(row['input']),
     state: member(row, 'state', states, 'queue entry'),
     digest: optionalText(row, 'digest', 'queue entry'),
+    conflictGroupId: optionalText(row, 'conflictGroupId', 'queue entry'),
+    branchMutationId: optionalText(row, 'branchMutationId', 'queue entry'),
+    branchState: member(row, 'branchState', branchStates, 'queue entry'),
+    errorCode: optionalText(row, 'errorCode', 'queue entry'),
     createdAt: text(row, 'createdAt', 'queue entry'),
   };
 }
@@ -431,6 +445,20 @@ export const migrationSteps: readonly {
     from: 1,
     to: 2,
     run: () => Promise.resolve(),
+  },
+  {
+    from: 2,
+    to: 3,
+    run: async (tables): Promise<void> => {
+      await tables.queue.toCollection().modify((value: unknown) => {
+        if (value === null || typeof value !== 'object') return;
+        const row = value as Record<string, unknown>;
+        row['conflictGroupId'] = null;
+        row['branchMutationId'] = null;
+        row['branchState'] = 'none';
+        row['errorCode'] = null;
+      });
+    },
   },
 ];
 
