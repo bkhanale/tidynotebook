@@ -141,6 +141,8 @@ export type LocalConflict = {
 export type ResolvedConflict = {
   readonly mutationId: string;
   readonly revisions: readonly (AcceptedRevision & {
+    /** The accepted file kind supplied with the resolution. */
+    readonly kind: LocalFileKind;
     /** The submitted Markdown body, or `null` for an attachment. */
     readonly text: string | null;
   })[];

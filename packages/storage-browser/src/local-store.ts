@@ -1357,7 +1357,7 @@ export async function openLocalStore(
                 accountId,
                 workspaceId,
                 fileId: revision.fileId,
-                kind: file?.kind ?? 'note',
+                kind: file?.kind ?? revision.kind,
                 path: revision.path,
                 deleted: revision.deleted,
                 acceptedHeadRevisionId: revision.revisionId,

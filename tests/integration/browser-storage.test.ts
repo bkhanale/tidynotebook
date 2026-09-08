@@ -831,6 +831,7 @@ await test('server conflict resolution clears its local queue atomically', async
       digest: mergedDigest,
       size: new TextEncoder().encode(mergedText).byteLength,
       parents: [revision.revisionId, randomUUID()],
+      kind: 'note',
       text: mergedText,
     })),
   });
@@ -895,6 +896,7 @@ await test('conflict resolution rebases later unsaved text without losing it', a
       digest: mergedDigest,
       size: new TextEncoder().encode(mergedText).byteLength,
       parents: [revision.revisionId, randomUUID()],
+      kind: 'note',
       text: mergedText,
     })),
   });
@@ -954,6 +956,7 @@ await test('conflict resolution preserves a checkpoint created after the branch'
       digest: mergedDigest,
       size: new TextEncoder().encode(mergedText).byteLength,
       parents: [revision.revisionId, randomUUID()],
+      kind: 'note',
       text: mergedText,
     })),
   });
@@ -995,6 +998,7 @@ await test('a server-only conflict resolution becomes durable local state', asyn
         actorAccountId: account,
         serverTime: '2026-09-06T12:00:00.000Z',
         message: 'Resolve conflict',
+        kind: 'note',
         text,
       },
     ],
@@ -1006,6 +1010,37 @@ await test('a server-only conflict resolution becomes durable local state', asyn
     deleted: false,
     baseRevisionId: revisionId,
   });
+  const attachmentFile = randomUUID();
+  const attachmentRevision = randomUUID();
+  const attachmentDigest = 'a'.repeat(64);
+  await store.resolveConflict(account, workspace, randomUUID(), {
+    mutationId: randomUUID(),
+    revisions: [
+      {
+        revisionId: attachmentRevision,
+        fileId: attachmentFile,
+        parents: [randomUUID(), randomUUID()],
+        path: 'attachments/resolved.png',
+        deleted: false,
+        digest: attachmentDigest,
+        size: 128,
+        actorAccountId: account,
+        serverTime: '2026-09-06T12:00:01.000Z',
+        message: 'Resolve attachment conflict',
+        kind: 'attachment',
+        text: null,
+      },
+    ],
+  });
+  const attachment = (await store.listAcceptedFiles(account, workspace)).find(
+    (entry) => entry.fileId === attachmentFile,
+  );
+  assert.equal(attachment?.kind, 'attachment');
+  assert.equal(attachment?.acceptedHeadRevisionId, attachmentRevision);
+  assert.equal(
+    await store.readCachedNote(account, workspace, attachmentFile),
+    null,
+  );
   await store.close();
 });
 

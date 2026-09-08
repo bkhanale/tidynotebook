@@ -915,6 +915,8 @@ function ConflictGroup({
           const submitted = submittedByRevision.get(revision.revisionId);
           return {
             ...revision,
+            kind:
+              submitted?.content.kind === 'attachment' ? 'attachment' : 'note',
             text:
               submitted?.content.kind === 'markdown'
                 ? (submitted.content.text ?? null)
