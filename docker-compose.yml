@@ -24,33 +24,6 @@ services:
       retries: 10
       start_period: 5s
 
-  migrate:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: notesapp:latest
-    restart: 'no'
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      NOTESAPP_DATABASE_URL_FILE: /run/secrets/migration_database_url
-      NOTESAPP_RUNTIME_PASSWORD_FILE: /run/secrets/runtime_database_password
-      NOTESAPP_AUTH_PASSWORD_FILE: /run/secrets/auth_database_password
-    secrets:
-      - migration_database_url
-      - runtime_database_password
-      - auth_database_password
-    command:
-      [
-        'node',
-        'server/node_modules/@notesapp/storage-server/dist/migrate.js',
-        '--profile',
-        'deploy',
-      ]
-    networks:
-      - database
-
   app:
     build:
       context: .
@@ -60,8 +33,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      migrate:
-        condition: service_completed_successfully
+    command:
+      [
+        'sh',
+        '-c',
+        'NOTESAPP_DATABASE_URL_FILE=/run/secrets/migration_database_url NOTESAPP_RUNTIME_PASSWORD_FILE=/run/secrets/runtime_database_password NOTESAPP_AUTH_PASSWORD_FILE=/run/secrets/auth_database_password node server/node_modules/@notesapp/storage-server/dist/migrate.js --profile deploy && exec node server/dist/main.js',
+      ]
     environment:
       NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:-http://localhost:3000}
       NOTESAPP_DATABASE_URL_FILE: /run/secrets/runtime_database_url
@@ -79,6 +56,9 @@ services:
       - runtime_database_url
       - auth_database_url
       - auth_secret
+      - migration_database_url
+      - runtime_database_password
+      - auth_database_password
     ports:
       - '${NOTESAPP_BIND_HOST:-0.0.0.0}:${NOTESAPP_PORT:-3000}:3000'
     volumes:
