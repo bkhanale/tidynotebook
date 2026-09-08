@@ -411,6 +411,20 @@ await test('two working copies of one file produce a local branch', async () => 
   // The second tip did not advance the local head.
   assert.equal(file2?.localHeadRevisionId, revisionA);
   assert.equal(file2?.acceptedHeadRevisionId, firstRevision);
+
+  await store.markSending(
+    account,
+    fromA?.input.mutationId ?? '',
+    'branch-a-digest',
+  );
+  await store.acknowledge(account, acceptanceOf(fromA, account, '12'));
+  const sibling = (await store.pending(account, workspace)).find(
+    (entry) => entry.input.mutationId === fromB?.input.mutationId,
+  );
+  // A sibling remains based on the old head and must become a real conflict.
+  assert.deepEqual(sibling?.input.expectedHeads, {
+    [file]: firstRevision,
+  });
   await store.close();
 });
 
@@ -517,6 +531,11 @@ await test('acknowledgment preserves later drafts and checkpoints', async () => 
   await store.saveDraft(later);
   const laterEntry = await store.checkpoint(later, null);
   assert.notEqual(laterEntry, null);
+  assert.equal(laterEntry?.state, 'pending');
+  assert.deepEqual(laterEntry?.input.expectedHeads, { [file]: null });
+  assert.deepEqual(laterEntry?.input.revisions[0]?.parents, [
+    submittedRevision,
+  ]);
 
   await store.markSending(account, mutationId, 'digest-1');
   const sending = await store.pending(account, workspace);
@@ -533,6 +552,9 @@ await test('acknowledgment preserves later drafts and checkpoints', async () => 
   const remaining = await store.pending(account, workspace);
   assert.equal(remaining.length, 1);
   assert.equal(remaining[0]?.input.mutationId, laterEntry?.input.mutationId);
+  assert.deepEqual(remaining[0]?.input.expectedHeads, {
+    [file]: submittedRevision,
+  });
 
   const checkpoints = await store.listCheckpoints(account, workspace, file);
   assert.deepEqual(

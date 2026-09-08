@@ -522,9 +522,10 @@ export type LocalStore = {
    *
    * Removes exactly the acknowledged mutation's queue entry, marks its
    * checkpoints accepted, moves the accepted heads to the acknowledged
-   * revisions, and stores the receipt, in one transaction. Drafts and
-   * checkpoints created after the submission are preserved. Acknowledging the
-   * same mutation twice does nothing.
+   * revisions, advances the mutable precondition of its first pending child,
+   * and stores the receipt, in one transaction. Drafts and checkpoints created
+   * after the submission are preserved. Acknowledging the same mutation twice
+   * does nothing.
    */
   acknowledge(accountId: string, result: AcceptedChangeset): Promise<void>;
 

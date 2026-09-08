@@ -886,6 +886,16 @@ export async function openLocalStore(
               .where('[serverOrigin+accountId+workspaceId+mutationId]')
               .equals([serverOrigin, accountId, workspaceId, entry.mutationId])
               .toArray();
+            const range = partitionRange(serverOrigin, accountId, workspaceId);
+            const laterQueue = (
+              await tables.queue
+                .where('[serverOrigin+accountId+workspaceId+sequence]')
+                .between(range.lower, range.upper, true, true)
+                .toArray()
+            )
+              .map((row: unknown) => validateQueueRow(row))
+              .filter((row) => row.sequence > entry.sequence);
+            const rebasedQueue = new Map<string, QueueRow>();
             const accepted = new Set(result.revisionIds);
             const newest = new Map<string, CheckpointRow>();
             for (const row of rows) {
@@ -905,6 +915,7 @@ export async function openLocalStore(
               ]);
               const file =
                 stored === undefined ? null : validateAcceptedFile(stored);
+              const previousAcceptedHead = file?.acceptedHeadRevisionId ?? null;
               // Only the accepted head moves. The local head, the path, and
               // the deletion state keep whatever later local work set, so a
               // checkpoint created after the submission survives.
@@ -922,7 +933,46 @@ export async function openLocalStore(
                   file?.localHeadRevisionId ?? checkpoint.revisionId,
                 updatedAt: nowIso(),
               });
+
+              // The first later mutation of this file can be a child that was
+              // queued while this request was in flight. Its body is still
+              // mutable only while it is pending and has no frozen digest.
+              // Advance that child's precondition with its accepted parent so
+              // the file does not conflict with its own ordered checkpoints.
+              const storedSuccessor = laterQueue.find((row) =>
+                row.input.revisions.some(
+                  (revision) => revision.fileId === fileId,
+                ),
+              );
+              if (storedSuccessor === undefined) continue;
+              const successor =
+                rebasedQueue.get(storedSuccessor.mutationId) ?? storedSuccessor;
+              const directlyFollows = successor.input.revisions.some(
+                (revision) =>
+                  revision.fileId === fileId &&
+                  revision.parents.includes(checkpoint.revisionId),
+              );
+              if (
+                successor.state !== 'pending' ||
+                successor.digest !== null ||
+                successor.input.expectedHeads[fileId] !==
+                  previousAcceptedHead ||
+                !directlyFollows
+              )
+                continue;
+              rebasedQueue.set(successor.mutationId, {
+                ...successor,
+                input: {
+                  ...successor.input,
+                  expectedHeads: {
+                    ...successor.input.expectedHeads,
+                    [fileId]: checkpoint.revisionId,
+                  },
+                },
+              });
             }
+            for (const row of rebasedQueue.values())
+              await tables.queue.put(row);
             await tables.receipts.put({
               serverOrigin,
               accountId,

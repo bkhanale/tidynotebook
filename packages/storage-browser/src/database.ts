@@ -51,8 +51,9 @@ export type DraftRow = Draft & {
 /**
  * The stored form of one queued mutation.
  *
- * `sequence` fixes submission order inside one partition. `input` is written
- * once and never edited, because a sent mutation cannot change its body.
+ * `sequence` fixes submission order inside one partition. A pending input can
+ * advance its expected head when its queued parent is accepted. Once sending
+ * starts and the digest is frozen, the input never changes.
  */
 export type QueueRow = {
   readonly serverOrigin: string;
