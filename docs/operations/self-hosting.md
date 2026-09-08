@@ -9,6 +9,7 @@ interfaces and use the local-network URL as its origin:
 
 ```bash
 NOTESAPP_HOST=0.0.0.0
+NOTESAPP_BIND_HOST=0.0.0.0
 NOTESAPP_PORT=3000
 NOTESAPP_ORIGIN=http://192.0.2.10:3000
 NOTESAPP_ALLOWED_HOSTS=192.0.2.10,127.0.0.1,localhost

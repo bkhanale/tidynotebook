@@ -10,7 +10,7 @@ services:
     secrets:
       - postgres_password
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     networks:
       - database
     healthcheck:
@@ -43,7 +43,7 @@ services:
     command:
       [
         'node',
-        'server/node_modules/@notesapp/storage-server/src/migrate.ts',
+        'server/node_modules/@notesapp/storage-server/dist/migrate.js',
         '--profile',
         'deploy',
       ]
@@ -78,7 +78,7 @@ services:
       - auth_database_url
       - auth_secret
     ports:
-      - '127.0.0.1:${NOTESAPP_PORT:-3000}:3000'
+      - '${NOTESAPP_BIND_HOST:-127.0.0.1}:${NOTESAPP_PORT:-3000}:3000'
     volumes:
       - storage_data:/var/lib/notesapp
     networks:
