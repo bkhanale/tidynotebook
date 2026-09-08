@@ -167,11 +167,23 @@ function buildAuth(
         verification: authVerification,
       },
     }),
-    // The configured origin is the only trusted origin. Better Auth checks the
+    // The configured origin and allowed hosts are trusted. Better Auth checks the
     // Origin header and the Fetch Metadata headers of every cookie
     // authenticated write against this list, and it rejects a redirect target
     // outside it.
-    trustedOrigins: [config.origin],
+    trustedOrigins: Array.from(
+      new Set([
+        config.origin,
+        ...config.allowedHosts.flatMap((host) => {
+          const hasPort = host.includes(':');
+          return [
+            `http://${host}`,
+            `https://${host}`,
+            ...(hasPort ? [] : [`http://${host}:3000`, `https://${host}:3000`]),
+          ];
+        }),
+      ]),
+    ),
     emailAndPassword: {
       // An installation that requires the provider has no password sign-in at
       // all, so a local password cannot be used to bypass the provider.

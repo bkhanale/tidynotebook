@@ -40,12 +40,12 @@ services:
         'NOTESAPP_DATABASE_URL_FILE=/run/secrets/migration_database_url NOTESAPP_RUNTIME_PASSWORD_FILE=/run/secrets/runtime_database_password NOTESAPP_AUTH_PASSWORD_FILE=/run/secrets/auth_database_password node server/node_modules/@notesapp/storage-server/dist/migrate.js --profile deploy && exec node server/dist/main.js',
       ]
     environment:
-      NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:-http://localhost:3000}
+      NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:-http://10.20.30.98:3000}
       NOTESAPP_DATABASE_URL_FILE: /run/secrets/runtime_database_url
       NOTESAPP_AUTH_DATABASE_URL_FILE: /run/secrets/auth_database_url
       NOTESAPP_STORAGE_ROOT: /var/lib/notesapp
       NOTESAPP_AUTH_SECRET_FILE: /run/secrets/auth_secret
-      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:-localhost,127.0.0.1}
+      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:-10.20.30.98,localhost,127.0.0.1,personal}
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}
