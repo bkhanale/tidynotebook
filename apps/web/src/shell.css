@@ -789,6 +789,226 @@ body {
   }
 }
 
+/* Account Settings page */
+.notes-settings-page {
+  width: min(100%, 720px);
+  margin: 0 auto;
+  padding: 40px 24px 80px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.notes-settings-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.notes-settings-card {
+  background: var(--notes-surface-card);
+  border: 1px solid var(--notes-border-subtle);
+  border-radius: var(--notes-radius-lg);
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Workspace header dropdown */
+.notes-header-workspace-select-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  position: relative;
+}
+
+.notes-workspace-select {
+  appearance: none;
+  background: var(--notes-surface-hover);
+  border: 1px solid var(--notes-border-subtle);
+  border-radius: var(--notes-radius-md);
+  padding: 5px 28px 5px 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--notes-text-strong);
+  cursor: pointer;
+  max-width: 180px;
+  text-overflow: ellipsis;
+  outline: none;
+  transition: border-color var(--notes-transition);
+}
+
+.notes-workspace-select:hover,
+.notes-workspace-select:focus {
+  border-color: var(--notes-border);
+}
+
+.notes-workspace-select-icon {
+  position: absolute;
+  right: 8px;
+  pointer-events: none;
+  color: var(--notes-text-muted);
+}
+
+/* Workspace Notes View */
+.notes-workspace-notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--notes-border-subtle);
+}
+
+.notes-workspace-notes-title-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.notes-workspace-notes-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notes-workspace-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.notes-note-list-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  background: var(--notes-surface-card);
+  border: 1px solid var(--notes-border-subtle);
+  border-radius: var(--notes-radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color var(--notes-transition),
+    background var(--notes-transition);
+}
+
+.notes-note-list-card:hover {
+  border-color: var(--notes-border);
+  background: var(--notes-surface-hover);
+}
+
+.notes-note-list-card-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  color: var(--notes-text-strong);
+}
+
+.notes-note-list-card-meta {
+  font-size: 0.8125rem;
+  color: var(--notes-text-muted);
+}
+
+.notes-notes-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 64px 20px;
+  gap: 16px;
+  color: var(--notes-text-muted);
+}
+
+/* Inline conflict alert */
+.notes-conflict-alert {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  background: var(--notes-surface-card);
+  border: 1px solid var(--notes-danger, #ef4444);
+  border-radius: var(--notes-radius-md);
+}
+
+.notes-conflict-alert-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--notes-text-strong);
+}
+
+/* Share popover / dialog */
+.notes-share-popover-container {
+  position: relative;
+  display: inline-block;
+}
+
+.notes-share-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: var(--notes-surface);
+  border: 1px solid var(--notes-border);
+  border-radius: var(--notes-radius-lg);
+  padding: 16px;
+  width: min(90vw, 420px);
+  max-height: 75vh;
+  overflow-y: auto;
+  box-shadow: var(--notes-shadow-lg);
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+}
+
+.notes-share-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+.notes-share-dialog {
+  background: var(--notes-surface);
+  border: 1px solid var(--notes-border);
+  border-radius: var(--notes-radius-lg);
+  padding: 24px;
+  width: min(100%, 540px);
+  max-height: 85vh;
+  overflow-y: auto;
+  box-shadow: var(--notes-shadow-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-sizing: border-box;
+}
+
+.notes-share-dialog-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--notes-border-subtle);
+  padding-bottom: 12px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .notes-sidebar,
   .notes-workspace-card,

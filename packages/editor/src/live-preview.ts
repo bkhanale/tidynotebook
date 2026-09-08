@@ -20,6 +20,7 @@ import {
   Decoration,
   EditorView,
   ViewPlugin,
+  WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
 
@@ -364,6 +365,21 @@ function styleClass(span: StyledSpan): string {
   return 'cm-np-list';
 }
 
+/** Replaces an unordered list marker with an accessible visual bullet. */
+class BulletWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-np-bullet';
+    span.textContent = '•';
+    span.setAttribute('aria-hidden', 'true');
+    return span;
+  }
+
+  override eq(): boolean {
+    return true;
+  }
+}
+
 /**
  * Builds the decoration set of one editor view.
  *
@@ -387,18 +403,54 @@ export function buildLivePreviewDecorations(view: EditorView): DecorationSet {
       selection.from,
       selection.to,
     );
-    for (const marker of hidden)
+
+    for (const marker of hidden) {
+      if (marker.kind === 'list') {
+        const markerText = view.state.doc.sliceString(marker.from, marker.to);
+        const isOrdered = /^\d+[.)]$/.test(markerText);
+        if (isOrdered) {
+          placed.push({
+            from: marker.from,
+            to: marker.to,
+            decoration: Decoration.mark({ class: 'cm-np-list-number' }),
+          });
+        } else {
+          const line = view.state.doc.lineAt(marker.from);
+          const hasTask = /^( {0,3})[-+*][ \t]+\[[ xX]\]/.test(line.text);
+          if (hasTask) {
+            placed.push({
+              from: marker.from,
+              to: marker.to,
+              decoration: Decoration.replace({}),
+            });
+          } else {
+            placed.push({
+              from: marker.from,
+              to: marker.to,
+              decoration: Decoration.replace({ widget: new BulletWidget() }),
+            });
+          }
+        }
+      } else {
+        placed.push({
+          from: marker.from,
+          to: marker.to,
+          decoration: Decoration.replace({}),
+        });
+      }
+    }
+    for (const marker of revealed) {
+      const isOrdered =
+        marker.kind === 'list' &&
+        /^\d+[.)]$/.test(view.state.doc.sliceString(marker.from, marker.to));
       placed.push({
         from: marker.from,
         to: marker.to,
-        decoration: Decoration.replace({}),
+        decoration: Decoration.mark({
+          class: isOrdered ? 'cm-np-list-number' : 'cm-np-marker',
+        }),
       });
-    for (const marker of revealed)
-      placed.push({
-        from: marker.from,
-        to: marker.to,
-        decoration: Decoration.mark({ class: 'cm-np-marker' }),
-      });
+    }
     for (const span of scan.styles) {
       if (span.to > span.from)
         placed.push({
@@ -433,6 +485,17 @@ const livePreviewTheme = EditorView.baseTheme({
     textDecoration: 'underline',
   },
   '& .cm-np-marker': { opacity: '0.55' },
+  '& .cm-np-bullet': {
+    color: 'var(--notesapp-bullet, var(--notes-accent-fill, #3b82f6))',
+    fontWeight: '700',
+    display: 'inline-block',
+    paddingRight: '6px',
+  },
+  '& .cm-np-list-number': {
+    color: 'var(--notesapp-marker, var(--notes-text-muted, #888888))',
+    fontWeight: '600',
+    opacity: '0.85',
+  },
   '& .cm-np-taskbox': { fontWeight: '700' },
 });
 

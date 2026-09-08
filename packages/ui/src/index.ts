@@ -43,6 +43,7 @@ export {
   AlertCircleIcon,
   CheckIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
   ChevronRightIcon,
   CloseIcon,
   CloudCheckIcon,

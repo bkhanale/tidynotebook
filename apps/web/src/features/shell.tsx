@@ -17,7 +17,13 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, Outlet, useLocation, useParams } from 'react-router';
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
 import {
   Badge,
@@ -31,6 +37,7 @@ import {
   HistoryIcon,
   MenuIcon,
   MoonIcon,
+  SettingsIcon,
   StatusRegion,
   SunIcon,
   UserIcon,
@@ -44,13 +51,7 @@ import {
   useTheme,
   useWorkspaceSync,
 } from '../app.tsx';
-import {
-  canWrite,
-  findWorkspace,
-  useWorkspaces,
-  WorkspaceMembers,
-  WorkspaceOwnerControls,
-} from './workspaces.tsx';
+import { canWrite, findWorkspace, useWorkspaces } from './workspaces.tsx';
 import { NewNoteButton } from './new-note.tsx';
 import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
 import { SearchDialog } from './search.tsx';
@@ -520,6 +521,7 @@ function Sidebar({
  */
 export function Shell(): ReactNode {
   const location = useLocation();
+  const navigate = useNavigate();
   const params = useParams();
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
@@ -545,6 +547,12 @@ export function Shell(): ReactNode {
     accountId,
     workspaceId,
   );
+
+  useEffect(() => {
+    if (workspaceId !== null) {
+      window.localStorage.setItem('notesapp:last-workspace-id', workspaceId);
+    }
+  }, [workspaceId]);
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -629,14 +637,34 @@ export function Shell(): ReactNode {
             </span>
             <span>Notesapp</span>
           </Link>
-          {activeWorkspace !== null ? (
-            <Link
-              to={`/w/${activeWorkspace.workspaceId}`}
-              className="notes-header-workspace-badge"
-              title={`Active workspace: ${activeWorkspace.name}`}
+          {workspaceState.status === 'ready' &&
+          workspaceState.workspaces.length > 0 ? (
+            <select
+              className="notes-workspace-select"
+              aria-label="Workspace"
+              value={workspaceId ?? ''}
+              onChange={(event) => {
+                const targetId = event.target.value;
+                if (targetId !== '') {
+                  window.localStorage.setItem(
+                    'notesapp:last-workspace-id',
+                    targetId,
+                  );
+                  void navigate(`/w/${targetId}`);
+                }
+              }}
             >
-              <span>{activeWorkspace.name}</span>
-            </Link>
+              {workspaceId === null ? (
+                <option value="" disabled>
+                  Select workspace
+                </option>
+              ) : null}
+              {workspaceState.workspaces.map((ws) => (
+                <option key={ws.workspaceId} value={ws.workspaceId}>
+                  {ws.name}
+                </option>
+              ))}
+            </select>
           ) : null}
         </div>
 
@@ -725,7 +753,7 @@ export function WorkspaceView(): ReactNode {
   const params = useParams();
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : null;
-  const { state, reload } = useWorkspaces();
+  const { state } = useWorkspaces();
 
   if (workspaceId === null)
     return (
@@ -766,47 +794,148 @@ export function WorkspaceView(): ReactNode {
     );
 
   return (
-    <WorkspaceDetail
+    <WorkspaceNotesView
       workspaceId={workspace.workspaceId}
       name={workspace.name}
       role={workspace.role}
-      personal={workspace.personal}
-      onChanged={reload}
     />
   );
 }
 
-/** The workspace detail after its membership is known. */
-function WorkspaceDetail({
+/** The workspace notes screen: displays only notes when the workspace is open. */
+function WorkspaceNotesView({
   workspaceId,
   name,
   role,
-  personal,
-  onChanged,
 }: {
   readonly workspaceId: string;
   readonly name: string;
   readonly role: 'owner' | 'admin' | 'editor' | 'viewer';
-  readonly personal: boolean;
-  readonly onChanged: () => void;
 }): ReactNode {
   const writable = canWrite(role);
   const session = useSession();
   const store = useLocalStore();
+  const [serverFiles, setServerFiles] = useState<
+    readonly WorkspaceFileSummary[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const emptyLocalFiles = useMemo(() => [], []);
+  const localFiles = useLocalQuery(
+    store.store,
+    session.account?.accountId ?? null,
+    workspaceId,
+    (activeStore, accountId, activeWorkspace) =>
+      activeStore.listLocalFiles(accountId, activeWorkspace),
+    emptyLocalFiles,
+    (change) =>
+      change.kind === 'draft' ||
+      change.kind === 'queue' ||
+      change.kind === 'file' ||
+      change.kind === 'conflict' ||
+      change.kind === 'reset',
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load(): Promise<void> {
+      try {
+        const loaded = await loadAllFiles(workspaceId);
+        if (!cancelled) {
+          setServerFiles(loaded.files);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setServerFiles([]);
+          setLoading(false);
+        }
+      }
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [workspaceId]);
+
+  const allFiles = useMemo(
+    () => mergeFileSummaries(serverFiles, localFiles.value),
+    [serverFiles, localFiles.value],
+  );
+
+  const activeNotes = useMemo(
+    () => allFiles.filter((f) => f.kind === 'note'),
+    [allFiles],
+  );
 
   return (
-    <main>
-      <div className="notes-doc-header">
-        <div className="notes-doc-toolbar">
-          <div>
-            <h1 style={{ margin: '0 0 4px 0' }}>{name}</h1>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <Badge variant={role === 'owner' ? 'accent' : 'default'}>
-                Role: {role}
-              </Badge>
-              {personal ? <Badge variant="default">Personal</Badge> : null}
-            </div>
-          </div>
+    <main
+      style={{ padding: '24px 32px', maxWidth: '1080px', margin: '0 auto' }}
+    >
+      <div className="notes-workspace-notes-header">
+        <div>
+          <h1 style={{ margin: 0, fontSize: '1.75rem', fontWeight: 600 }}>
+            {name}
+          </h1>
+          <p
+            style={{
+              margin: '4px 0 0 0',
+              color: 'var(--notes-text-muted)',
+              fontSize: '0.9rem',
+            }}
+          >
+            {activeNotes.length} {activeNotes.length === 1 ? 'note' : 'notes'}
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <Link
+            to={`/w/${workspaceId}/settings`}
+            className="notes-btn notes-btn-secondary notes-btn-sm"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              textDecoration: 'none',
+            }}
+          >
+            <SettingsIcon size={14} />
+            <span>Settings</span>
+          </Link>
+          {writable && session.account !== null ? (
+            <NewNoteButton
+              store={store.store}
+              accountId={session.account.accountId}
+              workspaceId={workspaceId}
+              variant="primary"
+              size="sm"
+            />
+          ) : null}
+        </div>
+      </div>
+
+      {loading ? (
+        <StatusRegion message="Loading notes." />
+      ) : activeNotes.length === 0 ? (
+        <div
+          style={{
+            textAlign: 'center',
+            padding: '64px 16px',
+            color: 'var(--notes-text-muted)',
+            background: 'var(--notes-surface-card)',
+            border: '1px dashed var(--notes-border-subtle)',
+            borderRadius: 'var(--notes-radius-lg)',
+            marginTop: '24px',
+          }}
+        >
+          <FileTextIcon size={36} className="notes-empty-icon" />
+          <p
+            style={{
+              fontSize: '1.1rem',
+              margin: '12px 0 16px 0',
+              color: 'var(--notes-text-strong)',
+            }}
+          >
+            No notes yet in this workspace.
+          </p>
           {writable && session.account !== null ? (
             <NewNoteButton
               store={store.store}
@@ -816,37 +945,37 @@ function WorkspaceDetail({
             />
           ) : null}
         </div>
-        <div className="notes-doc-nav-links">
-          <Link to={`/w/${workspaceId}/conflicts`}>Conflicts</Link>
-          <span>•</span>
-          <Link to={`/w/${workspaceId}/purge`}>Deletion and purge</Link>
-          <span>•</span>
-          <Link to={`/w/${workspaceId}/offline`}>Offline status</Link>
-          <span>•</span>
-          <Link to={`/w/${workspaceId}/recovery`}>Access and recovery</Link>
+      ) : (
+        <div className="notes-notes-grid" style={{ marginTop: '24px' }}>
+          {activeNotes.map((file) => {
+            const basename = file.path.split('/').at(-1) ?? file.path;
+            const updatedDate = new Date(file.updatedAt).toLocaleDateString(
+              undefined,
+              {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              },
+            );
+            return (
+              <Link
+                key={file.fileId}
+                to={`/w/${workspaceId}/notes/${file.fileId}`}
+                className="notes-note-list-card"
+              >
+                <div className="notes-note-list-card-title">
+                  <FileTextIcon size={16} />
+                  <span>{basename}</span>
+                </div>
+                <div className="notes-note-list-card-meta">
+                  <span>{file.path}</span>
+                  <span>{updatedDate}</span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
-      </div>
-
-      {!writable ? (
-        <p className="notes-status-region">
-          This workspace is read-only for viewers. File editing and membership
-          controls are hidden for this role.
-        </p>
-      ) : null}
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-        <WorkspaceMembers
-          workspaceId={workspaceId}
-          role={role}
-          onChanged={onChanged}
-        />
-        {role === 'owner' ? (
-          <WorkspaceOwnerControls
-            workspace={{ workspaceId, name, role, personal }}
-            onChanged={onChanged}
-          />
-        ) : null}
-      </div>
+      )}
     </main>
   );
 }
@@ -886,15 +1015,24 @@ export function NoteView(): ReactNode {
 
   return (
     <main className="notes-note-view">
-      <div className="notes-doc-nav-links" style={{ marginBottom: '12px' }}>
+      <div
+        className="notes-doc-nav-links"
+        style={{
+          marginBottom: '12px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}
+      >
         <Link to={`/w/${workspaceId}/notes/${fileId}/history`}>
           <HistoryIcon size={14} />
           <span>History and checkpoints</span>
         </Link>
-        <span>•</span>
-        <Link to={`/w/${workspaceId}/conflicts?fileId=${fileId}`}>
-          <span>Conflicts of this file</span>
-        </Link>
+        {role === 'owner' || role === 'admin' ? (
+          <Suspense fallback={null}>
+            <SharingPanel workspaceId={workspaceId} fileId={fileId} />
+          </Suspense>
+        ) : null}
       </div>
       <Suspense fallback={<StatusRegion message="Loading the editor." />}>
         <NoteEditorLoader
@@ -905,15 +1043,6 @@ export function NoteView(): ReactNode {
           role={role}
         />
       </Suspense>
-      {role === 'owner' || role === 'admin' ? (
-        <aside className="notes-secondary-panel" aria-label="Note tools">
-          <Suspense
-            fallback={<StatusRegion message="Loading sharing tools." />}
-          >
-            <SharingPanel workspaceId={workspaceId} fileId={fileId} />
-          </Suspense>
-        </aside>
-      ) : null}
     </main>
   );
 }

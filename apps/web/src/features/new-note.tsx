@@ -55,11 +55,23 @@ export function NewNoteButton({
             }
             const fileId = generateUUID();
             const workingCopyId = generateUUID();
-            const stamp = new Date()
-              .toISOString()
-              .replace(/[-:]/g, '')
-              .replace(/\.\d{3}Z$/, '');
-            const path = `untitled-${stamp}.md`;
+            let targetPath = 'Untitled.md';
+            try {
+              const files = await store.listLocalFiles(accountId, workspaceId);
+              const existingPaths = new Set(
+                files.map((file) => file.path.toLowerCase()),
+              );
+              if (existingPaths.has('untitled.md')) {
+                let index = 1;
+                while (existingPaths.has(`untitled ${String(index)}.md`)) {
+                  index += 1;
+                }
+                targetPath = `Untitled ${String(index)}.md`;
+              }
+            } catch {
+              // Keep Untitled.md if reading local file list fails.
+            }
+            const path = targetPath;
             const draft: Draft = {
               accountId,
               workspaceId,

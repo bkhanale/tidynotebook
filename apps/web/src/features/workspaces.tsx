@@ -7,7 +7,7 @@
  * explicit role check of the loaded membership.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import {
   createWorkspace,
   deleteWorkspace,
@@ -28,6 +28,7 @@ import { normalizePath } from '@notesapp/core';
 import {
   Badge,
   Button,
+  ChevronLeftIcon,
   PlusIcon,
   SelectField,
   StatusRegion,
@@ -183,9 +184,22 @@ export function validateNotePath(input: string): string | null {
 /** Workspace home: the list and creation form for writers. */
 export function WorkspaceHome(): ReactNode {
   const { state, reload } = useWorkspaces();
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (state.status === 'ready' && state.workspaces.length > 0) {
+      const lastId = window.localStorage.getItem('notesapp:last-workspace-id');
+      if (
+        lastId !== null &&
+        state.workspaces.some((w) => w.workspaceId === lastId)
+      ) {
+        void navigate(`/w/${lastId}`, { replace: true });
+      }
+    }
+  }, [state, navigate]);
 
   async function create(): Promise<void> {
     setBusy(true);
@@ -241,6 +255,12 @@ export function WorkspaceHome(): ReactNode {
             <Link
               to={`/w/${entry.workspaceId}`}
               className="notes-workspace-card"
+              onClick={() => {
+                window.localStorage.setItem(
+                  'notesapp:last-workspace-id',
+                  entry.workspaceId,
+                );
+              }}
             >
               <div className="notes-workspace-card-header">
                 <div className="notes-workspace-card-title">
@@ -648,5 +668,127 @@ export function WorkspaceOwnerControls({
         Delete this workspace
       </Button>
     </section>
+  );
+}
+
+/** Dedicated workspace settings screen for membership and owner management. */
+export function WorkspaceSettingsView(): ReactNode {
+  const params = useParams();
+  const workspaceId =
+    typeof params.workspaceId === 'string' ? params.workspaceId : null;
+  const { state, reload } = useWorkspaces();
+
+  if (workspaceId === null) {
+    return (
+      <main className="notes-settings-page">
+        <h1>Workspace not found</h1>
+        <p>The address names no workspace.</p>
+      </main>
+    );
+  }
+
+  if (state.status === 'loading') {
+    return (
+      <main className="notes-settings-page">
+        <StatusRegion message="Loading workspace settings." />
+      </main>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <main className="notes-settings-page">
+        <h1>Workspace</h1>
+        <p className="notes-status-error" role="alert">
+          {state.message}
+        </p>
+      </main>
+    );
+  }
+
+  const workspace = findWorkspace(state.workspaces, workspaceId);
+  if (workspace === null) {
+    return (
+      <main className="notes-settings-page">
+        <h1>Workspace not found</h1>
+        <p>This account has no workspace with that ID.</p>
+        <p>
+          <Link to="/">Back to workspaces.</Link>
+        </p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="notes-settings-page">
+      <div className="notes-settings-header">
+        <Link
+          to={`/w/${workspaceId}`}
+          className="notes-btn notes-btn-secondary"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+            textDecoration: 'none',
+          }}
+        >
+          <ChevronLeftIcon />
+          <span>Back to notes</span>
+        </Link>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>
+          {workspace.name} Settings
+        </h1>
+      </div>
+
+      <section
+        className="notes-settings-card"
+        aria-labelledby="workspace-info-heading"
+      >
+        <h2
+          id="workspace-info-heading"
+          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+        >
+          General
+        </h2>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <Badge variant={workspace.role === 'owner' ? 'accent' : 'default'}>
+            Role: {workspace.role}
+          </Badge>
+          {workspace.personal ? (
+            <Badge variant="default">Personal</Badge>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="notes-settings-card">
+        <WorkspaceMembers
+          workspaceId={workspaceId}
+          role={workspace.role}
+          onChanged={reload}
+        />
+      </section>
+
+      {workspace.role === 'owner' ? (
+        <section className="notes-settings-card">
+          <WorkspaceOwnerControls workspace={workspace} onChanged={reload} />
+        </section>
+      ) : null}
+
+      <section
+        className="notes-settings-card"
+        aria-labelledby="advanced-heading"
+      >
+        <h2
+          id="advanced-heading"
+          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+        >
+          Advanced
+        </h2>
+        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+          <Link to={`/w/${workspaceId}/purge`}>Deletion and purge</Link>
+          <Link to={`/w/${workspaceId}/recovery`}>Access and recovery</Link>
+        </div>
+      </section>
+    </main>
   );
 }

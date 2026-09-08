@@ -42,6 +42,7 @@ import {
   type RichWidgetResolvers,
 } from '@notesapp/editor';
 import {
+  AlertCircleIcon,
   Badge,
   Button,
   CheckIcon,
@@ -172,6 +173,8 @@ export function NoteEditor({
   onOpenLink,
   onQueued,
 }: NoteEditorProps): ReactNode {
+  const navigate = useNavigate();
+  const isDeletedRef = useRef(false);
   const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -264,14 +267,17 @@ export function NoteEditor({
   };
 
   /** Writes the current buffer as the working draft. */
-  const saveDraftNow = useRef((): Promise<boolean> => Promise.resolve(true));
-  saveDraftNow.current = async (): Promise<boolean> => {
+  const saveDraftNow = useRef((_deleted?: boolean): Promise<boolean> =>
+    Promise.resolve(true),
+  );
+  saveDraftNow.current = async (deleted = false): Promise<boolean> => {
+    const isDeleting = deleted || isDeletedRef.current;
     const current = live.current;
     const savedSequence = sequenceRef.current;
     setDraftPending(true);
     const startedAt = performance.now();
     try {
-      await current.store.saveDraft(buildDraft(false));
+      await current.store.saveDraft(buildDraft(isDeleting));
       recordTiming('notesapp.local-draft-save', startedAt);
       // A newer keystroke may have arrived while the write ran; only that
       // newer write clears the pending flag.
@@ -291,17 +297,21 @@ export function NoteEditor({
     Promise.resolve(),
   );
   checkpointNow.current = (deleted = false): Promise<void> => {
+    const isDeleting = deleted || isDeletedRef.current;
     const existing = checkpointInFlightRef.current;
     if (existing !== null)
-      return deleted
+      return isDeleting
         ? existing.then(() => checkpointNow.current(true))
         : existing;
     const run = (async (): Promise<void> => {
-      const saved = await saveDraftNow.current();
+      const saved = await saveDraftNow.current(isDeleting);
       if (!saved) return;
       const current = live.current;
       try {
-        const entry = await current.store.checkpoint(buildDraft(deleted), null);
+        const entry = await current.store.checkpoint(
+          buildDraft(isDeleting),
+          null,
+        );
         callbacks.current.onQueued?.(entry);
         setStorageError(null);
         await refreshQueue.current();
@@ -386,7 +396,9 @@ export function NoteEditor({
       // The leave-file checkpoint. Drafts already hold the text, so even if
       // this late write loses a race the queued checkpoints stay complete.
       scheduler.stop();
-      void checkpointNow.current();
+      if (!isDeletedRef.current) {
+        void checkpointNow.current();
+      }
       schedulerRef.current = null;
     };
   }, [workingCopyId]);
@@ -653,11 +665,19 @@ export function NoteEditor({
       return;
     }
     setConfirmingDelete(false);
+    isDeletedRef.current = true;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    schedulerRef.current?.stop();
     void (async (): Promise<void> => {
       sequenceRef.current += 1;
       try {
         await checkpointNow.current(true);
+        void navigate(`/w/${workspaceId}`);
       } catch (failure: unknown) {
+        isDeletedRef.current = false;
         setStorageError(
           isLocalStorageError(failure) ? failure.kind : 'aborted',
         );
@@ -765,6 +785,24 @@ export function NoteEditor({
           )}
         </div>
       </div>
+
+      {saveState === 'conflict' ? (
+        <div className="notes-conflict-alert" role="alert">
+          <div className="notes-conflict-alert-content">
+            <AlertCircleIcon size={16} />
+            <span>
+              Save conflict detected. The server contains newer changes that
+              conflict with your edits.
+            </span>
+          </div>
+          <Link
+            to={`/w/${workspaceId}/conflicts?fileId=${fileId}`}
+            className="notes-btn notes-btn-secondary notes-btn-sm"
+          >
+            Resolve conflict
+          </Link>
+        </div>
+      ) : null}
 
       <div
         ref={containerRef}

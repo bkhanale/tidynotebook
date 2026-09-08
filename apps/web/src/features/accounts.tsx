@@ -22,6 +22,7 @@ import {
 } from '@notesapp/api-client';
 import {
   Button,
+  ChevronLeftIcon,
   SelectField,
   StatusRegion,
   TextField,
@@ -69,6 +70,28 @@ export function LoginPage(): ReactNode {
     const result = await signInWithPassword({ body: { email, password } });
     setBusy(false);
     if (result.error !== undefined || result.data === undefined) {
+      const status =
+        result.response?.status ??
+        (typeof result.error === 'object' &&
+        result.error !== null &&
+        'status' in result.error
+          ? (result.error as { readonly status?: number }).status
+          : undefined);
+      const code =
+        typeof result.error === 'object' &&
+        result.error !== null &&
+        'code' in result.error
+          ? (result.error as { readonly code?: string }).code
+          : undefined;
+      if (
+        status === 400 ||
+        status === 401 ||
+        code === 'unauthenticated' ||
+        code === 'invalid_request'
+      ) {
+        setError('Incorrect email or password.');
+        return;
+      }
       setError(problemMessage(result.error));
       return;
     }
@@ -321,9 +344,11 @@ export function InvitePage(): ReactNode {
 export function ThemeSettings(): ReactNode {
   const theme = useTheme();
   return (
-    <section aria-labelledby="theme-heading">
-      <h2 id="theme-heading">Theme</h2>
-      <p>
+    <section className="notes-settings-card" aria-labelledby="theme-heading">
+      <h2 id="theme-heading" style={{ margin: 0 }}>
+        Theme
+      </h2>
+      <p style={{ margin: 0, color: 'var(--notes-text-muted)' }}>
         System follows the device. The choice applies at once on this device and
         syncs to the account in the background.
       </p>
@@ -430,7 +455,7 @@ function AgentTokens(): ReactNode {
   }
 
   return (
-    <section aria-labelledby="tokens-heading">
+    <section className="notes-settings-card" aria-labelledby="tokens-heading">
       <h2 id="tokens-heading">Agent tokens</h2>
       <p>
         Tokens expire after 30 days and never exceed the workspace role. The
@@ -446,22 +471,46 @@ function AgentTokens(): ReactNode {
           {error}
         </p>
       ) : null}
-      <ul>
+      <ul
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.5rem',
+        }}
+      >
         {tokens.map((token) => (
-          <li key={token.id}>
-            {token.name} ({token.prefix})
+          <li
+            key={token.id}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.5rem 0.75rem',
+              backgroundColor: 'var(--notes-bg-subtle)',
+              borderRadius: 'var(--notes-radius-md)',
+            }}
+          >
+            <span>
+              <strong>{token.name}</strong> ({token.prefix})
+            </span>
             <Button variant="secondary" onClick={() => void revoke(token.id)}>
               Revoke
             </Button>
           </li>
         ))}
       </ul>
-      <h3>Create a token</h3>
+      <h3 style={{ margin: '0.5rem 0 0 0', fontSize: '1rem' }}>
+        Create a token
+      </h3>
       <form
         onSubmit={(event): void => {
           event.preventDefault();
           void create();
         }}
+        style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
       >
         <TextField
           id="token-name"
@@ -480,39 +529,61 @@ function AgentTokens(): ReactNode {
           }))}
           onChange={setWorkspaceId}
         />
-        <label>
-          <input
-            type="checkbox"
-            checked={read}
-            onChange={(event): void => {
-              setRead(event.target.checked);
+        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
             }}
-          />{' '}
-          Read
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={write}
-            onChange={(event): void => {
-              setWrite(event.target.checked);
+          >
+            <input
+              type="checkbox"
+              checked={read}
+              onChange={(event): void => {
+                setRead(event.target.checked);
+              }}
+            />{' '}
+            Read
+          </label>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
             }}
-          />{' '}
-          Write
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={history}
-            onChange={(event): void => {
-              setHistory(event.target.checked);
+          >
+            <input
+              type="checkbox"
+              checked={write}
+              onChange={(event): void => {
+                setWrite(event.target.checked);
+              }}
+            />{' '}
+            Write
+          </label>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
             }}
-          />{' '}
-          History
-        </label>
-        <Button type="submit" disabled={busy || name === ''}>
-          {busy ? 'Creating.' : 'Create token'}
-        </Button>
+          >
+            <input
+              type="checkbox"
+              checked={history}
+              onChange={(event): void => {
+                setHistory(event.target.checked);
+              }}
+            />{' '}
+            History
+          </label>
+        </div>
+        <div>
+          <Button type="submit" disabled={busy || name === ''}>
+            {busy ? 'Creating.' : 'Create token'}
+          </Button>
+        </div>
       </form>
     </section>
   );
@@ -522,6 +593,7 @@ function AgentTokens(): ReactNode {
 export function AccountSettingsPage(): ReactNode {
   const session = useSession();
   const store = useLocalStore();
+  const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [confirmLeave, setConfirmLeave] = useState(false);
   const account = session.account;
@@ -563,29 +635,85 @@ export function AccountSettingsPage(): ReactNode {
   if (account === null) return <Navigate to="/login" replace />;
   const mustConfirm = (pendingCount ?? 0) > 0;
 
+  function handleBack(): void {
+    if (window.history.length > 1) {
+      void navigate(-1);
+    } else {
+      void navigate('/');
+    }
+  }
+
   return (
-    <main>
-      <h1>Account</h1>
-      <p>
-        {account.email ?? 'No address linked'}
-        {account.name !== null &&
-        account.name !== undefined &&
-        account.name !== ''
-          ? ` (${account.name})`
-          : null}
-      </p>
+    <main className="notes-settings-page">
+      <div className="notes-settings-header">
+        <Button
+          variant="secondary"
+          onClick={handleBack}
+          aria-label="Back"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.25rem',
+          }}
+        >
+          <ChevronLeftIcon />
+          <span>Back</span>
+        </Button>
+        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>
+          Account
+        </h1>
+      </div>
+
+      <section
+        className="notes-settings-card"
+        aria-labelledby="profile-heading"
+      >
+        <h2
+          id="profile-heading"
+          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+        >
+          Profile
+        </h2>
+        <p style={{ margin: 0, color: 'var(--notes-text-muted)' }}>
+          {account.email ?? 'No address linked'}
+          {account.name !== null &&
+          account.name !== undefined &&
+          account.name !== ''
+            ? ` (${account.name})`
+            : null}
+        </p>
+      </section>
+
       <ThemeSettings />
       <AgentTokens />
-      <section aria-labelledby="signout-heading">
-        <h2 id="signout-heading">Sign out</h2>
+
+      <section
+        className="notes-settings-card"
+        aria-labelledby="signout-heading"
+      >
+        <h2
+          id="signout-heading"
+          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
+        >
+          Sign out
+        </h2>
         {mustConfirm ? (
-          <p role="alert">
+          <p
+            role="alert"
+            style={{ margin: 0, color: 'var(--notes-status-warning-color)' }}
+          >
             {String(pendingCount)} change(s) still wait on this device. They
             stay here for recovery; signing out does not upload them.
           </p>
         ) : null}
         {mustConfirm ? (
-          <label>
+          <label
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+            }}
+          >
             <input
               type="checkbox"
               checked={confirmLeave}
@@ -596,13 +724,15 @@ export function AccountSettingsPage(): ReactNode {
             I understand pending work stays on this device.
           </label>
         ) : null}
-        <Button
-          variant="secondary"
-          disabled={mustConfirm && !confirmLeave}
-          onClick={() => session.signOut()}
-        >
-          Sign out on this device
-        </Button>
+        <div>
+          <Button
+            variant="secondary"
+            disabled={mustConfirm && !confirmLeave}
+            onClick={() => session.signOut()}
+          >
+            Sign out on this device
+          </Button>
+        </div>
       </section>
     </main>
   );

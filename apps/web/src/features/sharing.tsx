@@ -26,6 +26,7 @@ export function SharingPanel({
 }): ReactNode {
   const localStore = useLocalStore();
   const session = useSession();
+  const [isOpen, setIsOpen] = useState(false);
   const [head, setHead] = useState<{
     readonly revisionId: string;
     readonly text: string;
@@ -49,12 +50,31 @@ export function SharingPanel({
         revisionId: fileResult.data.headRevisionId,
         text: fileResult.data.head?.text ?? '',
       });
+    } else {
+      const accountId = session.account?.accountId;
+      if (localStore.store !== null && accountId !== undefined) {
+        try {
+          const localNote = await localStore.store.readCachedNote(
+            accountId,
+            workspaceId,
+            fileId,
+          );
+          if (localNote !== null && localNote.baseRevisionId !== null) {
+            setHead({
+              revisionId: localNote.baseRevisionId,
+              text: localNote.text,
+            });
+          }
+        } catch {
+          // Local read fallback is optional.
+        }
+      }
     }
     if (sharesResult.data !== undefined)
       setShares(
         sharesResult.data.shares.filter((share) => share.fileId === fileId),
       );
-  }, [fileId, workspaceId]);
+  }, [fileId, localStore.store, session.account?.accountId, workspaceId]);
 
   useEffect(() => {
     void reload().catch((error: unknown) =>
@@ -80,9 +100,39 @@ export function SharingPanel({
   ]);
 
   async function showPreview(): Promise<void> {
-    if (head === null) return;
+    if (preview !== '') {
+      setPreview('');
+      return;
+    }
+    let textToRender = head?.text ?? null;
+    if (textToRender === null) {
+      const accountId = session.account?.accountId;
+      if (localStore.store !== null && accountId !== undefined) {
+        try {
+          const localNote = await localStore.store.readCachedNote(
+            accountId,
+            workspaceId,
+            fileId,
+          );
+          if (localNote !== null) {
+            textToRender = localNote.text;
+          }
+        } catch {
+          // Ignore read error during preview fallback.
+        }
+      }
+    }
+    if (textToRender === null) {
+      setMessage('No accepted revision is available to preview.');
+      return;
+    }
+    if (textToRender.trim() === '') {
+      setPreview('<p><em>(Empty note)</em></p>');
+      return;
+    }
     const { renderMarkdown } = await import('@notesapp/markdown');
-    setPreview(await renderMarkdown(head.text));
+    const html = await renderMarkdown(textToRender);
+    setPreview(html || '<p><em>(Empty note)</em></p>');
   }
 
   async function publish(): Promise<void> {
@@ -135,64 +185,154 @@ export function SharingPanel({
   }
 
   return (
-    <details className="notes-sharing">
-      <summary>Public sharing</summary>
-      <p>
-        Publication pins an accepted revision. Saving later changes does not
-        update a public link.
-      </p>
-      <label className="notes-label" htmlFor="share-expiry">
-        Optional expiry
-      </label>
-      <input
-        id="share-expiry"
-        className="notes-input"
-        type="datetime-local"
-        value={expires}
-        onChange={(event) => setExpires(event.target.value)}
-      />
-      <div className="notes-share-actions">
-        <Button variant="secondary" onClick={() => void showPreview()}>
-          Preview accepted revision
-        </Button>
-        <Button onClick={() => void publish()} disabled={head === null}>
-          Publish new link
-        </Button>
-      </div>
-      {message === '' ? null : <StatusRegion message={message} />}
-      {createdUrl === '' ? null : (
-        <p>
-          <a href={createdUrl} target="_blank" rel="noreferrer">
-            {createdUrl}
-          </a>
-        </p>
-      )}
-      {preview === '' ? null : (
-        <article
-          className="notes-share-preview"
-          dangerouslySetInnerHTML={{ __html: preview }}
-        />
-      )}
-      <ul>
-        {shares.map((item) => (
-          <li key={item.shareId}>
-            <span>
-              Revision {item.pinnedRevisionId}
-              {item.revokedAt === null ? '' : ' (revoked)'}
-            </span>
-            {item.revokedAt === null ? (
-              <span className="notes-share-actions">
-                <Button variant="secondary" onClick={() => void update(item)}>
-                  Update publication
-                </Button>
-                <Button variant="danger" onClick={() => void revoke(item)}>
-                  Revoke
-                </Button>
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </details>
+    <div className="notes-share-popover-container">
+      <Button
+        variant={isOpen ? 'secondary' : 'ghost'}
+        size="sm"
+        aria-expanded={isOpen}
+        aria-label="Public sharing"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        Public sharing
+      </Button>
+      {isOpen ? (
+        <div
+          className="notes-share-popover"
+          role="dialog"
+          aria-label="Public sharing"
+        >
+          <div className="notes-share-dialog-header">
+            <h3 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600 }}>
+              Public sharing
+            </h3>
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Close"
+              onClick={() => setIsOpen(false)}
+            >
+              Close
+            </Button>
+          </div>
+          <p
+            style={{
+              margin: 0,
+              fontSize: '0.85rem',
+              color: 'var(--notes-text-muted)',
+            }}
+          >
+            Publication pins an accepted revision. Saving later changes does not
+            update a public link.
+          </p>
+          <div>
+            <label
+              className="notes-label"
+              htmlFor="share-expiry"
+              style={{
+                fontSize: '0.85rem',
+                marginBottom: '4px',
+                display: 'block',
+              }}
+            >
+              Optional expiry
+            </label>
+            <input
+              id="share-expiry"
+              className="notes-input"
+              type="datetime-local"
+              value={expires}
+              onChange={(event) => setExpires(event.target.value)}
+            />
+          </div>
+          <div className="notes-share-actions">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void showPreview()}
+            >
+              {preview === '' ? 'Preview accepted revision' : 'Hide preview'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => void publish()}
+              disabled={head === null}
+            >
+              Publish new link
+            </Button>
+          </div>
+          {message === '' ? null : <StatusRegion message={message} />}
+          {createdUrl === '' ? null : (
+            <p
+              style={{
+                margin: 0,
+                wordBreak: 'break-all',
+                fontSize: '0.85rem',
+              }}
+            >
+              <a href={createdUrl} target="_blank" rel="noreferrer">
+                {createdUrl}
+              </a>
+            </p>
+          )}
+          {preview === '' ? null : (
+            <article
+              className="notes-share-preview"
+              dangerouslySetInnerHTML={{ __html: preview }}
+            />
+          )}
+          {shares.length > 0 ? (
+            <ul
+              style={{
+                listStyle: 'none',
+                padding: 0,
+                margin: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+              }}
+            >
+              {shares.map((item) => (
+                <li
+                  key={item.shareId}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    padding: '8px',
+                    background: 'var(--notes-bg-subtle)',
+                    borderRadius: 'var(--notes-radius-md)',
+                    fontSize: '0.85rem',
+                  }}
+                >
+                  <span style={{ color: 'var(--notes-text-muted)' }}>
+                    Revision {item.pinnedRevisionId}
+                    {item.revokedAt === null ? '' : ' (revoked)'}
+                  </span>
+                  {item.revokedAt === null ? (
+                    <div className="notes-share-actions" style={{ margin: 0 }}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void update(item)}
+                      >
+                        Update publication
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => void revoke(item)}
+                      >
+                        Revoke
+                      </Button>
+                    </div>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }

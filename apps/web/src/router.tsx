@@ -26,6 +26,9 @@ const WorkspaceView = lazy(async () => ({
 const WorkspaceHome = lazy(async () => ({
   default: (await import('./features/workspaces.tsx')).WorkspaceHome,
 }));
+const WorkspaceSettingsView = lazy(async () => ({
+  default: (await import('./features/workspaces.tsx')).WorkspaceSettingsView,
+}));
 const HistoryView = lazy(async () => ({
   default: (await import('./features/history.tsx')).HistoryView,
 }));
@@ -88,6 +91,10 @@ const router = createBrowserRouter([
     children: [
       { index: true, element: deferred(<WorkspaceHome />) },
       { path: 'w/:workspaceId', element: deferred(<WorkspaceView />) },
+      {
+        path: 'w/:workspaceId/settings',
+        element: deferred(<WorkspaceSettingsView />),
+      },
       {
         path: 'w/:workspaceId/notes/:fileId',
         element: deferred(<NoteView />),
