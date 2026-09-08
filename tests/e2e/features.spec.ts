@@ -14,8 +14,9 @@ test('history, sharing, search, outline, and backlinks stay reachable', async ({
   stack,
 }, testInfo) => {
   test.skip(
-    testInfo.project.name !== 'chromium',
-    'One engine covers secondary feature routing.',
+    testInfo.project.name === 'phone-390' ||
+      testInfo.project.name === 'tablet-768',
+    'Desktop engines cover the complete feature journey.',
   );
   await signIn(page, stack);
   await openPersonalWorkspace(page);

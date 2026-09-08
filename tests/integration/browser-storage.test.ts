@@ -821,12 +821,17 @@ await test('server conflict resolution clears its local queue atomically', async
   });
   const accepted = acceptanceOf(entry, account, '8');
   const mergedId = randomUUID();
+  const mergedText = '# Resolved\n\nMerged text.\n';
+  const mergedDigest = await contentDigest(mergedText);
   await store.resolveConflict(account, workspace, groupId, {
     mutationId: randomUUID(),
     revisions: accepted.revisions.map((revision) => ({
       ...revision,
       revisionId: mergedId,
+      digest: mergedDigest,
+      size: new TextEncoder().encode(mergedText).byteLength,
       parents: [revision.revisionId, randomUUID()],
+      text: mergedText,
     })),
   });
   assert.deepEqual(await store.pending(account, workspace), []);
@@ -834,5 +839,224 @@ await test('server conflict resolution clears its local queue atomically', async
   const state = await store.readFileSaveSnapshot(account, workspace, file);
   assert.equal(state.acceptedHeadRevisionId, mergedId);
   assert.equal(state.localHeadRevisionId, mergedId);
+  assert.equal(state.hasUncheckpointedDraft, false);
+  assert.deepEqual(await store.readCachedNote(account, workspace, file), {
+    fileId: file,
+    path: 'notes/one.md',
+    text: mergedText,
+    deleted: false,
+    baseRevisionId: mergedId,
+  });
+  const unchanged = draftOf(account, workspace, file, 'copy-a', mergedText, {
+    baseRevisionId: mergedId,
+    sequence: 2,
+  });
+  assert.equal(await store.checkpoint(unchanged, null), null);
   await store.close();
+});
+
+await test('conflict resolution rebases later unsaved text without losing it', async () => {
+  const backend = createBackend('resolved-conflict-later-draft');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const original = draftOf(
+    account,
+    workspace,
+    file,
+    'copy-a',
+    'conflicting text\n',
+  );
+  await store.saveDraft(original);
+  const entry = await store.checkpoint(original, null);
+  assert.ok(entry !== null);
+  const groupId = randomUUID();
+  await store.markConflict(account, entry.input.mutationId, {
+    conflictGroupId: groupId,
+    branchMutationId: randomUUID(),
+    branchState: 'submitted',
+    errorCode: null,
+  });
+  await store.saveDraft({
+    ...original,
+    text: 'work typed after the conflict\n',
+    sequence: 2,
+  });
+  const accepted = acceptanceOf(entry, account, '9');
+  const mergedId = randomUUID();
+  const mergedText = 'resolved server text\n';
+  const mergedDigest = await contentDigest(mergedText);
+  await store.resolveConflict(account, workspace, groupId, {
+    mutationId: randomUUID(),
+    revisions: accepted.revisions.map((revision) => ({
+      ...revision,
+      revisionId: mergedId,
+      digest: mergedDigest,
+      size: new TextEncoder().encode(mergedText).byteLength,
+      parents: [revision.revisionId, randomUUID()],
+      text: mergedText,
+    })),
+  });
+  assert.equal(
+    (await store.readCachedNote(account, workspace, file))?.text,
+    'work typed after the conflict\n',
+  );
+  assert.equal(
+    (await store.readFileSaveSnapshot(account, workspace, file))
+      .hasUncheckpointedDraft,
+    true,
+  );
+  const rebased = await store.readDraft(account, workspace, 'copy-a');
+  assert.equal(rebased?.baseRevisionId, mergedId);
+  const next = await store.checkpoint(
+    {
+      ...(rebased as Draft),
+      sequence: 3,
+    },
+    null,
+  );
+  assert.deepEqual(next?.input.expectedHeads, { [file]: mergedId });
+  assert.deepEqual(next?.input.revisions[0]?.parents, [mergedId]);
+  await store.close();
+});
+
+await test('conflict resolution preserves a checkpoint created after the branch', async () => {
+  const backend = createBackend('resolved-conflict-later-checkpoint');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const original = draftOf(account, workspace, file, 'copy-a', 'branch text\n');
+  await store.saveDraft(original);
+  const conflicted = await store.checkpoint(original, null);
+  assert.ok(conflicted !== null);
+  const groupId = randomUUID();
+  await store.markConflict(account, conflicted.input.mutationId, {
+    conflictGroupId: groupId,
+    branchMutationId: randomUUID(),
+    branchState: 'submitted',
+    errorCode: null,
+  });
+  const laterDraft = { ...original, text: 'later checkpoint\n', sequence: 2 };
+  await store.saveDraft(laterDraft);
+  const later = await store.checkpoint(laterDraft, null);
+  assert.ok(later !== null);
+  const mergedId = randomUUID();
+  const mergedText = 'resolved text\n';
+  const mergedDigest = await contentDigest(mergedText);
+  const accepted = acceptanceOf(conflicted, account, '10');
+  await store.resolveConflict(account, workspace, groupId, {
+    mutationId: randomUUID(),
+    revisions: accepted.revisions.map((revision) => ({
+      ...revision,
+      revisionId: mergedId,
+      digest: mergedDigest,
+      size: new TextEncoder().encode(mergedText).byteLength,
+      parents: [revision.revisionId, randomUUID()],
+      text: mergedText,
+    })),
+  });
+  assert.deepEqual(
+    (await store.pending(account, workspace)).map(
+      (entry) => entry.input.mutationId,
+    ),
+    [later.input.mutationId],
+  );
+  const state = await store.readFileSaveSnapshot(account, workspace, file);
+  assert.equal(state.acceptedHeadRevisionId, mergedId);
+  assert.equal(state.localHeadRevisionId, later.input.revisions[0]?.id ?? null);
+  assert.equal(
+    (await store.readCachedNote(account, workspace, file))?.text,
+    'later checkpoint\n',
+  );
+  await store.close();
+});
+
+await test('snapshot activation and clearing publish committed invalidations', async () => {
+  const backend = createBackend('committed-invalidations');
+  const store = await openLocalStore(origin, backend.options());
+  const otherStore = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const changes: string[] = [];
+  const unsubscribe = otherStore.subscribe((change) => {
+    changes.push(`${change.kind}:${change.fileId ?? 'all'}`);
+  });
+  const text = '# Snapshot\n';
+  const digest = await contentDigest(text);
+  await store.stageSnapshot(
+    account,
+    workspace,
+    'snapshot-token',
+    ['rev-1'],
+    '7',
+  );
+  await store.storeSnapshotRevision(account, workspace, {
+    token: 'snapshot-token',
+    revisionId: 'rev-1',
+    fileId: file,
+    path: 'notes/snapshot.md',
+    kind: 'note',
+    deleted: false,
+    digest,
+    text,
+  });
+  await store.activateSnapshot('snapshot-token');
+  assert.deepEqual(changes, [`file:${file}`, 'cursor:all']);
+  changes.length = 0;
+  await store.clearPrivateData(account, workspace);
+  assert.deepEqual(changes, ['reset:all']);
+  unsubscribe();
+  await otherStore.close();
+  await store.close();
+});
+
+await test('browser stores share a fallback bus without BroadcastChannel', async () => {
+  const windowDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'window',
+  );
+  const channelDescriptor = Object.getOwnPropertyDescriptor(
+    globalThis,
+    'BroadcastChannel',
+  );
+  Object.defineProperty(globalThis, 'window', {
+    configurable: true,
+    value: {},
+  });
+  Object.defineProperty(globalThis, 'BroadcastChannel', {
+    configurable: true,
+    value: undefined,
+  });
+  try {
+    const backend = createBackend('browser-fallback-bus');
+    const store = await openLocalStore(origin, backend.options());
+    const otherStore = await openLocalStore(origin, backend.options());
+    await store.close();
+    const writingStore = await openLocalStore(origin, backend.options());
+    const account = randomUUID();
+    const workspace = randomUUID();
+    const file = randomUUID();
+    const changes: string[] = [];
+    const unsubscribe = otherStore.subscribe((change) => {
+      changes.push(`${change.kind}:${change.fileId ?? 'all'}`);
+    });
+    await writingStore.saveDraft(
+      draftOf(account, workspace, file, 'copy-a', 'fallback text\n'),
+    );
+    assert.deepEqual(changes, [`draft:${file}`]);
+    unsubscribe();
+    await writingStore.close();
+    await otherStore.close();
+  } finally {
+    if (windowDescriptor === undefined)
+      Reflect.deleteProperty(globalThis, 'window');
+    else Object.defineProperty(globalThis, 'window', windowDescriptor);
+    if (channelDescriptor === undefined)
+      Reflect.deleteProperty(globalThis, 'BroadcastChannel');
+    else
+      Object.defineProperty(globalThis, 'BroadcastChannel', channelDescriptor);
+  }
 });

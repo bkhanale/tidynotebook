@@ -140,7 +140,10 @@ export type LocalConflict = {
 /** Server result needed to clear a resolved conflict locally. */
 export type ResolvedConflict = {
   readonly mutationId: string;
-  readonly revisions: readonly AcceptedRevision[];
+  readonly revisions: readonly (AcceptedRevision & {
+    /** The submitted Markdown body, or `null` for an attachment. */
+    readonly text: string | null;
+  })[];
 };
 
 /**

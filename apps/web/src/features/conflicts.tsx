@@ -900,13 +900,27 @@ function ConflictGroup({
       }));
       return;
     }
+    const submittedByRevision = new Map(
+      resolutions.map(
+        (resolution) => [resolution.revisionId, resolution] as const,
+      ),
+    );
     const accepted = result.data.revisions.map(
       (revision) => revision.revisionId,
     );
     if (store !== null)
       await store.resolveConflict(accountId, workspaceId, groupId, {
         mutationId: result.data.mutationId,
-        revisions: result.data.revisions,
+        revisions: result.data.revisions.map((revision) => {
+          const submitted = submittedByRevision.get(revision.revisionId);
+          return {
+            ...revision,
+            text:
+              submitted?.content.kind === 'markdown'
+                ? (submitted.content.text ?? null)
+                : null,
+          };
+        }),
       });
     setState((current) => ({
       ...current,
@@ -1624,8 +1638,15 @@ function PendingConflicts({
         });
       }
     }
-    const branchMutationId = entry.branchMutationId ?? generateUUID();
-    const conflictGroupId = entry.conflictGroupId ?? generateUUID();
+    const branchMutationId = entry.branchMutationId;
+    const conflictGroupId = entry.conflictGroupId;
+    if (branchMutationId === null || conflictGroupId === null) {
+      setBusyId(null);
+      setError(
+        'This preserved change has no branch upload to retry. Correct the source problem, then save it as a new checkpoint.',
+      );
+      return;
+    }
     await activeStore.markConflict(entry.accountId, entry.mutationId, {
       branchMutationId,
       conflictGroupId,
@@ -1682,7 +1703,11 @@ function PendingConflicts({
         {pending.map((entry) => (
           <li key={`${entry.mutationId}:${entry.fileId}`}>
             {`Change ${entry.mutationId} touches ${entry.fileId}. Branch upload: ${entry.branchState}.`}{' '}
-            {writable && entry.branchState !== 'submitted' ? (
+            {writable &&
+            (entry.branchState === 'pending' ||
+              entry.branchState === 'failed') &&
+            entry.branchMutationId !== null &&
+            entry.conflictGroupId !== null ? (
               <Button
                 variant="secondary"
                 label={`Retry the branch upload of ${entry.mutationId}`}
@@ -1693,6 +1718,11 @@ function PendingConflicts({
               >
                 Retry the branch upload
               </Button>
+            ) : entry.branchState === 'none' ? (
+              <span>
+                This change was preserved without a branch upload. Correct the
+                source problem, then save it as a new checkpoint.
+              </span>
             ) : null}
           </li>
         ))}

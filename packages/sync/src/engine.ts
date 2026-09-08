@@ -183,8 +183,9 @@ export type SyncEngine = {
   /**
    * Runs sync cycles until the signal aborts.
    *
-   * Returns quietly when another worker holds the lease, and always
-   * releases an acquired lease before returning.
+   * Waits and retries when another worker holds the lease, and always
+   * releases an acquired lease before returning. A follower therefore takes
+   * over without a reload when the active tab closes.
    */
   run(signal: AbortSignal): Promise<void>;
   /** Requests a new pass without waiting for the safety interval. */
@@ -287,14 +288,17 @@ export function createSyncEngine(
 
   async function loop(signal: AbortSignal): Promise<void> {
     const ownerId = options.ownerId ?? newId();
-    const held = await acquireWorkerLease(local, {
-      ownerId,
-      ttlMs: leaseTtlMs,
-      clock,
-    });
-    if (!held) {
+    let held = false;
+    while (!held) {
+      if (signal.aborted) return;
+      held = await acquireWorkerLease(local, {
+        ownerId,
+        ttlMs: leaseTtlMs,
+        clock,
+      });
+      if (held) break;
       announce({ kind: 'lease-held' });
-      return;
+      if (!(await rest(Math.min(pollIntervalMs, leaseTtlMs), signal))) return;
     }
     try {
       let lastSession: 'ok' | 'paused' | 'access-lost' = 'ok';

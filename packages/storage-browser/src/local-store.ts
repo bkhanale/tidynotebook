@@ -67,8 +67,14 @@ import {
   validateSnapshotItem,
 } from './migrations.ts';
 
+/** One reference-counted invalidation bus used without browser messaging. */
+type FallbackBus = {
+  readonly listeners: Set<(change: LocalChange) => void>;
+  stores: number;
+};
+
 /** In-process invalidation buses used when browser messaging is unavailable. */
-const fallbackBuses = new Map<string, Set<(change: LocalChange) => void>>();
+const fallbackBuses = new Map<string, FallbackBus>();
 
 /** What `openLocalStore` accepts. */
 export type LocalStoreOptions = {
@@ -107,20 +113,33 @@ export async function openLocalStore(
   const newId = options.id ?? ((): string => generateUUID());
   const nowIso = (): string => new Date(clock()).toISOString();
   const channelName = `notesapp-local-${options.databaseName ?? defaultDatabaseName}`;
+  const canBroadcast =
+    typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined';
+  const fallbackBus = !canBroadcast
+    ? (fallbackBuses.get(channelName) ??
+      (() => {
+        const created: FallbackBus = { listeners: new Set(), stores: 0 };
+        fallbackBuses.set(channelName, created);
+        return created;
+      })())
+    : null;
+  if (fallbackBus !== null) fallbackBus.stores += 1;
   const listeners =
-    typeof window === 'undefined'
-      ? (fallbackBuses.get(channelName) ??
-        (() => {
-          const created = new Set<(change: LocalChange) => void>();
-          fallbackBuses.set(channelName, created);
-          return created;
-        })())
-      : new Set<(change: LocalChange) => void>();
+    fallbackBus?.listeners ?? new Set<(change: LocalChange) => void>();
   const ownedListeners = new Set<(change: LocalChange) => void>();
-  const channel =
-    typeof window === 'undefined' || typeof BroadcastChannel === 'undefined'
-      ? null
-      : new BroadcastChannel(channelName);
+  const channel = canBroadcast ? new BroadcastChannel(channelName) : null;
+  let messagingClosed = false;
+  const closeMessaging = (): void => {
+    if (messagingClosed) return;
+    messagingClosed = true;
+    channel?.close();
+    for (const listener of ownedListeners) listeners.delete(listener);
+    ownedListeners.clear();
+    if (fallbackBus !== null) {
+      fallbackBus.stores -= 1;
+      if (fallbackBus.stores === 0) fallbackBuses.delete(channelName);
+    }
+  };
   const notify = (change: LocalChange): void => {
     for (const listener of listeners) listener(change);
   };
@@ -165,6 +184,7 @@ export async function openLocalStore(
     );
     deviceId = options.deviceId ?? schema.meta.deviceId;
   } catch (error: unknown) {
+    closeMessaging();
     db.close();
     throw error;
   }
@@ -410,7 +430,9 @@ export async function openLocalStore(
   };
 
   /** Deletes every workspace partition of one account, keeping the marker. */
-  const clearAccountPartition = async (accountId: string): Promise<void> => {
+  const clearAccountPartition = async (
+    accountId: string,
+  ): Promise<readonly string[]> => {
     const workspaces = new Set<string>();
     const collect = (row: AccountRow): void => {
       if (matchesAccount(row, accountId)) workspaces.add(row.workspaceId);
@@ -459,6 +481,7 @@ export async function openLocalStore(
         parsed.name,
       ]);
     }
+    return [...workspaces];
   };
 
   const store: LocalStore = {
@@ -587,7 +610,8 @@ export async function openLocalStore(
               previous === null &&
               file !== null &&
               file.acceptedHeadDigest !== null &&
-              file.acceptedHeadRevisionId === draft.baseRevisionId
+              file.acceptedHeadRevisionId ===
+                (lastCheckpointId ?? draft.baseRevisionId)
             )
               previous = {
                 digest: file.acceptedHeadDigest,
@@ -1160,6 +1184,24 @@ export async function openLocalStore(
                   content?.text !== draft.text ||
                   checkpoint.path !== draft.path ||
                   checkpoint.deleted !== draft.deleted;
+              } else if (
+                file?.acceptedHeadRevisionId === draft.lastCheckpointId &&
+                file.acceptedHeadDigest !== null
+              ) {
+                const storedContent: unknown = await tables.contents.get([
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  file.acceptedHeadDigest,
+                ]);
+                const content =
+                  storedContent === undefined
+                    ? null
+                    : validateContent(storedContent);
+                hasUncheckpointedDraft =
+                  content?.text !== draft.text ||
+                  file.path !== draft.path ||
+                  file.deleted !== draft.deleted;
               }
             }
             return {
@@ -1205,6 +1247,26 @@ export async function openLocalStore(
       conflictGroupId: string,
       result: ResolvedConflict,
     ): Promise<void> {
+      const resolvedByFile = new Map(
+        result.revisions.map(
+          (revision) => [revision.fileId, revision] as const,
+        ),
+      );
+      if (resolvedByFile.size !== result.revisions.length)
+        throw new LocalStorageError(
+          'corrupt',
+          'a conflict result contains two revisions for one file',
+        );
+      for (const revision of result.revisions) {
+        if (
+          revision.text !== null &&
+          (await contentDigest(revision.text)) !== revision.digest
+        )
+          throw new LocalStorageError(
+            'corrupt',
+            'a conflict result does not match its content digest',
+          );
+      }
       const affected = new Set<string>();
       await guard('clearing a resolved conflict', () =>
         db.transaction(
@@ -1212,10 +1274,15 @@ export async function openLocalStore(
           [
             tables.queue,
             tables.checkpoints,
+            tables.contents,
+            tables.drafts,
             tables.acceptedFiles,
             tables.branches,
           ],
           async () => {
+            const resolvedCheckpointIds = new Set<string>();
+            const resolvedCheckpoints = new Map<string, CheckpointRow>();
+            const previousFiles = new Map<string, FileRow | null>();
             const rows: unknown[] = await tables.queue
               .where('[serverOrigin+accountId+workspaceId+sequence]')
               .between(
@@ -1247,12 +1314,22 @@ export async function openLocalStore(
               for (const raw of checkpoints) {
                 const checkpoint = validateCheckpoint(raw);
                 affected.add(checkpoint.fileId);
+                resolvedCheckpointIds.add(checkpoint.revisionId);
+                resolvedCheckpoints.set(checkpoint.revisionId, checkpoint);
                 await tables.checkpoints.put({
                   ...checkpoint,
                   accepted: true,
                 });
               }
             }
+            if (
+              affected.size !== resolvedByFile.size ||
+              [...affected].some((fileId) => !resolvedByFile.has(fileId))
+            )
+              throw new LocalStorageError(
+                'corrupt',
+                'a conflict result does not match the affected local files',
+              );
             for (const revision of result.revisions) {
               affected.add(revision.fileId);
               const stored: unknown = await tables.acceptedFiles.get([
@@ -1263,6 +1340,21 @@ export async function openLocalStore(
               ]);
               const file =
                 stored === undefined ? null : validateAcceptedFile(stored);
+              previousFiles.set(revision.fileId, file);
+              if (revision.text !== null)
+                await tables.contents.put({
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  digest: revision.digest,
+                  text: revision.text,
+                  bytes: null,
+                  size: byteLength(revision.text),
+                });
+              const hasNewerLocalHead =
+                file?.localHeadRevisionId !== null &&
+                file?.localHeadRevisionId !== file?.acceptedHeadRevisionId &&
+                !resolvedCheckpointIds.has(file?.localHeadRevisionId ?? '');
               await tables.acceptedFiles.put({
                 serverOrigin,
                 accountId,
@@ -1273,9 +1365,102 @@ export async function openLocalStore(
                 deleted: revision.deleted,
                 acceptedHeadRevisionId: revision.revisionId,
                 acceptedHeadDigest: revision.digest,
-                localHeadRevisionId: revision.revisionId,
+                localHeadRevisionId: hasNewerLocalHead
+                  ? (file?.localHeadRevisionId ?? revision.revisionId)
+                  : revision.revisionId,
                 updatedAt: revision.serverTime,
               });
+            }
+            for (const fileId of affected) {
+              const resolution = resolvedByFile.get(fileId);
+              if (resolution === undefined) continue;
+              const draftRows: unknown[] = await tables.drafts
+                .where('[serverOrigin+accountId+workspaceId+fileId]')
+                .equals([serverOrigin, accountId, workspaceId, fileId])
+                .toArray();
+              for (const raw of draftRows) {
+                const draft = validateDraft(raw);
+                // An immutable checkpoint outside the resolved group is later
+                // work. Its draft and local head must stay on that branch.
+                if (
+                  draft.lastCheckpointId !== null &&
+                  !resolvedCheckpointIds.has(draft.lastCheckpointId)
+                )
+                  continue;
+
+                let baseline: {
+                  readonly text: string;
+                  readonly path: string;
+                  readonly deleted: boolean;
+                } | null = null;
+                const checkpoint =
+                  draft.lastCheckpointId === null
+                    ? null
+                    : (resolvedCheckpoints.get(draft.lastCheckpointId) ?? null);
+                if (checkpoint !== null) {
+                  const storedContent: unknown = await tables.contents.get([
+                    serverOrigin,
+                    accountId,
+                    workspaceId,
+                    checkpoint.digest,
+                  ]);
+                  const content =
+                    storedContent === undefined
+                      ? null
+                      : validateContent(storedContent);
+                  if (content?.text !== null && content?.text !== undefined)
+                    baseline = {
+                      text: content.text,
+                      path: checkpoint.path,
+                      deleted: checkpoint.deleted,
+                    };
+                } else {
+                  const previous = previousFiles.get(fileId) ?? null;
+                  if (
+                    previous?.acceptedHeadRevisionId === draft.baseRevisionId &&
+                    previous.acceptedHeadDigest !== null
+                  ) {
+                    const storedContent: unknown = await tables.contents.get([
+                      serverOrigin,
+                      accountId,
+                      workspaceId,
+                      previous.acceptedHeadDigest,
+                    ]);
+                    const content =
+                      storedContent === undefined
+                        ? null
+                        : validateContent(storedContent);
+                    if (content?.text !== null && content?.text !== undefined)
+                      baseline = {
+                        text: content.text,
+                        path: previous.path,
+                        deleted: previous.deleted,
+                      };
+                  }
+                }
+                const changedAfterCheckpoint =
+                  baseline === null ||
+                  baseline.text !== draft.text ||
+                  baseline.path !== draft.path ||
+                  baseline.deleted !== draft.deleted;
+                // An unchanged branch draft adopts the selected resolution.
+                // New uncheckpointed text keeps its body but moves its base to
+                // the accepted merge, so its next checkpoint is not stale.
+                await tables.drafts.put({
+                  ...draft,
+                  baseRevisionId: resolution.revisionId,
+                  lastCheckpointId: resolution.revisionId,
+                  text:
+                    changedAfterCheckpoint || resolution.text === null
+                      ? draft.text
+                      : resolution.text,
+                  path: changedAfterCheckpoint ? draft.path : resolution.path,
+                  deleted: changedAfterCheckpoint
+                    ? draft.deleted
+                    : resolution.deleted,
+                  savedAt: nowIso(),
+                });
+              }
             }
             const branches: unknown[] = await tables.branches.toArray();
             for (const raw of branches) {
@@ -1289,8 +1474,10 @@ export async function openLocalStore(
           },
         ),
       );
-      for (const fileId of affected)
+      for (const fileId of affected) {
         publish({ accountId, workspaceId, fileId, kind: 'conflict' });
+        publish({ accountId, workspaceId, fileId, kind: 'file' });
+      }
     },
 
     readCachedNote(
@@ -1640,8 +1827,11 @@ export async function openLocalStore(
       );
     },
 
-    clearPrivateData(accountId: string, workspaceId?: string): Promise<void> {
-      return guard('clearing private local data', () =>
+    async clearPrivateData(
+      accountId: string,
+      workspaceId?: string,
+    ): Promise<void> {
+      const clearedWorkspaces = await guard('clearing private local data', () =>
         db.transaction(
           'rw',
           [
@@ -1660,13 +1850,21 @@ export async function openLocalStore(
           ],
           async () => {
             if (workspaceId === undefined) {
-              await clearAccountPartition(accountId);
+              return clearAccountPartition(accountId);
             } else {
               await clearWorkspacePartition(accountId, workspaceId);
+              return [workspaceId];
             }
           },
         ),
       );
+      for (const clearedWorkspaceId of clearedWorkspaces)
+        publish({
+          accountId,
+          workspaceId: clearedWorkspaceId,
+          fileId: null,
+          kind: 'reset',
+        });
     },
 
     acquireLease(ownerId: string, expiresAt: number): Promise<boolean> {
@@ -1789,8 +1987,8 @@ export async function openLocalStore(
       );
     },
 
-    activateSnapshot(token: string): Promise<void> {
-      return guard('activating a snapshot', () =>
+    async activateSnapshot(token: string): Promise<void> {
+      const activated = await guard('activating a snapshot', () =>
         db.transaction(
           'rw',
           [
@@ -1811,7 +2009,7 @@ export async function openLocalStore(
                 'corrupt',
                 'no staged snapshot carries this token',
               );
-            if (plan.state === 'active') return;
+            if (plan.state === 'active') return null;
             const { accountId, workspaceId } = plan;
             const stored: unknown[] = await tables.snapshotItems
               .where('[serverOrigin+accountId+workspaceId+token]')
@@ -1894,9 +2092,28 @@ export async function openLocalStore(
               updatedAt: nowIso(),
             });
             await tables.stagedSnapshots.put({ ...plan, state: 'active' });
+            return {
+              accountId,
+              workspaceId,
+              fileIds: [...byFile.keys()],
+            };
           },
         ),
       );
+      if (activated === null) return;
+      for (const fileId of activated.fileIds)
+        publish({
+          accountId: activated.accountId,
+          workspaceId: activated.workspaceId,
+          fileId,
+          kind: 'file',
+        });
+      publish({
+        accountId: activated.accountId,
+        workspaceId: activated.workspaceId,
+        fileId: null,
+        kind: 'cursor',
+      });
     },
 
     readCursor(accountId: string, workspaceId: string): Promise<string | null> {
@@ -1992,10 +2209,7 @@ export async function openLocalStore(
     },
 
     close(): Promise<void> {
-      channel?.close();
-      for (const listener of ownedListeners) listeners.delete(listener);
-      ownedListeners.clear();
-      if (listeners.size === 0) fallbackBuses.delete(channelName);
+      closeMessaging();
       db.close();
       return Promise.resolve();
     },

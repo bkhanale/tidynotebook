@@ -1062,25 +1062,17 @@ await test('a purged revision mid-download restarts the snapshot once', async ()
   assert.equal(store.staged.get('token-2')?.state, 'active');
 });
 
-await test('a second worker never syncs while the lease is held', async () => {
+await test('a follower takes over and syncs after the leader closes', async () => {
   const store = new FakeStore();
-  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  store.cursors.set(`${accountId}/${workspaceId}`, '10');
   const first: SyncNotice[] = [];
   const second: SyncNotice[] = [];
   const firstOps = stubOperations({
-    commit: (input) =>
-      Promise.resolve({
-        ok: true as const,
-        value: accepted(input.mutationId, ['rev-a'], '11'),
-      }),
     changes: (cursor) =>
       Promise.resolve({
         ok: true as const,
         value: { changes: [], nextCursor: cursor },
       }),
-  });
-  const secondOps = stubOperations({
-    commit: () => Promise.reject(new Error('the second worker must not send')),
   });
   const firstEngine = createSyncEngine(store, accountId, workspaceId, {
     ownerId: 'owner-first',
@@ -1102,10 +1094,22 @@ await test('a second worker never syncs while the lease is held', async () => {
   });
   const firstController = new AbortController();
   const firstRunning = firstEngine.run(firstController.signal);
-  await waitFor(() => store.acks.length === 1);
+  await waitFor(() => store.lease?.ownerId === 'owner-first');
+  const followerOps = stubOperations({
+    commit: (input) =>
+      Promise.resolve({
+        ok: true as const,
+        value: accepted(input.mutationId, ['rev-a'], '11'),
+      }),
+    changes: (cursor) =>
+      Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      }),
+  });
   const secondEngine = createSyncEngine(store, accountId, workspaceId, {
     ownerId: 'owner-second',
-    operations: secondOps,
+    operations: followerOps,
     announce: (notice) => {
       second.push(notice);
     },
@@ -1113,11 +1117,19 @@ await test('a second worker never syncs while the lease is held', async () => {
     leaseTtlMs: 60_000,
     random: () => 0,
   });
-  await secondEngine.run(new AbortController().signal);
-  assert.deepEqual(second, [{ kind: 'lease-held' }]);
+  const secondController = new AbortController();
+  const secondRunning = secondEngine.run(secondController.signal);
+  await waitFor(() => second.some((notice) => notice.kind === 'lease-held'));
   firstController.abort();
   await firstRunning;
+  await waitFor(() => store.lease?.ownerId === 'owner-second');
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  secondEngine.requestSync();
+  await waitFor(() => store.acks.length === 1);
+  secondController.abort();
+  await secondRunning;
   assert.equal(store.lease, null);
+  assert.equal(followerOps.commitCalls.length, 1);
 });
 
 await test('an explicit request wakes the engine before its safety interval', async () => {

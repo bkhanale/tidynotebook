@@ -16,8 +16,9 @@ test('two browser contexts create and explicitly resolve a conflict', async ({
   stack,
 }, testInfo) => {
   test.skip(
-    testInfo.project.name !== 'chromium',
-    'One engine covers concurrent contexts.',
+    testInfo.project.name === 'phone-390' ||
+      testInfo.project.name === 'tablet-768',
+    'Desktop engines cover concurrent contexts.',
   );
   await signIn(first, stack);
   const workspaceId = await openPersonalWorkspace(first);
@@ -67,6 +68,16 @@ test('two browser contexts create and explicitly resolve a conflict', async ({
       })
       .click();
     await expect(second.getByText(/Conflict group resolved/)).toBeVisible();
+    await second.goto(noteUrl);
+    await expect(second.locator('.cm-content')).toContainText(
+      'Incoming version',
+    );
+    expect(
+      (await second.locator('.cm-line').allTextContents()).join('\n'),
+    ).toBe('# Shared\n\nIncoming version');
+    await expect(
+      second.locator('.notes-save-pill').getByRole('status'),
+    ).toContainText('Saved to server');
   } finally {
     await secondContext.close();
   }
