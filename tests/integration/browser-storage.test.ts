@@ -973,6 +973,42 @@ await test('conflict resolution preserves a checkpoint created after the branch'
   await store.close();
 });
 
+await test('a server-only conflict resolution becomes durable local state', async () => {
+  const backend = createBackend('server-only-resolution');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const revisionId = randomUUID();
+  const text = '# Resolved elsewhere\n';
+  await store.resolveConflict(account, workspace, randomUUID(), {
+    mutationId: randomUUID(),
+    revisions: [
+      {
+        revisionId,
+        fileId: file,
+        parents: [randomUUID(), randomUUID()],
+        path: 'notes/remote-conflict.md',
+        deleted: false,
+        digest: await contentDigest(text),
+        size: new TextEncoder().encode(text).byteLength,
+        actorAccountId: account,
+        serverTime: '2026-09-06T12:00:00.000Z',
+        message: 'Resolve conflict',
+        text,
+      },
+    ],
+  });
+  assert.deepEqual(await store.readCachedNote(account, workspace, file), {
+    fileId: file,
+    path: 'notes/remote-conflict.md',
+    text,
+    deleted: false,
+    baseRevisionId: revisionId,
+  });
+  await store.close();
+});
+
 await test('snapshot activation and clearing publish committed invalidations', async () => {
   const backend = createBackend('committed-invalidations');
   const store = await openLocalStore(origin, backend.options());

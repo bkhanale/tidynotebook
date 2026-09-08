@@ -1322,10 +1322,7 @@ export async function openLocalStore(
                 });
               }
             }
-            if (
-              affected.size !== resolvedByFile.size ||
-              [...affected].some((fileId) => !resolvedByFile.has(fileId))
-            )
+            if ([...affected].some((fileId) => !resolvedByFile.has(fileId)))
               throw new LocalStorageError(
                 'corrupt',
                 'a conflict result does not match the affected local files',

@@ -804,7 +804,7 @@ await test('a viewer downgrade suspends writes and an editor restore resumes the
   }
 });
 
-await test('an expired lease is taken over and a held lease stops a second worker', async () => {
+await test('an expired lease is taken over and a held lease keeps a follower waiting', async () => {
   const store = await openStore('lease', 'device-lease');
   try {
     const fileId = randomUUID();
@@ -852,8 +852,12 @@ await test('an expired lease is taken over and a held lease stops a second worke
       true,
     );
     const second = startEngine(store, ownerCookie, 'engine-second');
-    await second.running;
-    assert.deepEqual(second.notices, [{ kind: 'lease-held' }]);
+    await waitFor(
+      () => second.notices.some((notice) => notice.kind === 'lease-held'),
+      'the follower observes the held lease',
+    );
+    assert.equal((await store.readLeaseState())?.ownerId, 'manual-holder');
+    await stopEngine(second);
     await store.releaseLease('manual-holder');
     assert.equal(
       (await store.readCursor(ownerAccountId, workspaceId)) !== null,
