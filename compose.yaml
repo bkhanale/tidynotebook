@@ -28,6 +28,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: notesapp:latest
     restart: 'no'
     depends_on:
       postgres:
@@ -54,6 +55,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: notesapp:latest
     restart: unless-stopped
     depends_on:
       postgres:
@@ -61,12 +63,12 @@ services:
       migrate:
         condition: service_completed_successfully
     environment:
-      NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:?Set NOTESAPP_ORIGIN in the Compose environment}
+      NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:-http://localhost:3000}
       NOTESAPP_DATABASE_URL_FILE: /run/secrets/runtime_database_url
       NOTESAPP_AUTH_DATABASE_URL_FILE: /run/secrets/auth_database_url
       NOTESAPP_STORAGE_ROOT: /var/lib/notesapp
       NOTESAPP_AUTH_SECRET_FILE: /run/secrets/auth_secret
-      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:?Set NOTESAPP_ALLOWED_HOSTS in the Compose environment}
+      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:-localhost,127.0.0.1}
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}
@@ -78,7 +80,7 @@ services:
       - auth_database_url
       - auth_secret
     ports:
-      - '${NOTESAPP_BIND_HOST:-127.0.0.1}:${NOTESAPP_PORT:-3000}:3000'
+      - '${NOTESAPP_BIND_HOST:-0.0.0.0}:${NOTESAPP_PORT:-3000}:3000'
     volumes:
       - storage_data:/var/lib/notesapp
     networks:
@@ -106,16 +108,16 @@ networks:
 
 secrets:
   postgres_password:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/postgres_password
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/postgres_password
   migration_database_url:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/migration_database_url
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/migration_database_url
   runtime_database_password:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/runtime_database_password
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/runtime_database_password
   auth_database_password:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/auth_database_password
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/auth_database_password
   runtime_database_url:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/runtime_database_url
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/runtime_database_url
   auth_database_url:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/auth_database_url
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/auth_database_url
   auth_secret:
-    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR}/auth_secret
+    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/auth_secret
