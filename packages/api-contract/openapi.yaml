@@ -27,15 +27,13 @@ tags:
   - name: accounts
     description: The signed in account and the settings that follow it.
   - name: workspaces
-    description: Workspaces, their membership, and their invitations.
+    description: Workspace containers for the single user's files.
   - name: tokens
     description: Revocable agent tokens with a workspace and action scope.
   - name: files
     description: >-
       Files, their immutable revisions, and the atomic changesets that accept
       them.
-  - name: sharing
-    description: Administrator-managed public links to pinned note revisions.
   - name: auth
     description: >-
       Authentication protocol endpoints. Better Auth implements them; the
@@ -88,6 +86,84 @@ paths:
           $ref: '#/components/responses/ServerError'
         '503':
           $ref: '#/components/responses/NotReady'
+  /api/setup:
+    get:
+      operationId: getSetupStatus
+      summary: Report whether the single user exists.
+      description: Reports if first-run setup is complete without exposing account data.
+      tags:
+        - auth
+      security: []
+      responses:
+        '200':
+          description: The setup state.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - initialized
+                properties:
+                  initialized:
+                    type: boolean
+                    readOnly: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/ServerError'
+    post:
+      operationId: createOwner
+      summary: Create the single user during first-run setup.
+      description: This operation is refused after the first account exists.
+      tags:
+        - auth
+      security: []
+      requestBody:
+        description: The email address and password of the single user.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  minLength: 3
+                  maxLength: 320
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 512
+      responses:
+        '201':
+          description: The single user was created and signed in.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - initialized
+                properties:
+                  initialized:
+                    type: boolean
+                    readOnly: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/account:
     get:
       operationId: getAccount
@@ -228,9 +304,8 @@ paths:
       operationId: deleteWorkspace
       summary: Delete a workspace and every record that belongs to it.
       description: >-
-        Deletes a workspace, its membership, its invitations, its shares, and
-        its content history. Only the owner may do this. Every session loses
-        access to the workspace, because its membership rows disappear.
+        Deletes a workspace and its complete content history. Only its owner
+        may do this.
       tags:
         - workspaces
       parameters:
@@ -247,153 +322,6 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/members:
-    get:
-      operationId: listMembers
-      summary: List the members of a workspace.
-      description: >-
-        Lists every member of the workspace with the current role. An owner or
-        an administrator also sees the open invitations.
-      tags:
-        - workspaces
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      responses:
-        '200':
-          $ref: '#/components/responses/MemberList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    post:
-      operationId: inviteMember
-      summary: Invite an address to a workspace.
-      description: >-
-        Creates an invitation for one address and one role. The answer carries
-        the invitation token once, so a deployment without a mail transport can
-        hand it to the invited person out of band. Only the hash of the token
-        is stored.
-      tags:
-        - workspaces
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/InvitationRequest'
-      responses:
-        '201':
-          $ref: '#/components/responses/InvitationCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/members/{accountId}:
-    put:
-      operationId: updateMember
-      summary: Change the role of a member.
-      description: >-
-        Changes the role of one member. The owner role is never granted or
-        removed here; it moves only through an explicit ownership transfer, so
-        a workspace cannot lose its last owner through a role change.
-      tags:
-        - workspaces
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/AccountId'
-      requestBody:
-        $ref: '#/components/requestBodies/MemberRole'
-      responses:
-        '200':
-          $ref: '#/components/responses/Member'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    delete:
-      operationId: removeMember
-      summary: Remove a member from a workspace.
-      description: >-
-        Removes one member. The last owner cannot be removed, and only another
-        owner may remove an owner.
-      tags:
-        - workspaces
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/AccountId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Removed'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/ownership:
-    post:
-      operationId: transferOwnership
-      summary: Move the ownership of a workspace to another member.
-      description: >-
-        Moves ownership to another member of the same workspace. Only the owner
-        may do this. The old owner becomes an administrator, or leaves the
-        workspace when the request asks for it.
-      tags:
-        - workspaces
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/OwnershipTransfer'
-      responses:
-        '200':
-          $ref: '#/components/responses/MemberList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/workspaces/{workspaceId}/files:
@@ -518,163 +446,6 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/shares:
-    get:
-      operationId: listShares
-      summary: List the public links of a workspace.
-      description: Returns public link records only after a current share permission check.
-      tags:
-        - sharing
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      responses:
-        '200':
-          $ref: '#/components/responses/ShareList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    post:
-      operationId: createShare
-      summary: Publish one accepted note revision through a new public link.
-      description: >-
-        Creates an opaque public link to one accepted note revision. Later note
-        edits stay private until an administrator updates this publication.
-      tags:
-        - sharing
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/CreateShare'
-      responses:
-        '201':
-          $ref: '#/components/responses/Share'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/UnprocessableContent'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/shares/{shareId}:
-    put:
-      operationId: updateShare
-      summary: Move a public link to an explicitly selected accepted revision.
-      description: >-
-        Replaces the pinned accepted revision and optional expiry without
-        changing the public token.
-      tags:
-        - sharing
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/ShareId'
-      requestBody:
-        $ref: '#/components/requestBodies/UpdateShare'
-      responses:
-        '200':
-          $ref: '#/components/responses/Share'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/UnprocessableContent'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    delete:
-      operationId: revokeShare
-      summary: Revoke a public link.
-      description: Makes the public token and each of its attachment routes unavailable.
-      tags:
-        - sharing
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/ShareId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Share'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /s/{token}:
-    get:
-      operationId: getPublicShare
-      summary: Read one active pinned public note.
-      description: >-
-        Returns standalone sanitized HTML when the token is active, unexpired,
-        and still owned by a workspace administrator.
-      tags:
-        - sharing
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/PublicShareToken'
-      responses:
-        '200':
-          $ref: '#/components/responses/PublicSharePage'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /s/{token}/attachments/{revisionId}:
-    get:
-      operationId: getPublicAttachment
-      summary: Read an attachment allowed by one active public note.
-      description: >-
-        Returns immutable image bytes only when the active pinned note named
-        this exact attachment revision.
-      tags:
-        - sharing
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/PublicShareToken'
-        - $ref: '#/components/parameters/RevisionId'
-      responses:
-        '200':
-          $ref: '#/components/responses/AttachmentBinary'
-        '400':
-          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':
@@ -1098,104 +869,6 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/branches:
-    get:
-      operationId: listBranches
-      summary: List divergent branches in a workspace.
-      description: >-
-        Lists open or resolved divergent branches of the workspace, optionally
-        filtered by file, conflict group, or resolution state.
-      tags:
-        - files
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/BranchFileId'
-        - $ref: '#/components/parameters/ConflictGroupId'
-        - $ref: '#/components/parameters/BranchState'
-      responses:
-        '200':
-          $ref: '#/components/responses/BranchList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    post:
-      operationId: submitBranch
-      summary: Submit a divergent conflict branch atomically.
-      description: >-
-        Stores divergent revisions and records an open branch without advancing
-        accepted heads or reserving live paths.
-      tags:
-        - files
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/SubmitBranch'
-      responses:
-        '200':
-          $ref: '#/components/responses/AcceptedBranch'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/UnprocessableContent'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/branches/resolve:
-    post:
-      operationId: resolveBranches
-      summary: Explicitly resolve divergent branches.
-      description: >-
-        Creates resolution revisions naming both the expected accepted head and
-        the branch tip as parents, advances accepted heads, and marks the
-        resolved branches.
-      tags:
-        - files
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-      requestBody:
-        $ref: '#/components/requestBodies/ResolveBranches'
-      responses:
-        '200':
-          $ref: '#/components/responses/AcceptedBranchResolution'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '412':
-          $ref: '#/components/responses/PreconditionFailed'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/UnprocessableContent'
-        '500':
-          $ref: '#/components/responses/ServerError'
   /api/workspaces/{workspaceId}/purge/preview:
     post:
       operationId: previewPurge
@@ -1306,7 +979,7 @@ paths:
       summary: Read one page of a materialized snapshot.
       description: >-
         Reads one page of the items that the snapshot captured. The page runs
-        in its own short transaction and rechecks the current membership; no
+        in its own short transaction and rechecks current access; no
         database transaction stays open across network pages. A missing token,
         an expired snapshot, and a snapshot that a purge invalidated all answer
         410 with the code snapshot_required: the client starts a fresh snapshot
@@ -1341,9 +1014,9 @@ paths:
       description: >-
         Reads the commit ordered change records after a cursor the client
         already applied, oldest first. Every relevant write allocates its
-        cursor under the workspace lock, including membership, deletion, purge,
-        and share revocation, so the stream cannot skip a transaction that
-        commits late. Change records are kept for 90 days; an older cursor
+        cursor under the workspace lock, so the stream cannot skip a file
+        transaction that commits late. Change records are kept for 90 days; an
+        older cursor
         answers 410 with the code snapshot_required, while saved revision
         identifiers stay valid beyond that window.
       tags:
@@ -1368,45 +1041,6 @@ paths:
           $ref: '#/components/responses/SnapshotRequired'
         '422':
           $ref: '#/components/responses/UnprocessableContent'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/invitations/acceptance:
-    post:
-      operationId: acceptInvitation
-      summary: Accept an invitation to a workspace.
-      description: >-
-        Consumes one invitation token and adds an account to the workspace with
-        the invited role. A signed in account must already use the invited
-        address. A request without a session may instead supply a password: the
-        server then creates the local account for the invited address, marks
-        that address verified because the token proves control of it, and signs
-        the new account in. An installation that requires the configured
-        provider refuses the second form with the code oidc_required; the
-        invited person signs in through the provider instead and the invitation
-        is claimed on that first sign-in. A token works once; a replay is
-        rejected.
-      tags:
-        - workspaces
-      security: []
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        $ref: '#/components/requestBodies/InvitationAcceptance'
-      responses:
-        '200':
-          $ref: '#/components/responses/Membership'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/agent-tokens:
@@ -1438,8 +1072,8 @@ paths:
       summary: Create an agent token and return its secret once.
       description: >-
         Creates a revocable token with an expiry and an explicit workspace and
-        action scope. The scope can never be wider than the current role of the
-        account in that workspace, and every use checks the membership again.
+        action scope. The scope can never be wider than the current access of
+        the account in that workspace, and every use checks that access again.
         The secret is in the answer of this call only.
       tags:
         - tokens
@@ -1509,7 +1143,7 @@ components:
       bearerFormat: opaque
       description: >-
         Revocable agent token with workspace and action scopes. The server
-        checks the current membership on every operation as well.
+        checks current workspace access on every operation as well.
   parameters:
     RequestId:
       name: x-request-id
@@ -1549,15 +1183,6 @@ components:
       description: Identifier of the workspace that the operation acts on.
       schema:
         $ref: '#/components/schemas/Uuid'
-    AccountId:
-      name: accountId
-      in: path
-      required: true
-      style: simple
-      explode: false
-      description: Identifier of the account whose membership the operation acts on.
-      schema:
-        $ref: '#/components/schemas/Uuid'
     TokenId:
       name: tokenId
       in: path
@@ -1585,27 +1210,6 @@ components:
       description: Identifier of the revision that the operation reads.
       schema:
         $ref: '#/components/schemas/Uuid'
-    ShareId:
-      name: shareId
-      in: path
-      required: true
-      style: simple
-      explode: false
-      description: Identifier of the public link that the operation changes.
-      schema:
-        $ref: '#/components/schemas/Uuid'
-    PublicShareToken:
-      name: token
-      in: path
-      required: true
-      style: simple
-      explode: false
-      description: Opaque public link secret.
-      schema:
-        type: string
-        minLength: 43
-        maxLength: 43
-        pattern: ^[A-Za-z0-9_-]{43}$
     ObjectId:
       name: objectId
       in: path
@@ -1702,36 +1306,6 @@ components:
         type: integer
         minimum: 1
         maximum: 100
-    BranchFileId:
-      name: fileId
-      in: query
-      required: false
-      style: form
-      explode: true
-      description: Optional file identifier to filter branches.
-      schema:
-        $ref: '#/components/schemas/Uuid'
-    ConflictGroupId:
-      name: conflictGroupId
-      in: query
-      required: false
-      style: form
-      explode: true
-      description: Optional conflict group identifier to filter branches.
-      schema:
-        $ref: '#/components/schemas/Uuid'
-    BranchState:
-      name: state
-      in: query
-      required: false
-      style: form
-      explode: true
-      description: Optional branch state to filter branches.
-      schema:
-        type: string
-        enum:
-          - unresolved
-          - resolved
     SnapshotToken:
       name: token
       in: path
@@ -1801,20 +1375,6 @@ components:
         minimum: 1
         maximum: 500
   requestBodies:
-    CreateShare:
-      description: The accepted revision and optional expiry to publish.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CreateShareInput'
-    UpdateShare:
-      description: The accepted revision and optional expiry to publish now.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/UpdateShareInput'
     Preferences:
       description: The settings to store for the signed in account.
       required: true
@@ -1829,34 +1389,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/WorkspaceNameInput'
-    InvitationRequest:
-      description: The address and the role of the invitation.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/InvitationInput'
-    MemberRole:
-      description: The role to give the member.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/MemberRoleInput'
-    OwnershipTransfer:
-      description: The member that becomes the owner.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/OwnershipTransferInput'
-    InvitationAcceptance:
-      description: The invitation token to consume.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/InvitationAcceptanceInput'
     AgentTokenRequest:
       description: The name, the expiry, and the scope of the new token.
       required: true
@@ -1913,20 +1445,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/CreateCheckpointInput'
-    SubmitBranch:
-      description: Divergent branch submission payload.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/SubmitBranchInput'
-    ResolveBranches:
-      description: Branch resolution payload.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ResolveBranchesInput'
     RestoreRevision:
       description: Revision restore payload.
       required: true
@@ -2040,30 +1558,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/WorkspaceList'
-    Member:
-      description: One member of a workspace.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Member'
-    MemberList:
-      description: The members and the open invitations of a workspace.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/MemberList'
-    InvitationCreated:
-      description: The new invitation and its token, which is shown once.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/InvitationCreated'
-    Membership:
-      description: The workspace and the role that an invitation granted.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Membership'
     AgentTokenList:
       description: Every agent token of the signed in account.
       content:
@@ -2152,25 +1646,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/BacklinkResults'
-    Share:
-      description: One administrator-visible public link and its public URL.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/Share'
-    ShareList:
-      description: Public links managed by this workspace.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/ShareList'
-    PublicSharePage:
-      description: Sanitized HTML of one active pinned note revision.
-      content:
-        text/html:
-          schema:
-            type: string
-            maxLength: 8388608
     FileChange:
       description: The accepted revision and the outcome of its changeset.
       content:
@@ -2220,24 +1695,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/HistoryPage'
-    BranchList:
-      description: List of divergent branches.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/BranchList'
-    AcceptedBranch:
-      description: Stored branch outcome.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AcceptedBranch'
-    AcceptedBranchResolution:
-      description: Stored branch resolution outcome.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AcceptedBranchResolution'
     PurgePreview:
       description: Preview of permanent file purge.
       content:
@@ -2457,21 +1914,10 @@ components:
     Role:
       type: string
       description: >-
-        Workspace membership role. A viewer reads, an editor also writes, an
-        administrator also manages membership and shares, and the owner also
-        purges and transfers the workspace.
+        Workspace access role retained for stored-data compatibility. A
+        single-user installation assigns its account the owner role.
       enum:
         - owner
-        - admin
-        - editor
-        - viewer
-    AssignableRole:
-      type: string
-      description: >-
-        A role that an invitation or a role change may grant. The owner role is
-        not in this list, because ownership moves only through an explicit
-        transfer.
-      enum:
         - admin
         - editor
         - viewer
@@ -2482,8 +1928,6 @@ components:
         - read
         - write
         - history
-        - share
-        - members
         - purge
     Preferences:
       type: object
@@ -2596,220 +2040,6 @@ components:
           description: Name of the workspace.
           minLength: 1
           maxLength: 200
-    Member:
-      type: object
-      description: One member of one workspace.
-      additionalProperties: false
-      required:
-        - accountId
-        - role
-      properties:
-        accountId:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          readOnly: true
-          description: Identifier of the member account.
-        role:
-          allOf:
-            - $ref: '#/components/schemas/Role'
-          readOnly: true
-          description: Current role of the member.
-        email:
-          type:
-            - string
-            - 'null'
-          readOnly: true
-          description: Sign-in address of the member, or null when none is linked.
-          maxLength: 320
-        name:
-          type:
-            - string
-            - 'null'
-          readOnly: true
-          description: Display name of the member, or null when none is linked.
-          maxLength: 256
-    Invitation:
-      type: object
-      description: One invitation to one workspace. The token itself is never stored.
-      additionalProperties: false
-      required:
-        - id
-        - workspaceId
-        - email
-        - role
-        - expiresAt
-        - state
-      properties:
-        id:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          readOnly: true
-          description: Identifier of the invitation.
-        workspaceId:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          readOnly: true
-          description: Workspace that the invitation admits to.
-        email:
-          type: string
-          readOnly: true
-          description: Address that the invitation was created for.
-          maxLength: 320
-        role:
-          allOf:
-            - $ref: '#/components/schemas/AssignableRole'
-          readOnly: true
-          description: Role that acceptance grants.
-        expiresAt:
-          type: string
-          readOnly: true
-          description: Instant after which the invitation cannot be accepted.
-          format: date-time
-          maxLength: 64
-        state:
-          type: string
-          readOnly: true
-          description: Whether the invitation is still open.
-          enum:
-            - pending
-            - accepted
-            - revoked
-    MemberList:
-      type: object
-      description: The members and the open invitations of one workspace.
-      additionalProperties: false
-      required:
-        - members
-        - invitations
-      properties:
-        members:
-          type: array
-          readOnly: true
-          description: One entry for each member of the workspace.
-          maxItems: 1000
-          items:
-            $ref: '#/components/schemas/Member'
-        invitations:
-          type: array
-          readOnly: true
-          description: >-
-            One entry for each invitation. The list is empty for a member that
-            does not manage membership.
-          maxItems: 1000
-          items:
-            $ref: '#/components/schemas/Invitation'
-    InvitationInput:
-      type: object
-      description: The address and the role of a new invitation.
-      additionalProperties: false
-      required:
-        - email
-        - role
-      properties:
-        email:
-          type: string
-          description: Address that may accept the invitation.
-          format: email
-          minLength: 3
-          maxLength: 320
-        role:
-          allOf:
-            - $ref: '#/components/schemas/AssignableRole'
-          description: Role that acceptance grants.
-    InvitationCreated:
-      type: object
-      description: A new invitation, and its token when no mail transport exists.
-      additionalProperties: false
-      required:
-        - invitation
-        - delivered
-      properties:
-        invitation:
-          allOf:
-            - $ref: '#/components/schemas/Invitation'
-          readOnly: true
-          description: The stored invitation.
-        delivered:
-          type: boolean
-          readOnly: true
-          description: >-
-            True when the server sent the invitation by email. The token is
-            then absent, because it left through the message.
-        token:
-          type: string
-          readOnly: true
-          description: >-
-            The invitation token. It is present only when the deployment has no
-            mail transport, so an administrator can hand it over. It appears in
-            this answer only, because storage keeps its hash.
-          minLength: 32
-          maxLength: 128
-    MemberRoleInput:
-      type: object
-      description: The role to give a member.
-      additionalProperties: false
-      required:
-        - role
-      properties:
-        role:
-          allOf:
-            - $ref: '#/components/schemas/AssignableRole'
-          description: New role of the member.
-    OwnershipTransferInput:
-      type: object
-      description: The member that becomes the owner of a workspace.
-      additionalProperties: false
-      required:
-        - accountId
-      properties:
-        accountId:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          description: Member that becomes the owner.
-        leave:
-          type: boolean
-          description: >-
-            When true, the old owner leaves the workspace instead of becoming
-            an administrator.
-    InvitationAcceptanceInput:
-      type: object
-      description: The invitation token to consume, and an optional password.
-      additionalProperties: false
-      required:
-        - token
-      properties:
-        token:
-          type: string
-          description: The invitation token that was handed to the invited person.
-          minLength: 32
-          maxLength: 128
-        password:
-          type: string
-          description: >-
-            Password of the local account to create. Supply it only when no
-            session exists and the invited person has no account yet. It is
-            refused when a session is present or when the installation requires
-            the configured provider.
-          minLength: 12
-          maxLength: 512
-    Membership:
-      type: object
-      description: The workspace and the role that an invitation granted.
-      additionalProperties: false
-      required:
-        - workspaceId
-        - role
-      properties:
-        workspaceId:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          readOnly: true
-          description: Workspace that the account joined.
-        role:
-          allOf:
-            - $ref: '#/components/schemas/Role'
-          readOnly: true
-          description: Role that the account received.
     AgentTokenScope:
       type: object
       description: The workspace and the actions that one agent token may use.
@@ -3105,93 +2335,6 @@ components:
           type: string
           readOnly: true
           maxLength: 1024
-    ShareExpiry:
-      oneOf:
-        - type: string
-          format: date-time
-          maxLength: 64
-        - type: 'null'
-      description: Optional instant after which the public link stops working.
-    CreateShareInput:
-      type: object
-      description: One explicit request to publish an accepted note revision.
-      additionalProperties: false
-      required:
-        - fileId
-        - pinnedRevisionId
-        - expiresAt
-      properties:
-        fileId:
-          $ref: '#/components/schemas/Uuid'
-        pinnedRevisionId:
-          $ref: '#/components/schemas/Uuid'
-        expiresAt:
-          $ref: '#/components/schemas/ShareExpiry'
-    UpdateShareInput:
-      type: object
-      description: One explicit update of the revision and expiry to publish.
-      additionalProperties: false
-      required:
-        - fileId
-        - pinnedRevisionId
-        - expiresAt
-      properties:
-        fileId:
-          $ref: '#/components/schemas/Uuid'
-        pinnedRevisionId:
-          $ref: '#/components/schemas/Uuid'
-        expiresAt:
-          $ref: '#/components/schemas/ShareExpiry'
-    Share:
-      type: object
-      description: Administrator-visible state of one public link.
-      additionalProperties: false
-      required:
-        - shareId
-        - fileId
-        - pinnedRevisionId
-        - creatorAccountId
-        - expiresAt
-        - revokedAt
-        - createdAt
-      properties:
-        shareId:
-          $ref: '#/components/schemas/Uuid'
-        fileId:
-          $ref: '#/components/schemas/Uuid'
-        pinnedRevisionId:
-          $ref: '#/components/schemas/Uuid'
-        creatorAccountId:
-          $ref: '#/components/schemas/Uuid'
-        expiresAt:
-          $ref: '#/components/schemas/ShareExpiry'
-        revokedAt:
-          oneOf:
-            - type: string
-              format: date-time
-              maxLength: 64
-            - type: 'null'
-        createdAt:
-          type: string
-          format: date-time
-          maxLength: 64
-        url:
-          type: string
-          format: uri
-          maxLength: 2048
-          description: The one-time public URL returned only when a link is created.
-    ShareList:
-      type: object
-      description: Administrator-visible public links of one workspace.
-      additionalProperties: false
-      required:
-        - shares
-      properties:
-        shares:
-          type: array
-          maxItems: 1000
-          items:
-            $ref: '#/components/schemas/Share'
     SearchResults:
       type: object
       description: Search results from current accepted note revisions.
@@ -3952,152 +3095,6 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Uuid'
             - type: 'null'
-    BranchItem:
-      type: object
-      description: One divergent branch record.
-      additionalProperties: false
-      required:
-        - id
-        - workspaceId
-        - fileId
-        - baseRevisionId
-        - tipRevisionId
-        - conflictGroupId
-        - state
-        - createdAt
-      properties:
-        id:
-          $ref: '#/components/schemas/Uuid'
-        workspaceId:
-          $ref: '#/components/schemas/Uuid'
-        fileId:
-          $ref: '#/components/schemas/Uuid'
-        baseRevisionId:
-          oneOf:
-            - $ref: '#/components/schemas/Uuid'
-            - type: 'null'
-        tipRevisionId:
-          $ref: '#/components/schemas/Uuid'
-        conflictGroupId:
-          $ref: '#/components/schemas/Uuid'
-        state:
-          type: string
-          enum:
-            - unresolved
-            - resolved
-        createdAt:
-          type: string
-          format: date-time
-    BranchList:
-      type: object
-      description: List of divergent branches.
-      additionalProperties: false
-      required:
-        - branches
-      properties:
-        branches:
-          type: array
-          items:
-            $ref: '#/components/schemas/BranchItem'
-    AcceptedBranch:
-      type: object
-      description: Stored branch outcome.
-      additionalProperties: false
-      required:
-        - mutationId
-        - conflictGroupId
-        - revisionIds
-        - branches
-      properties:
-        mutationId:
-          $ref: '#/components/schemas/Uuid'
-        conflictGroupId:
-          $ref: '#/components/schemas/Uuid'
-        revisionIds:
-          type: array
-          items:
-            $ref: '#/components/schemas/Uuid'
-        branches:
-          type: array
-          items:
-            $ref: '#/components/schemas/BranchItem'
-    AcceptedBranchResolution:
-      type: object
-      description: Stored branch resolution outcome.
-      additionalProperties: false
-      required:
-        - mutationId
-        - revisions
-        - resolvedBranchIds
-      properties:
-        mutationId:
-          $ref: '#/components/schemas/Uuid'
-        revisions:
-          type: array
-          items:
-            $ref: '#/components/schemas/AcceptedRevision'
-        resolvedBranchIds:
-          type: array
-          items:
-            $ref: '#/components/schemas/Uuid'
-    BranchResolutionInput:
-      type: object
-      description: Explicit merge resolution for one file.
-      additionalProperties: false
-      required:
-        - fileId
-        - expectedHead
-        - branchTip
-        - revisionId
-        - path
-        - content
-        - deleted
-      properties:
-        fileId:
-          $ref: '#/components/schemas/Uuid'
-        expectedHead:
-          oneOf:
-            - $ref: '#/components/schemas/Uuid'
-            - type: 'null'
-        branchTip:
-          $ref: '#/components/schemas/Uuid'
-        revisionId:
-          $ref: '#/components/schemas/Uuid'
-        path:
-          $ref: '#/components/schemas/FilePath'
-        content:
-          $ref: '#/components/schemas/ContentInput'
-        deleted:
-          type: boolean
-        message:
-          $ref: '#/components/schemas/CheckpointMessage'
-    ResolveBranchesInput:
-      type: object
-      description: Payload to explicitly resolve divergent branches.
-      additionalProperties: false
-      required:
-        - mutationId
-        - deviceId
-        - clientTime
-        - resolutions
-      properties:
-        mutationId:
-          $ref: '#/components/schemas/Uuid'
-        deviceId:
-          $ref: '#/components/schemas/DeviceId'
-        clientTime:
-          type: string
-          format: date-time
-          minLength: 20
-          maxLength: 64
-        conflictGroupId:
-          $ref: '#/components/schemas/Uuid'
-        resolutions:
-          type: array
-          minItems: 1
-          maxItems: 1000
-          items:
-            $ref: '#/components/schemas/BranchResolutionInput'
     CreateCheckpointInput:
       type: object
       description: Checkpoint creation payload.
@@ -4127,31 +3124,6 @@ components:
           $ref: '#/components/schemas/FilePath'
         content:
           $ref: '#/components/schemas/ContentInput'
-    SubmitBranchInput:
-      type: object
-      description: Divergent branch changeset payload.
-      additionalProperties: false
-      required:
-        - mutationId
-        - deviceId
-        - conflictGroupId
-        - expectedHeads
-        - revisions
-      properties:
-        mutationId:
-          $ref: '#/components/schemas/Uuid'
-        deviceId:
-          $ref: '#/components/schemas/DeviceId'
-        conflictGroupId:
-          $ref: '#/components/schemas/Uuid'
-        expectedHeads:
-          $ref: '#/components/schemas/ExpectedHeads'
-        revisions:
-          type: array
-          minItems: 1
-          maxItems: 4000
-          items:
-            $ref: '#/components/schemas/RevisionInput'
     RestoreRevisionInput:
       type: object
       description: Payload to restore a file to an earlier historic revision.

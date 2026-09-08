@@ -2,17 +2,15 @@
  * Web application routes.
  *
  * Routes compose the shell with the account and workspace screens. Session
- * protection wraps every private route; public routes are login, invitation
- * acceptance, and the post-provider landing page.
+ * protection wraps every private route. Login and first-run setup use the
+ * only public page.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Link, RouterProvider, createBrowserRouter } from 'react-router';
 import {
   AccountSettingsPage,
-  InvitePage,
   LoginPage,
   RequireSession,
-  SignedInLanding,
 } from './features/accounts.tsx';
 const Shell = lazy(async () => ({
   default: (await import('./features/shell.tsx')).Shell,
@@ -31,9 +29,6 @@ const WorkspaceSettingsView = lazy(async () => ({
 }));
 const HistoryView = lazy(async () => ({
   default: (await import('./features/history.tsx')).HistoryView,
-}));
-const ConflictsView = lazy(async () => ({
-  default: (await import('./features/conflicts.tsx')).ConflictsView,
 }));
 const PurgeView = lazy(async () => ({
   default: (await import('./features/purge.tsx')).PurgeView,
@@ -75,8 +70,6 @@ function NotFoundPage(): ReactNode {
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
-  { path: '/auth/signed-in', element: <SignedInLanding /> },
-  { path: '/invite', element: <InvitePage /> },
   {
     path: '/settings',
     element: (
@@ -102,10 +95,6 @@ const router = createBrowserRouter([
       {
         path: 'w/:workspaceId/notes/:fileId/history',
         element: deferred(<HistoryView />),
-      },
-      {
-        path: 'w/:workspaceId/conflicts',
-        element: deferred(<ConflictsView />),
       },
       { path: 'w/:workspaceId/purge', element: deferred(<PurgeView />) },
       {

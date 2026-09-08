@@ -3,8 +3,8 @@
  *
  * The design fixes the wording: Saving on this device shows until the draft
  * transaction commits, Saved on this device shows after it, and Saved to
- * server shows only for acknowledged content. Conflict, Storage full, and
- * Save failed cover the failure paths. Labels use words and symbols, never
+ * server shows only for acknowledged content. Storage full and Save failed
+ * cover the failure paths. Labels use words and symbols, never
  * color alone, so the state survives themes and contrast limits.
  */
 import { useEffect, useState, type ReactNode } from 'react';
@@ -26,7 +26,6 @@ export const saveStateLabels: Record<SaveState, string> = {
   'saved-local': 'Saved on this device',
   syncing: 'Syncing',
   'saved-server': 'Saved to server',
-  conflict: 'Conflict',
   'storage-full': 'Storage full',
   'save-failed': 'Save failed',
 };
@@ -37,7 +36,6 @@ export const saveStateSymbols: Record<SaveState, string> = {
   'saved-local': '[saved]',
   syncing: '[syncing]',
   'saved-server': '[synced]',
-  conflict: '[!]',
   'storage-full': '[full]',
   'save-failed': '[error]',
 };

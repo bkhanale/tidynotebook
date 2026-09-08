@@ -49,29 +49,6 @@ await test('the identity connection must use its own role', () => {
   );
 });
 
-await test('a provider needs its client identifier and secret', () => {
-  assert.throws(
-    () =>
-      loadServerConfig(
-        environment({
-          NOTESAPP_OIDC_ISSUER_URL: 'https://issuer.invalid',
-        }),
-      ),
-    (error: unknown) =>
-      error instanceof ConfigError &&
-      error.issues.some((issue) => issue.includes('NOTESAPP_OIDC_CLIENT_ID')),
-  );
-  const configured = loadServerConfig(
-    environment({
-      NOTESAPP_OIDC_ISSUER_URL: 'https://issuer.invalid/',
-      NOTESAPP_OIDC_CLIENT_ID: 'client',
-      NOTESAPP_OIDC_CLIENT_SECRET: 'secret',
-    }),
-  );
-  // A trailing separator would produce a double slash in the discovery URL.
-  assert.equal(configured.oidc?.issuerUrl, 'https://issuer.invalid');
-});
-
 await test('a mail transport needs a sender address', () => {
   assert.throws(
     () =>
@@ -85,14 +62,7 @@ await test('a mail transport needs a sender address', () => {
   assert.equal(loadServerConfig(valid).mail, null);
 });
 
-await test('an installation cannot require a provider it has not configured', () => {
-  assert.throws(
-    () => loadServerConfig(environment({ NOTESAPP_OIDC_REQUIRED: 'true' })),
-    (error: unknown) =>
-      error instanceof ConfigError &&
-      error.issues.some((issue) => issue.includes('NOTESAPP_OIDC_REQUIRED')),
-  );
-  assert.equal(loadServerConfig(valid).oidcRequired, false);
+await test('the session lifetime has a safe default', () => {
   assert.equal(loadServerConfig(valid).sessionMaxAgeSeconds, 604800);
 });
 

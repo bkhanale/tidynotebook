@@ -6,20 +6,8 @@
  * database, and no server package. `@notesapp/storage-browser` implements the
  * port with IndexedDB; the sync engine of Task 11 uses the same port.
  */
-export type {
-  CheckpointComparison,
-  CheckpointDecision,
-  CheckpointReason,
-  CheckpointScheduler,
-  CheckpointSchedulerOptions,
-  TimerHandle,
-} from './checkpoints.ts';
-export {
-  createCheckpointScheduler,
-  defaultIdleMs,
-  defaultMaxIntervalMs,
-  shouldCheckpoint,
-} from './checkpoints.ts';
+export type { CheckpointComparison } from './checkpoints.ts';
+export { shouldCheckpoint } from './checkpoints.ts';
 export type {
   AttachmentPin,
   BranchSubmissionState,
@@ -59,8 +47,6 @@ export type {
   SnapshotRevision,
 } from './local-port.ts';
 export type {
-  BranchInput,
-  BranchResult,
   CommitResult,
   Problem,
   PushOutcome,

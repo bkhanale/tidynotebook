@@ -9,27 +9,19 @@
  *
  * The configuration below is the pinned identity policy of the deployment:
  *
- *   * Email and password sign-in, with public registration disabled. Only the
- *     one-time bootstrap command and an invitation create an account.
+ *   * Email and password sign-in, with public registration disabled. The
+ *     first-run setup operation creates the only account.
  *   * Secure, HttpOnly, SameSite cookies, a session that expires, and a
  *     session that refreshes while it is used.
  *   * Origin and Fetch Metadata checks against the configured origin, which is
  *     the only trusted origin.
  *   * Password hashing and token lifetime owned by Better Auth.
- *   * An administrator configured OpenID Connect provider through the generic
- *     OAuth plugin: discovery, authorization code with PKCE, state, nonce, and
- *     a verified ID token signature, issuer, and audience. The account key is
- *     the issuer and the subject.
- *   * No automatic account linking. Two identities with the same address are
- *     two accounts, so a provider that reports a familiar address can never
- *     take over a local account.
  *   * SMTP password recovery when a transport is configured, and the operator
  *     recovery command when none is.
  */
 import { Buffer } from 'node:buffer';
 import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
-import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { FastifyRequest } from 'fastify';
 import pg from 'pg';
@@ -54,9 +46,6 @@ export const authBasePath = '/api/auth';
  */
 export const betterAuthProtocol = 'better-auth';
 
-/** The identity of the configured OpenID Connect provider. */
-export const oidcProviderId = 'oidc';
-
 /**
  * The exact paths that the Better Auth handler serves.
  *
@@ -72,14 +61,11 @@ export const authRoutes: readonly {
   readonly path: string;
 }[] = [
   { method: 'POST', path: `${authBasePath}/sign-in/email` },
-  { method: 'POST', path: `${authBasePath}/sign-in/social` },
   { method: 'POST', path: `${authBasePath}/sign-out` },
   { method: 'GET', path: `${authBasePath}/get-session` },
   { method: 'POST', path: `${authBasePath}/request-password-reset` },
   { method: 'POST', path: `${authBasePath}/reset-password` },
-  // Browser navigation. The provider redirects here with the authorization
-  // code, and the reset link opens here before the application screen.
-  { method: 'GET', path: `${authBasePath}/callback/:id` },
+  // Browser navigation. The reset link opens here before the application.
   { method: 'GET', path: `${authBasePath}/reset-password/:token` },
   { method: 'GET', path: `${authBasePath}/error` },
 ];
@@ -97,10 +83,8 @@ export type AuthOptions = {
   /**
    * Permits sign-up through the email and password endpoint.
    *
-   * The instance that serves requests never sets this: `disableSignUp` stays
-   * on there as a second control. Only the one-time bootstrap command and the
-   * invitation sign-up path build a separate instance with it, and neither
-   * mounts the sign-up route.
+   * The public route stays unmounted. The first-run setup operation and the
+   * operator bootstrap command use this internal capability.
    */
   readonly allowSignUp?: boolean;
   /**
@@ -136,7 +120,6 @@ function buildAuth(
   database: ReturnType<typeof drizzle>,
 ) {
   const mail = options.mail;
-  const oidc = config.oidc;
   const secure = config.origin.startsWith('https://');
   const logging = authLogLevel(config.logLevel);
   const sink = options.log;
@@ -185,9 +168,7 @@ function buildAuth(
       ]),
     ),
     emailAndPassword: {
-      // An installation that requires the provider has no password sign-in at
-      // all, so a local password cannot be used to bypass the provider.
-      enabled: !config.oidcRequired,
+      enabled: true,
       disableSignUp: options.allowSignUp !== true,
       minPasswordLength: 12,
       maxPasswordLength: 512,
@@ -241,27 +222,6 @@ function buildAuth(
         secure,
       },
     },
-    plugins:
-      oidc === null
-        ? []
-        : [
-            genericOAuth({
-              config: [
-                {
-                  providerId: oidcProviderId,
-                  clientId: oidc.clientId,
-                  clientSecret: oidc.clientSecret,
-                  discoveryUrl: `${oidc.issuerUrl}/.well-known/openid-configuration`,
-                  scopes: ['openid', 'profile', 'email'],
-                  responseType: 'code',
-                  pkce: true,
-                  // Without a verified ID token the provider identity would be
-                  // an unverified claim, so registration stops instead.
-                  requireIdTokenVerification: true,
-                },
-              ],
-            }),
-          ],
   });
 }
 
@@ -305,8 +265,7 @@ export function createAuth(
  * Opens the connection pool of the identity tables.
  *
  * The composition creates one pool and hands it to every instance it builds,
- * so the instance that serves requests and the instance that the invitation
- * path uses never open a second connection set.
+ * so all auth work uses one connection set.
  */
 export function createAuthPool(config: ServerConfig): pg.Pool {
   return new pg.Pool({ connectionString: config.authDatabaseUrl, max: 5 });

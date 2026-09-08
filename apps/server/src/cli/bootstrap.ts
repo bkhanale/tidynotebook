@@ -3,8 +3,7 @@
  *
  * Public registration is disabled, so an installation needs one command that
  * creates the first account. The command refuses to run when an account
- * already exists, so it cannot be used a second time to add an account behind
- * the invitation rules.
+ * already exists, so it cannot create a second account.
  *
  * The password comes from a protected file or from a hidden prompt. It never
  * travels in a command argument and it is never written to standard output.
@@ -49,10 +48,6 @@ export const minimumPasswordLength = 12;
 export async function bootstrapOwner(
   input: BootstrapInput,
 ): Promise<BootstrapResult> {
-  if (input.config.oidcRequired)
-    throw new Error(
-      'notesapp: this installation requires the configured provider. The first account signs in through it.',
-    );
   if (input.password.length < minimumPasswordLength)
     throw new Error(
       `notesapp: the password must have at least ${String(minimumPasswordLength)} characters.`,
@@ -64,9 +59,7 @@ export async function bootstrapOwner(
   const auth = createAuth(input.config, { mail: null, allowSignUp: true });
   try {
     if (await identity.hasAccount())
-      throw new Error(
-        'notesapp: an account already exists. Invite further accounts instead.',
-      );
+      throw new Error('notesapp: the single user already exists.');
     const created: unknown = await auth.auth.api.signUpEmail({
       body: {
         email: input.email,

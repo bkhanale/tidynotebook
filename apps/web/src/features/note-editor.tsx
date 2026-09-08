@@ -2,17 +2,15 @@
  * The one-pane note editor screen.
  *
  * One mounted `NoteEditor` owns exactly one CodeMirror view and one working
- * copy. Editor changes flow into `LocalStore.saveDraft` within about 120 ms
- * and into immutable checkpoints through the shared scheduler: 750 ms idle,
- * every 30 s of continuous editing, Save, and file leave. The React tree may
- * rerender and the theme may change as often as it wants; neither replaces
- * the editor document, so undo history, IME composition, selection, and
- * clipboard content survive them.
+ * copy. Editor changes flow into `LocalStore.saveDraft` within about 120 ms.
+ * Only an explicit Save creates an immutable revision and sends it to the
+ * server. The React tree may rerender and the theme may change as often as it
+ * wants. Neither action replaces the editor document, so undo history, IME
+ * composition, selection, and clipboard content survive them.
  *
- * File identity follows the local-first rule. Edits, renames, and deletes
- * are drafts and checkpoints; the foreground sync engine submits them with
- * generated operations. This screen never calls `fetch` and never builds a
- * request URL by hand.
+ * File identity follows the local-first rule. Edits and renames are drafts.
+ * Save and Delete create versions that the foreground sync engine submits.
+ * This screen never calls `fetch` and never builds a request URL by hand.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router';
@@ -23,9 +21,7 @@ import {
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import {
-  createCheckpointScheduler,
   isLocalStorageError,
-  type CheckpointScheduler,
   type Draft,
   type FileSaveSnapshot,
   type LocalStore,
@@ -35,14 +31,11 @@ import {
 import {
   createEditor,
   setEditorReadOnly,
-  setEditorRich,
   setEditorTheme,
   type EditorView,
   type LinkTarget,
-  type RichWidgetResolvers,
 } from '@notesapp/editor';
 import {
-  AlertCircleIcon,
   Badge,
   Button,
   CheckIcon,
@@ -51,7 +44,6 @@ import {
 } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { canWrite } from './workspaces.tsx';
-import { createAttachmentLoader } from './attachment-content.ts';
 import { createDiagramFrame } from '../diagram/frame.ts';
 import { copyText } from '../platform.ts';
 import { stableNoteLink, type StableLinkRequest } from './search.tsx';
@@ -87,23 +79,8 @@ function recordTiming(name: string, startedAt: number): void {
  */
 const diagramFramePath = '/src/diagram/frame.html';
 
-/** Attachment revision references in stored Markdown. */
-const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
-
 /** Largest pasted file the editor uploads directly, matching the server cap. */
 const maxPastedBytes = 20 * 1024 * 1024;
-
-/** The revision IDs referenced by one Markdown source, deduplicated. */
-function extractAttachmentIds(text: string): string[] {
-  const found: string[] = [];
-  attachmentReferencePattern.lastIndex = 0;
-  for (;;) {
-    const match = attachmentReferencePattern.exec(text);
-    if (match === null) return found;
-    const id = match[1] ?? '';
-    if (id !== '' && !found.includes(id)) found.push(id);
-  }
-}
 
 /** Makes a pasted file name safe for an attachment path segment. */
 function sanitizeAttachmentName(name: string): string {
@@ -114,24 +91,6 @@ function sanitizeAttachmentName(name: string): string {
   return cleaned === '' || cleaned === '.' || cleaned === '..'
     ? 'pasted-image'
     : cleaned;
-}
-
-/**
- * Reads the Mermaid source out of one fenced widget source.
- *
- * Drops the opening fence line and the closing fence line, keeping the inner
- * text verbatim for the isolated frame.
- */
-function diagramInnerSource(fence: string): string {
-  const lines = fence.split('\n');
-  lines.shift();
-  while (lines.length > 0) {
-    const last = lines.at(-1) ?? '';
-    const trimmed = last.trim();
-    if (trimmed === '' || /^(```+|~~~+)/.test(trimmed)) lines.pop();
-    else break;
-  }
-  return lines.join('\n');
 }
 
 /** Safety refresh when browser invalidation messages are unavailable. */
@@ -177,14 +136,19 @@ export function NoteEditor({
   const isDeletedRef = useRef(false);
   const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const previewRef = useRef<HTMLElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
-  const schedulerRef = useRef<CheckpointScheduler | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
   const pathRef = useRef(initialPath);
   const sequenceRef = useRef(0);
   const [path, setPath] = useState(initialPath);
   const [bufferText, setBufferText] = useState(initialText);
+  const [viewMode, setViewMode] = useState<'write' | 'preview'>(
+    readOnly ? 'preview' : 'write',
+  );
+  const [renderedHtml, setRenderedHtml] = useState('');
+  const [renderError, setRenderError] = useState('');
   const [draftPending, setDraftPending] = useState(false);
   const [saveSnapshot, setSaveSnapshot] = useState<FileSaveSnapshot | null>(
     null,
@@ -193,22 +157,14 @@ export function NoteEditor({
     useState<LocalStorageErrorKind | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pasteNotice, setPasteNotice] = useState('');
-  const [attachmentUrls, setAttachmentUrls] = useState<
-    ReadonlyMap<string, string>
-  >(new Map());
-  const [mathReady, setMathReady] = useState(false);
   const workingCopyId = useMemo(
     () => initialWorkingCopyId ?? generateUUID(),
     [initialWorkingCopyId],
   );
-  const mathRenderRef = useRef<
-    ((source: string, display: boolean) => string) | null
-  >(null);
-  const ownedUrlsRef = useRef<
-    Map<string, { url: string; dispose: () => void }>
-  >(new Map());
-  const loaderRef = useRef(createAttachmentLoader(workspaceId));
-  loaderRef.current = createAttachmentLoader(workspaceId);
+
+  useEffect(() => {
+    setViewMode(readOnly ? 'preview' : 'write');
+  }, [readOnly]);
 
   const live = useRef({
     store,
@@ -249,7 +205,7 @@ export function NoteEditor({
     };
   };
 
-  /** Re-reads the queue so the status names conflicts and acknowledgments. */
+  /** Re-reads the queue so the status reports pending and accepted saves. */
   const refreshQueue = useRef((): Promise<void> => Promise.resolve());
   refreshQueue.current = async (): Promise<void> => {
     const current = live.current;
@@ -262,7 +218,7 @@ export function NoteEditor({
       setSaveSnapshot(snapshot);
     } catch {
       // Queue reads are feedback only. A failure here must not disturb the
-      // buffer, the draft, or the checkpoint timers.
+      // buffer, the draft, or the draft timer.
     }
   };
 
@@ -310,7 +266,7 @@ export function NoteEditor({
       try {
         const entry = await current.store.checkpoint(
           buildDraft(isDeleting),
-          null,
+          isDeleting ? null : 'Manual save',
         );
         callbacks.current.onQueued?.(entry);
         setStorageError(null);
@@ -329,9 +285,7 @@ export function NoteEditor({
     return run;
   };
 
-  // The checkpoint scheduler of this working copy. Real timers drive the
-  // design's 750 ms idle and 30 s interval rules through the shared pure
-  // scheduler from the sync package.
+  // Stable links enter the current editor selection as normal Markdown.
   useEffect(() => {
     const insertStableLink = (event: Event): void => {
       const detail = (event as CustomEvent<StableLinkRequest>).detail;
@@ -362,17 +316,6 @@ export function NoteEditor({
   }, [readOnly]);
 
   useEffect(() => {
-    const scheduler = createCheckpointScheduler({
-      now: () => Date.now(),
-      setTimer: (callback, delayMs) => window.setTimeout(callback, delayMs),
-      clearTimer: (handle) => {
-        window.clearTimeout(handle as number);
-      },
-      onCheckpoint: () => {
-        void checkpointNow.current();
-      },
-    });
-    schedulerRef.current = scheduler;
     void refreshQueue.current();
     const unsubscribe = live.current.store.subscribe((change) => {
       const current = live.current;
@@ -393,118 +336,51 @@ export function NoteEditor({
         window.clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
-      // The leave-file checkpoint. Drafts already hold the text, so even if
-      // this late write loses a race the queued checkpoints stay complete.
-      scheduler.stop();
-      if (!isDeletedRef.current) {
-        void checkpointNow.current();
-      }
-      schedulerRef.current = null;
     };
   }, [workingCopyId]);
 
-  // The KaTeX renderer loads after the first paint, so the initial bundle
-  // stays inside its budget. Widgets show a loading placeholder until it
-  // arrives; the rich compartment below refreshes them without touching the
-  // document. The chunk is retained for later offline precaching.
+  // The shared CommonMark and GFM pipeline owns all preview rendering. This
+  // avoids a second, incomplete Markdown implementation in the note screen.
   useEffect(() => {
     let cancelled = false;
-    void import('@notesapp/markdown').then((module) => {
-      if (cancelled) return;
-      mathRenderRef.current = module.renderMath;
-      setMathReady(true);
-    });
+    void import('@notesapp/markdown')
+      .then((module) =>
+        module.renderMarkdown(bufferText, {
+          attachmentHref: (revisionId) =>
+            `/api/workspaces/${workspaceId}/attachments/${revisionId}`,
+        }),
+      )
+      .then((html) => {
+        if (cancelled) return;
+        setRenderedHtml(html);
+        setRenderError('');
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRenderedHtml('');
+        setRenderError('This note could not be rendered. Its source is safe.');
+      });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [bufferText, workspaceId]);
 
-  // Resolves attachment revision IDs in the current text to local object
-  // URLs through the generated binary operation. Old revision selections
-  // load their own bytes. URLs that leave the text are revoked, and every
-  // remaining URL is revoked when the working copy closes.
+  // Mermaid stays in an isolated frame. The shared renderer emits inert
+  // placeholders, which this effect replaces only after safe HTML exists.
   useEffect(() => {
-    const loader = loaderRef.current;
-    const wanted = extractAttachmentIds(bufferText);
-    const owned = ownedUrlsRef.current;
-    for (const [id, entry] of owned) {
-      if (!wanted.includes(id)) {
-        entry.dispose();
-        owned.delete(id);
-      }
+    const preview = previewRef.current;
+    if (preview === null || viewMode !== 'preview') return;
+    for (const placeholder of preview.querySelectorAll<HTMLElement>(
+      'pre[data-diagram="mermaid"]',
+    )) {
+      const frame = createDiagramFrame({
+        source: placeholder.textContent ?? '',
+        theme: themeRef.current,
+        framePath: diagramFramePath,
+      }).element;
+      placeholder.replaceWith(frame);
     }
-    if (wanted.every((id) => owned.has(id))) {
-      setAttachmentUrls(
-        new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
-      );
-      return;
-    }
-    let cancelled = false;
-    const controller = new AbortController();
-    void (async (): Promise<void> => {
-      for (const id of wanted) {
-        if (cancelled || owned.has(id)) continue;
-        try {
-          const loaded = await loader.loadAttachment(id, controller.signal);
-          if (cancelled) {
-            loaded.dispose();
-            continue;
-          }
-          owned.set(id, { url: loaded.url, dispose: loaded.dispose });
-        } catch {
-          // A missing or denied revision stays a fallback in its widget;
-          // the text itself is untouched.
-        }
-      }
-      if (!cancelled)
-        setAttachmentUrls(
-          new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
-        );
-    })();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [workspaceId, bufferText]);
-
-  // Revokes every remaining object URL when the working copy closes.
-  useEffect(
-    () => () => {
-      for (const entry of ownedUrlsRef.current.values()) entry.dispose();
-      ownedUrlsRef.current.clear();
-    },
-    [],
-  );
-
-  /** The resolvers the widget extension renders with right now. */
-  const richResolvers = useMemo<RichWidgetResolvers>(
-    () => ({
-      renderMath:
-        mathRenderRef.current === null
-          ? undefined
-          : (source: string, display: boolean): string => {
-              const render = mathRenderRef.current;
-              if (render === null) throw new Error('Math is still loading.');
-              return render(source, display);
-            },
-      resolveAttachment: (revisionId: string): string | null =>
-        attachmentUrls.get(revisionId) ?? null,
-      createDiagram: (fence: string): HTMLElement =>
-        createDiagramFrame({
-          source: diagramInnerSource(fence),
-          theme: themeRef.current,
-          framePath: diagramFramePath,
-        }).element,
-    }),
-    [attachmentUrls, mathReady, resolved],
-  );
-
-  // Resolver changes reconfigure one compartment, keeping document, undo,
-  // selection, and composition exactly where they are.
-  useEffect(() => {
-    const view = viewRef.current;
-    if (view !== null) setEditorRich(view, richResolvers);
-  }, [richResolvers]);
+  }, [renderedHtml, resolved, viewMode]);
 
   // One editor instance per working copy. This effect never reruns for text,
   // path, or theme changes: those travel through transactions, the store, or
@@ -528,7 +404,6 @@ export function NoteEditor({
             saveTimerRef.current = null;
             void saveDraftNow.current();
           }, draftSaveDelayMs);
-          schedulerRef.current?.onInput();
         }
         recordTiming('notesapp.typing-handler', startedAt);
       },
@@ -670,7 +545,6 @@ export function NoteEditor({
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    schedulerRef.current?.stop();
     void (async (): Promise<void> => {
       sequenceRef.current += 1;
       try {
@@ -710,7 +584,6 @@ export function NoteEditor({
                   saveTimerRef.current = null;
                   void saveDraftNow.current();
                 }, draftSaveDelayMs);
-                schedulerRef.current?.onInput();
               }
             }}
           />
@@ -725,12 +598,32 @@ export function NoteEditor({
 
           {!readOnly ? (
             <div className="notes-doc-actions">
+              <div
+                className="notes-view-switch"
+                role="group"
+                aria-label="Note view"
+              >
+                <Button
+                  variant={viewMode === 'write' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('write')}
+                >
+                  Write
+                </Button>
+                <Button
+                  variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
+                  size="sm"
+                  onClick={() => setViewMode('preview')}
+                >
+                  Preview
+                </Button>
+              </div>
               <Button
-                variant="secondary"
+                variant="primary"
                 size="sm"
                 icon={<CheckIcon size={14} />}
-                label="Save a checkpoint now"
-                title="Save checkpoint (Ctrl+S)"
+                label="Save this note"
+                title="Save (Ctrl+S)"
                 onClick={() => {
                   void (async (): Promise<void> => {
                     if (saveTimerRef.current !== null) {
@@ -781,31 +674,14 @@ export function NoteEditor({
               )}
             </div>
           ) : (
-            <Badge variant="default">Read-only</Badge>
+            <Badge variant="default">Preview</Badge>
           )}
         </div>
       </div>
 
-      {saveState === 'conflict' ? (
-        <div className="notes-conflict-alert" role="alert">
-          <div className="notes-conflict-alert-content">
-            <AlertCircleIcon size={16} />
-            <span>
-              Save conflict detected. The server contains newer changes that
-              conflict with your edits.
-            </span>
-          </div>
-          <Link
-            to={`/w/${workspaceId}/conflicts?fileId=${fileId}`}
-            className="notes-btn notes-btn-secondary notes-btn-sm"
-          >
-            Resolve conflict
-          </Link>
-        </div>
-      ) : null}
-
       <div
         ref={containerRef}
+        className={viewMode === 'write' ? '' : 'notes-editor-hidden'}
         role="textbox"
         aria-label={`Note ${path}`}
         aria-readonly={readOnly}
@@ -825,6 +701,29 @@ export function NoteEditor({
           }
         }}
       />
+      {viewMode === 'preview' ? (
+        renderError === '' ? (
+          <article
+            ref={previewRef}
+            className="notes-markdown"
+            onClick={(event): void => {
+              const link = (event.target as HTMLElement).closest('a');
+              const href = link?.getAttribute('href') ?? '';
+              const match = /^\/notes\/([0-9a-f-]{36})(#[A-Za-z0-9_-]+)?$/.exec(
+                href,
+              );
+              if (match === null) return;
+              event.preventDefault();
+              callbacks.current.onOpenLink?.({ kind: 'url', target: href });
+            }}
+            dangerouslySetInnerHTML={{ __html: renderedHtml }}
+          />
+        ) : (
+          <p className="notes-status-error" role="alert">
+            {renderError}
+          </p>
+        )
+      ) : null}
       {pasteNotice !== '' ? <StatusRegion message={pasteNotice} /> : null}
     </div>
   );

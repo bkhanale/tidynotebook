@@ -30,7 +30,6 @@ import {
   getRevision,
   getSnapshotPage,
   startSnapshot,
-  submitBranch,
 } from '@notesapp/api-client';
 import {
   generateUUID,
@@ -45,7 +44,6 @@ import { isLocalStorageError } from './local-port.ts';
 import {
   SyncFailedError,
   pushQueue,
-  type BranchInput,
   type Problem,
   type QueueNetwork,
   type ServiceOutcome,
@@ -511,27 +509,6 @@ function createOperations(
           })),
         },
       };
-    },
-    async submitBranch(
-      input: BranchInput,
-      signal: AbortSignal,
-    ): Promise<ServiceOutcome<{ readonly revisionIds: readonly string[] }>> {
-      const body = {
-        mutationId: input.mutationId,
-        deviceId: input.deviceId,
-        conflictGroupId: input.conflictGroupId,
-        expectedHeads: { ...input.expectedHeads },
-        revisions: input.revisions.map(toRevisionBody),
-      };
-      const sent = await submitBranch({
-        headers: extraHeaders(),
-        path: { workspaceId: input.workspaceId },
-        body,
-        signal,
-      });
-      if (sent.error !== undefined || sent.data === undefined)
-        return { ok: false, problem: toProblem(sent.error, sent.response) };
-      return { ok: true, value: { revisionIds: [...sent.data.revisionIds] } };
     },
     async start(signal: AbortSignal) {
       const sent = await startSnapshot({

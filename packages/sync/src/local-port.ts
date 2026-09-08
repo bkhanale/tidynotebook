@@ -481,9 +481,8 @@ export type LocalStore = {
    * when the checkpoint is suppressed because the content, the path, and the
    * deletion state are unchanged and no message was given.
    *
-   * When another working copy of the same file already advanced the local
-   * head, the new checkpoint is a divergent tip: a branch is recorded and the
-   * local head does not move.
+   * A new checkpoint always becomes the local head. The server rebases it on
+   * the current accepted head when another save reached the server first.
    */
   checkpoint(draft: Draft, message: string | null): Promise<QueueEntry | null>;
 

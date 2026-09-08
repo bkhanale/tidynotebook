@@ -60,9 +60,6 @@ import { mergeFileSummaries, useLocalQuery } from '../local-state.ts';
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
 }));
-const SharingPanel = lazy(async () => ({
-  default: (await import('./sharing.tsx')).SharingPanel,
-}));
 
 /** One page of files merged into a full list. */
 async function loadAllFiles(
@@ -748,7 +745,7 @@ export function Shell(): ReactNode {
   );
 }
 
-/** One workspace: files, membership, and owner controls. */
+/** One workspace and its files. */
 export function WorkspaceView(): ReactNode {
   const params = useParams();
   const workspaceId =
@@ -1028,11 +1025,6 @@ export function NoteView(): ReactNode {
           <HistoryIcon size={14} />
           <span>History and checkpoints</span>
         </Link>
-        {role === 'owner' || role === 'admin' ? (
-          <Suspense fallback={null}>
-            <SharingPanel workspaceId={workspaceId} fileId={fileId} />
-          </Suspense>
-        ) : null}
       </div>
       <Suspense fallback={<StatusRegion message="Loading the editor." />}>
         <NoteEditorLoader

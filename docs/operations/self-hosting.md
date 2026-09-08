@@ -1,8 +1,8 @@
 # Self-hosting and recovery
 
-NotesApp runs as one application service and one PostgreSQL service. A one-shot service applies database migrations before the application starts. The application serves the web app, REST API, authentication routes, public shares, and MCP routes on one origin.
+NotesApp runs as one application service and one PostgreSQL service. A one-shot service applies database migrations before the application starts. The application serves the web app, REST API, authentication routes, and MCP routes on one origin.
 
-Put an HTTPS reverse proxy in front of `127.0.0.1:3000`. Do not publish the PostgreSQL port. The Compose database network is private. The application also uses a second network for OIDC, SMTP, and other required outbound traffic.
+Put an HTTPS reverse proxy in front of `127.0.0.1:3000`. Do not publish the PostgreSQL port. The Compose database network is private. The application uses a second network for optional SMTP and other required outbound traffic.
 
 For temporary access on a trusted local network, bind the application to all
 interfaces and use the local-network URL as its origin:
@@ -69,7 +69,7 @@ Create the directory named by `NOTESAPP_SECRETS_DIR`. Keep it outside the reposi
 
 The migration URL can use the initial PostgreSQL administrator for the first installation. The migration creates the restricted application roles and sets their passwords. Do not give either application role migration rights.
 
-Optional SMTP URLs and OIDC client secrets can use `NOTESAPP_SMTP_URL_FILE` and `NOTESAPP_OIDC_CLIENT_SECRET_FILE`. Add these files as Compose secrets in an operator override file. Do not put credentials in `.env`, process arguments, logs, or Git.
+Optional SMTP URLs can use `NOTESAPP_SMTP_URL_FILE`. Add these files as Compose secrets in an operator override file. Do not put credentials in `.env`, process arguments, logs, or Git.
 
 Validate and start the installation:
 
@@ -81,6 +81,11 @@ docker compose ps
 ```
 
 Compose waits for PostgreSQL, runs the migration service once, and then starts the application. Startup fails when a required secret file, storage mount, database connection, or migration is not usable.
+
+Open the web application after the first startup. Enter the email address and
+password for the single user. The setup operation is available only until this
+account exists. Use `pnpm owner:bootstrap` only when an unattended installation
+must create the same first account before a browser opens.
 
 ## Health and readiness
 
@@ -175,9 +180,9 @@ If a volume key or backup key is unavailable, stop. Do not create a replacement 
 
 Structured request logs contain the request ID, method, redacted URL, status, and duration. They do not contain headers, cookies, credentials, request bodies, note text, search text, query values, or public-share tokens.
 
-`GET /metrics` returns Prometheus text by default. It reports save failures, conflicts, authentication failures, attachment storage bytes, backup age, and HTTP request counts. Send `Accept: application/json` for JSON output. Restrict this route at the reverse proxy if operational metrics are private.
+`GET /metrics` returns Prometheus text by default. It reports save failures, authentication failures, attachment storage bytes, backup age, and HTTP request counts. Send `Accept: application/json` for JSON output. Restrict this route at the reverse proxy if operational metrics are private.
 
-Alert on a degraded readiness result, repeated save failures, repeated authentication failures, high storage use, unresolved conflict growth, and backup age greater than the scheduled interval.
+Alert on a degraded readiness result, repeated save failures, repeated authentication failures, high storage use, and backup age greater than the scheduled interval.
 
 ## Upgrade and rollback
 

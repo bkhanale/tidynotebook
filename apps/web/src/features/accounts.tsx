@@ -1,22 +1,19 @@
 /**
- * Account screens: login, OIDC redirect, invitation acceptance, and settings.
+ * Account screens: first-run setup, login, and settings.
  *
- * Every action calls a generated account or auth operation. The OIDC flow
- * starts through `signInWithProvider` and continues as browser navigation to
- * the address it returns; the provider callback itself is server navigation,
- * not a generated call. Theme changes apply locally first and sync in the
- * background through the provider in `app.tsx`.
+ * Theme changes apply locally first and sync in the background through the
+ * provider in `app.tsx`.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Navigate, useNavigate } from 'react-router';
 import {
-  acceptInvitation,
+  createOwner,
   createAgentToken,
+  getSetupStatus,
   listAgentTokens,
   listWorkspaces,
   revokeAgentToken,
   signInWithPassword,
-  signInWithProvider,
   type Action,
   type AgentToken,
 } from '@notesapp/api-client';
@@ -55,7 +52,7 @@ export function RequireSession({
   return children;
 }
 
-/** Email and password login plus OIDC start. */
+/** First-run setup and email-password login. */
 export function LoginPage(): ReactNode {
   const session = useSession();
   const navigate = useNavigate();
@@ -63,11 +60,30 @@ export function LoginPage(): ReactNode {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [initialized, setInitialized] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSetupStatus().then((result) => {
+      if (cancelled) return;
+      if (result.error !== undefined || result.data === undefined) {
+        setError(problemMessage(result.error));
+        return;
+      }
+      setInitialized(result.data.initialized);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function submitPassword(): Promise<void> {
     setBusy(true);
     setError('');
-    const result = await signInWithPassword({ body: { email, password } });
+    const result =
+      initialized === false
+        ? await createOwner({ body: { email, password } })
+        : await signInWithPassword({ body: { email, password } });
     setBusy(false);
     if (result.error !== undefined || result.data === undefined) {
       const status =
@@ -89,7 +105,11 @@ export function LoginPage(): ReactNode {
         code === 'unauthenticated' ||
         code === 'invalid_request'
       ) {
-        setError('Incorrect email or password.');
+        setError(
+          initialized === false
+            ? 'The account could not be created. Use at least 12 password characters.'
+            : 'Incorrect email or password.',
+        );
         return;
       }
       setError(problemMessage(result.error));
@@ -97,30 +117,6 @@ export function LoginPage(): ReactNode {
     }
     session.refresh();
     void navigate('/');
-  }
-
-  async function startOidc(): Promise<void> {
-    setBusy(true);
-    setError('');
-    const result = await signInWithProvider({
-      body: {
-        provider: 'oidc',
-        callbackURL: '/auth/signed-in',
-        errorCallbackURL: '/login',
-        newUserCallbackURL: '/auth/signed-in',
-      },
-    });
-    setBusy(false);
-    if (result.error !== undefined || result.data === undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    const url = result.data.url;
-    if (typeof url !== 'string' || url === '') {
-      setError('The provider returned no address to open.');
-      return;
-    }
-    window.location.assign(url);
   }
 
   if (session.status === 'signed-in') return <Navigate to="/" replace />;
@@ -135,7 +131,7 @@ export function LoginPage(): ReactNode {
           <span>Notesapp</span>
         </div>
         <h1 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '20px' }}>
-          Sign in to notesapp
+          {initialized === false ? 'Create your account' : 'Sign in'}
         </h1>
         <form
           onSubmit={(event): void => {
@@ -157,7 +153,9 @@ export function LoginPage(): ReactNode {
             label="Password"
             value={password}
             inputType="password"
-            autoComplete="current-password"
+            autoComplete={
+              initialized === false ? 'new-password' : 'current-password'
+            }
             required
             onChange={setPassword}
           />
@@ -167,174 +165,21 @@ export function LoginPage(): ReactNode {
             </p>
           ) : null}
           <div style={{ marginTop: '16px' }}>
-            <Button type="submit" disabled={busy} style={{ width: '100%' }}>
-              {busy ? 'Signing in.' : 'Sign in'}
-            </Button>
-          </div>
-        </form>
-        <div className="notes-auth-divider">
-          <span>single sign-on</span>
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <p
-            style={{
-              margin: 0,
-              fontSize: '0.8125rem',
-              color: 'var(--notes-text-muted)',
-            }}
-          >
-            When the administrator configured a provider, start there instead.
-          </p>
-          <Button
-            variant="secondary"
-            disabled={busy}
-            onClick={() => void startOidc()}
-            style={{ width: '100%' }}
-          >
-            Continue with the configured provider
-          </Button>
-          <p
-            style={{
-              textAlign: 'center',
-              fontSize: '0.8125rem',
-              margin: '8px 0 0',
-            }}
-          >
-            <Link to="/invite">Have an invitation token? Accept it here.</Link>
-          </p>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Landing page after an OIDC round trip; refreshes the session once. */
-export function SignedInLanding(): ReactNode {
-  const session = useSession();
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    session.refresh();
-  }, []);
-
-  useEffect(() => {
-    if (session.status === 'signed-in') void navigate('/');
-  }, [session.status, navigate]);
-
-  if (session.status === 'signed-out')
-    return (
-      <main>
-        <h1>Sign-in did not complete</h1>
-        <p>The provider returned without a session on this device.</p>
-        <p>
-          <Link to="/login">Back to sign-in.</Link>
-        </p>
-      </main>
-    );
-  return (
-    <main>
-      <StatusRegion message="Finishing sign-in." />
-    </main>
-  );
-}
-
-/** Accepts a workspace invitation with its token. */
-export function InvitePage(): ReactNode {
-  const session = useSession();
-  const [token, setToken] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [accepted, setAccepted] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  async function accept(): Promise<void> {
-    setBusy(true);
-    setError('');
-    const result = await acceptInvitation({
-      body: password === '' ? { token } : { token, password },
-    });
-    setBusy(false);
-    if (result.error !== undefined || result.data === undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    setAccepted(
-      `Joined workspace ${result.data.workspaceId} as ${result.data.role}.`,
-    );
-    session.refresh();
-  }
-
-  return (
-    <div className="notes-auth-page">
-      <div className="notes-auth-card">
-        <div className="notes-auth-logo">
-          <span className="notes-brand-badge" aria-hidden="true">
-            <WorkspaceIcon size={18} />
-          </span>
-          <span>Notesapp</span>
-        </div>
-        <h1 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '16px' }}>
-          Accept workspace invitation
-        </h1>
-        {session.status === 'signed-out' ? (
-          <p style={{ fontSize: '0.84rem', color: 'var(--notes-text-muted)' }}>
-            Without an account, add a password to create one with the
-            invitation. Under a provider-only installation, sign in first with{' '}
-            <Link to="/login">the provider</Link> instead.
-          </p>
-        ) : null}
-        <form
-          onSubmit={(event): void => {
-            event.preventDefault();
-            void accept();
-          }}
-        >
-          <TextField
-            id="invite-token"
-            label="Invitation token"
-            value={token}
-            required
-            onChange={setToken}
-          />
-          {session.status === 'signed-out' ? (
-            <TextField
-              id="invite-password"
-              label="New password (leave empty when signing in first)"
-              value={password}
-              inputType="password"
-              autoComplete="new-password"
-              onChange={setPassword}
-            />
-          ) : null}
-          {error !== '' ? (
-            <p className="notes-status-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {accepted !== null ? (
-            <p className="notes-status-ok" role="status">
-              {accepted}
-            </p>
-          ) : null}
-          <div style={{ marginTop: '16px' }}>
             <Button
               type="submit"
-              disabled={busy || token === ''}
+              disabled={busy || initialized === null}
               style={{ width: '100%' }}
             >
-              {busy ? 'Accepting.' : 'Accept invitation'}
+              {busy
+                ? initialized === false
+                  ? 'Creating account.'
+                  : 'Signing in.'
+                : initialized === false
+                  ? 'Create account'
+                  : 'Sign in'}
             </Button>
           </div>
         </form>
-        <p
-          style={{
-            textAlign: 'center',
-            fontSize: '0.8125rem',
-            marginTop: '16px',
-          }}
-        >
-          <Link to="/login">Back to sign in</Link>
-        </p>
       </div>
     </div>
   );

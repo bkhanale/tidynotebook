@@ -1,8 +1,8 @@
 /**
  * Line comparison in a Web Worker with a responsiveness budget.
  *
- * History and conflict screens compare the current version against an old
- * revision or a branch tip through {@link requestDiff}. The jsdiff comparison
+ * History screens compare the current version against an old revision
+ * through {@link requestDiff}. The jsdiff comparison
  * itself lives in `@notesapp/editor` and runs inside the worker below, so a
  * large comparison never blocks typing or rendering. The worker source is
  * bundled from `diff-worker-impl.ts` through Vite's worker import; the

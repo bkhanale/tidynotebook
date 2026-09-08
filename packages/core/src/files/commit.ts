@@ -17,7 +17,7 @@
  *   same digest    -> return the stored outcome
  *   other digest   -> mutation_reused
  * check purge markers                                       (one query)
- * check paths, the revision graph, and every expected head
+ * check paths and rebase each stale update on its current head
  * check every Markdown text and its digest
  * accept: lock the affected files in identifier order, then write content,
  *   revisions, heads, indexes, cursor, and receipt            (one write)
@@ -117,7 +117,7 @@ async function knownRevisions(
 }
 
 /**
- * Compares every expected head with the accepted head.
+ * Rebases each stale update chain on the accepted head.
  *
  * The changeset must state a precondition for every file it changes: either
  * the head the client saw, or `null` for a file that must not exist yet. A
@@ -129,12 +129,16 @@ async function knownRevisions(
  * A precondition for a file that the changeset does not change is rejected as
  * well. Such a file is not locked by this transaction, so the answer would not
  * mean anything by the time the changeset commits.
+ *
+ * A create and an update are different operations. A create that finds an
+ * existing head, or an update that finds no head, fails instead of changing
+ * operation type during a rebase.
  */
-async function checkHeads(
+async function rebaseHeads(
   tx: WorkspaceTransaction,
   input: ChangesetInput,
   fileIds: readonly string[],
-): Promise<Result<void>> {
+): Promise<Result<ChangesetInput>> {
   const expected = input.expectedHeads;
   const changed = new Set(fileIds);
   for (const fileId of Object.keys(expected))
@@ -142,11 +146,28 @@ async function checkHeads(
   const missing = fileIds.filter((fileId) => !Object.hasOwn(expected, fileId));
   if (missing.length > 0) return fail('invalid_graph', missing);
   const heads = await tx.heads(fileIds);
-  const stale = fileIds.filter(
-    (fileId) => (heads.get(fileId) ?? null) !== (expected[fileId] ?? null),
-  );
-  if (stale.length > 0) return fail('stale_head', stale);
-  return ok(undefined);
+  const changedOperation = fileIds.filter((fileId) => {
+    const current = heads.get(fileId) ?? null;
+    const submitted = expected[fileId] ?? null;
+    return current !== submitted && (current === null || submitted === null);
+  });
+  if (changedOperation.length > 0) return fail('stale_head', changedOperation);
+  const seen = new Set<string>();
+  const revisions = input.revisions.map((revision) => {
+    if (seen.has(revision.fileId)) return revision;
+    seen.add(revision.fileId);
+    const current = heads.get(revision.fileId) ?? null;
+    const submitted = expected[revision.fileId] ?? null;
+    if (current === submitted) return revision;
+    return { ...revision, parents: current === null ? [] : [current] };
+  });
+  return ok({
+    ...input,
+    expectedHeads: Object.fromEntries(
+      fileIds.map((fileId) => [fileId, heads.get(fileId) ?? null]),
+    ),
+    revisions,
+  });
 }
 
 /**
@@ -233,29 +254,29 @@ export async function commitChangeset(
       const normalized = normalizeRevisions(input);
       if (!normalized.ok) return normalized;
 
+      const rebased = await rebaseHeads(
+        tx,
+        { ...input, revisions: normalized.value },
+        fileIds,
+      );
+      if (!rebased.ok) return rebased;
+
       const graph = validateGraph(
-        normalized.value,
-        await knownRevisions(tx, input),
+        rebased.value.revisions,
+        await knownRevisions(tx, rebased.value),
       );
       if (!graph.ok) return graph;
 
-      const heads = await checkHeads(tx, input, fileIds);
-      if (!heads.ok) return heads;
-
-      const content = await checkContent(normalized.value);
+      const content = await checkContent(rebased.value.revisions);
       if (!content.ok) return content;
 
-      const outcome = await tx.accept(
-        actor,
-        { ...input, revisions: normalized.value },
-        digest,
-      );
+      const outcome = await tx.accept(actor, rebased.value, digest);
       if (!outcome.ok) return outcome;
 
       // The last revision of a file in the submission is its new head, so a file
       // is deleted when that revision is a tombstone.
       const tips = new Map<string, boolean>();
-      for (const revision of normalized.value)
+      for (const revision of rebased.value.revisions)
         tips.set(revision.fileId, revision.deleted);
       const deleted = [...tips.entries()]
         .filter(([, gone]) => gone)

@@ -1,28 +1,19 @@
 /**
- * Handlers for history, checkpoint, branch, restore, and purge operations.
+ * Handlers for history, checkpoint, restore, and purge operations.
  *
  * This module connects the HTTP operations to the core domain services for
  * revisions, branches, and permanent deletion.
  */
 import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type {
-  BranchFilter,
-  BranchResolution,
-  BranchState,
-  Result,
-  WorkspaceStore,
-} from '@notesapp/core';
+import type { Result, WorkspaceStore } from '@notesapp/core';
 import {
   createCheckpoint,
-  listBranches,
   listHistory,
   previewPurge,
   purgeFiles,
   requestDigest,
-  resolveBranches,
   restoreRevision,
-  submitBranch,
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
@@ -30,7 +21,6 @@ import type { HandlerMap, HandlerResult } from './register.ts';
 import { DomainProblemError } from './problem.ts';
 import {
   acceptedBody,
-  acceptedRevisionBody,
   header,
   parseTag,
   readOptionalText,
@@ -38,8 +28,6 @@ import {
   requiredTags,
   revisionTag,
   submittedContent,
-  submittedHeads,
-  submittedRevisions,
 } from './files.ts';
 
 const jsonMediaType = 'application/json';
@@ -50,7 +38,7 @@ function unwrap<T>(result: Result<T>): T {
   throw new DomainProblemError(result.error);
 }
 
-/** Builds the history, branch, checkpoint, restore, and purge handlers. */
+/** Builds the history, checkpoint, restore, and purge handlers. */
 export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
   return {
     listHistory: async (request: FastifyRequest): Promise<HandlerResult> => {
@@ -150,168 +138,6 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
         status: 200,
         mediaType: jsonMediaType,
         body: acceptedBody(outcome),
-      };
-    },
-
-    listBranches: async (request: FastifyRequest): Promise<HandlerResult> => {
-      const actor = requireActor(request).actor;
-      const workspaceId = readText(request.params, 'workspaceId');
-      const fileId = readOptionalText(request.query, 'fileId') ?? undefined;
-      const conflictGroupId =
-        readOptionalText(request.query, 'conflictGroupId') ?? undefined;
-      const stateRaw = readOptionalText(request.query, 'state') ?? undefined;
-      const state =
-        stateRaw === 'unresolved' || stateRaw === 'resolved'
-          ? (stateRaw as BranchState)
-          : undefined;
-
-      const filter: BranchFilter = {
-        ...(fileId ? { fileId } : {}),
-        ...(conflictGroupId ? { conflictGroupId } : {}),
-        ...(state ? { state } : {}),
-      };
-
-      const branches = unwrap(
-        await listBranches(store, actor, workspaceId, filter),
-      );
-
-      return {
-        status: 200,
-        mediaType: jsonMediaType,
-        body: {
-          branches: branches.map((b) => ({
-            id: b.id,
-            workspaceId: b.workspaceId,
-            fileId: b.fileId,
-            baseRevisionId: b.baseRevisionId,
-            tipRevisionId: b.tipRevisionId,
-            conflictGroupId: b.conflictGroupId,
-            state: b.state,
-            createdAt: b.createdAt,
-          })),
-        },
-      };
-    },
-
-    submitBranch: async (request: FastifyRequest): Promise<HandlerResult> => {
-      const actor = requireActor(request).actor;
-      const workspaceId = readText(request.params, 'workspaceId');
-      const body = request.body;
-
-      const mutationId = readText(body, 'mutationId');
-      const deviceId = readText(body, 'deviceId');
-      const conflictGroupId = readText(body, 'conflictGroupId');
-
-      const digest = await requestDigest(
-        'submitBranch',
-        { workspaceId, conflictGroupId },
-        body,
-      );
-
-      const revisions = submittedRevisions(body);
-      const expectedHeads = submittedHeads(body);
-
-      const outcome = unwrap(
-        await submitBranch(
-          store,
-          actor,
-          {
-            workspaceId,
-            mutationId,
-            deviceId,
-            conflictGroupId,
-            expectedHeads,
-            revisions,
-          },
-          digest,
-        ),
-      );
-
-      return {
-        status: 200,
-        mediaType: jsonMediaType,
-        body: {
-          mutationId: outcome.mutationId,
-          conflictGroupId: outcome.conflictGroupId,
-          revisionIds: [...outcome.revisionIds],
-          branches: outcome.branches.map((b) => ({
-            id: b.id,
-            workspaceId: b.workspaceId,
-            fileId: b.fileId,
-            baseRevisionId: b.baseRevisionId,
-            tipRevisionId: b.tipRevisionId,
-            conflictGroupId: b.conflictGroupId,
-            state: b.state,
-            createdAt: b.createdAt,
-          })),
-        },
-      };
-    },
-
-    resolveBranches: async (
-      request: FastifyRequest,
-    ): Promise<HandlerResult> => {
-      const actor = requireActor(request).actor;
-      const workspaceId = readText(request.params, 'workspaceId');
-      const body = request.body;
-
-      const mutationId = readText(body, 'mutationId');
-      const deviceId = readText(body, 'deviceId');
-      const clientTime = readText(body, 'clientTime');
-      const conflictGroupId =
-        readOptionalText(body, 'conflictGroupId') ?? undefined;
-
-      const digest = await requestDigest(
-        'resolveBranches',
-        { workspaceId },
-        body,
-      );
-
-      const rawResolutions = readProperty(body, 'resolutions');
-      if (!Array.isArray(rawResolutions)) {
-        throw new Error('notesapp: the validated body has no resolutions.');
-      }
-
-      const resolutions: BranchResolution[] = rawResolutions.map(
-        (res: unknown) => {
-          const fileId = readText(res, 'fileId');
-          return {
-            fileId,
-            expectedHead: readOptionalText(res, 'expectedHead'),
-            branchTip: readText(res, 'branchTip'),
-            revisionId: readText(res, 'revisionId'),
-            path: readText(res, 'path'),
-            content: submittedContent(res, fileId),
-            deleted: readProperty(res, 'deleted') === true,
-            message: readOptionalText(res, 'message'),
-          };
-        },
-      );
-
-      const outcome = unwrap(
-        await resolveBranches(
-          store,
-          actor,
-          {
-            workspaceId,
-            mutationId,
-            deviceId,
-            clientTime,
-            ...(conflictGroupId ? { conflictGroupId } : {}),
-            resolutions,
-          },
-          digest,
-        ),
-      );
-
-      return {
-        status: 200,
-        mediaType: jsonMediaType,
-        body: {
-          mutationId: outcome.mutationId,
-          revisions: outcome.revisions.map(acceptedRevisionBody),
-          resolvedBranchIds: [...outcome.resolvedBranchIds],
-        },
       };
     },
 

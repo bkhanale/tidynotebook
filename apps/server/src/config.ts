@@ -34,14 +34,6 @@ export type MailConfig = {
   readonly from: string;
 };
 
-/** The administrator configured OpenID Connect provider, when one exists. */
-export type OidcConfig = {
-  /** Issuer URL. Discovery reads `<issuer>/.well-known/openid-configuration`. */
-  readonly issuerUrl: string;
-  readonly clientId: string;
-  readonly clientSecret: string;
-};
-
 /** Validated server configuration. */
 export type ServerConfig = {
   /** Public origin of this deployment, used for cookie and CORS decisions. */
@@ -78,14 +70,6 @@ export type ServerConfig = {
    * is the operator command `pnpm account:recover`.
    */
   readonly mail: MailConfig | null;
-  /** Administrator configured OpenID Connect provider, or `null`. */
-  readonly oidc: OidcConfig | null;
-  /**
-   * Installation policy. When it is true, password sign-in is disabled and
-   * every account signs in through the configured provider. The operator
-   * recovery command refuses to run under this policy.
-   */
-  readonly oidcRequired: boolean;
   /** Life of one browser session, in seconds. */
   readonly sessionMaxAgeSeconds: number;
 };
@@ -125,10 +109,6 @@ const variables = [
 const optionalVariables = [
   'NOTESAPP_SMTP_URL',
   'NOTESAPP_MAIL_FROM',
-  'NOTESAPP_OIDC_ISSUER_URL',
-  'NOTESAPP_OIDC_CLIENT_ID',
-  'NOTESAPP_OIDC_CLIENT_SECRET',
-  'NOTESAPP_OIDC_REQUIRED',
   'NOTESAPP_SESSION_MAX_AGE_S',
 ] as const;
 
@@ -137,7 +117,6 @@ const protectedFiles = {
   NOTESAPP_AUTH_DATABASE_URL: 'NOTESAPP_AUTH_DATABASE_URL_FILE',
   NOTESAPP_AUTH_SECRET: 'NOTESAPP_AUTH_SECRET_FILE',
   NOTESAPP_SMTP_URL: 'NOTESAPP_SMTP_URL_FILE',
-  NOTESAPP_OIDC_CLIENT_SECRET: 'NOTESAPP_OIDC_CLIENT_SECRET_FILE',
 } as const;
 
 type RawConfig = Record<(typeof variables)[number], string> &
@@ -219,19 +198,6 @@ const configSchema: SchemaObject = {
       maxLength: 1024,
     },
     NOTESAPP_MAIL_FROM: { type: 'string', minLength: 3, maxLength: 320 },
-    NOTESAPP_OIDC_ISSUER_URL: {
-      type: 'string',
-      format: 'uri',
-      pattern: '^https?://',
-      maxLength: 512,
-    },
-    NOTESAPP_OIDC_CLIENT_ID: { type: 'string', minLength: 1, maxLength: 256 },
-    NOTESAPP_OIDC_CLIENT_SECRET: {
-      type: 'string',
-      minLength: 1,
-      maxLength: 1024,
-    },
-    NOTESAPP_OIDC_REQUIRED: { type: 'string', enum: ['true', 'false'] },
     NOTESAPP_SESSION_MAX_AGE_S: positiveInteger,
   },
 };
@@ -263,27 +229,10 @@ export function loadServerConfig(
           smtpUrl: raw.NOTESAPP_SMTP_URL,
           from: raw.NOTESAPP_MAIL_FROM ?? '',
         };
-  const oidc =
-    raw.NOTESAPP_OIDC_ISSUER_URL === undefined
-      ? null
-      : {
-          issuerUrl: raw.NOTESAPP_OIDC_ISSUER_URL.replace(/\/+$/, ''),
-          clientId: raw.NOTESAPP_OIDC_CLIENT_ID ?? '',
-          clientSecret: raw.NOTESAPP_OIDC_CLIENT_SECRET ?? '',
-        };
-  const oidcRequired = raw.NOTESAPP_OIDC_REQUIRED === 'true';
   const partial: string[] = [];
   if (mail !== null && mail.from === '')
     partial.push(
       'NOTESAPP_MAIL_FROM: a mail transport also needs a sender address.',
-    );
-  if (oidc !== null && (oidc.clientId === '' || oidc.clientSecret === ''))
-    partial.push(
-      'NOTESAPP_OIDC_CLIENT_ID: a provider also needs a client id and a client secret.',
-    );
-  if (oidcRequired && oidc === null)
-    partial.push(
-      'NOTESAPP_OIDC_REQUIRED: an installation that requires a provider must configure one.',
     );
   if (raw.NOTESAPP_AUTH_DATABASE_URL === raw.NOTESAPP_DATABASE_URL)
     partial.push(
@@ -308,8 +257,6 @@ export function loadServerConfig(
       requestTimeoutMs: Number(raw.NOTESAPP_REQUEST_TIMEOUT_MS),
     },
     mail,
-    oidc,
-    oidcRequired,
     sessionMaxAgeSeconds:
       raw.NOTESAPP_SESSION_MAX_AGE_S === undefined
         ? 60 * 60 * 24 * 7

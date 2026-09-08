@@ -5,7 +5,7 @@
  * Every application call goes through a generated operation function. The
  * tests interleave late commits with page reads to prove that no event is
  * skipped, that pages show captured immutable revisions, and that expiry,
- * revocation, retention, version, purge, and membership rules hold.
+ * retention, version, and purge rules hold.
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
@@ -14,22 +14,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
-  acceptInvitation,
   configureClient,
   createFile,
   getAccount,
   getChanges,
   getRevision,
   getSnapshotPage,
-  inviteMember,
   listHistory,
   listWorkspaces,
   purgeFiles,
-  removeMember,
   signInWithPassword,
   startSnapshot,
   updateFile,
-  updateMember,
 } from '@notesapp/api-client';
 import {
   bootstrapOwner,
@@ -38,7 +34,6 @@ import {
   createAuthProtocol,
   createHandlers,
   createIdentityAdapter,
-  createInvitationAccounts,
   createSyncCleanup,
   loadServerConfig,
   type ServerConfig,
@@ -116,12 +111,6 @@ const adapter = createIdentityAdapter({
   identity,
   origin: config.origin,
 });
-const invitations = createInvitationAccounts(config, {
-  identity,
-  pool: authPool,
-  resolveActor: (request) => adapter.resolveActor(request),
-});
-
 const server = await startTestServer({
   environment: environment(),
   handlers: (value) =>
@@ -129,7 +118,6 @@ const server = await startTestServer({
       store: identity,
       content,
       attachments,
-      invitations,
     }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
@@ -161,32 +149,6 @@ assert.match(ownerAccountId, /^[0-9a-f-]{36}$/);
 const listed = await listWorkspaces({ headers: browser(ownerCookie) });
 const workspaceId = listed.data?.workspaces[0]?.workspaceId ?? '';
 assert.match(workspaceId, /^[0-9a-f-]{36}$/);
-
-// Invite an editor member to verify revoked access and membership events.
-const memberEmail = 'snapshots-editor@notes.invalid';
-const memberPassword = 'editor-password-123456';
-const invited = await inviteMember({
-  headers: browser(ownerCookie),
-  path: { workspaceId },
-  body: { email: memberEmail, role: 'editor' },
-});
-assert.equal(invited.error, undefined);
-const inviteToken = invited.data?.token ?? '';
-assert.ok(inviteToken.length > 0);
-
-const memberAccepted = await acceptInvitation({
-  headers: { origin: 'https://notes.test' },
-  body: { token: inviteToken, password: memberPassword },
-});
-assert.equal(memberAccepted.error, undefined);
-const memberCookie = cookieHeader(
-  responseOf(memberAccepted.response).headers.getSetCookie(),
-);
-assert.ok(memberCookie.length > 0, 'the test needs a member session cookie');
-
-const memberAccount = await getAccount({ headers: browser(memberCookie) });
-const memberAccountId = memberAccount.data?.accountId ?? '';
-assert.match(memberAccountId, /^[0-9a-f-]{36}$/);
 
 /** The client identifiers that every write carries. */
 function mutationIds(): {
@@ -398,36 +360,6 @@ await test('an expired snapshot requires a restart', async () => {
   assert.equal(problemCode(reread.error), 'snapshot_required');
 });
 
-await test('membership changes appear in the incremental stream', async () => {
-  const before = await getChanges({
-    headers: browser(ownerCookie),
-    path: { workspaceId },
-    query: { cursor: snapshotCursor },
-  });
-  assert.equal(before.error, undefined, JSON.stringify(before.error));
-  const at = before.data?.nextCursor ?? snapshotCursor;
-
-  const demote = await updateMember({
-    headers: browser(ownerCookie),
-    path: { workspaceId, accountId: memberAccountId },
-    body: { role: 'viewer' },
-  });
-  assert.equal(demote.error, undefined, JSON.stringify(demote.error));
-
-  const after = await getChanges({
-    headers: browser(ownerCookie),
-    path: { workspaceId },
-    query: { cursor: at },
-  });
-  assert.equal(after.error, undefined, JSON.stringify(after.error));
-  const membership = (after.data?.changes ?? []).find(
-    (row) =>
-      row.entityKind === 'membership' && row.entityId === memberAccountId,
-  );
-  assert.ok(membership !== undefined, 'the role change must be streamed');
-  snapshotCursor = after.data?.nextCursor ?? snapshotCursor;
-});
-
 await test('a purge emits a deletion and invalidates live snapshots', async () => {
   const file = await newFile('sync-purged.md', '# Purged\n');
   const started = await startSnapshot({
@@ -465,30 +397,6 @@ await test('a purge emits a deletion and invalidates live snapshots', async () =
   });
   assert.equal(responseOf(reread.response).status, 410);
   assert.equal(problemCode(reread.error), 'snapshot_required');
-});
-
-await test('a revoked member is denied sync reads', async () => {
-  const removed = await removeMember({
-    headers: browser(ownerCookie),
-    path: { workspaceId, accountId: memberAccountId },
-  });
-  assert.equal(removed.error, undefined, JSON.stringify(removed.error));
-
-  const deniedStart = await startSnapshot({
-    headers: browser(memberCookie),
-    path: { workspaceId },
-    body: { syncVersion: 1 },
-  });
-  assert.notEqual(deniedStart.error, undefined);
-  assert.ok([403, 404].includes(responseOf(deniedStart.response).status));
-
-  const deniedChanges = await getChanges({
-    headers: browser(memberCookie),
-    path: { workspaceId },
-    query: { cursor: snapshotCursor },
-  });
-  assert.notEqual(deniedChanges.error, undefined);
-  assert.ok([403, 404].includes(responseOf(deniedChanges.response).status));
 });
 
 await test('change records expire after 90 days but history is preserved', async () => {

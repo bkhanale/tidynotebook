@@ -9,8 +9,6 @@ import { access, constants } from 'node:fs/promises';
 import pg from 'pg';
 import type { SharingStore, WorkspaceAdminStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
-import type { InvitationAccounts } from '../auth/invitations.ts';
-import type { MailTransport } from '../auth/mail.ts';
 import { readProperty } from '../values.ts';
 import { createAccountHandlers } from './accounts.ts';
 import { createFileHandlers, missingWorkspaceStore } from './files.ts';
@@ -23,7 +21,6 @@ import { createAttachmentHandlers } from './attachments.ts';
 import { createHistoryHandlers } from './history.ts';
 import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
-import { createSharingHandlers } from './sharing.ts';
 
 /**
  * A store that is not there yet.
@@ -65,10 +62,6 @@ export type HandlerDependencies = {
   readonly content?: SharingStore;
   /** The attachment store of the deployment. */
   readonly attachments?: AttachmentStore;
-  /** The invitation sign-up path. */
-  readonly invitations?: InvitationAccounts;
-  /** Mail transport, or `null` when the deployment has none. */
-  readonly mail?: MailTransport | null;
   /** Clock, so a test can decide an expiry. */
   readonly now?: () => Date;
 };
@@ -247,27 +240,11 @@ export function createHandlers(
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSearchHandlers(dependencies.content ?? missingWorkspaceStore()),
-    ...createSharingHandlers(
-      dependencies.content ?? missingWorkspaceStore(),
-      dependencies.attachments ?? missingAttachmentStore(),
-      config.origin,
-      dependencies.now,
-    ),
     ...createAttachmentHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
     ),
-    ...createWorkspaceHandlers(
-      store,
-      {
-        ...(dependencies.now === undefined ? {} : { now: dependencies.now }),
-        ...(dependencies.mail === undefined ? {} : { mail: dependencies.mail }),
-        ...(dependencies.invitations === undefined
-          ? {}
-          : { invitations: dependencies.invitations }),
-      },
-      config.origin,
-    ),
+    ...createWorkspaceHandlers(store),
     getHealth: (): Promise<HandlerResult> =>
       Promise.resolve({
         status: 200,

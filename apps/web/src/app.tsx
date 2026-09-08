@@ -360,10 +360,6 @@ export function useWorkspaceSync(
         setMessage(
           `Saved to server: ${String(notice.mutationIds.length)} change(s).`,
         );
-      else if (notice.kind === 'conflict')
-        setMessage(
-          `A conflict needs review: ${notice.mutationId} (${notice.code}).`,
-        );
       else if (notice.kind === 'preserved')
         setMessage(
           `Local work is preserved: ${notice.mutationId} (${notice.code}).`,

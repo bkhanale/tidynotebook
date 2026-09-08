@@ -14,6 +14,7 @@ import { configureClient, getHealth, getReadiness } from '@notesapp/api-client';
 import { operations } from '@notesapp/api-contract';
 import { createHandlers, loadServerConfig } from '@notesapp/server';
 import {
+  completeTestHandlers,
   LogRecorder,
   startTestServer,
   testEnvironment,
@@ -241,7 +242,9 @@ await test('a cancelled request produces no data', async () => {
 
 await test('every operation has exactly one handler and back', () => {
   const config = loadServerConfig(testEnvironment('/tmp'));
-  const handlerIds = Object.keys(createHandlers(config)).sort();
+  const handlerIds = Object.keys(
+    completeTestHandlers(createHandlers(config)),
+  ).sort();
   // An operation that a protocol library serves has no contract handler. It
   // carries a protocol marker instead, and `registerOperations` mounts it
   // through that adapter's exact path list.

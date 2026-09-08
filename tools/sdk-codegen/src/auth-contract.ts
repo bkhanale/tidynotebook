@@ -271,35 +271,6 @@ export function authContractSchemas(): Json {
         },
       },
     },
-    AuthProviderSignIn: {
-      type: 'object',
-      description: 'The configured provider to sign in with.',
-      additionalProperties: false,
-      required: ['provider'],
-      properties: {
-        provider: {
-          type: 'string',
-          description: 'Identifier of the configured provider.',
-          minLength: 1,
-          maxLength: 64,
-        },
-        callbackURL: {
-          type: 'string',
-          description: 'Address to open after a completed sign-in.',
-          maxLength: 2048,
-        },
-        errorCallbackURL: {
-          type: 'string',
-          description: 'Address to open after a refused sign-in.',
-          maxLength: 2048,
-        },
-        newUserCallbackURL: {
-          type: 'string',
-          description: 'Address to open after a first sign-in.',
-          maxLength: 2048,
-        },
-      },
-    },
     AuthSignOut: {
       type: 'object',
       description: 'Sign-out carries no data. The session cookie names it.',
@@ -365,23 +336,6 @@ export function authContractPaths(): Json {
         }),
         success: json('The sign-in completed.', {
           $ref: '#/components/schemas/AuthSession',
-        }),
-      }),
-    },
-    '/api/auth/sign-in/social': {
-      post: operation({
-        id: 'signInWithProvider',
-        summary: 'Start a sign-in with the configured provider.',
-        description:
-          'Returns the authorization address of the administrator configured ' +
-          'OpenID Connect provider. The browser opens that address; the ' +
-          'provider then returns to the callback route, which is browser ' +
-          'navigation and not a generated call.',
-        requestBody: body('The configured provider to sign in with.', {
-          $ref: '#/components/schemas/AuthProviderSignIn',
-        }),
-        success: json('The address that the browser must open.', {
-          $ref: '#/components/schemas/AuthRedirect',
         }),
       }),
     },

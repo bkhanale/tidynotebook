@@ -41,6 +41,7 @@ import {
 } from './support/database.ts';
 import {
   anonymousIdentity,
+  completeTestHandlers,
   stubProtocol,
   testEnvironment,
 } from './support/server.ts';
@@ -50,7 +51,7 @@ await test('liveness and readiness root aliases report status correctly', async 
   try {
     const config = loadServerConfig(testEnvironment(tempDir));
     const app = await createAppWithHandlers(config, {
-      handlers: createHandlers(config),
+      handlers: completeTestHandlers(createHandlers(config)),
       identity: anonymousIdentity,
       protocols: [stubProtocol],
       webDist: null,
@@ -92,7 +93,7 @@ await test('readiness reports degraded when a probe fails', async () => {
 
     const handlers = createHandlers(config, [failingProbe]);
     const app = await createAppWithHandlers(config, {
-      handlers,
+      handlers: completeTestHandlers(handlers),
       identity: anonymousIdentity,
       protocols: [stubProtocol],
       webDist: null,
@@ -156,7 +157,7 @@ await test('write-pause coordinator drains active writers and blocks mutations w
     const config = loadServerConfig(testEnvironment(tempDir));
     const writePause = new WritePauseCoordinator(tempDir);
     const app = await createAppWithHandlers(config, {
-      handlers: createHandlers(config),
+      handlers: completeTestHandlers(createHandlers(config)),
       identity: anonymousIdentity,
       protocols: [stubProtocol],
       writePause,
@@ -238,7 +239,7 @@ await test('observability metrics and URL redaction', async () => {
     const metrics = new MetricsCollector(tempDir, () => Promise.resolve(4096));
 
     const app = await createAppWithHandlers(config, {
-      handlers: createHandlers(config),
+      handlers: completeTestHandlers(createHandlers(config)),
       identity: anonymousIdentity,
       protocols: [stubProtocol],
       metrics,
@@ -262,7 +263,6 @@ await test('observability metrics and URL redaction', async () => {
 
     // Make requests to trigger metrics
     await app.inject({ method: 'GET', url: '/health' });
-    metrics.recordConflict();
     metrics.recordSaveFailure();
     metrics.recordAuthFailure();
 
@@ -270,7 +270,6 @@ await test('observability metrics and URL redaction', async () => {
     const promRes = await app.inject({ method: 'GET', url: '/metrics' });
     assert.equal(promRes.statusCode, 200);
     assert.match(promRes.headers['content-type'] ?? '', /text\/plain/);
-    assert.ok(promRes.body.includes('notesapp_conflicts_total 1'));
     assert.ok(promRes.body.includes('notesapp_save_failures_total 1'));
     assert.ok(promRes.body.includes('notesapp_auth_failures_total 1'));
     assert.ok(promRes.body.includes('notesapp_storage_usage_bytes 4096'));
@@ -283,12 +282,10 @@ await test('observability metrics and URL redaction', async () => {
     });
     assert.equal(jsonRes.statusCode, 200);
     const jsonBody = JSON.parse(jsonRes.body) as {
-      conflicts: number;
       saveFailures: number;
       authFailures: number;
       storageUsageBytes: number;
     };
-    assert.equal(jsonBody.conflicts, 1);
     assert.equal(jsonBody.saveFailures, 1);
     assert.equal(jsonBody.authFailures, 1);
     assert.equal(jsonBody.storageUsageBytes, 4096);

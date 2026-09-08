@@ -22,16 +22,9 @@ export type McpToolName =
   | 'list_history'
   | 'get_revision'
   | 'create_checkpoint'
-  | 'list_branches'
-  | 'submit_branch'
-  | 'resolve_branches'
   | 'restore_revision'
   | 'upload_attachment'
-  | 'get_attachment'
-  | 'create_share'
-  | 'update_share'
-  | 'revoke_share'
-  | 'list_shares';
+  | 'get_attachment';
 
 /** Definition of one MCP tool and its mapping to domain operations. */
 export type McpToolDefinition = {
@@ -315,101 +308,6 @@ export const mcpTools: readonly McpToolDefinition[] = [
     },
   },
   {
-    name: 'list_branches',
-    operationId: 'listBranches',
-    title: 'List Branches',
-    description:
-      'List unmerged conflict branches and alternate revision heads in a workspace.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty('listBranches', 'params', 'workspaceId'),
-        fileId: extractProperty('listBranches', 'query', 'fileId'),
-      },
-      required: ['workspaceId'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'submit_branch',
-    operationId: 'submitBranch',
-    title: 'Submit Branch',
-    description:
-      'Submit an alternative revision branch without immediately updating the accepted head.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty('submitBranch', 'params', 'workspaceId'),
-        fileId: {
-          ...uuidSchema,
-          description: 'The UUID of the file to branch.',
-        },
-        baseRevisionId: {
-          ...uuidSchema,
-          description: 'The base revision ID this branch started from.',
-        },
-        branchName: {
-          type: 'string',
-          minLength: 1,
-          maxLength: 128,
-          description: 'Name of the branch.',
-        },
-        path: {
-          type: 'string',
-          minLength: 1,
-          maxLength: 1024,
-          description: 'Path of the file on this branch.',
-        },
-        content: {
-          type: 'string',
-          maxLength: 1048576,
-          description: 'Markdown content for this branch.',
-        },
-      },
-      required: [
-        'workspaceId',
-        'fileId',
-        'baseRevisionId',
-        'branchName',
-        'path',
-        'content',
-      ],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'resolve_branches',
-    operationId: 'resolveBranches',
-    title: 'Resolve Branches',
-    description:
-      'Resolve and merge conflict branches into a chosen winning revision.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty(
-          'resolveBranches',
-          'params',
-          'workspaceId',
-        ),
-        fileId: {
-          ...uuidSchema,
-          description:
-            'The UUID of the file whose branches are being resolved.',
-        },
-        winningRevisionId: {
-          ...uuidSchema,
-          description: 'The revision ID that wins the conflict resolution.',
-        },
-        expectedHead: {
-          ...uuidSchema,
-          description: 'The expected current head revision ID.',
-        },
-      },
-      required: ['workspaceId', 'fileId', 'winningRevisionId'],
-      additionalProperties: false,
-    },
-  },
-  {
     name: 'restore_revision',
     operationId: 'restoreRevision',
     title: 'Restore Revision',
@@ -513,93 +411,6 @@ export const mcpTools: readonly McpToolDefinition[] = [
         ),
       },
       required: ['workspaceId', 'revisionId'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'create_share',
-    operationId: 'createShare',
-    title: 'Create Share',
-    description:
-      'Create a pinned public share link for a file. If pinnedRevisionId is omitted, pins the current head.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty('createShare', 'params', 'workspaceId'),
-        fileId: extractProperty('createShare', 'body', 'fileId'),
-        pinnedRevisionId: extractProperty(
-          'createShare',
-          'body',
-          'pinnedRevisionId',
-        ),
-        expiresAt: {
-          type: 'string',
-          format: 'date-time',
-          description: 'Optional expiration timestamp in ISO 8601 format.',
-        },
-      },
-      required: ['workspaceId', 'fileId'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'update_share',
-    operationId: 'updateShare',
-    title: 'Update Share',
-    description:
-      'Update a public share with a newly pinned revision or modified expiration.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty('updateShare', 'params', 'workspaceId'),
-        shareId: extractProperty('updateShare', 'params', 'shareId'),
-        fileId: extractProperty('updateShare', 'body', 'fileId'),
-        pinnedRevisionId: extractProperty(
-          'updateShare',
-          'body',
-          'pinnedRevisionId',
-        ),
-        expiresAt: {
-          type: ['string', 'null'],
-          format: 'date-time',
-          description:
-            'Updated expiration timestamp, or null to remove expiry.',
-        },
-      },
-      required: ['workspaceId', 'shareId', 'fileId', 'pinnedRevisionId'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'revoke_share',
-    operationId: 'revokeShare',
-    title: 'Revoke Share',
-    description: 'Revoke an existing public share link.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty('revokeShare', 'params', 'workspaceId'),
-        shareId: extractProperty('revokeShare', 'params', 'shareId'),
-      },
-      required: ['workspaceId', 'shareId'],
-      additionalProperties: false,
-    },
-  },
-  {
-    name: 'list_shares',
-    operationId: 'listShares',
-    title: 'List Shares',
-    description: 'List active public shares in a workspace.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        workspaceId: extractProperty('listShares', 'params', 'workspaceId'),
-        fileId: {
-          ...uuidSchema,
-          description: 'Optional file UUID filter.',
-        },
-      },
-      required: ['workspaceId'],
       additionalProperties: false,
     },
   },

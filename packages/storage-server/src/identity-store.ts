@@ -136,6 +136,12 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
     readonly workspaceName: string;
     readonly quotaBytes?: bigint;
   }): Promise<string>;
+  /** Links the only account, or returns null when setup already completed. */
+  linkFirstAccount(input: {
+    readonly authUserId: string;
+    readonly workspaceName: string;
+    readonly quotaBytes?: bigint;
+  }): Promise<string | null>;
   /** The account of a Better Auth user, or `null` when none is linked. */
   accountOf(authUserId: string): Promise<string | null>;
   /** The current role of one account in each of its workspaces. */
@@ -694,6 +700,38 @@ export function openIdentityStore(
           throw new OperationalError(
             'unexpected',
             'notesapp: the account was not linked.',
+          );
+        }
+        return linked;
+      });
+    },
+
+    async linkFirstAccount(input): Promise<string | null> {
+      const accountId = randomUUID();
+      const workspaceId = randomUUID();
+      return inTransaction(null, null, async (client) => {
+        await client.query(
+          "select pg_advisory_xact_lock(hashtext('notesapp:first-account')::bigint)",
+        );
+        const present = await client.query<{ present: boolean }>(
+          'select notesapp_has_account() as present',
+        );
+        if (present.rows[0]?.present === true) return null;
+        const rows = await client.query<{ account: string }>(
+          'select notesapp_link_account($1, $2, $3, $4, $5::bigint) as account',
+          [
+            input.authUserId,
+            accountId,
+            workspaceId,
+            input.workspaceName,
+            (input.quotaBytes ?? defaultQuotaBytes).toString(),
+          ],
+        );
+        const linked = rows.rows[0]?.account;
+        if (linked === undefined) {
+          throw new OperationalError(
+            'unexpected',
+            'notesapp: the first account was not linked.',
           );
         }
         return linked;

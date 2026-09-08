@@ -555,7 +555,6 @@ export async function openLocalStore(
       const clientTime = nowIso();
       const revisionId = newId();
       const mutationId = newId();
-      const branchId = newId();
       const created = await guard('creating a checkpoint', () =>
         db.transaction(
           'rw',
@@ -564,7 +563,6 @@ export async function openLocalStore(
             tables.checkpoints,
             tables.contents,
             tables.acceptedFiles,
-            tables.branches,
             tables.queue,
           ],
           async (): Promise<QueueEntry | null> => {
@@ -630,12 +628,6 @@ export async function openLocalStore(
 
             const parentId = lastCheckpointId ?? draft.baseRevisionId;
             const parents = parentId === null ? [] : [parentId];
-            const localHead =
-              file?.localHeadRevisionId ?? file?.acceptedHeadRevisionId ?? null;
-            // Another working copy of this file already moved the local head,
-            // so this checkpoint is a second tip over the same base.
-            const diverged = localHead !== null && localHead !== parentId;
-
             await tables.contents.put({
               serverOrigin,
               accountId,
@@ -672,29 +664,14 @@ export async function openLocalStore(
               workspaceId,
               fileId,
               kind: file?.kind ?? 'note',
-              path: diverged ? (file?.path ?? draft.path) : draft.path,
-              deleted: diverged
-                ? (file?.deleted ?? draft.deleted)
-                : draft.deleted,
+              path: draft.path,
+              deleted: draft.deleted,
               acceptedHeadRevisionId: file?.acceptedHeadRevisionId ?? null,
               acceptedHeadDigest: file?.acceptedHeadDigest ?? null,
-              localHeadRevisionId: diverged ? localHead : revisionId,
+              localHeadRevisionId: revisionId,
               updatedAt: clientTime,
             };
             await tables.acceptedFiles.put(nextFile);
-            if (diverged)
-              await tables.branches.add({
-                serverOrigin,
-                accountId,
-                workspaceId,
-                branchId,
-                fileId,
-                baseRevisionId: parentId,
-                tips: [localHead, revisionId],
-                resolved: false,
-                createdAt: clientTime,
-              });
-
             const input: ChangesetInput = {
               workspaceId,
               mutationId,

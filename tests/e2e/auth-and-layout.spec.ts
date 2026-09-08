@@ -14,9 +14,7 @@ test('login has loaded theme and layout styles', async ({
   stack,
 }) => {
   await page.goto(`${stack.baseUrl}/login`);
-  await expect(
-    page.getByRole('heading', { name: 'Sign in to notesapp' }),
-  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   const style = await page.locator('.notes-auth-card').evaluate((card) => {
     const computed = getComputedStyle(card);
     return {
@@ -114,7 +112,7 @@ test('plain HTTP browser capabilities do not block note saves', async ({
     .getByLabel('File path')
     .fill(`plain-http-${Date.now().toString()}.md`);
   await replaceEditorText(page, '# Plain HTTP\n\nThe note stays durable.');
-  await page.getByRole('button', { name: 'Save a checkpoint now' }).click();
+  await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
   await page.reload();
   await expect(page.locator('.cm-content')).toContainText(

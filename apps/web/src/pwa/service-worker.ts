@@ -3,8 +3,8 @@
  *
  * This worker precaches the application shell, the editor, fonts, math, and
  * diagram modules so an installed application launches offline after its
- * first provisioning. It caches no private response and no public share
- * response: only same-origin GET responses for static application assets and
+ * first provisioning. It caches no API response. Only same-origin GET
+ * responses for static application assets and
  * the shell document are stored. Everything else travels on the network and
  * is never written to a cache.
  *
@@ -13,8 +13,8 @@
  * there through the generated client. This worker keeps an explicit pinned
  * cache only for bytes the main thread names through a message, such as an
  * image chosen with Make available offline or a historic document chosen
- * with a history pin action. Pinning never pulls a private or share response
- * on its own.
+ * with a history pin action. Pinning never pulls a private API response on its
+ * own.
  *
  * There is no Background Sync dependency. Sync runs in the foreground tab;
  * this worker only serves cached assets and pinned bytes.

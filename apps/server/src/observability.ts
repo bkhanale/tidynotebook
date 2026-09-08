@@ -2,7 +2,7 @@
  * Observability, structured logging, and Prometheus metrics.
  *
  * All logs are content-free: note bodies, search queries, passwords, tokens,
- * cookies, and public share URLs are excluded or redacted.
+ * cookies, and legacy share URLs are excluded or redacted.
  */
 import { existsSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
@@ -36,7 +36,6 @@ export function redactUrl(rawUrl: string): string {
 /** Metrics collector for system health and operations. */
 export class MetricsCollector {
   private saveFailures = 0;
-  private conflicts = 0;
   private authFailures = 0;
   private readonly httpRequests = new Map<string, number>();
 
@@ -52,10 +51,6 @@ export class MetricsCollector {
     this.saveFailures += 1;
   }
 
-  recordConflict(): void {
-    this.conflicts += 1;
-  }
-
   recordAuthFailure(): void {
     this.authFailures += 1;
   }
@@ -68,10 +63,6 @@ export class MetricsCollector {
 
   getSaveFailures(): number {
     return this.saveFailures;
-  }
-
-  getConflicts(): number {
-    return this.conflicts;
   }
 
   getAuthFailures(): number {
@@ -142,10 +133,6 @@ export class MetricsCollector {
       '# TYPE notesapp_save_failures_total counter',
       `notesapp_save_failures_total ${this.saveFailures}`,
       '',
-      '# HELP notesapp_conflicts_total Total count of revision conflicts',
-      '# TYPE notesapp_conflicts_total counter',
-      `notesapp_conflicts_total ${this.conflicts}`,
-      '',
       '# HELP notesapp_auth_failures_total Total count of authentication failures',
       '# TYPE notesapp_auth_failures_total counter',
       `notesapp_auth_failures_total ${this.authFailures}`,
@@ -174,7 +161,6 @@ export class MetricsCollector {
   async toJson(): Promise<Record<string, unknown>> {
     return {
       saveFailures: this.saveFailures,
-      conflicts: this.conflicts,
       authFailures: this.authFailures,
       storageUsageBytes: await this.getStorageUsageBytes(),
       backupAgeSeconds: await this.getBackupAgeSeconds(),
@@ -208,10 +194,6 @@ export function attachObservability(
       const statusCode = reply.statusCode;
       collector.recordHttpRequest(method, statusCode);
 
-      // Classify operational metrics
-      if (statusCode === 409 || statusCode === 412) {
-        collector.recordConflict();
-      }
       if (
         (statusCode === 401 || statusCode === 403) &&
         request.url.startsWith('/api/auth')

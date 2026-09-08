@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { AcceptInvitationData, AcceptInvitationErrors, AcceptInvitationResponses, CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateShareData, CreateShareErrors, CreateShareResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetPublicAttachmentData, GetPublicAttachmentErrors, GetPublicAttachmentResponses, GetPublicShareData, GetPublicShareErrors, GetPublicShareResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, InviteMemberData, InviteMemberErrors, InviteMemberResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListBranchesData, ListBranchesErrors, ListBranchesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListMembersData, ListMembersErrors, ListMembersResponses, ListSharesData, ListSharesErrors, ListSharesResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RemoveMemberData, RemoveMemberErrors, RemoveMemberResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, ResolveBranchesData, ResolveBranchesErrors, ResolveBranchesResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, RevokeShareData, RevokeShareErrors, RevokeShareResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignInWithProviderData, SignInWithProviderErrors, SignInWithProviderResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, SubmitBranchData, SubmitBranchErrors, SubmitBranchResponses, TransferOwnershipData, TransferOwnershipErrors, TransferOwnershipResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateMemberData, UpdateMemberErrors, UpdateMemberResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateShareData, UpdateShareErrors, UpdateShareResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateAgentTokenData, CreateAgentTokenErrors, CreateAgentTokenResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, ListAgentTokensData, ListAgentTokensErrors, ListAgentTokensResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeAgentTokenData, RevokeAgentTokenErrors, RevokeAgentTokenResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -70,7 +70,7 @@ export const listAgentTokens = <ThrowOnError extends boolean = false>(options?: 
 /**
  * Create an agent token and return its secret once.
  *
- * Creates a revocable token with an expiry and an explicit workspace and action scope. The scope can never be wider than the current role of the account in that workspace, and every use checks the membership again. The secret is in the answer of this call only.
+ * Creates a revocable token with an expiry and an explicit workspace and action scope. The scope can never be wider than the current access of the account in that workspace, and every use checks that access again. The secret is in the answer of this call only.
  */
 export const createAgentToken = <ThrowOnError extends boolean = false>(options: Options<CreateAgentTokenData, ThrowOnError>): RequestResult<CreateAgentTokenResponses, CreateAgentTokenErrors, ThrowOnError> => (options.client ?? client).post<CreateAgentTokenResponses, CreateAgentTokenErrors, ThrowOnError>({
     security: [{
@@ -151,20 +151,6 @@ export const signInWithPassword = <ThrowOnError extends boolean = false>(options
 });
 
 /**
- * Start a sign-in with the configured provider.
- *
- * Returns the authorization address of the administrator configured OpenID Connect provider. The browser opens that address; the provider then returns to the callback route, which is browser navigation and not a generated call.
- */
-export const signInWithProvider = <ThrowOnError extends boolean = false>(options: Options<SignInWithProviderData, ThrowOnError>): RequestResult<SignInWithProviderResponses, SignInWithProviderErrors, ThrowOnError> => (options.client ?? client).post<SignInWithProviderResponses, SignInWithProviderErrors, ThrowOnError>({
-    url: '/api/auth/sign-in/social',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * End the current session.
  *
  * Removes the session on the server and clears the session cookie. A cleared session cannot be used again.
@@ -186,25 +172,32 @@ export const signOut = <ThrowOnError extends boolean = false>(options: Options<S
 export const getHealth = <ThrowOnError extends boolean = false>(options?: Options<GetHealthData, ThrowOnError>): RequestResult<GetHealthResponses, GetHealthErrors, ThrowOnError> => (options?.client ?? client).get<GetHealthResponses, GetHealthErrors, ThrowOnError>({ url: '/api/health', ...options });
 
 /**
- * Accept an invitation to a workspace.
+ * Report whether the service can accept traffic.
  *
- * Consumes one invitation token and adds an account to the workspace with the invited role. A signed in account must already use the invited address. A request without a session may instead supply a password: the server then creates the local account for the invited address, marks that address verified because the token proves control of it, and signs the new account in. An installation that requires the configured provider refuses the second form with the code oidc_required; the invited person signs in through the provider instead and the invitation is claimed on that first sign-in. A token works once; a replay is rejected.
+ * Reports the state of every startup requirement that the service can check. The current release validates configuration only, because no database or storage dependency exists yet. A later task adds a database check and a storage check to the same report.
  */
-export const acceptInvitation = <ThrowOnError extends boolean = false>(options: Options<AcceptInvitationData, ThrowOnError>): RequestResult<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError> => (options.client ?? client).post<AcceptInvitationResponses, AcceptInvitationErrors, ThrowOnError>({
-    url: '/api/invitations/acceptance',
+export const getReadiness = <ThrowOnError extends boolean = false>(options?: Options<GetReadinessData, ThrowOnError>): RequestResult<GetReadinessResponses, GetReadinessErrors, ThrowOnError> => (options?.client ?? client).get<GetReadinessResponses, GetReadinessErrors, ThrowOnError>({ url: '/api/ready', ...options });
+
+/**
+ * Report whether the single user exists.
+ *
+ * Reports if first-run setup is complete without exposing account data.
+ */
+export const getSetupStatus = <ThrowOnError extends boolean = false>(options?: Options<GetSetupStatusData, ThrowOnError>): RequestResult<GetSetupStatusResponses, GetSetupStatusErrors, ThrowOnError> => (options?.client ?? client).get<GetSetupStatusResponses, GetSetupStatusErrors, ThrowOnError>({ url: '/api/setup', ...options });
+
+/**
+ * Create the single user during first-run setup.
+ *
+ * This operation is refused after the first account exists.
+ */
+export const createOwner = <ThrowOnError extends boolean = false>(options: Options<CreateOwnerData, ThrowOnError>): RequestResult<CreateOwnerResponses, CreateOwnerErrors, ThrowOnError> => (options.client ?? client).post<CreateOwnerResponses, CreateOwnerErrors, ThrowOnError>({
+    url: '/api/setup',
     ...options,
     headers: {
         'Content-Type': 'application/json',
         ...options.headers
     }
 });
-
-/**
- * Report whether the service can accept traffic.
- *
- * Reports the state of every startup requirement that the service can check. The current release validates configuration only, because no database or storage dependency exists yet. A later task adds a database check and a storage check to the same report.
- */
-export const getReadiness = <ThrowOnError extends boolean = false>(options?: Options<GetReadinessData, ThrowOnError>): RequestResult<GetReadinessResponses, GetReadinessErrors, ThrowOnError> => (options?.client ?? client).get<GetReadinessResponses, GetReadinessErrors, ThrowOnError>({ url: '/api/ready', ...options });
 
 /**
  * List every workspace of the signed in account.
@@ -243,7 +236,7 @@ export const createWorkspace = <ThrowOnError extends boolean = false>(options: O
 /**
  * Delete a workspace and every record that belongs to it.
  *
- * Deletes a workspace, its membership, its invitations, its shares, and its content history. Only the owner may do this. Every session loses access to the workspace, because its membership rows disappear.
+ * Deletes a workspace and its complete content history. Only its owner may do this.
  */
 export const deleteWorkspace = <ThrowOnError extends boolean = false>(options: Options<DeleteWorkspaceData, ThrowOnError>): RequestResult<DeleteWorkspaceResponses, DeleteWorkspaceErrors, ThrowOnError> => (options.client ?? client).delete<DeleteWorkspaceResponses, DeleteWorkspaceErrors, ThrowOnError>({
     security: [{
@@ -326,59 +319,6 @@ export const getAttachmentRevision = <ThrowOnError extends boolean = false>(opti
         }, { scheme: 'bearer', type: 'http' }],
     url: '/api/workspaces/{workspaceId}/attachments/{revisionId}',
     ...options
-});
-
-/**
- * List divergent branches in a workspace.
- *
- * Lists open or resolved divergent branches of the workspace, optionally filtered by file, conflict group, or resolution state.
- */
-export const listBranches = <ThrowOnError extends boolean = false>(options: Options<ListBranchesData, ThrowOnError>): RequestResult<ListBranchesResponses, ListBranchesErrors, ThrowOnError> => (options.client ?? client).get<ListBranchesResponses, ListBranchesErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/branches',
-    ...options
-});
-
-/**
- * Submit a divergent conflict branch atomically.
- *
- * Stores divergent revisions and records an open branch without advancing accepted heads or reserving live paths.
- */
-export const submitBranch = <ThrowOnError extends boolean = false>(options: Options<SubmitBranchData, ThrowOnError>): RequestResult<SubmitBranchResponses, SubmitBranchErrors, ThrowOnError> => (options.client ?? client).post<SubmitBranchResponses, SubmitBranchErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/branches',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Explicitly resolve divergent branches.
- *
- * Creates resolution revisions naming both the expected accepted head and the branch tip as parents, advances accepted heads, and marks the resolved branches.
- */
-export const resolveBranches = <ThrowOnError extends boolean = false>(options: Options<ResolveBranchesData, ThrowOnError>): RequestResult<ResolveBranchesResponses, ResolveBranchesErrors, ThrowOnError> => (options.client ?? client).post<ResolveBranchesResponses, ResolveBranchesErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/branches/resolve',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
 });
 
 /**
@@ -556,93 +496,6 @@ export const restoreRevision = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
- * List the members of a workspace.
- *
- * Lists every member of the workspace with the current role. An owner or an administrator also sees the open invitations.
- */
-export const listMembers = <ThrowOnError extends boolean = false>(options: Options<ListMembersData, ThrowOnError>): RequestResult<ListMembersResponses, ListMembersErrors, ThrowOnError> => (options.client ?? client).get<ListMembersResponses, ListMembersErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/members',
-    ...options
-});
-
-/**
- * Invite an address to a workspace.
- *
- * Creates an invitation for one address and one role. The answer carries the invitation token once, so a deployment without a mail transport can hand it to the invited person out of band. Only the hash of the token is stored.
- */
-export const inviteMember = <ThrowOnError extends boolean = false>(options: Options<InviteMemberData, ThrowOnError>): RequestResult<InviteMemberResponses, InviteMemberErrors, ThrowOnError> => (options.client ?? client).post<InviteMemberResponses, InviteMemberErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/members',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Remove a member from a workspace.
- *
- * Removes one member. The last owner cannot be removed, and only another owner may remove an owner.
- */
-export const removeMember = <ThrowOnError extends boolean = false>(options: Options<RemoveMemberData, ThrowOnError>): RequestResult<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError> => (options.client ?? client).delete<RemoveMemberResponses, RemoveMemberErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/members/{accountId}',
-    ...options
-});
-
-/**
- * Change the role of a member.
- *
- * Changes the role of one member. The owner role is never granted or removed here; it moves only through an explicit ownership transfer, so a workspace cannot lose its last owner through a role change.
- */
-export const updateMember = <ThrowOnError extends boolean = false>(options: Options<UpdateMemberData, ThrowOnError>): RequestResult<UpdateMemberResponses, UpdateMemberErrors, ThrowOnError> => (options.client ?? client).put<UpdateMemberResponses, UpdateMemberErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/members/{accountId}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Move the ownership of a workspace to another member.
- *
- * Moves ownership to another member of the same workspace. Only the owner may do this. The old owner becomes an administrator, or leaves the workspace when the request asks for it.
- */
-export const transferOwnership = <ThrowOnError extends boolean = false>(options: Options<TransferOwnershipData, ThrowOnError>): RequestResult<TransferOwnershipResponses, TransferOwnershipErrors, ThrowOnError> => (options.client ?? client).post<TransferOwnershipResponses, TransferOwnershipErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/ownership',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Permanently delete files and write purge markers.
  *
  * Permanently purges files, revisions, branches, and shares, writes purge markers, and reclaims storage. Subsequent writes to purged file identifiers answer 410 Gone. Restricted to workspace owners.
@@ -711,77 +564,9 @@ export const searchFiles = <ThrowOnError extends boolean = false>(options: Optio
 });
 
 /**
- * List the public links of a workspace.
- *
- * Returns public link records only after a current share permission check.
- */
-export const listShares = <ThrowOnError extends boolean = false>(options: Options<ListSharesData, ThrowOnError>): RequestResult<ListSharesResponses, ListSharesErrors, ThrowOnError> => (options.client ?? client).get<ListSharesResponses, ListSharesErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/shares',
-    ...options
-});
-
-/**
- * Publish one accepted note revision through a new public link.
- *
- * Creates an opaque public link to one accepted note revision. Later note edits stay private until an administrator updates this publication.
- */
-export const createShare = <ThrowOnError extends boolean = false>(options: Options<CreateShareData, ThrowOnError>): RequestResult<CreateShareResponses, CreateShareErrors, ThrowOnError> => (options.client ?? client).post<CreateShareResponses, CreateShareErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/shares',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
- * Revoke a public link.
- *
- * Makes the public token and each of its attachment routes unavailable.
- */
-export const revokeShare = <ThrowOnError extends boolean = false>(options: Options<RevokeShareData, ThrowOnError>): RequestResult<RevokeShareResponses, RevokeShareErrors, ThrowOnError> => (options.client ?? client).delete<RevokeShareResponses, RevokeShareErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/shares/{shareId}',
-    ...options
-});
-
-/**
- * Move a public link to an explicitly selected accepted revision.
- *
- * Replaces the pinned accepted revision and optional expiry without changing the public token.
- */
-export const updateShare = <ThrowOnError extends boolean = false>(options: Options<UpdateShareData, ThrowOnError>): RequestResult<UpdateShareResponses, UpdateShareErrors, ThrowOnError> => (options.client ?? client).put<UpdateShareResponses, UpdateShareErrors, ThrowOnError>({
-    security: [{
-            in: 'cookie',
-            name: 'notesapp_session',
-            type: 'apiKey'
-        }, { scheme: 'bearer', type: 'http' }],
-    url: '/api/workspaces/{workspaceId}/shares/{shareId}',
-    ...options,
-    headers: {
-        'Content-Type': 'application/json',
-        ...options.headers
-    }
-});
-
-/**
  * Read ordered incremental changes after a cursor.
  *
- * Reads the commit ordered change records after a cursor the client already applied, oldest first. Every relevant write allocates its cursor under the workspace lock, including membership, deletion, purge, and share revocation, so the stream cannot skip a transaction that commits late. Change records are kept for 90 days; an older cursor answers 410 with the code snapshot_required, while saved revision identifiers stay valid beyond that window.
+ * Reads the commit ordered change records after a cursor the client already applied, oldest first. Every relevant write allocates its cursor under the workspace lock, so the stream cannot skip a file transaction that commits late. Change records are kept for 90 days; an older cursor answers 410 with the code snapshot_required, while saved revision identifiers stay valid beyond that window.
  */
 export const getChanges = <ThrowOnError extends boolean = false>(options: Options<GetChangesData, ThrowOnError>): RequestResult<GetChangesResponses, GetChangesErrors, ThrowOnError> => (options.client ?? client).get<GetChangesResponses, GetChangesErrors, ThrowOnError>({
     security: [{
@@ -815,7 +600,7 @@ export const startSnapshot = <ThrowOnError extends boolean = false>(options: Opt
 /**
  * Read one page of a materialized snapshot.
  *
- * Reads one page of the items that the snapshot captured. The page runs in its own short transaction and rechecks the current membership; no database transaction stays open across network pages. A missing token, an expired snapshot, and a snapshot that a purge invalidated all answer 410 with the code snapshot_required: the client starts a fresh snapshot and keeps its local work.
+ * Reads one page of the items that the snapshot captured. The page runs in its own short transaction and rechecks current access; no database transaction stays open across network pages. A missing token, an expired snapshot, and a snapshot that a purge invalidated all answer 410 with the code snapshot_required: the client starts a fresh snapshot and keeps its local work.
  */
 export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: Options<GetSnapshotPageData, ThrowOnError>): RequestResult<GetSnapshotPageResponses, GetSnapshotPageErrors, ThrowOnError> => (options.client ?? client).get<GetSnapshotPageResponses, GetSnapshotPageErrors, ThrowOnError>({
     security: [{
@@ -826,17 +611,3 @@ export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: O
     url: '/api/workspaces/{workspaceId}/sync/snapshots/{token}',
     ...options
 });
-
-/**
- * Read one active pinned public note.
- *
- * Returns standalone sanitized HTML when the token is active, unexpired, and still owned by a workspace administrator.
- */
-export const getPublicShare = <ThrowOnError extends boolean = false>(options: Options<GetPublicShareData, ThrowOnError>): RequestResult<GetPublicShareResponses, GetPublicShareErrors, ThrowOnError> => (options.client ?? client).get<GetPublicShareResponses, GetPublicShareErrors, ThrowOnError>({ url: '/s/{token}', ...options });
-
-/**
- * Read an attachment allowed by one active public note.
- *
- * Returns immutable image bytes only when the active pinned note named this exact attachment revision.
- */
-export const getPublicAttachment = <ThrowOnError extends boolean = false>(options: Options<GetPublicAttachmentData, ThrowOnError>): RequestResult<GetPublicAttachmentResponses, GetPublicAttachmentErrors, ThrowOnError> => (options.client ?? client).get<GetPublicAttachmentResponses, GetPublicAttachmentErrors, ThrowOnError>({ url: '/s/{token}/attachments/{revisionId}', ...options });

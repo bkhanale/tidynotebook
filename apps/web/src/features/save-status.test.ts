@@ -35,7 +35,7 @@ await test('save state follows only the current file durable lifecycle', () => {
   );
   assert.equal(
     resolveSaveState({ ...accepted, queueState: 'conflict' }),
-    'conflict',
+    'save-failed',
   );
   assert.equal(
     resolveSaveState({ ...accepted, draftWritePending: true }),

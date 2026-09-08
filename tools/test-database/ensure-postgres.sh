@@ -2,9 +2,12 @@
 # Ensure that exactly one healthy disposable PostgreSQL service is available.
 set -euo pipefail
 
+project_name='notesapp-test'
+
 mapfile -t containers < <(
   docker ps \
     --filter 'publish=55432' \
+    --filter "label=com.docker.compose.project=${project_name}" \
     --filter 'label=com.docker.compose.service=postgres' \
     --format '{{.ID}}'
 )
@@ -24,4 +27,4 @@ if [[ ${#containers[@]} -eq 1 ]]; then
   exit 0
 fi
 
-docker compose -p notesapp -f compose.test.yaml up -d --wait postgres
+docker compose -p "$project_name" -f compose.test.yaml up -d --wait postgres

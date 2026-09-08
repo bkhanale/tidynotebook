@@ -1,7 +1,7 @@
 /**
  * Line comparison inside a Web Worker.
  *
- * This module is the worker side of the history and conflict diffs. It runs
+ * This module is the worker side of history diffs. It runs
  * the editor's jsdiff comparison off the main thread and posts the mapped
  * `DiffHunk` records back. The main thread side in `diff-worker.ts` owns the
  * 500 ms budget and the limit handling; this file only compares and answers.

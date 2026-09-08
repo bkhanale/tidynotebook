@@ -343,15 +343,13 @@ function PurgeDetail({
       <h1>Deletion and purge</h1>
       <p>
         <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
-        {' | '}
-        <Link to={`/w/${workspaceId}/conflicts`}>Conflicts.</Link>
       </p>
       <p>
-        Purge permanently deletes files: their revisions, branches, shares, and
-        bytes. A content-free purge marker stays until workspace deletion, so
-        late writes to a purged ID answer 410 instead of recreating the file.
-        Encrypted backups keep copies until their retention ends: seven daily
-        and four weekly copies on separate storage.
+        Purge permanently deletes files, their revisions, and their bytes. A
+        content-free purge marker stays until workspace deletion, so late writes
+        to a purged ID answer 410 instead of recreating the file. Encrypted
+        backups keep copies until their retention ends: seven daily and four
+        weekly copies on separate storage.
       </p>
       {outcome !== null ? <StatusRegion message={outcome} /> : null}
       {failure !== null ? (

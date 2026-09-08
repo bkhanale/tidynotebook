@@ -124,8 +124,6 @@ export function verifyPkce(
 export const supportedMcpScopes: readonly string[] = [
   'notes:read',
   'notes:write',
-  'notes:share',
-  'notes:admin',
 ];
 
 /** Dependencies for MCP authorization. */
@@ -498,18 +496,6 @@ export class McpAuthorizationServer {
       ) {
         actions.push('read', 'history', 'write');
       }
-      if (
-        oauthEntry.scopes.includes('notes:share') ||
-        oauthEntry.scopes.includes('share')
-      ) {
-        actions.push('share');
-      }
-      if (
-        oauthEntry.scopes.includes('notes:admin') ||
-        oauthEntry.scopes.includes('admin')
-      ) {
-        actions.push('read', 'history', 'write', 'share', 'members');
-      }
       const uniqueActions = [...new Set(actions)];
       const scopes: TokenScope[] = memberships.map((m) => ({
         workspaceId: m.workspaceId,
@@ -670,18 +656,6 @@ export class McpAuthorizationServer {
       oauthEntry.scopes.includes('write')
     ) {
       actions.push('read', 'history', 'write');
-    }
-    if (
-      oauthEntry.scopes.includes('notes:share') ||
-      oauthEntry.scopes.includes('share')
-    ) {
-      actions.push('share');
-    }
-    if (
-      oauthEntry.scopes.includes('notes:admin') ||
-      oauthEntry.scopes.includes('admin')
-    ) {
-      actions.push('read', 'history', 'write', 'share', 'members');
     }
     const uniqueActions = [...new Set(actions)];
     const scopes: TokenScope[] = memberships.map((m) => ({

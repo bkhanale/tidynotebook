@@ -2,32 +2,25 @@
  * Local MCP stdio tool registrations backed by the generated HTTP client.
  */
 import { Buffer } from 'node:buffer';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { fromJsonSchema } from '@modelcontextprotocol/server';
 import { mcpTools } from '@notesapp/api-contract';
 import {
   createCheckpoint,
   createFile,
-  createShare,
   deleteFile,
   finalizeAttachment,
   getAttachmentRevision,
   getBacklinks,
   getFile,
-  listBranches,
   listFiles,
   listHistory,
-  listShares,
   listWorkspaces,
   getRevision,
-  resolveBranches,
   restoreRevision,
-  revokeShare,
   searchFiles,
-  submitBranch,
   updateFile,
-  updateShare,
   uploadAttachment,
 } from '@notesapp/api-client';
 
@@ -43,16 +36,9 @@ interface McpToolArguments {
   readonly cursor?: string | null;
   readonly revisionId: string;
   readonly name: string;
-  readonly branchName: string;
-  readonly baseRevisionId: string;
-  readonly winningRevisionId: string;
-  readonly expectedHead?: string | null;
   readonly targetRevisionId: string;
   readonly mediaType: string;
   readonly contentBase64: string;
-  readonly shareId: string;
-  readonly pinnedRevisionId?: string | null;
-  readonly expiresAt?: string | null;
 }
 
 /**
@@ -339,121 +325,6 @@ export function registerStdioTools(server: McpServer): void {
               };
             }
 
-            case 'list_branches': {
-              const res = await listBranches({
-                path: { workspaceId: args.workspaceId },
-                query: {
-                  ...(args.fileId !== undefined ? { fileId: args.fileId } : {}),
-                },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
-            case 'submit_branch': {
-              const res = await submitBranch({
-                path: { workspaceId: args.workspaceId },
-                body: {
-                  mutationId: randomUUID(),
-                  deviceId: 'mcp-stdio',
-                  conflictGroupId: randomUUID(),
-                  expectedHeads: { [args.fileId]: args.baseRevisionId },
-                  revisions: [
-                    {
-                      fileId: args.fileId,
-                      revisionId: randomUUID(),
-                      parents: [args.baseRevisionId],
-                      path: args.path,
-                      deleted: false,
-                      content: {
-                        kind: 'markdown',
-                        digest: createHash('sha256')
-                          .update(args.content, 'utf8')
-                          .digest('hex'),
-                        text: args.content,
-                      },
-                      clientTime: new Date().toISOString(),
-                    },
-                  ],
-                },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
-            case 'resolve_branches': {
-              const revRes = await getRevision({
-                path: {
-                  workspaceId: args.workspaceId,
-                  revisionId: args.winningRevisionId,
-                },
-              });
-              if (revRes.error) {
-                return {
-                  isError: true,
-                  content: [
-                    { type: 'text', text: JSON.stringify(revRes.error) },
-                  ],
-                };
-              }
-              const rev = revRes.data;
-              const res = await resolveBranches({
-                path: { workspaceId: args.workspaceId },
-                body: {
-                  mutationId: randomUUID(),
-                  deviceId: 'mcp-stdio',
-                  clientTime: new Date().toISOString(),
-                  resolutions: [
-                    {
-                      fileId: args.fileId ?? '',
-                      expectedHead: args.expectedHead ?? null,
-                      branchTip: args.winningRevisionId,
-                      revisionId: randomUUID(),
-                      path: rev.path,
-                      content:
-                        rev.text !== null
-                          ? {
-                              kind: 'markdown',
-                              digest: rev.digest,
-                              text: rev.text,
-                            }
-                          : {
-                              kind: 'attachment',
-                              digest: rev.digest,
-                              ...(rev.attachmentObjectId
-                                ? { attachmentObjectId: rev.attachmentObjectId }
-                                : {}),
-                            },
-                      deleted: rev.deleted,
-                    },
-                  ],
-                },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
             case 'restore_revision': {
               const res = await restoreRevision({
                 path: { workspaceId: args.workspaceId, fileId: args.fileId },
@@ -546,76 +417,6 @@ export function registerStdioTools(server: McpServer): void {
                   workspaceId: args.workspaceId,
                   revisionId: args.revisionId,
                 },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
-            case 'create_share': {
-              const res = await createShare({
-                path: { workspaceId: args.workspaceId },
-                body: {
-                  fileId: args.fileId ?? '',
-                  pinnedRevisionId: args.pinnedRevisionId ?? '',
-                  expiresAt: args.expiresAt ?? null,
-                },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
-            case 'update_share': {
-              const res = await updateShare({
-                path: { workspaceId: args.workspaceId, shareId: args.shareId },
-                body: {
-                  fileId: args.fileId ?? '',
-                  pinnedRevisionId: args.pinnedRevisionId ?? '',
-                  expiresAt: args.expiresAt ?? null,
-                },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
-            case 'revoke_share': {
-              const res = await revokeShare({
-                path: { workspaceId: args.workspaceId, shareId: args.shareId },
-              });
-              if (res.error) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.data) }],
-              };
-            }
-
-            case 'list_shares': {
-              const res = await listShares({
-                path: { workspaceId: args.workspaceId },
               });
               if (res.error) {
                 return {

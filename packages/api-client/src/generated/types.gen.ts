@@ -5,25 +5,6 @@ export type ClientOptions = {
 };
 
 /**
- * Stored branch outcome.
- */
-export type AcceptedBranch = {
-    mutationId: Uuid;
-    conflictGroupId: Uuid;
-    revisionIds: Array<Uuid>;
-    branches: Array<BranchItem>;
-};
-
-/**
- * Stored branch resolution outcome.
- */
-export type AcceptedBranchResolution = {
-    mutationId: Uuid;
-    revisions: Array<AcceptedRevision>;
-    resolvedBranchIds: Array<Uuid>;
-};
-
-/**
  * The outcome of one accepted changeset.
  */
 export type AcceptedChangeset = {
@@ -116,7 +97,7 @@ export type Account = {
 /**
  * One permitted kind of operation inside one workspace.
  */
-export type Action = 'read' | 'write' | 'history' | 'share' | 'members' | 'purge';
+export type Action = 'read' | 'write' | 'history' | 'purge';
 
 /**
  * One agent token without its secret.
@@ -207,11 +188,6 @@ export type AgentTokenScope = {
      */
     actions: Array<Action>;
 };
-
-/**
- * A role that an invitation or a role change may grant. The owner role is not in this list, because ownership moves only through an explicit transfer.
- */
-export type AssignableRole = 'admin' | 'editor' | 'viewer';
 
 /**
  * The uploaded temporary attachment object and its verified digest.
@@ -311,28 +287,6 @@ export type AuthPasswordSignIn = {
      * Address to open after a completed sign-in.
      */
     callbackURL?: string;
-};
-
-/**
- * The configured provider to sign in with.
- */
-export type AuthProviderSignIn = {
-    /**
-     * Identifier of the configured provider.
-     */
-    provider: string;
-    /**
-     * Address to open after a completed sign-in.
-     */
-    callbackURL?: string;
-    /**
-     * Address to open after a refused sign-in.
-     */
-    errorCallbackURL?: string;
-    /**
-     * Address to open after a first sign-in.
-     */
-    newUserCallbackURL?: string;
 };
 
 /**
@@ -459,41 +413,6 @@ export type BlockingReference = {
 };
 
 /**
- * One divergent branch record.
- */
-export type BranchItem = {
-    id: Uuid;
-    workspaceId: Uuid;
-    fileId: Uuid;
-    baseRevisionId: Uuid | null;
-    tipRevisionId: Uuid;
-    conflictGroupId: Uuid;
-    state: 'unresolved' | 'resolved';
-    createdAt: string;
-};
-
-/**
- * List of divergent branches.
- */
-export type BranchList = {
-    branches: Array<BranchItem>;
-};
-
-/**
- * Explicit merge resolution for one file.
- */
-export type BranchResolutionInput = {
-    fileId: Uuid;
-    expectedHead: Uuid | null;
-    branchTip: Uuid;
-    revisionId: Uuid;
-    path: FilePath;
-    content: ContentInput;
-    deleted: boolean;
-    message?: CheckpointMessage;
-};
-
-/**
  * One atomic change of one or more files.
  */
 export type ChangesetInput = {
@@ -592,15 +511,6 @@ export type CreateFileInput = {
      * Name of this checkpoint, or null.
      */
     message?: CheckpointMessage;
-};
-
-/**
- * One explicit request to publish an accepted note revision.
- */
-export type CreateShareInput = {
-    fileId: Uuid;
-    pinnedRevisionId: Uuid;
-    expiresAt: ShareExpiry;
 };
 
 /**
@@ -803,159 +713,9 @@ export type HistoryRevisionItem = {
 };
 
 /**
- * One invitation to one workspace. The token itself is never stored.
- */
-export type Invitation = {
-    /**
-     * Identifier of the invitation.
-     */
-    readonly id: Uuid;
-    /**
-     * Workspace that the invitation admits to.
-     */
-    readonly workspaceId: Uuid;
-    /**
-     * Address that the invitation was created for.
-     */
-    readonly email: string;
-    /**
-     * Role that acceptance grants.
-     */
-    readonly role: AssignableRole;
-    /**
-     * Instant after which the invitation cannot be accepted.
-     */
-    readonly expiresAt: string;
-    /**
-     * Whether the invitation is still open.
-     */
-    readonly state: 'pending' | 'accepted' | 'revoked';
-};
-
-/**
- * The invitation token to consume, and an optional password.
- */
-export type InvitationAcceptanceInput = {
-    /**
-     * The invitation token that was handed to the invited person.
-     */
-    token: string;
-    /**
-     * Password of the local account to create. Supply it only when no session exists and the invited person has no account yet. It is refused when a session is present or when the installation requires the configured provider.
-     */
-    password?: string;
-};
-
-/**
- * A new invitation, and its token when no mail transport exists.
- */
-export type InvitationCreated = {
-    /**
-     * The stored invitation.
-     */
-    readonly invitation: Invitation;
-    /**
-     * True when the server sent the invitation by email. The token is then absent, because it left through the message.
-     */
-    readonly delivered: boolean;
-    /**
-     * The invitation token. It is present only when the deployment has no mail transport, so an administrator can hand it over. It appears in this answer only, because storage keeps its hash.
-     */
-    readonly token?: string;
-};
-
-/**
- * The address and the role of a new invitation.
- */
-export type InvitationInput = {
-    /**
-     * Address that may accept the invitation.
-     */
-    email: string;
-    /**
-     * Role that acceptance grants.
-     */
-    role: AssignableRole;
-};
-
-/**
  * The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.
  */
 export type MarkdownText = string;
-
-/**
- * One member of one workspace.
- */
-export type Member = {
-    /**
-     * Identifier of the member account.
-     */
-    readonly accountId: Uuid;
-    /**
-     * Current role of the member.
-     */
-    readonly role: Role;
-    /**
-     * Sign-in address of the member, or null when none is linked.
-     */
-    readonly email?: string | null;
-    /**
-     * Display name of the member, or null when none is linked.
-     */
-    readonly name?: string | null;
-};
-
-/**
- * The members and the open invitations of one workspace.
- */
-export type MemberList = {
-    /**
-     * One entry for each member of the workspace.
-     */
-    readonly members: Array<Member>;
-    /**
-     * One entry for each invitation. The list is empty for a member that does not manage membership.
-     */
-    readonly invitations: Array<Invitation>;
-};
-
-/**
- * The role to give a member.
- */
-export type MemberRoleInput = {
-    /**
-     * New role of the member.
-     */
-    role: AssignableRole;
-};
-
-/**
- * The workspace and the role that an invitation granted.
- */
-export type Membership = {
-    /**
-     * Workspace that the account joined.
-     */
-    readonly workspaceId: Uuid;
-    /**
-     * Role that the account received.
-     */
-    readonly role: Role;
-};
-
-/**
- * The member that becomes the owner of a workspace.
- */
-export type OwnershipTransferInput = {
-    /**
-     * Member that becomes the owner.
-     */
-    accountId: Uuid;
-    /**
-     * When true, the old owner leaves the workspace instead of becoming an administrator.
-     */
-    leave?: boolean;
-};
 
 /**
  * Settings that follow one account to every device.
@@ -1102,17 +862,6 @@ export type Removed = {
 };
 
 /**
- * Payload to explicitly resolve divergent branches.
- */
-export type ResolveBranchesInput = {
-    mutationId: Uuid;
-    deviceId: DeviceId;
-    clientTime: string;
-    conflictGroupId?: Uuid;
-    resolutions: Array<BranchResolutionInput>;
-};
-
-/**
  * Payload to restore a file to an earlier historic revision.
  */
 export type RestoreRevisionInput = {
@@ -1169,7 +918,7 @@ export type RevisionInput = {
 };
 
 /**
- * Workspace membership role. A viewer reads, an editor also writes, an administrator also manages membership and shares, and the owner also purges and transfers the workspace.
+ * Workspace access role retained for stored-data compatibility. A single-user installation assigns its account the owner role.
  */
 export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
 
@@ -1188,35 +937,6 @@ export type SearchHit = {
  */
 export type SearchResults = {
     readonly hits: Array<SearchHit>;
-};
-
-/**
- * Administrator-visible state of one public link.
- */
-export type Share = {
-    shareId: Uuid;
-    fileId: Uuid;
-    pinnedRevisionId: Uuid;
-    creatorAccountId: Uuid;
-    expiresAt: ShareExpiry;
-    revokedAt: string | null;
-    createdAt: string;
-    /**
-     * The one-time public URL returned only when a link is created.
-     */
-    url?: string;
-};
-
-/**
- * Optional instant after which the public link stops working.
- */
-export type ShareExpiry = string | null;
-
-/**
- * Administrator-visible public links of one workspace.
- */
-export type ShareList = {
-    shares: Array<Share>;
 };
 
 /**
@@ -1311,17 +1031,6 @@ export type StartSnapshotInput = {
 };
 
 /**
- * Divergent branch changeset payload.
- */
-export type SubmitBranchInput = {
-    mutationId: Uuid;
-    deviceId: DeviceId;
-    conflictGroupId: Uuid;
-    expectedHeads: ExpectedHeads;
-    revisions: Array<RevisionInput>;
-};
-
-/**
  * One commit ordered incremental change record.
  */
 export type SyncChangeItem = {
@@ -1391,15 +1100,6 @@ export type UpdateFileInput = {
      * Name of this checkpoint, or null.
      */
     message?: CheckpointMessage;
-};
-
-/**
- * One explicit update of the revision and expiry to publish.
- */
-export type UpdateShareInput = {
-    fileId: Uuid;
-    pinnedRevisionId: Uuid;
-    expiresAt: ShareExpiry;
 };
 
 /**
@@ -1544,15 +1244,6 @@ export type WorkspaceNameInput = {
 };
 
 /**
- * Stored branch resolution outcome.
- */
-export type AcceptedBranchResolutionWritable = {
-    mutationId: Uuid;
-    revisions: Array<unknown>;
-    resolvedBranchIds: Array<Uuid>;
-};
-
-/**
  * One agent token without its secret.
  */
 export type AgentTokenWritable = {
@@ -1666,11 +1357,6 @@ export type Detail = 'summary' | 'full';
 export type WorkspaceId = Uuid;
 
 /**
- * Identifier of the account whose membership the operation acts on.
- */
-export type AccountId = Uuid;
-
-/**
  * Identifier of the agent token that the operation acts on.
  */
 export type TokenId = Uuid;
@@ -1684,16 +1370,6 @@ export type FileId = Uuid;
  * Identifier of the revision that the operation reads.
  */
 export type RevisionId = Uuid;
-
-/**
- * Identifier of the public link that the operation changes.
- */
-export type ShareId = Uuid;
-
-/**
- * Opaque public link secret.
- */
-export type PublicShareToken = string;
 
 /**
  * Identifier of the attachment object that the operation acts on.
@@ -1736,21 +1412,6 @@ export type SearchQuery = string;
 export type SearchLimit = number;
 
 /**
- * Optional file identifier to filter branches.
- */
-export type BranchFileId = Uuid;
-
-/**
- * Optional conflict group identifier to filter branches.
- */
-export type ConflictGroupId = Uuid;
-
-/**
- * Optional branch state to filter branches.
- */
-export type BranchState = 'unresolved' | 'resolved';
-
-/**
  * Opaque token of a materialized snapshot, issued by the snapshot start operation. Only its hash is stored, so the value cannot be guessed.
  */
 export type SnapshotToken = string;
@@ -1776,16 +1437,6 @@ export type SyncCursor = string;
 export type SyncLimit = number;
 
 /**
- * The accepted revision and optional expiry to publish.
- */
-export type CreateShare = CreateShareInput;
-
-/**
- * The accepted revision and optional expiry to publish now.
- */
-export type UpdateShare = UpdateShareInput;
-
-/**
  * The settings to store for the signed in account.
  */
 export type Preferences2 = PreferencesInput;
@@ -1794,26 +1445,6 @@ export type Preferences2 = PreferencesInput;
  * The name to give the workspace.
  */
 export type WorkspaceName = WorkspaceNameInput;
-
-/**
- * The address and the role of the invitation.
- */
-export type InvitationRequest = InvitationInput;
-
-/**
- * The role to give the member.
- */
-export type MemberRole = MemberRoleInput;
-
-/**
- * The member that becomes the owner.
- */
-export type OwnershipTransfer = OwnershipTransferInput;
-
-/**
- * The invitation token to consume.
- */
-export type InvitationAcceptance = InvitationAcceptanceInput;
 
 /**
  * The name, the expiry, and the scope of the new token.
@@ -1854,16 +1485,6 @@ export type FinalizeAttachment = FinalizeAttachmentInput;
  * Checkpoint creation payload.
  */
 export type CreateCheckpoint = CreateCheckpointInput;
-
-/**
- * Divergent branch submission payload.
- */
-export type SubmitBranch = SubmitBranchInput;
-
-/**
- * Branch resolution payload.
- */
-export type ResolveBranches = ResolveBranchesInput;
 
 /**
  * Revision restore payload.
@@ -2344,62 +1965,6 @@ export type SignInWithPasswordResponses = {
 
 export type SignInWithPasswordResponse = SignInWithPasswordResponses[keyof SignInWithPasswordResponses];
 
-export type SignInWithProviderData = {
-    /**
-     * The configured provider to sign in with.
-     */
-    body: AuthProviderSignIn;
-    path?: never;
-    query?: never;
-    url: '/api/auth/sign-in/social';
-};
-
-export type SignInWithProviderErrors = {
-    /**
-     * The request did not match the endpoint.
-     */
-    400: ProblemDetails;
-    /**
-     * The credential was refused.
-     */
-    401: ProblemDetails;
-    /**
-     * The request did not come from the configured origin.
-     */
-    403: ProblemDetails;
-    /**
-     * The named record does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * Too many attempts. Try again later.
-     */
-    429: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type SignInWithProviderError = SignInWithProviderErrors[keyof SignInWithProviderErrors];
-
-export type SignInWithProviderResponses = {
-    /**
-     * The address that the browser must open.
-     */
-    200: AuthRedirect;
-};
-
-export type SignInWithProviderResponse = SignInWithProviderResponses[keyof SignInWithProviderResponses];
-
 export type SignOutData = {
     /**
      * Sign-out carries no data.
@@ -2491,64 +2056,6 @@ export type GetHealthResponses = {
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
 
-export type AcceptInvitationData = {
-    /**
-     * The invitation token to consume.
-     */
-    body: InvitationAcceptance;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/invitations/acceptance';
-};
-
-export type AcceptInvitationErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type AcceptInvitationError = AcceptInvitationErrors[keyof AcceptInvitationErrors];
-
-export type AcceptInvitationResponses = {
-    /**
-     * The workspace and the role that an invitation granted.
-     */
-    200: Membership;
-};
-
-export type AcceptInvitationResponse = AcceptInvitationResponses[keyof AcceptInvitationResponses];
-
 export type GetReadinessData = {
     body?: never;
     headers?: {
@@ -2592,6 +2099,86 @@ export type GetReadinessResponses = {
 };
 
 export type GetReadinessResponse = GetReadinessResponses[keyof GetReadinessResponses];
+
+export type GetSetupStatusData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/setup';
+};
+
+export type GetSetupStatusErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetSetupStatusError = GetSetupStatusErrors[keyof GetSetupStatusErrors];
+
+export type GetSetupStatusResponses = {
+    /**
+     * The setup state.
+     */
+    200: {
+        readonly initialized: boolean;
+    };
+};
+
+export type GetSetupStatusResponse = GetSetupStatusResponses[keyof GetSetupStatusResponses];
+
+export type CreateOwnerData = {
+    /**
+     * The email address and password of the single user.
+     */
+    body: {
+        email: string;
+        password: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/setup';
+};
+
+export type CreateOwnerErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateOwnerError = CreateOwnerErrors[keyof CreateOwnerErrors];
+
+export type CreateOwnerResponses = {
+    /**
+     * The single user was created and signed in.
+     */
+    201: {
+        readonly initialized: boolean;
+    };
+};
+
+export type CreateOwnerResponse = CreateOwnerResponses[keyof CreateOwnerResponses];
 
 export type ListWorkspacesData = {
     body?: never;
@@ -3018,213 +2605,6 @@ export type GetAttachmentRevisionResponses = {
 };
 
 export type GetAttachmentRevisionResponse = GetAttachmentRevisionResponses[keyof GetAttachmentRevisionResponses];
-
-export type ListBranchesData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: {
-        /**
-         * Optional file identifier to filter branches.
-         */
-        fileId?: Uuid;
-        /**
-         * Optional conflict group identifier to filter branches.
-         */
-        conflictGroupId?: Uuid;
-        /**
-         * Optional branch state to filter branches.
-         */
-        state?: 'unresolved' | 'resolved';
-    };
-    url: '/api/workspaces/{workspaceId}/branches';
-};
-
-export type ListBranchesErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type ListBranchesError = ListBranchesErrors[keyof ListBranchesErrors];
-
-export type ListBranchesResponses = {
-    /**
-     * List of divergent branches.
-     */
-    200: BranchList;
-};
-
-export type ListBranchesResponse = ListBranchesResponses[keyof ListBranchesResponses];
-
-export type SubmitBranchData = {
-    /**
-     * Divergent branch submission payload.
-     */
-    body: SubmitBranch;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/branches';
-};
-
-export type SubmitBranchErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
-     */
-    409: ProblemDetails;
-    /**
-     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
-     */
-    410: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
-     */
-    422: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type SubmitBranchError = SubmitBranchErrors[keyof SubmitBranchErrors];
-
-export type SubmitBranchResponses = {
-    /**
-     * Stored branch outcome.
-     */
-    200: AcceptedBranch;
-};
-
-export type SubmitBranchResponse = SubmitBranchResponses[keyof SubmitBranchResponses];
-
-export type ResolveBranchesData = {
-    /**
-     * Branch resolution payload.
-     */
-    body: ResolveBranches;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/branches/resolve';
-};
-
-export type ResolveBranchesErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
-     */
-    409: ProblemDetails;
-    /**
-     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
-     */
-    410: ProblemDetails;
-    /**
-     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
-     */
-    412: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
-     */
-    422: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type ResolveBranchesError = ResolveBranchesErrors[keyof ResolveBranchesErrors];
-
-export type ResolveBranchesResponses = {
-    /**
-     * Stored branch resolution outcome.
-     */
-    200: AcceptedBranchResolution;
-};
-
-export type ResolveBranchesResponse = ResolveBranchesResponses[keyof ResolveBranchesResponses];
 
 export type CommitChangesetData = {
     /**
@@ -3995,307 +3375,6 @@ export type RestoreRevisionResponses = {
 
 export type RestoreRevisionResponse = RestoreRevisionResponses[keyof RestoreRevisionResponses];
 
-export type ListMembersData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/members';
-};
-
-export type ListMembersErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type ListMembersError = ListMembersErrors[keyof ListMembersErrors];
-
-export type ListMembersResponses = {
-    /**
-     * The members and the open invitations of a workspace.
-     */
-    200: MemberList;
-};
-
-export type ListMembersResponse = ListMembersResponses[keyof ListMembersResponses];
-
-export type InviteMemberData = {
-    /**
-     * The address and the role of the invitation.
-     */
-    body: InvitationRequest;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/members';
-};
-
-export type InviteMemberErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type InviteMemberError = InviteMemberErrors[keyof InviteMemberErrors];
-
-export type InviteMemberResponses = {
-    /**
-     * The new invitation and its token, which is shown once.
-     */
-    201: InvitationCreated;
-};
-
-export type InviteMemberResponse = InviteMemberResponses[keyof InviteMemberResponses];
-
-export type RemoveMemberData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-        /**
-         * Identifier of the account whose membership the operation acts on.
-         */
-        accountId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/members/{accountId}';
-};
-
-export type RemoveMemberErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type RemoveMemberError = RemoveMemberErrors[keyof RemoveMemberErrors];
-
-export type RemoveMemberResponses = {
-    /**
-     * The named record no longer exists.
-     */
-    200: Removed;
-};
-
-export type RemoveMemberResponse = RemoveMemberResponses[keyof RemoveMemberResponses];
-
-export type UpdateMemberData = {
-    /**
-     * The role to give the member.
-     */
-    body: MemberRole;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-        /**
-         * Identifier of the account whose membership the operation acts on.
-         */
-        accountId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/members/{accountId}';
-};
-
-export type UpdateMemberErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type UpdateMemberError = UpdateMemberErrors[keyof UpdateMemberErrors];
-
-export type UpdateMemberResponses = {
-    /**
-     * One member of a workspace.
-     */
-    200: Member;
-};
-
-export type UpdateMemberResponse = UpdateMemberResponses[keyof UpdateMemberResponses];
-
-export type TransferOwnershipData = {
-    /**
-     * The member that becomes the owner.
-     */
-    body: OwnershipTransfer;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/ownership';
-};
-
-export type TransferOwnershipErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type TransferOwnershipError = TransferOwnershipErrors[keyof TransferOwnershipErrors];
-
-export type TransferOwnershipResponses = {
-    /**
-     * The members and the open invitations of a workspace.
-     */
-    200: MemberList;
-};
-
-export type TransferOwnershipResponse = TransferOwnershipResponses[keyof TransferOwnershipResponses];
-
 export type PurgeFilesData = {
     /**
      * File purge payload.
@@ -4543,252 +3622,6 @@ export type SearchFilesResponses = {
 
 export type SearchFilesResponse = SearchFilesResponses[keyof SearchFilesResponses];
 
-export type ListSharesData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/shares';
-};
-
-export type ListSharesErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type ListSharesError = ListSharesErrors[keyof ListSharesErrors];
-
-export type ListSharesResponses = {
-    /**
-     * Public links managed by this workspace.
-     */
-    200: ShareList;
-};
-
-export type ListSharesResponse = ListSharesResponses[keyof ListSharesResponses];
-
-export type CreateShareData = {
-    /**
-     * The accepted revision and optional expiry to publish.
-     */
-    body: CreateShare;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/shares';
-};
-
-export type CreateShareErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
-     */
-    422: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type CreateShareError = CreateShareErrors[keyof CreateShareErrors];
-
-export type CreateShareResponses = {
-    /**
-     * One administrator-visible public link and its public URL.
-     */
-    201: Share;
-};
-
-export type CreateShareResponse = CreateShareResponses[keyof CreateShareResponses];
-
-export type RevokeShareData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-        /**
-         * Identifier of the public link that the operation changes.
-         */
-        shareId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/shares/{shareId}';
-};
-
-export type RevokeShareErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type RevokeShareError = RevokeShareErrors[keyof RevokeShareErrors];
-
-export type RevokeShareResponses = {
-    /**
-     * One administrator-visible public link and its public URL.
-     */
-    200: Share;
-};
-
-export type RevokeShareResponse = RevokeShareResponses[keyof RevokeShareResponses];
-
-export type UpdateShareData = {
-    /**
-     * The accepted revision and optional expiry to publish now.
-     */
-    body: UpdateShare;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-        /**
-         * Identifier of the public link that the operation changes.
-         */
-        shareId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/shares/{shareId}';
-};
-
-export type UpdateShareErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
-     */
-    422: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type UpdateShareError = UpdateShareErrors[keyof UpdateShareErrors];
-
-export type UpdateShareResponses = {
-    /**
-     * One administrator-visible public link and its public URL.
-     */
-    200: Share;
-};
-
-export type UpdateShareResponse = UpdateShareResponses[keyof UpdateShareResponses];
-
 export type GetChangesData = {
     body?: never;
     headers?: {
@@ -4993,95 +3826,3 @@ export type GetSnapshotPageResponses = {
 };
 
 export type GetSnapshotPageResponse = GetSnapshotPageResponses[keyof GetSnapshotPageResponses];
-
-export type GetPublicShareData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Opaque public link secret.
-         */
-        token: string;
-    };
-    query?: never;
-    url: '/s/{token}';
-};
-
-export type GetPublicShareErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type GetPublicShareError = GetPublicShareErrors[keyof GetPublicShareErrors];
-
-export type GetPublicShareResponses = {
-    /**
-     * Sanitized HTML of one active pinned note revision.
-     */
-    200: string;
-};
-
-export type GetPublicShareResponse = GetPublicShareResponses[keyof GetPublicShareResponses];
-
-export type GetPublicAttachmentData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Opaque public link secret.
-         */
-        token: string;
-        /**
-         * Identifier of the revision that the operation reads.
-         */
-        revisionId: Uuid;
-    };
-    query?: never;
-    url: '/s/{token}/attachments/{revisionId}';
-};
-
-export type GetPublicAttachmentErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type GetPublicAttachmentError = GetPublicAttachmentErrors[keyof GetPublicAttachmentErrors];
-
-export type GetPublicAttachmentResponses = {
-    /**
-     * Binary bytes of the immutable attachment.
-     */
-    200: Blob | File;
-};
-
-export type GetPublicAttachmentResponse = GetPublicAttachmentResponses[keyof GetPublicAttachmentResponses];

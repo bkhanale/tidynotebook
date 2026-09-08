@@ -7,7 +7,7 @@
  * `fake-indexeddb` backend. The engine under test is `createSyncEngine`
  * with its default operations, so these tests prove the wire behavior:
  * offline chains, lost answers, lease takeover, purge preservation, cursor
- * expiry, and role recovery.
+ * expiry, and server-side stale-save rebasing.
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
@@ -17,21 +17,17 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { IDBFactory, IDBKeyRange as FakeKeyRange } from 'fake-indexeddb';
 import {
-  acceptInvitation,
   commitChangeset,
   configureClient,
   createFile,
   getAccount,
   getFile,
   getRevision,
-  inviteMember,
-  listBranches,
   listHistory,
   listWorkspaces,
   purgeFiles,
   signInWithPassword,
   updateFile,
-  updateMember,
 } from '@notesapp/api-client';
 import { contentDigest } from '@notesapp/core';
 import {
@@ -41,7 +37,6 @@ import {
   createAuthProtocol,
   createHandlers,
   createIdentityAdapter,
-  createInvitationAccounts,
   createSyncCleanup,
   loadServerConfig,
   type ServerConfig,
@@ -132,12 +127,6 @@ const adapter = createIdentityAdapter({
   identity,
   origin: config.origin,
 });
-const invitations = createInvitationAccounts(config, {
-  identity,
-  pool: authPool,
-  resolveActor: (request) => adapter.resolveActor(request),
-});
-
 const server = await startTestServer({
   environment: environment(),
   handlers: (value) =>
@@ -145,7 +134,6 @@ const server = await startTestServer({
       store: identity,
       content,
       attachments,
-      invitations,
     }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
@@ -177,28 +165,6 @@ assert.match(ownerAccountId, /^[0-9a-f-]{36}$/);
 const listed = await listWorkspaces({ headers: browser(ownerCookie) });
 const workspaceId = listed.data?.workspaces[0]?.workspaceId ?? '';
 assert.match(workspaceId, /^[0-9a-f-]{36}$/);
-
-const memberEmail = 'sync-editor@notes.invalid';
-const memberPassword = 'editor-password-123456';
-const invited = await inviteMember({
-  headers: browser(ownerCookie),
-  path: { workspaceId },
-  body: { email: memberEmail, role: 'editor' },
-});
-assert.equal(invited.error, undefined);
-const memberAccepted = await acceptInvitation({
-  headers: { origin: 'https://notes.test' },
-  body: { token: invited.data?.token ?? '', password: memberPassword },
-});
-assert.equal(memberAccepted.error, undefined);
-const memberCookie = cookieHeader(
-  responseOf(memberAccepted.response).headers.getSetCookie(),
-);
-assert.ok(memberCookie.length > 0, 'the test needs a member session cookie');
-
-const memberAccount = await getAccount({ headers: browser(memberCookie) });
-const memberAccountId = memberAccount.data?.accountId ?? '';
-assert.match(memberAccountId, /^[0-9a-f-]{36}$/);
 
 /** The client identifiers that every write carries. */
 function mutationIds(): {
@@ -365,7 +331,7 @@ async function queuedOf(store: LocalStore, account = ownerAccountId) {
   return store.pending(account, workspaceId);
 }
 
-await test('offline edits on two devices keep both branches', async () => {
+await test('a later offline save becomes the next version', async () => {
   const file = await newFile('notes/shared.md', '# Base\n');
   const storeA = await openStore('ab-a', 'device-a');
   const storeB = await openStore('ab-b', 'device-b');
@@ -418,26 +384,12 @@ await test('offline edits on two devices keep both branches', async () => {
     const runB = startEngine(storeB, ownerCookie, 'engine-b');
     try {
       await waitFor(
-        async () =>
-          (await queuedOf(storeB)).every(
-            (entry) => entry.state === 'conflict',
-          ) && (await queuedOf(storeB)).length === 1,
-        'engine B preserves its conflicting mutation',
+        async () => (await queuedOf(storeB)).length === 0,
+        'engine B drains its stale save',
       );
     } finally {
       await stopEngine(runB);
     }
-    assert.ok(
-      runB.notices.some((notice) => notice.kind === 'conflict'),
-      'the stale head must be announced as a conflict',
-    );
-
-    const branches = await listBranches({
-      headers: browser(ownerCookie),
-      path: { workspaceId },
-      query: { fileId: file.fileId, state: 'unresolved' },
-    });
-    assert.equal(branches.error, undefined, JSON.stringify(branches.error));
     const localB = await storeB.listCheckpoints(
       ownerAccountId,
       workspaceId,
@@ -445,23 +397,21 @@ await test('offline edits on two devices keep both branches', async () => {
     );
     const tipB = localB[localB.length - 1]?.revisionId ?? '';
     assert.ok(tipB.length > 0, 'device B must keep its checkpoint');
-    const tips = (branches.data?.branches ?? []).map(
-      (branch) => branch.tipRevisionId,
-    );
-    assert.ok(
-      tips.includes(tipB),
-      "device B's offline revision must survive as a branch",
-    );
     assert.equal(
       localB[localB.length - 1]?.digest,
       await contentDigest('# B\n'),
-      "device B's text must be preserved",
+      "device B's text must stay in local history",
     );
     const kept = await getFile({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },
     });
-    assert.equal(kept.data?.head?.text, '# A\n');
+    assert.equal(kept.data?.head?.text, '# B\n');
+    const history = await listHistory({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(history.data?.revisions.length, 3);
   } finally {
     await storeA.close();
     await storeB.close();
@@ -591,18 +541,6 @@ await test('later local edits during acknowledgment join one atomic commit', asy
     // History reads newest first.
     assert.deepEqual(texts, ['# Batch two\n', '# Batch one\n']);
 
-    const branches = await listBranches({
-      headers: browser(ownerCookie),
-      path: { workspaceId },
-      query: { fileId, state: 'unresolved' },
-    });
-    assert.equal(branches.error, undefined, JSON.stringify(branches.error));
-    assert.equal(
-      branches.data?.branches.length,
-      0,
-      'a linear local chain must not branch',
-    );
-
     const kept = await store.readDraft(
       ownerAccountId,
       workspaceId,
@@ -730,75 +668,6 @@ await test('an expired cursor restarts from a snapshot without losing the queue'
     });
     assert.equal(live.error, undefined, JSON.stringify(live.error));
     assert.equal(live.data?.head?.text, '# Cursor\n');
-  } finally {
-    await store.close();
-  }
-});
-
-await test('a viewer downgrade suspends writes and an editor restore resumes them', async () => {
-  const file = await newFile('notes/member-note.md', '# Member base\n');
-  const store = await openStore('member', 'device-member');
-  try {
-    await syncPull(store, memberCookie, 'engine-member-pull', memberAccountId);
-    await checkpointText(
-      store,
-      draftOf(
-        memberAccountId,
-        'working-member',
-        file.fileId,
-        file.revisionId,
-        '# Member edit\n',
-        'notes/member-note.md',
-        1,
-      ),
-    );
-    const demote = await updateMember({
-      headers: browser(ownerCookie),
-      path: { workspaceId, accountId: memberAccountId },
-      body: { role: 'viewer' },
-    });
-    assert.equal(demote.error, undefined, JSON.stringify(demote.error));
-
-    const run = startEngine(
-      store,
-      memberCookie,
-      'engine-member',
-      memberAccountId,
-    );
-    try {
-      await waitFor(
-        () => run.notices.some((notice) => notice.kind === 'role-downgraded'),
-        'the downgrade suspends writes',
-      );
-      assert.equal((await queuedOf(store, memberAccountId)).length, 1);
-      const held = await getFile({
-        headers: browser(ownerCookie),
-        path: { workspaceId, fileId: file.fileId },
-      });
-      assert.equal(held.data?.head?.text, '# Member base\n');
-
-      const restore = await updateMember({
-        headers: browser(ownerCookie),
-        path: { workspaceId, accountId: memberAccountId },
-        body: { role: 'editor' },
-      });
-      assert.equal(restore.error, undefined, JSON.stringify(restore.error));
-      await waitFor(
-        async () => (await queuedOf(store, memberAccountId)).length === 0,
-        'the restored role drains the queue',
-      );
-    } finally {
-      await stopEngine(run);
-    }
-    assert.ok(
-      run.notices.some((notice) => notice.kind === 'writes-resumed'),
-      'the restored role must resume writes',
-    );
-    const live = await getFile({
-      headers: browser(ownerCookie),
-      path: { workspaceId, fileId: file.fileId },
-    });
-    assert.equal(live.data?.head?.text, '# Member edit\n');
   } finally {
     await store.close();
   }

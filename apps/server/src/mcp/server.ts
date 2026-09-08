@@ -3,10 +3,10 @@
  *
  * Implements Streamable HTTP MCP over Fastify, providing authenticated
  * agent tools for workspace/file operations, search, links, history,
- * checkpoints, branches, merge, restore, and sharing.
+ * checkpoints, restore, and attachments.
  */
 import { Buffer } from 'node:buffer';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { mkdir, unlink, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { Readable } from 'node:stream';
@@ -21,26 +21,19 @@ import {
   createAttachmentChangeset,
   createCheckpoint,
   createFileChangeset,
-  createShare,
   getBacklinks,
   isAllowedMediaType,
   listFiles,
-  listBranches,
   listHistory,
-  listShares,
   markdownContent,
   readFile,
   readHeadForWrite,
   readRevision,
   requestDigest,
-  resolveBranches,
   restoreRevision,
-  revokeShare,
   searchFiles,
-  submitBranch,
   tombstoneContent,
   updateFileChangeset,
-  updateShare,
 } from '@notesapp/core';
 import {
   createMcpHandler,
@@ -52,7 +45,6 @@ import type { AuthInfo, McpHttpHandler } from '@modelcontextprotocol/server';
 import { mcpTools } from '@notesapp/api-contract';
 import type { ServerConfig } from '../config.ts';
 import { hostName } from '../http/host.ts';
-import { publicTokenHash } from '../http/sharing.ts';
 import { inspectImage } from '../jobs/inspect-image.ts';
 import { McpAuthorizationServer } from './authorization.ts';
 
@@ -149,16 +141,9 @@ function registerAllMcpTools(
     readonly cursor?: string | null;
     readonly revisionId: string;
     readonly name: string;
-    readonly branchName: string;
-    readonly baseRevisionId: string;
-    readonly winningRevisionId: string;
-    readonly expectedHead?: string | null;
     readonly targetRevisionId: string;
     readonly mediaType: string;
     readonly contentBase64: string;
-    readonly shareId: string;
-    readonly pinnedRevisionId?: string | null;
-    readonly expiresAt?: string | null;
   }
 
   for (const toolDef of mcpTools) {
@@ -608,144 +593,6 @@ function registerAllMcpTools(
               };
             }
 
-            case 'list_branches': {
-              const actor = await resolveActor(args.workspaceId, 'read');
-              const res = await listBranches(content, actor, args.workspaceId, {
-                fileId: args.fileId,
-              });
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.value) }],
-              };
-            }
-
-            case 'submit_branch': {
-              const actor = await resolveActor(args.workspaceId, 'write');
-              const revisionId = randomUUID();
-              const mutationId = randomUUID();
-              const conflictGroupId = randomUUID();
-              const mdContent = await markdownContent(args.content);
-              const digest = await requestDigest(
-                'submitBranch',
-                { workspaceId: args.workspaceId, conflictGroupId },
-                { branchName: args.branchName, fileId: args.fileId },
-              );
-              const res = await submitBranch(
-                content,
-                actor,
-                {
-                  workspaceId: args.workspaceId,
-                  mutationId,
-                  deviceId: 'mcp-remote',
-                  conflictGroupId,
-                  expectedHeads: { [args.fileId]: args.baseRevisionId },
-                  revisions: [
-                    {
-                      id: revisionId,
-                      fileId: args.fileId,
-                      parents: [args.baseRevisionId],
-                      path: args.path,
-                      deleted: false,
-                      content: mdContent,
-                      clientTime: new Date().toISOString(),
-                      message: args.branchName,
-                      restoredFrom: null,
-                    },
-                  ],
-                },
-                digest,
-              );
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.value) }],
-              };
-            }
-
-            case 'resolve_branches': {
-              const actor = await resolveActor(args.workspaceId, 'write');
-              const winningRevResult = await readRevision(
-                content,
-                actor,
-                args.workspaceId,
-                args.winningRevisionId,
-              );
-              if (!winningRevResult.ok) {
-                return {
-                  isError: true,
-                  content: [
-                    {
-                      type: 'text',
-                      text: JSON.stringify(winningRevResult.error),
-                    },
-                  ],
-                };
-              }
-              const winning = winningRevResult.value;
-              const mutationId = randomUUID();
-              const revisionId = randomUUID();
-              const digest = await requestDigest(
-                'resolveBranches',
-                { workspaceId: args.workspaceId },
-                {
-                  fileId: args.fileId,
-                  winningRevisionId: args.winningRevisionId,
-                },
-              );
-              const res = await resolveBranches(
-                content,
-                actor,
-                {
-                  workspaceId: args.workspaceId,
-                  mutationId,
-                  deviceId: 'mcp-remote',
-                  clientTime: new Date().toISOString(),
-                  resolutions: [
-                    {
-                      fileId: args.fileId,
-                      expectedHead: args.expectedHead ?? null,
-                      branchTip: args.winningRevisionId,
-                      revisionId,
-                      path: winning.path,
-                      content:
-                        winning.text !== null
-                          ? {
-                              kind: 'markdown',
-                              digest: winning.digest,
-                              text: winning.text,
-                            }
-                          : {
-                              kind: 'attachment',
-                              digest: winning.digest,
-                              objectId: winning.objectId ?? '',
-                            },
-                      deleted: winning.deleted,
-                      message: 'Resolved branch via MCP',
-                    },
-                  ],
-                },
-                digest,
-              );
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.value) }],
-              };
-            }
-
             case 'restore_revision': {
               const actor = await resolveActor(args.workspaceId, 'write');
               const mutationId = randomUUID();
@@ -955,106 +802,6 @@ function registerAllMcpTools(
                     }),
                   },
                 ],
-              };
-            }
-
-            case 'create_share': {
-              const actor = await resolveActor(args.workspaceId, 'share');
-              const token = randomBytes(32).toString('base64url');
-              const shareId = randomUUID();
-              let pinnedRevisionId = args.pinnedRevisionId;
-              if (!pinnedRevisionId) {
-                const head = await readHeadForWrite(
-                  content,
-                  actor,
-                  args.workspaceId,
-                  args.fileId,
-                );
-                if (!head.ok) {
-                  return {
-                    isError: true,
-                    content: [
-                      { type: 'text', text: JSON.stringify(head.error) },
-                    ],
-                  };
-                }
-                pinnedRevisionId = head.value.revisionId;
-              }
-              const res = await createShare(content, actor, args.workspaceId, {
-                id: shareId,
-                fileId: args.fileId,
-                pinnedRevisionId,
-                tokenHash: publicTokenHash(token),
-                expiresAt: args.expiresAt ?? null,
-              });
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [
-                  {
-                    type: 'text',
-                    text: JSON.stringify({
-                      ...res.value,
-                      url: `${dependencies.config.origin}/s/${token}`,
-                    }),
-                  },
-                ],
-              };
-            }
-
-            case 'update_share': {
-              const actor = await resolveActor(args.workspaceId, 'share');
-              const res = await updateShare(content, actor, args.workspaceId, {
-                shareId: args.shareId,
-                fileId: args.fileId,
-                pinnedRevisionId: args.pinnedRevisionId ?? '',
-                expiresAt: args.expiresAt ?? null,
-              });
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.value) }],
-              };
-            }
-
-            case 'revoke_share': {
-              const actor = await resolveActor(args.workspaceId, 'share');
-              const res = await revokeShare(
-                content,
-                actor,
-                args.workspaceId,
-                args.shareId,
-              );
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.value) }],
-              };
-            }
-
-            case 'list_shares': {
-              const actor = await resolveActor(args.workspaceId, 'share');
-              const res = await listShares(content, actor, args.workspaceId);
-              if (!res.ok) {
-                return {
-                  isError: true,
-                  content: [{ type: 'text', text: JSON.stringify(res.error) }],
-                };
-              }
-              return {
-                content: [{ type: 'text', text: JSON.stringify(res.value) }],
               };
             }
 

@@ -29,7 +29,7 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   ).toBeVisible();
 
   const startedAt = Date.now();
-  await page.getByRole('button', { name: 'Save a checkpoint now' }).click();
+  await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
   expect(Date.now() - startedAt).toBeLessThan(10_000);
   await expect(page.getByRole('link', { name: path }).first()).toBeVisible();
@@ -42,7 +42,7 @@ test('create, save, reload, rename, and delete use durable note state', async ({
 
   await page.getByLabel('File path').fill(renamed);
   await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save a checkpoint now' }).click();
+  await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
   await expect(page.getByRole('link', { name: renamed }).first()).toBeVisible();
 
@@ -53,7 +53,7 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   await expect(page.getByRole('link', { name: renamed })).toHaveCount(0);
 });
 
-test('a checkpoint made during the first sync does not conflict with its parent', async ({
+test('a save made during the first sync keeps its parent', async ({
   browser,
   stack,
 }, testInfo) => {
@@ -94,11 +94,11 @@ test('a checkpoint made during the first sync does not conflict with its parent'
     const path = `ordered-${Date.now().toString()}.md`;
     await page.getByLabel('File path').fill(path);
     await replaceEditorText(page, '# First checkpoint');
-    await page.getByRole('button', { name: 'Save a checkpoint now' }).click();
+    await page.getByRole('button', { name: 'Save this note' }).click();
     await firstRequestStarted;
 
     await replaceEditorText(page, '# Second checkpoint');
-    await page.getByRole('button', { name: 'Save a checkpoint now' }).click();
+    await page.getByRole('button', { name: 'Save this note' }).click();
     releaseFirstRequest();
 
     await waitForServerSave(page);

@@ -359,7 +359,7 @@ await test('a cached local deletion does not reopen accepted content', async () 
   await store.close();
 });
 
-await test('two working copies of one file produce a local branch', async () => {
+await test('two working copies of one file create ordered local saves', async () => {
   const backend = createBackend('branch');
   const store = await openLocalStore(origin, backend.options());
   const account = randomUUID();
@@ -386,8 +386,7 @@ await test('two working copies of one file produce a local branch', async () => 
   const revisionA = fromA?.input.revisions[0]?.id ?? '';
   const revisionB = fromB?.input.revisions[0]?.id ?? '';
   assert.notEqual(revisionA, revisionB);
-  // Both name the accepted head as their parent. Neither is a child of the
-  // other, so nothing was silently merged.
+  // Both can name the accepted head. The server will rebase the later save.
   assert.deepEqual(fromA?.input.revisions[0]?.parents, [firstRevision]);
   assert.deepEqual(fromB?.input.revisions[0]?.parents, [firstRevision]);
 
@@ -399,17 +398,12 @@ await test('two working copies of one file produce a local branch', async () => 
       .toArray();
     return rows;
   });
-  assert.equal(branches.length, 1);
-  assert.equal(branches[0]?.fileId, file);
-  assert.equal(branches[0]?.baseRevisionId, firstRevision);
-  assert.deepEqual(branches[0]?.tips, [revisionA, revisionB]);
-  assert.equal(branches[0]?.resolved, false);
+  assert.equal(branches.length, 0);
 
   const file2 = await withRawDatabase(backend, (tables) =>
     tables.acceptedFiles.get([origin, account, workspace, file]),
   );
-  // The second tip did not advance the local head.
-  assert.equal(file2?.localHeadRevisionId, revisionA);
+  assert.equal(file2?.localHeadRevisionId, revisionB);
   assert.equal(file2?.acceptedHeadRevisionId, firstRevision);
 
   await store.markSending(
@@ -421,7 +415,7 @@ await test('two working copies of one file produce a local branch', async () => 
   const sibling = (await store.pending(account, workspace)).find(
     (entry) => entry.input.mutationId === fromB?.input.mutationId,
   );
-  // A sibling remains based on the old head and must become a real conflict.
+  // The later save remains queued with the accepted head that it observed.
   assert.deepEqual(sibling?.input.expectedHeads, {
     [file]: firstRevision,
   });

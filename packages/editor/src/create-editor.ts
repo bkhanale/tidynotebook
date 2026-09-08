@@ -26,7 +26,6 @@ import {
   type EditorNavigation,
   type LinkTarget,
 } from './commands.ts';
-import { livePreview } from './live-preview.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
 /** Optional behavior beyond the required creation signature. */
@@ -144,8 +143,6 @@ export function createEditor(
     extensions: [
       history(),
       markdown(),
-      livePreview(),
-      richCompartment.of(richWidgets(options.rich ?? {})),
       EditorView.lineWrapping,
       themeCompartment.of(themeExtension(options.theme ?? 'dark')),
       saveKeymap,

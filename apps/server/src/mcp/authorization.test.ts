@@ -75,8 +75,6 @@ void test('McpAuthorizationServer generates RFC 9728 and RFC 8414 metadata', () 
   assert.deepEqual(resourceMeta.scopes_supported, [
     'notes:read',
     'notes:write',
-    'notes:share',
-    'notes:admin',
   ]);
 
   const authMeta = server.getAuthorizationServerMetadata();

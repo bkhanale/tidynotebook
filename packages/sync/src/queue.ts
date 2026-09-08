@@ -12,11 +12,8 @@
  *   identity, so a file edited twice offline commits both revisions together
  *   instead of conflicting with itself. An entry that was already sent is
  *   always retried alone under its frozen identity.
- * - A stale head is never retried as a head write. It is submitted once
- *   through the explicit branch operation and kept locally as a conflict for
- *   the user to resolve. Anything the server can never accept (a purge, a
- *   reused identity, an invalid graph) is preserved the same way instead of
- *   being dropped or retried forever.
+ * - A permanent server failure is kept locally instead of being dropped or
+ *   retried forever. The single-user server rebases a stale save itself.
  *
  * This module is transport agnostic: the caller injects `QueueNetwork`, and
  * the engine builds it from the generated client. Unit tests inject stubs.
@@ -39,21 +36,6 @@ export type ServiceOutcome<T> =
 /** The outcome of one changeset submission. */
 export type CommitResult = ServiceOutcome<AcceptedChangeset>;
 
-/** One divergent branch submission, in domain shape. */
-export type BranchInput = {
-  readonly workspaceId: string;
-  readonly mutationId: string;
-  readonly deviceId: string;
-  readonly conflictGroupId: string;
-  readonly expectedHeads: Readonly<Record<string, string | null>>;
-  readonly revisions: ChangesetInput['revisions'];
-};
-
-/** The outcome of one branch submission. */
-export type BranchResult = ServiceOutcome<{
-  readonly revisionIds: readonly string[];
-}>;
-
 /**
  * What submission needs from the network.
  *
@@ -64,7 +46,6 @@ export type BranchResult = ServiceOutcome<{
 export type QueueNetwork = {
   prepareCommit(input: ChangesetInput): Promise<string>;
   commit(input: ChangesetInput, signal: AbortSignal): Promise<CommitResult>;
-  submitBranch(input: BranchInput, signal: AbortSignal): Promise<BranchResult>;
 };
 
 /** A state change the sync run announces. Tab messages only announce. */
@@ -72,12 +53,6 @@ export type SyncNotice =
   | {
       readonly kind: 'pushed';
       readonly mutationIds: readonly string[];
-      readonly fileIds: readonly string[];
-    }
-  | {
-      readonly kind: 'conflict';
-      readonly mutationId: string;
-      readonly code: string;
       readonly fileIds: readonly string[];
     }
   | {
@@ -214,23 +189,18 @@ export async function sendWithRetry<T>(
 }
 
 /** What one failed submission asks the queue to do next. */
-type SubmissionAction =
-  'branch' | 'preserve' | 'leave' | 'paused' | 'access-lost';
+type SubmissionAction = 'preserve' | 'leave' | 'paused' | 'access-lost';
 
 /**
  * Classifies one failed submission.
  *
- * A moved head or a taken path becomes an explicit branch. A quota failure
- * stays queued for a later cycle without a conflict mark: space may appear.
+ * A quota failure stays queued for a later cycle because space may appear.
  * Anything else the server can never accept is preserved as a conflict so it
  * is neither dropped nor retried forever.
  */
 function submissionAction(problem: Problem): SubmissionAction {
   if (problem.status === 401) return 'paused';
   if (problem.status === 403 || problem.status === 404) return 'access-lost';
-  if (problem.status === 412) return 'branch';
-  if (problem.status === 409 && problem.code === 'path_conflict')
-    return 'branch';
   if (problem.status === 413) return 'leave';
   return 'preserve';
 }
@@ -407,104 +377,12 @@ async function submitSingle(
   if (action === 'paused') return 'paused';
   if (action === 'access-lost') return 'access-lost';
   if (action === 'leave') return 'done';
-  if (action === 'branch')
-    return submitAsBranch(local, accountId, net, ctx, entry, outcome.problem);
   await local.markConflict(accountId, input.mutationId);
   ctx.announce({
     kind: 'preserved',
     mutationId: input.mutationId,
     code: outcome.problem.code,
     fileIds: [...new Set(input.revisions.map((revision) => revision.fileId))],
-  });
-  return 'done';
-}
-
-/**
- * Submits one conflicting entry through the explicit branch operation.
- *
- * The branch carries a fresh mutation identity and conflict group, so the
- * failed head write is never retried as one. The entry is marked as a
- * conflict whether the branch lands or not: its body and checkpoints stay
- * stored for explicit resolution, and no later cycle submits a second
- * branch for it.
- */
-async function submitAsBranch(
-  local: LocalStore,
-  accountId: string,
-  net: QueueNetwork,
-  ctx: SyncContext,
-  entry: QueueEntry,
-  problem: Problem,
-): Promise<PushOutcome> {
-  const branchMutationId = entry.branchMutationId ?? ctx.id();
-  const conflictGroupId = entry.conflictGroupId ?? ctx.id();
-  const input: BranchInput = {
-    workspaceId: entry.input.workspaceId,
-    mutationId: branchMutationId,
-    deviceId: entry.input.deviceId,
-    conflictGroupId,
-    expectedHeads: { ...entry.input.expectedHeads },
-    revisions: entry.input.revisions,
-  };
-  await local.markConflict(accountId, entry.input.mutationId, {
-    conflictGroupId,
-    branchMutationId,
-    branchState: 'pending',
-    errorCode: null,
-  });
-  const outcome = await sendWithRetry(ctx, (signal) =>
-    net.submitBranch(input, signal),
-  );
-  if (outcome === null) {
-    await local.markConflict(accountId, entry.input.mutationId, {
-      conflictGroupId,
-      branchMutationId,
-      branchState: 'failed',
-      errorCode: 'branch_failed',
-    });
-    ctx.announce({
-      kind: 'preserved',
-      mutationId: entry.input.mutationId,
-      code: 'branch_failed',
-      fileIds: [
-        ...new Set(entry.input.revisions.map((revision) => revision.fileId)),
-      ],
-    });
-    return 'done';
-  }
-  if (!outcome.ok) {
-    if (outcome.problem.status === 401) return 'paused';
-    if (outcome.problem.status === 403 || outcome.problem.status === 404)
-      return 'access-lost';
-    await local.markConflict(accountId, entry.input.mutationId, {
-      conflictGroupId,
-      branchMutationId,
-      branchState: 'failed',
-      errorCode: outcome.problem.code,
-    });
-    ctx.announce({
-      kind: 'preserved',
-      mutationId: entry.input.mutationId,
-      code: outcome.problem.code,
-      fileIds: [
-        ...new Set(entry.input.revisions.map((revision) => revision.fileId)),
-      ],
-    });
-    return 'done';
-  }
-  await local.markConflict(accountId, entry.input.mutationId, {
-    conflictGroupId,
-    branchMutationId,
-    branchState: 'submitted',
-    errorCode: null,
-  });
-  ctx.announce({
-    kind: 'conflict',
-    mutationId: entry.input.mutationId,
-    code: problem.code,
-    fileIds: [
-      ...new Set(entry.input.revisions.map((revision) => revision.fileId)),
-    ],
   });
   return 'done';
 }

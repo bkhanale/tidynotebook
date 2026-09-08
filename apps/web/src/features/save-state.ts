@@ -5,7 +5,6 @@ export type SaveState =
   | 'saved-local'
   | 'syncing'
   | 'saved-server'
-  | 'conflict'
   | 'storage-full'
   | 'save-failed';
 
@@ -22,7 +21,7 @@ export type SaveStateInput = {
 export function resolveSaveState(input: SaveStateInput): SaveState {
   if (input.storageError === 'quota') return 'storage-full';
   if (input.storageError !== null) return 'save-failed';
-  if (input.queueState === 'conflict') return 'conflict';
+  if (input.queueState === 'conflict') return 'save-failed';
   if (input.draftWritePending) return 'saving-local';
   if (input.hasUncheckpointedDraft) return 'saved-local';
   if (input.queueState === 'sending') return 'syncing';

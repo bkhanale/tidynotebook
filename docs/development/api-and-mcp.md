@@ -37,8 +37,7 @@ The server responds with:
 
 - `resource`: The canonical resource URI (e.g. `http://127.0.0.1/mcp`).
 - `authorization_servers`: List containing the issuer origin.
-- `scopes_supported`: List of supported scopes (`notes:read`, `notes:write`,
-  `notes:share`, `notes:admin`).
+- `scopes_supported`: List of supported scopes (`notes:read`, `notes:write`).
 - `bearer_methods_supported`: `["header"]`.
 - `resource_documentation`: URL to MCP documentation.
 
@@ -98,7 +97,7 @@ tokens are bearer credentials with:
 
 - Configurable expiry timestamp.
 - Explicit workspace scoping.
-- Action-level grants (`read`, `write`, `history`, `share`, `members`, `purge`).
+- Action-level grants (`read`, `write`, `history`, `purge`).
 
 ## Per-Call Authorization and Security Checks
 
@@ -110,19 +109,18 @@ Every tool invocation over remote MCP and stdio MCP validates security state:
 3. **Expiration**: Verifies that `expiresAt` has not passed.
 4. **Audience Binding**: Verifies that the token was issued for the target
    resource server origin.
-5. **Workspace Membership**: Resolves the account's active membership in the
-   requested workspace.
+5. **Workspace Access**: Confirms that the account can use the requested
+   workspace.
 6. **Action Grant**: Verifies that the actor role and token scope allow the
-   requested operation action (`read`, `write`, `history`, `share`).
+   requested operation action (`read`, `write`, `history`).
 
-## The 21 MCP Domain Tools
+## The 14 MCP Domain Tools
 
 The tools match the OpenAPI contract schemas:
 
 | Tool Name           | Action    | Description                                  | Key Preconditions                 |
 | :------------------ | :-------- | :------------------------------------------- | :-------------------------------- |
 | `list_workspaces`   | `read`    | List workspaces accessible to the actor.     | None                              |
-| `get_workspace`     | `read`    | Retrieve workspace details and role.         | Workspace exists                  |
 | `list_files`        | `read`    | List live non-deleted files in a workspace.  | `cursor`, `limit`                 |
 | `get_file`          | `read`    | Get file metadata and current head revision. | File exists                       |
 | `create_file`       | `write`   | Create a new file with initial content.      | Path does not exist               |
@@ -132,30 +130,20 @@ The tools match the OpenAPI contract schemas:
 | `get_revision`      | `history` | Retrieve a specific immutable revision.      | Revision exists                   |
 | `create_checkpoint` | `write`   | Create a named checkpoint on current head.   | `expectedRevisionId` matches head |
 | `restore_revision`  | `write`   | Restore an older revision as the new head.   | `expectedRevisionId` matches head |
-| `list_branches`     | `history` | List unmerged conflict branch tips.          | None                              |
-| `submit_branch`     | `write`   | Submit concurrent edits as a named branch.   | `baseRevisionId` exists           |
-| `resolve_branches`  | `write`   | Fast-forward head to a winning branch tip.   | `expectedHead` matches            |
 | `upload_attachment` | `write`   | Store binary attachment content (base64).    | Allowed media type                |
 | `get_attachment`    | `read`    | Retrieve attachment content (base64).        | Revision exists                   |
-| `create_share`      | `share`   | Create a public link for a revision.         | `pinnedRevisionId` exists         |
-| `list_shares`       | `share`   | List active public shares in workspace.      | None                              |
-| `update_share`      | `share`   | Update pinned revision or expiry of share.   | Share exists                      |
-| `revoke_share`      | `share`   | Revoke an existing public share link.        | Share exists                      |
 | `search_files`      | `read`    | Full-text search across accepted notes.      | Valid query string                |
 | `get_backlinks`     | `read`    | Find notes that reference a target file.     | Target file exists                |
 
-## Precondition and Conflict Handling
+## Preconditions and Linear History
 
 Agents must handle concurrency without losing work:
 
 - **Optimistic Concurrency**: Mutating tools (`update_file`, `delete_file`,
   `create_checkpoint`, `restore_revision`) require `expectedRevisionId`.
-- **Conflict Response**: If `expectedRevisionId` does not match the current
-  accepted head, the tool returns `isError: true` and includes the current head
-  revision identifier in the response text.
-- **Branch Recovery**: When a concurrent write creates a conflict, agents can
-  call `submit_branch` to record their edits as an alternate branch, and later
-  call `resolve_branches` when ready.
+- **Ordered Updates**: The server places a stale explicit update after the
+  current head. A create that finds an existing file still fails its
+  precondition.
 
 ## Local Stdio MCP CLI
 

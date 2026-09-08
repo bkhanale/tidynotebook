@@ -1,26 +1,16 @@
 /**
- * Workspace screens: selection, creation, settings, and membership.
+ * Workspace screens: selection, creation, and settings.
  *
  * Every action calls a generated workspace operation. The screens show the
- * current role: viewers get a read-only note instead of disabled-looking
- * forms that hide why. Owner-only transfer and deletion live behind an
- * explicit role check of the loaded membership.
+ * current role. Owner-only deletion uses an explicit role check.
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import {
   createWorkspace,
   deleteWorkspace,
-  inviteMember,
-  listMembers,
   listWorkspaces,
-  removeMember,
-  transferOwnership,
-  updateMember,
   updateWorkspace,
-  type AssignableRole,
-  type Invitation,
-  type Member,
   type Role,
   type Workspace,
 } from '@notesapp/api-client';
@@ -30,7 +20,6 @@ import {
   Button,
   ChevronLeftIcon,
   PlusIcon,
-  SelectField,
   StatusRegion,
   TextField,
   WorkspaceIcon,
@@ -167,11 +156,6 @@ export function canWrite(role: Role): boolean {
   return role === 'owner' || role === 'admin' || role === 'editor';
 }
 
-/** True when the role may manage membership. */
-export function canManageMembers(role: Role): boolean {
-  return role === 'owner' || role === 'admin';
-}
-
 /** Validates a new note path with the shared domain rule. */
 export function validateNotePath(input: string): string | null {
   const result = normalizePath(input);
@@ -244,8 +228,7 @@ export function WorkspaceHome(): ReactNode {
             fontSize: '0.9rem',
           }}
         >
-          Select an active workspace to open your notes or manage workspace
-          members.
+          Select a workspace to open your notes.
         </p>
       </div>
 
@@ -348,192 +331,7 @@ export function WorkspaceHome(): ReactNode {
   );
 }
 
-const assignableRoles: readonly AssignableRole[] = [
-  'admin',
-  'editor',
-  'viewer',
-];
-
-/** Membership list, invitations, role changes, and removal. */
-export function WorkspaceMembers({
-  workspaceId,
-  role,
-  onChanged,
-}: {
-  readonly workspaceId: string;
-  readonly role: Role;
-  readonly onChanged: () => void;
-}): ReactNode {
-  const [members, setMembers] = useState<readonly Member[]>([]);
-  const [invitations, setInvitations] = useState<readonly Invitation[]>([]);
-  const [error, setError] = useState('');
-  const [email, setEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<AssignableRole>('editor');
-  const [busy, setBusy] = useState(false);
-  const managers = canManageMembers(role);
-
-  async function load(): Promise<void> {
-    const result = await listMembers({ path: { workspaceId } });
-    if (result.error !== undefined || result.data === undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    setMembers(result.data.members);
-    setInvitations(result.data.invitations);
-  }
-
-  useEffect(() => {
-    void load();
-  }, [workspaceId]);
-
-  async function invite(): Promise<void> {
-    setBusy(true);
-    setError('');
-    const result = await inviteMember({
-      path: { workspaceId },
-      body: { email, role: inviteRole },
-    });
-    setBusy(false);
-    if (result.error !== undefined || result.data === undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    setEmail('');
-    await load();
-    onChanged();
-  }
-
-  async function changeRole(
-    accountId: string,
-    next: AssignableRole,
-  ): Promise<void> {
-    setError('');
-    const result = await updateMember({
-      path: { workspaceId, accountId },
-      body: { role: next },
-    });
-    if (result.error !== undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    await load();
-    onChanged();
-  }
-
-  async function remove(accountId: string): Promise<void> {
-    setError('');
-    const result = await removeMember({ path: { workspaceId, accountId } });
-    if (result.error !== undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    await load();
-    onChanged();
-  }
-
-  return (
-    <section aria-labelledby="members-heading">
-      <h2 id="members-heading">Members</h2>
-      {error !== '' ? (
-        <p className="notes-status-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <ul>
-        {members.map((member) => (
-          <li key={member.accountId}>
-            {member.email ?? member.accountId} ({member.role})
-            {managers && member.role !== 'owner' ? (
-              <>
-                {' '}
-                <SelectField
-                  id={`role-${member.accountId}`}
-                  label={`Role of ${member.email ?? member.accountId}`}
-                  value={member.role}
-                  options={assignableRoles.map((entry) => ({
-                    value: entry,
-                    label: entry,
-                  }))}
-                  onChange={(value): void => {
-                    if (
-                      value === 'admin' ||
-                      value === 'editor' ||
-                      value === 'viewer'
-                    )
-                      void changeRole(member.accountId, value);
-                  }}
-                />
-                <Button
-                  variant="secondary"
-                  onClick={() => void remove(member.accountId)}
-                >
-                  Remove
-                </Button>
-              </>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      {managers ? (
-        <>
-          <h3>Invite a member</h3>
-          <form
-            onSubmit={(event): void => {
-              event.preventDefault();
-              void invite();
-            }}
-          >
-            <TextField
-              id="invite-email"
-              label="Address"
-              value={email}
-              inputType="email"
-              autoComplete="email"
-              required
-              onChange={setEmail}
-            />
-            <SelectField
-              id="invite-role"
-              label="Role"
-              value={inviteRole}
-              options={assignableRoles.map((entry) => ({
-                value: entry,
-                label: entry,
-              }))}
-              onChange={(value): void => {
-                if (
-                  value === 'admin' ||
-                  value === 'editor' ||
-                  value === 'viewer'
-                )
-                  setInviteRole(value);
-              }}
-            />
-            <Button type="submit" disabled={busy || email === ''}>
-              {busy ? 'Inviting.' : 'Send invitation'}
-            </Button>
-          </form>
-          {invitations.length > 0 ? (
-            <>
-              <h3>Open invitations</h3>
-              <ul>
-                {invitations.map((invitation) => (
-                  <li key={invitation.id}>
-                    {invitation.email} ({invitation.role}, {invitation.state})
-                  </li>
-                ))}
-              </ul>
-            </>
-          ) : null}
-        </>
-      ) : (
-        <p>Only administrators and the owner manage membership.</p>
-      )}
-    </section>
-  );
-}
-
-/** Owner controls: rename, transfer ownership, and delete. */
+/** Owner controls: rename and delete. */
 export function WorkspaceOwnerControls({
   workspace,
   onChanged,
@@ -542,8 +340,6 @@ export function WorkspaceOwnerControls({
   readonly onChanged: () => void;
 }): ReactNode {
   const [name, setName] = useState(workspace.name);
-  const [ownerId, setOwnerId] = useState('');
-  const [ownerLeaves, setOwnerLeaves] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -560,24 +356,6 @@ export function WorkspaceOwnerControls({
       return;
     }
     setNotice('The workspace name is saved.');
-    onChanged();
-  }
-
-  async function transfer(): Promise<void> {
-    setError('');
-    setNotice('');
-    const result = await transferOwnership({
-      path: { workspaceId: workspace.workspaceId },
-      body: ownerLeaves
-        ? { accountId: ownerId, leave: true }
-        : { accountId: ownerId },
-    });
-    if (result.error !== undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    setOwnerId('');
-    setNotice('Ownership moved to the new owner.');
     onChanged();
   }
 
@@ -624,31 +402,6 @@ export function WorkspaceOwnerControls({
         />
         <Button type="submit">Save name</Button>
       </form>
-      <h3>Transfer ownership</h3>
-      <TextField
-        id="owner-id"
-        label="Account ID of the new owner"
-        value={ownerId}
-        required
-        onChange={setOwnerId}
-      />
-      <label>
-        <input
-          type="checkbox"
-          checked={ownerLeaves}
-          onChange={(event): void => {
-            setOwnerLeaves(event.target.checked);
-          }}
-        />{' '}
-        Leave the workspace after the transfer
-      </label>
-      <Button
-        variant="secondary"
-        disabled={ownerId.trim() === ''}
-        onClick={() => void transfer()}
-      >
-        Transfer ownership
-      </Button>
       <h3>Delete workspace</h3>
       <label>
         <input
@@ -671,7 +424,7 @@ export function WorkspaceOwnerControls({
   );
 }
 
-/** Dedicated workspace settings screen for membership and owner management. */
+/** Dedicated workspace settings screen. */
 export function WorkspaceSettingsView(): ReactNode {
   const params = useParams();
   const workspaceId =
@@ -758,14 +511,6 @@ export function WorkspaceSettingsView(): ReactNode {
             <Badge variant="default">Personal</Badge>
           ) : null}
         </div>
-      </section>
-
-      <section className="notes-settings-card">
-        <WorkspaceMembers
-          workspaceId={workspaceId}
-          role={workspace.role}
-          onChanged={reload}
-        />
       </section>
 
       {workspace.role === 'owner' ? (

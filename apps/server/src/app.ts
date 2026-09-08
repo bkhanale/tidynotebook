@@ -36,7 +36,7 @@ import {
   createAuthProtocol,
 } from './auth/better-auth.ts';
 import { createIdentityAdapter } from './auth/actor.ts';
-import { createInvitationAccounts } from './auth/invitations.ts';
+import { createSetupHandlers } from './auth/setup.ts';
 import { createMailTransport } from './auth/mail.ts';
 import {
   openAttachmentStore,
@@ -72,7 +72,7 @@ export function requestId(supplied: unknown): string {
 import { hostName } from './http/host.ts';
 export { hostName } from './http/host.ts';
 
-/** Removes a public share secret before a request URL reaches a log. */
+/** Removes a legacy share secret before a request URL reaches a log. */
 export function redactAccessUrl(url: string): string {
   const path = (url.split('?')[0] ?? url).replace(
     /^(\/s\/)[^/?]+(?:\/attachments\/[^/?]+)?/,
@@ -430,13 +430,12 @@ export async function createApp(
   // The protocol library writes into the application log. The sink is filled
   // once the instance exists, so nothing reaches the console in between.
   const sink: { write?: (record: AuthLogRecord) => void } = {};
-  // One pool for every instance that reads the identity tables. The served
-  // instance keeps `disableSignUp` on; the invitation path builds its own
-  // instance over the same pool, so registration stays off the served surface.
+  // Sign-up is enabled inside the protocol library, but its public route is
+  // not mounted. The setup handler calls it only while no account exists.
   const authPool = createAuthPool(config);
   const auth = createAuth(
     config,
-    { mail, log: (record) => sink.write?.(record) },
+    { mail, allowSignUp: true, log: (record) => sink.write?.(record) },
     authPool,
   );
   const adapter = createIdentityAdapter({
@@ -444,19 +443,15 @@ export async function createApp(
     identity,
     origin: config.origin,
   });
-  const invitations = createInvitationAccounts(config, {
-    identity,
-    pool: authPool,
-    resolveActor: (request) => adapter.resolveActor(request),
-  });
   const app = await createAppWithHandlers(config, {
-    handlers: createHandlers(config, probes, {
-      store: identity,
-      content,
-      attachments,
-      invitations,
-      mail,
-    }),
+    handlers: {
+      ...createHandlers(config, probes, {
+        store: identity,
+        content,
+        attachments,
+      }),
+      ...createSetupHandlers(auth.auth, identity),
+    },
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],
     probes,
@@ -507,7 +502,6 @@ export async function createApp(
   };
   app.addHook('onClose', async () => {
     clearInterval(cleanupTimer);
-    await invitations.close();
     await auth.close();
     await authPool.end();
     await attachments.close();

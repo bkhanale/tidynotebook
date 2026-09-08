@@ -546,8 +546,6 @@ function HistoryDetail({
       <p>
         <Link to={`/w/${workspaceId}/notes/${fileId}`}>Back to the note.</Link>
         {' | '}
-        <Link to={`/w/${workspaceId}/conflicts`}>Conflicts.</Link>
-        {' | '}
         <Link to={`/w/${workspaceId}/purge`}>Deletion and purge.</Link>
       </p>
       <p>

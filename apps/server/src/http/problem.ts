@@ -22,7 +22,6 @@ export type ProblemCode =
   | 'unauthenticated'
   | 'forbidden'
   | 'origin_required'
-  | 'oidc_required'
   | 'not_found'
   | 'stale_head'
   | 'path_conflict'
@@ -64,8 +63,6 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   forbidden: 'The actor may not perform this operation.',
   origin_required:
     'A cookie authenticated write must name the configured origin.',
-  oidc_required:
-    'This installation signs in through the configured provider only.',
   not_found: 'The requested resource does not exist.',
   stale_head: 'The accepted head of a file has moved on.',
   path_conflict: 'Another live file already holds that path.',
@@ -151,22 +148,6 @@ export class OriginRequiredError extends Error {
   ) {
     super(detail);
     this.name = 'OriginRequiredError';
-  }
-}
-
-/**
- * The installation signs in through the configured provider only.
- *
- * The invitation sign-up path answers this when a request asks for a local
- * password under that policy. The invited person signs in through the provider
- * instead, and the invitation is claimed on that first sign-in.
- */
-export class OidcRequiredError extends Error {
-  constructor(
-    detail = 'This installation signs in through the configured provider only.',
-  ) {
-    super(detail);
-    this.name = 'OidcRequiredError';
   }
 }
 
@@ -404,13 +385,6 @@ export function classifyError(error: unknown): {
     return {
       status: 403,
       code: 'origin_required',
-      detail: error.message,
-      issues: [],
-    };
-  if (error instanceof OidcRequiredError)
-    return {
-      status: 403,
-      code: 'oidc_required',
       detail: error.message,
       issues: [],
     };

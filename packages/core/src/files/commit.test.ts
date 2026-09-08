@@ -360,28 +360,65 @@ await test('the same mutation identity with another body is refused', async () =
   assert.equal(state.accepted.length, 1);
 });
 
-await test('a stale expected head names the files that changed', async () => {
+await test('a stale save is rebased onto the current head', async () => {
   const state = workspaceWith('editor');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
   const first = await revision({ fileId, path: 'notes/one.md' });
   accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const second = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([second], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
   const stale = await revision({
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
   });
+  const result = accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([stale], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.deepEqual(result.revisions[0]?.parents, [second.id]);
+  assert.deepEqual(state.revisions.get(stale.id)?.parents, [second.id]);
+  assert.equal(state.files.get(fileId)?.headRevisionId, stale.id);
+});
+
+await test('a duplicate create is not rebased into an update', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+
+  const duplicate = await revision({ fileId, path: 'notes/two.md' });
   const failure = rejected(
     await commitChangeset(
       store,
       actor,
-      changeset([stale], { expectedHeads: { [fileId]: id('r') } }),
+      changeset([duplicate], { expectedHeads: { [fileId]: null } }),
       'd-2',
     ),
   );
   assert.equal(failure.code, 'stale_head');
   assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.files.get(fileId)?.headRevisionId, first.id);
+  assert.equal(state.accepted.length, 1);
 });
 
 await test('a changeset without a precondition for a changed file is refused', async () => {

@@ -6,9 +6,9 @@ and a folder move all go through the same use case,
 `commitChangeset` in `packages/core/src/files/commit.ts`. There is therefore
 one place that decides whether a change is accepted, and one transaction order.
 
-Read `docs/design/001-initial-design.md`, sections "File model and version
-control", "Revision exchange", and "Conflicts and restore", for the rules that
-this document implements.
+The current product uses one linear history for the single user. Old design
+documents can describe earlier collaboration behavior that is no longer
+available.
 
 ## The model
 
@@ -84,8 +84,8 @@ read the actor bound receipt
   other digest   -> mutation_reused
 check the purge marker of every file                   (one query)
 normalize and check every path
+rebase each stale queued save onto the current accepted head
 check the revision graph against the stored parents
-compare every expected head
 check every Markdown text and its digest
 accept
   lock the affected file rows in identifier order
@@ -118,10 +118,8 @@ operation answers 409 rather than 412. The use case applies the order again
 inside its transaction, so a race only sends the request down the normal path,
 where the receipt is found again.
 
-`onFilesDeleted` runs after `accept`, inside the same transaction. It revokes
-every share of a deleted file and removes its link index rows. It is one port
-method rather than one per index, because every caller needs all of them; the
-search task extends the same implementation and no call site changes.
+`onFilesDeleted` runs after `accept`, inside the same transaction. It removes
+the file's link index rows and other derived records.
 
 ## Preconditions and entity tags
 
@@ -146,15 +144,15 @@ names exactly one state of one file.
   from the accepted write itself, never from a read that follows it.
 - `createFile` carries no precondition header. The changeset states that the
   file must not exist yet, so a file that already exists answers `412`.
-- `commitChangeset` carries its preconditions in the body: `expectedHeads` maps
-  every changed file to the head that the client saw, or to `null` for a file
-  that must not exist yet. A missing entry and an entry for a file that the
-  changeset does not change are both `422 invalid_graph`, because such a file
-  is not locked by the transaction and the answer would mean nothing.
+- `commitChangeset` carries its observed heads in the body. A missing entry and
+  an entry for a file that the changeset does not change are both
+  `422 invalid_graph`. If the observed head is old, the server makes the first
+  submitted revision a child of the current head. This is the normal path for
+  a queued Save from an offline device.
 
-The tag in a write answer names the revision that the operation accepted. A
-change from elsewhere makes it stale, and the next conditional write then
-answers `412`, which is how a client notices.
+The tag in a direct write answer names the revision that the operation
+accepted. Direct conditional endpoints can still answer `412`. The browser
+sync queue uses `commitChangeset`, which rebases a stale Save.
 
 ## Status mapping
 

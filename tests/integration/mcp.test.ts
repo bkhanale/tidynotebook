@@ -12,6 +12,7 @@ import {
   StreamableHTTPClientTransport,
 } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
+import { mcpTools } from '@notesapp/api-contract';
 import {
   configureClient,
   createAgentToken,
@@ -27,7 +28,6 @@ import {
   createAuthProtocol,
   createHandlers,
   createIdentityAdapter,
-  createInvitationAccounts,
   loadServerConfig,
   McpAuthorizationServer,
   mountMcpServer,
@@ -88,19 +88,10 @@ interface RevisionPayload {
   readonly revisionId: string;
 }
 
-interface BranchesPayload {
-  readonly branches: readonly { readonly tipRevisionId: string }[];
-}
-
 interface AttachmentPayload {
   readonly revisionId: string;
   readonly mediaType: string;
   readonly contentBase64: string;
-}
-
-interface SharePayload {
-  readonly id: string;
-  readonly url: string;
 }
 
 interface SearchPayload {
@@ -153,12 +144,6 @@ const adapter = createIdentityAdapter({
   identity,
   origin: config.origin,
 });
-const invitations = createInvitationAccounts(config, {
-  identity,
-  pool: authPool,
-  resolveActor: (request) => adapter.resolveActor(request),
-});
-
 const authServer = new McpAuthorizationServer({
   config,
   identity,
@@ -172,7 +157,6 @@ const server = await startTestServer({
       store: identity,
       content,
       attachments,
-      invitations,
     }),
   identity: adapter.resolver,
   protocols: [createAuthProtocol(config, auth.auth)],
@@ -351,7 +335,7 @@ try {
         scopes: [
           {
             workspaceId,
-            actions: ['read', 'write', 'history', 'share', 'members'],
+            actions: ['read', 'write', 'history'],
           },
         ],
       },
@@ -380,7 +364,7 @@ try {
     try {
       // 1. List tools
       const toolsResult = await client.listTools();
-      assert.equal(toolsResult.tools.length, 21);
+      assert.equal(toolsResult.tools.length, mcpTools.length);
 
       // 2. List workspaces
       const wsResult = await client.callTool({
@@ -537,50 +521,7 @@ try {
       });
       assert.equal(backlinkResult.isError ?? false, false);
 
-      // 14. Branches: list_branches and submit_branch
-      const branchResult = await client.callTool({
-        name: 'submit_branch',
-        arguments: {
-          workspaceId,
-          fileId,
-          baseRevisionId: rev4,
-          branchName: 'experimental-branch',
-          path: 'notes/architecture.md',
-          content: '# Experimental Branch',
-        },
-      });
-      assert.equal(branchResult.isError ?? false, false);
-      const branchJson = parsePayload<BranchesPayload>(branchResult);
-      assert.ok(branchJson.branches.length > 0);
-      const branchTip = branchJson.branches[0]?.tipRevisionId ?? '';
-
-      const listBranchesResult = await client.callTool({
-        name: 'list_branches',
-        arguments: {
-          workspaceId,
-          fileId,
-        },
-      });
-      assert.equal(listBranchesResult.isError ?? false, false);
-      const listBranchesJson =
-        parsePayload<readonly unknown[]>(listBranchesResult);
-      assert.ok(listBranchesJson.length > 0);
-
-      // 15. Resolve branch
-      const resolveResult = await client.callTool({
-        name: 'resolve_branches',
-        arguments: {
-          workspaceId,
-          fileId,
-          winningRevisionId: branchTip,
-          expectedHead: rev4,
-        },
-      });
-      assert.equal(resolveResult.isError ?? false, false);
-      const resolveJson = parsePayload<RevisionsPayload>(resolveResult);
-      const rev5 = resolveJson.revisions[0]?.revisionId ?? '';
-
-      // 16. Upload attachment and get attachment
+      // 14. Upload attachment and get attachment
       const uploadResult = await client.callTool({
         name: 'upload_attachment',
         arguments: {
@@ -608,62 +549,18 @@ try {
       assert.equal(getAttachmentJson.mediaType, 'image/png');
       assert.equal(getAttachmentJson.contentBase64, samplePngBase64);
 
-      // 17. Sharing: create_share, list_shares, update_share, revoke_share
-      const createShareResult = await client.callTool({
-        name: 'create_share',
-        arguments: {
-          workspaceId,
-          fileId,
-          pinnedRevisionId: rev5,
-        },
-      });
-      assert.equal(createShareResult.isError ?? false, false);
-      const createShareJson = parsePayload<SharePayload>(createShareResult);
-      const shareId = createShareJson.id;
-      assert.ok(typeof shareId === 'string');
-      assert.ok(createShareJson.url.includes('/s/'));
-
-      const listSharesResult = await client.callTool({
-        name: 'list_shares',
-        arguments: {
-          workspaceId,
-        },
-      });
-      assert.equal(listSharesResult.isError ?? false, false);
-
-      const updateShareResult = await client.callTool({
-        name: 'update_share',
-        arguments: {
-          workspaceId,
-          shareId,
-          fileId,
-          pinnedRevisionId: rev5,
-          expiresAt: null,
-        },
-      });
-      assert.equal(updateShareResult.isError ?? false, false);
-
-      const revokeShareResult = await client.callTool({
-        name: 'revoke_share',
-        arguments: {
-          workspaceId,
-          shareId,
-        },
-      });
-      assert.equal(revokeShareResult.isError ?? false, false);
-
-      // 18. Delete file
+      // 15. Delete file
       const deleteResult = await client.callTool({
         name: 'delete_file',
         arguments: {
           workspaceId,
           fileId,
-          expectedRevisionId: rev5,
+          expectedRevisionId: rev4,
         },
       });
       assert.equal(deleteResult.isError ?? false, false);
 
-      // 19. Token revocation is re-evaluated immediately
+      // 16. Token revocation is re-evaluated immediately
       await revokeAgentToken({
         headers: { origin: 'http://127.0.0.1', cookie: ownerCookie },
         path: { tokenId: agentTokenId },
@@ -701,7 +598,7 @@ try {
         scopes: [
           {
             workspaceId,
-            actions: ['read', 'write', 'history', 'share', 'members'],
+            actions: ['read', 'write', 'history'],
           },
         ],
       },
@@ -728,7 +625,7 @@ try {
     try {
       // List tools
       const tools = await stdioClient.listTools();
-      assert.equal(tools.tools.length, 21);
+      assert.equal(tools.tools.length, mcpTools.length);
 
       // Create a note via stdio MCP
       const createRes = await stdioClient.callTool({
@@ -821,7 +718,6 @@ try {
 } finally {
   // Teardown
   await server.close();
-  await invitations.close();
   await auth.close();
   await authPool.end();
   await attachments.close();

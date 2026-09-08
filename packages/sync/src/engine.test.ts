@@ -27,8 +27,6 @@ import { acquireWorkerLease, releaseWorkerLease } from './lease.ts';
 import {
   backoffDelay,
   pushQueue,
-  type BranchInput,
-  type BranchResult,
   type CommitResult,
   type QueueNetwork,
   type SyncContext,
@@ -451,12 +449,10 @@ function queuedEntry(
 /** A stubbed network with recorded calls. */
 type Stubs = EngineOperations & {
   readonly commitCalls: ChangesetInput[];
-  readonly branchCalls: BranchInput[];
 };
 
 function stubOperations(behavior: {
   readonly commit?: (input: ChangesetInput) => Promise<CommitResult>;
-  readonly submitBranch?: (input: BranchInput) => Promise<BranchResult>;
   readonly start?: SnapshotNetwork['start'];
   readonly page?: SnapshotNetwork['page'];
   readonly revision?: SnapshotNetwork['revision'];
@@ -464,7 +460,6 @@ function stubOperations(behavior: {
   readonly verifySession?: EngineOperations['verifySession'];
 }): Stubs {
   const commitCalls: ChangesetInput[] = [];
-  const branchCalls: BranchInput[] = [];
   const queue: QueueNetwork = {
     prepareCommit: (input) => Promise.resolve(`digest-for-${input.mutationId}`),
     commit: (input, _signal) => {
@@ -472,12 +467,6 @@ function stubOperations(behavior: {
       if (behavior.commit === undefined)
         return Promise.reject(new Error('unexpected commit call'));
       return behavior.commit(input);
-    },
-    submitBranch: (input, _signal) => {
-      branchCalls.push(input);
-      if (behavior.submitBranch === undefined)
-        return Promise.reject(new Error('unexpected submitBranch call'));
-      return behavior.submitBranch(input);
     },
   };
   const snapshot: SnapshotNetwork = {
@@ -514,7 +503,6 @@ function stubOperations(behavior: {
       return behavior.verifySession(_signal);
     },
     commitCalls,
-    branchCalls,
   };
 }
 
@@ -668,7 +656,7 @@ await test('two offline edits of one file commit as one atomic changeset', async
   assert.deepEqual((await store.pending(accountId, workspaceId)).length, 0);
 });
 
-await test('a stale head submits an explicit branch and keeps the local body', async () => {
+await test('a stale head is preserved when an old server returns it', async () => {
   const store = new FakeStore();
   store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
   const notices: SyncNotice[] = [];
@@ -679,19 +667,6 @@ await test('a stale head submits an explicit branch and keeps the local body', a
         ok: false as const,
         problem: { status: 412, code: 'stale_head', fileIds: ['file-a'] },
       }),
-    submitBranch: (input) => {
-      assert.notEqual(input.mutationId, 'mutation-2');
-      assert.ok(input.conflictGroupId.length > 0);
-      assert.deepEqual(input.expectedHeads, { 'file-a': 'rev-a' });
-      assert.deepEqual(
-        input.revisions.map((revision) => revision.id),
-        ['rev-b'],
-      );
-      return Promise.resolve({
-        ok: true as const,
-        value: { revisionIds: ['rev-b'] },
-      });
-    },
   });
   const outcome = await pushQueue(
     store,
@@ -701,7 +676,6 @@ await test('a stale head submits an explicit branch and keeps the local body', a
     testContext(notices, delays),
   );
   assert.equal(outcome, 'done');
-  assert.equal(ops.branchCalls.length, 1);
   assert.equal(store.acks.length, 0);
   const kept = store.queued();
   assert.ok(kept !== null);
@@ -709,7 +683,7 @@ await test('a stale head submits an explicit branch and keeps the local body', a
   assert.equal(kept.input.mutationId, 'mutation-2');
   assert.deepEqual(notices, [
     {
-      kind: 'conflict',
+      kind: 'preserved',
       mutationId: 'mutation-2',
       code: 'stale_head',
       fileIds: ['file-a'],
@@ -717,7 +691,7 @@ await test('a stale head submits an explicit branch and keeps the local body', a
   ]);
 });
 
-await test('a path collision branches while a purge is preserved without one', async () => {
+await test('permanent file failures are preserved', async () => {
   for (const problem of [
     { status: 409, code: 'path_conflict', fileIds: ['file-a'] as string[] },
     { status: 410, code: 'purged', fileIds: ['file-a'] as string[] },
@@ -730,11 +704,6 @@ await test('a path collision branches while a purge is preserved without one', a
     const delays: number[] = [];
     const ops = stubOperations({
       commit: () => Promise.resolve({ ok: false as const, problem }),
-      submitBranch: () =>
-        Promise.resolve({
-          ok: true as const,
-          value: { revisionIds: ['rev-b'] },
-        }),
     });
     const outcome = await pushQueue(
       store,
@@ -748,27 +717,14 @@ await test('a path collision branches while a purge is preserved without one', a
     assert.ok(kept !== null);
     assert.equal(kept.state, 'conflict');
     assert.equal(kept.input.mutationId, 'mutation-2');
-    if (problem.code === 'path_conflict') {
-      assert.equal(ops.branchCalls.length, 1);
-      assert.deepEqual(notices, [
-        {
-          kind: 'conflict',
-          mutationId: 'mutation-2',
-          code: 'path_conflict',
-          fileIds: ['file-a'],
-        },
-      ]);
-    } else {
-      assert.equal(ops.branchCalls.length, 0);
-      assert.deepEqual(notices, [
-        {
-          kind: 'preserved',
-          mutationId: 'mutation-2',
-          code: 'purged',
-          fileIds: ['file-a'],
-        },
-      ]);
-    }
+    assert.deepEqual(notices, [
+      {
+        kind: 'preserved',
+        mutationId: 'mutation-2',
+        code: problem.code,
+        fileIds: ['file-a'],
+      },
+    ]);
   }
 });
 
@@ -793,7 +749,6 @@ await test('an invalid graph is preserved after exactly one attempt', async () =
   );
   assert.equal(outcome, 'done');
   assert.equal(ops.commitCalls.length, 1);
-  assert.equal(ops.branchCalls.length, 0);
   assert.equal(store.queued()?.state, 'conflict');
   assert.deepEqual(notices, [
     {

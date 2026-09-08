@@ -67,6 +67,25 @@ export const stubProtocol: ProtocolAdapter = {
     }),
 };
 
+/** Adds deterministic setup handlers to a server that has no identity store. */
+export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
+  return {
+    ...handlers,
+    getSetupStatus: () =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/json',
+        body: { initialized: true },
+      }),
+    createOwner: () =>
+      Promise.resolve({
+        status: 201,
+        mediaType: 'application/json',
+        body: { initialized: true },
+      }),
+  };
+}
+
 /** A listening test server and the call that stops it. */
 export type TestServer = {
   readonly baseUrl: string;
@@ -140,8 +159,9 @@ export async function startTestServer(
     ...testEnvironment(storageRoot),
     ...options.environment,
   });
+  const handlers = (options.handlers ?? createHandlers)(config);
   const app = await createAppWithHandlers(config, {
-    handlers: (options.handlers ?? createHandlers)(config),
+    handlers: completeTestHandlers(handlers),
     ...(options.logStream === undefined
       ? {}
       : { logStream: options.logStream }),

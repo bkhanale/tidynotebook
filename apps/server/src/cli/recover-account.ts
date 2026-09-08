@@ -46,10 +46,6 @@ export type RecoveryInput = {
 export async function recoverAccount(
   input: RecoveryInput,
 ): Promise<RecoveryResult> {
-  if (input.config.oidcRequired)
-    throw new Error(
-      'notesapp: this installation requires the configured provider, so local recovery is refused.',
-    );
   if (input.password.length < minimumPasswordLength)
     throw new Error(
       `notesapp: the password must have at least ${String(minimumPasswordLength)} characters.`,

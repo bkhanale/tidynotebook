@@ -35,15 +35,14 @@ phone viewport, and a 768 by 1024 Chromium tablet viewport. These emulated
 viewports verify responsive layout and touch settings. They are not evidence
 from a physical phone or tablet.
 
-The 2026-09-07 full run completed 19 active checks with no retry and skipped 16
-intentional duplicate cases. The create, save, reload, rename, and delete
-journey ran in all five projects. Three consecutive WebKit repeats also passed
-after the workspace role race fix.
+The 2026-09-08 full run completed 23 active checks and skipped 12 intentional
+duplicate cases. The create, save, reload, rename, and delete journey ran in
+all five projects.
 
 The critical journeys include login styles, responsive overflow, drawer focus,
 create, save, reload, rename, delete, offline reload, reconnect sync,
-two-context conflict resolution, history, sharing, search, outline, and
-backlinks. The capability test removes `crypto.randomUUID` and `crypto.subtle`
+explicit version history, search, outline, and backlinks. The capability test
+removes `crypto.randomUUID` and `crypto.subtle`
 before application startup to match the reduced API surface of a plain HTTP
 local-network origin.
 
@@ -55,12 +54,12 @@ The review checked the design against the source and the named test suites.
 | ------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
 | Package imports                 | `tools/check-boundaries.mjs` checks cycles, deep imports, browser to server imports, and application HTTP calls outside generated output.                                                                                                                                           | Pass                                 |
 | Request and response validation | `contract.test.ts` checks operation coverage, media types, closed write bodies, invalid input, response shape, cancellation, and identity hooks.                                                                                                                                    | Pass                                 |
-| Roles and scope                 | Identity, row access, revision, history, sharing, and MCP integration tests check workspace grants and database row policies.                                                                                                                                                       | Pass                                 |
+| Roles and scope                 | Identity, row access, revision, history, and MCP integration tests check workspace grants and database row policies.                                                                                                                                                                | Pass                                 |
 | Replay order                    | Revision, attachment, history, and sync tests check receipt replay before current preconditions and retain one immutable request digest.                                                                                                                                            | Pass                                 |
 | Immutable history               | Core graph checks and storage constraints reject changed revision identities and invalid parents. History tests check restore and purge behavior.                                                                                                                                   | Pass                                 |
-| Multi-file atomicity            | Storage, revision, history, and sync tests force failed changesets and conflict groups and check that no partial state remains.                                                                                                                                                     | Pass                                 |
+| Multi-file atomicity            | Storage, revision, history, and sync tests force failed changesets and check that no partial state remains.                                                                                                                                                                         | Pass                                 |
 | Local draft preservation        | Browser storage and offline lifecycle tests check transaction rollback, quota failure, later drafts after acknowledgment, recovery copies, and account partitions. Task 22 added direct cached note opening so an offline route uses the newest local draft before any server read. | Pass at module and integration level |
-| Cleanup and purge races         | Attachment and history tests check reference locks, cleanup retries, purge blockers, share removal, quota release, and late writes after purge.                                                                                                                                     | Pass                                 |
+| Cleanup and purge races         | Attachment and history tests check reference locks, cleanup retries, purge blockers, side-record removal, quota release, and late writes after purge.                                                                                                                               | Pass                                 |
 
 The review found two measured implementation defects and one local opening
 defect. Concurrent searches were serialized by a workspace write lock. Search

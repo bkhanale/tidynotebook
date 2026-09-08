@@ -12,8 +12,7 @@ await test('registerStdioTools registers all contract domain tools', () => {
 
   registerStdioTools(server);
 
-  // Assert all 21 tools defined in mcpTools are registered
-  assert.equal(mcpTools.length, 21);
+  assert.equal(mcpTools.length, 14);
   const registered = (
     server as unknown as { _registeredTools: Record<string, unknown> }
   )._registeredTools;
