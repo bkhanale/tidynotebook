@@ -781,50 +781,6 @@ paths:
           $ref: '#/components/responses/Gone'
         '500':
           $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/files/{fileId}/checkpoint:
-    post:
-      operationId: createCheckpoint
-      summary: Create a named checkpoint revision for a file.
-      description: >-
-        Creates an immutable named checkpoint revision. If path and content are
-        omitted, the checkpoint preserves the content and path of the expected
-        head.
-      tags:
-        - files
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/FileId'
-        - $ref: '#/components/parameters/IfMatch'
-      requestBody:
-        $ref: '#/components/requestBodies/CreateCheckpoint'
-      responses:
-        '200':
-          $ref: '#/components/responses/AcceptedChangeset'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '410':
-          $ref: '#/components/responses/Gone'
-        '412':
-          $ref: '#/components/responses/PreconditionFailed'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '422':
-          $ref: '#/components/responses/UnprocessableContent'
-        '428':
-          $ref: '#/components/responses/PreconditionRequired'
-        '500':
-          $ref: '#/components/responses/ServerError'
   /api/workspaces/{workspaceId}/files/{fileId}/restore:
     post:
       operationId: restoreRevision
@@ -1410,13 +1366,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/FinalizeAttachmentInput'
-    CreateCheckpoint:
-      description: Checkpoint creation payload.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/CreateCheckpointInput'
     RestoreRevision:
       description: Revision restore payload.
       required: true
@@ -3023,35 +2972,6 @@ components:
           oneOf:
             - $ref: '#/components/schemas/Uuid'
             - type: 'null'
-    CreateCheckpointInput:
-      type: object
-      description: Checkpoint creation payload.
-      additionalProperties: false
-      required:
-        - mutationId
-        - deviceId
-        - clientTime
-        - name
-      properties:
-        mutationId:
-          $ref: '#/components/schemas/Uuid'
-        deviceId:
-          $ref: '#/components/schemas/DeviceId'
-        clientTime:
-          type: string
-          format: date-time
-          minLength: 20
-          maxLength: 64
-        name:
-          type: string
-          minLength: 1
-          maxLength: 200
-        revisionId:
-          $ref: '#/components/schemas/Uuid'
-        path:
-          $ref: '#/components/schemas/FilePath'
-        content:
-          $ref: '#/components/schemas/ContentInput'
     RestoreRevisionInput:
       type: object
       description: Payload to restore a file to an earlier historic revision.

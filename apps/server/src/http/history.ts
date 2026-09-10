@@ -1,14 +1,12 @@
 /**
- * Handlers for history, checkpoint, restore, and purge operations.
+ * Handlers for history, restore, and purge operations.
  *
  * This module connects the HTTP operations to the core domain services for
  * revisions, branches, and permanent deletion.
  */
-import { randomUUID } from 'node:crypto';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Result, WorkspaceStore } from '@notesapp/core';
 import {
-  createCheckpoint,
   listHistory,
   previewPurge,
   purgeFiles,
@@ -25,9 +23,7 @@ import {
   parseTag,
   readOptionalText,
   readText,
-  requiredTags,
   revisionTag,
-  submittedContent,
 } from './files.ts';
 
 const jsonMediaType = 'application/json';
@@ -38,7 +34,7 @@ function unwrap<T>(result: Result<T>): T {
   throw new DomainProblemError(result.error);
 }
 
-/** Builds the history, checkpoint, restore, and purge handlers. */
+/** Builds the history, restore, and purge handlers. */
 export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
   return {
     listHistory: async (request: FastifyRequest): Promise<HandlerResult> => {
@@ -80,64 +76,6 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
           })),
           nextCursor: page.nextCursor ?? null,
         },
-      };
-    },
-
-    createCheckpoint: async (
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ): Promise<HandlerResult> => {
-      const actor = requireActor(request).actor;
-      const workspaceId = readText(request.params, 'workspaceId');
-      const fileId = readText(request.params, 'fileId');
-      const tags = requiredTags(request);
-      const expectedHead = tags[0];
-      if (expectedHead === undefined) {
-        throw new DomainProblemError({ code: 'stale_head', fileIds: [fileId] });
-      }
-
-      const body = request.body;
-      const mutationId = readText(body, 'mutationId');
-      const deviceId = readText(body, 'deviceId');
-      const clientTime = readText(body, 'clientTime');
-      const name = readText(body, 'name');
-      const revisionId = readOptionalText(body, 'revisionId') ?? randomUUID();
-      const path = readOptionalText(body, 'path') ?? undefined;
-      const contentRaw = readProperty(body, 'content');
-      const content =
-        contentRaw !== undefined && contentRaw !== null
-          ? submittedContent(body, fileId)
-          : undefined;
-
-      const digest = await requestDigest(
-        'createCheckpoint',
-        { workspaceId, fileId, ifMatch: tags },
-        body,
-      );
-
-      const outcome = unwrap(
-        await createCheckpoint(
-          store,
-          actor,
-          {
-            workspaceId,
-            fileId,
-            revisionId,
-            expectedHead,
-            name,
-            ids: { mutationId, deviceId, clientTime },
-            ...(path !== undefined ? { path } : {}),
-            ...(content !== undefined ? { content } : {}),
-          },
-          digest,
-        ),
-      );
-
-      reply.header('etag', revisionTag(revisionId));
-      return {
-        status: 200,
-        mediaType: jsonMediaType,
-        body: acceptedBody(outcome),
       };
     },
 

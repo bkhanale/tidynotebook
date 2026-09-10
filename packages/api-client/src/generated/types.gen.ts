@@ -361,19 +361,6 @@ export type ContentInput = {
 };
 
 /**
- * Checkpoint creation payload.
- */
-export type CreateCheckpointInput = {
-    mutationId: Uuid;
-    deviceId: DeviceId;
-    clientTime: string;
-    name: string;
-    revisionId?: Uuid;
-    path?: FilePath;
-    content?: ContentInput;
-};
-
-/**
  * The identifiers, the path, and the first content of a new file.
  */
 export type CreateFileInput = {
@@ -1411,11 +1398,6 @@ export type UploadAttachment = UploadAttachmentInput;
  * Payload to finalize an attachment and create an immutable revision.
  */
 export type FinalizeAttachment = FinalizeAttachmentInput;
-
-/**
- * Checkpoint creation payload.
- */
-export type CreateCheckpoint = CreateCheckpointInput;
 
 /**
  * Revision restore payload.
@@ -2918,97 +2900,6 @@ export type GetBacklinksResponses = {
 };
 
 export type GetBacklinksResponse = GetBacklinksResponses[keyof GetBacklinksResponses];
-
-export type CreateCheckpointData = {
-    /**
-     * Checkpoint creation payload.
-     */
-    body: CreateCheckpoint;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-        /**
-         * The strong entity tag of the accepted head that the client saw, for example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is accepted and the request proceeds when any of them names the current head. The operation needs a tag: a request without one answers 428, and a head that has moved answers 412. The parameter is declared optional so that the missing case reaches the documented 428 answer instead of a schema error. The value * is refused with 428 as well: it would permit a write against a state the client never read, which is the lost update that this precondition exists to prevent.
-         */
-        'if-match'?: EntityTagCondition;
-    };
-    path: {
-        /**
-         * Identifier of the workspace that the operation acts on.
-         */
-        workspaceId: Uuid;
-        /**
-         * Identifier of the file that the operation acts on.
-         */
-        fileId: Uuid;
-    };
-    query?: never;
-    url: '/api/workspaces/{workspaceId}/files/{fileId}/checkpoint';
-};
-
-export type CreateCheckpointErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
-     */
-    409: ProblemDetails;
-    /**
-     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
-     */
-    410: ProblemDetails;
-    /**
-     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
-     */
-    412: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
-     */
-    422: ProblemDetails;
-    /**
-     * The operation needs a precondition and the request carried none. Repeat the request with the entity tag of the head that was read.
-     */
-    428: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type CreateCheckpointError = CreateCheckpointErrors[keyof CreateCheckpointErrors];
-
-export type CreateCheckpointResponses = {
-    /**
-     * The outcome of one accepted changeset.
-     */
-    200: AcceptedChangeset;
-};
-
-export type CreateCheckpointResponse = CreateCheckpointResponses[keyof CreateCheckpointResponses];
 
 export type ListHistoryData = {
     body?: never;

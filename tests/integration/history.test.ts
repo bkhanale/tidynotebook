@@ -7,15 +7,14 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   configureClient,
-  createCheckpoint,
   createFile,
   getFile,
   listHistory,
   listWorkspaces,
   restoreRevision,
+  updateFile,
   signInWithPassword,
 } from '@notesapp/api-client';
-import { contentDigest } from '@notesapp/core';
 import {
   bootstrapOwner,
   createAuth,
@@ -117,20 +116,14 @@ await test('each explicit save creates a restorable version', async () => {
 
   const secondText = '# Second\n';
   const secondRevisionId = randomUUID();
-  const saved = await createCheckpoint({
+  const saved = await updateFile({
     headers: { ...headers, 'if-match': tag },
     path: { workspaceId, fileId },
     body: {
       mutationId: randomUUID(),
       deviceId: 'history-test',
-      clientTime: new Date().toISOString(),
       revisionId: secondRevisionId,
-      name: 'Manual save',
-      content: {
-        kind: 'markdown',
-        digest: await contentDigest(secondText),
-        text: secondText,
-      },
+      text: secondText,
     },
   });
   assert.equal(saved.error, undefined, JSON.stringify(saved.error));

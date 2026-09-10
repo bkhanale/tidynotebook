@@ -147,12 +147,10 @@ export {
 export type {
   AcceptedBranchResolution,
   BranchResolution,
-  CreateCheckpointInput,
   ResolveBranchesInput,
   RestoreRevisionInput,
 } from './history/service.ts';
 export {
-  createCheckpoint,
   defaultHistoryLimit,
   listBranches,
   listHistory,

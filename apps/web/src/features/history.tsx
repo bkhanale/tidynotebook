@@ -1,15 +1,14 @@
 /**
- * File history, named checkpoints, old revision viewing, and restore.
+ * File history, old revision viewing, and restore.
  *
- * This screen shows one file in one pane: paginated server history with
- * checkpoint names, the pending local checkpoints of this device, one unified
- * inline diff between an old revision and the current head, and restore.
- * Attachment files offer binary revision selection with a preview of each
- * revision instead of a text merge.
+ * This screen shows one file in one pane: the paginated server version list,
+ * one unified inline diff between an old version and the current head, and
+ * restore. Attachment files offer binary revision selection with a preview of
+ * each revision instead of a text merge.
  *
  * Opening history never changes the working draft. Restoring creates a new
  * revision on top of the current head and records the restored source; it
- * does not rewind history and it leaves drafts and queued checkpoints on this
+ * does not rewind history and it leaves drafts and queued saves on this
  * device untouched.
  *
  * Every server action uses a generated operation. There is no handwritten
@@ -18,7 +17,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import {
-  createCheckpoint,
   getFile,
   getRevision,
   listHistory,
@@ -27,10 +25,9 @@ import {
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { alignLines, type DiffHunk } from '@notesapp/editor';
-import type { CheckpointRecord, LocalStore } from '@notesapp/sync';
-import { Button, StatusRegion, TextField } from '@notesapp/ui';
+import type { LocalStore } from '@notesapp/sync';
+import { Button, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
-import { canWrite, findWorkspace, useWorkspaces } from './workspaces.tsx';
 import {
   loadAttachmentBinary,
   type LoadedAttachment,
@@ -152,7 +149,6 @@ type FileHead =
       readonly kind: 'note' | 'attachment';
       readonly headRevisionId: string | null;
       readonly headText: string;
-      readonly etag: string | null;
     };
 
 /** The state of the selected revision detail. */
@@ -176,9 +172,9 @@ type DiffState =
 /**
  * The history of one file.
  *
- * Route params name the workspace and the file. Session, store, and role come
- * from the application providers, so this screen remounts cleanly when the
- * account changes.
+ * Route params name the workspace and the file. Session and store come from
+ * the application providers, so this screen remounts cleanly when the account
+ * changes.
  */
 export function HistoryView(): ReactNode {
   const params = useParams();
@@ -187,7 +183,6 @@ export function HistoryView(): ReactNode {
   const fileId = typeof params.fileId === 'string' ? params.fileId : null;
   const session = useSession();
   const store = useLocalStore();
-  const { state } = useWorkspaces();
 
   if (workspaceId === null || fileId === null)
     return (
@@ -197,7 +192,7 @@ export function HistoryView(): ReactNode {
         </h1>
         <p>The address names no file history.</p>
         <p>
-          <Link to="/">Back to workspaces.</Link>
+          <Link to="/">Back to all notes.</Link>
         </p>
       </main>
     );
@@ -208,45 +203,33 @@ export function HistoryView(): ReactNode {
         <StatusRegion message="Loading the history." />
       </main>
     );
-  const role =
-    state.status === 'ready'
-      ? (findWorkspace(state.workspaces, workspaceId)?.role ?? null)
-      : null;
   return (
     <HistoryDetail
       store={store.store}
-      accountId={accountId}
       workspaceId={workspaceId}
       fileId={fileId}
-      role={role}
     />
   );
 }
 
-/** Loads the file head, the history pages, and the local checkpoints. */
+/** Loads the file head and the server version pages of one file. */
 function HistoryDetail({
   store,
-  accountId,
   workspaceId,
   fileId,
-  role,
 }: {
   readonly store: LocalStore | null;
-  readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string;
-  readonly role: 'owner' | 'admin' | 'editor' | 'viewer' | null;
 }): ReactNode {
   const [head, setHead] = useState<FileHead>({ status: 'loading' });
   const [items, setItems] = useState<readonly HistoryRevisionItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [local, setLocal] = useState<readonly CheckpointRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RevisionDetail | null>(null);
   const [diff, setDiff] = useState<DiffState>({ status: 'idle' });
-  const [checkpointName, setCheckpointName] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -255,8 +238,6 @@ function HistoryDetail({
     null,
   );
   const generationRef = useRef(0);
-
-  const writable = role !== null && canWrite(role);
 
   /** Loads the file head once per file. */
   useEffect(() => {
@@ -280,7 +261,6 @@ function HistoryDetail({
         kind: file.kind,
         headRevisionId: file.headRevisionId,
         headText: file.head?.text ?? '',
-        etag: result.response?.headers.get('etag') ?? null,
       });
     }
     void load();
@@ -313,32 +293,6 @@ function HistoryDetail({
       cancelled = true;
     };
   }, [workspaceId, fileId]);
-
-  /** Loads the pending local checkpoints of this device. */
-  useEffect(() => {
-    if (store === null) {
-      setLocal([]);
-      return;
-    }
-    const activeStore = store;
-    let cancelled = false;
-    async function load(): Promise<void> {
-      try {
-        const checkpoints = await activeStore.listCheckpoints(
-          accountId,
-          workspaceId,
-          fileId,
-        );
-        if (!cancelled) setLocal(checkpoints);
-      } catch {
-        if (!cancelled) setLocal([]);
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [store, accountId, workspaceId, fileId]);
 
   /** Revokes the attachment preview when it closes or changes. */
   useEffect(
@@ -445,36 +399,6 @@ function HistoryDetail({
     }
   }
 
-  /** Tags the current head with a checkpoint name. */
-  async function nameCheckpoint(): Promise<void> {
-    if (head.status !== 'ready' || head.etag === null || busy) return;
-    const name = checkpointName.trim();
-    if (name === '') {
-      setActionError('Name the checkpoint before saving it.');
-      return;
-    }
-    setBusy(true);
-    setActionError(null);
-    const result = await createCheckpoint({
-      headers: { 'if-match': head.etag },
-      path: { workspaceId, fileId },
-      body: {
-        mutationId: generateUUID(),
-        deviceId: store?.deviceId ?? 'web-device',
-        clientTime: new Date().toISOString(),
-        name,
-      },
-    });
-    setBusy(false);
-    if (result.error !== undefined || result.data === undefined) {
-      setActionError(problemMessage(result.error));
-      return;
-    }
-    setCheckpointName('');
-    setActionMessage(`Checkpoint ${name} now names the current head.`);
-    await reloadHistory();
-  }
-
   /** Restores one revision as a new child of the current head. */
   async function restore(targetRevisionId: string): Promise<void> {
     if (head.status !== 'ready' || head.headRevisionId === null || busy) return;
@@ -562,8 +486,6 @@ function HistoryDetail({
       </h1>
       <p>
         <Link to={`/w/${workspaceId}/notes/${fileId}`}>Back to the note.</Link>
-        {' | '}
-        <Link to={`/w/${workspaceId}/purge`}>Deletion and purge.</Link>
       </p>
       <p>
         Opening history never changes the working draft. Restoring creates a new
@@ -620,71 +542,6 @@ function HistoryDetail({
           </Button>
         ) : null}
       </section>
-
-      <section aria-labelledby="history-local-heading">
-        <h2
-          className="mb-3 mt-0 text-base font-semibold text-strong"
-          id="history-local-heading"
-        >
-          Pending history on this device
-        </h2>
-        {store === null ? (
-          <p>
-            Local storage is unavailable, so this device keeps no local
-            checkpoints.
-          </p>
-        ) : local.length === 0 ? (
-          <p>No local checkpoints wait for this file on this device.</p>
-        ) : (
-          <ol>
-            {local.map((entry) => (
-              <li key={entry.revisionId}>
-                {`Revision ${entry.revisionId} from ${entry.clientTime}`}
-                {entry.message !== null ? ` named ${entry.message}` : ''}
-                {entry.accepted ? ' (saved to server)' : ' (waiting to send)'}
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-
-      {writable ? (
-        <section aria-labelledby="history-checkpoint-heading">
-          <h2
-            className="mb-3 mt-0 text-base font-semibold text-strong"
-            id="history-checkpoint-heading"
-          >
-            Name the current version
-          </h2>
-          {head.etag === null ? (
-            <p>
-              The current version carries no entity tag, so a named checkpoint
-              cannot be saved right now.
-            </p>
-          ) : (
-            <div>
-              <TextField
-                id="notes-checkpoint-name"
-                label="Checkpoint name"
-                value={checkpointName}
-                onChange={setCheckpointName}
-              />
-              <Button
-                variant="primary"
-                label="Save a named checkpoint of the current head"
-                disabled={busy}
-                onClick={() => {
-                  void nameCheckpoint();
-                }}
-              >
-                Save a named checkpoint
-              </Button>
-            </div>
-          )}
-        </section>
-      ) : (
-        <p>Naming checkpoints and restoring need a writer role.</p>
-      )}
 
       {selectedItem !== null ? (
         <section aria-labelledby="history-revision-heading">
@@ -748,18 +605,16 @@ function HistoryDetail({
                   )}
                 </div>
               )}
-              {writable ? (
-                <Button
-                  variant="primary"
-                  label={`Restore revision ${detail.item.revisionId} as a new version`}
-                  disabled={busy || head.headRevisionId === null}
-                  onClick={() => {
-                    void restore(detail.item.revisionId);
-                  }}
-                >
-                  Restore this revision as a new version
-                </Button>
-              ) : null}
+              <Button
+                variant="primary"
+                label={`Restore revision ${detail.item.revisionId} as a new version`}
+                disabled={busy || head.headRevisionId === null}
+                onClick={() => {
+                  void restore(detail.item.revisionId);
+                }}
+              >
+                Restore this revision as a new version
+              </Button>
             </div>
           )}
         </section>
@@ -771,9 +626,7 @@ function HistoryDetail({
 /** One readable line for a history entry. */
 function describeRevision(item: HistoryRevisionItem): string {
   const parts = [`Revision ${item.revisionId}`, `saved ${item.serverTime}`];
-  if (item.isCheckpoint && item.checkpointName !== null)
-    parts.push(`checkpoint ${item.checkpointName}`);
-  else if (item.message !== null) parts.push(`named ${item.message}`);
+  if (item.message !== null) parts.push(`named ${item.message}`);
   if (item.deleted) parts.push('deletion marker');
   if (item.restoredFrom !== null)
     parts.push(`restored from ${item.restoredFrom}`);

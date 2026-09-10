@@ -1,8 +1,8 @@
 /**
- * Domain services for revision history, checkpoints, and conflict branches.
+ * Domain services for revision history and conflict branches.
  *
- * This module coordinates history pagination, checkpoint creation, branch
- * persistence, branch resolution, and revision restoration.
+ * This module coordinates history pagination, branch persistence, branch
+ * resolution, and revision restoration.
  */
 import { authorize, type Actor } from '../identity/actor.ts';
 import { contentDigest } from '../files/digest.ts';
@@ -74,133 +74,6 @@ export async function listHistory(
     });
     return ok(page);
   });
-}
-
-/** Input for creating a named checkpoint. */
-export type CreateCheckpointInput = {
-  readonly workspaceId: string;
-  readonly fileId: string;
-  readonly revisionId: string;
-  readonly expectedHead: string;
-  readonly name: string;
-  readonly ids: {
-    readonly mutationId: string;
-    readonly deviceId: string;
-    readonly clientTime: string;
-  };
-  readonly path?: string;
-  readonly content?: ContentRef;
-};
-
-/**
- * Creates a named checkpoint revision.
- *
- * It creates an immutable revision that preserves the content of the current
- * head or supplied draft.
- */
-export async function createCheckpoint(
-  store: WorkspaceStore,
-  actor: Actor,
-  input: CreateCheckpointInput,
-  digest: string,
-): Promise<Result<AcceptedChangeset>> {
-  if (!input.name || input.name.trim() === '') {
-    return fail('invalid_content', [input.fileId]);
-  }
-
-  return store.transact<Result<AcceptedChangeset>>(
-    actor,
-    input.workspaceId,
-    async (tx) => {
-      const role = await tx.role(actor.accountId);
-      if (role === null) return fail('forbidden');
-      const permitted = authorize(actor, input.workspaceId, role, 'write');
-      if (!permitted.ok) return fail('forbidden');
-
-      const receipt = await tx.receipt(input.ids.mutationId, actor.accountId);
-      if (receipt !== null) {
-        if (receipt.digest === digest) return ok(receipt.outcome);
-        return fail('mutation_reused', [input.fileId]);
-      }
-
-      const purged = await tx.purgedFiles([input.fileId]);
-      if (purged.length > 0) return fail('purged', [input.fileId]);
-
-      const heads = await tx.heads([input.fileId]);
-      const currentHead = heads.get(input.fileId) ?? null;
-      if (currentHead !== input.expectedHead) {
-        return fail('stale_head', [input.fileId]);
-      }
-
-      const currentRev = await tx.revision(input.expectedHead);
-      if (currentRev === null || currentRev.fileId !== input.fileId) {
-        return fail('invalid_graph', [input.fileId]);
-      }
-      if (currentRev.deleted) {
-        return fail('not_found', [input.fileId]);
-      }
-
-      const chosenPath = input.path ?? currentRev.path;
-      let chosenContent = input.content;
-      if (!chosenContent) {
-        if (currentRev.kind === 'note') {
-          chosenContent = {
-            kind: 'markdown',
-            digest: currentRev.digest,
-            text: currentRev.text ?? '',
-          };
-        } else {
-          if (currentRev.objectId === null) {
-            return fail('invalid_graph', [input.fileId]);
-          }
-          chosenContent = {
-            kind: 'attachment',
-            digest: currentRev.digest,
-            objectId: currentRev.objectId,
-          };
-        }
-      }
-
-      const normalized = normalizePath(chosenPath, pathKind(chosenContent));
-      if (!normalized.ok) return fail('invalid_path', [input.fileId]);
-
-      if (chosenContent.kind === 'markdown') {
-        if (!chosenContent.text.isWellFormed()) {
-          return fail('invalid_content', [input.fileId]);
-        }
-        const calcDigest = await contentDigest(chosenContent.text);
-        if (calcDigest !== chosenContent.digest.toLowerCase()) {
-          return fail('invalid_content', [input.fileId]);
-        }
-      }
-
-      const revision: RevisionInput = {
-        id: input.revisionId,
-        fileId: input.fileId,
-        parents: [input.expectedHead],
-        path: normalized.value,
-        deleted: false,
-        content: chosenContent,
-        clientTime: input.ids.clientTime,
-        message: input.name,
-        restoredFrom: null,
-      };
-
-      const known = await tx.parents([input.expectedHead]);
-      const graph = validateGraph([revision], known);
-      if (!graph.ok) return graph;
-
-      const changeset: ChangesetInput = {
-        workspaceId: input.workspaceId,
-        mutationId: input.ids.mutationId,
-        deviceId: input.ids.deviceId,
-        expectedHeads: { [input.fileId]: input.expectedHead },
-        revisions: [revision],
-      };
-
-      return tx.accept(actor, changeset, digest);
-    },
-  );
 }
 
 /** Lists divergent branches with optional filtering. */

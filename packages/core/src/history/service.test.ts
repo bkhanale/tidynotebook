@@ -1,12 +1,11 @@
 /**
- * Unit tests for history, checkpoint, branch, restore, and purge services.
+ * Unit tests for history, branch, restore, and purge services.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyActor, type Actor, type Role } from '../identity/actor.ts';
 import { contentDigest } from '../files/digest.ts';
 import {
-  createCheckpoint,
   listHistory,
   resolveBranches,
   restoreRevision,
@@ -411,62 +410,6 @@ await test('listHistory: returns history page for existing file', async () => {
     assert.equal(res.value.revisions[0]?.isCheckpoint, true);
     assert.equal(res.value.revisions[0]?.checkpointName, 'Initial');
   }
-});
-
-await test('createCheckpoint: creates named revision preserving content and path', async () => {
-  const state = new FakeWorkspace();
-  const digest = await contentDigest('test content');
-  state.files.set('f1', {
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    headRevisionId: 'r1',
-    deleted: false,
-    updatedAt: new Date().toISOString(),
-  });
-  state.revisions.set('r1', {
-    revisionId: 'r1',
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    deleted: false,
-    parents: [],
-    digest,
-    size: 12,
-    text: 'test content',
-    objectId: null,
-    message: null,
-    restoredFrom: null,
-    clientTime: new Date().toISOString(),
-    serverTime: new Date().toISOString(),
-  });
-  const store = fakeStore(state);
-  const user = buildActor(writerId, 'editor');
-
-  const res = await createCheckpoint(
-    store,
-    user,
-    {
-      workspaceId,
-      fileId: 'f1',
-      revisionId: 'r2',
-      expectedHead: 'r1',
-      name: 'v1.0 milestone',
-      ids: {
-        mutationId: 'm1',
-        deviceId: 'd1',
-        clientTime: new Date().toISOString(),
-      },
-    },
-    'req-digest',
-  );
-
-  assert.equal(res.ok, true);
-  const newRev = state.revisions.get('r2');
-  assert.ok(newRev);
-  assert.equal(newRev.message, 'v1.0 milestone');
-  assert.equal(newRev.digest, digest);
-  assert.deepEqual(newRev.parents, ['r1']);
 });
 
 await test('submitBranch: stores branch revision without advancing accepted head', async () => {
