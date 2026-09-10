@@ -32,3 +32,18 @@ await test('the scroller stretches its content over its full height', () => {
   assert.equal(rule('.cm-scroller').alignItems, 'stretch');
   assert.equal(rule('.cm-content').width, '100%');
 });
+
+await test('the reading measure sits on the line and not on the content', () => {
+  // A measure on `.cm-content` leaves the strip left and right of the text
+  // outside the editable element, and a click in that strip places no caret.
+  assert.equal(rule('.cm-content').maxWidth, undefined);
+  assert.equal(rule('.cm-content').marginInline, undefined);
+  assert.equal(rule('.cm-line').maxWidth, 'var(--note-measure)');
+  assert.equal(rule('.cm-line').marginInline, 'auto');
+  assert.equal(rule('.cm-np-widget-block').maxWidth, 'var(--note-measure)');
+  assert.equal(rule('.cm-np-widget-block').marginInline, 'auto');
+});
+
+await test('the note body reads in the strong text color', () => {
+  assert.equal(rule('&').color, 'var(--notes-text-strong)');
+});

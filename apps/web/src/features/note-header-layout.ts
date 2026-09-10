@@ -9,7 +9,15 @@
  * screen becomes unreadable.
  */
 
-/** The classes of the inline editable note name. */
+/**
+ * The classes of the inline editable note name.
+ *
+ * The name is a title, not a form field. At rest it carries no box and no
+ * border, so the screen opens on the note and not on a control. A quiet
+ * underline appears under the pointer and the accent underline marks
+ * keyboard focus. The transparent underline is always there, so the text
+ * never moves when a state changes.
+ */
 export function noteTitleClassName(): string {
-  return 'min-w-0 grow basis-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none motion-safe:transition-colors hover:border-edge-subtle hover:bg-hover focus:border-focus focus:bg-app focus:ring-2 focus:ring-focus/25 sm:basis-0';
+  return 'min-w-0 grow basis-full border-0 border-b-2 border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none motion-safe:transition-colors hover:border-edge-subtle focus:border-focus sm:basis-0';
 }

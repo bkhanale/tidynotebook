@@ -102,12 +102,21 @@ export function editorTheme(theme: 'light' | 'dark'): Extension {
  * its padding places the caret on the nearest line. Padding on the scroller
  * would put that same strip outside the editable element, and a click under
  * the last line would then place no caret and lose every keystroke after it.
+ *
+ * The reading measure belongs to `.cm-line` and to a block widget, not to
+ * `.cm-content`. The content element therefore keeps the full width of the
+ * scroller, so the empty strip left and right of the text still belongs to
+ * the editable element and a click there places the caret on that line. A
+ * measure on `.cm-content` would put both strips outside the text and a
+ * click in them would do nothing.
  */
 export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
   return {
+    // The note is the product, so its body reads in the strong text color
+    // and not in the quieter interface body color.
     '&': {
       backgroundColor: 'var(--notes-bg)',
-      color: 'var(--notes-text)',
+      color: 'var(--notes-text-strong)',
       fontSize: 'var(--text-note)',
       lineHeight: 'var(--text-note--line-height)',
     },
@@ -122,20 +131,23 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     },
     '.cm-content': {
       caretColor: 'var(--notes-focus)',
-      maxWidth: 'var(--note-measure)',
-      marginInline: 'auto',
       width: '100%',
       paddingInline: 'calc(var(--spacing) * 4)',
       paddingBlock: 'calc(var(--spacing) * 6)',
     },
     '.cm-line': {
+      maxWidth: 'var(--note-measure)',
+      marginInline: 'auto',
       paddingInline: '0',
       paddingBlock: 'calc(var(--note-gap) / 2)',
     },
     '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--notes-focus)' },
     '&.cm-focused': { outline: 'none' },
+    // A faint neutral tint, so the line the caret sits on is findable and
+    // the note still reads as one page of text.
     '.cm-activeLine': {
-      backgroundColor: 'color-mix(in srgb, var(--notes-focus) 7%, transparent)',
+      backgroundColor:
+        'color-mix(in srgb, var(--notes-text-muted) 8%, transparent)',
     },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection':
       {
@@ -207,7 +219,9 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       height: 'calc(var(--spacing) * 4)',
       margin: '0',
       marginInlineEnd: 'calc(var(--spacing) * 1)',
-      verticalAlign: 'baseline',
+      // `text-bottom` sets the foot of the box on the foot of the text, so
+      // the box sits on the writing line instead of floating above it.
+      verticalAlign: 'text-bottom',
       accentColor: 'var(--notes-accent-fill)',
       cursor: 'pointer',
     },
@@ -250,10 +264,13 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       fontWeight: '700',
       color: 'var(--notes-text-strong)',
     },
+    // The cell separators of a table carry no meaning, so they stay far
+    // quieter than the text they divide.
     '.cm-np-table-align': {
       color: 'var(--notes-text-muted)',
-      opacity: '0.6',
+      opacity: '0.35',
     },
+    '.cm-np-table-line .cm-np-marker': { opacity: '0.35' },
     '.cm-np-align-left': { display: 'inline-block', textAlign: 'left' },
     '.cm-np-align-center': { display: 'inline-block', textAlign: 'center' },
     '.cm-np-align-right': { display: 'inline-block', textAlign: 'right' },
@@ -269,6 +286,8 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
 
     '.cm-np-widget-block': {
       display: 'block',
+      maxWidth: 'var(--note-measure)',
+      marginInline: 'auto',
       marginBlock: 'var(--note-gap)',
     },
     '.cm-np-widget-inline': { display: 'inline' },
