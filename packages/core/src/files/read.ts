@@ -3,8 +3,8 @@
  *
  * A read passes the same two checks as a write: the current role in the
  * workspace, and the verified grants of the transport. Both must permit the
- * `read` action, so an agent token that carries only `write` cannot list the
- * files of a workspace.
+ * `read` action, so a transport that does not carry it cannot list the files
+ * of a workspace.
  *
  * A record that the actor may not see is reported as `not_found`, never as
  * `forbidden`, so an answer does not disclose that it exists.
