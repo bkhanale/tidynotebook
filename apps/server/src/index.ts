@@ -11,7 +11,7 @@ export {
   loadServerConfig,
 } from './config.ts';
 export type { AppOptions } from './app.ts';
-export { createApp, createAppWithHandlers, redactAccessUrl } from './app.ts';
+export { createApp, createAppWithHandlers } from './app.ts';
 export type {
   HandlerDependencies,
   ReadinessCheck,
@@ -84,4 +84,3 @@ export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 export { createSearchHandlers } from './http/search.ts';
-export { publicSharePage } from './public/page.ts';

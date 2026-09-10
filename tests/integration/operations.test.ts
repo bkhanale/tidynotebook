@@ -24,7 +24,6 @@ import {
   loadProtectedEnvironment,
   loadServerConfig,
   migrationProbe,
-  redactAccessUrl,
   redactUrl,
   storageProbe,
   type ReadinessProbe,
@@ -145,20 +144,12 @@ await test('protected configuration files load without exposing their values', a
   }
 });
 
-await test('the request log redacts share tokens and query strings', () => {
-  assert.equal(redactUrl('/s/secretToken12345'), '/s/[redacted]');
-  assert.equal(
-    redactUrl('/s/secretToken12345/attachments/revision789'),
-    '/s/[redacted]',
-  );
+await test('the request log redacts query strings', () => {
   assert.equal(
     redactUrl('/api/workspaces/123/search?q=classifiedQuery'),
     '/api/workspaces/123/search?[redacted]',
   );
-  assert.equal(
-    redactAccessUrl('/api/workspaces/123/search?q=classifiedQuery'),
-    '/api/workspaces/123/search?[redacted]',
-  );
+  assert.equal(redactUrl('/api/health'), '/api/health');
 });
 
 await test('no metrics route is served', async () => {

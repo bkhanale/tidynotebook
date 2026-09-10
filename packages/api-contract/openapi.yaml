@@ -398,8 +398,8 @@ paths:
       summary: Search accepted live notes in a workspace.
       description: >-
         Searches accepted titles and Markdown content with the PostgreSQL
-        simple text configuration. Deleted files, branch tips, and historic
-        revisions are excluded.
+        simple text configuration. Deleted files and historic revisions are
+        excluded.
       tags:
         - files
       parameters:
@@ -536,9 +536,9 @@ paths:
         file stays complete and a later restore is possible. The tombstone
         carries no note text, and a submitted tombstone that carries Markdown
         is refused with 422, so a deletion can never add content. Deleting
-        revokes every share of the file and removes it from search, so a
-        workspace at its storage limit can still be tidied. The request must
-        carry the entity tag of the head that the client saw.
+        removes the file from search, so a workspace at its storage limit can
+        still be tidied. The request must carry the entity tag of the head
+        that the client saw.
       tags:
         - files
       parameters:
@@ -859,9 +859,9 @@ paths:
       operationId: purgeFiles
       summary: Permanently delete files and write purge markers.
       description: >-
-        Permanently purges files, revisions, branches, and shares, writes
-        purge markers, and reclaims storage. Subsequent writes to purged file
-        identifiers answer 410 Gone. Restricted to workspace owners.
+        Permanently purges files and revisions, writes purge markers, and
+        reclaims storage. Subsequent writes to purged file identifiers answer
+        410 Gone. Restricted to the workspace owner.
       tags:
         - files
       parameters:
@@ -3069,7 +3069,6 @@ components:
           enum:
             - revision
             - branch
-            - share
         targetId:
           type: string
         referrerId:
@@ -3314,7 +3313,6 @@ components:
           enum:
             - file
             - membership
-            - share
         entityId:
           $ref: '#/components/schemas/Uuid'
         revisionId:

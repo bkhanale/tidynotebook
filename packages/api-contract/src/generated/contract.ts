@@ -3070,8 +3070,7 @@ export const operations: readonly OperationEntry[] = [
                     "description": "The kind of entity that the record refers to.",
                     "enum": [
                       "file",
-                      "membership",
-                      "share"
+                      "membership"
                     ]
                   },
                   "entityId": {
@@ -4753,8 +4752,7 @@ export const operations: readonly OperationEntry[] = [
                     "type": "string",
                     "enum": [
                       "revision",
-                      "branch",
-                      "share"
+                      "branch"
                     ]
                   },
                   "targetId": {

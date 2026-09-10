@@ -267,12 +267,7 @@ export async function readSyncChanges(
   );
   const changes: SyncChange[] = rows.rows.map((row) => ({
     cursor: BigInt(row.cursor).toString(),
-    entityKind:
-      row.entity_kind === 'membership'
-        ? 'membership'
-        : row.entity_kind === 'share'
-          ? 'share'
-          : 'file',
+    entityKind: row.entity_kind === 'membership' ? 'membership' : 'file',
     entityId: row.entity_id,
     revisionId: row.revision_id,
     deleted: row.deleted,
@@ -291,15 +286,15 @@ export async function readSyncChanges(
  * Allocates one cursor and appends sync records under the workspace lock.
  *
  * Returns the allocated cursor as a decimal string. Every relevant write uses
- * this path, including membership, deletion, purge, and share revocation, so
- * the commit ordered stream cannot skip a transaction that commits late.
+ * this path, including membership, deletion, and purge, so the commit ordered
+ * stream cannot skip a transaction that commits late.
  */
 export async function emitSyncRows(
   client: pg.PoolClient,
   input: {
     readonly workspaceId: string;
     readonly entries: readonly {
-      readonly entityKind: 'file' | 'membership' | 'share';
+      readonly entityKind: 'file' | 'membership';
       readonly entityId: string;
       readonly revisionId: string | null;
       readonly deleted: boolean;

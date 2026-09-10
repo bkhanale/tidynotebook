@@ -49,7 +49,6 @@ const scopedTables = [
   'snapshots',
   'snapshot_items',
   'link_index',
-  'shares',
   'attachment_objects',
 ] as const;
 
@@ -60,7 +59,6 @@ type Seeded = {
   readonly fileId: string;
   readonly firstRevisionId: string;
   readonly headRevisionId: string;
-  readonly shareToken: string;
 };
 
 const database: TestDatabase = await createDisposableDatabase();
@@ -93,7 +91,6 @@ async function seedEverything(): Promise<Seeded> {
   await write([first], `seed-${workspaceId}-1`);
   await write([second], `seed-${workspaceId}-2`);
 
-  const shareToken = randomUUID();
   const session = await openSession(database.migrationUrl);
   try {
     await session.query(
@@ -112,7 +109,7 @@ async function seedEverything(): Promise<Seeded> {
     );
     await session.query(
       `insert into audit_events (workspace_id, id, actor_account_id, action, target_kind)
-       values ($1, $2, $3, 'share.create', 'share')`,
+       values ($1, $2, $3, 'workspace.create', 'workspace')`,
       [workspaceId, randomUUID(), accountId],
     );
     await session.query(
@@ -130,18 +127,6 @@ async function seedEverything(): Promise<Seeded> {
        values ($1, $2, $3, 0, null, 'Unresolved title')`,
       [workspaceId, first.fileId, second.id],
     );
-    await session.query(
-      `insert into shares (workspace_id, id, file_id, pinned_revision_id, token_hash, creator_account_id)
-       values ($1, $2, $3, $4, $5, $6)`,
-      [
-        workspaceId,
-        randomUUID(),
-        first.fileId,
-        first.id,
-        shareToken,
-        accountId,
-      ],
-    );
   } finally {
     await session.close();
   }
@@ -152,7 +137,6 @@ async function seedEverything(): Promise<Seeded> {
     fileId: first.fileId,
     firstRevisionId: first.id,
     headRevisionId: second.id,
-    shareToken,
   };
 }
 
@@ -318,89 +302,6 @@ await test('runtime role limits: cannot read or run the migration bookkeeping', 
       authPassword: 'notesapp_auth_test_password',
     }),
   );
-});
-
-await test('public share lookup: returns the pinned revision for a valid token hash', async () => {
-  const session = await openSession(database.runtimeUrl);
-  try {
-    const rows = await session.query<{
-      workspace_id: string;
-      pinned_revision_id: string;
-      path: string;
-      markdown: string;
-    }>('select * from notesapp_share_lookup($1)', [owned.shareToken]);
-    assert.equal(rows.length, 1);
-    assert.equal(rows[0]?.workspace_id, owned.workspaceId);
-    assert.equal(rows[0]?.pinned_revision_id, owned.firstRevisionId);
-    assert.notEqual(rows[0]?.pinned_revision_id, owned.headRevisionId);
-    assert.equal(rows[0]?.path, 'notes/first.md');
-    assert.equal(rows[0]?.markdown, '# notes/first.md\n');
-  } finally {
-    await session.close();
-  }
-});
-
-await test('public share lookup: grants no table read to an anonymous reader', async () => {
-  const session = await openSession(database.runtimeUrl);
-  try {
-    assert.equal(await visible(session, 'shares'), 0);
-    assert.equal(await visible(session, 'revisions'), 0);
-    assert.equal(await visible(session, 'contents'), 0);
-    const rows = await session.query<{ share_id: string }>(
-      'select share_id from notesapp_share_lookup($1)',
-      [randomUUID()],
-    );
-    assert.equal(rows.length, 0);
-  } finally {
-    await session.close();
-  }
-});
-
-await test('public share lookup: returns nothing for a revoked or an expired share', async () => {
-  const revokedToken = randomUUID();
-  const expiredToken = randomUUID();
-  const owner = await openSession(database.migrationUrl);
-  try {
-    await owner.query(
-      `insert into shares (workspace_id, id, file_id, pinned_revision_id, token_hash, creator_account_id, revoked_at)
-       values ($1, $2, $3, $4, $5, $6, now())`,
-      [
-        owned.workspaceId,
-        randomUUID(),
-        owned.fileId,
-        owned.firstRevisionId,
-        revokedToken,
-        owned.accountId,
-      ],
-    );
-    await owner.query(
-      `insert into shares (workspace_id, id, file_id, pinned_revision_id, token_hash, creator_account_id, expires_at)
-       values ($1, $2, $3, $4, $5, $6, now() - interval '1 minute')`,
-      [
-        owned.workspaceId,
-        randomUUID(),
-        owned.fileId,
-        owned.firstRevisionId,
-        expiredToken,
-        owned.accountId,
-      ],
-    );
-  } finally {
-    await owner.close();
-  }
-
-  const session = await openSession(database.runtimeUrl);
-  try {
-    for (const token of [revokedToken, expiredToken]) {
-      const rows = await session.query<{ share_id: string }>(
-        'select share_id from notesapp_share_lookup($1)',
-        [token],
-      );
-      assert.equal(rows.length, 0);
-    }
-  } finally {
-    await session.close();
-  }
 });
 
 await test('membership policy: is not recursive', async () => {

@@ -394,25 +394,12 @@ await test('a deletion writes a tombstone and hides the file', async () => {
   );
 });
 
-await test('a deletion revokes the shares and clears the links of a file', async () => {
+await test('a deletion clears the links of a file', async () => {
   const file = await newFile('notes/published.md');
   const session = await openSession(database.migrationUrl);
   try {
-    // Sharing and the link index belong to later tasks, so their rows are
-    // written with the migration role. The deletion has to reach both.
-    await session.query(
-      `insert into shares
-        (workspace_id, id, file_id, pinned_revision_id, token_hash, creator_account_id)
-        values ($1, $2, $3, $4, $5, $6)`,
-      [
-        workspaceId,
-        randomUUID(),
-        file.fileId,
-        file.revisionId,
-        `hash-${randomUUID()}`,
-        ownerAccountId,
-      ],
-    );
+    // The link index belongs to a later task, so its row is written with the
+    // migration role. The deletion has to reach it.
     await session.query(
       `insert into link_index
         (workspace_id, source_file_id, source_revision_id, ordinal, target_file_id, source_text)
@@ -432,12 +419,6 @@ await test('a deletion revokes the shares and clears the links of a file', async
 
   const after = await openSession(database.migrationUrl);
   try {
-    const shares = await after.query<{ revoked_at: Date | null }>(
-      'select revoked_at from shares where workspace_id = $1 and file_id = $2',
-      [workspaceId, file.fileId],
-    );
-    assert.equal(shares.length, 1);
-    assert.notEqual(shares[0]?.revoked_at, null);
     const links = await after.query(
       'select ordinal from link_index where workspace_id = $1 and source_file_id = $2',
       [workspaceId, file.fileId],

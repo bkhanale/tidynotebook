@@ -54,11 +54,6 @@ export type {
   PurgePreview,
   PurgedFilesResult,
   RevisionRecord,
-  CreateShareRecord,
-  PublicShareReader,
-  PublicShareRecord,
-  ShareRecord,
-  SharingStore,
   SnapshotItem,
   SnapshotPage,
   SnapshotStart,
@@ -160,13 +155,6 @@ export {
   submitBranch,
 } from './history/service.ts';
 export { previewPurge, purgeFiles } from './history/purge.ts';
-export type { CreateShareInput, UpdateShareInput } from './sharing/service.ts';
-export {
-  createShare,
-  listShares,
-  revokeShare,
-  updateShare,
-} from './sharing/service.ts';
 export type {
   SnapshotPageOptions,
   StartSnapshotOptions,

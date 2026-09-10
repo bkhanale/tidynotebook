@@ -35,7 +35,7 @@ export type CreateEditorOptions = {
   readonly navigation?: EditorNavigation | undefined;
   /** Runs the Save checkpoint, for example on Ctrl+S or Cmd+S. */
   readonly onSave?: (() => void) | undefined;
-  /** Read-only rendering for viewers and anonymous shares. */
+  /** Read-only rendering, for a preview that must not be edited. */
   readonly readOnly?: boolean | undefined;
   /** Starting palette. Later changes use `setEditorTheme` without rebuild. */
   readonly theme?: 'light' | 'dark' | undefined;

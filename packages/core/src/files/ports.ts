@@ -122,38 +122,6 @@ export type RevisionRecord = {
   readonly serverTime: string;
 };
 
-/** One public link that pins an accepted note revision. */
-export type ShareRecord = {
-  readonly id: string;
-  readonly fileId: string;
-  readonly pinnedRevisionId: string;
-  readonly creatorAccountId: string;
-  readonly expiresAt: string | null;
-  readonly revokedAt: string | null;
-  readonly createdAt: string;
-};
-
-/** Values that storage needs to create one public link. */
-export type CreateShareRecord = {
-  readonly id: string;
-  readonly fileId: string;
-  readonly pinnedRevisionId: string;
-  readonly tokenHash: string;
-  readonly creatorAccountId: string;
-  readonly expiresAt: string | null;
-};
-
-/** Content that an anonymous public request may read. */
-export type PublicShareRecord = {
-  readonly shareId: string;
-  readonly workspaceId: string;
-  readonly fileId: string;
-  readonly pinnedRevisionId: string;
-  readonly path: string;
-  readonly markdown: string;
-  readonly allowedAttachmentRevisionIds: readonly string[];
-};
-
 /** Reads and the one write of an open workspace transaction. */
 export type WorkspaceTransaction = {
   /** The account's current role in this workspace, or `null` for a stranger. */
@@ -240,19 +208,6 @@ export type WorkspaceTransaction = {
   backlinks(fileId: string, limit: number): Promise<readonly Backlink[]>;
   /** True when the revision is in the current accepted history of the file. */
   isAcceptedRevision(fileId: string, revisionId: string): Promise<boolean>;
-  /** Creates one public link and derives its attachment allowlist. */
-  createShare(input: CreateShareRecord): Promise<ShareRecord>;
-  /** Moves a live public link to another accepted revision and expiry. */
-  updateShare(
-    shareId: string,
-    fileId: string,
-    pinnedRevisionId: string,
-    expiresAt: string | null,
-  ): Promise<ShareRecord | null>;
-  /** Revokes one live public link. */
-  revokeShare(shareId: string): Promise<ShareRecord | null>;
-  /** Lists all public links of the workspace for its administrators. */
-  listShares(): Promise<readonly ShareRecord[]>;
   /**
    * Performs the atomic write of one changeset.
    *
@@ -282,15 +237,12 @@ export type WorkspaceTransaction = {
   /**
    * Removes the accepted side records of files that a changeset deleted.
    *
-   * A deletion revokes the shares of the file and removes it from normal
-   * search, and both have to happen in the transaction that accepted the
-   * tombstone. Otherwise a share would stay readable, or a crash between two
-   * transactions would leave one behind.
+   * A deletion removes the file from search and from the link index, and both
+   * have to happen in the transaction that accepted the tombstone. Otherwise a
+   * crash between two transactions would leave a stale index row behind.
    *
    * There is one port method rather than one per index, because every caller
    * needs all of them and a later index must not be forgotten at a call site.
-   * The implementation revokes shares and drops link records today; the search
-   * task extends the same implementation, and no caller changes.
    *
    * The call runs after `accept` inside the same transaction. It never adds
    * content, so a full workspace can still delete a file.
@@ -416,7 +368,7 @@ export type AcceptedBranch = {
 
 /** A reference that prevents permanent deletion of a file. */
 export type BlockingReference = {
-  readonly kind: 'revision' | 'branch' | 'share';
+  readonly kind: 'revision' | 'branch';
   readonly targetId: string;
   readonly referrerId: string;
   readonly description: string;
@@ -443,7 +395,7 @@ export type PurgedFilesResult = {
 };
 
 /** The kind of entity that one incremental sync record refers to. */
-export type SyncEntityKind = 'file' | 'membership' | 'share';
+export type SyncEntityKind = 'file' | 'membership';
 
 /** What a caller asks for when it starts a snapshot. */
 export type StartSnapshotInput = {
@@ -559,14 +511,6 @@ export type WorkspaceStore = {
     options?: TransactOptions,
   ): Promise<T>;
 };
-
-/** Anonymous read path that resolves only an active hashed public token. */
-export type PublicShareReader = {
-  readPublicShare(tokenHash: string): Promise<PublicShareRecord | null>;
-};
-
-/** Store used by both authenticated share management and public reads. */
-export type SharingStore = WorkspaceStore & PublicShareReader;
 
 /** The kind of infrastructure failure that an adapter reports. */
 export type OperationalErrorKind =

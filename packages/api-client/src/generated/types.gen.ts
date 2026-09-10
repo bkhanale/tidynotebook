@@ -300,7 +300,7 @@ export type BacklinkResults = {
  * A reference that blocks permanent deletion.
  */
 export type BlockingReference = {
-    kind: 'revision' | 'branch' | 'share';
+    kind: 'revision' | 'branch';
     targetId: string;
     referrerId: string;
     description: string;
@@ -950,7 +950,7 @@ export type SyncChangeItem = {
     /**
      * The kind of entity that the record refers to.
      */
-    readonly entityKind: 'file' | 'membership' | 'share';
+    readonly entityKind: 'file' | 'membership';
     entityId: Uuid;
     /**
      * The revision of a file change, or null otherwise.

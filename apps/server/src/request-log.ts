@@ -16,14 +16,11 @@ export type RequestLogRecord = {
   readonly errorCode?: string;
 };
 
-/** Redacts sensitive path segments and query strings from a URL. */
+/** Redacts the query string of a URL, which can carry a search term. */
 export function redactUrl(rawUrl: string): string {
   const [pathPart] = rawUrl.split('?');
-  const path = (pathPart ?? rawUrl).replace(
-    /^(\/s\/)[^/?]+(?:\/attachments\/[^/?]+)?/,
-    '$1[redacted]',
-  );
-  // Redact any query string completely to ensure search terms and parameters never leak.
+  const path = pathPart ?? rawUrl;
+  // The query string goes completely, so a search term never reaches a log.
   if (rawUrl.includes('?')) {
     return `${path}?[redacted]`;
   }

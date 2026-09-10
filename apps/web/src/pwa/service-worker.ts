@@ -111,7 +111,7 @@ async function precacheShell(): Promise<void> {
   );
 }
 
-/** Serves one fetch without ever storing a private or share response. */
+/** Serves one fetch without ever storing a private response. */
 async function handleFetch(event: FetchEvent): Promise<Response> {
   const request = event.request;
   if (request.method !== 'GET') return fetch(request);

@@ -59,7 +59,6 @@ export {
   PlusIcon,
   SearchIcon,
   SettingsIcon,
-  ShareIcon,
   SunIcon,
   TrashIcon,
   UserIcon,

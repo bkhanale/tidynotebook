@@ -7,7 +7,7 @@
  */
 import { access, constants } from 'node:fs/promises';
 import pg from 'pg';
-import type { SharingStore, WorkspaceAdminStore } from '@notesapp/core';
+import type { WorkspaceAdminStore, WorkspaceStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import { readProperty } from '../values.ts';
 import { createAccountHandlers } from './accounts.ts';
@@ -47,7 +47,6 @@ function missingAttachmentStore(): AttachmentStore {
     getAttachmentObject: fail,
     finalizeAttachmentObject: fail,
     readAttachmentRevision: fail,
-    readPublicShareAttachment: fail,
     reclaimAttachments: fail,
     temporaryPath: fail,
     immutablePath: fail,
@@ -59,7 +58,7 @@ export type HandlerDependencies = {
   /** The account and workspace store of the deployment. */
   readonly store?: WorkspaceAdminStore;
   /** The workspace content store of the deployment. */
-  readonly content?: SharingStore;
+  readonly content?: WorkspaceStore;
   /** The attachment store of the deployment. */
   readonly attachments?: AttachmentStore;
 };

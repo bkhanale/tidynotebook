@@ -1,10 +1,10 @@
 /**
  * Domain services for permanent file deletion and purge preview.
  *
- * Purging a file removes all its revisions, branches, and shares, writes
- * content-free purge markers to block subsequent mutations with 410 Gone, and
- * reclaims unreferenced content and attachment bytes. Only the workspace owner
- * can preview or execute a purge.
+ * Purging a file removes all its revisions, writes content-free purge markers
+ * to block subsequent mutations with 410 Gone, and reclaims unreferenced
+ * content and attachment bytes. Only the workspace owner can preview or
+ * execute a purge.
  */
 import { authorize, type Actor } from '../identity/actor.ts';
 import { fail, type Result } from '../files/model.ts';
@@ -43,8 +43,8 @@ export async function previewPurge(
 /**
  * Permanently deletes the requested files.
  *
- * It validates that no blocking references exist, removes associated branches
- * and shares, writes purge markers, and reclaims unreferenced storage bytes.
+ * It validates that no blocking reference exists, writes purge markers, and
+ * reclaims unreferenced storage bytes.
  */
 export async function purgeFiles(
   store: WorkspaceStore,

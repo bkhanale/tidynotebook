@@ -76,17 +76,6 @@ export type AttachmentStore = {
     readonly revisionId: string;
   } | null>;
 
-  /** Reads bytes that one active public share explicitly allows. */
-  readPublicShareAttachment(
-    tokenHash: string,
-    revisionId: string,
-  ): Promise<{
-    readonly stream: Readable;
-    readonly size: bigint;
-    readonly mediaType: AttachmentMediaType;
-    readonly digest: string;
-  } | null>;
-
   /**
    * Reclaims attachment bytes. This is the only code that deletes them.
    *
@@ -465,49 +454,6 @@ export function openAttachmentStore(
           revisionId: row.revision_id,
         };
       });
-    },
-
-    async readPublicShareAttachment(tokenHash, revisionId) {
-      if (!/^[0-9a-f]{64}$/.test(tokenHash)) return null;
-      if (!/^[0-9a-f-]{36}$/i.test(revisionId)) return null;
-      let client: pg.PoolClient;
-      try {
-        client = await pool.connect();
-      } catch {
-        throw new OperationalError(
-          'unavailable',
-          'notesapp: database connection refused.',
-        );
-      }
-      try {
-        const result = await client.query<{
-          workspace_id: string;
-          digest: string;
-          size: string;
-          media_type: string;
-        }>('select * from public.notesapp_share_attachment_lookup($1, $2)', [
-          tokenHash,
-          revisionId,
-        ]);
-        const row = result.rows[0];
-        if (row === undefined) return null;
-        const path = immutablePath(row.workspace_id, row.digest);
-        if (!existsSync(path)) return null;
-        return {
-          stream: createReadStream(path),
-          size: BigInt(row.size),
-          mediaType: row.media_type as AttachmentMediaType,
-          digest: row.digest,
-        };
-      } catch (error) {
-        throw new OperationalError(
-          'unexpected',
-          'notesapp: public attachment lookup failed.',
-          { cause: error },
-        );
-      } finally {
-        client.release();
-      }
     },
 
     async reclaimAttachments(now: Date): Promise<number> {

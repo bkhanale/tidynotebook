@@ -48,7 +48,7 @@ import {
   createProblem,
   problemMediaType,
 } from './http/problem.ts';
-import { attachRequestLogging } from './request-log.ts';
+import { attachRequestLogging, redactUrl } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 
@@ -68,15 +68,6 @@ export function requestId(supplied: unknown): string {
 
 import { hostName } from './http/host.ts';
 export { hostName } from './http/host.ts';
-
-/** Removes a legacy share secret before a request URL reaches a log. */
-export function redactAccessUrl(url: string): string {
-  const path = (url.split('?')[0] ?? url).replace(
-    /^(\/s\/)[^/?]+(?:\/attachments\/[^/?]+)?/,
-    '$1[redacted]',
-  );
-  return url.includes('?') ? `${path}?[redacted]` : path;
-}
 
 function instanceOf(request: FastifyRequest): string {
   return request.url.split('?')[0] ?? request.url;
@@ -155,9 +146,7 @@ export function createAppWithHandlers(
                 method:
                   typeof request.method === 'string' ? request.method : '',
                 url:
-                  typeof request.url === 'string'
-                    ? redactAccessUrl(request.url)
-                    : '',
+                  typeof request.url === 'string' ? redactUrl(request.url) : '',
                 hostname:
                   typeof request.hostname === 'string' ? request.hostname : '',
                 remoteAddress:
@@ -244,9 +233,7 @@ export function createAppWithHandlers(
     ) {
       const rawPath = request.url.split('?')[0] ?? '/';
       const isApiPrefix =
-        rawPath.startsWith('/api/') ||
-        rawPath.startsWith('/s/') ||
-        rawPath.startsWith('/.well-known/');
+        rawPath.startsWith('/api/') || rawPath.startsWith('/.well-known/');
 
       if (!isApiPrefix) {
         let decodedPath: string | null = null;

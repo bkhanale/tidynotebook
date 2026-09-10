@@ -328,7 +328,7 @@ export const createFile = <ThrowOnError extends boolean = false>(options: Option
 /**
  * Delete a file by writing a tombstone revision.
  *
- * Deletes one file. The deletion is a revision, so the history of the file stays complete and a later restore is possible. The tombstone carries no note text, and a submitted tombstone that carries Markdown is refused with 422, so a deletion can never add content. Deleting revokes every share of the file and removes it from search, so a workspace at its storage limit can still be tidied. The request must carry the entity tag of the head that the client saw.
+ * Deletes one file. The deletion is a revision, so the history of the file stays complete and a later restore is possible. The tombstone carries no note text, and a submitted tombstone that carries Markdown is refused with 422, so a deletion can never add content. Deleting removes the file from search, so a workspace at its storage limit can still be tidied. The request must carry the entity tag of the head that the client saw.
  */
 export const deleteFile = <ThrowOnError extends boolean = false>(options: Options<DeleteFileData, ThrowOnError>): RequestResult<DeleteFileResponses, DeleteFileErrors, ThrowOnError> => (options.client ?? client).delete<DeleteFileResponses, DeleteFileErrors, ThrowOnError>({
     security: [{
@@ -430,7 +430,7 @@ export const restoreRevision = <ThrowOnError extends boolean = false>(options: O
 /**
  * Permanently delete files and write purge markers.
  *
- * Permanently purges files, revisions, branches, and shares, writes purge markers, and reclaims storage. Subsequent writes to purged file identifiers answer 410 Gone. Restricted to workspace owners.
+ * Permanently purges files and revisions, writes purge markers, and reclaims storage. Subsequent writes to purged file identifiers answer 410 Gone. Restricted to the workspace owner.
  */
 export const purgeFiles = <ThrowOnError extends boolean = false>(options: Options<PurgeFilesData, ThrowOnError>): RequestResult<PurgeFilesResponses, PurgeFilesErrors, ThrowOnError> => (options.client ?? client).post<PurgeFilesResponses, PurgeFilesErrors, ThrowOnError>({
     security: [{
@@ -483,7 +483,7 @@ export const getRevision = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Search accepted live notes in a workspace.
  *
- * Searches accepted titles and Markdown content with the PostgreSQL simple text configuration. Deleted files, branch tips, and historic revisions are excluded.
+ * Searches accepted titles and Markdown content with the PostgreSQL simple text configuration. Deleted files and historic revisions are excluded.
  */
 export const searchFiles = <ThrowOnError extends boolean = false>(options: Options<SearchFilesData, ThrowOnError>): RequestResult<SearchFilesResponses, SearchFilesErrors, ThrowOnError> => (options.client ?? client).get<SearchFilesResponses, SearchFilesErrors, ThrowOnError>({
     security: [{

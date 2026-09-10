@@ -39,6 +39,7 @@ import {
   type StartSnapshotInput,
   type SyncChangeFeed,
   type TransactOptions,
+  type WorkspaceStore,
   type WorkspaceTransaction,
   type AcceptedBranch,
   type BlockingReference,
@@ -52,12 +53,8 @@ import {
   type SubmitBranchInput,
   type Backlink,
   type SearchHit,
-  type CreateShareRecord,
-  type PublicShareRecord,
-  type ShareRecord,
-  type SharingStore,
 } from '@notesapp/core';
-import { extractAttachmentRefs, extractLinks } from '@notesapp/markdown';
+import { extractLinks } from '@notesapp/markdown';
 import { markdownLimitCode } from './markdown-limits.ts';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -127,7 +124,7 @@ export type WorkspaceStoreOptions = {
 };
 
 /** A workspace store and the calls that a process needs to manage its pool. */
-export type WorkspaceStoreHandle = SharingStore & {
+export type WorkspaceStoreHandle = WorkspaceStore & {
   /**
    * Removes expired snapshots and change records older than the retention.
    *
@@ -473,34 +470,6 @@ function clientTime(revision: RevisionInput): Date {
   return parsed;
 }
 
-type ShareRow = {
-  readonly id: string;
-  readonly file_id: string;
-  readonly pinned_revision_id: string;
-  readonly creator_account_id: string;
-  readonly expires_at: Date | null;
-  readonly revoked_at: Date | null;
-  readonly created_at: Date;
-};
-
-/** Maps one private database row to the administrator response shape. */
-function shareRecord(row: ShareRow | undefined): ShareRecord {
-  if (row === undefined)
-    throw new OperationalError(
-      'unexpected',
-      'notesapp: a stored share write returned no row.',
-    );
-  return {
-    id: row.id,
-    fileId: row.file_id,
-    pinnedRevisionId: row.pinned_revision_id,
-    creatorAccountId: row.creator_account_id,
-    expiresAt: row.expires_at?.toISOString() ?? null,
-    revokedAt: row.revoked_at?.toISOString() ?? null,
-    createdAt: row.created_at.toISOString(),
-  };
-}
-
 /**
  * Replaces the search and backlink rows of every accepted head in this write.
  *
@@ -594,45 +563,6 @@ export function openWorkspaceStore(
   });
 
   return {
-    async readPublicShare(
-      tokenHash: string,
-    ): Promise<PublicShareRecord | null> {
-      if (!/^[0-9a-f]{64}$/.test(tokenHash)) return null;
-      let client: pg.PoolClient;
-      try {
-        client = await pool.connect();
-      } catch (error) {
-        throw operational(error);
-      }
-      try {
-        const result = await client.query<{
-          workspace_id: string;
-          share_id: string;
-          file_id: string;
-          pinned_revision_id: string;
-          allowed_attachment_revision_ids: string[];
-          path: string;
-          markdown: string | null;
-        }>('select * from public.notesapp_share_lookup($1)', [tokenHash]);
-        const row = result.rows[0];
-        if (row === undefined || row.markdown === null) return null;
-        return {
-          shareId: row.share_id,
-          workspaceId: row.workspace_id,
-          fileId: row.file_id,
-          pinnedRevisionId: row.pinned_revision_id,
-          path: row.path,
-          markdown: row.markdown,
-          allowedAttachmentRevisionIds:
-            row.allowed_attachment_revision_ids ?? [],
-        };
-      } catch (error) {
-        throw operational(error);
-      } finally {
-        client.release();
-      }
-    },
-
     async transact<T>(
       actor: Actor,
       workspaceId: string,
@@ -1175,168 +1105,10 @@ function createTransaction(
       return result.rows[0]?.accepted ?? false;
     },
 
-    async createShare(input: CreateShareRecord): Promise<ShareRecord> {
-      assertUuid(input.id, 'the share');
-      const revision = await this.revision(input.pinnedRevisionId);
-      const allowed =
-        revision?.text === null || revision?.text === undefined
-          ? []
-          : [
-              ...new Set(
-                extractAttachmentRefs(revision.text).map(
-                  (reference) => reference.revisionId,
-                ),
-              ),
-            ];
-      const result = await client.query<ShareRow>(
-        `insert into public.shares
-           (workspace_id, id, file_id, pinned_revision_id, token_hash,
-            allowed_attachment_revision_ids, creator_account_id, expires_at)
-         values ($1, $2, $3, $4, $5, $6::uuid[], $7, $8::timestamptz)
-         returning id, file_id, pinned_revision_id, creator_account_id,
-                   expires_at, revoked_at, created_at`,
-        [
-          workspaceId,
-          input.id,
-          input.fileId,
-          input.pinnedRevisionId,
-          input.tokenHash,
-          allowed,
-          input.creatorAccountId,
-          input.expiresAt,
-        ],
-      );
-      await emitSyncRows(client, {
-        workspaceId,
-        entries: [
-          {
-            entityKind: 'share',
-            entityId: input.id,
-            revisionId: input.pinnedRevisionId,
-            deleted: false,
-          },
-        ],
-      });
-      return shareRecord(result.rows[0]);
-    },
-
-    async updateShare(
-      shareId: string,
-      fileId: string,
-      pinnedRevisionId: string,
-      expiresAt: string | null,
-    ): Promise<ShareRecord | null> {
-      assertUuid(shareId, 'the share');
-      const revision = await this.revision(pinnedRevisionId);
-      const allowed =
-        revision?.text === null || revision?.text === undefined
-          ? []
-          : [
-              ...new Set(
-                extractAttachmentRefs(revision.text).map(
-                  (reference) => reference.revisionId,
-                ),
-              ),
-            ];
-      const result = await client.query<ShareRow>(
-        `update public.shares
-            set pinned_revision_id = $4,
-                allowed_attachment_revision_ids = $5::uuid[],
-                expires_at = $6::timestamptz
-          where workspace_id = $1 and id = $2 and file_id = $3
-            and revoked_at is null
-        returning id, file_id, pinned_revision_id, creator_account_id,
-                  expires_at, revoked_at, created_at`,
-        [workspaceId, shareId, fileId, pinnedRevisionId, allowed, expiresAt],
-      );
-      const row = result.rows[0];
-      if (row === undefined) return null;
-      await emitSyncRows(client, {
-        workspaceId,
-        entries: [
-          {
-            entityKind: 'share',
-            entityId: shareId,
-            revisionId: pinnedRevisionId,
-            deleted: false,
-          },
-        ],
-      });
-      return shareRecord(row);
-    },
-
-    async revokeShare(shareId: string): Promise<ShareRecord | null> {
-      assertUuid(shareId, 'the share');
-      const result = await client.query<ShareRow>(
-        `update public.shares set revoked_at = now()
-          where workspace_id = $1 and id = $2 and revoked_at is null
-        returning id, file_id, pinned_revision_id, creator_account_id,
-                  expires_at, revoked_at, created_at`,
-        [workspaceId, shareId],
-      );
-      const row = result.rows[0];
-      if (row === undefined) return null;
-      await emitSyncRows(client, {
-        workspaceId,
-        entries: [
-          {
-            entityKind: 'share',
-            entityId: shareId,
-            revisionId: null,
-            deleted: true,
-          },
-        ],
-      });
-      return shareRecord(row);
-    },
-
-    async listShares(): Promise<readonly ShareRecord[]> {
-      const result = await client.query<ShareRow>(
-        `select id, file_id, pinned_revision_id, creator_account_id,
-                expires_at, revoked_at, created_at
-           from public.shares
-          where workspace_id = $1
-          order by created_at desc, id`,
-        [workspaceId],
-      );
-      return result.rows.map(shareRecord);
-    },
-
     async onFilesDeleted(fileIds: readonly string[]): Promise<void> {
       if (fileIds.length === 0) return;
       for (const fileId of fileIds) assertUuid(fileId, 'a file');
       const ids = [...fileIds];
-      // A share of a deleted file is revoked, not removed, so the audit trail
-      // of the publication survives the deletion.
-      let revoked: { id: string }[];
-      try {
-        const result = await client.query<{ id: string }>(
-          `update shares set revoked_at = now()
-            where workspace_id = $1 and file_id = any($2::uuid[]) and revoked_at is null
-            returning id`,
-          [workspaceId, ids],
-        );
-        revoked = result.rows;
-      } catch (error) {
-        throw operational(error);
-      }
-      if (revoked.length > 0) {
-        // The revocation is part of the deleting commit, so it joins the same
-        // ordered stream under the workspace lock that this transaction holds.
-        try {
-          await emitSyncRows(client, {
-            workspaceId,
-            entries: revoked.map((share) => ({
-              entityKind: 'share' as const,
-              entityId: share.id,
-              revisionId: null,
-              deleted: true,
-            })),
-          });
-        } catch (error) {
-          throw operational(error);
-        }
-      }
       // The file leaves the link index, so it disappears from backlinks and
       // from normal search. The search task adds its own rows to this call.
       await db
@@ -1664,7 +1436,7 @@ function createTransaction(
       const count = row.blocking_kind?.length ?? 0;
       for (let i = 0; i < count; i++) {
         blockingReferences.push({
-          kind: row.blocking_kind[i] as 'revision' | 'branch' | 'share',
+          kind: row.blocking_kind[i] as 'revision' | 'branch',
           targetId: row.blocking_target_id[i] ?? '',
           referrerId: row.blocking_referrer_id[i] ?? '',
           description: row.blocking_description[i] ?? '',
