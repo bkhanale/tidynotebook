@@ -781,6 +781,52 @@ await test('a refused update of a live file is parked as deleted remotely', asyn
   ]);
 });
 
+await test('a preserved save writes its text into the recovery area', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
+  const notices: SyncNotice[] = [];
+  const ops = stubOperations({
+    commit: () =>
+      Promise.resolve({
+        ok: false as const,
+        problem: { status: 409, code: 'path_conflict', fileIds: ['file-a'] },
+      }),
+  });
+  await pushQueue(store, accountId, workspaceId, ops, testContext(notices, []));
+
+  // Parking alone would leave the text in a queue row that no screen reads.
+  assert.equal(store.recovery.length, 1);
+  const kept = store.recovery[0];
+  assert.ok(kept !== undefined);
+  assert.equal(kept.text, '# B\n');
+  assert.equal(kept.path, 'notes/file-a.md');
+  assert.equal(kept.fileId, 'file-a');
+  assert.equal(kept.reason, 'save_refused');
+  assert.equal(kept.code, 'path_conflict');
+  assert.equal(kept.mutationId, 'mutation-2');
+  assert.equal(kept.workspaceId, workspaceId);
+});
+
+await test('an unknown refusal code is parked the same way', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
+  const ops = stubOperations({
+    commit: () =>
+      Promise.resolve({
+        ok: false as const,
+        problem: {
+          status: 409,
+          code: 'deleted_remotely',
+          fileIds: ['file-a'],
+        },
+      }),
+  });
+  await pushQueue(store, accountId, workspaceId, ops, testContext([], []));
+  assert.equal(store.recovery.length, 1);
+  assert.equal(store.recovery[0]?.code, 'deleted_remotely');
+  assert.equal(store.recovery[0]?.text, '# B\n');
+});
+
 await test('permanent file failures are preserved', async () => {
   for (const problem of [
     { status: 409, code: 'path_conflict', fileIds: ['file-a'] as string[] },

@@ -22,6 +22,7 @@ import {
 import {
   isLocalStorageError,
   LocalStorageError,
+  parkRefusedSave,
   type Draft,
   type LocalStore,
   type QueueEntry,
@@ -257,6 +258,10 @@ await test('a draft save and a checkpoint commit as one transaction each', async
     workingCopyId: 'copy-a',
     sequence: 1,
     baseRevisionId: null,
+    stale: false,
+    acceptedText: null,
+    acceptedPath: null,
+    acceptedRevisionId: null,
   });
 
   const entry = await store.checkpoint(draft, null);
@@ -328,6 +333,10 @@ await test('an unchanged working copy of an accepted file writes nothing', async
     deleted: false,
     sequence: 0,
     baseRevisionId: revisionId,
+    stale: false,
+    acceptedText: null,
+    acceptedPath: 'notes/one.md',
+    acceptedRevisionId: revisionId,
   });
 
   // A second tab opens the accepted head and leaves without typing.
@@ -361,6 +370,10 @@ await test('a cached local deletion does not reopen accepted content', async () 
     workingCopyId: 'copy-a',
     sequence: 1,
     baseRevisionId: null,
+    stale: false,
+    acceptedText: null,
+    acceptedPath: null,
+    acceptedRevisionId: null,
   });
   await store.close();
 });
@@ -1042,15 +1055,22 @@ await test('server conflict resolution clears its local queue atomically', async
   assert.equal(state.acceptedHeadRevisionId, mergedId);
   assert.equal(state.localHeadRevisionId, mergedId);
   assert.equal(state.hasUncheckpointedDraft, false);
+  // The resolution left a draft that says exactly what the accepted head
+  // says. Opening the note removes it and returns the head, so no draft is
+  // left behind to shadow a later server version.
   assert.deepEqual(await store.readCachedNote(account, workspace, file), {
     fileId: file,
     path: 'notes/one.md',
     text: mergedText,
     deleted: false,
-    workingCopyId: 'copy-a',
-    sequence: 1,
+    sequence: 0,
     baseRevisionId: mergedId,
+    stale: false,
+    acceptedText: null,
+    acceptedPath: 'notes/one.md',
+    acceptedRevisionId: mergedId,
   });
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
   const unchanged = draftOf(account, workspace, file, 'copy-a', mergedText, {
     baseRevisionId: mergedId,
     sequence: 2,
@@ -1213,6 +1233,10 @@ await test('a server-only conflict resolution becomes durable local state', asyn
     deleted: false,
     sequence: 0,
     baseRevisionId: revisionId,
+    stale: false,
+    acceptedText: null,
+    acceptedPath: 'notes/remote-conflict.md',
+    acceptedRevisionId: revisionId,
   });
   const attachmentFile = randomUUID();
   const attachmentRevision = randomUUID();
@@ -1334,4 +1358,263 @@ await test('browser stores share a fallback bus without BroadcastChannel', async
     else
       Object.defineProperty(globalThis, 'BroadcastChannel', channelDescriptor);
   }
+});
+
+await test('a draft that matches a newer accepted head is dropped on open', async () => {
+  const backend = createBackend('draft-matches-head');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  // This device saves once and keeps typing, so a draft exists over the
+  // accepted head it created.
+  const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
+  await store.saveDraft(first);
+  const entry = await store.checkpoint(first, null);
+  const firstRevision = entry?.input.revisions[0]?.id ?? '';
+  await store.acknowledge(account, acceptanceOf(entry, account, '10'));
+  const shared = '# Shared\n';
+  await store.saveDraft({ ...first, text: shared, sequence: 2 });
+
+  // Another device saves exactly that text, and the change feed brings it.
+  const remoteRevision = randomUUID();
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: remoteRevision,
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest(shared),
+          text: shared,
+        },
+      },
+    ],
+    '11',
+  );
+
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.stale, false);
+  assert.equal(cached?.text, shared);
+  // The draft says nothing the accepted head does not say, so it is gone and
+  // the head is what opened.
+  assert.equal(cached?.workingCopyId, undefined);
+  assert.equal(cached?.baseRevisionId, remoteRevision);
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
+  assert.notEqual(remoteRevision, firstRevision);
+  await store.close();
+});
+
+await test('a draft over an older accepted head opens as stale', async () => {
+  const backend = createBackend('draft-stale');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
+  await store.saveDraft(first);
+  const entry = await store.checkpoint(first, null);
+  const firstRevision = entry?.input.revisions[0]?.id ?? '';
+  await store.acknowledge(account, acceptanceOf(entry, account, '10'));
+  await store.saveDraft({ ...first, text: 'my own text\n', sequence: 2 });
+
+  const remoteText = '# From the other device\n';
+  const remoteRevision = randomUUID();
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: remoteRevision,
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest(remoteText),
+          text: remoteText,
+        },
+      },
+    ],
+    '11',
+  );
+
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.stale, true);
+  // Both texts reach the caller, so the person chooses and nothing is lost.
+  assert.equal(cached?.text, 'my own text\n');
+  assert.equal(cached?.acceptedText, remoteText);
+  assert.equal(cached?.acceptedRevisionId, remoteRevision);
+  assert.equal(cached?.baseRevisionId, firstRevision);
+  assert.equal(cached?.workingCopyId, 'copy-a');
+
+  // Keeping the text moves only its base, so the next save reaches the
+  // server head instead of naming the one it replaced.
+  await store.rebaseDraft(account, workspace, 'copy-a');
+  const kept = await store.readCachedNote(account, workspace, file);
+  assert.equal(kept?.stale, false);
+  assert.equal(kept?.text, 'my own text\n');
+  assert.equal(kept?.baseRevisionId, remoteRevision);
+  const next = await store.checkpoint(
+    {
+      ...first,
+      text: 'my own text\n',
+      sequence: 3,
+      baseRevisionId: kept?.baseRevisionId ?? null,
+    },
+    null,
+  );
+  assert.deepEqual(next?.input.expectedHeads, { [file]: remoteRevision });
+  assert.deepEqual(next?.input.revisions[0]?.parents, [remoteRevision]);
+  await store.close();
+});
+
+await test('a remote change keeps a draft that differs from it', async () => {
+  const backend = createBackend('remote-keeps-draft');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
+  await store.saveDraft(first);
+  const entry = await store.checkpoint(first, null);
+  const firstRevision = entry?.input.revisions[0]?.id ?? '';
+  await store.acknowledge(account, acceptanceOf(entry, account, '10'));
+  // The draft is renamed as well as retyped, so its identity is at stake.
+  await store.saveDraft({
+    ...first,
+    text: 'my own text\n',
+    path: 'notes/renamed.md',
+    sequence: 2,
+  });
+
+  const remoteRevision = randomUUID();
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: remoteRevision,
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest('# Other\n'),
+          text: '# Other\n',
+        },
+      },
+    ],
+    '11',
+  );
+
+  const accepted = (await store.listAcceptedFiles(account, workspace)).find(
+    (row) => row.fileId === file,
+  );
+  // The accepted head follows the server. The local head does not move,
+  // because a draft that differs from the arriving head is unsubmitted work.
+  // Without the draft half of the dirty test the local head would be the
+  // remote revision and the draft would keep shadowing it.
+  assert.equal(accepted?.acceptedHeadRevisionId, remoteRevision);
+  assert.equal(accepted?.localHeadRevisionId, firstRevision);
+  const draft = await store.readDraft(account, workspace, 'copy-a');
+  assert.equal(draft?.text, 'my own text\n');
+  assert.equal(draft?.path, 'notes/renamed.md');
+  // The rename is still the identity the note opens with, and the open is
+  // stale, so the person is told before that rename becomes a version.
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.path, 'notes/renamed.md');
+  assert.equal(cached?.stale, true);
+  assert.equal(cached?.acceptedPath, 'notes/one.md');
+  await store.close();
+});
+
+await test('a checkpoint of an older buffer is refused', async () => {
+  const backend = createBackend('stale-checkpoint');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const older = draftOf(account, workspace, file, 'copy-a', 'first text\n');
+  await store.saveDraft(older);
+  await store.saveDraft({ ...older, text: 'newest text\n', sequence: 5 });
+
+  await assert.rejects(
+    () => store.checkpoint(older, null),
+    (thrown: unknown) => {
+      assert.ok(isLocalStorageError(thrown));
+      assert.equal(thrown.kind, 'stale');
+      return true;
+    },
+  );
+  // Nothing was written, so the newest text is still the working copy.
+  assert.deepEqual(await store.pending(account, workspace), []);
+  assert.equal(
+    (await store.listCheckpoints(account, workspace, file)).length,
+    0,
+  );
+  assert.equal(
+    (await store.readDraft(account, workspace, 'copy-a'))?.text,
+    'newest text\n',
+  );
+  await store.close();
+});
+
+await test('a parked save keeps its text in the recovery area', async () => {
+  const backend = createBackend('parked-save');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const draft = draftOf(account, workspace, file, 'copy-a', 'refused text\n');
+  await store.saveDraft(draft);
+  const entry = await store.checkpoint(draft, null);
+  assert.ok(entry !== null);
+
+  // The server refused the save for good, so the queue parks it.
+  await store.markConflict(account, entry.input.mutationId);
+  await parkRefusedSave(store, account, entry, 'path_conflict');
+
+  const kept = await store.recover(account, workspace);
+  assert.equal(kept.length, 1);
+  assert.equal(kept[0]?.text, 'refused text\n');
+  assert.equal(kept[0]?.path, 'notes/one.md');
+  assert.equal(kept[0]?.reason, 'save_refused');
+  assert.equal(kept[0]?.code, 'path_conflict');
+  assert.equal(kept[0]?.mutationId, entry.input.mutationId);
+  assert.equal(kept[0]?.fileId, file);
+
+  // Discarding the parked entry leaves the queue empty and never sends it.
+  await store.discardParkedSave(account, workspace, entry.input.mutationId);
+  assert.deepEqual(await store.pending(account, workspace), []);
+  await store.close();
+});
+
+await test('an unknown refusal code still parks the text', async () => {
+  const backend = createBackend('parked-unknown');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const draft = draftOf(account, workspace, file, 'copy-a', 'kept text\n');
+  await store.saveDraft(draft);
+  const entry = await store.checkpoint(draft, null);
+  assert.ok(entry !== null);
+  await store.markConflict(account, entry.input.mutationId);
+  await parkRefusedSave(store, account, entry, 'deleted_remotely');
+
+  const kept = await store.recover(account, workspace);
+  assert.equal(kept[0]?.code, 'deleted_remotely');
+  assert.equal(kept[0]?.reason, 'save_refused');
+  await store.close();
 });
