@@ -156,6 +156,11 @@ export function Badge({
  * person never learns a requirement from a failure. Both the hint and the
  * error are named by `aria-describedby`, so a screen reader reads them with
  * the field.
+ *
+ * The field carries no length rule of its own. A browser that enforces one
+ * answers with its own bubble in its own words, which would compete with
+ * the hint and the error of the screen. The screen checks the length and
+ * reports it here.
  */
 export function TextField({
   id,
@@ -168,7 +173,6 @@ export function TextField({
   autoComplete,
   placeholder,
   required,
-  minLength,
   autoFocus,
 }: {
   readonly id: string;
@@ -182,7 +186,6 @@ export function TextField({
   readonly autoComplete?: string | undefined;
   readonly placeholder?: string | undefined;
   readonly required?: boolean | undefined;
-  readonly minLength?: number | undefined;
   readonly autoFocus?: boolean | undefined;
 }): ReactNode {
   const errorId = `${id}-error`;
@@ -202,13 +205,12 @@ export function TextField({
       </label>
       <input
         id={id}
-        className="w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
+        className={`w-full rounded-lg border bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:ring-2 focus:ring-focus/25 ${hasError ? 'border-danger focus:border-danger' : 'border-edge focus:border-focus'}`}
         type={inputType ?? 'text'}
         value={value}
         autoComplete={autoComplete}
         placeholder={placeholder}
         required={required ?? false}
-        minLength={minLength}
         autoFocus={autoFocus ?? false}
         aria-invalid={hasError}
         aria-describedby={described === '' ? undefined : described}

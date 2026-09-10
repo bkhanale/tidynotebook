@@ -129,7 +129,12 @@ export function InlineDiff({
       })),
     [hunks],
   );
-  if (rendered.length === 0) return <p>No line differences.</p>;
+  if (rendered.length === 0)
+    return (
+      <p className="m-0 text-control text-muted">
+        This version and the newest one hold the same text.
+      </p>
+    );
   return (
     <ol className="m-0 list-none space-y-4 p-0" aria-label="Line differences">
       {rendered.map((entry, index) => {
@@ -655,6 +660,7 @@ function HistoryDetail({
                           preview={preview}
                           previewRevisionId={previewRevisionId}
                           name={name}
+                          newest={item.revisionId === head.headRevisionId}
                         />
                       </li>
                     ) : null}
@@ -699,6 +705,7 @@ function RevisionPanel({
   preview,
   previewRevisionId,
   name,
+  newest,
 }: {
   readonly detail: RevisionDetail | null;
   readonly diff: DiffState;
@@ -706,6 +713,8 @@ function RevisionPanel({
   readonly preview: LoadedAttachment | null;
   readonly previewRevisionId: string | null;
   readonly name: string;
+  /** True when this version is the newest one, so it has no comparison. */
+  readonly newest: boolean;
 }): ReactNode {
   if (detail === null || detail.status === 'loading')
     return <StatusRegion message="Loading this version." />;
@@ -726,9 +735,15 @@ function RevisionPanel({
   return (
     <div className="space-y-3">
       <h3 className="m-0 text-control font-semibold uppercase tracking-wide text-muted">
-        Changes to the newest version
+        {newest
+          ? 'This is the newest version'
+          : 'Changes to the newest version'}
       </h3>
-      {diff.status === 'idle' ? (
+      {newest ? (
+        <p className="m-0 text-control text-muted">
+          Your note holds this text right now.
+        </p>
+      ) : diff.status === 'idle' ? (
         <p className="m-0 text-control text-muted">
           No comparison is available for this version.
         </p>

@@ -1,45 +1,60 @@
 /**
  * Line comparison in a Web Worker with a responsiveness budget.
  *
- * History screens compare the current version against an old revision
- * through {@link requestDiff}. The jsdiff comparison
- * itself lives in `@notesapp/editor` and runs inside the worker below, so a
- * large comparison never blocks typing or rendering. The worker source is
- * bundled from `diff-worker-impl.ts` through Vite's worker import; the
- * comparison result is already mapped to `DiffHunk` records when it arrives.
+ * The history screen compares versions through {@link requestDiff} for one
+ * pair and {@link requestDiffSeries} for a whole page of rows. The jsdiff
+ * comparison itself lives in `@notesapp/editor` and runs inside the worker
+ * below, so a large comparison never blocks typing or rendering. The worker
+ * source is bundled from `diff-worker-impl.ts` through Vite's worker import;
+ * the comparison result is already mapped to `DiffHunk` records when it
+ * arrives.
+ *
+ * One request carries every pair of a call, and one answer carries every
+ * outcome. A worker therefore starts once per call, answers once, and is
+ * terminated, which keeps the module of the worker out of the way of the
+ * rest of the session.
  *
  * Budget rules:
  *
- * - Texts larger than {@link maxWorkerDiffBytes} together resolve to a limit
+ * - Pairs larger than {@link maxWorkerDiffBytes} together resolve to a limit
  *   without spawning a worker.
- * - A worker that answers within {@link diffWorkerTimeoutMs} resolves to its
- *   complete hunks or its own limit.
- * - A worker that exceeds the budget is terminated and the request resolves
- *   to a limit. The screens then show a message and offer explicit
- *   whole-version selection or source editing while retaining both versions.
+ * - A worker that answers within its budget resolves to complete hunks or to
+ *   its own limit. The budget is {@link diffWorkerTimeoutMs} for one pair and
+ *   grows with the number of pairs up to {@link maxDiffSeriesTimeoutMs}.
+ * - A worker that exceeds the budget is terminated and every unanswered pair
+ *   resolves to a limit. The screen then shows a message and offers whole
+ *   version selection instead of hunk reading.
  * - A worker that fails to start, or an environment without workers, falls
  *   back to the same bounded comparison on the calling thread.
  */
 import { compareLines, type DiffResult } from '@notesapp/editor';
 import DiffWorker from './diff-worker-impl.ts?worker';
 
-/** The worker budget in milliseconds. */
+/** The budget of one pair, in milliseconds. */
 export const diffWorkerTimeoutMs = 500;
+
+/** The largest budget of one series, in milliseconds. */
+export const maxDiffSeriesTimeoutMs = 5000;
 
 /** The largest combined text size, in UTF-8 bytes, sent to the worker. */
 export const maxWorkerDiffBytes = 1_000_000;
 
-/** One comparison request of the worker protocol. */
-export type DiffWorkerRequest = {
-  readonly id: number;
+/** One pair of texts to compare. */
+export type DiffPair = {
   readonly before: string;
   readonly after: string;
 };
 
-/** One comparison answer of the worker protocol. */
+/** One comparison request of the worker protocol. */
+export type DiffWorkerRequest = {
+  readonly id: number;
+  readonly pairs: readonly DiffPair[];
+};
+
+/** One comparison answer of the worker protocol, one outcome per pair. */
 export type DiffWorkerResponse = {
   readonly id: number;
-  readonly result: DiffResult;
+  readonly results: readonly DiffResult[];
 };
 
 /** The UTF-8 byte length of a text. */
@@ -52,132 +67,7 @@ function isWorkerAvailable(): boolean {
   return typeof Worker !== 'undefined';
 }
 
-/**
- * Compares two texts line by line without blocking the caller.
- *
- * Resolves to complete hunks when the worker answers in budget, and to a
- * limit when the texts are too large, the worker exceeds its budget, or the
- * comparison itself gives up. Never rejects.
- */
-export function requestDiff(
-  before: string,
-  after: string,
-): Promise<DiffResult> {
-  if (!isWorkerAvailable()) {
-    try {
-      return Promise.resolve(compareLines(before, after));
-    } catch {
-      return Promise.resolve({ kind: 'limit' });
-    }
-  }
-  if (byteLength(before) + byteLength(after) > maxWorkerDiffBytes)
-    return Promise.resolve({ kind: 'limit' });
-  return new Promise<DiffResult>((resolve) => {
-    let settled = false;
-    const finish = (result: DiffResult): void => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      try {
-        worker.terminate();
-      } catch {
-        // Termination is best effort once the answer is recorded.
-      }
-      resolve(result);
-    };
-    let worker: Worker;
-    try {
-      worker = new DiffWorker();
-    } catch {
-      try {
-        resolve(compareLines(before, after));
-      } catch {
-        resolve({ kind: 'limit' });
-      }
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      finish({ kind: 'limit' });
-    }, diffWorkerTimeoutMs);
-    worker.onmessage = (event: MessageEvent<DiffWorkerResponse>): void => {
-      const response = event.data;
-      if (
-        response === null ||
-        typeof response !== 'object' ||
-        response.id !== 1
-      )
-        return;
-      finish(response.result);
-    };
-    worker.onerror = (): void => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      try {
-        worker.terminate();
-      } catch {
-        // Termination is best effort once the fallback is chosen.
-      }
-      try {
-        resolve(compareLines(before, after));
-      } catch {
-        resolve({ kind: 'limit' });
-      }
-    };
-    try {
-      const request: DiffWorkerRequest = { id: 1, before, after };
-      worker.postMessage(request);
-    } catch {
-      finish({ kind: 'limit' });
-    }
-  });
-}
-
-/** One pair of texts of a series comparison. */
-export type DiffPair = {
-  readonly before: string;
-  readonly after: string;
-};
-
-/**
- * Compares a series of pairs in one worker.
- *
- * The history timeline needs a summary for every listed version, which is
- * one comparison per neighbouring pair. Spawning a worker for each of them
- * costs more than the comparisons themselves, so the series shares one
- * worker and answers in order. Every pair keeps the same budget as a single
- * comparison; a pair that passes it resolves to a limit and the series goes
- * on with the next one. Never rejects.
- */
-export async function requestDiffSeries(
-  pairs: readonly DiffPair[],
-): Promise<readonly DiffResult[]> {
-  if (pairs.length === 0) return [];
-  if (!isWorkerAvailable()) return pairs.map(compareOnThisThread);
-  let worker: Worker;
-  try {
-    worker = new DiffWorker();
-  } catch {
-    return pairs.map(compareOnThisThread);
-  }
-  try {
-    const results: DiffResult[] = [];
-    for (let index = 0; index < pairs.length; index += 1) {
-      const pair = pairs[index];
-      if (pair === undefined) continue;
-      results.push(await answerOf(worker, index + 1, pair));
-    }
-    return results;
-  } finally {
-    try {
-      worker.terminate();
-    } catch {
-      // Termination is best effort once every answer is recorded.
-    }
-  }
-}
-
-/** Compares one pair on the calling thread, within the same bound. */
+/** Compares one pair on the calling thread, inside the same bound. */
 function compareOnThisThread(pair: DiffPair): DiffResult {
   try {
     return compareLines(pair.before, pair.after);
@@ -186,49 +76,98 @@ function compareOnThisThread(pair: DiffPair): DiffResult {
   }
 }
 
-/** Waits for the answer of one request of a series, inside the budget. */
-function answerOf(
-  worker: Worker,
-  id: number,
-  pair: DiffPair,
-): Promise<DiffResult> {
-  if (byteLength(pair.before) + byteLength(pair.after) > maxWorkerDiffBytes)
-    return Promise.resolve({ kind: 'limit' });
-  return new Promise<DiffResult>((resolve) => {
+/** The combined size of every pair, in UTF-8 bytes. */
+function seriesBytes(pairs: readonly DiffPair[]): number {
+  let bytes = 0;
+  for (const pair of pairs)
+    bytes += byteLength(pair.before) + byteLength(pair.after);
+  return bytes;
+}
+
+/**
+ * Compares a series of pairs without blocking the caller.
+ *
+ * Resolves to one outcome per pair, in the order the pairs were given.
+ * Resolves to a limit for every pair when the series is too large, the
+ * worker exceeds its budget, or the comparison itself gives up. Never
+ * rejects.
+ */
+export function requestDiffSeries(
+  pairs: readonly DiffPair[],
+): Promise<readonly DiffResult[]> {
+  if (pairs.length === 0) return Promise.resolve([]);
+  if (!isWorkerAvailable())
+    return Promise.resolve(pairs.map(compareOnThisThread));
+  if (seriesBytes(pairs) > maxWorkerDiffBytes)
+    return Promise.resolve(pairs.map(limitOf));
+  const budget = Math.min(
+    diffWorkerTimeoutMs * pairs.length,
+    maxDiffSeriesTimeoutMs,
+  );
+  return new Promise<readonly DiffResult[]>((resolve) => {
     let settled = false;
-    const finish = (result: DiffResult): void => {
+    const finish = (results: readonly DiffResult[]): void => {
       if (settled) return;
       settled = true;
       window.clearTimeout(timer);
-      worker.onmessage = null;
-      worker.onerror = null;
-      resolve(result);
+      try {
+        worker.terminate();
+      } catch {
+        // Termination is best effort once the answer is recorded.
+      }
+      resolve(results);
     };
+    let worker: Worker;
+    try {
+      worker = new DiffWorker();
+    } catch {
+      resolve(pairs.map(compareOnThisThread));
+      return;
+    }
     const timer = window.setTimeout(() => {
-      finish({ kind: 'limit' });
-    }, diffWorkerTimeoutMs);
+      finish(pairs.map(limitOf));
+    }, budget);
     worker.onmessage = (event: MessageEvent<DiffWorkerResponse>): void => {
       const response = event.data;
       if (
         response === null ||
         typeof response !== 'object' ||
-        response.id !== id
+        response.id !== 1 ||
+        !Array.isArray(response.results)
       )
         return;
-      finish(response.result);
+      finish(
+        pairs.map((pair, index) => response.results[index] ?? limitOf(pair)),
+      );
     };
     worker.onerror = (): void => {
-      finish(compareOnThisThread(pair));
+      finish(pairs.map(compareOnThisThread));
     };
     try {
-      const request: DiffWorkerRequest = {
-        id,
-        before: pair.before,
-        after: pair.after,
-      };
+      const request: DiffWorkerRequest = { id: 1, pairs };
       worker.postMessage(request);
     } catch {
-      finish({ kind: 'limit' });
+      finish(pairs.map(limitOf));
     }
   });
+}
+
+/** The limit outcome of one pair. */
+function limitOf(_pair: DiffPair): DiffResult {
+  return { kind: 'limit' };
+}
+
+/**
+ * Compares two texts line by line without blocking the caller.
+ *
+ * Resolves to complete hunks when the worker answers in budget, and to a
+ * limit when the texts are too large, the worker exceeds its budget, or the
+ * comparison itself gives up. Never rejects.
+ */
+export async function requestDiff(
+  before: string,
+  after: string,
+): Promise<DiffResult> {
+  const results = await requestDiffSeries([{ before, after }]);
+  return results[0] ?? { kind: 'limit' };
 }

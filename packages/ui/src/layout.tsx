@@ -38,7 +38,14 @@ export function Page({
   );
 }
 
-/** The title row of a screen, with one optional action on the right. */
+/**
+ * The title row of a screen, with one optional action on the right.
+ *
+ * The title block grows and can shrink to nothing, so a long description
+ * never pushes the action onto a line of its own on a wide screen. Below
+ * the small width the title takes a full line and the action wraps under
+ * it, because a title squeezed next to a button is unreadable.
+ */
 export function PageHeader({
   title,
   description,
@@ -52,7 +59,7 @@ export function PageHeader({
 }): ReactNode {
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
+      <div className="min-w-0 grow basis-full sm:basis-0">
         <h1 className="m-0 text-xl font-semibold text-strong" id={id}>
           {title}
         </h1>

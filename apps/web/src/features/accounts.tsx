@@ -120,7 +120,7 @@ export function LoginPage(): ReactNode {
   async function submitPassword(): Promise<void> {
     setFieldError('');
     if (setup && password.length < minPasswordLength) {
-      setFieldError(passwordRule);
+      setFieldError('This password is too short.');
       return;
     }
     if (setup && confirmation !== password) {
@@ -228,7 +228,6 @@ export function LoginPage(): ReactNode {
                 inputType={reveal ? 'text' : 'password'}
                 autoComplete={setup ? 'new-password' : 'current-password'}
                 hint={setup ? passwordRule : undefined}
-                minLength={setup ? minPasswordLength : undefined}
                 required
                 error={fieldError}
                 onChange={setPassword}

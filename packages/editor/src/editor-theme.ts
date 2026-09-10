@@ -143,12 +143,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     },
     '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--notes-focus)' },
     '&.cm-focused': { outline: 'none' },
-    // A faint neutral tint, so the line the caret sits on is findable and
-    // the note still reads as one page of text.
-    '.cm-activeLine': {
-      backgroundColor:
-        'color-mix(in srgb, var(--notes-text-muted) 8%, transparent)',
-    },
+    // The hover surface of the palette, which is the quietest tint the
+    // theme owns. The line the caret sits on is findable, and the note
+    // still reads as one page of text instead of a banded table.
+    '.cm-activeLine': { backgroundColor: 'var(--notes-surface-hover)' },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection':
       {
         backgroundColor:

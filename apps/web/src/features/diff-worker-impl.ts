@@ -14,18 +14,23 @@
 import { compareLines } from '@notesapp/editor';
 import type { DiffWorkerRequest, DiffWorkerResponse } from './diff-worker.ts';
 
-/** Answers one comparison request with its mapped hunks or a limit. */
+/** Compares one pair, inside the bound of the comparison. */
+function compareOne(pair: {
+  readonly before: string;
+  readonly after: string;
+}): DiffWorkerResponse['results'][number] {
+  try {
+    return compareLines(pair.before, pair.after);
+  } catch {
+    return { kind: 'limit' };
+  }
+}
+
+/** Answers one request with the outcome of every pair it names. */
 export default function handleDiffRequest(
   request: DiffWorkerRequest,
 ): DiffWorkerResponse {
-  try {
-    return {
-      id: request.id,
-      result: compareLines(request.before, request.after),
-    };
-  } catch {
-    return { id: request.id, result: { kind: 'limit' } };
-  }
+  return { id: request.id, results: request.pairs.map(compareOne) };
 }
 
 self.onmessage = (event: MessageEvent<DiffWorkerRequest>): void => {
