@@ -91,209 +91,219 @@ function quoteBars(level: number): string {
  * rebuilds this object.
  */
 export function editorTheme(theme: 'light' | 'dark'): Extension {
-  return EditorView.theme(
-    {
-      '&': {
-        backgroundColor: 'var(--notes-bg)',
-        color: 'var(--notes-text)',
-        fontSize: 'var(--text-note)',
-        lineHeight: 'var(--text-note--line-height)',
-      },
-      // The scroller stretches its content, so the empty area under the last
-      // line still belongs to the text and a click there places the caret.
-      '.cm-scroller': {
-        fontFamily: 'var(--font-sans)',
-        lineHeight: 'var(--text-note--line-height)',
-        alignItems: 'stretch',
-        paddingBlock: 'calc(var(--spacing) * 6)',
-      },
-      '.cm-content': {
-        caretColor: 'var(--notes-focus)',
-        maxWidth: 'var(--note-measure)',
-        marginInline: 'auto',
-        width: '100%',
-        paddingInline: 'calc(var(--spacing) * 4)',
-        paddingBlock: '0',
-      },
-      '.cm-line': {
-        paddingInline: '0',
-        paddingBlock: 'calc(var(--note-gap) / 2)',
-      },
-      '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--notes-focus)' },
-      '&.cm-focused': { outline: 'none' },
-      '.cm-activeLine': {
-        backgroundColor:
-          'color-mix(in srgb, var(--notes-focus) 7%, transparent)',
-      },
-      '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection':
-        {
-          backgroundColor:
-            'color-mix(in srgb, var(--notes-focus) 22%, transparent)',
-        },
+  return EditorView.theme(noteSurfaceStyle(), { dark: theme === 'dark' });
+}
 
-      ...headingRules(),
-      '.cm-np-heading': { paddingBlock: 'var(--note-gap)' },
-
-      '.cm-np-bold': { fontWeight: '700', color: 'var(--notes-text-strong)' },
-      '.cm-np-italic': { fontStyle: 'italic' },
-      '.cm-np-strike': {
-        textDecoration: 'line-through',
-        color: 'var(--notes-text-muted)',
-      },
-      '.cm-np-marker': { color: 'var(--notes-text-muted)', opacity: '0.6' },
-
-      '.cm-np-code': {
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--note-mono-size)',
-        backgroundColor: 'var(--notes-surface-hover)',
-        borderRadius: 'var(--radius-sm)',
-        paddingInline: 'calc(var(--spacing) * 1)',
-        paddingBlock: 'calc(var(--spacing) * 0.25)',
-      },
-      '.cm-np-code-block-line': {
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--note-mono-size)',
-        backgroundColor: 'var(--notes-surface-hover)',
-        paddingInline: 'calc(var(--spacing) * 3)',
-      },
-      '.cm-np-code-info': {
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--text-control)',
-        color: 'var(--notes-text-muted)',
-        textTransform: 'uppercase',
-        letterSpacing: '0.06em',
-      },
-
-      '.cm-np-quote': {
-        color: 'var(--notes-text-muted)',
-        paddingInlineStart: 'calc(var(--spacing) * 4)',
-      },
-      '.cm-np-quote-1': { boxShadow: quoteBars(1) },
-      '.cm-np-quote-2': {
-        boxShadow: quoteBars(2),
-        paddingInlineStart: 'calc(var(--spacing) * 7)',
-      },
-      '.cm-np-quote-3': {
-        boxShadow: quoteBars(3),
-        paddingInlineStart: 'calc(var(--spacing) * 10)',
-      },
-      '.cm-np-quote-4': {
-        boxShadow: quoteBars(4),
-        paddingInlineStart: 'calc(var(--spacing) * 13)',
-      },
-
-      '.cm-np-bullet': {
-        color: 'var(--notes-accent-fill)',
-        fontWeight: '700',
-      },
-      '.cm-np-list-number': {
-        color: 'var(--notes-text-muted)',
-        fontWeight: '600',
-      },
-      '.cm-np-task': {
-        width: 'calc(var(--spacing) * 4)',
-        height: 'calc(var(--spacing) * 4)',
-        margin: '0',
-        marginInlineEnd: 'calc(var(--spacing) * 1)',
-        verticalAlign: 'baseline',
-        accentColor: 'var(--notes-accent-fill)',
-        cursor: 'pointer',
-      },
-      '.cm-np-task-source': { fontFamily: 'var(--font-mono)' },
-
-      '.cm-np-link': {
-        color: 'var(--notes-accent-text)',
-        textDecoration: 'underline',
-        textUnderlineOffset: '2px',
-      },
-      '.cm-np-footnote': {
-        color: 'var(--notes-accent-text)',
-        fontSize: 'var(--text-control)',
-        verticalAlign: 'super',
-      },
-      '.cm-np-footnote-definition': {
-        color: 'var(--notes-text-muted)',
-        fontSize: 'var(--text-ui)',
-      },
-      '.cm-np-link-definition': {
-        color: 'var(--notes-text-muted)',
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--note-mono-size)',
-      },
-
-      '.cm-np-rule-line': { paddingBlock: 'var(--note-gap)' },
-      '.cm-np-rule': {
-        display: 'inline-block',
-        width: '100%',
-        verticalAlign: 'middle',
-        borderTop: '1px solid var(--notes-border)',
-      },
-
-      '.cm-np-table-line': {
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--note-mono-size)',
-        paddingBlock: '0',
-      },
-      '.cm-np-table-head': {
-        fontWeight: '700',
-        color: 'var(--notes-text-strong)',
-      },
-      '.cm-np-table-align': {
-        color: 'var(--notes-text-muted)',
-        opacity: '0.6',
-      },
-      '.cm-np-align-left': { display: 'inline-block', textAlign: 'left' },
-      '.cm-np-align-center': { display: 'inline-block', textAlign: 'center' },
-      '.cm-np-align-right': { display: 'inline-block', textAlign: 'right' },
-
-      '.cm-np-hard-break': {
-        borderBottom: '1px dotted var(--notes-border)',
-      },
-      '.cm-np-html': {
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--note-mono-size)',
-        color: 'var(--notes-text-muted)',
-      },
-
-      '.cm-np-widget-block': {
-        display: 'block',
-        marginBlock: 'var(--note-gap)',
-      },
-      '.cm-np-widget-inline': { display: 'inline' },
-      '.cm-np-widget-image': {
-        maxWidth: '100%',
-        borderRadius: 'var(--radius-md)',
-      },
-      '.cm-np-widget-note': {
-        color: 'var(--notes-text-muted)',
-        fontSize: 'var(--text-ui)',
-      },
-      '.cm-np-widget-error': { color: 'var(--notes-danger-text)' },
-      '.cm-np-widget-source': {
-        fontFamily: 'var(--font-mono)',
-        fontSize: 'var(--note-mono-size)',
-        whiteSpace: 'pre-wrap',
-      },
-      '.cm-np-widget-action': {
-        font: 'inherit',
-        fontSize: 'var(--text-control)',
-        marginInlineStart: 'calc(var(--spacing) * 2)',
-        paddingInline: 'calc(var(--spacing) * 2)',
-        minHeight: 'calc(var(--spacing) * 6)',
-        color: 'var(--notes-accent-text)',
-        backgroundColor: 'var(--notes-surface-hover)',
-        border: '1px solid var(--notes-border)',
-        borderRadius: 'var(--radius-sm)',
-        cursor: 'pointer',
-      },
-      '.cm-np-math-display': {
-        display: 'block',
-        textAlign: 'center',
-        paddingBlock: 'var(--note-gap)',
-        borderRadius: 'var(--radius-lg)',
-      },
-      '.cm-np-math-inline': { display: 'inline' },
+/**
+ * The style rules of the note surface, so a unit test can read them.
+ *
+ * The block padding of the surface belongs to `.cm-content` and never to
+ * `.cm-scroller`. `.cm-content` is the editable element, so a click inside
+ * its padding places the caret on the nearest line. Padding on the scroller
+ * would put that same strip outside the editable element, and a click under
+ * the last line would then place no caret and lose every keystroke after it.
+ */
+export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
+  return {
+    '&': {
+      backgroundColor: 'var(--notes-bg)',
+      color: 'var(--notes-text)',
+      fontSize: 'var(--text-note)',
+      lineHeight: 'var(--text-note--line-height)',
     },
-    { dark: theme === 'dark' },
-  );
+    // The scroller stretches its content, so the empty area under the last
+    // line still belongs to the editable element and a click there places
+    // the caret. The block padding therefore sits on the content and not on
+    // the scroller.
+    '.cm-scroller': {
+      fontFamily: 'var(--font-sans)',
+      lineHeight: 'var(--text-note--line-height)',
+      alignItems: 'stretch',
+    },
+    '.cm-content': {
+      caretColor: 'var(--notes-focus)',
+      maxWidth: 'var(--note-measure)',
+      marginInline: 'auto',
+      width: '100%',
+      paddingInline: 'calc(var(--spacing) * 4)',
+      paddingBlock: 'calc(var(--spacing) * 6)',
+    },
+    '.cm-line': {
+      paddingInline: '0',
+      paddingBlock: 'calc(var(--note-gap) / 2)',
+    },
+    '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--notes-focus)' },
+    '&.cm-focused': { outline: 'none' },
+    '.cm-activeLine': {
+      backgroundColor: 'color-mix(in srgb, var(--notes-focus) 7%, transparent)',
+    },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection':
+      {
+        backgroundColor:
+          'color-mix(in srgb, var(--notes-focus) 22%, transparent)',
+      },
+
+    ...headingRules(),
+    '.cm-np-heading': { paddingBlock: 'var(--note-gap)' },
+
+    '.cm-np-bold': { fontWeight: '700', color: 'var(--notes-text-strong)' },
+    '.cm-np-italic': { fontStyle: 'italic' },
+    '.cm-np-strike': {
+      textDecoration: 'line-through',
+      color: 'var(--notes-text-muted)',
+    },
+    '.cm-np-marker': { color: 'var(--notes-text-muted)', opacity: '0.6' },
+
+    '.cm-np-code': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--note-mono-size)',
+      backgroundColor: 'var(--notes-surface-hover)',
+      borderRadius: 'var(--radius-sm)',
+      paddingInline: 'calc(var(--spacing) * 1)',
+      paddingBlock: 'calc(var(--spacing) * 0.25)',
+    },
+    '.cm-np-code-block-line': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--note-mono-size)',
+      backgroundColor: 'var(--notes-surface-hover)',
+      paddingInline: 'calc(var(--spacing) * 3)',
+    },
+    '.cm-np-code-info': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--text-control)',
+      color: 'var(--notes-text-muted)',
+      textTransform: 'uppercase',
+      letterSpacing: '0.06em',
+    },
+
+    '.cm-np-quote': {
+      color: 'var(--notes-text-muted)',
+      paddingInlineStart: 'calc(var(--spacing) * 4)',
+    },
+    '.cm-np-quote-1': { boxShadow: quoteBars(1) },
+    '.cm-np-quote-2': {
+      boxShadow: quoteBars(2),
+      paddingInlineStart: 'calc(var(--spacing) * 7)',
+    },
+    '.cm-np-quote-3': {
+      boxShadow: quoteBars(3),
+      paddingInlineStart: 'calc(var(--spacing) * 10)',
+    },
+    '.cm-np-quote-4': {
+      boxShadow: quoteBars(4),
+      paddingInlineStart: 'calc(var(--spacing) * 13)',
+    },
+
+    '.cm-np-bullet': {
+      color: 'var(--notes-accent-fill)',
+      fontWeight: '700',
+    },
+    '.cm-np-list-number': {
+      color: 'var(--notes-text-muted)',
+      fontWeight: '600',
+    },
+    '.cm-np-task': {
+      width: 'calc(var(--spacing) * 4)',
+      height: 'calc(var(--spacing) * 4)',
+      margin: '0',
+      marginInlineEnd: 'calc(var(--spacing) * 1)',
+      verticalAlign: 'baseline',
+      accentColor: 'var(--notes-accent-fill)',
+      cursor: 'pointer',
+    },
+    '.cm-np-task-source': { fontFamily: 'var(--font-mono)' },
+
+    '.cm-np-link': {
+      color: 'var(--notes-accent-text)',
+      textDecoration: 'underline',
+      textUnderlineOffset: '2px',
+    },
+    '.cm-np-footnote': {
+      color: 'var(--notes-accent-text)',
+      fontSize: 'var(--text-control)',
+      verticalAlign: 'super',
+    },
+    '.cm-np-footnote-definition': {
+      color: 'var(--notes-text-muted)',
+      fontSize: 'var(--text-ui)',
+    },
+    '.cm-np-link-definition': {
+      color: 'var(--notes-text-muted)',
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--note-mono-size)',
+    },
+
+    '.cm-np-rule-line': { paddingBlock: 'var(--note-gap)' },
+    '.cm-np-rule': {
+      display: 'inline-block',
+      width: '100%',
+      verticalAlign: 'middle',
+      borderTop: '1px solid var(--notes-border)',
+    },
+
+    '.cm-np-table-line': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--note-mono-size)',
+      paddingBlock: '0',
+    },
+    '.cm-np-table-head': {
+      fontWeight: '700',
+      color: 'var(--notes-text-strong)',
+    },
+    '.cm-np-table-align': {
+      color: 'var(--notes-text-muted)',
+      opacity: '0.6',
+    },
+    '.cm-np-align-left': { display: 'inline-block', textAlign: 'left' },
+    '.cm-np-align-center': { display: 'inline-block', textAlign: 'center' },
+    '.cm-np-align-right': { display: 'inline-block', textAlign: 'right' },
+
+    '.cm-np-hard-break': {
+      borderBottom: '1px dotted var(--notes-border)',
+    },
+    '.cm-np-html': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--note-mono-size)',
+      color: 'var(--notes-text-muted)',
+    },
+
+    '.cm-np-widget-block': {
+      display: 'block',
+      marginBlock: 'var(--note-gap)',
+    },
+    '.cm-np-widget-inline': { display: 'inline' },
+    '.cm-np-widget-image': {
+      maxWidth: '100%',
+      borderRadius: 'var(--radius-md)',
+    },
+    '.cm-np-widget-note': {
+      color: 'var(--notes-text-muted)',
+      fontSize: 'var(--text-ui)',
+    },
+    '.cm-np-widget-error': { color: 'var(--notes-danger-text)' },
+    '.cm-np-widget-source': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--note-mono-size)',
+      whiteSpace: 'pre-wrap',
+    },
+    '.cm-np-widget-action': {
+      font: 'inherit',
+      fontSize: 'var(--text-control)',
+      marginInlineStart: 'calc(var(--spacing) * 2)',
+      paddingInline: 'calc(var(--spacing) * 2)',
+      minHeight: 'calc(var(--spacing) * 6)',
+      color: 'var(--notes-accent-text)',
+      backgroundColor: 'var(--notes-surface-hover)',
+      border: '1px solid var(--notes-border)',
+      borderRadius: 'var(--radius-sm)',
+      cursor: 'pointer',
+    },
+    '.cm-np-math-display': {
+      display: 'block',
+      textAlign: 'center',
+      paddingBlock: 'var(--note-gap)',
+      borderRadius: 'var(--radius-lg)',
+    },
+    '.cm-np-math-inline': { display: 'inline' },
+  };
 }

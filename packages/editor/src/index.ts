@@ -44,7 +44,11 @@ export {
   taskToggleAt,
   toggleTaskSpec,
 } from './commands.ts';
-export { editorTheme, editorThemeVariables } from './editor-theme.ts';
+export {
+  editorTheme,
+  editorThemeVariables,
+  noteSurfaceStyle,
+} from './editor-theme.ts';
 export {
   codeLanguages,
   noteMarkdown,
