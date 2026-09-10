@@ -193,6 +193,10 @@ that does not exist. A problem that refers to files carries their identifiers in
   it gets there. A tombstone therefore adds no content: the revision before it
   still holds the text, and an attachment tombstone keeps the object reference
   of its parent.
+- A permanent deletion frees database rows at once, and attachment bytes
+  later. The 24 hour reclaim is the only code that deletes an attachment file,
+  so a purge never removes the bytes of an upload that is still in flight. See
+  "Attachment bytes and the reclaim" in `docs/development/database.md`.
 
 ## Adding an operation
 

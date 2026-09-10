@@ -58,6 +58,7 @@ boundary holds even where a row access policy hides the parent.
 | `link_index`                  | Links found in accepted revisions.                         |
 | `shares`                      | A pinned public publication and its token hash.            |
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
+| `attachment_reclaim_queue`    | Attachment bytes of a deleted workspace, until reclaimed.  |
 
 Task 5 added the identity tables. The first four belong to Better Auth; the
 last five are the application's own.
@@ -257,18 +258,18 @@ Task 5 added eight more SECURITY DEFINER functions, for the writes that the
 runtime role holds no right for and for the narrow reads that replace a right
 on the identity tables:
 
-| Function                                      | Answers or performs                                          |
-| --------------------------------------------- | ------------------------------------------------------------ |
-| `notesapp_link_account`                       | Creates an account, its map row, and its personal workspace. |
-| `notesapp_create_workspace`                   | Creates a workspace owned by the calling account.            |
-| `notesapp_transfer_ownership`                 | Moves ownership; owner only.                                 |
-| `notesapp_delete_workspace`                   | Removes a workspace and its rows; owner only.                |
-| `notesapp_claim_invitation`                   | Consumes one invitation in one statement.                    |
-| `notesapp_open_invitation`                    | The workspace and the address of an open invitation.         |
-| `notesapp_account_of`, `notesapp_has_account` | One account identifier, and whether any account exists.      |
-| `notesapp_workspace_members`                  | The member directory of one workspace; members only.         |
-| `notesapp_agent_token`                        | One agent token by the hash of its secret.                   |
-| `notesapp_discard_account`                    | Removes an account that an invitation attempt never used.    |
+| Function                                      | Answers or performs                                                                        |
+| --------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `notesapp_link_account`                       | Creates an account, its map row, and its personal workspace.                               |
+| `notesapp_create_workspace`                   | Creates a workspace owned by the calling account.                                          |
+| `notesapp_transfer_ownership`                 | Moves ownership; owner only.                                                               |
+| `notesapp_delete_workspace`                   | Removes a workspace and its rows; owner only. Queues its attachment bytes for the reclaim. |
+| `notesapp_claim_invitation`                   | Consumes one invitation in one statement.                                                  |
+| `notesapp_open_invitation`                    | The workspace and the address of an open invitation.                                       |
+| `notesapp_account_of`, `notesapp_has_account` | One account identifier, and whether any account exists.                                    |
+| `notesapp_workspace_members`                  | The member directory of one workspace; members only.                                       |
+| `notesapp_agent_token`                        | One agent token by the hash of its secret.                                                 |
+| `notesapp_discard_account`                    | Removes an account that an invitation attempt never used.                                  |
 
 Every function that changes state checks the caller with `IS DISTINCT FROM`
 rather than `<>`, because a stranger has no role and no account identity at
@@ -428,6 +429,80 @@ the workspace already stores, must fit inside `quota_bytes` minus the reserve,
 because its revision rows and its receipt are still retained data. Without that
 rule a client could grow `bytes_used` without limit by resubmitting stored
 content.
+
+## Attachment bytes and the reclaim
+
+Attachment bytes live on the private volume, not in the database. Two paths
+address them:
+
+- `<root>/tmp/<object id>.tmp` holds the bytes of an upload that has not been
+  finalized. The object row is `temporary`.
+- `<root>/workspaces/<workspace id>/attachments/<digest>` holds finalized
+  bytes. Several objects of one workspace can share one file, because
+  deduplication is by digest inside the workspace.
+
+`reclaimAttachments` in `packages/storage-server/src/attachments.ts` is the
+**only** code that deletes attachment bytes. The 24 hour job in
+`apps/server/src/jobs/attachment-cleanup.ts` calls it. Nothing else unlinks a
+file, so there is one place to reason about and one place to test.
+
+`notesapp_reclaim_attachments(cutoff)` lists what the run may take:
+
+| Candidate                                                   | Why it is dead                            |
+| ----------------------------------------------------------- | ----------------------------------------- |
+| `temporary`, created before the cutoff                      | The upload was abandoned.                 |
+| `finalized` before the cutoff, with no `contents` reference | No revision has named it for a whole day. |
+| `unavailable`                                               | A purge already decided it is gone.       |
+
+`attachment_objects.reclaimed_at` records the run that handled the bytes of a
+row. `notesapp_mark_attachment_unavailable` sets the state and that stamp in
+one statement that matches only a row where the stamp is still null, so one
+object is claimed once. A second run, and a run in another process, gets no
+row and therefore deletes no file.
+
+For each claimed object the run holds the advisory lock of the workspace and
+stays inside one transaction while it:
+
+1. checks that no `contents` row started to reference the object;
+2. claims the row with the mark above;
+3. asks `notesapp_is_attachment_digest_used` whether another object of the
+   workspace still needs the shared file;
+4. deletes the temporary file, and the immutable file when the digest is
+   unused;
+5. commits.
+
+Step 3 and step 4 must stay inside the locked transaction. `finalizeAttachment`
+takes the same workspace lock, so a finalize of another object with the same
+digest cannot pass between the two. It waits, then finds no file at the
+immutable path and moves its own upload there, so it keeps its bytes. Running
+the check or the deletion after the commit reopens that race and leaves a row
+whose file is gone.
+
+### What a purge does
+
+`notesapp_purge_files` sets `state = 'unavailable'` on an unreferenced object,
+and the reclaim above deletes its bytes later. The purge selects only an
+object that is `finalized` **and** was finalized before the reclaim window,
+because:
+
+- a `temporary` object belongs to an upload that is still in flight, and a
+  purge of an unrelated note must not destroy it;
+- an object that was finalized seconds ago is between its finalize call and
+  the commit that references it, since those are two transactions.
+
+An object that the purge leaves alone is not kept forever. It has no `contents`
+reference once the purge removed the revisions, so the reclaim takes it through
+the second candidate rule as soon as it leaves the 24 hour window.
+
+### What a workspace deletion does
+
+`notesapp_delete_workspace` removes the attachment rows, so no row is left for
+the reclaim to find. It copies `(workspace_id, object_id, digest)` into
+`attachment_reclaim_queue` first. That table carries no foreign key to
+`workspaces`, because its rows outlive the workspace row.
+`notesapp_take_attachment_reclaim` hands the queued rows to the reclaim, which
+removes the whole workspace directory and commits in the same transaction, so a
+failed deletion returns the rows to the queue.
 
 ## Content digests
 
