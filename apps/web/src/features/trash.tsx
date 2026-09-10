@@ -33,7 +33,18 @@ import {
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import type { LocalStore } from '@notesapp/sync';
-import { Button, StatusRegion, TrashIcon } from '@notesapp/ui';
+import {
+  Button,
+  buttonClassName,
+  Card,
+  EmptyState,
+  ListRow,
+  Notice,
+  Page,
+  PageHeader,
+  StatusRegion,
+  TrashIcon,
+} from '@notesapp/ui';
 import {
   problemMessage,
   useLocalStore,
@@ -291,7 +302,7 @@ export function DeleteNoticeBar(): ReactNode {
         role="status"
         aria-live="polite"
       >
-        <p className="m-0 min-w-0 text-control text-ink">
+        <p className="m-0 min-w-0 text-control text-strong">
           {notice.name} moved to Trash.
         </p>
         <div className="flex items-center gap-2">
@@ -334,16 +345,21 @@ export function TrashView(): ReactNode {
 
   if (workspaceId === null)
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">Trash</h1>
-        <p>The address names no workspace.</p>
-      </main>
+      <Page>
+        <PageHeader title="Trash" />
+        <EmptyState
+          icon={<TrashIcon size={24} />}
+          title="This address names no trash"
+          description="Open your notes and choose Trash in the sidebar."
+        />
+      </Page>
     );
   if (accountId === null)
     return (
-      <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+      <Page>
+        <PageHeader title="Trash" />
         <StatusRegion message="Loading the trash." />
-      </main>
+      </Page>
     );
 
   return (
@@ -474,115 +490,105 @@ function TrashList({
   };
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
-      <div className="flex items-center gap-3">
-        <Link
-          to={`/w/${workspaceId}`}
-          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-edge px-3 text-control text-strong no-underline hover:bg-hover"
-        >
-          <span>Back to notes</span>
-        </Link>
-        <h1 className="m-0 text-xl font-semibold text-strong">Trash</h1>
-      </div>
-
-      <section
-        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-        aria-labelledby="trash-heading"
-      >
-        <h2
-          className="m-0 text-base font-semibold text-strong"
-          id="trash-heading"
-        >
-          Deleted notes
-        </h2>
-        <p className="m-0 text-control text-muted">
-          Restore puts a note back in your notes. Delete permanently removes it
-          and its history for good.
-        </p>
-        {outcome === null ? null : <StatusRegion message={outcome} />}
-        {failure === null ? null : (
-          <p className="m-0 text-control text-danger" role="alert">
-            {failure}
-          </p>
-        )}
+    <Page>
+      <PageHeader
+        title="Trash"
+        description="Restore puts a note back with your notes. Delete permanently removes the note and its versions for good."
+        actions={
+          <Link
+            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            to={`/w/${workspaceId}`}
+          >
+            Back to your notes
+          </Link>
+        }
+      />
+      <div className="space-y-4">
+        {outcome === null ? null : <Notice tone="success" message={outcome} />}
+        {failure === null ? null : <Notice tone="problem" message={failure} />}
         {loading ? (
           <StatusRegion message="Loading the trash." />
         ) : items.length === 0 ? (
-          <p className="m-0 text-control text-muted">Trash is empty.</p>
+          <EmptyState
+            icon={<TrashIcon size={24} />}
+            title="The trash is empty"
+            description="A note you delete waits here until you restore it or delete it for good."
+          />
         ) : (
-          <ul className="m-0 list-none space-y-2 p-0">
-            {items.map((item) => {
-              const name = displayNoteName(item.path);
-              const folder = folderOf(item.path);
-              const when =
-                item.deletedAt === null
-                  ? ''
-                  : relativeTime(item.deletedAt, now);
-              return (
-                <li
-                  key={item.fileId}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge-subtle bg-app p-3"
-                >
-                  <div className="min-w-0">
-                    <p className="m-0 truncate text-ui font-medium text-strong">
-                      {folder === null ? name : name.slice(folder.length + 1)}
-                    </p>
-                    <p className="m-0 text-control text-muted">
-                      {folder === null ? 'Top level' : folder}
-                      {when === '' ? '' : ` · deleted ${when}`}
-                      {item.pending ? ' · waiting to sync' : ''}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      disabled={busy}
-                      label={`Restore ${name}`}
-                      onClick={() => restore(item)}
-                    >
-                      Restore
-                    </Button>
-                    {confirming === item.fileId ? (
-                      <>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          disabled={busy}
-                          icon={<TrashIcon size={14} />}
-                          label={`Confirm the permanent deletion of ${name}`}
-                          onClick={() => deleteForever(item)}
-                        >
-                          Confirm
-                        </Button>
+          <Card title="Deleted notes" titleId="trash-heading">
+            <ul className="m-0 list-none p-0">
+              {items.map((item) => {
+                const name = displayNoteName(item.path);
+                const folder = folderOf(item.path);
+                const when =
+                  item.deletedAt === null
+                    ? ''
+                    : relativeTime(item.deletedAt, now);
+                const where = folder === null ? 'Top level' : folder;
+                const parts = [where];
+                if (when !== '') parts.push(`deleted ${when}`);
+                if (item.pending) parts.push('waiting to go up');
+                return (
+                  <ListRow key={item.fileId} className="flex-wrap">
+                    <div className="min-w-0 flex-1">
+                      <p className="m-0 truncate text-ui font-medium text-strong">
+                        {folder === null ? name : name.slice(folder.length + 1)}
+                      </p>
+                      <p className="m-0 truncate text-control text-muted">
+                        {parts.join(' \u00b7 ')}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={busy}
+                        label={`Restore ${name}`}
+                        onClick={() => restore(item)}
+                      >
+                        Restore
+                      </Button>
+                      {confirming === item.fileId ? (
+                        <>
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            disabled={busy}
+                            icon={<TrashIcon size={14} />}
+                            label={`Confirm that ${name} is deleted for good`}
+                            onClick={() => deleteForever(item)}
+                          >
+                            Confirm
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            label={`Keep ${name} in the trash`}
+                            onClick={() => setConfirming(null)}
+                          >
+                            Keep
+                          </Button>
+                        </>
+                      ) : (
                         <Button
                           variant="ghost"
                           size="sm"
-                          label={`Keep ${name} in the trash`}
-                          onClick={() => setConfirming(null)}
+                          disabled={busy}
+                          icon={<TrashIcon size={14} />}
+                          label={`Delete ${name} permanently`}
+                          onClick={() => deleteForever(item)}
                         >
-                          Keep
+                          Delete permanently
                         </Button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={busy}
-                        icon={<TrashIcon size={14} />}
-                        label={`Delete ${name} permanently`}
-                        onClick={() => deleteForever(item)}
-                      >
-                        Delete permanently
-                      </Button>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
+                      )}
+                    </div>
+                  </ListRow>
+                );
+              })}
+            </ul>
+          </Card>
         )}
-      </section>
-    </main>
+      </div>
+    </Page>
   );
 }

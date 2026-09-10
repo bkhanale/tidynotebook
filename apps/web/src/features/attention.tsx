@@ -19,7 +19,20 @@ import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { generateUUID } from '@notesapp/core';
 import { isLocalStorageError, type Draft } from '@notesapp/sync';
-import { Button, CopyIcon, StatusRegion, TrashIcon } from '@notesapp/ui';
+import {
+  AlertCircleIcon,
+  Button,
+  buttonClassName,
+  Card,
+  EmptyState,
+  ListRow,
+  Notice,
+  Page,
+  PageHeader,
+  StatusRegion,
+  TrashIcon,
+  CopyIcon,
+} from '@notesapp/ui';
 import { attentionTitle, useParkedSaves } from './attention-link.tsx';
 import { useLocalStore, useSession } from '../app.tsx';
 import { copyText } from '../platform.ts';
@@ -48,23 +61,28 @@ function ParkedSaveRow({
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <li className="rounded-lg border border-edge-subtle bg-card p-3">
-      <h3 className="m-0 text-ui font-semibold text-strong">{save.name}</h3>
-      <p className="mb-1 mt-1 text-control text-muted">
-        {save.reason} Kept on this device {parkedSaveTime(save.createdAt, now)}.
-      </p>
-      <details className="mt-2">
+    <ListRow className="flex-col items-stretch py-3">
+      <div className="min-w-0">
+        <p className="m-0 truncate text-ui font-medium text-strong">
+          {save.name}
+        </p>
+        <p className="m-0 text-control text-muted">
+          {save.reason} Kept on this device{' '}
+          {parkedSaveTime(save.createdAt, now)}.
+        </p>
+      </div>
+      <details>
         <summary className="cursor-pointer text-control text-muted">
           Kept text
         </summary>
         <pre
-          className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded-md border border-edge-subtle bg-surface p-2 text-control"
+          className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded-lg border border-edge-subtle bg-surface p-3 font-mono text-control text-strong"
           aria-label={`Kept text of ${save.name}`}
         >
           {save.text}
         </pre>
       </details>
-      <div className="mt-2 flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           variant="primary"
           size="sm"
@@ -137,7 +155,7 @@ function ParkedSaveRow({
           </Button>
         )}
       </div>
-    </li>
+    </ListRow>
   );
 }
 
@@ -160,12 +178,10 @@ export function AttentionRoute(): ReactNode {
 
   if (workspaceId === null || accountId === null || store === null)
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          {attentionTitle}
-        </h1>
+      <Page>
+        <PageHeader title={attentionTitle} />
         <StatusRegion message="Loading the saves that need attention." />
-      </main>
+      </Page>
     );
 
   const activeStore = store;
@@ -292,45 +308,46 @@ export function AttentionRoute(): ReactNode {
   };
 
   return (
-    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-      <h1 className="mb-2 mt-0 text-xl font-semibold text-strong">
-        {attentionTitle}
-      </h1>
-      <p className="m-0 text-ui text-muted">
-        These texts did not become server versions, so they wait here. Retry one
-        to save it again on the current version of its note, or keep it as a new
-        note.
-      </p>
-      {error !== null ? (
-        <p className="text-control text-danger" role="alert">
-          {error}
-        </p>
-      ) : null}
-      {failure !== null ? (
-        <p className="text-control text-danger" role="alert">
-          {failure}
-        </p>
-      ) : null}
-      {notice !== '' ? <StatusRegion message={notice} /> : null}
-      {saves.length === 0 ? (
-        <p className="m-0 text-ui">
-          No save needs attention.{' '}
-          <Link to={`/w/${activeWorkspace}`}>Back to the notes.</Link>
-        </p>
-      ) : (
-        <ul className="m-0 list-none space-y-3 p-0">
-          {saves.map((save) => (
-            <ParkedSaveRow
-              key={save.recoveryId}
-              save={save}
-              now={now}
-              onRetry={onRetry}
-              onSaveAsNew={onSaveAsNew}
-              onDiscard={onDiscard}
-            />
-          ))}
-        </ul>
-      )}
-    </main>
+    <Page>
+      <PageHeader
+        title={attentionTitle}
+        description="These texts never became server versions, so they wait here. Retry one to save it again on the newest version of its note, or keep it as a new note."
+        actions={
+          <Link
+            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            to={`/w/${activeWorkspace}`}
+          >
+            Back to your notes
+          </Link>
+        }
+      />
+      <div className="space-y-4">
+        {error === null ? null : <Notice tone="problem" message={error} />}
+        {failure === null ? null : <Notice tone="problem" message={failure} />}
+        {notice === '' ? null : <StatusRegion message={notice} />}
+        {saves.length === 0 ? (
+          <EmptyState
+            icon={<AlertCircleIcon size={24} />}
+            title="No save needs attention"
+            description="Every save on this device reached the server."
+          />
+        ) : (
+          <Card title="Kept saves" titleId="attention-heading">
+            <ul className="m-0 list-none p-0">
+              {saves.map((save) => (
+                <ParkedSaveRow
+                  key={save.recoveryId}
+                  save={save}
+                  now={now}
+                  onRetry={onRetry}
+                  onSaveAsNew={onSaveAsNew}
+                  onDiscard={onDiscard}
+                />
+              ))}
+            </ul>
+          </Card>
+        )}
+      </div>
+    </Page>
   );
 }
