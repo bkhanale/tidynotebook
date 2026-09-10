@@ -107,6 +107,11 @@ export default defineConfig(({ command }) => ({
     // stack trace.
     sourcemap: 'hidden',
     target: 'es2024',
+    // Every asset is emitted as a file of its own. An inlined asset becomes a
+    // `data:` URL, and the content policy of the shell permits a font only
+    // from the origin, so an inlined font is blocked and the console reports
+    // a policy violation. A file also stays cacheable on its own.
+    assetsInlineLimit: 0,
     rollupOptions: {
       input: { main: 'index.html' },
     },
