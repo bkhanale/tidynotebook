@@ -21,7 +21,6 @@ COPY packages/storage-server/package.json ./packages/storage-server/
 COPY packages/sync/package.json ./packages/sync/
 COPY packages/ui/package.json ./packages/ui/
 COPY tools/sdk-codegen/package.json ./tools/sdk-codegen/
-COPY apps/mcp-stdio/package.json ./apps/mcp-stdio/
 COPY apps/server/package.json ./apps/server/
 COPY apps/web/package.json ./apps/web/
 

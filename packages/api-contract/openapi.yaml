@@ -5,9 +5,9 @@ info:
   summary: Application HTTP contract for notesapp.
   description: >-
     This document is the authoritative HTTP interface of notesapp. Every
-    application HTTP call in the web app, the sync engine, and the local MCP
-    adapter uses an operation generated from this document. Errors use RFC 9457
-    problem details with a stable application code.
+    application HTTP call in the web app and the sync engine uses an operation
+    generated from this document. Errors use RFC 9457 problem details with a
+    stable application code.
   license:
     name: MIT
     identifier: MIT
@@ -28,8 +28,6 @@ tags:
     description: The signed in account and the settings that follow it.
   - name: workspaces
     description: Workspace containers for the single user's files.
-  - name: tokens
-    description: Revocable agent tokens with a workspace and action scope.
   - name: files
     description: >-
       Files, their immutable revisions, and the atomic changesets that accept
@@ -40,7 +38,6 @@ tags:
       contract records their shapes so the generated client owns every call.
 security:
   - sessionCookie: []
-  - agentToken: []
 paths:
   /api/health:
     get:
@@ -1043,88 +1040,6 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
-  /api/agent-tokens:
-    get:
-      operationId: listAgentTokens
-      summary: List the agent tokens of the signed in account.
-      description: >-
-        Lists every agent token of the account without its secret. A secret is
-        shown once, when the token is created, and never again.
-      tags:
-        - tokens
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-      responses:
-        '200':
-          $ref: '#/components/responses/AgentTokenList'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '500':
-          $ref: '#/components/responses/ServerError'
-    post:
-      operationId: createAgentToken
-      summary: Create an agent token and return its secret once.
-      description: >-
-        Creates a revocable token with an expiry and an explicit workspace and
-        action scope. The scope can never be wider than the current access of
-        the account in that workspace, and every use checks that access again.
-        The secret is in the answer of this call only.
-      tags:
-        - tokens
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-      requestBody:
-        $ref: '#/components/requestBodies/AgentTokenRequest'
-      responses:
-        '201':
-          $ref: '#/components/responses/AgentTokenCreated'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '500':
-          $ref: '#/components/responses/ServerError'
-  /api/agent-tokens/{tokenId}:
-    delete:
-      operationId: revokeAgentToken
-      summary: Revoke an agent token.
-      description: >-
-        Revokes one token of the signed in account. A revoked token is refused
-        on its next use.
-      tags:
-        - tokens
-      security:
-        - sessionCookie: []
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/TokenId'
-      responses:
-        '200':
-          $ref: '#/components/responses/Removed'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
 components:
   securitySchemes:
     sessionCookie:
@@ -1137,13 +1052,6 @@ components:
         whose origin is https serves the same cookie under the reserved name
         __Secure-notesapp_session and adds the Secure attribute, as the cookie
         prefix rules require.
-    agentToken:
-      type: http
-      scheme: bearer
-      bearerFormat: opaque
-      description: >-
-        Revocable agent token with workspace and action scopes. The server
-        checks current workspace access on every operation as well.
   parameters:
     RequestId:
       name: x-request-id
@@ -1181,15 +1089,6 @@ components:
       style: simple
       explode: false
       description: Identifier of the workspace that the operation acts on.
-      schema:
-        $ref: '#/components/schemas/Uuid'
-    TokenId:
-      name: tokenId
-      in: path
-      required: true
-      style: simple
-      explode: false
-      description: Identifier of the agent token that the operation acts on.
       schema:
         $ref: '#/components/schemas/Uuid'
     FileId:
@@ -1389,13 +1288,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/WorkspaceNameInput'
-    AgentTokenRequest:
-      description: The name, the expiry, and the scope of the new token.
-      required: true
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AgentTokenInput'
     CreateFile:
       description: The identifiers, the path, and the first content of a new file.
       required: true
@@ -1505,7 +1397,7 @@ components:
           schema:
             $ref: '#/components/schemas/ProblemDetails'
     Unauthorized:
-      description: The request carries no usable session or agent token.
+      description: The request carries no usable session.
       content:
         application/problem+json:
           schema:
@@ -1558,18 +1450,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/WorkspaceList'
-    AgentTokenList:
-      description: Every agent token of the signed in account.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AgentTokenList'
-    AgentTokenCreated:
-      description: The new agent token and its secret, which is shown once.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/AgentTokenCreated'
     Removed:
       description: The named record no longer exists.
       content:
@@ -1921,14 +1801,6 @@ components:
         - admin
         - editor
         - viewer
-    Action:
-      type: string
-      description: One permitted kind of operation inside one workspace.
-      enum:
-        - read
-        - write
-        - history
-        - purge
     Preferences:
       type: object
       description: Settings that follow one account to every device.
@@ -1970,14 +1842,14 @@ components:
             - string
             - 'null'
           readOnly: true
-          description: Sign-in address, or null when the transport is an agent token.
+          description: Sign-in address, or null when no address is linked.
           maxLength: 320
         name:
           type:
             - string
             - 'null'
           readOnly: true
-          description: Display name, or null when the transport is an agent token.
+          description: Display name, or null when no name is stored.
           maxLength: 256
         preferences:
           allOf:
@@ -2040,148 +1912,6 @@ components:
           description: Name of the workspace.
           minLength: 1
           maxLength: 200
-    AgentTokenScope:
-      type: object
-      description: The workspace and the actions that one agent token may use.
-      additionalProperties: false
-      required:
-        - workspaceId
-        - actions
-      properties:
-        workspaceId:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          description: Workspace that the scope applies to.
-        actions:
-          type: array
-          description: Actions that the token may perform in that workspace.
-          minItems: 1
-          maxItems: 6
-          items:
-            $ref: '#/components/schemas/Action'
-    AgentToken:
-      type: object
-      description: One agent token without its secret.
-      additionalProperties: false
-      required:
-        - id
-        - name
-        - prefix
-        - scopes
-        - expiresAt
-        - createdAt
-      properties:
-        id:
-          allOf:
-            - $ref: '#/components/schemas/Uuid'
-          readOnly: true
-          description: Identifier of the token.
-        name:
-          type: string
-          readOnly: true
-          description: Name that the account gave the token.
-          minLength: 1
-          maxLength: 200
-        prefix:
-          type: string
-          readOnly: true
-          description: Public prefix of the secret, which names the token in a list.
-          minLength: 4
-          maxLength: 32
-        scopes:
-          type: array
-          readOnly: true
-          description: The stored scope of the token.
-          minItems: 1
-          maxItems: 100
-          items:
-            $ref: '#/components/schemas/AgentTokenScope'
-        expiresAt:
-          type: string
-          readOnly: true
-          description: Instant after which the token is refused.
-          format: date-time
-          maxLength: 64
-        createdAt:
-          type: string
-          readOnly: true
-          description: Instant at which the token was created.
-          format: date-time
-          maxLength: 64
-        revokedAt:
-          type:
-            - string
-            - 'null'
-          readOnly: true
-          description: Instant at which the token was revoked, or null.
-          format: date-time
-          maxLength: 64
-    AgentTokenList:
-      type: object
-      description: Every agent token of the signed in account.
-      additionalProperties: false
-      required:
-        - tokens
-      properties:
-        tokens:
-          type: array
-          readOnly: true
-          description: One entry for each token of the account.
-          maxItems: 1000
-          items:
-            $ref: '#/components/schemas/AgentToken'
-    AgentTokenInput:
-      type: object
-      description: The name, the expiry, and the scope of a new agent token.
-      additionalProperties: false
-      required:
-        - name
-        - expiresAt
-        - scopes
-      properties:
-        name:
-          type: string
-          description: Name that identifies the token to its account.
-          minLength: 1
-          maxLength: 200
-        expiresAt:
-          type: string
-          description: >-
-            Instant after which the token is refused. An expiry is required and
-            can never be more than one year away.
-          format: date-time
-          minLength: 20
-          maxLength: 64
-        scopes:
-          type: array
-          description: >-
-            Workspace and action scope of the token. It can never be wider than
-            the current role of the account in that workspace.
-          minItems: 1
-          maxItems: 100
-          items:
-            $ref: '#/components/schemas/AgentTokenScope'
-    AgentTokenCreated:
-      type: object
-      description: A new agent token and its secret, which is shown once.
-      additionalProperties: false
-      required:
-        - token
-        - secret
-      properties:
-        token:
-          allOf:
-            - $ref: '#/components/schemas/AgentToken'
-          readOnly: true
-          description: The stored token.
-        secret:
-          type: string
-          readOnly: true
-          description: >-
-            The token secret. It appears in this answer only, because storage
-            keeps its hash.
-          minLength: 32
-          maxLength: 128
     Removed:
       type: object
       description: Confirmation that the named record no longer exists.

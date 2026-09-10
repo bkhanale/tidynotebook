@@ -24,7 +24,6 @@ const allowed = {
     'ui',
   ],
   server: ['api-contract', 'core', 'storage-server', 'markdown'],
-  'mcp-stdio': ['api-client', 'api-contract'],
   'api-contract': [],
   'api-client': [],
   core: [],
@@ -93,11 +92,7 @@ const httpLibraries = new Set([
 ]);
 // These files connect maintained protocols or cache static application assets.
 // They remain subject to imports, dependency direction, and package cycle checks.
-const protocolFiles = new Set([
-  'apps/server/src/auth/better-auth.ts',
-  'apps/server/src/mcp/server.ts',
-  'apps/mcp-stdio/src/main.ts',
-]);
+const protocolFiles = new Set(['apps/server/src/auth/better-auth.ts']);
 const assetFiles = new Set(['apps/web/src/pwa/service-worker.ts']);
 // The handwritten client configuration named in the plan. It may pass a fetch
 // implementation and a base URL to the generated client. It must not call fetch
@@ -142,7 +137,6 @@ function browserBlocker(specifier) {
   if (
     nodeOnly.has(dependency) ||
     dependency.startsWith('@fastify/') ||
-    dependency.startsWith('@modelcontextprotocol/') ||
     dependency.startsWith('@better-auth/')
   )
     return `Node-only package ${dependency}`;
@@ -549,12 +543,9 @@ for (const file of sources) {
     if (
       type === 'NewExpression' &&
       ['URL', 'URLSearchParams'].includes(callee) &&
-      [
-        '@notesapp/web',
-        '@notesapp/sync',
-        '@notesapp/api-client',
-        '@notesapp/mcp-stdio',
-      ].includes(String(item?.manifest.name)) &&
+      ['@notesapp/web', '@notesapp/sync', '@notesapp/api-client'].includes(
+        String(item?.manifest.name),
+      ) &&
       !protocol &&
       !asset &&
       !clientConfig

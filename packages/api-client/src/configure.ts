@@ -8,7 +8,7 @@
 import { client } from './generated/client.gen.ts';
 import type { ProblemDetails } from './generated/types.gen.ts';
 
-/** Returns the current agent token, or undefined for a cookie session. */
+/** Returns the current bearer token, or undefined for a cookie session. */
 export type TokenProvider = () => Promise<string | undefined>;
 
 let tokenProvider: TokenProvider | undefined;

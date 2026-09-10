@@ -15,17 +15,13 @@
 import { randomUUID } from 'node:crypto';
 import type {
   AccountTransaction,
-  Action,
   Actor,
-  AgentTokenRecord,
-  AgentTokenSummary,
   InvitationState,
   InvitationSummary,
   Member,
   Preferences,
   Role,
   ThemeChoice,
-  TokenScope,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
@@ -40,14 +36,6 @@ const uuidPattern =
 
 const roles: readonly Role[] = ['owner', 'admin', 'editor', 'viewer'];
 const themes: readonly ThemeChoice[] = ['system', 'light', 'dark'];
-const actions: readonly Action[] = [
-  'read',
-  'write',
-  'history',
-  'share',
-  'members',
-  'purge',
-];
 
 function isRole(value: string): value is Role {
   return (roles as readonly string[]).includes(value);
@@ -55,12 +43,6 @@ function isRole(value: string): value is Role {
 
 function isTheme(value: string): value is ThemeChoice {
   return (themes as readonly string[]).includes(value);
-}
-
-function isAction(value: unknown): value is Action {
-  return (
-    typeof value === 'string' && (actions as readonly string[]).includes(value)
-  );
 }
 
 /** Rejects an identifier that is not a UUID before it reaches SQL. */
@@ -87,30 +69,6 @@ function asRole(value: string): Role {
 /** Narrows a stored theme string. An unexpected value falls back to system. */
 function asTheme(value: string): ThemeChoice {
   return isTheme(value) ? value : 'system';
-}
-
-/**
- * Reads a stored token scope without trusting the stored JSON.
- *
- * A scope entry that this release does not understand is dropped completely
- * rather than narrowed, so a partly understood scope cannot become a smaller
- * scope that then looks verified.
- */
-function asScopes(value: unknown): readonly TokenScope[] {
-  if (!Array.isArray(value)) return [];
-  const scopes: TokenScope[] = [];
-  for (const entry of value) {
-    if (entry === null || typeof entry !== 'object') continue;
-    const record: Record<string, unknown> = Object.fromEntries(
-      Object.entries(entry),
-    );
-    const workspaceId = record.workspaceId;
-    const listed = record.actions;
-    if (typeof workspaceId !== 'string' || !Array.isArray(listed)) continue;
-    if (!listed.every(isAction)) continue;
-    scopes.push({ workspaceId, actions: listed });
-  }
-  return scopes;
 }
 
 /** The state of one stored invitation row. */
@@ -148,8 +106,6 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
   memberships(
     accountId: string,
   ): Promise<readonly { workspaceId: string; role: Role }[]>;
-  /** Resolves one agent token by the hash of its secret. */
-  agentToken(secretHash: string): Promise<AgentTokenRecord | null>;
   /** Whether any application account exists. The bootstrap command uses it. */
   hasAccount(): Promise<boolean>;
   /**
@@ -172,9 +128,9 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
    * The call is bound to that account: the database function refuses every
    * account that is not the identity of the transaction, so one account can
    * never remove another. It also refuses when any retained record still names
-   * the account, when it holds an agent token, when it belongs to a workspace
-   * that is not its own personal one, or when that workspace holds anything at
-   * all. The answer is then false rather than a failure.
+   * the account, when it belongs to a workspace that is not its own personal
+   * one, or when that workspace holds anything at all. The answer is then
+   * false rather than a failure.
    */
   discardAccount(authUserId: string): Promise<boolean>;
   /** Closes every pooled connection. */
@@ -408,60 +364,6 @@ export function openIdentityStore(
       async recordMembershipChange(workspaceId: string, input): Promise<void> {
         assertUuid(workspaceId, 'the workspace');
         await writeMembershipChange(client, workspaceId, input);
-      },
-
-      async agentTokens(): Promise<readonly AgentTokenSummary[]> {
-        const rows = await client.query<{
-          id: string;
-          name: string;
-          prefix: string;
-          scopes: unknown;
-          expires_at: Date;
-          created_at: Date;
-          revoked_at: Date | null;
-        }>(
-          `select id, name, prefix, scopes, expires_at, created_at, revoked_at
-             from agent_tokens where account_id = $1 order by created_at desc, id asc`,
-          [accountId],
-        );
-        return rows.rows.map((row) => ({
-          id: row.id,
-          name: row.name,
-          prefix: row.prefix,
-          scopes: asScopes(row.scopes),
-          expiresAt: row.expires_at.toISOString(),
-          createdAt: row.created_at.toISOString(),
-          revokedAt:
-            row.revoked_at === null ? null : row.revoked_at.toISOString(),
-        }));
-      },
-
-      async createAgentToken(input): Promise<void> {
-        assertUuid(input.id, 'the token');
-        await client.query(
-          `insert into agent_tokens
-             (id, account_id, name, prefix, token_hash, scopes, expires_at)
-           values ($1, $2, $3, $4, $5, $6::jsonb, $7::timestamptz)`,
-          [
-            input.id,
-            accountId,
-            input.name,
-            input.prefix,
-            input.secretHash,
-            JSON.stringify(input.scopes),
-            input.expiresAt,
-          ],
-        );
-      },
-
-      async revokeAgentToken(tokenId: string): Promise<boolean> {
-        assertUuid(tokenId, 'the token');
-        const result = await client.query(
-          `update agent_tokens set revoked_at = now()
-            where id = $1 and account_id = $2 and revoked_at is null`,
-          [tokenId, accountId],
-        );
-        return (result.rowCount ?? 0) > 0;
       },
 
       async openInvitation(tokenHash: string) {
@@ -760,30 +662,6 @@ export function openIdentityStore(
           workspaceId: row.workspace_id,
           role: asRole(row.role),
         }));
-      });
-    },
-
-    async agentToken(secretHash: string): Promise<AgentTokenRecord | null> {
-      return inTransaction(null, null, async (client) => {
-        const rows = await client.query<{
-          token_id: string;
-          owner_account_id: string;
-          token_scopes: unknown;
-          token_expires_at: Date;
-          token_revoked_at: Date | null;
-        }>('select * from notesapp_agent_token($1)', [secretHash]);
-        const row = rows.rows[0];
-        if (row === undefined) return null;
-        return {
-          id: row.token_id,
-          accountId: row.owner_account_id,
-          scopes: asScopes(row.token_scopes),
-          expiresAt: row.token_expires_at.toISOString(),
-          revokedAt:
-            row.token_revoked_at === null
-              ? null
-              : row.token_revoked_at.toISOString(),
-        };
       });
     },
 

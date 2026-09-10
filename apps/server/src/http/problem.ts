@@ -109,10 +109,10 @@ export class RequestMediaTypeError extends Error {
 }
 
 /**
- * The request carries no usable session or agent token.
+ * The request carries no usable session.
  *
- * The answer never says whether an address exists, whether a token was
- * revoked, or whether it expired, because all three would help an attacker.
+ * The answer never says whether an address exists or whether the session
+ * expired, because both would help an attacker.
  */
 export class UnauthenticatedError extends Error {
   constructor(detail = 'Sign in before calling this operation.') {
@@ -124,9 +124,8 @@ export class UnauthenticatedError extends Error {
 /**
  * The actor is known but may not perform the operation.
  *
- * A denied role, a denied token scope, and a denied rule such as the removal
- * of the last owner all use this failure, so an answer never discloses which
- * of the three applied.
+ * A denied role and a denied rule such as the removal of the last owner both
+ * use this failure, so an answer never discloses which of the two applied.
  */
 export class ForbiddenError extends Error {
   constructor(detail = 'The actor may not perform this operation.') {
@@ -139,8 +138,7 @@ export class ForbiddenError extends Error {
  * A cookie authenticated write that names no origin.
  *
  * A browser always sends `Origin` or `Sec-Fetch-Site` on a write. A request
- * with neither did not come from a browser page, and a non-browser client uses
- * an agent token instead of a session cookie.
+ * with neither did not come from a browser page.
  */
 export class OriginRequiredError extends Error {
   constructor(

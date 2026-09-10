@@ -21,5 +21,3 @@ export {
 export type { ValidationIssue } from './schema.ts';
 export { compileSchema, describeIssues } from './schema.ts';
 export type { SchemaObject } from 'ajv';
-export type { McpToolDefinition, McpToolName } from './mcp-operations.ts';
-export { findMcpTool, mcpTools } from './mcp-operations.ts';

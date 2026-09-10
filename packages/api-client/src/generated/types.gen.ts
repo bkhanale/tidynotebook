@@ -85,112 +85,17 @@ export type Account = {
      */
     readonly accountId: Uuid;
     /**
-     * Sign-in address, or null when the transport is an agent token.
+     * Sign-in address, or null when no address is linked.
      */
     readonly email?: string | null;
     /**
-     * Display name, or null when the transport is an agent token.
+     * Display name, or null when no name is stored.
      */
     readonly name?: string | null;
     /**
      * The stored settings of the account.
      */
     readonly preferences: Preferences;
-};
-
-/**
- * One permitted kind of operation inside one workspace.
- */
-export type Action = 'read' | 'write' | 'history' | 'purge';
-
-/**
- * One agent token without its secret.
- */
-export type AgentToken = {
-    /**
-     * Identifier of the token.
-     */
-    readonly id: Uuid;
-    /**
-     * Name that the account gave the token.
-     */
-    readonly name: string;
-    /**
-     * Public prefix of the secret, which names the token in a list.
-     */
-    readonly prefix: string;
-    /**
-     * The stored scope of the token.
-     */
-    readonly scopes: Array<AgentTokenScope>;
-    /**
-     * Instant after which the token is refused.
-     */
-    readonly expiresAt: string;
-    /**
-     * Instant at which the token was created.
-     */
-    readonly createdAt: string;
-    /**
-     * Instant at which the token was revoked, or null.
-     */
-    readonly revokedAt?: string | null;
-};
-
-/**
- * A new agent token and its secret, which is shown once.
- */
-export type AgentTokenCreated = {
-    /**
-     * The stored token.
-     */
-    readonly token: AgentToken;
-    /**
-     * The token secret. It appears in this answer only, because storage keeps its hash.
-     */
-    readonly secret: string;
-};
-
-/**
- * The name, the expiry, and the scope of a new agent token.
- */
-export type AgentTokenInput = {
-    /**
-     * Name that identifies the token to its account.
-     */
-    name: string;
-    /**
-     * Instant after which the token is refused. An expiry is required and can never be more than one year away.
-     */
-    expiresAt: string;
-    /**
-     * Workspace and action scope of the token. It can never be wider than the current role of the account in that workspace.
-     */
-    scopes: Array<AgentTokenScope>;
-};
-
-/**
- * Every agent token of the signed in account.
- */
-export type AgentTokenList = {
-    /**
-     * One entry for each token of the account.
-     */
-    readonly tokens: Array<AgentToken>;
-};
-
-/**
- * The workspace and the actions that one agent token may use.
- */
-export type AgentTokenScope = {
-    /**
-     * Workspace that the scope applies to.
-     */
-    workspaceId: Uuid;
-    /**
-     * Actions that the token may perform in that workspace.
-     */
-    actions: Array<Action>;
 };
 
 /**
@@ -1266,27 +1171,6 @@ export type WorkspaceNameInput = {
 };
 
 /**
- * One agent token without its secret.
- */
-export type AgentTokenWritable = {
-    [key: string]: never;
-};
-
-/**
- * A new agent token and its secret, which is shown once.
- */
-export type AgentTokenCreatedWritable = {
-    [key: string]: never;
-};
-
-/**
- * Every agent token of the signed in account.
- */
-export type AgentTokenListWritable = {
-    [key: string]: never;
-};
-
-/**
  * The current session, or null when there is none.
  */
 export type AuthCurrentSessionWritable = {
@@ -1379,11 +1263,6 @@ export type Detail = 'summary' | 'full';
 export type WorkspaceId = Uuid;
 
 /**
- * Identifier of the agent token that the operation acts on.
- */
-export type TokenId = Uuid;
-
-/**
  * Identifier of the file that the operation acts on.
  */
 export type FileId = Uuid;
@@ -1469,11 +1348,6 @@ export type Preferences2 = PreferencesInput;
 export type WorkspaceName = WorkspaceNameInput;
 
 /**
- * The name, the expiry, and the scope of the new token.
- */
-export type AgentTokenRequest = AgentTokenInput;
-
-/**
  * The identifiers, the path, and the first content of a new file.
  */
 export type CreateFile = CreateFileInput;
@@ -1547,7 +1421,7 @@ export type GetAccountErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -1593,7 +1467,7 @@ export type UpdatePreferencesErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -1624,155 +1498,6 @@ export type UpdatePreferencesResponses = {
 };
 
 export type UpdatePreferencesResponse = UpdatePreferencesResponses[keyof UpdatePreferencesResponses];
-
-export type ListAgentTokensData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/agent-tokens';
-};
-
-export type ListAgentTokensErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type ListAgentTokensError = ListAgentTokensErrors[keyof ListAgentTokensErrors];
-
-export type ListAgentTokensResponses = {
-    /**
-     * Every agent token of the signed in account.
-     */
-    200: AgentTokenList;
-};
-
-export type ListAgentTokensResponse = ListAgentTokensResponses[keyof ListAgentTokensResponses];
-
-export type CreateAgentTokenData = {
-    /**
-     * The name, the expiry, and the scope of the new token.
-     */
-    body: AgentTokenRequest;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path?: never;
-    query?: never;
-    url: '/api/agent-tokens';
-};
-
-export type CreateAgentTokenErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The request body is larger than the configured limit.
-     */
-    413: ProblemDetails;
-    /**
-     * The request media type is not supported.
-     */
-    415: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type CreateAgentTokenError = CreateAgentTokenErrors[keyof CreateAgentTokenErrors];
-
-export type CreateAgentTokenResponses = {
-    /**
-     * The new agent token and its secret, which is shown once.
-     */
-    201: AgentTokenCreated;
-};
-
-export type CreateAgentTokenResponse = CreateAgentTokenResponses[keyof CreateAgentTokenResponses];
-
-export type RevokeAgentTokenData = {
-    body?: never;
-    headers?: {
-        /**
-         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
-         */
-        'x-request-id'?: string;
-    };
-    path: {
-        /**
-         * Identifier of the agent token that the operation acts on.
-         */
-        tokenId: Uuid;
-    };
-    query?: never;
-    url: '/api/agent-tokens/{tokenId}';
-};
-
-export type RevokeAgentTokenErrors = {
-    /**
-     * The request did not match the contract.
-     */
-    400: ProblemDetails;
-    /**
-     * The request carries no usable session or agent token.
-     */
-    401: ProblemDetails;
-    /**
-     * The actor may not perform this operation.
-     */
-    403: ProblemDetails;
-    /**
-     * The requested resource does not exist.
-     */
-    404: ProblemDetails;
-    /**
-     * The service failed to complete the request.
-     */
-    500: ProblemDetails;
-};
-
-export type RevokeAgentTokenError = RevokeAgentTokenErrors[keyof RevokeAgentTokenErrors];
-
-export type RevokeAgentTokenResponses = {
-    /**
-     * The named record no longer exists.
-     */
-    200: Removed;
-};
-
-export type RevokeAgentTokenResponse = RevokeAgentTokenResponses[keyof RevokeAgentTokenResponses];
 
 export type GetAuthSessionData = {
     body?: never;
@@ -2221,7 +1946,7 @@ export type ListWorkspacesErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2267,7 +1992,7 @@ export type CreateWorkspaceErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2323,7 +2048,7 @@ export type DeleteWorkspaceErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2378,7 +2103,7 @@ export type UpdateWorkspaceErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2441,7 +2166,7 @@ export type UploadAttachmentErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2516,7 +2241,7 @@ export type FinalizeAttachmentErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2600,7 +2325,7 @@ export type GetAttachmentRevisionErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2655,7 +2380,7 @@ export type CommitChangesetErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2740,7 +2465,7 @@ export type ListFilesErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2795,7 +2520,7 @@ export type CreateFileErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2882,7 +2607,7 @@ export type DeleteFileErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -2970,7 +2695,7 @@ export type GetFileErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3037,7 +2762,7 @@ export type UpdateFileErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3126,7 +2851,7 @@ export type GetBacklinksErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3189,7 +2914,7 @@ export type CreateCheckpointErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3282,7 +3007,7 @@ export type ListHistoryErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3345,7 +3070,7 @@ export type RestoreRevisionErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3424,7 +3149,7 @@ export type PurgeFilesErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3491,7 +3216,7 @@ export type PreviewPurgeErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3555,7 +3280,7 @@ export type GetRevisionErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3616,7 +3341,7 @@ export type SearchFilesErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3677,7 +3402,7 @@ export type GetChangesErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3740,7 +3465,7 @@ export type StartSnapshotErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**
@@ -3817,7 +3542,7 @@ export type GetSnapshotPageErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request carries no usable session or agent token.
+     * The request carries no usable session.
      */
     401: ProblemDetails;
     /**

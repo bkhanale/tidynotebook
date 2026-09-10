@@ -39,13 +39,11 @@ export type {
   ProtocolResult,
 } from './http/register.ts';
 export type {
-  ActorSource,
   IdentityAdapter,
   IdentityDependencies,
   ResolvedActor,
 } from './auth/actor.ts';
 export {
-  agentTokenHash,
   createIdentityAdapter,
   requestActor,
   requireActor,
@@ -89,18 +87,3 @@ export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 export { createSearchHandlers } from './http/search.ts';
 export { publicSharePage } from './public/page.ts';
-export type {
-  ActiveOAuthToken,
-  McpAuthDependencies,
-  RegisteredOAuthClient,
-} from './mcp/authorization.ts';
-export {
-  findRegisteredClient,
-  McpAuthorizationServer,
-  registerOAuthClient,
-  sha256Hex,
-  supportedMcpScopes,
-  verifyPkce,
-} from './mcp/authorization.ts';
-export type { McpServerDependencies } from './mcp/server.ts';
-export { createMcpHttpHandler, mountMcpServer } from './mcp/server.ts';

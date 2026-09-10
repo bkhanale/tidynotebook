@@ -20,7 +20,6 @@ import test from 'node:test';
 import {
   commitChangeset,
   configureClient,
-  createAgentToken,
   createFile,
   deleteFile,
   getAccount,
@@ -1166,87 +1165,6 @@ await test('a viewer may read but not write', async () => {
     headers: { ...browser(cookie), 'if-match': `"${randomUUID()}"` },
     path: { workspaceId: readOnlyWorkspace, fileId: randomUUID() },
     body: { text: '# x\n', ...ids() },
-  });
-  assert.equal(responseOf(denied.response).status, 403);
-  assert.equal(problemCode(denied.error), 'forbidden');
-});
-
-await test('a write only token can create, change, and delete a file', async () => {
-  const issued = await createAgentToken({
-    headers: browser(cookie),
-    body: {
-      name: 'writer',
-      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: [{ workspaceId, actions: ['write'] }],
-    },
-  });
-  assert.equal(issued.error, undefined, JSON.stringify(issued.error));
-  const agent = { authorization: `Bearer ${issued.data?.secret ?? ''}` };
-  const fileId = randomUUID();
-  const created = await createFile({
-    headers: agent,
-    path: { workspaceId },
-    body: { fileId, path: 'agent/one.md', text: '# one\n', ...ids() },
-  });
-  assert.equal(created.error, undefined, JSON.stringify(created.error));
-  const createdResponse = responseOf(created.response);
-  assert.equal(createdResponse.status, 201);
-  const firstTag = createdResponse.headers.get('etag') ?? '';
-  assert.equal(firstTag, `"${created.data?.revision.revisionId ?? ''}"`);
-
-  const updated = await updateFile({
-    headers: { ...agent, 'if-match': firstTag },
-    path: { workspaceId, fileId },
-    body: { text: '# two\n', ...ids() },
-  });
-  assert.equal(updated.error, undefined, JSON.stringify(updated.error));
-  assert.equal(responseOf(updated.response).status, 200);
-  const secondTag = responseOf(updated.response).headers.get('etag') ?? '';
-
-  const removed = await deleteFile({
-    headers: { ...agent, 'if-match': secondTag },
-    path: { workspaceId, fileId },
-    body: ids(),
-  });
-  assert.equal(removed.error, undefined, JSON.stringify(removed.error));
-  assert.equal(responseOf(removed.response).status, 200);
-  assert.equal(removed.data?.revision.deleted, true);
-
-  // The token may write, so it may not read: the write answers never carried
-  // any note text, and a read is still refused.
-  const read = await getFile({
-    headers: agent,
-    path: { workspaceId, fileId },
-  });
-  assert.equal(responseOf(read.response).status, 403);
-});
-
-await test('an agent token cannot write outside its scope', async () => {
-  const issued = await createAgentToken({
-    headers: browser(cookie),
-    body: {
-      name: 'reader',
-      expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
-      scopes: [{ workspaceId, actions: ['read'] }],
-    },
-  });
-  assert.equal(issued.error, undefined, JSON.stringify(issued.error));
-  const secret = issued.data?.secret ?? '';
-  const allowed = await listFiles({
-    headers: { authorization: `Bearer ${secret}` },
-    path: { workspaceId },
-    query: { limit: 1 },
-  });
-  assert.equal(allowed.error, undefined);
-  const denied = await createFile({
-    headers: { authorization: `Bearer ${secret}` },
-    path: { workspaceId },
-    body: {
-      fileId: randomUUID(),
-      path: 'notes/agent.md',
-      text: '# x\n',
-      ...ids(),
-    },
   });
   assert.equal(responseOf(denied.response).status, 403);
   assert.equal(problemCode(denied.error), 'forbidden');

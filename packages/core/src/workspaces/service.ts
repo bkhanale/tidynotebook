@@ -2,9 +2,8 @@
  * Account, workspace, and membership use cases.
  *
  * Every rule of the design lives here: who may change membership, that the
- * last owner cannot be removed or demoted, that ownership moves only through
- * an explicit transfer, and that an agent token can never be wider than the
- * role of the account that created it.
+ * last owner cannot be removed or demoted, and that ownership moves only
+ * through an explicit transfer.
  *
  * A use case receives a verified actor and a store. It reads the current role
  * inside the same transaction that performs the write, because a role can
@@ -20,18 +19,13 @@ import type { Action, Actor, Role } from '../identity/actor.ts';
 import { actionsForRole, authorize } from '../identity/actor.ts';
 import { fail, ok, type Result } from '../files/model.ts';
 import type {
-  AgentTokenSummary,
   InvitationSummary,
   Member,
   Preferences,
   ThemeChoice,
-  TokenScope,
   WorkspaceAdminStore,
   WorkspaceSummary,
 } from './ports.ts';
-
-/** The longest life of an agent token, in milliseconds. One year. */
-export const maxAgentTokenLifetimeMs = 365 * 24 * 60 * 60 * 1000;
 
 /** The longest life of an invitation, in milliseconds. Fourteen days. */
 export const invitationLifetimeMs = 14 * 24 * 60 * 60 * 1000;
@@ -422,115 +416,6 @@ export function updatePreferences(
   });
 }
 
-/** Every agent token of the account, without secrets. */
-export function listAgentTokens(
-  store: WorkspaceAdminStore,
-  actor: Actor,
-): Promise<Result<readonly AgentTokenSummary[]>> {
-  return store.account(actor, async (tx) => ok(await tx.agentTokens()));
-}
-
-/**
- * Narrows a requested token scope to what the account may actually delegate.
- *
- * A token can never widen a role: every requested action must be permitted by
- * the current role in that workspace and by the grants of the actor that
- * creates the token. A scope that names a workspace the account does not
- * belong to, or an action its role does not permit, rejects the whole request
- * instead of quietly shrinking it.
- */
-export function checkTokenScopes(
-  actor: Actor,
-  scopes: readonly TokenScope[],
-  memberships: readonly { workspaceId: string; role: Role }[],
-): Result<readonly TokenScope[]> {
-  if (scopes.length === 0) return fail('forbidden');
-  const roles = new Map(
-    memberships.map((entry) => [entry.workspaceId, entry.role]),
-  );
-  const checked: TokenScope[] = [];
-  for (const scope of scopes) {
-    const role = roles.get(scope.workspaceId);
-    if (role === undefined) return fail('forbidden');
-    if (scope.actions.length === 0) return fail('forbidden');
-    const permitted = actionsForRole(role);
-    for (const action of scope.actions) {
-      if (!permitted.includes(action)) return fail('forbidden');
-      if (!authorize(actor, scope.workspaceId, role, action).ok)
-        return fail('forbidden');
-    }
-    checked.push({
-      workspaceId: scope.workspaceId,
-      actions: [...scope.actions],
-    });
-  }
-  return ok(checked);
-}
-
-/**
- * Creates an agent token.
- *
- * The secret is created by the caller, which owns the random source and the
- * hash, and it is returned to the caller once. Storage keeps the hash only.
- * An expiry is required and can never be more than one year away.
- */
-export function createAgentToken(
-  store: WorkspaceAdminStore,
-  actor: Actor,
-  input: {
-    readonly id: string;
-    readonly name: string;
-    readonly prefix: string;
-    readonly secretHash: string;
-    readonly scopes: readonly TokenScope[];
-    readonly expiresAt: string;
-    readonly now: Date;
-  },
-): Promise<Result<AgentTokenSummary>> {
-  return store.account(actor, async (tx) => {
-    const expiry = Date.parse(input.expiresAt);
-    if (Number.isNaN(expiry)) return fail<AgentTokenSummary>('forbidden');
-    const life = expiry - input.now.getTime();
-    if (life <= 0 || life > maxAgentTokenLifetimeMs)
-      return fail<AgentTokenSummary>('forbidden');
-    const scopes = checkTokenScopes(
-      actor,
-      input.scopes,
-      await tx.memberships(),
-    );
-    if (!scopes.ok) return fail<AgentTokenSummary>(scopes.error.code);
-    await tx.createAgentToken({
-      id: input.id,
-      name: input.name,
-      prefix: input.prefix,
-      secretHash: input.secretHash,
-      scopes: scopes.value,
-      expiresAt: input.expiresAt,
-    });
-    return ok({
-      id: input.id,
-      name: input.name,
-      prefix: input.prefix,
-      scopes: scopes.value,
-      expiresAt: input.expiresAt,
-      createdAt: input.now.toISOString(),
-      revokedAt: null,
-    });
-  });
-}
-
-/** Revokes one agent token of the account. */
-export function revokeAgentToken(
-  store: WorkspaceAdminStore,
-  actor: Actor,
-  tokenId: string,
-): Promise<Result<void>> {
-  return store.account(actor, async (tx) => {
-    const revoked = await tx.revokeAgentToken(tokenId);
-    return revoked ? ok(undefined) : fail<void>('not_found');
-  });
-}
-
 /**
  * The grants of a browser session.
  *
@@ -544,31 +429,4 @@ export function sessionGrants(
     workspaceId: entry.workspaceId,
     actions: actionsForRole(entry.role),
   }));
-}
-
-/**
- * The grants of an agent token.
- *
- * The token's stored scope is intersected with the current role in each
- * workspace, so a token cannot outlive the membership that justified it. A
- * scope for a workspace the account has left disappears completely.
- */
-export function tokenGrants(
-  scopes: readonly TokenScope[],
-  memberships: readonly { workspaceId: string; role: Role }[],
-): readonly { workspaceId: string; actions: readonly Action[] }[] {
-  const roles = new Map(
-    memberships.map((entry) => [entry.workspaceId, entry.role]),
-  );
-  return scopes.flatMap((scope) => {
-    const role = roles.get(scope.workspaceId);
-    if (role === undefined) return [];
-    const permitted = actionsForRole(role);
-    const actions = scope.actions.filter((action) =>
-      permitted.includes(action),
-    );
-    return actions.length === 0
-      ? []
-      : [{ workspaceId: scope.workspaceId, actions }];
-  });
 }

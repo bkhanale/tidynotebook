@@ -48,8 +48,6 @@ import {
   createProblem,
   problemMediaType,
 } from './http/problem.ts';
-import { McpAuthorizationServer } from './mcp/authorization.ts';
-import { mountMcpServer } from './mcp/server.ts';
 import { WritePauseCoordinator } from './write-pause.ts';
 import { MetricsCollector, attachObservability } from './observability.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
@@ -305,7 +303,6 @@ export function createAppWithHandlers(
       const isApiPrefix =
         rawPath.startsWith('/api/') ||
         rawPath.startsWith('/s/') ||
-        rawPath.startsWith('/mcp') ||
         rawPath.startsWith('/.well-known/');
 
       if (!isApiPrefix) {
@@ -461,18 +458,6 @@ export async function createApp(
       ? { logStream: options.logStream }
       : {}),
     ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
-  });
-  const authServer = new McpAuthorizationServer({
-    config,
-    identity,
-    resolveSessionActor: (req) => adapter.resolveActor(req).catch(() => null),
-  });
-  mountMcpServer(app, {
-    config,
-    content,
-    attachments,
-    identity,
-    authServer,
   });
   const cleanupSync = createSyncCleanup(content, writePause);
   const cleanupAttachments = createAttachmentCleanup(attachments, writePause);

@@ -10,28 +10,22 @@ import test from 'node:test';
 import { verifyActor, type Actor, type Role } from '../identity/actor.ts';
 import type {
   AccountTransaction,
-  AgentTokenInput,
-  AgentTokenSummary,
   InvitationInput,
   InvitationSummary,
   Member,
   Preferences,
-  TokenScope,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
 } from './ports.ts';
 import {
   acceptInvitation,
-  checkTokenScopes,
-  createAgentToken,
   createWorkspace,
   deleteWorkspace,
   listMembers,
   listWorkspaces,
   removeMember,
   sessionGrants,
-  tokenGrants,
   transferOwnership,
   updateMember,
   updatePreferences,
@@ -77,7 +71,6 @@ type FakeStore = WorkspaceAdminStore & {
   readonly spaces: Map<string, Space>;
   readonly accountAudit: Map<string, string[]>;
   readonly preferences: Map<string, Preferences>;
-  readonly tokens: Map<string, AgentTokenSummary & { account: string }>;
   space(id: string): Space;
   seed(id: string, members: readonly (readonly [string, Role])[]): void;
   memberships(accountId: string): { workspaceId: string; role: Role }[];
@@ -88,7 +81,6 @@ function createFakeStore(): FakeStore {
   const spaces = new Map<string, Space>();
   const accountAudit = new Map<string, string[]>();
   const preferences = new Map<string, Preferences>();
-  const tokens = new Map<string, AgentTokenSummary & { account: string }>();
 
   const space = (id: string): Space => {
     const found = spaces.get(id);
@@ -174,26 +166,6 @@ function createFakeStore(): FakeStore {
         }
         return Promise.resolve(null);
       },
-      agentTokens: () =>
-        Promise.resolve(
-          [...tokens.values()].filter(
-            (token) => token.account === actor.accountId,
-          ),
-        ),
-      createAgentToken: (input: AgentTokenInput) => {
-        tokens.set(input.id, {
-          account: actor.accountId,
-          id: input.id,
-          name: input.name,
-          prefix: input.prefix,
-          scopes: input.scopes,
-          expiresAt: input.expiresAt,
-          createdAt: '2026-09-06T00:00:00.000Z',
-          revokedAt: null,
-        });
-        return Promise.resolve();
-      },
-      revokeAgentToken: (id: string) => Promise.resolve(tokens.delete(id)),
       claimInvitation: (input) => {
         for (const value of spaces.values()) {
           const found = value.tokens.get(input.tokenHash);
@@ -293,7 +265,6 @@ function createFakeStore(): FakeStore {
     spaces,
     accountAudit,
     preferences,
-    tokens,
     space,
     seed,
     memberships,
@@ -621,77 +592,8 @@ await test('a theme choice outside the union is rejected', async () => {
   assert.deepEqual(store.preferences.get(alice), { theme: 'dark' });
 });
 
-await test('a token scope cannot exceed the role of its creator', () => {
-  const editor = actorFor(alice, 'editor');
-  const wider = checkTokenScopes(
-    editor,
-    [{ workspaceId: space, actions: ['members'] }],
-    [{ workspaceId: space, role: 'editor' }],
-  );
-  assert.equal(wider.ok, false);
-  const foreign = checkTokenScopes(
-    editor,
-    [{ workspaceId: other, actions: ['read'] }],
-    [{ workspaceId: space, role: 'editor' }],
-  );
-  assert.equal(foreign.ok, false);
-  const empty = checkTokenScopes(editor, [], []);
-  assert.equal(empty.ok, false);
-  const fits = checkTokenScopes(
-    editor,
-    [{ workspaceId: space, actions: ['read', 'write'] }],
-    [{ workspaceId: space, role: 'editor' }],
-  );
-  assert.equal(fits.ok, true);
-});
-
-await test('an agent token needs an expiry inside one year', async () => {
-  const store = createFakeStore();
-  store.seed(space, [[alice, 'owner']]);
-  const now = new Date('2026-09-06T00:00:00.000Z');
-  const scopes: readonly TokenScope[] = [
-    { workspaceId: space, actions: ['read'] },
-  ];
-  const base = {
-    id: 'token-1',
-    name: 'agent',
-    prefix: 'nsk_abcd',
-    secretHash: 'hash',
-    scopes,
-    now,
-  };
-  const past = await createAgentToken(store, actorFor(alice, 'owner'), {
-    ...base,
-    expiresAt: '2026-09-05T00:00:00.000Z',
-  });
-  assert.equal(past.ok, false);
-  const far = await createAgentToken(store, actorFor(alice, 'owner'), {
-    ...base,
-    expiresAt: '2028-09-06T00:00:00.000Z',
-  });
-  assert.equal(far.ok, false);
-  const fine = await createAgentToken(store, actorFor(alice, 'owner'), {
-    ...base,
-    expiresAt: '2026-12-06T00:00:00.000Z',
-  });
-  assert.equal(fine.ok, true);
-  assert.equal(store.tokens.size, 1);
-});
-
 await test('session grants follow the current role', () => {
   assert.deepEqual(sessionGrants([{ workspaceId: space, role: 'viewer' }]), [
     { workspaceId: space, actions: ['read', 'history'] },
   ]);
-});
-
-await test('token grants are cut down to the current role', () => {
-  const scopes: readonly TokenScope[] = [
-    { workspaceId: space, actions: ['read', 'write'] },
-    { workspaceId: other, actions: ['read'] },
-  ];
-  assert.deepEqual(
-    tokenGrants(scopes, [{ workspaceId: space, role: 'viewer' }]),
-    [{ workspaceId: space, actions: ['read'] }],
-  );
-  assert.deepEqual(tokenGrants(scopes, []), []);
 });

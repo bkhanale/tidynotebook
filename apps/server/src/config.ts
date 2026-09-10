@@ -180,7 +180,7 @@ const configSchema: SchemaObject = {
       maxLength: 1024,
     },
     NOTESAPP_STORAGE_ROOT: { type: 'string', pattern: '^/', maxLength: 1024 },
-    // A short secret cannot protect a session cookie or an agent token.
+    // A short secret cannot protect a session cookie.
     NOTESAPP_AUTH_SECRET: { type: 'string', minLength: 32, maxLength: 512 },
     // A bracketed IPv6 literal such as `[::1]` is an allowed entry.
     NOTESAPP_ALLOWED_HOSTS: {

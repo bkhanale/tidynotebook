@@ -1,5 +1,5 @@
 /**
- * Storage ports for accounts, workspaces, membership, and agent tokens.
+ * Storage ports for accounts, workspaces, and membership.
  *
  * The core owns these interfaces; the server storage package implements them.
  * They stay free of a database driver and an HTTP framework, so the rules in
@@ -11,7 +11,7 @@
  * membership, so it takes the same workspace lock as a content write. A role
  * change and a content write of one workspace therefore have a defined order.
  */
-import type { Action, Actor, Role } from '../identity/actor.ts';
+import type { Actor, Role } from '../identity/actor.ts';
 
 /** The three theme choices that an account can store. */
 export type ThemeChoice = 'system' | 'light' | 'dark';
@@ -52,43 +52,6 @@ export type InvitationSummary = {
   readonly role: Role;
   readonly expiresAt: string;
   readonly state: InvitationState;
-};
-
-/** The workspace and the actions that one agent token may use. */
-export type TokenScope = {
-  readonly workspaceId: string;
-  readonly actions: readonly Action[];
-};
-
-/** One agent token without its secret. */
-export type AgentTokenSummary = {
-  readonly id: string;
-  readonly name: string;
-  /** Short public prefix of the secret, used to name a token in a list. */
-  readonly prefix: string;
-  readonly scopes: readonly TokenScope[];
-  readonly expiresAt: string;
-  readonly createdAt: string;
-  readonly revokedAt: string | null;
-};
-
-/** A stored agent token that a bearer request resolved. */
-export type AgentTokenRecord = {
-  readonly id: string;
-  readonly accountId: string;
-  readonly scopes: readonly TokenScope[];
-  readonly expiresAt: string;
-  readonly revokedAt: string | null;
-};
-
-/** What one new agent token needs. The secret never reaches storage. */
-export type AgentTokenInput = {
-  readonly id: string;
-  readonly name: string;
-  readonly prefix: string;
-  readonly secretHash: string;
-  readonly scopes: readonly TokenScope[];
-  readonly expiresAt: string;
 };
 
 /** What one new invitation needs. Only the hash of its token is stored. */
@@ -142,12 +105,6 @@ export type AccountTransaction = {
     workspaceId: string,
     input: { readonly accountId: string; readonly removed: boolean },
   ): Promise<void>;
-  /** Every agent token of the account, without secrets. */
-  agentTokens(): Promise<readonly AgentTokenSummary[]>;
-  /** Stores one new agent token. */
-  createAgentToken(input: AgentTokenInput): Promise<void>;
-  /** Revokes one agent token of the account. False when it does not exist. */
-  revokeAgentToken(tokenId: string): Promise<boolean>;
   /**
    * The workspace and the invited address of one open invitation, or `null`.
    *

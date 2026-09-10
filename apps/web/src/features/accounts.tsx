@@ -8,14 +8,9 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import {
   createOwner,
-  createAgentToken,
   getSetupStatus,
-  listAgentTokens,
   listWorkspaces,
-  revokeAgentToken,
   signInWithPassword,
-  type Action,
-  type AgentToken,
 } from '@notesapp/api-client';
 import {
   Button,
@@ -224,200 +219,7 @@ export function ThemeSettings(): ReactNode {
   );
 }
 
-const agentTokenExpiryDays = 30;
-
-/** Agent token list, creation with a one-time secret, and revocation. */
-function AgentTokens(): ReactNode {
-  const [tokens, setTokens] = useState<readonly AgentToken[]>([]);
-  const [workspaces, setWorkspaces] = useState<
-    readonly { readonly id: string; readonly name: string }[]
-  >([]);
-  const [name, setName] = useState('');
-  const [workspaceId, setWorkspaceId] = useState('');
-  const [read, setRead] = useState(true);
-  const [write, setWrite] = useState(false);
-  const [history, setHistory] = useState(false);
-  const [secret, setSecret] = useState<string | null>(null);
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  async function load(): Promise<void> {
-    const [listed, spaces] = await Promise.all([
-      listAgentTokens(),
-      listWorkspaces(),
-    ]);
-    if (listed.error !== undefined || listed.data === undefined) {
-      setError(problemMessage(listed.error));
-      return;
-    }
-    setTokens(listed.data.tokens);
-    if (spaces.error === undefined && spaces.data !== undefined) {
-      const entries = spaces.data.workspaces.map((entry) => ({
-        id: entry.workspaceId,
-        name: entry.name,
-      }));
-      setWorkspaces(entries);
-      if (workspaceId === '' && entries.length > 0)
-        setWorkspaceId(entries[0]?.id ?? '');
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
-
-  async function create(): Promise<void> {
-    if (workspaceId === '') {
-      setError('Choose a workspace for the token scope.');
-      return;
-    }
-    setBusy(true);
-    setError('');
-    setSecret(null);
-    const actions: Action[] = [];
-    if (read) actions.push('read');
-    if (write) actions.push('write');
-    if (history) actions.push('history');
-    const expiresAt = new Date(
-      Date.now() + agentTokenExpiryDays * 24 * 3600 * 1000,
-    ).toISOString();
-    const result = await createAgentToken({
-      body: {
-        name,
-        expiresAt,
-        scopes: [{ workspaceId, actions }],
-      },
-    });
-    setBusy(false);
-    if (result.error !== undefined || result.data === undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    setSecret(result.data.secret);
-    setName('');
-    await load();
-  }
-
-  async function revoke(tokenId: string): Promise<void> {
-    setError('');
-    const result = await revokeAgentToken({ path: { tokenId } });
-    if (result.error !== undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    await load();
-  }
-
-  return (
-    <section
-      className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-      aria-labelledby="tokens-heading"
-    >
-      <h2
-        className="m-0 text-base font-semibold text-strong"
-        id="tokens-heading"
-      >
-        Agent tokens
-      </h2>
-      <p>
-        Tokens expire after 30 days and never exceed the workspace role. The
-        secret shows once, right after creation.
-      </p>
-      {secret !== null ? (
-        <p role="alert">
-          Copy the secret now; it never shows again: <code>{secret}</code>
-        </p>
-      ) : null}
-      {error !== '' ? (
-        <p className="text-control text-danger" role="alert">
-          {error}
-        </p>
-      ) : null}
-      <ul className="m-0 list-none space-y-2 p-0">
-        {tokens.map((token) => (
-          <li
-            className="flex items-center justify-between rounded-lg bg-hover px-3 py-2"
-            key={token.id}
-          >
-            <span>
-              <strong>{token.name}</strong> ({token.prefix})
-            </span>
-            <Button variant="secondary" onClick={() => void revoke(token.id)}>
-              Revoke
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <h3 className="mb-0 mt-2 text-base font-semibold text-strong">
-        Create a token
-      </h3>
-      <form
-        onSubmit={(event): void => {
-          event.preventDefault();
-          void create();
-        }}
-        className="flex flex-col gap-3"
-      >
-        <TextField
-          id="token-name"
-          label="Token name"
-          value={name}
-          required
-          onChange={setName}
-        />
-        <SelectField
-          id="token-workspace"
-          label="Workspace scope"
-          value={workspaceId}
-          options={workspaces.map((entry) => ({
-            value: entry.id,
-            label: entry.name,
-          }))}
-          onChange={setWorkspaceId}
-        />
-        <div className="flex items-center gap-4">
-          <label className="inline-flex items-center gap-1.5 text-control">
-            <input
-              type="checkbox"
-              checked={read}
-              onChange={(event): void => {
-                setRead(event.target.checked);
-              }}
-            />
-            Read
-          </label>
-          <label className="inline-flex items-center gap-1.5 text-control">
-            <input
-              type="checkbox"
-              checked={write}
-              onChange={(event): void => {
-                setWrite(event.target.checked);
-              }}
-            />
-            Write
-          </label>
-          <label className="inline-flex items-center gap-1.5 text-control">
-            <input
-              type="checkbox"
-              checked={history}
-              onChange={(event): void => {
-                setHistory(event.target.checked);
-              }}
-            />
-            History
-          </label>
-        </div>
-        <div>
-          <Button type="submit" disabled={busy || name === ''}>
-            {busy ? 'Creating.' : 'Create token'}
-          </Button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-/** Account page: identity, theme, agent tokens, and sign-out. */
+/** Account page: identity, theme, and sign-out. */
 export function AccountSettingsPage(): ReactNode {
   const session = useSession();
   const store = useLocalStore();
@@ -506,7 +308,6 @@ export function AccountSettingsPage(): ReactNode {
       </section>
 
       <ThemeSettings />
-      <AgentTokens />
 
       <section
         className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"

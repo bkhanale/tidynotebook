@@ -74,7 +74,7 @@ await test('a missing or unknown handler stops startup', () => {
 await test('an operation with a security requirement needs a resolver', () => {
   const guarded = {
     ...publicEntry,
-    security: [{ sessionCookie: [] }, { agentToken: ['files:read'] }],
+    security: [{ sessionCookie: [] }],
   };
   assert.throws(
     () => checkRegistration([guarded], ['getHealth'], false),

@@ -334,19 +334,19 @@ await test('the rejected response is logged at error level with its id', () => {
 
 await leaky.close();
 
-// A token provider must reach the server without appearing in the log.
+// A bearer token provider must reach the server without appearing in the log.
 const audited = new LogRecorder();
 const logged = await startTestServer({
   environment: { NOTESAPP_LOG_LEVEL: 'info' },
   logStream: audited,
 });
-configureClient(logged.baseUrl, () => Promise.resolve('agent-token-value'));
+configureClient(logged.baseUrl, () => Promise.resolve('bearer-token-value'));
 
 await test('the token provider reaches the server and stays out of the log', async () => {
   const result = await getHealth();
   assert.equal(result.error, undefined);
   assert.ok(audited.lines.length > 0);
-  assert.equal(audited.lines.join('\n').includes('agent-token-value'), false);
+  assert.equal(audited.lines.join('\n').includes('bearer-token-value'), false);
 });
 
 await logged.close();

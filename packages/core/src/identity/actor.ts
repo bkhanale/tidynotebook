@@ -3,9 +3,7 @@
  *
  * A permission decision uses two independent facts: the account's current role
  * in the workspace, and the verified grants that the transport attached to the
- * request. Both must permit the action. A cookie session, an agent token, and
- * an MCP call therefore reach the same decision, and a token cannot widen what
- * a role permits.
+ * request. Both must permit the action.
  */
 import { fail, ok, type Result } from '../files/model.ts';
 
@@ -28,7 +26,7 @@ export type Grant = {
  * The marker keeps verified identity apart from user supplied input. A parsed
  * request body cannot carry this symbol, so it cannot be used where an `Actor`
  * is required. Only `verifyActor` creates the marker, and only the identity
- * adapter calls it after it has checked a session or a token. The package
+ * adapter calls it after it has checked a session. The package
  * entry point does not export the symbol, so no other package can build an
  * actor by hand. `tools/actor-brand/fixture.ts` proves the compile-time part
  * of this rule.
@@ -42,7 +40,7 @@ export const verifiedActorMark: unique symbol = Symbol(
  *
  * The grants are the scope that the transport proved. The current role comes
  * from storage inside the same transaction, because a role can change between
- * the moment a token was issued and the moment a change commits.
+ * the moment a request arrives and the moment a change commits.
  */
 export type Actor = {
   readonly accountId: string;
@@ -80,16 +78,15 @@ const knownActions = new Set<string>(roleActions.owner);
 /**
  * Creates a verified actor.
  *
- * Call this only after the identity adapter has verified the session or the
- * token and has read the scope from it. The grants are copied, so a later
- * change to the caller's array cannot change a decision.
+ * Call this only after the identity adapter has verified the session and has
+ * read the role from storage. The grants are copied, so a later change to the
+ * caller's array cannot change a decision.
  *
- * The values are checked at run time as well, because the scope of a token can
- * come from stored JSON that no longer matches the current union. An empty
- * account identifier, an empty workspace identifier, or an unknown action
- * rejects the whole actor with `forbidden`. Nothing is dropped silently: a
- * partly understood scope must not become a smaller scope that then looks
- * verified.
+ * The values are checked at run time as well, because a role can come from a
+ * stored row that no longer matches the current union. An empty account
+ * identifier, an empty workspace identifier, or an unknown action rejects the
+ * whole actor with `forbidden`. Nothing is dropped silently: a partly
+ * understood scope must not become a smaller scope that then looks verified.
  */
 export function verifyActor(
   accountId: string,
@@ -118,9 +115,8 @@ export function verifyActor(
  * The actions that one role permits.
  *
  * The identity adapter uses this to build the grants of a browser session,
- * which carries the full role, and to narrow the stored scope of an agent
- * token to the actions the current role still permits. A role outside the
- * union returns no action, so an unexpected stored value denies everything.
+ * which carries the full role. A role outside the union returns no action, so
+ * an unexpected stored value denies everything.
  */
 export function actionsForRole(role: Role): readonly Action[] {
   return actionsOfRole.get(role) ?? [];

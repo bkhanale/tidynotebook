@@ -62,8 +62,6 @@ export type HandlerDependencies = {
   readonly content?: SharingStore;
   /** The attachment store of the deployment. */
   readonly attachments?: AttachmentStore;
-  /** Clock, so a test can decide an expiry. */
-  readonly now?: () => Date;
 };
 
 const jsonMediaType = 'application/json';
@@ -235,7 +233,7 @@ export function createHandlers(
 ): HandlerMap {
   const store = dependencies.store ?? missingStore();
   return {
-    ...createAccountHandlers(store, dependencies.now),
+    ...createAccountHandlers(store),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),

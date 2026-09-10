@@ -3,8 +3,8 @@
  *
  * A create, an edit, a rename, a delete, and a folder rename are all one
  * changeset. These builders keep the shape of that changeset in one place, so
- * an HTTP handler, an MCP tool, and the browser sync engine cannot each invent
- * a different one. They perform no permission check and no storage lookup;
+ * an HTTP handler and the browser sync engine cannot each invent a different
+ * one. They perform no permission check and no storage lookup;
  * `commitChangeset` owns every rule.
  */
 import { contentDigest } from './digest.ts';
