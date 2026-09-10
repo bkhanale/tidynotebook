@@ -93,6 +93,25 @@ export type LocalStoreOptions = {
 };
 
 /** The number of UTF-8 bytes of a string. */
+/**
+ * Whether a working copy states something newer than the accepted head.
+ *
+ * A draft describes the file only while local work is ahead: a file this
+ * device never sent has no accepted head, and a file with unsent checkpoints
+ * has a local head past the accepted one. Once the two heads agree, the
+ * accepted row is the newer statement of the path and of the deletion state.
+ * A draft left over from an earlier deletion therefore cannot hide a note that
+ * the server brought back.
+ */
+function draftLeads(file: FileRow | null | undefined): boolean {
+  return (
+    file === null ||
+    file === undefined ||
+    file.acceptedHeadRevisionId === null ||
+    file.localHeadRevisionId !== file.acceptedHeadRevisionId
+  );
+}
+
 function byteLength(text: string): number {
   return new TextEncoder().encode(text).byteLength;
 }
@@ -1241,8 +1260,10 @@ export async function openLocalStore(
             .toArray();
           const draftRows: unknown[] = await tables.drafts.toArray();
           const result = new Map<string, LocalFileSummary>();
+          const accepted = new Map<string, FileRow>();
           for (const raw of acceptedRows) {
             const file = validateAcceptedFile(raw);
+            accepted.set(file.fileId, file);
             result.set(file.fileId, {
               fileId: file.fileId,
               path: file.path,
@@ -1269,17 +1290,7 @@ export async function openLocalStore(
           }
           for (const draft of newestDrafts.values()) {
             const known = result.get(draft.fileId);
-            // A draft describes the file only while local work is ahead of the
-            // accepted head: a file that this device never sent, or one whose
-            // local head moved past what the server accepted. Once the two
-            // heads agree, the accepted row is the newer statement of the
-            // path and of the deletion state, so a draft left over from an
-            // earlier deletion cannot hide a note that the server restored.
-            const ahead =
-              known === undefined ||
-              known.acceptedHeadRevisionId === null ||
-              known.localHeadRevisionId !== known.acceptedHeadRevisionId;
-            if (!ahead) continue;
+            if (!draftLeads(accepted.get(draft.fileId))) continue;
             result.set(draft.fileId, {
               fileId: draft.fileId,
               path: draft.path,
@@ -1816,8 +1827,10 @@ export async function openLocalStore(
                 text: string;
               }
             >();
+            const accepted = new Map<string, FileRow>();
             for (const raw of acceptedRows) {
               const file = validateAcceptedFile(raw);
+              accepted.set(file.fileId, file);
               if (
                 file.deleted ||
                 file.kind !== 'note' ||
@@ -1852,6 +1865,7 @@ export async function openLocalStore(
                 latest.set(draft.fileId, draft);
             }
             for (const draft of latest.values()) {
+              if (!draftLeads(accepted.get(draft.fileId))) continue;
               if (draft.deleted) {
                 result.delete(draft.fileId);
                 continue;

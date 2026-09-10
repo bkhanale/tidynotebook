@@ -889,6 +889,92 @@ await test('local files and save state follow committed writes per file', async 
   await store.close();
 });
 
+await test('a purge marker drops the note from the local file list', async () => {
+  const backend = createBackend('purged-file');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'purge me\n');
+  await store.saveDraft(draft);
+  const queued = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(queued, account, '7'));
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.fileId),
+    [fileId],
+  );
+
+  // The ordered feed carries a purge as a file record with no revision, so
+  // the local cache learns that the note is gone for good.
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [{ file: null, purgedFileId: fileId }],
+    '8',
+  );
+
+  assert.deepEqual(await store.listLocalFiles(account, workspace), []);
+  assert.deepEqual(await store.listAcceptedFiles(account, workspace), []);
+  assert.deepEqual(await store.listSearchFiles(account, workspace), []);
+  assert.equal(await store.readCursor(account, workspace), '8');
+  await store.close();
+});
+
+await test('a restore from the server puts a deleted note back in the tree', async () => {
+  const backend = createBackend('restored-file');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'keep me\n');
+  await store.saveDraft(draft);
+  const saved = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(saved, account, '3'));
+  const removed = await store.checkpoint(
+    { ...draft, deleted: true, text: '', sequence: 2 },
+    null,
+  );
+  await store.acknowledge(account, acceptanceOf(removed, account, '4'));
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map(
+      (file) => file.deleted,
+    ),
+    [true],
+  );
+
+  const digest = await contentDigest('keep me\n');
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId,
+          revisionId: 'restore-revision',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest,
+          text: 'keep me\n',
+        },
+        purgedFileId: null,
+      },
+    ],
+    '5',
+  );
+
+  const listed = await store.listLocalFiles(account, workspace);
+  assert.deepEqual(
+    listed.map((file) => ({ fileId: file.fileId, deleted: file.deleted })),
+    [{ fileId, deleted: false }],
+  );
+  assert.deepEqual(
+    (await store.listSearchFiles(account, workspace)).map((file) => file.path),
+    ['notes/one.md'],
+  );
+  await store.close();
+});
+
 await test('server conflict resolution clears its local queue atomically', async () => {
   const backend = createBackend('resolved-conflict');
   const store = await openLocalStore(origin, backend.options());
