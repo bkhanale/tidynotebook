@@ -10,7 +10,8 @@ the user selects Save.
 - Local browser drafts for offline safety.
 - Explicit Save actions with complete version history and restore.
 - CommonMark and GFM preview with tables, tasks, footnotes, math, and Mermaid.
-- Search, outlines, backlinks, stable note links, and folder navigation.
+- Search, outlines, stable note links, and folder navigation.
+- Trash with restore and permanent delete.
 - Image attachments with content validation and deduplicated storage.
 - REST access from one operation contract.
 - Responsive desktop, tablet, and phone layouts with light and dark themes.

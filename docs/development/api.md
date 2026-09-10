@@ -51,8 +51,8 @@ an answer never says which of the two applied.
 
 A caller must not lose work when two changes race:
 
-- **Optimistic concurrency.** `updateFile`, `deleteFile`, `createCheckpoint`
-  and `restoreRevision` need the expected revision of the head, through
+- **Optimistic concurrency.** `updateFile`, `deleteFile`, and
+  `restoreRevision` need the expected revision of the head, through
   `If-Match` or through `expectedRevisionId`.
 - **Ordered updates.** The server places a stale explicit update after the
   current head. A create that finds an existing file still fails its

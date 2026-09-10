@@ -41,7 +41,7 @@ all five projects.
 
 The critical journeys include login styles, responsive overflow, drawer focus,
 create, save, reload, rename, delete, offline reload, reconnect sync,
-explicit version history, search, outline, and backlinks. The capability test
+explicit version history, search, and outline. The capability test
 removes `crypto.randomUUID` and `crypto.subtle`
 before application startup to match the reduced API surface of a plain HTTP
 local-network origin.

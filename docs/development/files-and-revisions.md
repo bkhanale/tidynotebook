@@ -1,8 +1,8 @@
 # Files, revisions, and atomic changes
 
 Every change to workspace content is a changeset: one atomic operation over
-one or more files. A create, an edit, a rename, a named checkpoint, a delete,
-and a folder move all go through the same use case,
+one or more files. A create, an edit, a rename, a delete, and a folder move
+all go through the same use case,
 `commitChangeset` in `packages/core/src/files/commit.ts`. There is therefore
 one place that decides whether a change is accepted, and one transaction order.
 
