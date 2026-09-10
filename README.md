@@ -33,6 +33,18 @@ the device. The sync engine sends that version when a connection is available.
 If another save reached the server first, the server places the later save
 after the current head. The user sees one linear history and no conflict UI.
 
+The later save wins the head, and no save removes text that its author never
+saw:
+
+- When the server moved the parent of a save, the answer names the head that
+  the save passed and the application tells the user that the text from the
+  other device is kept in History.
+- A save that deletes a note is refused when the note changed after the
+  delete was made, so a stale delete never removes newer text. The
+  application tells the user that the note stays.
+- A save that renames a note keeps the rename. A save that did not rename
+  takes the current name, so it cannot undo a rename made on another device.
+
 ## Repository layout
 
 | Path                       | Purpose                                     |

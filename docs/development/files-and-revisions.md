@@ -85,6 +85,8 @@ read the actor bound receipt
 check the purge marker of every file                   (one query)
 normalize and check every path
 rebase each stale queued save onto the current accepted head
+  across a deletion boundary   -> stale_head
+  a stale deletion             -> stale_head
 check the revision graph against the stored parents
 check every Markdown text and its digest
 accept
@@ -153,6 +155,39 @@ names exactly one state of one file.
 The tag in a direct write answer names the revision that the operation
 accepted. Direct conditional endpoints can still answer `412`. The browser
 sync queue uses `commitChangeset`, which rebases a stale Save.
+
+## The rebase
+
+A later Save always wins the head, and no Save removes text that the person
+who made it never saw. Three rules together give that result.
+
+**The head is reported.** When the accepted head moved between the read of the
+client and the commit, the answer names the file in `superseded`, with the head
+that the Save passed and the revision that became the new head. The passed head
+stays in the history of the file, so nothing is lost. The client turns each
+entry into one notice: "Your save of &lt;note&gt; is now the latest version. Text
+saved from another device is kept in History."
+
+**A deletion boundary is never crossed.** A rebase is refused with
+`412 stale_head` in two cases:
+
+- the head is a tombstone and the changeset carries an update or a rename,
+  because the note is deleted and the Save would bring it back with text that
+  predates the deletion;
+- the changeset carries a deletion and the head moved past the stated
+  precondition, because the deletion would remove text that the person never
+  read. A stale delete can therefore never remove newer text.
+
+The client answers a refused precondition by reading the accepted state again.
+A refused deletion is dropped and the person is told that the note stays. A
+refused update of a note that is now deleted is kept as a parked Save. Anything
+else moves its precondition to the accepted head and is sent once more.
+
+**The path of the head survives.** The path of a note is content, so a rename
+is a revision like any other. A rebased update takes the path of the current
+head, which keeps a rename made on another device. The submitted path wins only
+when this Save renamed the note itself, which shows as a submitted path that
+differs from the path of the head that the client saw.
 
 ## Status mapping
 
