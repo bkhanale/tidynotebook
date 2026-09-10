@@ -14,7 +14,9 @@ import { join, resolve } from 'node:path';
 import { createClient } from '@hey-api/openapi-ts';
 import { mergeAuthContract } from './auth-contract.ts';
 import { buildContractIndex } from './contract-index.ts';
-import { emitContractModule, emitValidatorModule } from './emit.ts';
+import { shareDefinitions } from './definitions.ts';
+import { emitContractModule } from './emit.ts';
+import { assertNoOrphanComponents } from './orphans.ts';
 import {
   contractFile,
   outputDirectories,
@@ -60,6 +62,17 @@ async function readDocument(file: string): Promise<Record<string, unknown>> {
   return Object.fromEntries(Object.entries(parsed));
 }
 
+/** `components.schemas` of a dereferenced document, or an empty map. */
+function componentSchemas(
+  document: Record<string, unknown>,
+): Record<string, unknown> {
+  const components: unknown = document.components;
+  if (components === null || typeof components !== 'object') return {};
+  const schemas: unknown = (components as Record<string, unknown>).schemas;
+  if (schemas === null || typeof schemas !== 'object') return {};
+  return Object.fromEntries(Object.entries(schemas));
+}
+
 /** Generates every committed artefact under the given repository-like root. */
 export async function generateInto(root: string): Promise<void> {
   const directories = outputDirectories(root);
@@ -84,24 +97,23 @@ async function generateFrom(
   // The authentication protocol fragment is added to the source form, so the
   // generated client keeps one set of shared component types.
   bundleContract(contractFile, sourceFile, false);
-  await writeFile(
-    mergedFile,
-    `${JSON.stringify(mergeAuthContract(await readDocument(sourceFile)), null, 2)}\n`,
-    'utf8',
-  );
+  const merged = mergeAuthContract(await readDocument(sourceFile));
+  // A component that nothing reaches would still reach the shipped client, so
+  // it is a generation failure rather than a review matter.
+  assertNoOrphanComponents(merged);
+  await writeFile(mergedFile, `${JSON.stringify(merged, null, 2)}\n`, 'utf8');
   bundleContract(mergedFile, flatFile, true);
-  const index = buildContractIndex(await readDocument(flatFile));
+  const flat = await readDocument(flatFile);
+  const shared = shareDefinitions(
+    buildContractIndex(flat),
+    componentSchemas(flat),
+  );
 
   await rm(directories.contract, { recursive: true, force: true });
   await mkdir(directories.contract, { recursive: true });
   await writeFile(
     resolve(directories.contract, 'contract.ts'),
-    emitContractModule(index),
-    'utf8',
-  );
-  await writeFile(
-    resolve(directories.contract, 'validators.ts'),
-    emitValidatorModule(),
+    emitContractModule(shared),
     'utf8',
   );
 

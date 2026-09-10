@@ -8,13 +8,13 @@
 import type { ValidateFunction } from 'ajv';
 import type { OperationEntry, OperationId } from './generated/contract.ts';
 import { operations } from './generated/contract.ts';
-import type { RequestSlot } from './generated/validators.ts';
+import type { RequestSlot } from './validators.ts';
 import {
   requestKey,
   requestValidators,
   responseKey,
   responseValidators,
-} from './generated/validators.ts';
+} from './validators.ts';
 
 const byId = new Map<string, OperationEntry>(
   operations.map((operation) => [operation.id, operation]),

@@ -10,7 +10,7 @@ export type {
   OperationId,
   SecurityRequirement,
 } from './generated/contract.ts';
-export type { RequestSlot } from './generated/validators.ts';
+export type { RequestSlot } from './validators.ts';
 export {
   findOperation,
   operations,

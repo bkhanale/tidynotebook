@@ -1,4 +1,4 @@
-import type { ContractIndex } from './contract-index.ts';
+import { definitionsId, type SharedContract } from './definitions.ts';
 
 const header = (source: string) =>
   [
@@ -12,7 +12,8 @@ const header = (source: string) =>
 const literal = (value: unknown) => JSON.stringify(value, null, 2);
 
 /** Runtime operation index. Pure data plus the types that describe it. */
-export function emitContractModule(index: ContractIndex): string {
+export function emitContractModule(shared: SharedContract): string {
+  const { definitions, index } = shared;
   const ids = index.operations.map((operation) => operation.id);
   return `${header('packages/api-contract/openapi.yaml')}
 import type { SchemaObject } from 'ajv';
@@ -95,92 +96,16 @@ export type OperationEntry = {
 /** Version of the contract document that produced this index. */
 export const contractVersion = '${index.version}';
 
+/**
+ * The schemas that more than one operation slot states.
+ *
+ * Every schema below is written once here and pointed at from each slot that
+ * uses it, so the contract is not copied per operation. A consumer that
+ * compiles a slot schema must register this document first; see
+ * \`packages/api-contract/src/validators.ts\`.
+ */
+export const sharedDefinitions: JsonSchema = ${literal({ $id: definitionsId, $defs: definitions })};
+
 export const operations: readonly OperationEntry[] = ${literal(index.operations)};
-`;
-}
-
-/**
- * Ajv 2020-12 validators for every request slot and every declared response.
- *
- * Ajv compiles each schema once when this module loads. Standalone code output
- * was not used because the emitted module is JavaScript, and this package
- * compiles and publishes TypeScript sources through its declaration build.
- */
-export function emitValidatorModule(): string {
-  return `${header('packages/api-contract/openapi.yaml')}
-import type { ValidateFunction } from 'ajv';
-import { Ajv2020 } from 'ajv/dist/2020.js';
-import ajvFormats from 'ajv-formats';
-
-import type { JsonSchema, OperationId } from './contract.ts';
-import { operations } from './contract.ts';
-
-export type RequestSlot = 'params' | 'query' | 'headers' | 'body';
-
-const ajv = new Ajv2020({ allErrors: false, strict: true });
-// Ajv formats ships CommonJS. Node binds a default import to \`module.exports\`,
-// so the plugin function is reached through its \`default\` member.
-ajvFormats.default(ajv);
-
-/**
- * The validator of the query slot, which converts as well as checks.
- *
- * A query value arrives as text on the wire. OpenAPI parameter serialization
- * describes how that text maps to the declared type, so this is the one place
- * that performs the conversion, and a handler then reads a number where the
- * contract declares one. The body and the header validators never convert: a
- * JSON body already carries typed values, and accepting the string "1" where a
- * number is declared would hide a client defect.
- */
-const ajvQuery = new Ajv2020({
-  allErrors: false,
-  strict: true,
-  coerceTypes: true,
-});
-ajvFormats.default(ajvQuery);
-
-/** Key of a request validator. */
-export function requestKey(id: OperationId, slot: RequestSlot): string {
-  return \`\${id}:\${slot}\`;
-}
-
-/** Key of a response validator. */
-export function responseKey(
-  id: OperationId,
-  status: number,
-  mediaType: string,
-): string {
-  return \`\${id}:\${String(status)}:\${mediaType}\`;
-}
-
-const requests = new Map<string, ValidateFunction>();
-const responses = new Map<string, ValidateFunction>();
-
-for (const operation of operations) {
-  const slots: readonly (readonly [RequestSlot, JsonSchema | null])[] = [
-    ['params', operation.request.params],
-    ['query', operation.request.query],
-    ['headers', operation.request.headers],
-    ['body', operation.request.body],
-  ];
-  for (const [slot, schema] of slots) {
-    if (schema === null) continue;
-    const compiler = slot === 'query' ? ajvQuery : ajv;
-    requests.set(requestKey(operation.id, slot), compiler.compile(schema));
-  }
-  for (const response of operation.responses) {
-    responses.set(
-      responseKey(operation.id, response.status, response.mediaType),
-      ajv.compile(response.schema),
-    );
-  }
-}
-
-/** Compiled request validators, keyed by requestKey. */
-export const requestValidators: ReadonlyMap<string, ValidateFunction> = requests;
-
-/** Compiled response validators, keyed by responseKey. */
-export const responseValidators: ReadonlyMap<string, ValidateFunction> =
-  responses;
 `;
 }

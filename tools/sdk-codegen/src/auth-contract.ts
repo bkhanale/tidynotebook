@@ -23,10 +23,9 @@
  * declares the same error shape as every other operation.
  */
 
-/** Marker that names the protocol library behind an operation. */
-export const protocolExtension = 'x-notesapp-protocol';
+import { protocolExtension } from './contract-index.ts';
 
-/** Value of that marker for the Better Auth endpoints. */
+/** Value of the protocol marker for the Better Auth endpoints. */
 export const betterAuthProtocol = 'better-auth';
 
 type Json = Record<string, unknown>;
@@ -193,25 +192,6 @@ export function authContractSchemas(): Json {
           not: {},
           description:
             'Never present. The adapter removes the session token from this answer.',
-        },
-      },
-    },
-    AuthRedirect: {
-      type: 'object',
-      description: 'The provider address that the browser must open.',
-      additionalProperties: true,
-      required: ['redirect'],
-      properties: {
-        redirect: {
-          type: 'boolean',
-          readOnly: true,
-          description: 'Whether the caller should follow the address below.',
-        },
-        url: {
-          type: 'string',
-          readOnly: true,
-          description: 'Authorization address of the configured provider.',
-          maxLength: 2048,
         },
       },
     },

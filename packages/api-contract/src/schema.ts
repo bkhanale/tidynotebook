@@ -2,7 +2,7 @@
  * Ajv 2020-12 access for schemas that are not part of the HTTP contract, for
  * example the server startup configuration.
  *
- * The contract's own validators live in `src/generated/validators.ts`. Both use
+ * The contract's own validators live in `src/validators.ts`. Both use
  * the 2020-12 entry point, because the default Ajv entry point compiles
  * draft-07 and would silently accept a 2020-12 keyword it does not know.
  */

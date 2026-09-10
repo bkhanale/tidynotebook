@@ -199,21 +199,6 @@ export type AuthPasswordSignIn = {
 };
 
 /**
- * The provider address that the browser must open.
- */
-export type AuthRedirect = {
-    /**
-     * Whether the caller should follow the address below.
-     */
-    readonly redirect: boolean;
-    /**
-     * Authorization address of the configured provider.
-     */
-    readonly url?: string;
-    [key: string]: unknown;
-};
-
-/**
  * The result of a completed sign-in.
  */
 export type AuthSession = {
