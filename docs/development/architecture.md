@@ -129,9 +129,6 @@ restricted runtime role, so a container that serves without its migrations
 never reports ready. See [Database](database.md),
 [Identity](identity.md) and [Self-hosting](../operations/self-hosting.md).
 
-> In progress: the squash of the earlier migrations into one is not landed
-> yet. Until it lands the directory holds the original numbered files.
-
 The browser holds working state in IndexedDB through Dexie: drafts, local
 versions, the queue, the recovery area and the offline snapshot. Local browser
 data is a working copy, not a backup.
