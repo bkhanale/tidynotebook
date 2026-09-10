@@ -58,15 +58,6 @@ export type AccountTransaction = {
   }): Promise<void>;
   /** Takes the workspace lock inside this transaction. */
   lockWorkspace(workspaceId: string): Promise<void>;
-  /** Appends one content free audit record to a workspace. */
-  audit(
-    workspaceId: string,
-    input: {
-      readonly action: string;
-      readonly targetKind: string;
-      readonly targetId: string | null;
-    },
-  ): Promise<void>;
   /** Appends one incremental membership record under the workspace lock. */
   recordMembershipChange(
     workspaceId: string,
@@ -89,20 +80,12 @@ export type WorkspaceAdminTransaction = {
   rename(name: string): Promise<void>;
   /** Deletes the workspace and every record that belongs to it. */
   destroy(): Promise<void>;
-  /** Appends one content free audit record. */
-  audit(input: {
-    readonly action: string;
-    readonly targetKind: string;
-    readonly targetId: string | null;
-  }): Promise<void>;
   /**
    * Appends one audit record to the account trail of the actor.
    *
-   * Deleting a workspace removes its own audit rows, so the record of that
-   * deletion cannot live in the workspace it describes. The account trail is
-   * not scoped by a workspace, so the record survives even when the deleted
-   * workspace was the actor's last one. The deleted workspace identifier is
-   * the content free target.
+   * The trail is not scoped by a workspace, so the record of a deletion
+   * survives even when the deleted workspace was the actor's last one. The
+   * deleted workspace identifier is the content free target.
    */
   auditAccount(input: { readonly action: string }): Promise<void>;
   /** Appends one incremental change record under the workspace lock. */

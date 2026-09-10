@@ -47,11 +47,11 @@ const scopedTables = [
   'changesets',
   'mutation_receipts',
   'purge_markers',
-  'audit_events',
   'sync_changes',
   'snapshots',
   'snapshot_items',
   'link_index',
+  'search_index',
   'attachment_objects',
 ] as const;
 
@@ -104,11 +104,6 @@ async function seedEverything(): Promise<Seeded> {
     await session.query(
       'insert into purge_markers (workspace_id, file_id) values ($1, $2)',
       [workspaceId, randomUUID()],
-    );
-    await session.query(
-      `insert into audit_events (workspace_id, id, actor_account_id, action, target_kind)
-       values ($1, $2, $3, 'workspace.create', 'workspace')`,
-      [workspaceId, randomUUID(), accountId],
     );
     await session.query(
       `insert into snapshots (token_hash, workspace_id, account_id, cursor, item_count, page_size, expires_at)
@@ -464,8 +459,6 @@ await test('identity roles: the identity role cannot touch a workspace table', a
       'accounts',
       'account_identities',
       'account_preferences',
-      'agent_tokens',
-      'invitations',
       'revisions',
       'contents',
     ]) {
@@ -480,18 +473,12 @@ await test('identity roles: the identity role cannot touch a workspace table', a
   }
 });
 
-await test('account settings and tokens belong to one account', async () => {
+await test('account settings belong to one account', async () => {
   const setup = await openSession(database.migrationUrl);
   try {
     await setup.query(
       `insert into account_preferences (account_id, theme) values ($1, 'dark')`,
       [invited.ownerId],
-    );
-    await setup.query(
-      `insert into agent_tokens
-         (id, account_id, name, prefix, token_hash, scopes, expires_at)
-       values ($1, $2, 'seed', 'nsk_seed', 'seed-hash', '[]'::jsonb, now() + interval '1 day')`,
-      [randomUUID(), invited.ownerId],
     );
   } finally {
     await setup.close();
@@ -503,11 +490,6 @@ await test('account settings and tokens belong to one account', async () => {
       [invited.ownerId],
     );
     assert.equal(settings.length, 0);
-    const tokens = await foreign.query(
-      'select * from agent_tokens where account_id = $1',
-      [invited.ownerId],
-    );
-    assert.equal(tokens.length, 0);
     // Nor can one account write a setting for another one.
     const denied = await foreign.failure(
       `insert into account_preferences (account_id, theme) values ($1, 'light')`,
@@ -665,25 +647,29 @@ await test('an account is discarded only by itself', async () => {
 });
 
 await test('an account that has been used is not discarded', async () => {
-  const withToken = await seedFreshAccount();
+  const withSnapshot = await seedFreshAccount();
   const setup = await openSession(database.migrationUrl);
   try {
     await setup.query(
-      `insert into agent_tokens
-         (id, account_id, name, prefix, token_hash, scopes, expires_at)
-       values ($1, $2, 'used', 'nsk_used', $3, '[]'::jsonb, now() + interval '1 day')`,
-      [randomUUID(), withToken.accountId, `token-${withToken.accountId}`],
+      `insert into snapshots
+         (token_hash, workspace_id, account_id, cursor, item_count, page_size, expires_at)
+       values ($1, $2, $3, 0, 0, 100, now() + interval '15 minutes')`,
+      [
+        `snapshot-${withSnapshot.accountId}`,
+        withSnapshot.workspaceId,
+        withSnapshot.accountId,
+      ],
     );
   } finally {
     await setup.close();
   }
-  // An agent token names the account, so the answer is false rather than a
-  // constraint violation.
+  // A retained snapshot names the account, so the answer is false rather than
+  // a constraint violation.
   assert.equal(
-    await discardAs(withToken.accountId, withToken.authUserId),
+    await discardAs(withSnapshot.accountId, withSnapshot.authUserId),
     false,
   );
-  assert.equal(await accountExists(withToken.accountId), true);
+  assert.equal(await accountExists(withSnapshot.accountId), true);
 
   const withContent = await seedFreshAccount();
   const second = await openSession(database.migrationUrl);
@@ -754,12 +740,14 @@ await test('the owner guard keeps a workspace with an owner', async () => {
       [guarded, soleOwner],
     );
     assert.equal(removed.code, '23514');
+    // `owner` is the only value of the role enum, so a demotion is not
+    // expressible at all. The database refuses the value itself.
     const demoted = await setup.failure(
       `update memberships set role = 'viewer'
         where workspace_id = $1 and account_id = $2`,
       [guarded, soleOwner],
     );
-    assert.equal(demoted.code, '23514');
+    assert.equal(demoted.code, '22P02');
   } finally {
     await setup.close();
   }

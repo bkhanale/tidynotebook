@@ -8,8 +8,9 @@
  *
  * Drizzle owns the tables, columns, keys, and indexes below. It cannot express
  * roles, row level security, immutability triggers, or a deferrable unique
- * constraint. Those statements live in the reviewed custom migration
- * `migrations/0001_row_access.sql`. See `docs/development/database.md`.
+ * constraint. The handwritten half of the single migration
+ * `migrations/0000_initial.sql` carries those statements. See
+ * `docs/development/database.md`.
  */
 import {
   bigint,
@@ -29,22 +30,19 @@ import {
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
 
-/** A workspace membership role, from the most to the least permission. */
-export const membershipRole = pgEnum('membership_role', [
-  'owner',
-  'admin',
-  'editor',
-  'viewer',
-]);
+/**
+ * A workspace membership role.
+ *
+ * The product serves one account, so `owner` is the only role. The enum stays
+ * because the policies and the owner guard read it.
+ */
+export const membershipRole = pgEnum('membership_role', ['owner']);
 
 /** Whether a file holds Markdown or an attachment. */
 export const fileKind = pgEnum('file_kind', ['note', 'attachment']);
 
 /** Whether stored content holds Markdown text or an attachment reference. */
 export const contentKind = pgEnum('content_kind', ['markdown', 'attachment']);
-
-/** Whether a divergent branch still waits for an explicit resolution. */
-export const branchState = pgEnum('branch_state', ['unresolved', 'resolved']);
 
 /** The transfer state of an immutable attachment object. */
 export const attachmentState = pgEnum('attachment_state', [
@@ -57,7 +55,6 @@ export const attachmentState = pgEnum('attachment_state', [
 export const syncEntityKind = pgEnum('sync_entity_kind', [
   'file',
   'membership',
-  'share',
 ]);
 
 /**
@@ -130,9 +127,8 @@ export const memberships = pgTable(
 /**
  * One file and its accepted state.
  *
- * `head_revision_id` is null while a file has no accepted revision, for
- * example a file that exists only on a conflict branch. Such a file holds no
- * row in `live_paths`, so it cannot occupy an accepted path.
+ * `head_revision_id` is null while a file has no accepted revision. Such a
+ * file holds no row in `live_paths`, so it cannot occupy an accepted path.
  */
 export const files = pgTable(
   'files',
@@ -395,7 +391,7 @@ export const revisionParents = pgTable(
  * this table instead. Its unique constraint on `(workspace_id, path)` is
  * `DEFERRABLE INITIALLY DEFERRED`, which permits an atomic swap of two paths
  * inside one transaction. A row exists only while the file is live, so a
- * deleted file and a branch only file hold no accepted path.
+ * deleted file holds no accepted path.
  */
 export const livePaths = pgTable(
   'live_paths',
@@ -413,45 +409,6 @@ export const livePaths = pgTable(
       columns: [table.workspaceId, table.fileId],
       foreignColumns: [files.workspaceId, files.id],
     }),
-  ],
-);
-
-/** A divergent tip that waits for an explicit resolution. */
-export const branches = pgTable(
-  'branches',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    id: uuid('id').notNull(),
-    fileId: uuid('file_id').notNull(),
-    baseRevisionId: uuid('base_revision_id'),
-    tipRevisionId: uuid('tip_revision_id').notNull(),
-    conflictGroupId: uuid('conflict_group_id').notNull(),
-    state: branchState('state').notNull(),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.workspaceId, table.id] }),
-    foreignKey({
-      name: 'branches_file_fk',
-      columns: [table.workspaceId, table.fileId],
-      foreignColumns: [files.workspaceId, files.id],
-    }),
-    foreignKey({
-      name: 'branches_base_fk',
-      columns: [table.workspaceId, table.baseRevisionId],
-      foreignColumns: [revisions.workspaceId, revisions.id],
-    }),
-    foreignKey({
-      name: 'branches_tip_fk',
-      columns: [table.workspaceId, table.tipRevisionId],
-      foreignColumns: [revisions.workspaceId, revisions.id],
-    }),
-    index('branches_file_idx').on(table.workspaceId, table.fileId),
-    index('branches_group_idx').on(table.workspaceId, table.conflictGroupId),
   ],
 );
 
@@ -504,28 +461,6 @@ export const purgeMarkers = pgTable(
       .defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.workspaceId, table.fileId] })],
-);
-
-/** A content free record of a protected action. */
-export const auditEvents = pgTable(
-  'audit_events',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    id: uuid('id').notNull(),
-    actorAccountId: uuid('actor_account_id').references(() => accounts.id),
-    action: text('action').notNull(),
-    targetKind: text('target_kind').notNull(),
-    targetId: uuid('target_id'),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.workspaceId, table.id] }),
-    index('audit_events_time_idx').on(table.workspaceId, table.createdAt),
-  ],
 );
 
 /** One commit ordered incremental change record. */
@@ -667,47 +602,6 @@ export const searchIndex = pgTable(
   ],
 );
 
-/** A read only public publication of one pinned accepted revision. */
-export const shares = pgTable(
-  'shares',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    id: uuid('id').notNull(),
-    fileId: uuid('file_id').notNull(),
-    pinnedRevisionId: uuid('pinned_revision_id').notNull(),
-    tokenHash: text('token_hash').notNull(),
-    allowedAttachmentRevisionIds: uuid('allowed_attachment_revision_ids')
-      .array()
-      .notNull()
-      .default(sql`'{}'::uuid[]`),
-    creatorAccountId: uuid('creator_account_id')
-      .notNull()
-      .references(() => accounts.id),
-    expiresAt: timestamp('expires_at', { withTimezone: true }),
-    revokedAt: timestamp('revoked_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.workspaceId, table.id] }),
-    unique('shares_token_key').on(table.tokenHash),
-    foreignKey({
-      name: 'shares_file_fk',
-      columns: [table.workspaceId, table.fileId],
-      foreignColumns: [files.workspaceId, files.id],
-    }),
-    foreignKey({
-      name: 'shares_revision_fk',
-      columns: [table.workspaceId, table.pinnedRevisionId],
-      foreignColumns: [revisions.workspaceId, revisions.id],
-    }),
-    index('shares_file_idx').on(table.workspaceId, table.fileId),
-  ],
-);
-
 /**
  * Better Auth tables.
  *
@@ -846,9 +740,10 @@ export const accountIdentities = pgTable('account_identities', {
 /**
  * A content free record of a protected action of one account.
  *
- * `audit_events` is scoped to a workspace, so it cannot hold the record of a
- * workspace deletion or of a password recovery: the first removes the rows of
- * the workspace it describes, and the second belongs to no workspace at all.
+ * The trail belongs to an account and not to a workspace, so it can hold the
+ * record of a workspace deletion and of a password recovery. The first removes
+ * every row of the workspace it describes, and the second belongs to no
+ * workspace at all.
  */
 export const accountAuditEvents = pgTable(
   'account_audit_events',
@@ -882,64 +777,3 @@ export const accountPreferences = pgTable('account_preferences', {
     .notNull()
     .defaultNow(),
 });
-
-/**
- * One revocable agent token.
- *
- * Only the SHA-256 hash of the secret is stored, so a stolen database row
- * cannot be replayed as a token. The prefix names the token in a list. The
- * scope is checked again against the current membership on every use.
- */
-export const agentTokens = pgTable(
-  'agent_tokens',
-  {
-    id: uuid('id').primaryKey(),
-    accountId: uuid('account_id')
-      .notNull()
-      .references(() => accounts.id),
-    name: text('name').notNull(),
-    prefix: text('prefix').notNull(),
-    tokenHash: text('token_hash').notNull().unique(),
-    scopes: jsonb('scopes').notNull(),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    revokedAt: timestamp('revoked_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [index('agent_tokens_account_idx').on(table.accountId)],
-);
-
-/**
- * One invitation to one workspace.
- *
- * Only the hash of the invitation token is stored. Acceptance consumes the
- * row, so a replayed token finds nothing.
- */
-export const invitations = pgTable(
-  'invitations',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    id: uuid('id').notNull(),
-    email: text('email').notNull(),
-    role: membershipRole('role').notNull(),
-    tokenHash: text('token_hash').notNull(),
-    invitedBy: uuid('invited_by')
-      .notNull()
-      .references(() => accounts.id),
-    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
-    acceptedBy: uuid('accepted_by').references(() => accounts.id),
-    revokedAt: timestamp('revoked_at', { withTimezone: true }),
-    createdAt: timestamp('created_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.workspaceId, table.id] }),
-    unique('invitations_token_key').on(table.tokenHash),
-    index('invitations_workspace_idx').on(table.workspaceId),
-  ],
-);

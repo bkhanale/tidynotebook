@@ -192,32 +192,6 @@ export function openIdentityStore(
     );
   }
 
-  /** Appends one content free audit record. */
-  async function writeAudit(
-    client: pg.PoolClient,
-    workspaceId: string,
-    accountId: string,
-    input: {
-      readonly action: string;
-      readonly targetKind: string;
-      readonly targetId: string | null;
-    },
-  ): Promise<void> {
-    await client.query(
-      `insert into audit_events
-         (workspace_id, id, actor_account_id, action, target_kind, target_id)
-       values ($1, $2, $3, $4, $5, $6)`,
-      [
-        workspaceId,
-        randomUUID(),
-        accountId,
-        input.action,
-        input.targetKind,
-        input.targetId,
-      ],
-    );
-  }
-
   /** Appends one content free record to the audit trail of one account. */
   async function writeAccountAudit(
     client: pg.PoolClient,
@@ -335,11 +309,6 @@ export function openIdentityStore(
         await lockWorkspace(client, workspaceId);
       },
 
-      async audit(workspaceId: string, input): Promise<void> {
-        assertUuid(workspaceId, 'the workspace');
-        await writeAudit(client, workspaceId, accountId, input);
-      },
-
       async recordMembershipChange(workspaceId: string, input): Promise<void> {
         assertUuid(workspaceId, 'the workspace');
         await writeMembershipChange(client, workspaceId, input);
@@ -388,13 +357,9 @@ export function openIdentityStore(
         ]);
       },
 
-      async audit(input): Promise<void> {
-        await writeAudit(client, workspaceId, accountId, input);
-      },
-
       async auditAccount(input): Promise<void> {
-        // Deleting a workspace removes its own audit rows, so the record of
-        // that deletion goes to the account trail, which no workspace owns.
+        // Deleting a workspace removes every row of it, so the record of that
+        // deletion goes to the account trail, which no workspace owns.
         await writeAccountAudit(client, accountId, {
           action: input.action,
           targetKind: 'workspace',

@@ -69,11 +69,6 @@ export function createWorkspace(
       accountId: actor.accountId,
       removed: false,
     });
-    await tx.audit(input.workspaceId, {
-      action: 'workspace.create',
-      targetKind: 'workspace',
-      targetId: input.workspaceId,
-    });
     return ok({
       workspaceId: input.workspaceId,
       name: input.name,
@@ -96,11 +91,6 @@ export function updateWorkspace(
     if (!allowed.ok) return fail<WorkspaceSummary>(allowed.error.code);
     if (role !== 'owner') return fail<WorkspaceSummary>('forbidden');
     await tx.rename(name);
-    await tx.audit({
-      action: 'workspace.rename',
-      targetKind: 'workspace',
-      targetId: workspaceId,
-    });
     const described = await tx.describe();
     return ok({
       workspaceId,
@@ -129,8 +119,8 @@ export function deleteWorkspace(
     if (!allowed.ok) return fail<void>(allowed.error.code);
     if (role !== 'owner') return fail<void>('forbidden');
     // The record of the deletion goes to the account trail, because `destroy`
-    // removes the audit rows of this workspace and the actor may have had no
-    // other workspace at all.
+    // removes every row of this workspace and the actor may have had no other
+    // workspace at all.
     await tx.auditAccount({ action: 'workspace.delete' });
     await tx.destroy();
     return ok(undefined);

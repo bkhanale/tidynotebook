@@ -34,6 +34,15 @@ export const runtimeRole = 'notesapp_app';
  */
 export const authRole = 'notesapp_auth';
 
+/**
+ * The schema version that a complete migration set reports.
+ *
+ * `notesapp_schema_version()` returns the number of entries in
+ * `migrations/meta/_journal.json`. The readiness probe compares its answer
+ * with this constant, so one value describes the required set.
+ */
+export const requiredSchemaVersion = 1;
+
 /** The reviewed migration directory of this package. */
 export function migrationsFolder(): string {
   return fileURLToPath(new URL('../migrations/', import.meta.url));

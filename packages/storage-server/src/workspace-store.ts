@@ -1383,19 +1383,8 @@ function createTransaction(
       }
 
       try {
-        // A purge removes revisions that a live snapshot may pin. Their items
-        // are removed first, so the foreign key holds; the snapshot then fails
-        // its item count check and its readers restart with a fresh one.
-        const pinned = await client.query<{ id: string }>(
-          'select id from revisions where workspace_id = $1 and file_id = any($2::uuid[])',
-          [workspaceId, [...fileIds]],
-        );
-        if (pinned.rows.length > 0) {
-          await client.query(
-            'delete from snapshot_items where workspace_id = $1 and revision_id = any($2::uuid[])',
-            [workspaceId, pinned.rows.map((revision) => revision.id)],
-          );
-        }
+        // `notesapp_purge_files` removes the snapshot items that pin a purged
+        // revision itself, so no caller has to prepare the foreign key first.
         const res = await client.query<{
           purged_file_ids: string[];
           purged_revision_ids: string[];

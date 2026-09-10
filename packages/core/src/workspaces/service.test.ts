@@ -43,7 +43,6 @@ type Space = {
   name: string;
   personal: boolean;
   members: Map<string, Role>;
-  audit: string[];
   changes: { accountId: string; removed: boolean }[];
   destroyed: boolean;
   locked: boolean;
@@ -79,7 +78,6 @@ function createFakeStore(): FakeStore {
       name: `workspace ${id.slice(0, 4)}`,
       personal: false,
       members: new Map(members.map(([account, role]) => [account, role])),
-      audit: [],
       changes: [],
       destroyed: false,
       locked: false,
@@ -127,10 +125,6 @@ function createFakeStore(): FakeStore {
         space(workspaceId).locked = true;
         return Promise.resolve();
       },
-      audit: (workspaceId: string, input) => {
-        space(workspaceId).audit.push(input.action);
-        return Promise.resolve();
-      },
       recordMembershipChange: (workspaceId: string, input) => {
         space(workspaceId).changes.push(input);
         return Promise.resolve();
@@ -157,10 +151,6 @@ function createFakeStore(): FakeStore {
       destroy: () => {
         value.destroyed = true;
         spaces.delete(workspaceId);
-        return Promise.resolve();
-      },
-      audit: (input) => {
-        value.audit.push(input.action);
         return Promise.resolve();
       },
       auditAccount: (input) => {
@@ -198,7 +188,7 @@ await test('an account that is not a member cannot rename a workspace', async ()
   assert.equal(store.space(space).name.startsWith('workspace'), true);
 });
 
-await test('the owner renames a workspace and it is audited', async () => {
+await test('the owner renames a workspace', async () => {
   const store = createFakeStore();
   store.seed(space, [[alice, 'owner']]);
   const result = await updateWorkspace(
@@ -209,7 +199,6 @@ await test('the owner renames a workspace and it is audited', async () => {
   );
   assert.equal(result.ok, true);
   assert.equal(store.space(space).name, 'renamed');
-  assert.deepEqual(store.space(space).audit, ['workspace.rename']);
 });
 
 await test('only the owner deletes a workspace', async () => {
@@ -249,7 +238,6 @@ await test('a created workspace has its creator as owner', async () => {
   assert.deepEqual(store.space(space).changes, [
     { accountId: alice, removed: false },
   ]);
-  assert.deepEqual(store.space(space).audit, ['workspace.create']);
 });
 
 await test('a theme choice outside the union is rejected', async () => {

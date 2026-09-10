@@ -24,6 +24,7 @@ export {
   authRole,
   main as runMigrationCommand,
   migrationsFolder,
+  requiredSchemaVersion,
   runMigrations,
   runtimeRole,
   testAuthPassword,
@@ -51,12 +52,10 @@ export {
   accountAuditEvents,
   accountIdentities,
   accountPreferences,
-  agentTokens,
   authAccount,
   authSession,
   authUser,
   authVerification,
-  invitations,
 } from './schema.ts';
 export {
   defaultQuotaBytes,

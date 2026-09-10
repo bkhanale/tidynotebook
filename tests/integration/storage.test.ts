@@ -557,12 +557,17 @@ await test('migrations: applies to an empty database and is a no operation the s
       const before = await session.query<{ total: number }>(
         'select count(*)::int as total from drizzle.__drizzle_migrations',
       );
-      // The count follows the reviewed migration journal, so a later task that
-      // adds a migration does not have to edit this number.
-      assert.ok(
-        (before[0]?.total ?? 0) >= 2,
-        'the reviewed migrations must be recorded',
+      // The schema is one reviewed migration. An exact count is what catches
+      // a journal that no longer agrees with the applied set.
+      assert.equal(
+        before[0]?.total,
+        1,
+        'the reviewed migration must be recorded exactly once',
       );
+      const version = await session.query<{ version: number }>(
+        'select public.notesapp_schema_version() as version',
+      );
+      assert.equal(version[0]?.version, before[0]?.total);
 
       await runMigrations({
         databaseUrl: fresh.migrationUrl,

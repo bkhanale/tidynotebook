@@ -16,7 +16,10 @@ import { createWorkspaceHandlers } from './workspaces.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
 import { createProblem, problemMediaType } from './problem.ts';
 
-import type { AttachmentStore } from '@notesapp/storage-server';
+import {
+  requiredSchemaVersion,
+  type AttachmentStore,
+} from '@notesapp/storage-server';
 import { createAttachmentHandlers } from './attachments.ts';
 import { createHistoryHandlers } from './history.ts';
 import { createSyncHandlers } from './sync.ts';
@@ -174,7 +177,7 @@ export function migrationProbe(databaseUrl: string): ReadinessProbe {
       );
       await client.end();
       const version = result.rows[0]?.version ?? 0;
-      if (version >= 11) {
+      if (version >= requiredSchemaVersion) {
         return {
           name: 'migration',
           status: 'ok',
@@ -184,7 +187,7 @@ export function migrationProbe(databaseUrl: string): ReadinessProbe {
       return {
         name: 'migration',
         status: 'degraded',
-        detail: `Database schema version ${version} is incomplete; version 11 is required.`,
+        detail: `Database schema version ${version} is incomplete; version ${requiredSchemaVersion} is required.`,
       };
     } catch {
       try {
