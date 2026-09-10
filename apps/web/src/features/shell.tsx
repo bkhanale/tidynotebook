@@ -80,6 +80,7 @@ import {
   type NoteSummary,
   type TreeNode,
 } from './note-list.ts';
+import { drawerClassName } from './drawer.ts';
 import { displayNoteName } from './note-name.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import {
@@ -693,7 +694,7 @@ function ShellFrame({
               <aside
                 ref={sidebarRef}
                 id="notes-sidebar"
-                className={`fixed bottom-0 left-0 top-header z-40 flex w-64 flex-col border-r border-edge-subtle bg-surface text-muted motion-safe:transition-transform md:translate-x-0 ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                className={drawerClassName(drawerOpen)}
                 aria-label="Notes navigation"
                 aria-modal={drawerOpen ? true : undefined}
                 role={drawerOpen ? 'dialog' : undefined}
