@@ -70,7 +70,7 @@ export type StaleHead = {
   readonly text: string;
 };
 
-/** The bar copy, kept here so the browser test and the screen agree. */
+/** The bar copy, named so the screen and its tests state it once. */
 export const staleDraftNotice =
   'This device has unsaved text from an older version of this note.';
 

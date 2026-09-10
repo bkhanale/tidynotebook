@@ -20,6 +20,8 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
 import type { RecoveryRecord } from '@notesapp/sync';
 import { Button, StatusRegion } from '@notesapp/ui';
+import { displayNoteName } from './note-name.ts';
+import { parkedSaveReason } from './parked-saves.ts';
 import {
   accessStateMessage,
   completePendingSignOut,
@@ -150,11 +152,12 @@ export function RecoveryPanel({
           {visible.map((record) => (
             <li key={record.recoveryId}>
               <p>
-                {record.path} ({record.reason})
+                {displayNoteName(record.path)}{' '}
+                {parkedSaveReason(record.reason, record.code)}
               </p>
               <Button
                 variant="secondary"
-                label={`Copy kept text of ${record.path}`}
+                label={`Copy kept text of ${displayNoteName(record.path)}`}
                 onClick={() => {
                   void onCopy(record.text).then((ok) => {
                     if (ok) setCopiedId(record.recoveryId);
@@ -165,7 +168,7 @@ export function RecoveryPanel({
               </Button>{' '}
               <Button
                 variant="secondary"
-                label={`Remove kept copy of ${record.path}`}
+                label={`Remove kept copy of ${displayNoteName(record.path)}`}
                 onClick={() => {
                   onRemove(record.recoveryId);
                 }}
