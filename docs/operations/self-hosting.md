@@ -1,5 +1,8 @@
 # Self-hosting and recovery
 
+For the shortest path from a clone to the setup screen, read
+[Quick start](../quickstart.md). This document is the production guide.
+
 NotesApp runs as one application service and one PostgreSQL service. The
 application container applies the database migrations and then serves the web
 app, the REST API, and the authentication routes on one origin.
@@ -78,8 +81,14 @@ names it when it is not set. Leave `NOTESAPP_ALLOWED_HOSTS` empty unless a
 second host name reaches this installation. An empty list serves the host of
 the origin and nothing else.
 
-Create the directory named by `NOTESAPP_SECRETS_DIR`. Keep it outside the
-repository. Create these files with mode `0600` and owner uid 10001, which is
+Set `NOTESAPP_SECRETS_DIR` and create the directory it names. The Compose
+default is `./.secrets` inside the repository, which is a convenience for a
+first local start only. Move the directory outside the repository for a real
+installation, so that a checkout, a copy, or a `git clean` cannot carry the
+secrets or delete them. `.env.example` already names
+`/etc/notesapp/secrets`.
+
+Create these files with mode `0600` and owner uid 10001, which is
 the `notesapp` user of the image. The application runs as that user and cannot
 read a file that belongs to another owner:
 

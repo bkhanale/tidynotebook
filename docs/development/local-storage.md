@@ -40,7 +40,26 @@ A draft write changes one mutable working-copy row. Each write has a sequence
 number. Storage ignores an older sequence, so a late transaction cannot
 replace newer text.
 
-The editor reports `Saved on this device` after this transaction commits.
+The editor shows no message for a routine local write. It reports its state
+as `data-save-state` on the note element, from
+`apps/web/src/features/save-state.ts`:
+
+| Value          | Meaning                                         |
+| -------------- | ----------------------------------------------- |
+| `saving-local` | A draft write is in progress                    |
+| `saved-local`  | The draft is on the device and not yet accepted |
+| `syncing`      | A queued save is on its way to the server       |
+| `saved-server` | The server accepted the local head              |
+| `storage-full` | The browser has no space for the write          |
+| `save-failed`  | The write or the save failed                    |
+
+Only `storage-full` and `save-failed` show text on screen.
+
+A draft that was written over an accepted head that the server has since moved
+is returned as stale, together with the current accepted head text. The note
+screen states that and lets the person choose. Taking the latest version
+copies the older draft into the recovery area with the reason `stale_draft`
+before it rebases the draft, so no text is lost.
 
 ## Save transaction
 
@@ -70,8 +89,10 @@ An acknowledgment removes the matching queue item, marks its revision as
 accepted, advances the accepted head, and stores the receipt. A newer draft or
 queued Save is not removed.
 
-A permanent failure stays on the device as failed work. The editor reports a
-save failure and keeps the current text available for copy and retry.
+A permanent failure stays on the device as failed work. The save is parked in
+the recovery area and listed on the Needs attention screen, which the save
+state chip links to. The editor keeps the current text available for copy and
+retry.
 
 ## Offline behavior
 

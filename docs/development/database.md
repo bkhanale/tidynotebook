@@ -28,8 +28,8 @@ package never loads. Application sources are still checked in full.
 
 ## Schema
 
-Thirty tables live in the `public` schema: twenty one for workspace content,
-and nine that Task 5 added for identity. Every table that holds
+Thirty tables live in the `public` schema: twenty one for workspace content
+and nine for identity. Every table that holds
 workspace content carries `workspace_id`, and every child reference is a composite
 foreign key `(workspace_id, ...)` to its parent. A row therefore cannot point
 at a row of another workspace: the pair does not exist in the parent table.
@@ -60,7 +60,7 @@ boundary holds even where a row access policy hides the parent.
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 | `attachment_reclaim_queue`    | Attachment bytes of a deleted workspace, until reclaimed.  |
 
-Task 5 added the identity tables. The first four belong to Better Auth; the
+The identity migration adds the identity tables. The first four belong to Better Auth; the
 last five are the application's own.
 
 | Table                  | Holds                                                      |
@@ -217,7 +217,7 @@ that the database refuses the same things on its own. Two of them need a note:
   needs a trigger. Workspace deletion sets `notesapp.purge` and is exempt,
   exactly like the immutability triggers.
 
-The Task 5 identity tables use these policies:
+The identity tables use these policies:
 
 | Table                 | Policy                                                                          |
 | --------------------- | ------------------------------------------------------------------------------- |
@@ -247,11 +247,11 @@ and both check membership first:
 - `notesapp_add_usage(workspace_id, delta)` changes the stored bytes only,
   never the quota, and refuses every negative delta with SQLSTATE `23514`. A
   member that could subtract would zero `bytes_used` and then write past the
-  quota without limit, so the runtime path only ever adds. Task 8 lowers the
-  stored bytes through its own owner only purge function.
+  quota without limit, so the runtime path only ever adds. The owner only
+  purge function lowers the stored bytes.
 
-Task 5 added eight more SECURITY DEFINER functions, for the writes that the
-runtime role holds no right for and for the narrow reads that replace a right
+The identity migration adds more SECURITY DEFINER functions, for the writes
+that the runtime role holds no right for and for the narrow reads that replace a right
 on the identity tables:
 
 | Function                                      | Answers or performs                                                                        |
@@ -324,8 +324,8 @@ Two independent controls protect these rows:
    rejected with SQLSTATE `42501` before the trigger runs.
 2. A role that does hold those rights, such as the schema owner, still needs
    `set_config('notesapp.purge', 'on', true)` in its own transaction. That is
-   the explicit purge path. Task 8 adds the owner only purge as a
-   `SECURITY DEFINER` function of the schema owner; no runtime credential can
+   the explicit purge path. The owner only purge is a `SECURITY DEFINER`
+   function of the schema owner; no runtime credential can
    reach the bypass, because the bypass is useless without the table right.
 
 ## Migrations
@@ -349,21 +349,19 @@ Drizzle writes an empty file for that command, so the SQL in it is handwritten
 and reviewed, not generated output. A later schema change adds a new generated
 migration and does not touch it.
 
-### Rewriting the initial pair
+### One migration
 
-The review of Task 4 changed the schema and the access rules. The initial pair
-`0000_slimy_ravenous.sql` and `0001_row_access.sql` was rewritten in place, and
-their snapshots were regenerated, instead of adding an incremental `0002`
-migration. This is correct only because no database outside a disposable
-`notesapp_test` database has ever applied them: there is no installation whose
-applied set would now disagree with the journal. Once an installation exists,
-every change must be a new migration.
+No installation holds real data, so the migration set is squashed into one
+file instead of kept as an incremental chain. The squash also removes the dead
+tables and functions of the earlier multi-user product. Once a real
+installation exists, every change must be a new migration.
 
-The rewrite used `drizzle-kit generate --name slimy_ravenous` for the schema
-migration, so the file name stayed stable, followed by
-`drizzle-kit generate --custom --name row_access` for the reviewed access
-migration. Recreate the test service with
-`sudo docker compose -f compose.test.yaml down -v` before applying a rewritten
+> In progress: the squash is not landed yet. Until it lands the directory
+> holds the original numbered files and the dead schema listed under
+> "Compatibility only" below.
+
+Recreate the test service with
+`sudo docker compose -f compose.test.yaml down -v` before you apply a rewritten
 migration, because the journal no longer matches the applied set.
 
 ### Profiles
@@ -580,7 +578,7 @@ starting) map to the kind `unavailable`; `40001` and `40P01` map to
 `serialization`; `57014` maps to `timeout`.
 
 Any other value that the callback throws travels out unchanged. A use case
-above this port, such as the commit use case of Task 6, therefore keeps its own
+above this port, such as the commit use case, therefore keeps its own
 error type instead of finding it replaced by a storage error.
 
 ### Content free failure reporting
@@ -596,25 +594,21 @@ table name, and the server routine, and nothing else. The same applies to a
 refused connection: `transact` wraps `pool.connect()`, so a driver message that
 repeats the host, the port, and the role never escapes.
 
-## Migration history
+## Compatibility only
 
-| Migration                  | Contains                                                                                     |
-| -------------------------- | -------------------------------------------------------------------------------------------- |
-| `0000_slimy_ravenous.sql`  | The workspace content tables, generated by Drizzle.                                          |
-| `0001_row_access.sql`      | Roles, row policies, immutability, and the deferrable path key.                              |
-| `0002_furry_darkhawk.sql`  | The Task 5 identity tables and `workspaces.personal`, generated.                             |
-| `0003_identity_access.sql` | The identity role, the identity policies, the owner guard trigger, and the Task 5 functions. |
+These objects stay in the schema because the migration set is not squashed
+yet. No application route creates, reads, or writes any of them. The squash
+removes all of them together. Do not build on them.
 
-`0002` and `0003` were rewritten in place during the review of Task 5, for the
-same reason the initial pair was: no database outside a disposable
-`notesapp_test` database has ever applied them. Recreate the test service with
-`sudo docker compose -f compose.test.yaml down -v` before applying a rewritten
-migration.
+| Object                                                                                                               | Was for                  |
+| -------------------------------------------------------------------------------------------------------------------- | ------------------------ |
+| `invitations`                                                                                                        | Inviting a second person |
+| `branches`                                                                                                           | Conflict branches        |
+| `shares`                                                                                                             | Public share pages       |
+| The `memberships` table and every policy that reads it                                                               | Workspace roles          |
+| `notesapp_transfer_ownership`, `notesapp_claim_invitation`, `notesapp_open_invitation`, `notesapp_workspace_members` | Members and invitations  |
+| `notesapp_share_lookup`, `notesapp_share_attachment_lookup`                                                          | Public share pages       |
+| `notesapp_agent_token`                                                                                               | Agent tokens             |
 
-## What Task 4 does not do
-
-The commit use case, the expected head checks, the purge path, snapshots,
-attachments, search, and sharing operations are later tasks. Task 4 provides
-the schema they need, the storage ports, and the access controls. Task 5 added
-the identity tables, their roles and policies, and the account and membership
-rules above them; see `docs/development/identity.md`.
+The browser store keeps its own short list of dead structures. See
+[Local drafts and explicit saves](local-storage.md).

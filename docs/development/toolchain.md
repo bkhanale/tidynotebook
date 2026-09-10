@@ -1,9 +1,10 @@
 # Toolchain
 
-Verified on 2026-09-05 against the npm registry and official release sources.
-The root installs quality tools only. Application packages are added by their
-implementation tasks. No E2E dependency, test, fixture, configuration, or CI job
-is included.
+This document records the pinned versions, the compatibility evidence behind
+each pin, and the durable rules that `pnpm lint` enforces. Each version was
+checked against the npm registry and the official release notes before it was
+installed. Recheck a version before you change it and record the evidence
+here.
 
 ## Runtime and package manager
 
@@ -108,9 +109,9 @@ TypeScript 7 JavaScript compiler API. It requires Node `^20.19.0 || >=22.12.0`.
 - The probe exposed a real limitation: default generated fetch transport fails
   strict TS 7 checks with `exactOptionalPropertyTypes`. Reported fields include
   `serializedBody`, `allowReserved`, `path`, `map`, and SSE request/event fields.
-  Task 2 must resolve this in the generation process and pass the full generated
-  output check. Application strict settings remain enabled. No handwritten SDK
-  or transport has been added. This probe does not claim SDK compatibility.
+  The generation process resolves this and the full generated output check
+  passes. Application strict settings remain enabled. No handwritten SDK or
+  transport is added.
 - Better Auth 1.7.2 directly requires `@better-auth/utils` 0.4.2. Retain that
   nested version; do not override it to a newer major.
 - Rechecked on 2026-09-06 and installed in `apps/server`. Strict peer
@@ -228,8 +229,7 @@ tree.
 Test selectors match a basename without `.test.ts` or an exact repository-relative
 path. Every supplied selector must exist. A missing selector exits 1. Test
 failures and process failures exit nonzero. An unfiltered suite with no tests
-prints an explicit message; it does not claim that tests passed. No application
-tests exist at Task 1.
+prints an explicit message; it does not claim that tests passed.
 
 The boundary checker rejects package cycles, disallowed dependency directions,
 deep imports, relative imports outside a package, undeclared imports, browser
@@ -380,75 +380,7 @@ discovers this test with the other root tool tests.
 Formatting excludes generated output, local progress notes, and the two approved
 design/plan input documents. Their existing formatting is not changed by this task.
 
-## Task 1 verification
-
-The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
-
-- `pnpm install` and `pnpm install --frozen-lockfile`.
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, and `pnpm build`.
-- `pnpm test:unit` runs the checker's own tests. `pnpm test:integration`
-  reports no tests yet.
-- `tools/check-boundaries.test.mjs` covers the checker with temporary fixture
-  workspaces. It accepts a browser-safe workspace, test files that use the Node
-  test runner, a property or type named `fetch`, the generated client
-  transport, a transport name in a type query, a transport name as an object
-  literal key, and base URL and transport options in the client configuration.
-  It
-  rejects a deep import, a `fetch` call, computed transport access, a
-  `new WebSocket()`, a cross-package relative re-export, a package cycle, a
-  computed import, a computed `require`, a renamed destructured transport, a
-  destructured transport constructor, a transport destructured from a
-  dependency object, `Reflect.get` access to a transport, a `globalThis.fetch`
-  call, a
-  `window.fetch` call, a `self.fetch` call, a transport alias, a
-  `new globalThis.WebSocket()`, a test file outside a runnable tree, a Node
-  built-in in core, a bare
-  built-in name, Node reach through a workspace package, a Node-only manifest
-  dependency, a `@fastify/` dependency in a browser package,
-  `import x = require('node:fs')`, a deep `import x = require(...)`, another
-  Node module inside a test file, a Node test module outside a recognized test
-  file, an HTTP library outside generated output, a `fetch` call in the client
-  configuration, a forbidden core dependency in any group, and a production
-  import of a test file.
-- A local lint probe confirmed the type-aware rules. A floating promise in a
-  probe file was rejected. A non-null assertion was rejected in a handwritten
-  file under `packages/api-client/src/` and accepted under its `generated/`
-  path, which proves the exact-glob override. The probe files were removed.
-- A local probe confirmed the import extension settings. See the
-  "Import extensions" section above.
-- `node tools/check-versions.mjs` rejected a manifest whose `engines.pnpm`
-  did not match `packageManager`. The temporary edit was reverted.
-- `pnpm test:integration -- missing-task1-probe` exited 1. A temporary tool unit
-  test was selected by name and propagated its intentional failure as exit 1.
-  The temporary test was removed after the check.
-
-The SDK probe generated output using `@hey-api/typescript`, `@hey-api/sdk`, and
-`@hey-api/client-fetch`, then ran this command:
-
-```sh
-pnpm exec tsc --ignoreConfig --noEmit --strict --noUncheckedIndexedAccess \
-  --exactOptionalPropertyTypes --module NodeNext --target ES2024 \
-  .tooling/compat/generated/index.ts
-```
-
-That probe failed with TS2379 or TS2375 in these generated files:
-
-| File                           | Lines           | Incompatible optional fields |
-| ------------------------------ | --------------- | ---------------------------- |
-| `client/client.gen.ts`         | 93, 105, 230    | `serializedBody`, SSE `body` |
-| `client/utils.gen.ts`          | 31, 41, 51, 158 | `allowReserved`, `path`      |
-| `core/params.gen.ts`           | 73              | `map`                        |
-| `core/pathSerializer.gen.ts`   | 99, 163         | `allowReserved`              |
-| `core/serverSentEvents.gen.ts` | 119, 206        | `body`, `event`              |
-
-For example, `string | undefined` is passed to an optional `string` field while
-exact optional checking is enabled. The fetch plugin's published types expose
-`bundle` and `runtimeConfigPath` options. A search of the installed generator
-found no `exactOptionalPropertyTypes` setting. These observations are evidence
-for Task 2, not a selected workaround. The probe and diagnostics remain local
-under `.tooling/compat/`; application output has not been created.
-
-## Task 2 packages and settings
+## Server, contract and client packages
 
 Every version below was rechecked against the npm registry on 2026-09-05,
 immediately before the install that added it. `pnpm install --frozen-lockfile`
@@ -474,7 +406,7 @@ that compiler, so the recursive root `typecheck` never checks the generator with
 TypeScript 7. `tools/check-versions.mjs` already fails a manifest that pins a
 different TypeScript version in either place.
 
-### Compiler settings added by Task 2
+### Compiler settings of the server and contract packages
 
 - Each new package has `tsconfig.json` for type checking and
   `tsconfig.build.json` for declaration output. The build configuration is
@@ -542,21 +474,7 @@ calls a generated operation, or the framework's in-process `app.inject()`
 utility for a request that no operation can express. Nothing in that tree is
 exempt.
 
-## Task 2 verification
-
-The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
-
-- `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm contract:lint`, `pnpm generate`, `pnpm generated:check`.
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm build`.
-- `pnpm test:unit` runs the tool tests, the exact optional proof, and the
-  adjacent server tests for configuration, host names, correlation ids, error
-  classification, route paths, media types, and the startup checks.
-- `pnpm test:integration -- contract` runs 22 contract tests through the
-  generated client against a real listening Fastify server, plus the boundary
-  rules that no generated operation can express through `app.inject()`.
-
-## Task 3 package settings
+## The core package
 
 `packages/core` holds the shared domain rules. It has no runtime dependency, so
 nothing new was installed for the browser. Its only development dependencies are
@@ -587,7 +505,7 @@ about the missing verified actor marker disappear. The fixture reads the
 package through its emitted declarations. TypeScript 7 removed `baseUrl`, so
 its `paths` entry is written relative to the configuration file.
 
-## Task 12 package settings
+## The Markdown package
 
 `packages/markdown` holds the shared Markdown parser, reference extraction, and
 safe renderer. It is a browser-safe package, so every runtime dependency below
@@ -620,7 +538,7 @@ The two declaration packages are runtime dependencies and not development
 dependencies, because the public API returns an mdast `Root`. A consumer of the
 emitted declarations needs that module to resolve.
 
-### Compiler settings added by Task 12
+### Compiler settings of the Markdown package
 
 `packages/markdown` sets `lib: ["ES2024", "DOM"]` in both its type check and its
 build configuration. The `vfile` declarations that unified depends on reference
@@ -631,7 +549,7 @@ third-party declaration in the package. Adding the browser library keeps
 browser. Production sources still list no `types`, so no Node global is
 reachable.
 
-The package keeps the Task 3 pattern otherwise: `types: ["node"]` for the type
+The package keeps the core package pattern otherwise: `types: ["node"]` for the type
 check only, `src/**/*.test.ts` excluded from the build, and `@types/node` in
 `devDependencies`.
 
@@ -728,19 +646,7 @@ global, and the boundary checker sees imports only. This matters more since
 `packages/markdown` loads the `DOM` type library, which makes those names
 resolve during the type check.
 
-### Task 12 verification
-
-The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
-
-- `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 77 tests. It ran 121 when
-  this task closed; the difference is the resource limit measurements, which
-  are gone with the caps they calibrated, and the wiki reference tests, which
-  are gone with the syntax.
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
-  `pnpm build`.
-
-## Task 4 packages and settings
+## Database packages
 
 Every version below was rechecked against the npm registry on 2026-09-06,
 immediately before the install that added it.
@@ -819,24 +725,7 @@ that it owns. Every check therefore runs under the production role model. A
 superuser migration role would bypass row level security, and FORCE row level
 security would prove nothing.
 
-### Task 4 verification
-
-The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
-
-- `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `sudo docker compose -f compose.test.yaml down -v`, then
-  `up -d --wait`.
-- `pnpm db:generate` reported no schema change against the committed
-  `0000_slimy_ravenous.sql`. `0001_row_access.sql` is the reviewed custom
-  migration.
-- `pnpm db:migrate --profile test`, then the same command again as a no
-  operation. The command without a profile exits 1.
-- `pnpm test:integration -- storage` runs 22 tests.
-- `pnpm test:integration -- row-access` runs 20 tests.
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
-  `pnpm build`.
-
-## Task 10 packages and settings
+## Sync and browser storage packages
 
 `packages/sync` holds the local persistence port and the pure checkpoint rules.
 `packages/storage-browser` implements that port with IndexedDB. Both are
@@ -877,7 +766,7 @@ merged declaration: the constructor value, the database type, and the namespace
 that carries `minKey` and `maxKey`. One import therefore covers every use, and
 `esModuleInterop` stays off.
 
-### Compiler settings added by Task 10
+### Compiler settings of the sync and browser storage packages
 
 Both packages set `lib: ["ES2024", "DOM"]` in their type check and build
 configurations. The port declares a `Blob` for attachment content and the
@@ -886,21 +775,6 @@ These are browser types, and both packages run in the browser, so adding the
 library keeps `skipLibCheck: false` in force. Production sources still list no
 `types`, so no Node global is reachable.
 
-Otherwise both keep the Task 3 pattern: `types: ["node"]` for the type check
+Otherwise both keep the core package pattern: `types: ["node"]` for the type check
 only, `src/**/*.test.ts` excluded from the build, `@types/node` in
 `devDependencies`, and project references to the packages they depend on.
-
-### Task 10 verification
-
-The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
-
-- `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/sync test:unit` runs 14 tests.
-- `pnpm test:integration -- browser-storage` runs 12 tests and prints the
-  measured draft save times.
-- `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
-  `pnpm build`.
-
-`docs/development/local-storage.md` records the tables, the partition rule, the
-transaction boundaries, working copies and local branches, the migration guard,
-and the failure kinds.
