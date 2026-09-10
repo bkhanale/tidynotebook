@@ -48,8 +48,7 @@ import {
   createProblem,
   problemMediaType,
 } from './http/problem.ts';
-import { WritePauseCoordinator } from './write-pause.ts';
-import { MetricsCollector, attachObservability } from './observability.ts';
+import { attachRequestLogging } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 
@@ -126,12 +125,8 @@ export type AppOptions = {
   readonly protocols?: readonly ProtocolAdapter[];
   /** Optional custom readiness probes. */
   readonly probes?: readonly ReadinessProbe[];
-  /** Optional write-pause coordinator instance. */
-  readonly writePause?: WritePauseCoordinator;
   /** Custom web assets directory or null to disable web asset serving. */
   readonly webDist?: string | null;
-  /** Metrics collector instance. */
-  readonly metrics?: MetricsCollector;
 };
 
 /** Builds the application with an explicit handler map. */
@@ -139,10 +134,6 @@ export function createAppWithHandlers(
   config: ServerConfig,
   options: AppOptions,
 ): Promise<FastifyInstance> {
-  const writePause =
-    options.writePause ?? new WritePauseCoordinator(config.storageRoot);
-  const metrics = options.metrics ?? new MetricsCollector(config.storageRoot);
-
   const app = Fastify({
     // Request headers are never logged. Fastify's request serializer records
     // the method, the URL, the host name, and the peer address only, so a
@@ -188,7 +179,7 @@ export function createAppWithHandlers(
     genReqId: (request) => requestId(request.headers['x-request-id']),
   });
 
-  attachObservability(app, metrics);
+  attachRequestLogging(app);
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
@@ -215,39 +206,6 @@ export function createAppWithHandlers(
       );
   });
 
-  // Write mutations are blocked with 503 write_paused when maintenance is active.
-  // This runs in onRequest so it fires before the preValidation identity check
-  // that registerOperations installs, and before any body parsing.
-  // The response is written through reply.raw and reply.hijack() so Fastify's
-  // preSerialization hook does not validate it against the operation contract.
-  // The write-pause 503 is a cross-cutting concern, not a per-operation response.
-  app.addHook('onRequest', async (request, reply) => {
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method)) {
-      const release = writePause.beginWrite();
-      if (release === null) {
-        const body = JSON.stringify(
-          createProblem({
-            code: 'write_paused',
-            status: 503,
-            detail: 'Write operations are paused for maintenance.',
-            instance: instanceOf(request),
-            requestId: request.id,
-          }),
-        );
-        reply.hijack();
-        reply.raw.writeHead(503, {
-          'content-type': `${problemMediaType}; charset=utf-8`,
-          'retry-after': '30',
-          'content-length': Buffer.byteLength(body),
-        });
-        reply.raw.end(body);
-        return;
-      }
-      reply.raw.on('finish', release);
-      reply.raw.on('close', release);
-    }
-  });
-
   // Root health and readiness aliases for load balancers and orchestrators.
   app.get('/health', async (request, reply) => {
     const result = await options.handlers.getHealth?.(request, reply);
@@ -269,21 +227,6 @@ export function createAppWithHandlers(
         .send(result.body);
     }
     return reply.status(503).send({ status: 'degraded' });
-  });
-
-  // Prometheus and JSON metrics endpoint.
-  app.get('/metrics', async (request, reply) => {
-    const accept = request.headers.accept ?? '';
-    if (accept.includes('application/json')) {
-      return reply
-        .status(200)
-        .type('application/json; charset=utf-8')
-        .send(await metrics.toJson());
-    }
-    return reply
-      .status(200)
-      .type('text/plain; version=0.0.4; charset=utf-8')
-      .send(await metrics.toPrometheusFormat());
   });
 
   const defaultWebDist = resolve(import.meta.dirname, '../../web/dist/web');
@@ -410,10 +353,6 @@ export async function createApp(
     storageProbe(config.storageRoot),
     migrationProbe(config.databaseUrl),
   ];
-  const writePause =
-    options?.writePause ?? new WritePauseCoordinator(config.storageRoot);
-  const metrics = options?.metrics ?? new MetricsCollector(config.storageRoot);
-
   const identity = openIdentityStore(config.databaseUrl);
   // The content store uses the same runtime role. It opens its own pool,
   // because a content transaction holds the workspace lock for the length of a
@@ -452,15 +391,13 @@ export async function createApp(
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],
     probes,
-    writePause,
-    metrics,
     ...(options?.logStream !== undefined
       ? { logStream: options.logStream }
       : {}),
     ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
   });
-  const cleanupSync = createSyncCleanup(content, writePause);
-  const cleanupAttachments = createAttachmentCleanup(attachments, writePause);
+  const cleanupSync = createSyncCleanup(content);
+  const cleanupAttachments = createAttachmentCleanup(attachments);
   let cleanupRunning = false;
   const runCleanup = async (): Promise<void> => {
     if (cleanupRunning) return;

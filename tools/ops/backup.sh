@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
-# Create one coordinated and encrypted NotesApp backup.
+# Create one encrypted NotesApp backup.
+#
+# The database part is consistent on its own: pg_dump reads one transaction
+# snapshot. The attachment files are content addressed by their digest, so a
+# file that the dump references is never rewritten in place. For a backup that
+# is also consistent across the two parts, stop the application first with
+# `docker compose stop app`.
 set -euo pipefail
 
 STORAGE_ROOT=""
@@ -8,13 +14,12 @@ DATABASE_URL_FILE=""
 KEY_FILE=""
 INSTALLATION_ID_FILE=""
 POSTGRES_CONTAINER=""
-DRAIN_TIMEOUT_SECONDS=30
 
 usage() {
   printf '%s\n' \
     'Usage: tools/ops/backup.sh --storage-root DIR --backup-root DIR' \
     '  --database-url-file FILE --key-file FILE --installation-id-file FILE' \
-    '  [--postgres-container NAME] [--drain-timeout-seconds N]'
+    '  [--postgres-container NAME]'
 }
 
 fail() {
@@ -47,7 +52,6 @@ while [[ $# -gt 0 ]]; do
     --key-file) KEY_FILE="${2:-}"; shift 2 ;;
     --installation-id-file) INSTALLATION_ID_FILE="${2:-}"; shift 2 ;;
     --postgres-container) POSTGRES_CONTAINER="${2:-}"; shift 2 ;;
-    --drain-timeout-seconds) DRAIN_TIMEOUT_SECONDS="${2:-}"; shift 2 ;;
     --help) usage; exit 0 ;;
     *) usage >&2; fail "unknown option $1" ;;
   esac
@@ -56,7 +60,6 @@ done
 [[ -n "$STORAGE_ROOT" && "$STORAGE_ROOT" == /* ]] || fail '--storage-root must be an absolute path.'
 [[ -n "$BACKUP_ROOT" && "$BACKUP_ROOT" == /* ]] || fail '--backup-root must be an absolute path.'
 [[ "$STORAGE_ROOT" != "$BACKUP_ROOT" ]] || fail 'the backup root must be separate from application storage.'
-[[ "$DRAIN_TIMEOUT_SECONDS" =~ ^[1-9][0-9]*$ ]] || fail 'the drain timeout must be a positive integer.'
 protected_file "$DATABASE_URL_FILE" '--database-url-file'
 protected_file "$KEY_FILE" '--key-file'
 protected_file "$INSTALLATION_ID_FILE" '--installation-id-file'
@@ -100,7 +103,7 @@ run_pg_dump() {
   fi
 }
 
-mkdir -p "$STORAGE_ROOT" "$STORAGE_ROOT/active-writes" "$BACKUP_ROOT"
+mkdir -p "$STORAGE_ROOT" "$BACKUP_ROOT"
 STORAGE_ROOT="$(realpath -m "$STORAGE_ROOT")"
 BACKUP_ROOT="$(realpath -m "$BACKUP_ROOT")"
 case "$BACKUP_ROOT/" in
@@ -109,27 +112,15 @@ esac
 case "$STORAGE_ROOT/" in
   "$BACKUP_ROOT/"*) fail 'application storage must not be inside the backup root.' ;;
 esac
-PAUSE_FILE="$STORAGE_ROOT/write-pause.json"
 ARCHIVE_TIMESTAMP="$(date -u +%Y%m%d-%H%M%SZ)"
 ARCHIVE_FILE="$BACKUP_ROOT/backup-$ARCHIVE_TIMESTAMP.tar.gpg"
 [[ ! -e "$ARCHIVE_FILE" ]] || fail "backup output already exists: $ARCHIVE_FILE"
-[[ ! -e "$PAUSE_FILE" ]] || fail 'writes are already paused. Resolve the existing pause before backup.'
 STAGE_DIR="$(mktemp -d "$STORAGE_ROOT/.backup-stage.XXXXXX")"
 CONTENT_DIR="$STAGE_DIR/content"
 mkdir -p "$CONTENT_DIR/storage"
 
-PAUSE_OWNED=0
-
-resume_writers() {
-  if [[ "$PAUSE_OWNED" == '1' ]]; then
-    rm -f "$PAUSE_FILE"
-    PAUSE_OWNED=0
-  fi
-}
-
 cleanup() {
   local status=$?
-  resume_writers
   rm -rf "$STAGE_DIR"
   if [[ $status -ne 0 ]]; then
     rm -f "$ARCHIVE_FILE"
@@ -137,45 +128,6 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT INT TERM
-
-PAUSE_TEMP="$(mktemp "$STORAGE_ROOT/.write-pause.XXXXXX")"
-NOTESAPP_PAUSE_PATH="$PAUSE_TEMP" node --input-type=module -e "
-  import fs from 'node:fs';
-  fs.writeFileSync(process.env.NOTESAPP_PAUSE_PATH, JSON.stringify({
-    paused: true,
-    pausedAt: new Date().toISOString(),
-    reason: 'backup in progress',
-    drained: false
-  }, null, 2));
-"
-chmod 600 "$PAUSE_TEMP"
-if ! ln "$PAUSE_TEMP" "$PAUSE_FILE" 2>/dev/null; then
-  rm -f "$PAUSE_TEMP"
-  fail 'writes became paused before backup could start.'
-fi
-rm -f "$PAUSE_TEMP"
-PAUSE_OWNED=1
-
-deadline=$((SECONDS + DRAIN_TIMEOUT_SECONDS))
-while find "$STORAGE_ROOT/active-writes" -maxdepth 1 -type f -name '*.active' -print -quit | grep -q .; do
-  (( SECONDS < deadline )) || fail 'active writes did not drain before the timeout.'
-  sleep 0.1
-done
-
-PAUSE_TEMP="$(mktemp "$STORAGE_ROOT/.write-pause.XXXXXX")"
-NOTESAPP_PAUSE_PATH="$PAUSE_TEMP" node --input-type=module -e "
-  import fs from 'node:fs';
-  fs.writeFileSync(process.env.NOTESAPP_PAUSE_PATH, JSON.stringify({
-    paused: true,
-    pausedAt: new Date().toISOString(),
-    reason: 'backup in progress',
-    drained: true,
-    drainedAt: new Date().toISOString(),
-    activeWriters: 0
-  }, null, 2));
-"
-chmod 600 "$PAUSE_TEMP"
-mv "$PAUSE_TEMP" "$PAUSE_FILE"
 
 run_psql --tuples-only --no-align --field-separator=$'\t' --command="
   SELECT DISTINCT ao.workspace_id::text, ao.digest, ao.size::text
@@ -241,18 +193,6 @@ gpg --batch --yes --quiet --pinentry-mode loopback --passphrase-file "$KEY_FILE"
   --backup-file "$ARCHIVE_FILE" \
   --key-file "$KEY_FILE" \
   --installation-id-file "$INSTALLATION_ID_FILE"
-
-NOTESAPP_BACKUP_MARKER="$STORAGE_ROOT/backup-last.json" \
-NOTESAPP_BACKUP_ARCHIVE="$(basename "$ARCHIVE_FILE")" \
-node --input-type=module -e "
-  import fs from 'node:fs';
-  fs.writeFileSync(process.env.NOTESAPP_BACKUP_MARKER, JSON.stringify({
-    timestamp: new Date().toISOString(),
-    archive: process.env.NOTESAPP_BACKUP_ARCHIVE
-  }, null, 2), { mode: 0o600 });
-"
-
-resume_writers
 
 NOTESAPP_BACKUP_ROOT="$BACKUP_ROOT" node --input-type=module -e "
   import fs from 'node:fs';

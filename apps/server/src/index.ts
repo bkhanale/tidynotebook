@@ -25,13 +25,11 @@ export {
   migrationProbe,
   storageProbe,
 } from './http/handlers.ts';
-export { WritePauseCoordinator, type WritePauseState } from './write-pause.ts';
 export {
-  MetricsCollector,
-  attachObservability,
+  attachRequestLogging,
   redactUrl,
   type RequestLogRecord,
-} from './observability.ts';
+} from './request-log.ts';
 export type {
   HandlerMap,
   IdentityResolver,

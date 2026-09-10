@@ -1,6 +1,6 @@
 /**
- * Integration tests for deployment operations, health/readiness probes,
- * write-pause coordination, metrics, host encryption checks, and backup/restore.
+ * Integration tests for deployment operations, health and readiness probes,
+ * request log redaction, host encryption checks, and backup and restore.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -10,9 +10,7 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
-  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -21,18 +19,14 @@ import { join } from 'node:path';
 import pg from 'pg';
 import {
   createAppWithHandlers,
-  createAttachmentCleanup,
   createHandlers,
-  createSyncCleanup,
   databaseProbe,
   loadProtectedEnvironment,
   loadServerConfig,
-  MetricsCollector,
   migrationProbe,
   redactAccessUrl,
   redactUrl,
   storageProbe,
-  WritePauseCoordinator,
   type ReadinessProbe,
 } from '@notesapp/server';
 import {
@@ -151,144 +145,39 @@ await test('protected configuration files load without exposing their values', a
   }
 });
 
-await test('write-pause coordinator drains active writers and blocks mutations with 503', async () => {
-  const tempDir = await mkdtemp(join(tmpdir(), 'notesapp-ops-pause-'));
-  try {
-    const config = loadServerConfig(testEnvironment(tempDir));
-    const writePause = new WritePauseCoordinator(tempDir);
-    const app = await createAppWithHandlers(config, {
-      handlers: completeTestHandlers(createHandlers(config)),
-      identity: anonymousIdentity,
-      protocols: [stubProtocol],
-      writePause,
-      webDist: null,
-    });
-
-    // Initially unpaused
-    assert.equal(writePause.isPaused(), false);
-    const releaseWrite = writePause.beginWrite();
-    assert.ok(releaseWrite !== null);
-    assert.equal(writePause.getActiveWriters(), 1);
-    assert.equal(readdirSync(join(tempDir, 'active-writes')).length, 1);
-
-    // Release write
-    releaseWrite();
-    assert.equal(writePause.getActiveWriters(), 0);
-    assert.equal(readdirSync(join(tempDir, 'active-writes')).length, 0);
-
-    // Request pause
-    await writePause.pause('Backup in progress');
-    assert.equal(writePause.isPaused(), true);
-    assert.ok(existsSync(join(tempDir, 'write-pause.json')));
-
-    // New writes cannot begin
-    assert.equal(writePause.beginWrite(), null);
-
-    // Mutating HTTP requests are rejected with 503 write_paused
-    const postRes = await app.inject({
-      method: 'POST',
-      url: '/api/workspaces',
-      headers: { host: '127.0.0.1', 'content-type': 'application/json' },
-      payload: {},
-    });
-    assert.equal(postRes.statusCode, 503);
-    assert.equal(postRes.headers['retry-after'], '30');
-    const problem = JSON.parse(postRes.body) as {
-      code: string;
-      status: number;
-    };
-    assert.equal(problem.code, 'write_paused');
-    assert.equal(problem.status, 503);
-
-    // GET requests continue to succeed
-    const getRes = await app.inject({ method: 'GET', url: '/health' });
-    assert.equal(getRes.statusCode, 200);
-
-    // Background jobs halt when write is paused
-    const cleanupRan = await createSyncCleanup(
-      {
-        cleanupSync: () =>
-          Promise.resolve({ expiredSnapshots: 5, oldChanges: 10 }),
-      },
-      writePause,
-    )();
-    assert.deepEqual(cleanupRan, { expiredSnapshots: 0, oldChanges: 0 });
-
-    const attachmentCleanupRan = await createAttachmentCleanup(
-      {
-        reclaimAttachments: () => Promise.resolve(10),
-      } as unknown as Parameters<typeof createAttachmentCleanup>[0],
-      writePause,
-    )();
-    assert.equal(attachmentCleanupRan, 0);
-
-    // Resuming writes clears the pause
-    await writePause.resume();
-    assert.equal(writePause.isPaused(), false);
-
-    await app.close();
-  } finally {
-    await rm(tempDir, { recursive: true, force: true });
-  }
+await test('the request log redacts share tokens and query strings', () => {
+  assert.equal(redactUrl('/s/secretToken12345'), '/s/[redacted]');
+  assert.equal(
+    redactUrl('/s/secretToken12345/attachments/revision789'),
+    '/s/[redacted]',
+  );
+  assert.equal(
+    redactUrl('/api/workspaces/123/search?q=classifiedQuery'),
+    '/api/workspaces/123/search?[redacted]',
+  );
+  assert.equal(
+    redactAccessUrl('/api/workspaces/123/search?q=classifiedQuery'),
+    '/api/workspaces/123/search?[redacted]',
+  );
 });
 
-await test('observability metrics and URL redaction', async () => {
+await test('no metrics route is served', async () => {
   const tempDir = await mkdtemp(join(tmpdir(), 'notesapp-ops-metrics-'));
   try {
     const config = loadServerConfig(testEnvironment(tempDir));
-    const metrics = new MetricsCollector(tempDir, () => Promise.resolve(4096));
-
     const app = await createAppWithHandlers(config, {
       handlers: completeTestHandlers(createHandlers(config)),
       identity: anonymousIdentity,
       protocols: [stubProtocol],
-      metrics,
       webDist: null,
     });
 
-    // Test URL redaction
-    assert.equal(redactUrl('/s/secretToken12345'), '/s/[redacted]');
-    assert.equal(
-      redactUrl('/s/secretToken12345/attachments/revision789'),
-      '/s/[redacted]',
-    );
-    assert.equal(
-      redactUrl('/api/workspaces/123/search?q=classifiedQuery'),
-      '/api/workspaces/123/search?[redacted]',
-    );
-    assert.equal(
-      redactAccessUrl('/api/workspaces/123/search?q=classifiedQuery'),
-      '/api/workspaces/123/search?[redacted]',
-    );
-
-    // Make requests to trigger metrics
-    await app.inject({ method: 'GET', url: '/health' });
-    metrics.recordSaveFailure();
-    metrics.recordAuthFailure();
-
-    // Verify Prometheus text exposition
-    const promRes = await app.inject({ method: 'GET', url: '/metrics' });
-    assert.equal(promRes.statusCode, 200);
-    assert.match(promRes.headers['content-type'] ?? '', /text\/plain/);
-    assert.ok(promRes.body.includes('notesapp_save_failures_total 1'));
-    assert.ok(promRes.body.includes('notesapp_auth_failures_total 1'));
-    assert.ok(promRes.body.includes('notesapp_storage_usage_bytes 4096'));
-
-    // Verify JSON metrics
-    const jsonRes = await app.inject({
+    const res = await app.inject({
       method: 'GET',
       url: '/metrics',
-      headers: { accept: 'application/json' },
+      headers: { host: '127.0.0.1' },
     });
-    assert.equal(jsonRes.statusCode, 200);
-    const jsonBody = JSON.parse(jsonRes.body) as {
-      saveFailures: number;
-      authFailures: number;
-      storageUsageBytes: number;
-    };
-    assert.equal(jsonBody.saveFailures, 1);
-    assert.equal(jsonBody.authFailures, 1);
-    assert.equal(jsonBody.storageUsageBytes, 4096);
+    assert.equal(res.statusCode, 404);
 
     await app.close();
   } finally {
@@ -393,6 +282,74 @@ await test('coordinated backup and verified restoration cycle', async () => {
        VALUES ($1, $2, 'attachment', $3, $4)`,
       [workspaceId, digest, content.length, objectId],
     );
+
+    // One real note with two saved versions, so the cycle covers note text and
+    // its history and not only an attachment file.
+    const accountId = randomUUID();
+    const fileId = randomUUID();
+    const notePath = 'notes/backup-round-trip.md';
+    const bodies = ['# First save\n\nOriginal text.\n', '# Second save\n\nEdited text.\n'];
+    const noteDigests = bodies.map((body) =>
+      createHash('sha256').update(body, 'utf8').digest('hex'),
+    );
+    const revisionIds = [randomUUID(), randomUUID()];
+    await pgClient.query('INSERT INTO accounts (id) VALUES ($1)', [accountId]);
+    await pgClient.query(
+      `INSERT INTO memberships (workspace_id, account_id, role)
+       VALUES ($1, $2, 'owner')`,
+      [workspaceId, accountId],
+    );
+    await pgClient.query(
+      `INSERT INTO files (workspace_id, id, path, kind, deleted)
+       VALUES ($1, $2, $3, 'note', false)`,
+      [workspaceId, fileId, notePath],
+    );
+    for (const [index, body] of bodies.entries()) {
+      const changesetId = randomUUID();
+      await pgClient.query(
+        `INSERT INTO contents (workspace_id, digest, kind, size, markdown)
+         VALUES ($1, $2, 'markdown', $3, $4)`,
+        [workspaceId, noteDigests[index], Buffer.byteLength(body), body],
+      );
+      await pgClient.query(
+        `INSERT INTO changesets (workspace_id, id, mutation_id, actor_account_id, device_id, request_digest, cursor)
+         VALUES ($1, $2, $3, $4, 'backup-test-device', $5, $6)`,
+        [
+          workspaceId,
+          changesetId,
+          randomUUID(),
+          accountId,
+          noteDigests[index],
+          index + 1,
+        ],
+      );
+      await pgClient.query(
+        `INSERT INTO revisions (workspace_id, id, file_id, content_digest, path, deleted, changeset_id, actor_account_id, client_time)
+         VALUES ($1, $2, $3, $4, $5, false, $6, $7, now())`,
+        [
+          workspaceId,
+          revisionIds[index],
+          fileId,
+          noteDigests[index],
+          notePath,
+          changesetId,
+          accountId,
+        ],
+      );
+    }
+    await pgClient.query(
+      `INSERT INTO revision_parents (workspace_id, child_id, parent_id, ordinal)
+       VALUES ($1, $2, $3, 0)`,
+      [workspaceId, revisionIds[1], revisionIds[0]],
+    );
+    await pgClient.query(
+      'UPDATE files SET head_revision_id = $3 WHERE workspace_id = $1 AND id = $2',
+      [workspaceId, fileId, revisionIds[1]],
+    );
+    await pgClient.query(
+      'INSERT INTO live_paths (workspace_id, file_id, path) VALUES ($1, $2, $3)',
+      [workspaceId, fileId, notePath],
+    );
     await pgClient.end();
 
     const databaseUrlFile = join(configRoot, 'database-url');
@@ -431,36 +388,6 @@ await test('coordinated backup and verified restoration cycle', async () => {
 
     // Run backup script
     const backupScript = join(process.cwd(), 'tools/ops/backup.sh');
-    const existingPause = join(sourceStorage, 'write-pause.json');
-    writeFileSync(existingPause, '{"reason":"operator maintenance"}', {
-      mode: 0o600,
-    });
-    assert.throws(() =>
-      execFileSync(
-        backupScript,
-        [
-          '--storage-root',
-          sourceStorage,
-          '--backup-root',
-          backupRoot,
-          '--database-url-file',
-          databaseUrlFile,
-          '--key-file',
-          keyFile,
-          '--installation-id-file',
-          installationIdFile,
-          '--postgres-container',
-          postgresContainer,
-        ],
-        { encoding: 'utf8' },
-      ),
-    );
-    assert.equal(
-      readFileSync(existingPause, 'utf8'),
-      '{"reason":"operator maintenance"}',
-    );
-    unlinkSync(existingPause);
-
     const backupOutput = execFileSync(
       backupScript,
       [
@@ -529,6 +456,65 @@ await test('coordinated backup and verified restoration cycle', async () => {
     // Verify that the restored storage root contains the attachment
     const restoredFile = join(targetStorage, relFolder, digest);
     assert.ok(existsSync(restoredFile));
+
+    // The note and its two saved versions survive the cycle with their text.
+    const restoredClient = new pg.Client({
+      connectionString: targetDb.migrationUrl,
+    });
+    await restoredClient.connect();
+    try {
+      const counts = await restoredClient.query<{
+        files: string;
+        revisions: string;
+        parents: string;
+      }>(
+        `SELECT (SELECT count(*) FROM files WHERE workspace_id = $1)::text AS files,
+                (SELECT count(*) FROM revisions WHERE workspace_id = $1)::text AS revisions,
+                (SELECT count(*) FROM revision_parents WHERE workspace_id = $1)::text AS parents`,
+        [workspaceId],
+      );
+      assert.deepEqual(counts.rows.at(0), {
+        files: '1',
+        revisions: '2',
+        parents: '1',
+      });
+
+      const history = await restoredClient.query<{
+        markdown: string;
+        path: string;
+        is_head: boolean;
+      }>(
+        `SELECT c.markdown, r.path, (f.head_revision_id = r.id) AS is_head
+         FROM revisions r
+         JOIN contents c
+           ON c.workspace_id = r.workspace_id AND c.digest = r.content_digest
+         JOIN files f
+           ON f.workspace_id = r.workspace_id AND f.id = r.file_id
+         WHERE r.workspace_id = $1 AND r.file_id = $2
+         ORDER BY c.markdown`,
+        [workspaceId, fileId],
+      );
+      assert.deepEqual(
+        history.rows.map((row) => row.markdown),
+        bodies,
+      );
+      assert.deepEqual(
+        history.rows.map((row) => row.path),
+        [notePath, notePath],
+      );
+      assert.deepEqual(
+        history.rows.map((row) => row.is_head),
+        [false, true],
+      );
+
+      const parent = await restoredClient.query<{ parent_id: string }>(
+        'SELECT parent_id FROM revision_parents WHERE workspace_id = $1 AND child_id = $2',
+        [workspaceId, revisionIds[1]],
+      );
+      assert.equal(parent.rows.at(0)?.parent_id, revisionIds[0]);
+    } finally {
+      await restoredClient.end();
+    }
   } finally {
     if (sourceDb) await sourceDb.destroy();
     if (targetDb) await targetDb.destroy();

@@ -15,7 +15,6 @@ import { createAuth } from '../auth/better-auth.ts';
 import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
 import { readArgument, readSecret } from './prompt.ts';
 import { readProperty } from '../values.ts';
-import { WritePauseCoordinator } from '../write-pause.ts';
 
 /** What the bootstrap command created. */
 export type BootstrapResult = {
@@ -96,16 +95,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     { input: process.stdin, output: process.stderr },
   );
   const config = loadServerConfig(await loadProtectedEnvironment(process.env));
-  const writePause = new WritePauseCoordinator(config.storageRoot);
-  const release = writePause.beginWrite();
-  if (release === null)
-    throw new Error('notesapp: writes are paused for operator maintenance.');
-  let result: BootstrapResult;
-  try {
-    result = await bootstrapOwner({ config, email, name, password });
-  } finally {
-    release();
-  }
+  const result = await bootstrapOwner({ config, email, name, password });
   // The address and the identifiers are operator data. The password is not
   // repeated anywhere.
   process.stdout.write(

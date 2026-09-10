@@ -17,7 +17,6 @@ import { createAuth } from '../auth/better-auth.ts';
 import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
 import { minimumPasswordLength } from './bootstrap.ts';
 import { readArgument, readSecret } from './prompt.ts';
-import { WritePauseCoordinator } from '../write-pause.ts';
 
 /** What the recovery command changed. */
 export type RecoveryResult = {
@@ -94,16 +93,7 @@ export async function main(argv: readonly string[]): Promise<void> {
     { input: process.stdin, output: process.stderr },
   );
   const config = loadServerConfig(await loadProtectedEnvironment(process.env));
-  const writePause = new WritePauseCoordinator(config.storageRoot);
-  const release = writePause.beginWrite();
-  if (release === null)
-    throw new Error('notesapp: writes are paused for operator maintenance.');
-  let result: RecoveryResult;
-  try {
-    result = await recoverAccount({ config, email, password });
-  } finally {
-    release();
-  }
+  const result = await recoverAccount({ config, email, password });
   process.stdout.write(
     `notesapp: set a new password for ${result.email} and revoked its sessions\n`,
   );

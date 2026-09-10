@@ -53,7 +53,11 @@ export type ServerConfig = {
   readonly storageRoot: string;
   /** Secret that signs sessions and tokens. */
   readonly authSecret: string;
-  /** Host header values that this deployment answers. */
+  /**
+   * Host header values that this deployment answers.
+   *
+   * When no list is configured, it holds the host of the origin only.
+   */
   readonly allowedHosts: readonly string[];
   /** Level of the structured log. `silent` disables logging. */
   readonly logLevel: LogLevel;
@@ -91,7 +95,6 @@ const variables = [
   'NOTESAPP_AUTH_DATABASE_URL',
   'NOTESAPP_STORAGE_ROOT',
   'NOTESAPP_AUTH_SECRET',
-  'NOTESAPP_ALLOWED_HOSTS',
   'NOTESAPP_LOG_LEVEL',
   'NOTESAPP_MAX_BODY_BYTES',
   'NOTESAPP_MAX_HEADER_BYTES',
@@ -101,12 +104,14 @@ const variables = [
 /**
  * Values that a deployment may leave unset.
  *
- * An absent value has a stated meaning: no mail transport disables recovery by
+ * An absent value has a stated meaning: no allowed-host list serves the host
+ * of the origin and nothing else, no mail transport disables recovery by
  * email, and no provider values disable OpenID Connect. An empty value is
  * treated as absent, so a placeholder in a Compose file cannot enable a
  * half configured provider.
  */
 const optionalVariables = [
+  'NOTESAPP_ALLOWED_HOSTS',
   'NOTESAPP_SMTP_URL',
   'NOTESAPP_MAIL_FROM',
   'NOTESAPP_SESSION_MAX_AGE_S',
@@ -156,6 +161,23 @@ export async function loadProtectedEnvironment(
 }
 
 const positiveInteger = { type: 'string', pattern: '^[1-9][0-9]{0,9}$' };
+
+/**
+ * The host names that this deployment serves.
+ *
+ * A deployment that names no list serves the host of its own origin and
+ * nothing else. That is the only host that its cookies and its absolute URLs
+ * can belong to, so it is the safe default for a fresh installation.
+ */
+function allowedHosts(
+  configured: string | undefined,
+  origin: string,
+): readonly string[] {
+  if (configured !== undefined) {
+    return configured.split(',').map((host) => host.trim().toLowerCase());
+  }
+  return [new URL(origin).hostname.toLowerCase()];
+}
 
 const configSchema: SchemaObject = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -245,8 +267,9 @@ export function loadServerConfig(
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
     authSecret: raw.NOTESAPP_AUTH_SECRET,
-    allowedHosts: raw.NOTESAPP_ALLOWED_HOSTS.split(',').map((host) =>
-      host.trim().toLowerCase(),
+    allowedHosts: allowedHosts(
+      raw.NOTESAPP_ALLOWED_HOSTS,
+      raw.NOTESAPP_ORIGIN,
     ),
     logLevel: isLogLevel(raw.NOTESAPP_LOG_LEVEL)
       ? raw.NOTESAPP_LOG_LEVEL

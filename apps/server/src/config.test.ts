@@ -73,6 +73,18 @@ await test('the log level defaults to info when it is absent', () => {
   );
 });
 
+await test('an absent allowed-host list serves the host of the origin only', () => {
+  assert.deepEqual(
+    loadServerConfig(
+      environment({
+        NOTESAPP_ORIGIN: 'https://Notes.Example.com:8443',
+        NOTESAPP_ALLOWED_HOSTS: undefined,
+      }),
+    ).allowedHosts,
+    ['notes.example.com'],
+  );
+});
+
 await test('a bracketed IPv6 entry is an allowed host', () => {
   assert.deepEqual(
     loadServerConfig(
