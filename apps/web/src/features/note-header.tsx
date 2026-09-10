@@ -18,6 +18,7 @@ import {
   TrashIcon,
   type MenuItem,
 } from '@notesapp/ui';
+import { noteTitleClassName } from './note-header-layout.ts';
 
 /** What the overflow menu of the note screen can do. */
 export type NoteMenuHandlers = {
@@ -106,7 +107,7 @@ export function NoteHeader({
         <input
           ref={nameInputRef ?? fallbackRef}
           id={`notes-path-${fileId}`}
-          className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none motion-safe:transition-colors hover:border-edge-subtle hover:bg-hover focus:border-focus focus:bg-app focus:ring-2 focus:ring-focus/25"
+          className={noteTitleClassName()}
           type="text"
           value={name}
           aria-label="Note name"
