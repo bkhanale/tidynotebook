@@ -13,6 +13,7 @@ export {
   type WorkspaceStoreHandle,
   type WorkspaceStoreOptions,
 } from './workspace-store.ts';
+export { markdownLimitCode } from './markdown-limits.ts';
 export {
   openAttachmentStore,
   type AttachmentStore,

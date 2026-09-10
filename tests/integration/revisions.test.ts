@@ -75,6 +75,12 @@ function problemCode(error: unknown): string {
   return typeof code === 'string' ? code : '';
 }
 
+/** The explanation of one problem answer. */
+function problemDetail(error: unknown): string {
+  const detail = readProperty(error, 'detail');
+  return typeof detail === 'string' ? detail : '';
+}
+
 /** The file identifiers that a problem names. */
 function problemFiles(error: unknown): readonly string[] {
   const value = readProperty(error, 'fileIds');
@@ -1132,6 +1138,43 @@ await test('a purged file identifier answers 410', async () => {
   });
   assert.equal(responseOf(refused.response).status, 410);
   assert.equal(problemCode(refused.error), 'purged');
+});
+
+await test('a note that nests too deeply is refused with a message', async () => {
+  // The link index reads the Markdown of every accepted head inside the same
+  // transaction, so a note the Markdown package refuses used to leave the
+  // boundary as a 500. It is a domain failure with a message for the author.
+  const fileId = randomUUID();
+  const refused = await createFile({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      fileId,
+      path: 'notes/too-deep.md',
+      text: `${'> '.repeat(200)}deep\n`,
+      ...ids(),
+    },
+  });
+  assert.equal(responseOf(refused.response).status, 422);
+  assert.equal(problemCode(refused.error), 'unrenderable_note');
+  assert.equal(
+    problemDetail(refused.error),
+    'This note nests too deeply to render.',
+  );
+  assert.deepEqual(problemFiles(refused.error), [fileId]);
+
+  // The refused save changed nothing, so the path is still free.
+  const accepted = await createFile({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      fileId: randomUUID(),
+      path: 'notes/too-deep.md',
+      text: '# shallow\n',
+      ...ids(),
+    },
+  });
+  assert.equal(accepted.error, undefined, JSON.stringify(accepted.error));
 });
 
 await test('a viewer may read but not write', async () => {

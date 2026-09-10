@@ -664,164 +664,50 @@ exactly as written, so the byte offsets that the range tests assert stay stable.
 
 ### Bounded Markdown parsing
 
-A byte cap alone does not bound the cost of reading a note. Several parser
-constructs cost time that grows faster than the document does. Measured on the
-development machine before the caps existed: 80 KB of `[` and `]` took 16
-seconds, 200 KB took 205 seconds, a line of one million `>` characters never
-finished, a 220 KB table took 83 seconds, 195 KB of list items took 12 seconds,
-1 MiB of prose written as one paragraph took 12 seconds, 250 KB of tiny setext
-headings took 2.7 seconds, and 64 KiB of dense emphasis took 2.2 seconds.
+NotesApp is one self hosted deployment with one author, and that author is the
+only person who can put text in front of the parser. `packages/markdown` states
+two limits, and they guard against an accident rather than against an attack:
 
-`packages/markdown/src/limits.ts` therefore runs a pre-scan before any parse, in
-every public entry point of the package. It is one pass over the text, and it
-caps every shape whose cost grows faster than its size:
+| Limit                               | Value | Reason code     |
+| ----------------------------------- | ----- | --------------- |
+| Document size                       | 1 MiB | `input-size`    |
+| Nesting levels written by an author | 100   | `nesting-depth` |
 
-| Limit                               | Value   | Reason code         |
-| ----------------------------------- | ------- | ------------------- |
-| Document size                       | 1 MiB   | `input-size`        |
-| Line size                           | 64 KiB  | `line-length`       |
-| Plain block (paragraph) size        | 64 KiB  | `block-size`        |
-| Run of one delimiter character      | 1000    | `delimiter-run`     |
-| Nesting levels written by an author | 100     | `nesting-depth`     |
-| Inline delimiters in one block      | 2000    | `inline-delimiters` |
-| Inline delimiters in one document   | 100,000 | `inline-delimiters` |
-| Link openings in one document       | 2000    | `link-count`        |
-| Table rows in one document          | 2000    | `table-rows`        |
-| Table cells in one document         | 10,000  | `table-cells`       |
-| Columns on one table row            | 100     | `table-columns`     |
-| List lines in one document          | 5000    | `list-items`        |
-| Blocks in one document              | 15,000  | `block-count`       |
-| Combined cost of every count above  | 2.3     | `combined-cost`     |
+The size is measured in UTF-8 bytes, so a note of two-byte characters reaches
+the cap at half as many characters.
 
-The run delimiter set is `[ ] * _ ` ~ > # - + = | $ ! ( ) <`. The inline
-delimiter set is the subset the parser pairs inside a paragraph:
-`* _ ~ $ ` [ ] ! < >`. A table row is a line that starts with `|` after at most
-three spaces. A list line is a line that starts with a bullet or an ordered
-marker after its indentation. A block is a run of neighbouring lines: one
-paragraph, one fence, one whole table, or one whole list.
+Nesting is checked twice. Before the parse, one pass reads the prefix of each
+line and counts the block quote markers, the list markers, and the four-column
+indentation levels it holds. This pass exists because nesting is the one shape
+that can stop the parser rather than slow it down: a line of one million `>`
+characters never finished parsing, and the prefix scan refuses it after one
+hundred comparisons. After the parse, the tree is measured again, because
+inline constructs such as repeated emphasis nest without a line prefix.
 
-Nesting counts the block quote markers, the list markers, and the four-column
-indentation levels at the start of one line. The parsed tree is measured again
-afterwards, because inline constructs such as repeated emphasis nest without a
-line prefix. Both counts are in levels an author wrote: the `list` wrapper
-above each list item does not count, and the leaf block with its text is
-subtracted, so 100 nested block quotes and 100 nested list items are both
-accepted and 101 of either is refused.
+Both counts are in levels an author wrote: the `list` wrapper above each list
+item does not count, and the leaf block with its text is subtracted, so 100
+nested block quotes and 100 nested list items are both accepted and 101 of
+either is refused.
 
-A plain block is a run of neighbouring lines that is not blank, not a table
-row, not a list line, and not inside a code fence. The parser reads the inline
-content of a paragraph as one unit, and that cost grows faster than the
-paragraph does.
-
-A table costs more than its rows suggest, because the parser re-reads the cells
-it has collected. A cell is one `|` on a table row, so the cell cap bounds a
-wide table as well as a long one: 8300 cells took 0.85 seconds, 20,500 took 5
-seconds, and a 500 column by 200 row table took 347 seconds. One very wide row
-is slow on its own as well, so the columns on a row are capped too: a single row
-of 3300 columns took 1.2 seconds. The cell cap admits a four column table at the
-row cap, which is 10,000 cells and renders in about a second.
-
-A bracket that never opens a link does not spend the link budget. A GFM task
-marker (`[ ]`, `[x]`, or `[X]` right after a list marker) and both brackets of a
-wiki reference `[[Title]]` are excluded, so a 5000 item task list and 3000 wiki
-references render in 0.37 and 0.13 seconds instead of being refused. A real link
-still counts, so 2001 of them are still refused.
-
-The content of a table cell and of a list item is inline content too, so every
-line outside a fence adds to the document delimiter total. A row and a list
-line carry the per-block cap on their own line rather than across the run: a
-run already has a cap on its length, and one line is the unit an author can
-see, so the rule is that no single line may be denser than a whole paragraph
-may be. Without this, 970 KB of list lines holding dense emphasis rendered in
-5.7 seconds and a 1998 row table of `*_` cells in 4.3 seconds. Both are now
-refused in a few milliseconds, while 5000 ordinary list items with light
-emphasis still render in 0.45 seconds.
-
-Each cap on its own admits a document that renders inside the budget, but their
-costs add. A document at nine tenths of the row, list, link, and delimiter caps
-at once passed every single cap and rendered in 2.1 to 4.5 seconds. The
-combined cost adds each count divided by its own cap, so one full cap is one
-point and a document at the byte cap is one point of size. The limit of 2.3
-lets a full-size document spend a little over one more point, or a small
-document fill about two caps. One megabyte of ordinary prose scores 2.01 and
-passes; the combination above scores 2.51 and is refused in under a
-millisecond.
-
-The fence is the one Markdown construct the scan recognizes, and it recognizes
-it only to exempt the two plain block caps, because the parser never reads the
-content of a fence as inline text. Every other cap keeps counting inside a
-fence: a `|` line inside a fence is still a table row, a bullet is still a list
-line, and the fence is one block. An opening fence therefore cannot turn a cap
-off for the rest of the document, and neither can an unterminated one. The scan
-also refuses to read a backtick fence whose info string holds a backtick,
-because CommonMark calls that line a paragraph; reading it as a fence was a
-bypass that let 540 KB of table rows through, and that document took 305
-seconds.
-
-There is no wall-clock timeout. A timeout would bound one render on one machine
-and would make the outcome depend on the load of that machine, so the same note
-could render for one reader and fail for another. The shape caps are the bound
-instead, and each of them is calibrated by measurement.
+There is no wall-clock timeout and no parse cost score. A timeout would bound
+one render on one machine and would make the outcome depend on the load of that
+machine, so the same note could render for one reader and fail for another. An
+earlier version of this package carried thirteen limits and a cost pre-scan; it
+was 780 source lines of defence against an attacker who does not exist in this
+product, and it was removed.
 
 Every entry point parses through `parseMarkdown`, so `renderMarkdown`,
-`extractLinks`, and `extractAttachmentRefs` are all bounded by both guards. A
+`extractLinks`, and `extractAttachmentRefs` are all bounded by both checks. A
 refused document throws `MarkdownLimitError`; it is never truncated, because a
-half note looks like data loss. The message on the error is technical; a caller
-that shows a message to an author should phrase it for that author and read the
-value from `markdownLimits`.
+half note looks like data loss.
 
-`limits.test.ts` builds every capped shape at exactly its cap, renders it, and
-prints the time. The measurements on the development machine are:
-
-| Shape at its cap                       | Size    | Render time |
-| -------------------------------------- | ------- | ----------- |
-| Table of 2000 rows                     | 39 KB   | 0.33 s      |
-| Table at the cell cap, 100 columns     | 40 KB   | 0.93 s      |
-| Four column table at the row cap       | 36 KB   | 1.02 s      |
-| List of 5000 lines                     | 94 KB   | 0.30 s      |
-| 2000 link openings                     | 92 KB   | 0.15 s      |
-| 100 nesting levels                     | 205 B   | 0.001 s     |
-| One paragraph of 64 KiB                | 66 KB   | 0.03 s      |
-| One block of 2000 inline delimiters    | 4 KB    | 0.01 s      |
-| 100,000 inline delimiters              | 200 KB  | 0.82 s      |
-| 15,000 minimal blocks                  | 75 KB   | 0.64 s      |
-| 1 MiB spread over 15,000 blocks        | 1.0 MiB | 0.81 s      |
-| 1 MiB of prose in short paragraphs     | 1.0 MiB | 1.00 s      |
-| 1 MiB fenced code block                | 1.0 MiB | 0.13 s      |
-| The worst combination the score admits | 468 KB  | 1.53 s      |
-| 5000 list items with light emphasis    | 105 KB  | 0.39 s      |
-| 5000 task list items                   | 115 KB  | 0.37 s      |
-| 3000 wiki references                   | 78 KB   | 0.13 s      |
-
-Two caps were lowered below their first value during calibration, because the
-first value measured too close to the budget to be a stable bound: the list cap
-from 10,000 to 5000 lines, where 10,000 measured between 0.84 and 1.9 seconds,
-and the block cap from 20,000 to 15,000, where 20,000 measured 1.4 seconds
-inside the test run. One megabyte of ordinary prose uses about 7900 blocks and
-about 47,000 inline delimiters, so a real note keeps room to spare under both.
-
-The worst combination the score admits is a full inline delimiter count next to
-a nearly full block count. It is the slowest document this package accepts, and
-it is the reason the combined limit cannot go much higher: at 2.5 that same
-combination reaches 1.7 seconds.
-
-These numbers come from one unloaded run. The same document has measured 0.5 and
-1.8 seconds in two runs an hour apart, because the test runner runs files in
-parallel and other work shares the machine, so the tests assert a looser bound
-of four seconds and print the measurement. The assertion is a regression guard
-for the costs above, which ran from 5 to 305 seconds; the printed numbers are
-the calibration.
-
-The shapes a reviewer found are measured too, and each is refused in a few
-milliseconds: 1 MiB of alternating `*_` on one line as `line-length`, the same
-text in blocks as `inline-delimiters`, 64 KiB of dense emphasis as
-`inline-delimiters`, 50,000 setext headings as `block-count`, and both the
-fence bypass and an unterminated fence before 30,000 table rows as
-`table-rows`, 970 KB of list lines with dense emphasis and a 1998 row table of
-`*_` cells as `inline-delimiters`, and a document near four caps at once as
-`combined-cost`, and four wide tables as `table-columns` or `table-cells`. Each
-shape one step past its cap is refused in under 100 ms; the tests assert all of
-it.
+The message on that error is technical, so it never reaches an author.
+`packages/storage-server/src/markdown-limits.ts` maps the error to a domain
+failure code, `note_too_large` or `note_too_deep`, and the HTTP boundary
+answers 422 with the problem code `unrenderable_note` and the sentence "This
+note is too large to render." or "This note nests too deeply to render." The
+boundary maps the raw error the same way, so no path can answer 500 for a note
+that the parser refuses.
 
 ### Byte order marks and reported ranges
 
@@ -847,8 +733,9 @@ resolve during the type check.
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 121 tests, including the
-  resource limit measurements above.
+- `pnpm --filter @notesapp/markdown test:unit` runs 121 tests. The resource
+  limit measurements it printed at the time are gone with the caps they
+  calibrated.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
 

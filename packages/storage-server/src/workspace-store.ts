@@ -62,6 +62,7 @@ import {
   extractLinks,
   parseWikiLink,
 } from '@notesapp/markdown';
+import { markdownLimitCode } from './markdown-limits.ts';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
@@ -305,6 +306,11 @@ function domainFailure(
   value: unknown,
   fileIds: readonly string[],
 ): Result<never> | null {
+  // A note that the Markdown package refuses is an expected outcome of a
+  // valid save, so it leaves this layer as a domain failure with a message
+  // for the author rather than as a server fault.
+  const refused = markdownLimitCode(value);
+  if (refused !== null) return fail<never>(refused, fileIds);
   const failure = postgresFailure(value);
   if (failure === null) return null;
   const constraint = failure.constraint ?? '';

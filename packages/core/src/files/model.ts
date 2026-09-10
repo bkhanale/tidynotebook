@@ -140,6 +140,10 @@ export type AcceptedChangeset = {
  *
  * `unsupported_version` means that the client asked for a sync protocol
  * version that this server does not serve. The request changes nothing.
+ *
+ * `note_too_large` and `note_too_deep` mean that the Markdown of a note is
+ * above a fixed limit of the Markdown package, so the note cannot be read as
+ * Markdown. Storage reports them when it indexes an accepted revision.
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -153,6 +157,8 @@ export type DomainErrorCode =
   | 'mutation_reused'
   | 'snapshot_required'
   | 'unsupported_version'
+  | 'note_too_large'
+  | 'note_too_deep'
   | 'not_found';
 
 /**

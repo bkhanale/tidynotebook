@@ -315,8 +315,8 @@ const renderProcessor = buildRenderProcessor();
 /**
  * Renders `source` into sanitized HTML.
  *
- * Rejects with `MarkdownLimitError` when the document exceeds a fixed limit of
- * this package; see `./limits.ts`. Math that renders becomes sanitized KaTeX;
+ * Rejects with `MarkdownLimitError` when the document is too large or nests
+ * too deeply; see `./limits.ts`. Math that renders becomes sanitized KaTeX;
  * math that fails keeps its source placeholder. Every other document renders,
  * and unknown syntax simply stays text.
  */
@@ -324,9 +324,9 @@ export async function renderMarkdown(
   source: string,
   options: RenderMarkdownOptions = {},
 ): Promise<string> {
-  // `parseMarkdown` applies the pre-scan and the depth guard, and it uses the
-  // same Markdown plugins as this processor, so the tree it returns is the
-  // tree this processor would have produced.
+  // `parseMarkdown` applies the size and depth guards, and it uses the same
+  // Markdown plugins as this processor, so the tree it returns is the tree
+  // this processor would have produced.
   const tree = parseMarkdown(source);
   const processor =
     options.attachmentHref === undefined

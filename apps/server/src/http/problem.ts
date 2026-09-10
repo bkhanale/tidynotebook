@@ -7,7 +7,10 @@
  */
 import type { ValidationIssue } from '@notesapp/api-contract';
 import type { DomainError, DomainErrorCode } from '@notesapp/core';
-import { WorkspaceUnavailableError } from '@notesapp/storage-server';
+import {
+  markdownLimitCode,
+  WorkspaceUnavailableError,
+} from '@notesapp/storage-server';
 import { readProperty } from '../values.ts';
 
 /** Media type of every error response. */
@@ -32,6 +35,7 @@ export type ProblemCode =
   | 'invalid_path'
   | 'invalid_graph'
   | 'invalid_content'
+  | 'unrenderable_note'
   | 'quota_exceeded'
   | 'rate_limited'
   | 'route_not_found'
@@ -74,6 +78,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   invalid_path: 'The path does not follow the workspace path rules.',
   invalid_graph: 'The submitted revisions are not a valid change.',
   invalid_content: 'The submitted content does not match its digest.',
+  unrenderable_note: 'The note cannot be read as Markdown.',
   quota_exceeded: 'The workspace has no room left for new content.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
@@ -237,6 +242,8 @@ const domainStatus: Readonly<
   invalid_path: { status: 422, code: 'invalid_path' },
   invalid_graph: { status: 422, code: 'invalid_graph' },
   invalid_content: { status: 422, code: 'invalid_content' },
+  note_too_large: { status: 422, code: 'unrenderable_note' },
+  note_too_deep: { status: 422, code: 'unrenderable_note' },
   quota: { status: 413, code: 'quota_exceeded' },
 };
 
@@ -259,6 +266,8 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   invalid_graph:
     'The submitted revisions are not a valid change of the stored history.',
   invalid_content: 'Submitted content does not match its declared digest.',
+  note_too_large: 'This note is too large to render.',
+  note_too_deep: 'This note nests too deeply to render.',
   quota: 'The workspace has no room left for new content.',
 };
 
@@ -331,6 +340,18 @@ export function classifyError(error: unknown): {
       ...(error.domain.fileIds.length > 0
         ? { fileIds: error.domain.fileIds }
         : {}),
+    };
+  }
+  // A Markdown limit that no use case turned into a `Result` still answers
+  // with the message for the author rather than with a server fault.
+  const refused = markdownLimitCode(error);
+  if (refused !== null) {
+    const mapped = domainStatus[refused];
+    return {
+      status: mapped.status,
+      code: mapped.code,
+      detail: domainTitles[refused],
+      issues: [],
     };
   }
   if (error instanceof PreconditionRequiredError)

@@ -15,8 +15,8 @@
  *   metadata, permissions, or rendering options.
  * - Unknown syntax stays text. Raw HTML is parsed into `html` nodes so that
  *   the source stays addressable, but the renderer never emits it.
- * - Every entry point is bounded. The pre-scan in `./limits.ts` runs before
- *   the parser sees the text, and the tree depth is checked after.
+ * - Every entry point is bounded. The size and nesting checks in `./limits.ts`
+ *   run before the parser sees the text, and the tree depth is checked after.
  *
  * Parsing does not change the source. A JavaScript string is immutable, and
  * this module keeps only offsets into it, so `source.slice(from, to)` of any
@@ -31,7 +31,7 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
-import { assertNestingDepth, assertParseCost } from './limits.ts';
+import { assertNestingDepth, assertParseLimits } from './limits.ts';
 
 /**
  * Builds the shared Markdown half of a processor.
@@ -51,12 +51,11 @@ const markdownProcessor = createMarkdownProcessor().freeze();
  *
  * The result is the upstream mdast `Root` type, so a caller can use the normal
  * unist utilities. Throws `MarkdownLimitError` when the document is larger
- * than the byte cap, holds a line or a delimiter run that makes parsing cost
- * more than the document size, or nests deeper than the limit. Every other
- * entry point of this package parses through here, so all of them are bounded.
+ * than the byte cap or nests deeper than the limit. Every other entry point of
+ * this package parses through here, so all of them are bounded.
  */
 export function parseMarkdown(source: string): Root {
-  assertParseCost(source);
+  assertParseLimits(source);
   const tree = markdownProcessor.parse(source);
   assertNestingDepth(tree);
   return tree;
