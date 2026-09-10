@@ -27,6 +27,8 @@ export type NoteMenuHandlers = {
   readonly onDelete: () => void;
   /** Opens the file chooser of the editor. */
   readonly onAttachImage: () => void;
+  /** Saves the note as one Markdown file on this device. */
+  readonly onExport: () => void;
 };
 
 /** The sticky header of one open note. */
@@ -70,9 +72,7 @@ export function NoteHeader({
     {
       id: 'export',
       label: 'Export as Markdown',
-      hint: 'Coming in this release',
-      disabled: true,
-      onSelect: () => {},
+      onSelect: handlers.onExport,
     },
     {
       id: 'attach',

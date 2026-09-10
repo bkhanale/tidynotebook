@@ -48,6 +48,7 @@ import type { RenderMarkdownOptions } from '@notesapp/markdown';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
+import { downloadNote } from './export.ts';
 import { useFiles } from './files.tsx';
 import { useRegisterNoteActions } from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
@@ -1112,6 +1113,15 @@ export function NoteEditor({
           onDelete: handleDelete,
           onAttachImage: () => {
             fileInputRef.current?.click();
+          },
+          onExport: () => {
+            void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
+              setPasteNotice(
+                failure instanceof Error
+                  ? failure.message
+                  : 'The note could not be saved as a file.',
+              );
+            });
           },
         }}
       />
