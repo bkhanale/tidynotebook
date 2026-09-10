@@ -1,4 +1,6 @@
-import { defineConfig } from 'vite';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { build, defineConfig, type Plugin } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
@@ -8,10 +10,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 // assets use `dist/web`. This separation lets every Vite build clean all old
 // hashed assets without deleting package declarations or compiled modules.
 //
-// The diagram frame is a second HTML entry. It bundles the Mermaid renderer
-// on its own, so the main application stays inside its initial JavaScript
-// budget and loads diagrams only when a note shows one. The emitted frame
-// document is precached for offline use by the PWA worker.
+// The diagram frame is built on its own and emitted as one self-contained
+// document; see `diagramFrame` below.
 //
 // The installed worker uses the inject-manifest strategy: the precache
 // manifest below is injected into `src/pwa/service-worker.ts` at build time
@@ -29,7 +29,76 @@ import { VitePWA } from 'vite-plugin-pwa';
 // workbox-core 7.4.1 declarations do not compile under
 // exactOptionalPropertyTypes, the same class of third-party declaration
 // incompatibility that already requires the flag in apps/server.
-export default defineConfig({
+
+/** The built location of the diagram frame, matching the development path. */
+const framePath = 'src/diagram/frame.html';
+
+/**
+ * Emits the diagram frame as one self-contained document.
+ *
+ * The frame runs sandboxed without `allow-same-origin`, so its origin is
+ * opaque and every request it makes is cross origin. A normal build splits
+ * Mermaid into chunks that the frame then cannot load, which is exactly the
+ * failure QA-04 recorded. This plugin therefore builds the frame entry on
+ * its own with `inlineDynamicImports`, so Rollup produces one script, and
+ * writes that script and the frame styles straight into the HTML. The frame
+ * needs no network at all afterwards.
+ *
+ * The nested build sets `configFile: false`, so it never loads this
+ * configuration again and cannot recurse.
+ */
+function diagramFrame(directory: string): Plugin {
+  return {
+    name: 'notesapp-diagram-frame',
+    apply: 'build',
+    async generateBundle(): Promise<void> {
+      const result = await build({
+        configFile: false,
+        root: directory,
+        logLevel: 'warn',
+        build: {
+          write: false,
+          target: 'es2024',
+          minify: true,
+          rollupOptions: {
+            input: resolve(directory, 'src/diagram/frame-main.ts'),
+            output: { format: 'iife', inlineDynamicImports: true },
+          },
+        },
+      });
+      const outputs = (Array.isArray(result) ? result : [result]).flatMap(
+        (one) => ('output' in one ? one.output : []),
+      );
+      const code = outputs
+        .filter((chunk) => chunk.type === 'chunk')
+        .map((chunk) => chunk.code)
+        .join('\n');
+      const styles = outputs
+        .filter(
+          (asset) => asset.type === 'asset' && asset.fileName.endsWith('.css'),
+        )
+        .map((asset) => String(asset.type === 'asset' ? asset.source : ''))
+        .join('\n');
+      if (code === '') throw new Error('The diagram frame produced no script.');
+      // A literal closing tag inside the code would end the inline script.
+      const inlineCode = code.replaceAll('</script', '<\\/script');
+      const template = await readFile(
+        resolve(directory, 'src/diagram/frame.html'),
+        'utf8',
+      );
+      // The replacement is a function on purpose: minified code holds `$&`
+      // and `$\`` sequences that a string replacement would expand.
+      const source = template.replace(
+        '<script type="module" src="./frame-main.ts"></script>',
+        () =>
+          `${styles === '' ? '' : `<style>${styles}</style>`}<script>${inlineCode}</script>`,
+      );
+      this.emitFile({ type: 'asset', fileName: framePath, source });
+    },
+  };
+}
+
+export default defineConfig(({ command }) => ({
   build: {
     outDir: 'dist/web',
     emptyOutDir: true,
@@ -39,10 +108,7 @@ export default defineConfig({
     sourcemap: 'hidden',
     target: 'es2024',
     rollupOptions: {
-      input: {
-        main: 'index.html',
-        diagram: 'src/diagram/frame.html',
-      },
+      input: { main: 'index.html' },
     },
   },
   server: {
@@ -50,6 +116,7 @@ export default defineConfig({
   },
   plugins: [
     tailwindcss(),
+    ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src/pwa',
@@ -61,8 +128,11 @@ export default defineConfig({
         globPatterns: [
           '**/*.{js,css,html,svg,woff,woff2,ttf,png,ico,webmanifest}',
         ],
+        // The worker precaches the shell only (decision D13). The diagram
+        // frame carries its whole renderer, so it loads on demand instead.
+        globIgnores: ['**/src/diagram/**'],
         maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
       },
     }),
   ],
-});
+}));

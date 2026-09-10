@@ -94,6 +94,10 @@ const httpLibraries = new Set([
 // They remain subject to imports, dependency direction, and package cycle checks.
 const protocolFiles = new Set(['apps/server/src/auth/better-auth.ts']);
 const assetFiles = new Set(['apps/web/src/pwa/service-worker.ts']);
+// Build configuration runs in Node during the build and is never shipped to
+// a browser, so it may read the file system and compose paths. Every other
+// rule, including the dependency direction, still applies to it.
+const buildFiles = new Set(['apps/web/vite.config.ts']);
 // The handwritten client configuration named in the plan. It may pass a fetch
 // implementation and a base URL to the generated client. It must not call fetch
 // itself, so the call rule below stays active for it.
@@ -215,6 +219,9 @@ for (const item of packages) {
 function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
   const item = owner(file);
   if (!item) return;
+  const isBuild = buildFiles.has(
+    relative(directory, file).split(sep).join('/'),
+  );
   const name = String(item.manifest.name);
   const key = short(name);
   const dependency = packageName(specifier);
@@ -242,7 +249,7 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
       fail(file, `Forbidden import ${dependency}.`);
   }
   const blocker = browserBlocker(specifier);
-  if (blocker && !(isTest && testModules.has(specifier))) {
+  if (blocker && !isBuild && !(isTest && testModules.has(specifier))) {
     if (browser.has(key))
       fail(file, `Browser source cannot import ${specifier}.`);
     if (!isTest && !nodeUse.has(name)) nodeUse.set(name, blocker);
