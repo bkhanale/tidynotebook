@@ -687,7 +687,10 @@ function createTransaction(
             eq(memberships.accountId, accountId),
           ),
         );
-      return rows[0]?.role ?? null;
+      // The database enum still holds the roles of the removed multi-user
+      // product. Only `owner` is a role of this product, so any other stored
+      // value grants nothing at all.
+      return rows[0]?.role === 'owner' ? 'owner' : null;
     },
 
     async receipt<T = AcceptedChangeset>(

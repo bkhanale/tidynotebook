@@ -36,11 +36,7 @@ const strangerId = 'a0000000-0000-4000-8000-000000000003';
 
 function buildActor(accountId: string, role: Role | null): Actor {
   const actions: ('read' | 'write')[] =
-    role === 'owner' || role === 'editor'
-      ? ['read', 'write']
-      : role === 'viewer'
-        ? ['read']
-        : [];
+    role === 'owner' ? ['read', 'write'] : [];
   const built = verifyActor(accountId, [{ workspaceId, actions }]);
   if (!built.ok) throw new Error('Actor creation failed');
   return built.value;
@@ -56,7 +52,7 @@ class FakeWorkspace {
 
   constructor() {
     this.roles.set(ownerId, 'owner');
-    this.roles.set(writerId, 'editor');
+    this.roles.set(writerId, 'owner');
   }
 }
 
@@ -367,7 +363,7 @@ await test('restoreRevision: creates child revision referencing historic revisio
   });
 
   const store = fakeStore(state);
-  const user = buildActor(writerId, 'editor');
+  const user = buildActor(writerId, 'owner');
 
   const res = await restoreRevision(
     store,
@@ -396,18 +392,18 @@ await test('restoreRevision: creates child revision referencing historic revisio
   assert.equal(state.files.get('f1')?.headRevisionId, 'r3');
 });
 
-await test('purge: rejects non-owner for preview and execute', async () => {
+await test('purge: rejects an account that is not a member', async () => {
   const state = new FakeWorkspace();
   const store = fakeStore(state);
-  const editor = buildActor(writerId, 'editor');
+  const stranger = buildActor(strangerId, null);
 
-  const previewRes = await previewPurge(store, editor, workspaceId, ['f1']);
+  const previewRes = await previewPurge(store, stranger, workspaceId, ['f1']);
   assert.equal(previewRes.ok, false);
   if (!previewRes.ok) assert.equal(previewRes.error.code, 'forbidden');
 
   const purgeRes = await purgeFiles(
     store,
-    editor,
+    stranger,
     workspaceId,
     ['f1'],
     'm-p',

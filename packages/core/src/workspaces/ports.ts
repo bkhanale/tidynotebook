@@ -1,5 +1,5 @@
 /**
- * Storage ports for accounts, workspaces, and membership.
+ * Storage ports for accounts and workspaces.
  *
  * The core owns these interfaces; the server storage package implements them.
  * They stay free of a database driver and an HTTP framework, so the rules in
@@ -7,9 +7,8 @@
  *
  * There are two entry points, because the two kinds of change need different
  * locks. An account scoped change touches one account and creates a workspace
- * that no other transaction can see yet. A workspace scoped change touches
- * membership, so it takes the same workspace lock as a content write. A role
- * change and a content write of one workspace therefore have a defined order.
+ * that no other transaction can see yet. A workspace scoped change takes the
+ * same workspace lock as a content write, so the two have a defined order.
  */
 import type { Actor, Role } from '../identity/actor.ts';
 
@@ -29,38 +28,6 @@ export type WorkspaceSummary = {
   readonly role: Role;
   /** True for the workspace that was created with the account. */
   readonly personal: boolean;
-};
-
-/** One member of one workspace. */
-export type Member = {
-  readonly accountId: string;
-  readonly role: Role;
-  /** Sign-in address of the member, or `null` when no identity is linked. */
-  readonly email: string | null;
-  /** Display name of the member, or `null` when no identity is linked. */
-  readonly name: string | null;
-};
-
-/** The state of one invitation. */
-export type InvitationState = 'pending' | 'accepted' | 'revoked';
-
-/** One invitation to one workspace. The token itself is never stored. */
-export type InvitationSummary = {
-  readonly id: string;
-  readonly workspaceId: string;
-  readonly email: string;
-  readonly role: Role;
-  readonly expiresAt: string;
-  readonly state: InvitationState;
-};
-
-/** What one new invitation needs. Only the hash of its token is stored. */
-export type InvitationInput = {
-  readonly id: string;
-  readonly email: string;
-  readonly role: Role;
-  readonly tokenHash: string;
-  readonly expiresAt: string;
 };
 
 /**
@@ -105,64 +72,23 @@ export type AccountTransaction = {
     workspaceId: string,
     input: { readonly accountId: string; readonly removed: boolean },
   ): Promise<void>;
-  /**
-   * The workspace and the invited address of one open invitation, or `null`.
-   *
-   * The invitation is not consumed. Acceptance uses the workspace to take its
-   * lock, and the sign-up path uses the address to create a local account for
-   * a person who has none.
-   */
-  openInvitation(tokenHash: string): Promise<{
-    workspaceId: string;
-    email: string;
-  } | null>;
-  /**
-   * Consumes one invitation for the account.
-   *
-   * The call is atomic: the first caller receives the workspace and the role,
-   * and every later caller receives `null`. An expired, revoked, already
-   * accepted, or foreign address invitation also returns `null`, so a replay
-   * cannot grant membership twice.
-   */
-  claimInvitation(input: {
-    readonly tokenHash: string;
-    readonly email: string;
-  }): Promise<{ workspaceId: string; role: Role } | null>;
 };
 
 /**
  * Reads and writes of one workspace, under the workspace lock.
  *
- * The lock is the same one that a content write takes, so a role change and a
- * content write of one workspace cannot interleave.
+ * The lock is the same one that a content write takes, so a workspace change
+ * and a content write of one workspace cannot interleave.
  */
 export type WorkspaceAdminTransaction = {
   /** The name of the workspace and whether it is a personal one. */
   describe(): Promise<{ name: string; personal: boolean } | null>;
   /** The current role of one account, or `null` for a stranger. */
   role(accountId: string): Promise<Role | null>;
-  /** Every member of the workspace. */
-  members(): Promise<readonly Member[]>;
-  /** Every invitation of the workspace. */
-  invitations(): Promise<readonly InvitationSummary[]>;
   /** Renames the workspace. */
   rename(name: string): Promise<void>;
   /** Deletes the workspace and every record that belongs to it. */
   destroy(): Promise<void>;
-  /** Changes the role of one existing member. */
-  setRole(accountId: string, role: Role): Promise<void>;
-  /** Removes one member. False when the account is not a member. */
-  removeMember(accountId: string): Promise<boolean>;
-  /**
-   * Moves ownership to another member.
-   *
-   * The old owner becomes an administrator, or leaves the workspace when
-   * `leave` is true. The call is one statement, so the workspace always has an
-   * owner.
-   */
-  transferOwnership(accountId: string, leave: boolean): Promise<void>;
-  /** Stores one new invitation. */
-  createInvitation(input: InvitationInput): Promise<void>;
   /** Appends one content free audit record. */
   audit(input: {
     readonly action: string;

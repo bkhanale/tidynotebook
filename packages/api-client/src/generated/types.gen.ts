@@ -809,9 +809,9 @@ export type RevisionInput = {
 };
 
 /**
- * Workspace access role retained for stored-data compatibility. A single-user installation assigns its account the owner role.
+ * Workspace access role. This product serves one person, so the only role is owner. The field stays, because stored rows and the permission matrix name it.
  */
-export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
+export type Role = 'owner';
 
 /**
  * One accepted live note that matched a search.

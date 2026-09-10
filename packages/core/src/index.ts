@@ -107,10 +107,6 @@ export {
 } from './files/read.ts';
 export type {
   AccountTransaction,
-  InvitationInput,
-  InvitationState,
-  InvitationSummary,
-  Member,
   Preferences,
   ThemeChoice,
   WorkspaceAdminStore,
@@ -118,19 +114,12 @@ export type {
   WorkspaceSummary,
 } from './workspaces/ports.ts';
 export {
-  acceptInvitation,
   createWorkspace,
   deleteWorkspace,
-  invitationLifetimeMs,
-  inviteMember,
-  listMembers,
   listWorkspaces,
   readPreferences,
-  removeMember,
   sessionGrants,
   themeChoices,
-  transferOwnership,
-  updateMember,
   updatePreferences,
   updateWorkspace,
 } from './workspaces/service.ts';

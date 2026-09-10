@@ -2,9 +2,9 @@
  * PostgreSQL implementation of the account and workspace administration ports.
  *
  * A membership change takes the same advisory workspace lock as a content
- * write, so a role change and a write of one workspace have a defined order.
- * The lock key is the workspace identifier, exactly as in `workspace-store.ts`,
- * so the two pools contend on the same lock.
+ * write, so the two have a defined order. The lock key is the workspace
+ * identifier, exactly as in `workspace-store.ts`, so the two pools contend on
+ * the same lock.
  *
  * The runtime role holds no right to insert a workspace, an account, or
  * another account's membership row. Those writes go through the reviewed
@@ -16,9 +16,6 @@ import { randomUUID } from 'node:crypto';
 import type {
   AccountTransaction,
   Actor,
-  InvitationState,
-  InvitationSummary,
-  Member,
   Preferences,
   Role,
   ThemeChoice,
@@ -34,7 +31,7 @@ import { WorkspaceUnavailableError } from './workspace-store.ts';
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-const roles: readonly Role[] = ['owner', 'admin', 'editor', 'viewer'];
+const roles: readonly Role[] = ['owner'];
 const themes: readonly ThemeChoice[] = ['system', 'light', 'dark'];
 
 function isRole(value: string): value is Role {
@@ -71,15 +68,6 @@ function asTheme(value: string): ThemeChoice {
   return isTheme(value) ? value : 'system';
 }
 
-/** The state of one stored invitation row. */
-function invitationState(row: {
-  accepted_at: Date | null;
-  revoked_at: Date | null;
-}): InvitationState {
-  if (row.revoked_at !== null) return 'revoked';
-  return row.accepted_at === null ? 'pending' : 'accepted';
-}
-
 /** An identity store and the calls that a process needs to manage its pool. */
 export type IdentityStoreHandle = WorkspaceAdminStore & {
   /**
@@ -109,21 +97,12 @@ export type IdentityStoreHandle = WorkspaceAdminStore & {
   /** Whether any application account exists. The bootstrap command uses it. */
   hasAccount(): Promise<boolean>;
   /**
-   * The workspace and the invited address of one open invitation, or `null`.
-   *
-   * The invitation is not consumed. The sign-up path needs the address before
-   * any account exists, so this call is not bound to an actor.
-   */
-  openInvitation(
-    tokenHash: string,
-  ): Promise<{ workspaceId: string; email: string } | null>;
-  /**
    * Appends one content free record to the audit trail of an account. The
    * operator recovery command uses it.
    */
   recordAccountAudit(accountId: string, action: string): Promise<void>;
   /**
-   * Removes an account that an invitation attempt created and never used.
+   * Removes an account that a sign-up attempt created and never used.
    *
    * The call is bound to that account: the database function refuses every
    * account that is not the identity of the transaction, so one account can
@@ -365,44 +344,6 @@ export function openIdentityStore(
         assertUuid(workspaceId, 'the workspace');
         await writeMembershipChange(client, workspaceId, input);
       },
-
-      async openInvitation(tokenHash: string) {
-        const rows = await client.query<{
-          invited_workspace_id: string;
-          invited_email: string;
-        }>('select * from notesapp_open_invitation($1)', [tokenHash]);
-        const row = rows.rows[0];
-        if (row === undefined) return null;
-        return {
-          workspaceId: row.invited_workspace_id,
-          email: row.invited_email,
-        };
-      },
-
-      async claimInvitation(input) {
-        // The workspace of the invitation is read first, so acceptance takes
-        // the same lock as every other membership write of that workspace.
-        const open = await client.query<{ invited_workspace_id: string }>(
-          'select invited_workspace_id from notesapp_open_invitation($1)',
-          [input.tokenHash],
-        );
-        const workspaceId = open.rows[0]?.invited_workspace_id;
-        if (workspaceId === undefined) return null;
-        await lockWorkspace(client, workspaceId);
-        const rows = await client.query<{
-          granted_workspace_id: string;
-          granted_role: string;
-        }>('select * from notesapp_claim_invitation($1, $2)', [
-          input.tokenHash,
-          input.email,
-        ]);
-        const row = rows.rows[0];
-        if (row === undefined) return null;
-        return {
-          workspaceId: row.granted_workspace_id,
-          role: asRole(row.granted_role),
-        };
-      },
     };
   }
 
@@ -434,48 +375,6 @@ export function openIdentityStore(
         return value === undefined ? null : asRole(value);
       },
 
-      async members(): Promise<readonly Member[]> {
-        // The runtime role holds no right on the identity tables, so the
-        // directory function reads the address and the display name and
-        // returns nothing else. It requires a membership of its own.
-        const rows = await client.query<{
-          member_account_id: string;
-          member_role: string;
-          member_email: string | null;
-          member_name: string | null;
-        }>('select * from notesapp_workspace_members($1)', [workspaceId]);
-        return rows.rows.map((row) => ({
-          accountId: row.member_account_id,
-          role: asRole(row.member_role),
-          email: row.member_email,
-          name: row.member_name,
-        }));
-      },
-
-      async invitations(): Promise<readonly InvitationSummary[]> {
-        const rows = await client.query<{
-          id: string;
-          email: string;
-          role: string;
-          expires_at: Date;
-          accepted_at: Date | null;
-          revoked_at: Date | null;
-        }>(
-          `select id, email, role::text as role, expires_at, accepted_at, revoked_at
-             from invitations where workspace_id = $1
-            order by created_at desc, id asc`,
-          [workspaceId],
-        );
-        return rows.rows.map((row) => ({
-          id: row.id,
-          workspaceId,
-          email: row.email,
-          role: asRole(row.role),
-          expiresAt: row.expires_at.toISOString(),
-          state: invitationState(row),
-        }));
-      },
-
       async rename(name: string): Promise<void> {
         await client.query('update workspaces set name = $2 where id = $1', [
           workspaceId,
@@ -487,51 +386,6 @@ export function openIdentityStore(
         await client.query('select notesapp_delete_workspace($1)', [
           workspaceId,
         ]);
-      },
-
-      async setRole(account: string, role: Role): Promise<void> {
-        assertUuid(account, 'the account');
-        await client.query(
-          `update memberships set role = $3
-            where workspace_id = $1 and account_id = $2`,
-          [workspaceId, account, role],
-        );
-      },
-
-      async removeMember(account: string): Promise<boolean> {
-        assertUuid(account, 'the account');
-        const result = await client.query(
-          'delete from memberships where workspace_id = $1 and account_id = $2',
-          [workspaceId, account],
-        );
-        return (result.rowCount ?? 0) > 0;
-      },
-
-      async transferOwnership(account: string, leave: boolean): Promise<void> {
-        assertUuid(account, 'the account');
-        await client.query('select notesapp_transfer_ownership($1, $2, $3)', [
-          workspaceId,
-          account,
-          leave,
-        ]);
-      },
-
-      async createInvitation(input): Promise<void> {
-        assertUuid(input.id, 'the invitation');
-        await client.query(
-          `insert into invitations
-             (workspace_id, id, email, role, token_hash, invited_by, expires_at)
-           values ($1, $2, $3, $4, $5, $6, $7::timestamptz)`,
-          [
-            workspaceId,
-            input.id,
-            input.email,
-            input.role,
-            input.tokenHash,
-            accountId,
-            input.expiresAt,
-          ],
-        );
       },
 
       async audit(input): Promise<void> {
@@ -662,21 +516,6 @@ export function openIdentityStore(
           workspaceId: row.workspace_id,
           role: asRole(row.role),
         }));
-      });
-    },
-
-    async openInvitation(tokenHash: string) {
-      return inTransaction(null, null, async (client) => {
-        const rows = await client.query<{
-          invited_workspace_id: string;
-          invited_email: string;
-        }>('select * from notesapp_open_invitation($1)', [tokenHash]);
-        const row = rows.rows[0];
-        if (row === undefined) return null;
-        return {
-          workspaceId: row.invited_workspace_id,
-          email: row.invited_email,
-        };
       });
     },
 

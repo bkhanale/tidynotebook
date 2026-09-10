@@ -333,7 +333,7 @@ function rejected(result: Result<AcceptedChangeset>): {
 }
 
 await test('an editor creates a file and the head advances', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const first = await revision({ fileId: id('f'), path: 'notes/one.md' });
@@ -346,7 +346,7 @@ await test('an editor creates a file and the head advances', async () => {
 });
 
 await test('a replay with the same digest returns the stored outcome after the head moved', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -381,7 +381,7 @@ await test('a replay with the same digest returns the stored outcome after the h
 });
 
 await test('the same mutation identity with another body is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -400,7 +400,7 @@ await test('the same mutation identity with another body is refused', async () =
 });
 
 await test('a stale save is rebased onto the current head', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -447,7 +447,7 @@ await test('a stale save is rebased onto the current head', async () => {
 });
 
 await test('a save on the current head reports no superseded head', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -459,7 +459,7 @@ await test('a save on the current head reports no superseded head', async () => 
 });
 
 await test('a stale update over a deleted head is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -503,7 +503,7 @@ await test('a stale update over a deleted head is refused', async () => {
 });
 
 await test('a stale rename over a deleted head is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -542,7 +542,7 @@ await test('a stale rename over a deleted head is refused', async () => {
 });
 
 await test('a stale delete after newer edits is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -588,7 +588,7 @@ await test('a stale delete after newer edits is refused', async () => {
 });
 
 await test('a delete on the current head is accepted', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -614,7 +614,7 @@ await test('a delete on the current head is accepted', async () => {
 });
 
 await test('a stale save after a rename elsewhere keeps the new name', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -656,7 +656,7 @@ await test('a stale save after a rename elsewhere keeps the new name', async () 
 });
 
 await test('a stale save that renames the file wins its own rename', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -696,7 +696,7 @@ await test('a stale save that renames the file wins its own rename', async () =>
 });
 
 await test('a duplicate create is not rebased into an update', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -719,7 +719,7 @@ await test('a duplicate create is not rebased into an update', async () => {
 });
 
 await test('a changeset without a precondition for a changed file is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const first = await revision({ fileId: id('f'), path: 'notes/one.md' });
@@ -736,7 +736,7 @@ await test('a changeset without a precondition for a changed file is refused', a
 });
 
 await test('a precondition for a file that the changeset does not change is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const first = await revision({ fileId: id('f'), path: 'notes/one.md' });
@@ -756,7 +756,7 @@ await test('a precondition for a file that the changeset does not change is refu
 });
 
 await test('a purged file identifier can never be written again', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -790,35 +790,24 @@ await test('an account without a membership is refused', async () => {
   assert.deepEqual(failure.fileIds, []);
 });
 
-await test('a viewer cannot write, and a write grant cannot widen the role', async () => {
-  const viewer = workspaceWith('viewer');
-  const denied = rejected(
-    await commitChangeset(
-      fakeStore(viewer),
-      actorWith(['read', 'write']),
-      changeset([await revision({ fileId: id('f'), path: 'notes/one.md' })]),
-      'd-1',
-    ),
-  );
-  assert.equal(denied.code, 'forbidden');
-  assert.equal(viewer.accepted.length, 0);
-
-  // The other direction: the role permits the write, but the token does not.
-  const editor = workspaceWith('editor');
+await test('a narrow grant cannot widen the role', async () => {
+  // The role permits the write, but the verified grant of the request does
+  // not, so the intersection of the two refuses it.
+  const owner = workspaceWith('owner');
   const narrow = rejected(
     await commitChangeset(
-      fakeStore(editor),
+      fakeStore(owner),
       actorWith(['read']),
       changeset([await revision({ fileId: id('f'), path: 'notes/one.md' })]),
       'd-1',
     ),
   );
   assert.equal(narrow.code, 'forbidden');
-  assert.equal(editor.accepted.length, 0);
+  assert.equal(owner.accepted.length, 0);
 });
 
 await test('content that does not match its digest is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -840,7 +829,7 @@ await test('content that does not match its digest is refused', async () => {
 });
 
 await test('markdown that is not well formed is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   // A lone surrogate becomes U+FFFD in UTF-8, so the stored bytes would differ
@@ -871,7 +860,7 @@ await test('markdown that is not well formed is refused', async () => {
 });
 
 await test('a tombstone that carries markdown is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -904,7 +893,7 @@ await test('a tombstone that carries markdown is refused', async () => {
 });
 
 await test('a path outside the rules is refused before any write', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   for (const path of ['../escape.md', 'notes/one.txt', '/notes/one.md']) {
@@ -922,7 +911,7 @@ await test('a path outside the rules is refused before any write', async () => {
 });
 
 await test('an accepted path is stored in its normalized form', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -938,7 +927,7 @@ await test('an accepted path is stored in its normalized form', async () => {
 });
 
 await test('a rename and a content change travel in one revision', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -964,7 +953,7 @@ await test('a rename and a content change travel in one revision', async () => {
 });
 
 await test('two files swap their paths in one changeset', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const left = id('f');
@@ -994,7 +983,7 @@ await test('two files swap their paths in one changeset', async () => {
 });
 
 await test('a tombstone deletes the file and removes its side records', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
@@ -1024,7 +1013,7 @@ await test('a tombstone deletes the file and removes its side records', async ()
 });
 
 await test('side records are removed only when the write succeeded', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   state.refuse = fail<AcceptedChangeset>('path_conflict', ['x']);
@@ -1048,7 +1037,7 @@ await test('side records are removed only when the write succeeded', async () =>
 });
 
 await test('a changeset over the file limit is refused before any query', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const revisions: RevisionInput[] = [];
@@ -1070,7 +1059,7 @@ await test('a changeset over the file limit is refused before any query', async 
 });
 
 await test('an empty changeset is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const failure = rejected(
     await commitChangeset(
       fakeStore(state),
@@ -1083,7 +1072,7 @@ await test('an empty changeset is refused', async () => {
 });
 
 await test('a second root for an existing file is refused', async () => {
-  const state = workspaceWith('editor');
+  const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');

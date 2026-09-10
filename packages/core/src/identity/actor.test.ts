@@ -3,7 +3,8 @@
  *
  * The tests cover every role and action pair, a grant that is missing while
  * the role permits the action, a grant that names another workspace, and the
- * run time checks of `verifyActor`.
+ * run time checks of `verifyActor`. One role is left, so the matrix is small,
+ * but the intersection of the role and the verified grant is still the rule.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -18,20 +19,10 @@ import {
 
 const workspace = 'workspace-1';
 const other = 'workspace-2';
-const roles: readonly Role[] = ['viewer', 'editor', 'admin', 'owner'];
-const actions: readonly Action[] = [
-  'read',
-  'write',
-  'history',
-  'share',
-  'members',
-  'purge',
-];
+const roles: readonly Role[] = ['owner'];
+const actions: readonly Action[] = ['read', 'write', 'history', 'purge'];
 const permitted: Readonly<Record<Role, readonly Action[]>> = {
-  viewer: ['read', 'history'],
-  editor: ['read', 'history', 'write'],
-  admin: ['read', 'history', 'write', 'share', 'members'],
-  owner: ['read', 'history', 'write', 'share', 'members', 'purge'],
+  owner: ['read', 'history', 'write', 'purge'],
 };
 
 /**
@@ -90,15 +81,17 @@ await test('an actor without any grant is denied', () => {
 
 await test('a grant for another workspace does not apply', () => {
   const actor = fullActor(other);
-  assert.equal(authorize(actor, other, 'editor', 'write').ok, true);
-  assert.equal(authorize(actor, workspace, 'editor', 'write').ok, false);
+  assert.equal(authorize(actor, other, 'owner', 'write').ok, true);
+  assert.equal(authorize(actor, workspace, 'owner', 'write').ok, false);
 });
 
 await test('a grant cannot widen what the role permits', () => {
+  // A stored role outside the union grants nothing, whatever the request
+  // scope proved.
   const actor = fullActor();
-  assert.equal(authorize(actor, workspace, 'viewer', 'purge').ok, false);
-  assert.equal(authorize(actor, workspace, 'editor', 'members').ok, false);
-  assert.equal(authorize(actor, workspace, 'admin', 'purge').ok, false);
+  const role = stored<Role>('viewer');
+  assert.equal(authorize(actor, workspace, role, 'purge').ok, false);
+  assert.equal(authorize(actor, workspace, role, 'read').ok, false);
 });
 
 await test('a role outside the union denies every action', () => {

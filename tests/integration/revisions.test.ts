@@ -1158,42 +1158,6 @@ await test('a note that nests too deeply is refused with a message', async () =>
   assert.equal(accepted.error, undefined, JSON.stringify(accepted.error));
 });
 
-await test('a viewer may read but not write', async () => {
-  const readOnlyWorkspace = randomUUID();
-  await seedWorkspace(database, readOnlyWorkspace, [
-    { accountId: ownerAccountId, role: 'viewer' },
-  ]);
-  const listedFiles = await listFiles({
-    headers: browser(cookie),
-    path: { workspaceId: readOnlyWorkspace },
-  });
-  assert.equal(listedFiles.error, undefined);
-  assert.deepEqual(listedFiles.data?.files, []);
-
-  const refused = await createFile({
-    headers: browser(cookie),
-    path: { workspaceId: readOnlyWorkspace },
-    body: {
-      fileId: randomUUID(),
-      path: 'notes/denied.md',
-      text: '# x\n',
-      ...ids(),
-    },
-  });
-  assert.equal(responseOf(refused.response).status, 403);
-  assert.equal(problemCode(refused.error), 'forbidden');
-
-  // A denied write with a precondition is still a denied write, not a failed
-  // precondition, so the answer does not claim that a head moved.
-  const denied = await updateFile({
-    headers: { ...browser(cookie), 'if-match': `"${randomUUID()}"` },
-    path: { workspaceId: readOnlyWorkspace, fileId: randomUUID() },
-    body: { text: '# x\n', ...ids() },
-  });
-  assert.equal(responseOf(denied.response).status, 403);
-  assert.equal(problemCode(denied.error), 'forbidden');
-});
-
 await test('a full workspace still accepts a deletion', async () => {
   // The control reserve is 1 MiB, so a quota just above it leaves room for one
   // small note and for the operations that manage a full workspace.

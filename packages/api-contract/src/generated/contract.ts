@@ -447,12 +447,9 @@ export const sharedDefinitions: JsonSchema = {
     },
     "Role": {
       "type": "string",
-      "description": "Workspace access role retained for stored-data compatibility. A single-user installation assigns its account the owner role.",
+      "description": "Workspace access role. This product serves one person, so the only role is owner. The field stays, because stored rows and the permission matrix name it.",
       "enum": [
-        "owner",
-        "admin",
-        "editor",
-        "viewer"
+        "owner"
       ]
     },
     "Shared1": {

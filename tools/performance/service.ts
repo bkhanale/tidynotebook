@@ -96,7 +96,7 @@ function actor(accountId: string, workspaceId: string): Actor {
   const result = verifyActor(accountId, [
     {
       workspaceId,
-      actions: ['read', 'write', 'history', 'share', 'members', 'purge'],
+      actions: ['read', 'write', 'history', 'purge'],
     },
   ]);
   if ('ok' in result) {
@@ -185,7 +185,7 @@ try {
     workspaceId,
     name: 'Performance corpus',
     quotaBytes: 2n * 1024n * 1024n * 1024n,
-    members: accountIds.map((accountId) => ({ accountId, role: 'editor' })),
+    members: accountIds.map((accountId) => ({ accountId, role: 'owner' })),
   });
   const actors = accountIds.map((accountId) => actor(accountId, workspaceId));
   const heads = new Map<
@@ -239,7 +239,7 @@ try {
       workspaceId: saveWorkspaceId,
       name: `Performance save workspace ${String(index)}`,
       quotaBytes: 64n * 1024n * 1024n,
-      members: [{ accountId, role: 'editor' }],
+      members: [{ accountId, role: 'owner' }],
     });
     const saveActor = actor(accountId, saveWorkspaceId);
     saveActors.push(saveActor);

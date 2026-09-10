@@ -7,12 +7,17 @@
  */
 import { fail, ok, type Result } from '../files/model.ts';
 
-/** A workspace membership role, from the most to the least permission. */
-export type Role = 'owner' | 'admin' | 'editor' | 'viewer';
+/**
+ * The role of an account in one workspace.
+ *
+ * A single-user installation knows one role. The type stays, because the
+ * contract, the stored rows and the permission matrix all name it, and a
+ * later release can add a second value without a change of shape.
+ */
+export type Role = 'owner';
 
 /** A permitted kind of operation inside one workspace. */
-export type Action =
-  'read' | 'write' | 'history' | 'share' | 'members' | 'purge';
+export type Action = 'read' | 'write' | 'history' | 'purge';
 
 /** The verified actions of one account in one workspace. */
 export type Grant = {
@@ -51,16 +56,12 @@ export type Actor = {
 /**
  * The actions that each role permits.
  *
- * A viewer reads content and history. An editor also writes. An admin also
- * manages shares and membership. Only the owner can purge. Ownership transfer
- * and the last owner rule are workspace use cases; they require the `members`
- * action and the `owner` role, and they add their own checks.
+ * The owner reads, writes, reads history, and purges. Every action of the
+ * matrix has a reachable operation, so an action that no route can perform is
+ * not granted.
  */
 const roleActions: Readonly<Record<Role, readonly Action[]>> = {
-  viewer: ['read', 'history'],
-  editor: ['read', 'history', 'write'],
-  admin: ['read', 'history', 'write', 'share', 'members'],
-  owner: ['read', 'history', 'write', 'share', 'members', 'purge'],
+  owner: ['read', 'history', 'write', 'purge'],
 };
 /**
  * The same matrix, read by a plain string key.
