@@ -6,6 +6,7 @@ import {
   syncStateFileId,
   syncStateMessage,
   syncStateOfNotice,
+  syncStateOfQueue,
   type SyncState,
 } from './sync-state.ts';
 
@@ -91,4 +92,23 @@ await test('only the states that need an answer ask for one', () => {
   assert.equal(syncNeedsAttention({ kind: 'attention', fileId: 'f' }), true);
   assert.equal(syncNeedsAttention({ kind: 'signed-out' }), true);
   assert.equal(syncNeedsAttention({ kind: 'stopped' }), true);
+});
+
+await test('an empty queue reports that everything reached the server', () => {
+  const next = syncStateOfQueue({ kind: 'sending' }, 0);
+  assert.deepEqual(next, { kind: 'in-step' });
+  assert.equal(syncStateMessage(next), 'Everything is saved to the server.');
+});
+
+await test('a queued save reports that a send is in progress', () => {
+  assert.deepEqual(syncStateOfQueue({ kind: 'starting' }, 2), {
+    kind: 'sending',
+  });
+});
+
+await test('a queue count never overwrites a state the person must read', () => {
+  const parked: SyncState = { kind: 'attention', fileId: 'file' };
+  assert.deepEqual(syncStateOfQueue(parked, 0), parked);
+  const offline: SyncState = { kind: 'waiting' };
+  assert.deepEqual(syncStateOfQueue(offline, 0), offline);
 });

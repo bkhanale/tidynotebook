@@ -44,6 +44,7 @@ import {
   startingSyncState,
   syncStateFileId,
   syncStateOfNotice,
+  syncStateOfQueue,
   type SyncState,
 } from './features/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
@@ -536,16 +537,41 @@ export function useWorkspaceSync(
       engine.requestSync();
     };
     wake.current = requestSync;
+    /**
+     * Reports what the queue of this device holds right now.
+     *
+     * The engine announces only what it did, so a device with nothing to
+     * send never reports anything. The count of queued saves fills that
+     * gap and keeps a quiet state honest: a queued save means a send is in
+     * progress, an empty queue means everything reached the server.
+     */
+    const readQueue = (): void => {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setState({ kind: 'waiting' });
+        return;
+      }
+      void activeStore
+        .pending(activeAccount, activeWorkspace)
+        .then((entries) => {
+          setState((current) => syncStateOfQueue(current, entries.length));
+        })
+        .catch(() => {
+          // A queue that cannot be read changes nothing the person needs to
+          // act on; the engine reports a real failure on its own.
+        });
+    };
     const unsubscribe = store.subscribe((change) => {
       if (
         change.accountId === accountId &&
         change.workspaceId === workspaceId &&
         change.kind === 'queue'
-      )
+      ) {
+        readQueue();
         requestSync();
+      }
     });
     const onOnline = (): void => {
-      setState({ kind: 'sending' });
+      readQueue();
       requestSync();
     };
     const onOffline = (): void => {
@@ -554,11 +580,7 @@ export function useWorkspaceSync(
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     window.addEventListener('focus', requestSync);
-    setState(
-      typeof navigator !== 'undefined' && !navigator.onLine
-        ? { kind: 'waiting' }
-        : { kind: 'sending' },
-    );
+    readQueue();
     void engine.run(controller.signal).catch(() => {
       setState({ kind: 'stopped' });
     });

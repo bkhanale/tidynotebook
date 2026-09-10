@@ -90,6 +90,39 @@ export function syncStateMessage(
   return 'Saving to the server stopped. Your work stays on this device.';
 }
 
+/**
+ * Whether a state only reports how far the queue got.
+ *
+ * `starting`, `in-step`, and `sending` say nothing more than that. A count
+ * of the queue can replace one of them without hiding anything. Every other
+ * state reports an event the person has to know about, so a queue count
+ * must never overwrite it.
+ */
+export function syncStateIsQuiet(state: SyncState): boolean {
+  return (
+    state.kind === 'starting' ||
+    state.kind === 'in-step' ||
+    state.kind === 'sending'
+  );
+}
+
+/**
+ * Selects the state that the queue of this device implies.
+ *
+ * The engine only announces what it did, so a device with an empty queue
+ * gets no announcement at all. Without this rule the first state of a
+ * session stays "sending" for as long as the tab is open, even though
+ * nothing waits to go up. A queued save means a send is in progress; an
+ * empty queue means everything reached the server.
+ */
+export function syncStateOfQueue(
+  current: SyncState,
+  pendingCount: number,
+): SyncState {
+  if (!syncStateIsQuiet(current)) return current;
+  return pendingCount > 0 ? { kind: 'sending' } : { kind: 'in-step' };
+}
+
 /** Whether a state asks the person to do something. */
 export function syncNeedsAttention(state: SyncState): boolean {
   return (
