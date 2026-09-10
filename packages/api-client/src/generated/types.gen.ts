@@ -1375,7 +1375,7 @@ export type SyncLimit = number;
 /**
  * The settings to store for the signed in account.
  */
-export type Preferences2 = PreferencesInput;
+export type PreferencesUpdate = PreferencesInput;
 
 /**
  * The name to give the workspace.
@@ -1489,7 +1489,7 @@ export type UpdatePreferencesData = {
     /**
      * The settings to store for the signed in account.
      */
-    body: Preferences2;
+    body: PreferencesUpdate;
     headers?: {
         /**
          * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.

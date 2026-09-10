@@ -199,7 +199,7 @@ paths:
       parameters:
         - $ref: '#/components/parameters/RequestId'
       requestBody:
-        $ref: '#/components/requestBodies/Preferences'
+        $ref: '#/components/requestBodies/PreferencesUpdate'
       responses:
         '200':
           $ref: '#/components/responses/Preferences'
@@ -1354,7 +1354,7 @@ components:
         minimum: 1
         maximum: 500
   requestBodies:
-    Preferences:
+    PreferencesUpdate:
       description: The settings to store for the signed in account.
       required: true
       content:
