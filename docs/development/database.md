@@ -4,7 +4,7 @@
 the roles, and the row access policies. It is a Node only package. A browser
 package must never import it, and the boundary checker enforces that.
 
-Verified on 2026-09-06 against PostgreSQL 18.6 in `compose.test.yaml`.
+Verified on 2026-09-10 against PostgreSQL 18.6 in `compose.test.yaml`.
 
 ## Pinned versions
 
@@ -28,13 +28,13 @@ package never loads. Application sources are still checked in full.
 
 ## Schema
 
-Thirty tables live in the `public` schema: twenty one for workspace content
-and nine for identity. Every table that holds
-workspace content carries `workspace_id`, and every child reference is a composite
-foreign key `(workspace_id, ...)` to its parent. A row therefore cannot point
-at a row of another workspace: the pair does not exist in the parent table.
-PostgreSQL runs referential checks with the referenced table's rights, so this
-boundary holds even where a row access policy hides the parent.
+Twenty seven tables live in the `public` schema: twenty for workspace content,
+and seven for identity. Every table that holds workspace content carries
+`workspace_id`, and every child reference is a composite foreign key
+`(workspace_id, ...)` to its parent. A row therefore cannot point at a row of
+another workspace: the pair does not exist in the parent table. PostgreSQL runs
+referential checks with the referenced table's rights, so this boundary holds
+even where a row access policy hides the parent.
 
 | Table                         | Holds                                                      |
 | ----------------------------- | ---------------------------------------------------------- |
@@ -50,18 +50,16 @@ boundary holds even where a row access policy hides the parent.
 | `revision_parents`            | Parent edges, in submitted order.                          |
 | `changesets`                  | One atomic operation and its cursor.                       |
 | `mutation_receipts`           | The stored outcome of an accepted mutation.                |
-| `branches`                    | Compatibility only, removed in the next migration.         |
 | `purge_markers`               | A content free marker of a permanently deleted file.       |
-| `audit_events`                | Content free records of protected actions.                 |
 | `sync_changes`                | Commit ordered incremental change records.                 |
 | `snapshots`, `snapshot_items` | A bounded materialized download snapshot.                  |
 | `link_index`                  | Links to `/notes/<file-id>` found in accepted revisions.   |
-| `shares`                      | Compatibility only, removed in the next migration.         |
+| `search_index`                | The searchable text of every live note.                    |
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 | `attachment_reclaim_queue`    | Attachment bytes of a deleted workspace, until reclaimed.  |
 
-The identity migration adds the identity tables. The first four belong to Better Auth; the
-last five are the application's own.
+The identity tables follow. The first four belong to Better Auth; the last
+three are the application's own.
 
 | Table                  | Holds                                                      |
 | ---------------------- | ---------------------------------------------------------- |
@@ -72,8 +70,9 @@ last five are the application's own.
 | `account_identities`   | The map from a Better Auth user to an application account. |
 | `account_preferences`  | Settings that follow one account to every device.          |
 | `account_audit_events` | Content free records of protected actions of one account.  |
-| `agent_tokens`         | Compatibility only, removed in the next migration.         |
-| `invitations`          | Compatibility only, removed in the next migration.         |
+
+The product serves one account, so `membership_role` has one value, `owner`.
+The enum stays because the policies and the owner guard read it.
 
 The four Better Auth tables are not scoped by a workspace. Sign-in must find a
 user by an address before any identity exists, so no row policy can narrow them
@@ -197,13 +196,13 @@ Row level security is enabled and forced on every workspace scoped table, on
 migrate, provision, and run the SECURITY DEFINER helpers. The runtime role gets
 narrower policies.
 
-| Table                        | Runtime role policy                                                                                                                                                                                                    |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                                                                                      |
-| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                                                                                         |
-| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                                                                                     |
-| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner`, never on the actor's own row. The last owner rule is not expressed here: a policy sees one row at a time and cannot count the remaining owners. |
-| `accounts`                   | `notesapp_shares_workspace_with(id)`: the account itself and every co-member                                                                                                                                           |
+| Table                        | Runtime role policy                                                                                                                                                                                                       |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                                                                                         |
+| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                                                                                            |
+| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for an `owner`                                                                                                                                                                |
+| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for an `owner`, never on the actor's own row. The last owner rule is not expressed here: a policy sees one row at a time and cannot count the remaining owners. |
+| `accounts`                   | `notesapp_shares_workspace_with(id)`: the account itself and every co-member                                                                                                                                              |
 
 The product serves one account, so these policies are defence in depth. The
 application rules scope every read and write first, and the policies prove
@@ -219,13 +218,16 @@ that the database refuses the same things on its own. Two of them need a note:
 
 The identity tables use these policies:
 
-| Table                 | Policy                                                                          |
-| --------------------- | ------------------------------------------------------------------------------- |
-| the four `auth_*`     | `FOR ALL` to `notesapp_auth` with `true`. `notesapp_app` holds no right at all. |
-| `account_identities`  | The owner policy only. `notesapp_app` holds no right at all.                    |
-| `account_preferences` | `account_id = notesapp_current_account()`                                       |
-| `agent_tokens`        | `account_id = notesapp_current_account()`. Compatibility only.                  |
-| `invitations`         | `FOR SELECT` for members; insert and update for an owner. Compatibility only.   |
+| Table                  | Policy                                                                           |
+| ---------------------- | -------------------------------------------------------------------------------- |
+| the four `auth_*`      | `FOR ALL` to `notesapp_auth` with `true`. `notesapp_app` holds no right at all.  |
+| `account_identities`   | The owner policy only. `notesapp_app` holds no right at all.                     |
+| `account_preferences`  | `account_id = notesapp_current_account()`                                        |
+| `account_audit_events` | `account_id = notesapp_current_account()`, and append only for the runtime role. |
+
+`attachment_reclaim_queue` outlives the workspace whose bytes it names, so it
+carries the owner policy only. The runtime role holds no right on it, and only
+the SECURITY DEFINER reclaim functions reach it.
 
 A role that matches no policy sees nothing, so an anonymous transaction with no
 identity setting reads no row and writes no row.
@@ -250,9 +252,9 @@ and both check membership first:
   quota without limit, so the runtime path only ever adds. The owner only
   purge function lowers the stored bytes.
 
-The identity migration adds more SECURITY DEFINER functions, for the writes
-that the runtime role holds no right for and for the narrow reads that replace a right
-on the identity tables:
+Five more SECURITY DEFINER functions serve the writes that the runtime role
+holds no right for, and the narrow reads that replace a right on the identity
+tables:
 
 | Function                                      | Answers or performs                                                                        |
 | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
@@ -261,12 +263,6 @@ on the identity tables:
 | `notesapp_delete_workspace`                   | Removes a workspace and its rows; owner only. Queues its attachment bytes for the reclaim. |
 | `notesapp_account_of`, `notesapp_has_account` | One account identifier, and whether any account exists.                                    |
 | `notesapp_discard_account`                    | Removes an account that a sign-up attempt never used.                                      |
-
-No application code calls `notesapp_transfer_ownership`,
-`notesapp_claim_invitation`, `notesapp_open_invitation`,
-`notesapp_workspace_members`, `notesapp_share_lookup`,
-`notesapp_share_attachment_lookup`, or `notesapp_agent_token` any more. They
-are compatibility only, and the next migration removes them.
 
 Every function that changes state checks the caller with `IS DISTINCT FROM`
 rather than `<>`, because a stranger has no role and no account identity at
@@ -306,11 +302,9 @@ join over `memberships`, and a correlated subquery over `memberships`.
 
 ### No anonymous read path
 
-`notesapp_share_lookup` and `notesapp_share_attachment_lookup` were the only
-way an anonymous reader reached content. Public sharing left the product, and
-no code calls either function now. They are compatibility only, and the next
-migration removes them. An anonymous transaction sets no identity, so it
-reads no row of any table.
+Public sharing left the product, and the schema holds no table, function, or
+policy that serves an anonymous reader. An anonymous transaction sets no
+identity, so it matches no policy and reads no row of any table.
 
 ## Immutability
 
@@ -325,13 +319,14 @@ Two independent controls protect these rows:
 2. A role that does hold those rights, such as the schema owner, still needs
    `set_config('notesapp.purge', 'on', true)` in its own transaction. That is
    the explicit purge path. The owner only purge is a `SECURITY DEFINER`
-   function of the schema owner; no runtime credential can
-   reach the bypass, because the bypass is useless without the table right.
+   function of the schema owner; no runtime credential can reach the bypass,
+   because the bypass is useless without the table right.
 
 ## Migrations
 
-Migrations live in `packages/storage-server/migrations/` with the Drizzle
-journal. File names come from Drizzle; this repository assigns no numbers.
+The schema is one migration, `packages/storage-server/migrations/0000_initial.sql`,
+with the Drizzle journal beside it in `migrations/meta/`. The journal has one
+entry.
 
 | Command                            | Effect                                                        |
 | ---------------------------------- | ------------------------------------------------------------- |
@@ -342,26 +337,43 @@ journal. File names come from Drizzle; this repository assigns no numbers.
 `pnpm db:generate` never connects to a database and produces no file when the
 schema has not changed.
 
-Roles, policies, triggers, and the deferrable constraint are SQL that Drizzle
-cannot express. They live in a custom migration created once with
-`pnpm --filter @notesapp/storage-server exec drizzle-kit generate --custom --name row_access`.
-Drizzle writes an empty file for that command, so the SQL in it is handwritten
-and reviewed, not generated output. A later schema change adds a new generated
-migration and does not touch it.
+The migration has two halves. The first half is generated output: `drizzle-kit`
+writes the types, tables, keys, and indexes from `src/schema.ts`. The second
+half, after the `Roles, rights, row level security, immutability, and the
+stored functions` banner, is handwritten and reviewed SQL. Drizzle cannot
+express a role, a grant, a row access policy, a trigger, a deferrable
+constraint, or a stored function, so those statements are written by hand.
 
-### One migration
+`notesapp_schema_version()` returns the number of entries in the journal, and
+`requiredSchemaVersion` in `packages/storage-server/src/migrate.ts` is the
+value that the readiness probe compares it with. Both are `1`. A new migration
+raises both by the same amount.
 
-No installation holds real data, so the migration set is squashed into one
-file instead of kept as an incremental chain. The squash also removes the dead
-tables and functions of the earlier multi-user product. Once a real
-installation exists, every change must be a new migration.
+### Adding a migration
 
-> In progress: the squash is not landed yet. Until it lands the directory
-> holds the original numbered files and the dead schema listed under
-> "Compatibility only" below.
+`pnpm db:generate` writes a new file for a change of `src/schema.ts`. Never
+edit `0000_initial.sql` after an installation has applied it: the applied set
+would then disagree with the file, and Drizzle would not reapply it. Add
+handwritten SQL in a new custom migration created with
+`pnpm --filter @notesapp/storage-server exec drizzle-kit generate --custom --name <name>`.
+
+### The squash
+
+Eleven reviewed migrations were replaced by this single file. The squash also
+removed the tables `shares`, `branches`, `invitations`, `agent_tokens`, and
+`audit_events`, the functions that only served them, every role value but
+`owner`, and the `share` value of the sync entity enum. No code reads or writes
+any of them.
+
+The squash is correct only because no installation held real data when it
+landed, which the product owner confirmed. It also closed a defect of the old
+journal: its `when` values were not monotonic, and the driver gates each entry
+on the one timestamp it reads at the start, so a database whose newest applied
+migration was `0006` silently skipped `0007` to `0010` and reported success.
+One entry cannot have that defect.
 
 Recreate the test service with
-`sudo docker compose -f compose.test.yaml down -v` before you apply a rewritten
+`sudo docker compose -f compose.test.yaml down -v` before applying a rewritten
 migration, because the journal no longer matches the applied set.
 
 ### Profiles
@@ -488,6 +500,12 @@ An object that the purge leaves alone is not kept forever. It has no `contents`
 reference once the purge removed the revisions, so the reclaim takes it through
 the second candidate rule as soon as it leaves the 24 hour window.
 
+`notesapp_purge_files` also removes the `snapshot_items` rows that pin a purged
+revision. A snapshot item carries a foreign key to `revisions`, so the delete
+belongs in the function and not in one caller: a second caller would otherwise
+hit a foreign key violation. The snapshot then fails its item count check and
+its readers restart with a fresh one.
+
 ### What a workspace deletion does
 
 `notesapp_delete_workspace` removes the attachment rows, so no row is left for
@@ -594,21 +612,13 @@ table name, and the server routine, and nothing else. The same applies to a
 refused connection: `transact` wraps `pool.connect()`, so a driver message that
 repeats the host, the port, and the role never escapes.
 
-## Compatibility only
+## What the schema does not hold
 
-These objects stay in the schema because the migration set is not squashed
-yet. No application route creates, reads, or writes any of them. The squash
-removes all of them together. Do not build on them.
-
-| Object                                                                                                               | Was for                  |
-| -------------------------------------------------------------------------------------------------------------------- | ------------------------ |
-| `invitations`                                                                                                        | Inviting a second person |
-| `branches`                                                                                                           | Conflict branches        |
-| `shares`                                                                                                             | Public share pages       |
-| The `memberships` table and every policy that reads it                                                               | Workspace roles          |
-| `notesapp_transfer_ownership`, `notesapp_claim_invitation`, `notesapp_open_invitation`, `notesapp_workspace_members` | Members and invitations  |
-| `notesapp_share_lookup`, `notesapp_share_attachment_lookup`                                                          | Public share pages       |
-| `notesapp_agent_token`                                                                                               | Agent tokens             |
+Sharing, conflict branches, invitations, workspace members, agent tokens, and
+the workspace scoped audit trail left the product. The squashed migration holds
+no table, function, policy, trigger, or enum value for any of them. The account
+scoped trail `account_audit_events` stays, because the operator recovery
+command and the workspace deletion write it.
 
 The browser store keeps its own short list of dead structures. See
 [Local drafts and explicit saves](local-storage.md).
