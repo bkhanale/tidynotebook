@@ -13,7 +13,7 @@ import {
   listWorkspaces,
   signInWithPassword,
 } from '@notesapp/api-client';
-import { createApp, loadServerConfig } from '@notesapp/server';
+import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
 import { createDisposableDatabase } from './support/database.ts';
 
 function responseOf(response: Response | undefined): Response {
@@ -136,6 +136,59 @@ await test('the owner can sign in again with the selected password', async () =>
   });
   assert.equal(result.error, undefined);
   assert.ok(cookieHeader(responseOf(result.response).headers.getSetCookie()));
+});
+
+await test('no auth answer hands the session token to page script', async () => {
+  // BE-22. The browser already holds the token in an HttpOnly cookie. A copy
+  // in the answer body would only widen where the secret can leak. The
+  // adapter strips it from every auth answer, so a protocol library release
+  // that starts returning it cannot widen the surface without this failing.
+  const signIn = await signInWithPassword({
+    headers: { origin: 'http://127.0.0.1' },
+    body: { email, password },
+  });
+  const signInResponse = responseOf(signIn.response);
+  assert.equal(signInResponse.status, 200);
+  assert.equal(signIn.error, undefined);
+  assert.equal(JSON.stringify(signIn.data).includes('token'), false);
+  // The cookie still carries it, so the session works.
+  const cookie = cookieHeader(signInResponse.headers.getSetCookie());
+  assert.ok(cookie.length > 0);
+
+  const session = await app.inject({
+    method: 'GET',
+    url: '/api/auth/get-session',
+    headers: { origin: 'http://127.0.0.1', cookie },
+  });
+  assert.equal(session.statusCode, 200);
+  const record = JSON.parse(session.body) as {
+    session?: Record<string, unknown>;
+    token?: unknown;
+  };
+  assert.ok(record.session !== undefined);
+  assert.equal('token' in record.session, false);
+  assert.equal('token' in record, false);
+  // The parts the client needs are still there.
+  assert.ok(typeof record.session.id === 'string');
+});
+
+await test('the bootstrap command refuses to create a second account', async () => {
+  // BE-23. The pre-check runs outside the write, so the guard that decides is
+  // `linkFirstAccount`. It must fail the command instead of linking a second
+  // account to a fresh auth user.
+  await assert.rejects(
+    bootstrapOwner({
+      config,
+      email: 'bootstrap-second@notes.invalid',
+      name: 'Second',
+      password: 'bootstrap-second-password-1',
+    }),
+    /the single user already exists/,
+  );
+  const workspaces = await listWorkspaces({
+    headers: { origin: 'http://127.0.0.1', cookie: ownerCookie },
+  });
+  assert.equal(workspaces.data?.workspaces.length, 1);
 });
 
 await test('the public Better Auth sign-up route is not mounted', async () => {

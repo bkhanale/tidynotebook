@@ -69,10 +69,17 @@ export async function bootstrapOwner(
     const authUserId = readProperty(readProperty(created, 'user'), 'id');
     if (typeof authUserId !== 'string' || authUserId === '')
       throw new Error('notesapp: the first account was not created.');
-    const accountId = await identity.linkAccount({
+    // The check above runs outside the write, so it can only report early. The
+    // guard that decides is `linkFirstAccount`: it takes the first-account
+    // advisory lock, reads the account count, and writes the account in one
+    // transaction. It returns null when an account appeared in between, and
+    // this command then fails instead of creating account two.
+    const accountId = await identity.linkFirstAccount({
       authUserId,
       workspaceName: 'Personal',
     });
+    if (accountId === null)
+      throw new Error('notesapp: the single user already exists.');
     return { authUserId, accountId, email: input.email };
   } finally {
     await auth.close();

@@ -199,7 +199,7 @@ export type AuthPasswordSignIn = {
 };
 
 /**
- * The result of a completed sign-in.
+ * The result of a completed sign-in. It never carries the session token: the browser already holds that value in an HttpOnly cookie, and the protocol adapter removes it from this answer.
  */
 export type AuthSession = {
     /**
@@ -207,9 +207,9 @@ export type AuthSession = {
      */
     readonly redirect: boolean;
     /**
-     * Session token. The session cookie carries it as well.
+     * Never present. The adapter removes the session token from this answer.
      */
-    readonly token?: string;
+    token?: unknown;
     /**
      * Address to open, when the answer asks for a redirect.
      */
@@ -1201,9 +1201,13 @@ export type AuthCurrentSessionWritable = {
 } | null;
 
 /**
- * The result of a completed sign-in.
+ * The result of a completed sign-in. It never carries the session token: the browser already holds that value in an HttpOnly cookie, and the protocol adapter removes it from this answer.
  */
 export type AuthSessionWritable = {
+    /**
+     * Never present. The adapter removes the session token from this answer.
+     */
+    token?: unknown;
     [key: string]: unknown;
 };
 

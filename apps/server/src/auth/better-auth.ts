@@ -336,18 +336,22 @@ export function authProblemCode(status: number): ProblemCode {
 }
 
 /**
- * Removes the session token from a get-session answer.
+ * Removes the session token from an answer of the protocol library.
  *
- * Better Auth returns the raw session token inside the session object. The
- * browser already holds it in an HttpOnly cookie, so handing the same secret
- * to page script would only widen where it can leak. The contract declares the
- * session without a token, and this is what makes that declaration true.
+ * Better Auth returns the raw session token in two places: at the top level of
+ * a sign-in answer, and inside the session object of a get-session answer. The
+ * browser already holds that value in an HttpOnly cookie, so handing the same
+ * secret to page script would only widen where it can leak. The adapter
+ * applies this to every JSON answer of every auth route, so a library release
+ * that adds a token to one more answer cannot widen the surface. The contract
+ * declares both answers without a token, and this is what makes that
+ * declaration true.
  */
 export function withoutSessionToken(value: unknown): unknown {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
     return value;
   const record: Record<string, unknown> = Object.fromEntries(
-    Object.entries(value),
+    Object.entries(value).filter(([name]) => name !== 'token'),
   );
   const session = record.session;
   if (session === null || typeof session !== 'object' || Array.isArray(session))
@@ -432,7 +436,6 @@ export function createAuthProtocol(
       const parsed = parseJson(text);
       if (!parsed.ok)
         throw new Error('notesapp: the auth endpoint answered invalid JSON.');
-      const strip = request.url.startsWith(`${authBasePath}/get-session`);
       return {
         status: response.status,
         mediaType: 'application/json',
@@ -440,7 +443,7 @@ export function createAuthProtocol(
           ([name]) => name.toLowerCase() !== 'content-type',
         ),
         cookies,
-        body: strip ? withoutSessionToken(parsed.value) : parsed.value,
+        body: withoutSessionToken(parsed.value),
         bytes: null,
       };
     },

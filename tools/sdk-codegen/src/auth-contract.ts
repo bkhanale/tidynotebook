@@ -133,7 +133,10 @@ export function authContractSchemas(): Json {
     AuthUser: authUser,
     AuthSession: {
       type: 'object',
-      description: 'The result of a completed sign-in.',
+      description:
+        'The result of a completed sign-in. It never carries the session ' +
+        'token: the browser already holds that value in an HttpOnly cookie, ' +
+        'and the protocol adapter removes it from this answer.',
       additionalProperties: true,
       required: ['redirect'],
       properties: {
@@ -143,10 +146,9 @@ export function authContractSchemas(): Json {
           description: 'Whether the caller should follow a redirect.',
         },
         token: {
-          type: 'string',
-          readOnly: true,
-          description: 'Session token. The session cookie carries it as well.',
-          maxLength: 512,
+          not: {},
+          description:
+            'Never present. The adapter removes the session token from this answer.',
         },
         url: {
           type: 'string',
