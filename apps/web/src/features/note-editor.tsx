@@ -29,6 +29,7 @@ import {
 import { generateUUID } from '@notesapp/core';
 import {
   isLocalStorageError,
+  saveCheckpointMessage,
   type Draft,
   type FileSaveSnapshot,
   type LocalStore,
@@ -425,7 +426,7 @@ export function NoteEditor({
       try {
         const entry = await current.store.checkpoint(
           buildDraft(isDeleting),
-          isDeleting ? null : 'Manual save',
+          saveCheckpointMessage,
         );
         // The new checkpoint is the parent of the next one. Holding it here
         // keeps the editor right even when its draft row is removed, so a

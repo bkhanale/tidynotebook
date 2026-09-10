@@ -291,7 +291,7 @@ await test('a deletion checkpoint submits a tombstone with no text', async () =>
   const draft = draftOf(account, workspace, file, 'copy-a', '# Body\n');
 
   await store.saveDraft(draft);
-  assert.notEqual(await store.checkpoint(draft, 'Manual save'), null);
+  assert.notEqual(await store.checkpoint(draft, null), null);
 
   const removed = { ...draft, deleted: true, sequence: 2 };
   await store.saveDraft(removed);

@@ -7,7 +7,7 @@
  * port with IndexedDB; the sync engine of Task 11 uses the same port.
  */
 export type { CheckpointComparison } from './checkpoints.ts';
-export { shouldCheckpoint } from './checkpoints.ts';
+export { saveCheckpointMessage, shouldCheckpoint } from './checkpoints.ts';
 export type {
   AttachmentPin,
   CheckpointRecord,
