@@ -282,6 +282,32 @@ await test('a draft save and a checkpoint commit as one transaction each', async
   await store.close();
 });
 
+await test('a deletion checkpoint submits a tombstone with no text', async () => {
+  const backend = createBackend('tombstone');
+  const store: LocalStore = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const draft = draftOf(account, workspace, file, 'copy-a', '# Body\n');
+
+  await store.saveDraft(draft);
+  assert.notEqual(await store.checkpoint(draft, 'Manual save'), null);
+
+  const removed = { ...draft, deleted: true, sequence: 2 };
+  await store.saveDraft(removed);
+  const entry = await store.checkpoint(removed, null);
+  const revision = entry?.input.revisions[0];
+  assert.equal(revision?.deleted, true);
+  // The server refuses a deletion that submits Markdown, so the tombstone
+  // carries the empty text and the digest of the empty text.
+  assert.equal(
+    revision?.content.kind === 'markdown' ? revision.content.text : null,
+    '',
+  );
+  assert.equal(revision?.content.digest, await contentDigest(''));
+  await store.close();
+});
+
 await test('an unchanged checkpoint is suppressed and a named one is not', async () => {
   const backend = createBackend('unchanged');
   const store = await openLocalStore(origin, backend.options());

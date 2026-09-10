@@ -832,13 +832,17 @@ export async function openLocalStore(
       draft: Draft,
       message: string | null,
     ): Promise<QueueEntry | null> {
+      // A tombstone carries no text. The revision before it still holds the
+      // content of the note, and a deletion that submitted Markdown would add
+      // content while it claims to remove a file, which the server refuses.
+      const revisionText = draft.deleted ? '' : draft.text;
       // The digest is computed before the transaction. WebCrypto is not a
       // database promise, so awaiting it inside a Dexie transaction would
       // leave the transaction zone and the transaction would already be gone.
       // A browser without WebCrypto cannot address content, so the caller
       // receives the same typed failure as for a refused write.
       const digest = await guard('creating a checkpoint', () =>
-        contentDigest(draft.text),
+        contentDigest(revisionText),
       );
       const clientTime = nowIso();
       const revisionId = newId();
@@ -930,9 +934,9 @@ export async function openLocalStore(
               accountId,
               workspaceId,
               digest,
-              text: draft.text,
+              text: revisionText,
               bytes: null,
-              size: byteLength(draft.text),
+              size: byteLength(revisionText),
             });
             const checkpoint: CheckpointRow = {
               serverOrigin,
@@ -983,7 +987,7 @@ export async function openLocalStore(
                   parents,
                   path: draft.path,
                   deleted: draft.deleted,
-                  content: { kind: 'markdown', digest, text: draft.text },
+                  content: { kind: 'markdown', digest, text: revisionText },
                   clientTime,
                   message,
                   restoredFrom: null,
