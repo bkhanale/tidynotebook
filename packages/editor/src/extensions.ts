@@ -34,6 +34,10 @@ import { markdownPaste } from './paste.ts';
  * colour is written twice.
  */
 export const panelTheme: Extension = EditorView.theme({
+  // The note screen gives the editor a bounded height, so the CodeMirror
+  // scroller owns the scrolling and the note header above it stays visible.
+  '&': { height: '100%' },
+  '.cm-scroller': { overflow: 'auto' },
   '.cm-panels': {
     backgroundColor: 'var(--notes-surface-card)',
     color: 'var(--notes-text)',

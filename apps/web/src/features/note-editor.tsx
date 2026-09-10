@@ -32,10 +32,12 @@ import {
   createEditor,
   setEditorRich,
   setEditorTheme,
+  setNoteLinkSource,
   type EditorView,
   type LinkTarget,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
+import type { RenderMarkdownOptions } from '@notesapp/markdown';
 import { Button, CheckIcon, StatusRegion, TrashIcon } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { useAttentionCount } from './attention-link.tsx';
@@ -135,6 +137,47 @@ function diagramInnerSource(fence: string): string {
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
 
+/** The two surfaces of one note: the source editor and the rendered text. */
+type NoteMode = 'write' | 'read';
+
+/** What one attachment upload is doing right now. */
+type AttachState =
+  | { readonly kind: 'idle' }
+  | { readonly kind: 'uploading'; readonly name: string }
+  | { readonly kind: 'failed'; readonly message: string };
+
+/**
+ * Typography of the rendered note.
+ *
+ * Read mode shows the same document as the editor, so it uses the same
+ * measure, the same font, and the same semantic colour tokens. The rendered
+ * HTML comes from the shared renderer, so its elements are reached with
+ * Tailwind element variants instead of a style sheet.
+ */
+const readTypography = [
+  'mx-auto max-w-3xl px-4 py-4 font-sans text-ui text-ink',
+  '[&_h1]:mb-3 [&_h1]:mt-6 [&_h1]:text-2xl [&_h1]:font-semibold [&_h1]:text-strong',
+  '[&_h2]:mb-2 [&_h2]:mt-6 [&_h2]:text-xl [&_h2]:font-semibold [&_h2]:text-strong',
+  '[&_h3]:mb-2 [&_h3]:mt-5 [&_h3]:text-lg [&_h3]:font-semibold [&_h3]:text-strong',
+  '[&_h4]:mb-2 [&_h4]:mt-4 [&_h4]:text-base [&_h4]:font-semibold [&_h4]:text-strong',
+  '[&_h5]:mb-2 [&_h5]:mt-4 [&_h5]:font-semibold [&_h5]:text-strong',
+  '[&_h6]:mb-2 [&_h6]:mt-4 [&_h6]:font-semibold [&_h6]:text-strong',
+  '[&_p]:my-3 [&_ul]:my-3 [&_ol]:my-3 [&_ul]:list-disc [&_ol]:list-decimal',
+  '[&_ul]:pl-6 [&_ol]:pl-6 [&_li]:my-1',
+  '[&_a]:text-accent [&_a]:underline',
+  '[&_code]:rounded [&_code]:bg-hover [&_code]:px-1 [&_code]:font-mono',
+  '[&_pre]:my-3 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-card',
+  '[&_pre]:p-3 [&_pre]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:p-0',
+  '[&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:border-edge',
+  '[&_blockquote]:pl-3 [&_blockquote]:text-muted',
+  '[&_hr]:my-6 [&_hr]:border-edge-subtle',
+  '[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse',
+  '[&_th]:border [&_th]:border-edge-subtle [&_th]:px-2 [&_th]:py-1',
+  '[&_td]:border [&_td]:border-edge-subtle [&_td]:px-2 [&_td]:py-1',
+  '[&_th]:text-strong [&_img]:my-3 [&_img]:max-w-full [&_img]:rounded-lg',
+  '[&_input]:mr-2',
+].join(' ');
+
 /** Props of the editing surface. `initialText` is read once at mount. */
 export type NoteEditorProps = {
   readonly store: LocalStore;
@@ -202,6 +245,16 @@ export function NoteEditor({
     useState<LocalStorageErrorKind | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pasteNotice, setPasteNotice] = useState('');
+  const [mode, setMode] = useState<NoteMode>('write');
+  const [readError, setReadError] = useState('');
+  const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
+  const readRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const lastFilesRef = useRef<readonly File[]>([]);
+  const renderMarkdownRef = useRef<
+    | ((source: string, options?: RenderMarkdownOptions) => Promise<string>)
+    | null
+  >(null);
   const [attachmentUrls, setAttachmentUrls] = useState<
     ReadonlyMap<string, string>
   >(new Map());
@@ -428,6 +481,7 @@ export function NoteEditor({
     void import('@notesapp/markdown').then((module) => {
       if (cancelled) return;
       mathRenderRef.current = module.renderMath;
+      renderMarkdownRef.current = module.renderMarkdown;
       setMathReady(true);
     });
     return () => {
@@ -571,6 +625,122 @@ export function NoteEditor({
     if (view !== null) setEditorTheme(view, resolved);
   }, [resolved]);
 
+  // The note list feeds the link completion. It travels through one
+  // compartment, so a refreshed list never replaces the document.
+  useEffect(() => {
+    let cancelled = false;
+    const publish = async (): Promise<void> => {
+      try {
+        const files = await store.listLocalFiles(accountId, workspaceId);
+        const view = viewRef.current;
+        if (cancelled || view === null) return;
+        setNoteLinkSource(view, {
+          currentPath: pathRef.current,
+          notes: files
+            .filter((file) => file.kind === 'note' && !file.deleted)
+            .map((file) => ({ path: file.path })),
+        });
+      } catch {
+        // Completion is an aid. Without the list the person still types a
+        // link by hand, so a failed read changes nothing else.
+      }
+    };
+    void publish();
+    const unsubscribe = store.subscribe((change) => {
+      if (change.accountId === accountId && change.workspaceId === workspaceId)
+        void publish();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [store, accountId, workspaceId, workingCopyId]);
+
+  // Read mode renders the current buffer with the shared renderer. The
+  // editor stays mounted and keeps its document, so the switch back is free.
+  useEffect(() => {
+    if (mode !== 'read') return;
+    const host = readRef.current;
+    const render = renderMarkdownRef.current;
+    if (host === null || render === null) return;
+    let cancelled = false;
+    const disposers: Array<() => void> = [];
+    void (async (): Promise<void> => {
+      try {
+        const html = await render(bufferText, {
+          attachmentHref: (revisionId: string): string =>
+            attachmentUrls.get(revisionId) ?? '',
+        });
+        if (cancelled) return;
+        host.innerHTML = html;
+        setReadError('');
+        // Mermaid keeps its isolated frame here too, so Read mode never runs
+        // a diagram library inside the application origin.
+        for (const block of host.querySelectorAll('pre[data-diagram]')) {
+          const frame = createDiagramFrame({
+            source: block.textContent ?? '',
+            theme: themeRef.current,
+            framePath: diagramFramePath,
+          });
+          disposers.push(frame.dispose);
+          block.replaceWith(frame.element);
+        }
+      } catch {
+        if (cancelled) return;
+        host.textContent = '';
+        setReadError(
+          'This note is too large or too deeply nested to show as text. Switch to Write to read the source.',
+        );
+      }
+    })();
+    return () => {
+      cancelled = true;
+      for (const dispose of disposers) dispose();
+    };
+  }, [mode, bufferText, attachmentUrls, mathReady, resolved]);
+
+  // Save and the Read switch are window level, so they work while focus sits
+  // in the note name field. CodeMirror marks the event handled first, so the
+  // editor binding never fires twice.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.defaultPrevented) return;
+      const modifier = event.metaKey || event.ctrlKey;
+      if (!modifier) return;
+      if (!event.shiftKey && event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (saveTimerRef.current !== null) {
+          window.clearTimeout(saveTimerRef.current);
+          saveTimerRef.current = null;
+        }
+        void checkpointNow.current();
+        return;
+      }
+      if (event.shiftKey && event.key.toLowerCase() === 'p') {
+        event.preventDefault();
+        setMode((current) => (current === 'write' ? 'read' : 'write'));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
+  // The editor measures itself again when it becomes visible, so the
+  // scroller keeps the right height after a switch back to Write. The first
+  // render is not a switch, so it never takes focus from the name field.
+  const previousModeRef = useRef<NoteMode>(mode);
+  useEffect(() => {
+    const changed = previousModeRef.current !== mode;
+    previousModeRef.current = mode;
+    if (!changed || mode !== 'write') return;
+    const view = viewRef.current;
+    if (view === null) return;
+    view.requestMeasure();
+    view.focus();
+  }, [mode]);
+
   const attentionCount = useAttentionCount(store, accountId, workspaceId);
   const saveState: SaveState = resolveSaveState({
     draftWritePending: draftPending,
@@ -605,10 +775,16 @@ export function NoteEditor({
   const uploadPastedFiles = (files: readonly File[]): void => {
     const images = files.filter((file) => file.type.startsWith('image/'));
     if (images.length === 0) return;
+    lastFilesRef.current = images;
     void (async (): Promise<void> => {
       const current = live.current;
       for (const file of images) {
+        setAttachState({ kind: 'uploading', name: file.name });
         if (file.size > maxPastedBytes) {
+          setAttachState({
+            kind: 'failed',
+            message: `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
+          });
           setPasteNotice(
             `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
           );
@@ -620,9 +796,9 @@ export function NoteEditor({
             body: { file },
           });
           if (uploaded.error !== undefined || uploaded.data === undefined) {
-            setPasteNotice(
-              `The image ${file.name} did not upload: ${problemMessage(uploaded.error)}`,
-            );
+            const message = `The image ${file.name} did not upload: ${problemMessage(uploaded.error)}`;
+            setAttachState({ kind: 'failed', message });
+            setPasteNotice(message);
             continue;
           }
           const fileId = generateUUID();
@@ -643,17 +819,18 @@ export function NoteEditor({
             },
           });
           if (finalized.error !== undefined) {
-            setPasteNotice(
-              `The image ${file.name} did not finalize: ${problemMessage(finalized.error)}`,
-            );
+            const message = `The image ${file.name} did not finalize: ${problemMessage(finalized.error)}`;
+            setAttachState({ kind: 'failed', message });
+            setPasteNotice(message);
             continue;
           }
           insertAtCursor(`![${safeName}](/attachments/${revisionId})`);
+          setAttachState({ kind: 'idle' });
           setPasteNotice('');
         } catch {
-          setPasteNotice(
-            `The image ${file.name} could not be read on this device.`,
-          );
+          const message = `The image ${file.name} could not be read on this device.`;
+          setAttachState({ kind: 'failed', message });
+          setPasteNotice(message);
         }
       }
     })();
@@ -768,7 +945,10 @@ export function NoteEditor({
   };
 
   return (
-    <div className="min-w-0" data-save-state={saveState}>
+    <div
+      className="flex h-full min-h-0 min-w-0 flex-col"
+      data-save-state={saveState}
+    >
       <div className="mb-4 flex flex-col gap-3 border-b border-edge-subtle pb-4">
         <div className="min-w-0">
           <input
@@ -910,9 +1090,94 @@ export function NoteEditor({
       ) : null}
       {staleNotice !== '' ? <StatusRegion message={staleNotice} /> : null}
 
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <div className="inline-flex rounded-lg border border-edge-subtle p-0.5">
+          <button
+            type="button"
+            aria-pressed={mode === 'write'}
+            title="Write (Ctrl+Shift+P)"
+            className={`h-8 cursor-pointer rounded-md border-0 px-3 text-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+              mode === 'write'
+                ? 'bg-accent-fill text-on-accent'
+                : 'bg-transparent text-strong hover:bg-hover'
+            }`}
+            onClick={() => {
+              setMode('write');
+            }}
+          >
+            Write
+          </button>
+          <button
+            type="button"
+            aria-pressed={mode === 'read'}
+            title="Read (Ctrl+Shift+P)"
+            className={`h-8 cursor-pointer rounded-md border-0 px-3 text-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
+              mode === 'read'
+                ? 'bg-accent-fill text-on-accent'
+                : 'bg-transparent text-strong hover:bg-hover'
+            }`}
+            onClick={() => {
+              setMode('read');
+            }}
+          >
+            Read
+          </button>
+        </div>
+
+        <Button
+          variant="secondary"
+          size="sm"
+          label="Attach an image to this note"
+          title="Attach an image"
+          onClick={() => {
+            fileInputRef.current?.click();
+          }}
+        >
+          Attach image
+        </Button>
+        <input
+          ref={fileInputRef}
+          className="hidden"
+          type="file"
+          accept="image/*"
+          multiple
+          aria-hidden="true"
+          tabIndex={-1}
+          onChange={(event): void => {
+            const files = Array.from(event.target.files ?? []);
+            event.target.value = '';
+            uploadPastedFiles(files);
+          }}
+        />
+        {attachState.kind === 'uploading' ? (
+          <p className="m-0 text-control text-muted" role="status">
+            {`Uploading ${attachState.name}.`}
+          </p>
+        ) : null}
+        {attachState.kind === 'failed' ? (
+          <>
+            <p className="m-0 text-control text-danger" role="alert">
+              {attachState.message}
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              label="Try the image upload again"
+              onClick={() => {
+                uploadPastedFiles(lastFilesRef.current);
+              }}
+            >
+              Retry
+            </Button>
+          </>
+        ) : null}
+      </div>
+
       <div
         ref={containerRef}
-        className="min-h-96 overflow-hidden rounded-lg"
+        className={`min-h-0 flex-1 overflow-hidden rounded-lg ${
+          mode === 'read' ? 'hidden' : ''
+        }`}
         role="textbox"
         aria-label={`Note ${name}`}
         tabIndex={-1}
@@ -931,6 +1196,16 @@ export function NoteEditor({
           }
         }}
       />
+      {mode === 'read' ? (
+        <div className="min-h-0 flex-1 overflow-auto rounded-lg">
+          <div ref={readRef} data-note-view="read" className={readTypography} />
+          {readError !== '' ? (
+            <p className="px-4 text-control text-danger" role="alert">
+              {readError}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {pasteNotice !== '' ? <StatusRegion message={pasteNotice} /> : null}
     </div>
   );
@@ -1176,7 +1451,7 @@ export function NoteEditorLoader({
 
   const activeStore = store;
   return (
-    <div>
+    <div className="flex h-full min-h-0 flex-col">
       <h1 className="sr-only">{displayNoteName(status.path)}</h1>
       {linkNotice !== '' ? <StatusRegion message={linkNotice} /> : null}
       <NoteEditor
