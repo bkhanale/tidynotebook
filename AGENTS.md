@@ -15,19 +15,13 @@ Edit files in `rules/` and run `rules/link.sh`.
 - Do not use a bare `#N` in a GitHub comment or pull request body. Write
   `item 1`, `(2)`, or a plain list. Use `#NNNN` only for a real pull request or
   issue.
-- Pull requests target `staging`, not `main`.
+- Work happens in a git worktree on a short-lived branch.
+- Before a branch lands, `pnpm verify` and the relevant browser tests must
+  pass.
+- To land a branch, rebase it onto `main`, fast-forward merge it, then delete
+  it. Pull requests are not required.
 - Stay inside the active worktree. All edits, commits, and untracked files
   belong in that worktree.
-
-# Requestly Jira
-
-- Use one epic for each initiative, stories below the epic, and subtasks below
-  each story.
-- Every ticket must have a T-shirt size and a Dev Owner who is the assignee.
-- Set a component only for Requestly platform-team work. Do not set one for
-  feature work.
-- Do not add labels unless the user asks for them.
-- Do not put internal domains or IP addresses in a ticket.
 
 # Product design
 
