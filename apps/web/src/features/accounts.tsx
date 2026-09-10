@@ -15,11 +15,18 @@ import {
 import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
+  Card,
   ChevronLeftIcon,
-  SelectField,
+  ComputerIcon,
+  MoonIcon,
+  Notice,
+  Page,
+  PageHeader,
   StatusRegion,
+  SunIcon,
   TextField,
   WorkspaceIcon,
+  type ThemeChoice,
 } from '@notesapp/ui';
 import {
   problemMessage,
@@ -43,9 +50,9 @@ export function RequireSession({
   const session = useSession();
   if (session.status === 'loading') {
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <Page>
         <StatusRegion message="Checking the session." />
-      </main>
+      </Page>
     );
   }
   if (session.status === 'signed-out' || session.account === null) {
@@ -190,40 +197,66 @@ export function LoginPage(): ReactNode {
   );
 }
 
-/** Theme settings: local first, synced without delaying the change. */
+/** The three palette choices, with the icon that names each of them. */
+const themeChoices: readonly {
+  readonly value: ThemeChoice;
+  readonly label: string;
+  readonly icon: ReactNode;
+}[] = [
+  { value: 'system', label: 'System', icon: <ComputerIcon size={14} /> },
+  { value: 'light', label: 'Light', icon: <SunIcon size={14} /> },
+  { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} /> },
+];
+
+/**
+ * Theme settings: local first, synced without delaying the change.
+ *
+ * The three choices are radio buttons in one group, so the whole set is
+ * visible at once, the arrow keys move through it, and the choice in force
+ * is readable without opening anything.
+ */
 export function ThemeSettings(): ReactNode {
   const theme = useTheme();
   return (
-    <section
-      className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-      aria-labelledby="theme-heading"
-    >
-      <h2
-        className="m-0 text-base font-semibold text-strong"
-        id="theme-heading"
-      >
-        Appearance
-      </h2>
+    <Card title="Appearance" titleId="theme-heading">
       <p className="m-0 text-control text-muted">
-        System follows the device. Light and Dark use the Tokyo Night palette.
-        The choice applies at once on this device and syncs to the account in
-        the background.
+        System follows the device. The choice applies at once on this device and
+        goes to your account in the background.
       </p>
-      <SelectField
-        id="theme-choice"
-        label="Theme"
-        value={theme.choice}
-        options={[
-          { value: 'system', label: 'System' },
-          { value: 'light', label: 'Light' },
-          { value: 'dark', label: 'Dark' },
-        ]}
-        onChange={(value): void => {
-          if (value === 'light' || value === 'dark' || value === 'system')
-            theme.setChoice(value);
-        }}
-      />
-    </section>
+      <fieldset className="m-0 mt-3 border-0 p-0">
+        <legend className="sr-only">Theme</legend>
+        <div className="flex flex-wrap gap-2">
+          {themeChoices.map((choice) => {
+            const chosen = theme.choice === choice.value;
+            return (
+              <label
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-control font-medium motion-safe:transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
+                  chosen
+                    ? 'border-accent-fill bg-accent-fill text-on-accent'
+                    : 'border-edge bg-transparent text-strong hover:bg-hover'
+                }`}
+                key={choice.value}
+              >
+                <input
+                  className="sr-only"
+                  type="radio"
+                  name="theme-choice"
+                  value={choice.value}
+                  checked={chosen}
+                  onChange={(): void => {
+                    theme.setChoice(choice.value);
+                  }}
+                />
+                <span className="inline-flex items-center" aria-hidden="true">
+                  {choice.icon}
+                </span>
+                <span>{choice.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+    </Card>
   );
 }
 
@@ -435,157 +468,132 @@ export function AccountSettingsPage(): ReactNode {
   }
 
   return (
-    <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
-      <div className="flex items-center gap-3">
-        <Button
-          variant="secondary"
-          onClick={handleBack}
-          label="Back"
-          icon={<ChevronLeftIcon size={14} />}
-        >
-          Back
-        </Button>
-        <h1 className="m-0 text-xl font-semibold text-strong">Settings</h1>
-      </div>
-
-      <section
-        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-        aria-labelledby="profile-heading"
-      >
-        <h2
-          className="m-0 text-base font-semibold text-strong"
-          id="profile-heading"
-        >
-          Account
-        </h2>
-        <p className="m-0 text-control text-muted">
-          {account.email ?? 'No address linked'}
-        </p>
-      </section>
-
-      <ThemeSettings />
-
-      <section
-        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-        aria-labelledby="offline-heading"
-      >
-        <h2
-          className="m-0 text-base font-semibold text-strong"
-          id="offline-heading"
-        >
-          Available offline
-        </h2>
-        <p className="m-0 text-control text-muted">
-          Your notes are always kept on this device. Images and older versions
-          take more space, so you choose whether to keep them too.
-        </p>
-        <label className="flex items-center gap-2 text-control text-strong">
-          <input
-            type="checkbox"
-            checked={offline.choices.images}
-            disabled={!offline.ready}
-            onChange={(event): void => {
-              offline.setChoice('images', event.target.checked);
-            }}
-          />
-          Keep images on this device
-        </label>
-        <label className="flex items-center gap-2 text-control text-strong">
-          <input
-            type="checkbox"
-            checked={offline.choices.history}
-            disabled={!offline.ready}
-            onChange={(event): void => {
-              offline.setChoice('history', event.target.checked);
-            }}
-          />
-          Keep older versions on this device
-        </label>
-      </section>
-
-      <section
-        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-        aria-labelledby="export-heading"
-      >
-        <h2
-          className="m-0 text-base font-semibold text-strong"
-          id="export-heading"
-        >
-          Export
-        </h2>
-        <p className="m-0 text-control text-muted">
-          Download every note as a zip of Markdown files. The files keep their
-          folders and need no application to be read again.
-        </p>
-        {exportError !== '' ? (
-          <p className="m-0 text-control text-danger" role="alert">
-            {exportError}
-          </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
+    <Page>
+      <PageHeader
+        title="Settings"
+        actions={
           <Button
             variant="secondary"
-            disabled={exporting || workspaceId === null}
-            onClick={() => {
-              if (workspaceId === null) return;
-              setExportError('');
-              setExporting(true);
-              void downloadAll(workspaceId)
-                .catch((failure: unknown) => {
-                  setExportError(problemMessage(failure));
-                })
-                .finally(() => {
-                  setExporting(false);
-                });
-            }}
+            size="sm"
+            onClick={handleBack}
+            label="Back"
+            icon={<ChevronLeftIcon size={14} />}
           >
-            {exporting ? 'Preparing the download' : 'Export all notes'}
+            Back
           </Button>
-        </div>
-      </section>
+        }
+      />
+      <div className="space-y-4">
+        <ThemeSettings />
 
-      <section
-        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
-        aria-labelledby="signout-heading"
-      >
-        <h2
-          className="m-0 text-base font-semibold text-strong"
-          id="signout-heading"
-        >
-          Sign out
-        </h2>
-        {pending > 0 ? (
-          <p className="m-0 text-control text-danger" role="alert">
-            {pending} save(s) did not reach the server yet. Keep them on this
-            device for the next sign-in, or remove them now.
+        <Card title="Available offline" titleId="offline-heading">
+          <p className="m-0 text-control text-muted">
+            Your notes are always kept on this device. Images and older versions
+            take more space, so you choose whether to keep them too.
           </p>
-        ) : null}
-        {signOutError !== '' ? (
-          <p className="m-0 text-control text-danger" role="alert">
-            {signOutError}
+          <div className="mt-3 space-y-1">
+            <label className="flex min-h-11 items-center gap-2 text-control text-strong md:min-h-9">
+              <input
+                type="checkbox"
+                checked={offline.choices.images}
+                disabled={!offline.ready}
+                onChange={(event): void => {
+                  offline.setChoice('images', event.target.checked);
+                }}
+              />
+              Keep images on this device
+            </label>
+            <label className="flex min-h-11 items-center gap-2 text-control text-strong md:min-h-9">
+              <input
+                type="checkbox"
+                checked={offline.choices.history}
+                disabled={!offline.ready}
+                onChange={(event): void => {
+                  offline.setChoice('history', event.target.checked);
+                }}
+              />
+              Keep older versions on this device
+            </label>
+          </div>
+        </Card>
+
+        <Card title="Export" titleId="export-heading">
+          <p className="m-0 text-control text-muted">
+            Download every note as a zip of Markdown files. The files keep their
+            folders and need no application to be read again.
           </p>
-        ) : null}
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="secondary"
-            onClick={() => {
-              endSignOut(false);
-            }}
-          >
-            {pending > 0 ? 'Sign out and keep them' : 'Sign out on this device'}
-          </Button>
-          {pending > 0 ? (
+          {exportError === '' ? null : (
+            <Notice className="mt-3" tone="problem" message={exportError} />
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
             <Button
-              variant="danger"
+              variant="secondary"
+              disabled={exporting || workspaceId === null}
               onClick={() => {
-                endSignOut(true);
+                if (workspaceId === null) return;
+                setExportError('');
+                setExporting(true);
+                void downloadAll(workspaceId)
+                  .catch((failure: unknown) => {
+                    setExportError(problemMessage(failure));
+                  })
+                  .finally(() => {
+                    setExporting(false);
+                  });
               }}
             >
-              Sign out and remove them
+              {exporting ? 'Preparing the download' : 'Export all notes'}
             </Button>
-          ) : null}
-        </div>
-      </section>
-    </main>
+          </div>
+        </Card>
+
+        <Card title="Account" titleId="profile-heading">
+          <p className="m-0 text-ui text-strong">
+            {account.email ?? 'No address linked'}
+          </p>
+          <p className="mb-0 mt-1 text-control text-muted">
+            This installation has one account, and it owns every note.
+          </p>
+        </Card>
+
+        <Card title="Sign out" titleId="signout-heading">
+          {pending > 0 ? (
+            <p className="m-0 text-control text-muted">
+              Some saves have not reached the server yet. Keep them on this
+              device for the next sign-in, or remove them now.
+            </p>
+          ) : (
+            <p className="m-0 text-control text-muted">
+              Every save on this device reached the server.
+            </p>
+          )}
+          {signOutError === '' ? null : (
+            <Notice className="mt-3" tone="problem" message={signOutError} />
+          )}
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                endSignOut(false);
+              }}
+            >
+              {pending > 0
+                ? 'Sign out and keep them'
+                : 'Sign out on this device'}
+            </Button>
+            {pending > 0 ? (
+              <Button
+                variant="danger"
+                onClick={() => {
+                  endSignOut(true);
+                }}
+              >
+                Sign out and remove them
+              </Button>
+            ) : null}
+          </div>
+        </Card>
+      </div>
+    </Page>
   );
 }
