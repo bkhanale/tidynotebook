@@ -1,7 +1,7 @@
 /**
  * Public entry point of the shared Markdown package.
  *
- * The editor, the server, and the public share page all read a note through
+ * The editor, the server, and the reading surface all read a note through
  * these functions, so one document renders the same way everywhere and one
  * policy decides what a reader can reach.
  *

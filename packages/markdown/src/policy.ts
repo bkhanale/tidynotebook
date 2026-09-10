@@ -3,7 +3,7 @@
  *
  * This module owns two decisions that every reader of a note depends on: which
  * URL a rendered document may point at, and which HTML elements and attributes
- * may survive rendering. The editor, the server, and the public share page all
+ * may survive rendering. The editor, the server, and the reading surface all
  * import the same policy, so a note renders under identical rules everywhere.
  *
  * The policy is an allow list. An unknown scheme, an unknown path shape, an
@@ -130,7 +130,7 @@ const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
  * and inserts it after this schema ran. The main pipeline therefore keeps
  * only the `data-math` placeholder. The class and `aria-hidden` entries below
  * exist so that a second pass of this schema over already rendered math, for
- * example on the public share page, keeps the KaTeX layout classes without
+ * example on a reading surface, keeps the KaTeX layout classes without
  * reopening a style or URL surface: `style` stays dropped here and is owned
  * by the math sanitizer alone.
  *
@@ -144,7 +144,7 @@ const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
  * clobber a form control or a script variable.
  *
  * That prefix is shared by every note. A page that renders one note is
- * therefore safe, which is what the public share page does. A page that
+ * therefore safe, which is what the reading surface does. A page that
  * renders several notes at once must scope the footnote identifiers itself,
  * for example by rendering each note in its own document fragment; two notes
  * with the same footnote label would otherwise produce the same identifier.

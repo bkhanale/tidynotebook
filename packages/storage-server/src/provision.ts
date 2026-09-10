@@ -3,8 +3,8 @@
  *
  * A new account and a new workspace exist before any member can read them, so
  * the runtime role's member policies cannot create them. Provisioning
- * therefore uses the schema owner connection. Task 5 builds the bootstrap and
- * invitation commands on top of these calls.
+ * therefore uses the schema owner connection. The bootstrap command builds on
+ * these calls.
  */
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';

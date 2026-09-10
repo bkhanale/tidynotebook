@@ -55,8 +55,8 @@ export type RevisionData = {
  *
  * `file` names the revision that a write accepted. `purgedFileId` names a file
  * that a permanent deletion removed; such a record has no revision to read,
- * because the revisions are gone. A record with neither is a membership or
- * share record, which only advances the cursor.
+ * because the revisions are gone. A record with neither is a membership
+ * record, which only advances the cursor.
  */
 export type ChangeRecord = {
   readonly file: {

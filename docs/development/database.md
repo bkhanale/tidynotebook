@@ -304,14 +304,13 @@ and the runtime role stays fully constrained.
 `tests/integration/row-access.test.ts` proves the property with a plan, a self
 join over `memberships`, and a correlated subquery over `memberships`.
 
-### The public share path
+### No anonymous read path
 
-`notesapp_share_lookup(token_hash text)` is the only way an anonymous reader
-reaches content. It is `SECURITY DEFINER`, it resolves one token hash to
-exactly one pinned revision with its Markdown and its allowed attachment
-revisions, and it returns nothing for a revoked share, an expired share, or a
-deleted file. The runtime role holds `EXECUTE` on it and still reads no table
-row without an identity, which the integration test checks.
+`notesapp_share_lookup` and `notesapp_share_attachment_lookup` were the only
+way an anonymous reader reached content. Public sharing left the product, and
+no code calls either function now. They are compatibility only, and the next
+migration removes them. An anonymous transaction sets no identity, so it
+reads no row of any table.
 
 ## Immutability
 

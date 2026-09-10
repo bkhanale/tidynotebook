@@ -2,7 +2,7 @@
  * The shared Markdown corpus.
  *
  * Every consumer of this package checks itself against this one document, so
- * the parser, the renderer, the editor decorations, and the public share page
+ * the parser, the renderer, the editor decorations, and the reading surface
  * cannot drift apart. Add a case here rather than inventing a private sample.
  *
  * The corpus is TypeScript rather than a `.md` file because this package must

@@ -1,8 +1,8 @@
 /**
  * Markdown parsing.
  *
- * One parser configuration serves the editor, the server, and the public share
- * page, so all three agree on what a document means. The flavor is CommonMark
+ * One parser configuration serves the editor, the server, and the reading
+ * surface, so all three agree on what a document means. The flavor is CommonMark
  * plus the GFM set (tables, task list items, strikethrough, autolinks, and
  * footnotes) plus inline and display math.
  *
