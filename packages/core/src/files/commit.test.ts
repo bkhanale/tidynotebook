@@ -138,6 +138,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
             path: file.path,
             kind: file.kind,
             headRevisionId: file.headRevisionId ?? '',
+            createdAt: file.createdAt,
             deletedAt: file.updatedAt,
           })),
         nextCursor: null,
@@ -192,6 +193,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           kind: revision.content.kind === 'markdown' ? 'note' : 'attachment',
           headRevisionId: revision.id,
           deleted: revision.deleted,
+          createdAt: '2026-09-06T10:00:00.000Z',
           updatedAt: '2026-09-06T10:00:00.000Z',
         });
       }

@@ -18,6 +18,8 @@ import {
   fail,
   maxPageSize,
   ok,
+  decodeFileCursor,
+  encodeFileCursor,
   snapshotTtlMs,
   type OperationalErrorKind,
   type AcceptedChangeset,
@@ -26,8 +28,11 @@ import {
   type Actor,
   type ChangesetInput,
   type DeletedFilePage,
+  type FileCursor,
   type FilePage,
+  type FilePageRequest,
   type FileRecord,
+  type FileSort,
   type HeadState,
   type PageRequest,
   type Result,
@@ -51,7 +56,19 @@ import {
 } from '@notesapp/core';
 import { extractLinks } from '@notesapp/markdown';
 import { markdownLimitCode } from './markdown-limits.ts';
-import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gt,
+  inArray,
+  isNotNull,
+  lt,
+  or,
+  sql,
+  type SQL,
+} from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import {
@@ -339,6 +356,88 @@ function assertUuid(value: string, what: string): void {
       `notesapp: ${what} is not a UUID; the transport must validate it.`,
     );
   }
+}
+
+/**
+ * The position that a file listing continues from, or `null` for its front.
+ *
+ * A cursor that this server did not issue for this sort is a defect of the
+ * caller: the transport validates the parameter before the use case runs, so
+ * a value that reaches storage and does not parse is reported as such rather
+ * than answered with the wrong rows.
+ */
+function listingCursor(page: {
+  readonly cursor: string | null;
+  readonly sort: FileSort;
+}): FileCursor | null {
+  if (page.cursor === null) return null;
+  const cursor = decodeFileCursor(page.cursor, page.sort);
+  if (cursor === null) {
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: the page cursor does not belong to this listing; the transport must validate it.',
+    );
+  }
+  return cursor;
+}
+
+/**
+ * The rows of a listing that come after its cursor.
+ *
+ * The comparison is a keyset one on the whole order, sort key first and file
+ * identifier second, so a page boundary that falls between two rows with the
+ * same key neither repeats a row nor skips one.
+ */
+function listingBound(cursor: FileCursor | null): SQL | undefined {
+  if (cursor === null) return undefined;
+  if (cursor.sort === 'path')
+    return or(
+      gt(files.path, cursor.key),
+      and(eq(files.path, cursor.key), gt(files.id, cursor.fileId)),
+    );
+  // The bound is compared as a timestamp, not as a JavaScript instant: the
+  // column keeps microseconds, and a value rounded to milliseconds would
+  // match no row and would drop the whole rest of the listing.
+  const instant = sql`${cursor.key}::timestamptz`;
+  return or(
+    lt(files.updatedAt, instant),
+    and(eq(files.updatedAt, instant), lt(files.id, cursor.fileId)),
+  );
+}
+
+/** The order of a file listing: newest change first, or path ascending. */
+function listingOrder(sort: FileSort): readonly SQL[] {
+  return sort === 'path'
+    ? [asc(files.path), asc(files.id)]
+    : [desc(files.updatedAt), desc(files.id)];
+}
+
+/**
+ * The exact acceptance instant of a row, in ISO 8601 with microseconds.
+ *
+ * The driver parses a timestamp into a JavaScript date, which holds only
+ * milliseconds. A cursor built from that value would name an instant that no
+ * row carries, so the key is read from the database as text instead.
+ */
+const listingInstant = sql<string>`to_char(${files.updatedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
+/** The cursor that continues a listing after its last returned row. */
+function nextListingCursor(
+  sort: FileSort,
+  last:
+    | {
+        readonly id: string;
+        readonly path: string;
+        readonly updatedKey: string;
+      }
+    | undefined,
+): string | null {
+  if (last === undefined) return null;
+  return encodeFileCursor({
+    sort,
+    key: sort === 'path' ? last.path : last.updatedKey,
+    fileId: last.id,
+  });
 }
 
 /** Reads one accepted revision record out of a stored outcome. */
@@ -829,11 +928,11 @@ function createTransaction(
       return rows.map((row) => row.fileId);
     },
 
-    async listFiles(page: PageRequest): Promise<FilePage> {
+    async listFiles(page: FilePageRequest): Promise<FilePage> {
       // One row more than the page is read, so the answer knows whether a next
       // page exists without a second count query.
       const limit = Math.min(Math.max(1, Math.trunc(page.limit)), maxPageSize);
-      if (page.cursor !== null) assertUuid(page.cursor, 'the page cursor');
+      const from = listingCursor(page);
       const rows = await db
         .select({
           id: files.id,
@@ -841,7 +940,9 @@ function createTransaction(
           kind: files.kind,
           head: files.headRevisionId,
           deleted: files.deleted,
+          createdAt: files.createdAt,
           updatedAt: files.updatedAt,
+          updatedKey: listingInstant,
         })
         .from(files)
         .where(
@@ -849,10 +950,10 @@ function createTransaction(
             eq(files.workspaceId, workspaceId),
             eq(files.deleted, false),
             isNotNull(files.headRevisionId),
-            page.cursor === null ? undefined : gt(files.id, page.cursor),
+            listingBound(from),
           ),
         )
-        .orderBy(files.id)
+        .orderBy(...listingOrder(page.sort))
         .limit(limit + 1);
       const wanted = rows.slice(0, limit);
       return {
@@ -862,25 +963,31 @@ function createTransaction(
           kind: row.kind,
           headRevisionId: row.head,
           deleted: row.deleted,
+          createdAt: row.createdAt.toISOString(),
           updatedAt: row.updatedAt.toISOString(),
         })),
-        nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
+        nextCursor:
+          rows.length > limit
+            ? nextListingCursor(page.sort, wanted.at(-1))
+            : null,
       };
     },
 
-    async listDeletedFiles(page: PageRequest): Promise<DeletedFilePage> {
+    async listDeletedFiles(page: FilePageRequest): Promise<DeletedFilePage> {
       // The complement of `listFiles`, and the same paging: one row more than
       // the page is read, so the answer knows whether a next page exists
       // without a second count query. `files_live_idx` covers the filter.
       const limit = Math.min(Math.max(1, Math.trunc(page.limit)), maxPageSize);
-      if (page.cursor !== null) assertUuid(page.cursor, 'the page cursor');
+      const from = listingCursor(page);
       const rows = await db
         .select({
           id: files.id,
           path: files.path,
           kind: files.kind,
           head: files.headRevisionId,
+          createdAt: files.createdAt,
           updatedAt: files.updatedAt,
+          updatedKey: listingInstant,
         })
         .from(files)
         .where(
@@ -888,10 +995,10 @@ function createTransaction(
             eq(files.workspaceId, workspaceId),
             eq(files.deleted, true),
             isNotNull(files.headRevisionId),
-            page.cursor === null ? undefined : gt(files.id, page.cursor),
+            listingBound(from),
           ),
         )
-        .orderBy(files.id)
+        .orderBy(...listingOrder(page.sort))
         .limit(limit + 1);
       const wanted = rows.slice(0, limit);
       return {
@@ -904,13 +1011,17 @@ function createTransaction(
                   path: row.path,
                   kind: row.kind,
                   headRevisionId: row.head,
+                  createdAt: row.createdAt.toISOString(),
                   // The last accepted change of a deleted file is its
                   // tombstone, so this instant is the deletion time.
                   deletedAt: row.updatedAt.toISOString(),
                 },
               ],
         ),
-        nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
+        nextCursor:
+          rows.length > limit
+            ? nextListingCursor(page.sort, wanted.at(-1))
+            : null,
       };
     },
 
@@ -937,6 +1048,7 @@ function createTransaction(
           kind: files.kind,
           head: files.headRevisionId,
           deleted: files.deleted,
+          createdAt: files.createdAt,
           updatedAt: files.updatedAt,
         })
         .from(files)
@@ -949,6 +1061,7 @@ function createTransaction(
         kind: row.kind,
         headRevisionId: row.head,
         deleted: row.deleted,
+        createdAt: row.createdAt.toISOString(),
         updatedAt: row.updatedAt.toISOString(),
       };
     },

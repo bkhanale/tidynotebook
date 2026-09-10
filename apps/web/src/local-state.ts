@@ -105,6 +105,10 @@ export function mergeFileSummaries(
       path: localIsNewer ? file.path : (accepted?.path ?? file.path),
       kind: file.kind,
       headRevisionId: accepted?.headRevisionId ?? file.acceptedHeadRevisionId,
+      // The server owns the creation instant. A file that the server does
+      // not know yet was created on this device, so its earliest known
+      // instant is the local one.
+      createdAt: accepted?.createdAt ?? file.updatedAt,
       updatedAt:
         localIsNewer || accepted === undefined
           ? file.updatedAt

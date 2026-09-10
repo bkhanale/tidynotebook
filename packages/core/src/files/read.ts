@@ -13,9 +13,10 @@ import { authorize, type Actor } from '../identity/actor.ts';
 import { fail, ok, type Result } from './model.ts';
 import type {
   FilePage,
+  FilePageRequest,
   FileRecord,
+  FileSort,
   MutationReceipt,
-  PageRequest,
   RevisionRecord,
   WorkspaceStore,
   WorkspaceTransaction,
@@ -45,6 +46,14 @@ async function permitRead(
   return authorize(actor, workspaceId, role, 'read');
 }
 
+/** The sort of a file listing that names none. */
+export const defaultFileSort: FileSort = 'updated';
+
+/** The requested file sort, or the default when the request names none. */
+export function fileSort(value: unknown): FileSort {
+  return value === 'path' ? 'path' : defaultFileSort;
+}
+
 /** Keeps a requested page size inside the served range. */
 export function pageSize(limit: number | null): number {
   if (limit === null || !Number.isFinite(limit)) return defaultPageSize;
@@ -56,7 +65,7 @@ export function listFiles(
   store: WorkspaceStore,
   actor: Actor,
   workspaceId: string,
-  page: PageRequest,
+  page: FilePageRequest,
 ): Promise<Result<FilePage>> {
   return store.transact<Result<FilePage>>(actor, workspaceId, async (tx) => {
     const permitted = await permitRead(tx, actor, workspaceId);
@@ -65,6 +74,7 @@ export function listFiles(
       await tx.listFiles({
         cursor: page.cursor,
         limit: pageSize(page.limit),
+        sort: page.sort,
       }),
     );
   });

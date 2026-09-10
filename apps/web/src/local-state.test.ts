@@ -9,6 +9,7 @@ const remote: WorkspaceFileSummary = {
   path: 'old.md',
   kind: 'note',
   headRevisionId: 'revision-a',
+  createdAt: '2026-09-06T10:00:00.000Z',
   updatedAt: '2026-09-07T10:00:00.000Z',
 };
 
@@ -55,6 +56,28 @@ await test('local file state adds, renames, and deletes navigation entries', () 
       ],
     )[0]?.path,
     'new.md',
+  );
+});
+
+await test('a merged entry keeps the created instant of the server', () => {
+  assert.equal(
+    mergeFileSummaries([remote], [local()])[0]?.createdAt,
+    remote.createdAt,
+  );
+  assert.equal(
+    mergeFileSummaries(
+      [],
+      [
+        local({
+          fileId: 'file-new',
+          path: 'new.md',
+          acceptedHeadRevisionId: null,
+          localHeadRevisionId: null,
+          localOnly: true,
+        }),
+      ],
+    )[0]?.createdAt,
+    '2026-09-07T10:01:00.000Z',
   );
 });
 

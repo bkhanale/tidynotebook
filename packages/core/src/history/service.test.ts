@@ -130,6 +130,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
             path: file.path,
             kind: file.kind,
             headRevisionId: file.headRevisionId ?? '',
+            createdAt: file.createdAt,
             deletedAt: file.updatedAt,
           })),
         nextCursor: null,
@@ -173,6 +174,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           kind: r.content.kind === 'markdown' ? 'note' : 'attachment',
           headRevisionId: r.id,
           deleted: r.deleted,
+          createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
         });
         const accepted: AcceptedRevision = {
@@ -284,6 +286,7 @@ await test('listHistory: returns history page for existing file', async () => {
     kind: 'note',
     headRevisionId: 'r1',
     deleted: false,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
   state.history.push({
@@ -327,6 +330,7 @@ await test('restoreRevision: creates child revision referencing historic revisio
     kind: 'note',
     headRevisionId: 'r2',
     deleted: false,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
   state.revisions.set('r0', {
@@ -421,6 +425,7 @@ await test('purge: owner can purge files successfully and writes purge markers',
     kind: 'note',
     headRevisionId: 'r1',
     deleted: false,
+    createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   });
   const store = fakeStore(state);

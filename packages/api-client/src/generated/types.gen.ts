@@ -453,6 +453,11 @@ export type FileChange = {
 export type FileKind = 'note' | 'attachment';
 
 /**
+ * Opaque position inside one file listing. It belongs to the sort that produced it and carries no meaning for a client.
+ */
+export type FilePageToken = string;
+
+/**
  * Relative POSIX path of the file inside its workspace. A note path ends in .md. The stored path is the Unicode NFC form of this value, and it is compared case sensitively.
  */
 export type FilePath = string;
@@ -518,6 +523,11 @@ export type FileRevision = {
      */
     readonly serverTime: string;
 };
+
+/**
+ * Order of a file listing. `updated` is the newest accepted change first. `path` is the stored path in ascending order.
+ */
+export type FileSortOrder = 'updated' | 'path';
 
 /**
  * Payload to finalize an attachment and create an immutable revision.
@@ -1067,13 +1077,13 @@ export type Workspace = {
  */
 export type WorkspaceDeletedFileList = {
     /**
-     * The deleted files of this page, ordered by identifier.
+     * The deleted files of this page, in the requested order.
      */
     readonly files: Array<WorkspaceDeletedFileSummary>;
     /**
-     * Cursor of the next page, or null when this page is the last one.
+     * Cursor of the next page, or null when this page is the last one. It continues the sort that produced it.
      */
-    readonly nextCursor: Uuid | null;
+    readonly nextCursor: FilePageToken | null;
 };
 
 /**
@@ -1096,6 +1106,10 @@ export type WorkspaceDeletedFileSummary = {
      * The tombstone revision that deleted the file, which is its accepted head and its entity tag. A restore states it as the expected head.
      */
     readonly headRevisionId: Uuid;
+    /**
+     * Instant at which the file was created.
+     */
+    readonly createdAt: string;
     /**
      * Instant at which the workspace accepted the deletion.
      */
@@ -1123,6 +1137,10 @@ export type WorkspaceFile = {
      */
     readonly headRevisionId: Uuid | null;
     /**
+     * Instant at which the file was created.
+     */
+    readonly createdAt: string;
+    /**
      * Instant at which the workspace accepted the last change.
      */
     readonly updatedAt: string;
@@ -1137,13 +1155,13 @@ export type WorkspaceFile = {
  */
 export type WorkspaceFileList = {
     /**
-     * The files of this page, ordered by identifier.
+     * The files of this page, in the requested order.
      */
     readonly files: Array<WorkspaceFileSummary>;
     /**
-     * Cursor of the next page, or null when this page is the last one.
+     * Cursor of the next page, or null when this page is the last one. It continues the sort that produced it.
      */
-    readonly nextCursor: Uuid | null;
+    readonly nextCursor: FilePageToken | null;
 };
 
 /**
@@ -1166,6 +1184,10 @@ export type WorkspaceFileSummary = {
      * The accepted head of the file, which is also its entity tag, or null for a file that has no accepted revision yet.
      */
     readonly headRevisionId: Uuid | null;
+    /**
+     * Instant at which the file was created.
+     */
+    readonly createdAt: string;
     /**
      * Instant at which the workspace accepted the last change.
      */
@@ -1307,6 +1329,16 @@ export type ObjectId = Uuid;
  * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
  */
 export type PageCursor = Uuid;
+
+/**
+ * Position to continue a file listing from. Use the nextCursor value of the previous page, together with the same sort. The first page names no cursor.
+ */
+export type FilePageCursor = FilePageToken;
+
+/**
+ * Order of the listing. `updated` puts the newest accepted change first and is the default. `path` orders by the stored path, which is the order of the folder tree.
+ */
+export type FileSort = FileSortOrder;
 
 /**
  * Largest number of entries in one page. The server uses 100 when the parameter is absent and never returns more than 500.
@@ -2474,13 +2506,17 @@ export type ListFilesData = {
     };
     query?: {
         /**
-         * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
+         * Position to continue a file listing from. Use the nextCursor value of the previous page, together with the same sort. The first page names no cursor.
          */
-        cursor?: Uuid;
+        cursor?: FilePageToken;
         /**
          * Largest number of entries in one page. The server uses 100 when the parameter is absent and never returns more than 500.
          */
         limit?: number;
+        /**
+         * Order of the listing. `updated` puts the newest accepted change first and is the default. `path` orders by the stored path, which is the order of the folder tree.
+         */
+        sort?: FileSortOrder;
     };
     url: '/api/workspaces/{workspaceId}/files';
 };
@@ -3525,13 +3561,17 @@ export type ListDeletedFilesData = {
     };
     query?: {
         /**
-         * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
+         * Position to continue a file listing from. Use the nextCursor value of the previous page, together with the same sort. The first page names no cursor.
          */
-        cursor?: Uuid;
+        cursor?: FilePageToken;
         /**
          * Largest number of entries in one page. The server uses 100 when the parameter is absent and never returns more than 500.
          */
         limit?: number;
+        /**
+         * Order of the listing. `updated` puts the newest accepted change first and is the default. `path` orders by the stored path, which is the order of the folder tree.
+         */
+        sort?: FileSortOrder;
     };
     url: '/api/workspaces/{workspaceId}/trash';
 };

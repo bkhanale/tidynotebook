@@ -326,18 +326,21 @@ paths:
       operationId: listFiles
       summary: List the live files of a workspace.
       description: >-
-        Lists the accepted files of the workspace, ordered by identifier and
-        paged with a cursor. A deleted file is not listed, because it holds no
-        place in the file tree; its history stays readable through its
-        revisions. The answer carries metadata only, so a file tree can be
-        drawn without downloading any note.
+        Lists the accepted files of the workspace in the requested order,
+        paged with a keyset cursor. `updated` is the newest accepted change
+        first and is the default; `path` is the order of the folder tree. A
+        deleted file is not listed, because it holds no place in the file
+        tree; its history stays readable through its revisions. The answer
+        carries metadata only, so a file tree can be drawn without downloading
+        any note.
       tags:
         - files
       parameters:
         - $ref: '#/components/parameters/RequestId'
         - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/FilePageCursor'
         - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/FileSort'
       responses:
         '200':
           $ref: '#/components/responses/FileList'
@@ -894,8 +897,8 @@ paths:
       summary: List the deleted files of a workspace.
       description: >-
         Lists the files of the workspace that a tombstone revision deleted,
-        ordered by identifier and paged with a cursor, exactly as the live
-        listing is. A deleted file holds no place in the file tree, so it
+        in the requested order and paged with a keyset cursor, exactly as the
+        live listing is. A deleted file holds no place in the file tree, so it
         appears here instead. Each entry names the instant of the deletion and
         the tombstone that is the accepted head, which the restore operation
         needs. A permanently purged file is not listed, because nothing of it
@@ -905,8 +908,9 @@ paths:
       parameters:
         - $ref: '#/components/parameters/RequestId'
         - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/FilePageCursor'
         - $ref: '#/components/parameters/PageLimit'
+        - $ref: '#/components/parameters/FileSort'
       responses:
         '200':
           $ref: '#/components/responses/DeletedFileList'
@@ -1165,6 +1169,30 @@ components:
         previous page. The first page names no cursor.
       schema:
         $ref: '#/components/schemas/Uuid'
+    FilePageCursor:
+      name: cursor
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Position to continue a file listing from. Use the nextCursor value of
+        the previous page, together with the same sort. The first page names
+        no cursor.
+      schema:
+        $ref: '#/components/schemas/FilePageToken'
+    FileSort:
+      name: sort
+      in: query
+      required: false
+      style: form
+      explode: true
+      description: >-
+        Order of the listing. `updated` puts the newest accepted change first
+        and is the default. `path` orders by the stored path, which is the
+        order of the folder tree.
+      schema:
+        $ref: '#/components/schemas/FileSortOrder'
     PageLimit:
       name: limit
       in: query
@@ -2017,6 +2045,22 @@ components:
         Name of a checkpoint, or null for an ordinary revision. It is written
         by the author and is not interpreted by the server.
       maxLength: 512
+    FileSortOrder:
+      type: string
+      description: >-
+        Order of a file listing. `updated` is the newest accepted change
+        first. `path` is the stored path in ascending order.
+      enum:
+        - updated
+        - path
+    FilePageToken:
+      type: string
+      description: >-
+        Opaque position inside one file listing. It belongs to the sort that
+        produced it and carries no meaning for a client.
+      minLength: 1
+      maxLength: 2048
+      pattern: '^(updated|path)\.[0-9a-fA-F-]{36}\.[A-Za-z0-9\-._~!*''()%]*$'
     WorkspaceFileSummary:
       type: object
       description: One live file of a workspace, without its content.
@@ -2026,6 +2070,7 @@ components:
         - path
         - kind
         - headRevisionId
+        - createdAt
         - updatedAt
       properties:
         fileId:
@@ -2051,6 +2096,12 @@ components:
           description: >-
             The accepted head of the file, which is also its entity tag, or
             null for a file that has no accepted revision yet.
+        createdAt:
+          type: string
+          readOnly: true
+          description: Instant at which the file was created.
+          format: date-time
+          maxLength: 64
         updatedAt:
           type: string
           readOnly: true
@@ -2068,17 +2119,18 @@ components:
         files:
           type: array
           readOnly: true
-          description: The files of this page, ordered by identifier.
+          description: The files of this page, in the requested order.
           maxItems: 500
           items:
             $ref: '#/components/schemas/WorkspaceFileSummary'
         nextCursor:
           oneOf:
-            - $ref: '#/components/schemas/Uuid'
+            - $ref: '#/components/schemas/FilePageToken'
             - type: 'null'
           readOnly: true
           description: >-
             Cursor of the next page, or null when this page is the last one.
+            It continues the sort that produced it.
     WorkspaceDeletedFileSummary:
       type: object
       description: One deleted file of a workspace, without its content.
@@ -2088,6 +2140,7 @@ components:
         - path
         - kind
         - headRevisionId
+        - createdAt
         - deletedAt
       properties:
         fileId:
@@ -2112,6 +2165,12 @@ components:
           description: >-
             The tombstone revision that deleted the file, which is its accepted
             head and its entity tag. A restore states it as the expected head.
+        createdAt:
+          type: string
+          readOnly: true
+          description: Instant at which the file was created.
+          format: date-time
+          maxLength: 64
         deletedAt:
           type: string
           readOnly: true
@@ -2129,17 +2188,18 @@ components:
         files:
           type: array
           readOnly: true
-          description: The deleted files of this page, ordered by identifier.
+          description: The deleted files of this page, in the requested order.
           maxItems: 500
           items:
             $ref: '#/components/schemas/WorkspaceDeletedFileSummary'
         nextCursor:
           oneOf:
-            - $ref: '#/components/schemas/Uuid'
+            - $ref: '#/components/schemas/FilePageToken'
             - type: 'null'
           readOnly: true
           description: >-
             Cursor of the next page, or null when this page is the last one.
+            It continues the sort that produced it.
     SearchHit:
       type: object
       description: One accepted live note that matched a search.
@@ -2224,6 +2284,7 @@ components:
         - path
         - kind
         - headRevisionId
+        - createdAt
         - updatedAt
         - head
       properties:
@@ -2248,6 +2309,12 @@ components:
             - type: 'null'
           readOnly: true
           description: The accepted head, which is also the entity tag.
+        createdAt:
+          type: string
+          readOnly: true
+          description: Instant at which the file was created.
+          format: date-time
+          maxLength: 64
         updatedAt:
           type: string
           readOnly: true

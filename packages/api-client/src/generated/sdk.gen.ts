@@ -294,7 +294,7 @@ export const commitChangeset = <ThrowOnError extends boolean = false>(options: O
 /**
  * List the live files of a workspace.
  *
- * Lists the accepted files of the workspace, ordered by identifier and paged with a cursor. A deleted file is not listed, because it holds no place in the file tree; its history stays readable through its revisions. The answer carries metadata only, so a file tree can be drawn without downloading any note.
+ * Lists the accepted files of the workspace in the requested order, paged with a keyset cursor. `updated` is the newest accepted change first and is the default; `path` is the order of the folder tree. A deleted file is not listed, because it holds no place in the file tree; its history stays readable through its revisions. The answer carries metadata only, so a file tree can be drawn without downloading any note.
  */
 export const listFiles = <ThrowOnError extends boolean = false>(options: Options<ListFilesData, ThrowOnError>): RequestResult<ListFilesResponses, ListFilesErrors, ThrowOnError> => (options.client ?? client).get<ListFilesResponses, ListFilesErrors, ThrowOnError>({
     security: [{
@@ -547,7 +547,7 @@ export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: O
 /**
  * List the deleted files of a workspace.
  *
- * Lists the files of the workspace that a tombstone revision deleted, ordered by identifier and paged with a cursor, exactly as the live listing is. A deleted file holds no place in the file tree, so it appears here instead. Each entry names the instant of the deletion and the tombstone that is the accepted head, which the restore operation needs. A permanently purged file is not listed, because nothing of it is left to restore.
+ * Lists the files of the workspace that a tombstone revision deleted, in the requested order and paged with a keyset cursor, exactly as the live listing is. A deleted file holds no place in the file tree, so it appears here instead. Each entry names the instant of the deletion and the tombstone that is the accepted head, which the restore operation needs. A permanently purged file is not listed, because nothing of it is left to restore.
  */
 export const listDeletedFiles = <ThrowOnError extends boolean = false>(options: Options<ListDeletedFilesData, ThrowOnError>): RequestResult<ListDeletedFilesResponses, ListDeletedFilesErrors, ThrowOnError> => (options.client ?? client).get<ListDeletedFilesResponses, ListDeletedFilesErrors, ThrowOnError>({
     security: [{

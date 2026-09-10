@@ -61,20 +61,24 @@ const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
 }));
 
-/** One page of files merged into a full list. */
+/**
+ * Every live file of the workspace, in the order of the folder tree.
+ *
+ * The server sorts and pages the listing, so each page continues the previous
+ * one through its cursor instead of scanning from the front. The sidebar
+ * shows a folder tree, so it asks for the path order.
+ */
 async function loadAllFiles(
   workspaceId: string,
 ): Promise<{ readonly files: readonly WorkspaceFileSummary[] }> {
   const files: WorkspaceFileSummary[] = [];
   let cursor: string | null = null;
-  let firstPage = true;
   for (;;) {
-    const query: { readonly cursor?: string; readonly limit?: number } =
-      firstPage || cursor === null ? { limit: 100 } : { cursor, limit: 100 };
-    firstPage = false;
+    const page: { readonly cursor?: string } =
+      cursor === null ? {} : { cursor };
     const result = await listFiles({
       path: { workspaceId },
-      query: { ...query },
+      query: { ...page, limit: 100, sort: 'path' },
     });
     if (result.error !== undefined || result.data === undefined)
       throw new Error(problemMessage(result.error));

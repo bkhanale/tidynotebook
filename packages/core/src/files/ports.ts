@@ -55,11 +55,23 @@ export type FileRecord = {
   /** The accepted head, or `null` for a file that has no accepted revision. */
   readonly headRevisionId: string | null;
   readonly deleted: boolean;
+  /** Instant at which the file was created, as an ISO 8601 string. */
+  readonly createdAt: string;
   /** Instant of the last accepted change, as an ISO 8601 string. */
   readonly updatedAt: string;
 };
 
-/** One page of accepted files, ordered by file identifier. */
+/**
+ * How a file listing is ordered.
+ *
+ * `updated` puts the newest accepted change first, which is what a notes list
+ * shows by default. `path` orders by the stored path, which is the order of
+ * the folder tree. Both orders are total, because the file identifier breaks
+ * a tie, so a keyset cursor can continue either of them.
+ */
+export type FileSort = 'updated' | 'path';
+
+/** One page of accepted files. */
 export type FilePage = {
   readonly files: readonly FileRecord[];
   /** The cursor of the next page, or `null` when this page is the last. */
@@ -80,22 +92,35 @@ export type DeletedFileRecord = {
   readonly kind: FileKind;
   /** The tombstone revision, which is the accepted head of the file. */
   readonly headRevisionId: string;
+  /** Instant at which the file was created, as an ISO 8601 string. */
+  readonly createdAt: string;
   /** Instant of the accepted deletion, as an ISO 8601 string. */
   readonly deletedAt: string;
 };
 
-/** One page of deleted files, ordered by file identifier. */
+/** One page of deleted files. */
 export type DeletedFilePage = {
   readonly files: readonly DeletedFileRecord[];
   /** The cursor of the next page, or `null` when this page is the last. */
   readonly nextCursor: string | null;
 };
 
-/** What a caller asks for when it reads a page of files. */
+/** What a caller asks for when it reads a page of records. */
 export type PageRequest = {
-  /** The last file identifier of the previous page, or `null` to start. */
+  /** The position of the previous page, or `null` to start at the front. */
   readonly cursor: string | null;
   readonly limit: number;
+};
+
+/**
+ * What a caller asks for when it reads a page of files.
+ *
+ * The cursor is opaque. It carries the sort key and the identifier of the last
+ * row of the previous page, so the next page continues the same order instead
+ * of scanning from the front. A cursor belongs to the sort that produced it.
+ */
+export type FilePageRequest = PageRequest & {
+  readonly sort: FileSort;
 };
 
 /**
@@ -176,20 +201,20 @@ export type WorkspaceTransaction = {
    */
   purgedFiles(fileIds: readonly string[]): Promise<readonly string[]>;
   /**
-   * One page of the live files of this workspace, ordered by identifier.
+   * One page of the live files of this workspace, in the requested order.
    *
    * A deleted file is left out, because it holds no place in the file tree.
    * Its history stays reachable through its revisions.
    */
-  listFiles(page: PageRequest): Promise<FilePage>;
+  listFiles(page: FilePageRequest): Promise<FilePage>;
   /**
-   * One page of the deleted files of this workspace, ordered by identifier.
+   * One page of the deleted files of this workspace, in the requested order.
    *
    * This is the complement of `listFiles`: a file that a tombstone removed
    * from the file tree is listed here, so the trash can offer it back. A
    * permanently purged file is not listed, because it holds no row any more.
    */
-  listDeletedFiles(page: PageRequest): Promise<DeletedFilePage>;
+  listDeletedFiles(page: FilePageRequest): Promise<DeletedFilePage>;
   /**
    * The requested paths that a live file already holds.
    *

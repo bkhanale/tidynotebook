@@ -28,6 +28,8 @@ export { fail, ok } from './files/model.ts';
 export type { PathKind } from './files/path.ts';
 export { normalizePath } from './files/path.ts';
 export { validateGraph } from './files/graph.ts';
+export type { FileCursor } from './files/cursor.ts';
+export { decodeFileCursor, encodeFileCursor } from './files/cursor.ts';
 export {
   CanonicalJsonError,
   canonicalJson,
@@ -40,7 +42,9 @@ export type {
   DeletedFileRecord,
   FileKind,
   FilePage,
+  FilePageRequest,
   FileRecord,
+  FileSort,
   HeadState,
   HistoryPage,
   HistoryRevision,
@@ -96,7 +100,9 @@ export {
 } from './files/trash.ts';
 export type { FileWithHead } from './files/read.ts';
 export {
+  defaultFileSort,
   defaultPageSize,
+  fileSort,
   listFiles,
   maxPageSize,
   pageSize,

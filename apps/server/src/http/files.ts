@@ -18,6 +18,7 @@ import type {
   AcceptedRevision,
   ChangesetInput,
   ContentRef,
+  FilePageRequest,
   Result,
   RevisionInput,
   RevisionRecord,
@@ -26,7 +27,9 @@ import type {
 import {
   commitChangeset,
   createFileChangeset,
+  decodeFileCursor,
   defaultPageSize,
+  fileSort,
   listDeletedFiles,
   listFiles,
   markdownContent,
@@ -43,7 +46,11 @@ import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
 import { noContent } from './register.ts';
-import { DomainProblemError, PreconditionRequiredError } from './problem.ts';
+import {
+  DomainProblemError,
+  PreconditionRequiredError,
+  RequestContractError,
+} from './problem.ts';
 
 /** Media type of every answer in this module. */
 const jsonMediaType = 'application/json';
@@ -324,6 +331,33 @@ function submissionIds(body: unknown): {
 }
 
 /**
+ * The sort, the page size, and the position that a file listing asks for.
+ *
+ * The cursor is opaque to the client, so a value that does not name a
+ * position of this sort is a malformed request rather than a server fault.
+ * The check happens here, at the transport, where a request parameter is
+ * validated, and not in the use case.
+ */
+export function listingRequest(request: FastifyRequest): FilePageRequest {
+  const cursor = readProperty(request.query, 'cursor');
+  const limit = readProperty(request.query, 'limit');
+  const sort = fileSort(readProperty(request.query, 'sort'));
+  const position = typeof cursor === 'string' ? cursor : null;
+  if (position !== null && decodeFileCursor(position, sort) === null)
+    throw new RequestContractError('query', [
+      {
+        path: '/cursor',
+        message: 'The cursor does not name a position of this sort order.',
+      },
+    ]);
+  return {
+    cursor: position,
+    limit: typeof limit === 'number' ? limit : defaultPageSize,
+    sort,
+  };
+}
+
+/**
  * A store that the deployment did not supply.
  *
  * A test that checks the HTTP boundary only may leave it out. A file operation
@@ -455,13 +489,8 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     listFiles: async (request): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
-      const cursor = readProperty(request.query, 'cursor');
-      const limit = readProperty(request.query, 'limit');
       const page = unwrap(
-        await listFiles(store, actor, workspaceId, {
-          cursor: typeof cursor === 'string' ? cursor : null,
-          limit: typeof limit === 'number' ? limit : defaultPageSize,
-        }),
+        await listFiles(store, actor, workspaceId, listingRequest(request)),
       );
       return {
         status: 200,
@@ -472,6 +501,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
             path: file.path,
             kind: file.kind,
             headRevisionId: file.headRevisionId,
+            createdAt: file.createdAt,
             updatedAt: file.updatedAt,
           })),
           nextCursor: page.nextCursor,
@@ -482,13 +512,13 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     listDeletedFiles: async (request): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
-      const cursor = readProperty(request.query, 'cursor');
-      const limit = readProperty(request.query, 'limit');
       const page = unwrap(
-        await listDeletedFiles(store, actor, workspaceId, {
-          cursor: typeof cursor === 'string' ? cursor : null,
-          limit: typeof limit === 'number' ? limit : defaultPageSize,
-        }),
+        await listDeletedFiles(
+          store,
+          actor,
+          workspaceId,
+          listingRequest(request),
+        ),
       );
       return {
         status: 200,
@@ -499,6 +529,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
             path: file.path,
             kind: file.kind,
             headRevisionId: file.headRevisionId,
+            createdAt: file.createdAt,
             deletedAt: file.deletedAt,
           })),
           nextCursor: page.nextCursor,
@@ -568,6 +599,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
           path: found.file.path,
           kind: found.file.kind,
           headRevisionId: found.file.headRevisionId,
+          createdAt: found.file.createdAt,
           updatedAt: found.file.updatedAt,
           head: head === null ? null : revisionBody(head),
         },

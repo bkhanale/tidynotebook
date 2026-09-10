@@ -430,22 +430,58 @@ await test('a deletion clears the links of a file', async () => {
 });
 
 await test('a listing pages through the live files by cursor', async () => {
-  const first = await listFiles({
+  const whole = await listFiles({
     headers: browser(cookie),
     path: { workspaceId },
-    query: { limit: 1 },
+    query: { limit: 500 },
   });
-  assert.equal(first.error, undefined);
-  assert.equal(first.data?.files.length, 1);
-  const cursor = first.data?.nextCursor ?? '';
-  assert.match(cursor, /^[0-9a-f-]{36}$/);
-  const second = await listFiles({
+  assert.equal(whole.error, undefined);
+  const expected = (whole.data?.files ?? []).map((file) => file.fileId);
+  assert.ok(expected.length > 1);
+
+  const seen: string[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < expected.length + 1; page += 1) {
+    const answer: Awaited<ReturnType<typeof listFiles>> = await listFiles({
+      headers: browser(cookie),
+      path: { workspaceId },
+      query: cursor === null ? { limit: 1 } : { limit: 1, cursor },
+    });
+    assert.equal(answer.error, undefined);
+    seen.push(...(answer.data?.files ?? []).map((file) => file.fileId));
+    cursor = answer.data?.nextCursor ?? null;
+    if (cursor === null) break;
+    assert.match(cursor, /^updated\.[0-9a-f-]{36}\./);
+  }
+  assert.deepEqual(seen, expected);
+});
+
+await test('a listing sorts by path and refuses a cursor of the other sort', async () => {
+  const byPath = await listFiles({
+    headers: browser(cookie),
+    path: { workspaceId },
+    query: { limit: 500, sort: 'path' },
+  });
+  assert.equal(byPath.error, undefined);
+  const paths = (byPath.data?.files ?? []).map((file) => file.path);
+  assert.deepEqual(paths, [...paths].sort());
+
+  const firstPage = await listFiles({
+    headers: browser(cookie),
+    path: { workspaceId },
+    query: { limit: 1, sort: 'path' },
+  });
+  const cursor = firstPage.data?.nextCursor ?? '';
+  assert.match(cursor, /^path\.[0-9a-f-]{36}\./);
+  // The cursor belongs to the sort that produced it, so the default order
+  // refuses it instead of answering with the wrong rows.
+  const mismatched = await listFiles({
     headers: browser(cookie),
     path: { workspaceId },
     query: { limit: 1, cursor },
   });
-  assert.notEqual(second.data?.files[0]?.fileId, first.data?.files[0]?.fileId);
-  assert.ok((second.data?.files[0]?.fileId ?? '') > cursor);
+  assert.equal(responseOf(mismatched.response).status, 400);
+  assert.equal(problemCode(mismatched.error), 'invalid_request');
 });
 
 await test('a replay after the head moved returns the first outcome', async () => {

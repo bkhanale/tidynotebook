@@ -24,7 +24,7 @@ import type { SubmissionIds } from './operations.ts';
 import { normalizePath } from './path.ts';
 import type {
   DeletedFilePage,
-  PageRequest,
+  FilePageRequest,
   WorkspaceStore,
   WorkspaceTransaction,
 } from './ports.ts';
@@ -79,7 +79,7 @@ export function listDeletedFiles(
   store: WorkspaceStore,
   actor: Actor,
   workspaceId: string,
-  page: PageRequest,
+  page: FilePageRequest,
 ): Promise<Result<DeletedFilePage>> {
   return store.transact<Result<DeletedFilePage>>(
     actor,
@@ -91,6 +91,7 @@ export function listDeletedFiles(
         await tx.listDeletedFiles({
           cursor: page.cursor,
           limit: pageSize(page.limit),
+          sort: page.sort,
         }),
       );
     },
