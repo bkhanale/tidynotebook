@@ -11,7 +11,7 @@
   },
   "scripts": {
     "typecheck": "tsc -b tsconfig.build.json && tsc -p tsconfig.json",
-    "build": "tsc -b tsconfig.build.json && vite build",
+    "build": "tsc -b tsconfig.build.json && vite build && node ../../tools/precompress-assets.mjs dist/web",
     "test:unit": "node ../../tools/run-tests.mjs unit",
     "dev": "vite"
   },

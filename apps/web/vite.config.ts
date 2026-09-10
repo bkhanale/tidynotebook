@@ -20,6 +20,11 @@ import { VitePWA } from 'vite-plugin-pwa';
 // active and the update applies only after local persistence succeeds.
 // Background Sync is never used; the foreground tab drives sync.
 //
+// After the build, `tools/precompress-assets.mjs` writes a `.br` and a `.gz`
+// neighbour for every compressible emitted file. The Fastify static handler
+// serves the one that the browser accepts, so nothing is compressed per
+// request. A `.map` file is left uncompressed: no shipped file names it.
+//
 // The web compiler sets skipLibCheck because the workbox-build 7.4.1 and
 // workbox-core 7.4.1 declarations do not compile under
 // exactOptionalPropertyTypes, the same class of third-party declaration
@@ -28,7 +33,10 @@ export default defineConfig({
   build: {
     outDir: 'dist/web',
     emptyOutDir: true,
-    sourcemap: true,
+    // A source map is emitted but no shipped file names it, so no browser
+    // downloads one and an operator who keeps the build can still resolve a
+    // stack trace.
+    sourcemap: 'hidden',
     target: 'es2024',
     rollupOptions: {
       input: {
