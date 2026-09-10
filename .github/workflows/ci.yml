@@ -1,7 +1,12 @@
 name: CI
 
+# `push` is limited to `main` so that a branch push and its pull request do not
+# run the same checks twice. Work lands on `main` by fast-forward merge, so the
+# `pull_request` trigger stays for contributors who open one.
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -13,35 +18,157 @@ concurrency:
 
 jobs:
   verify:
+    name: Verify
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # This runs before the Node setup, because the dependency cache of
+      # `actions/setup-node` asks pnpm for its store directory.
+      - name: Install the pinned package manager
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Set up the pinned Node release
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
-
-      - name: Install the pinned package manager
-        run: npm install --global pnpm@12.3.4
+          cache: pnpm
 
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Start disposable integration services
-        run: docker compose -f compose.test.yaml up -d --wait
+      - name: Start the disposable test database
+        run: docker compose -p notesapp-test -f compose.test.yaml up -d --wait
 
       - name: Verify source, generated output, tests, and builds
         run: pnpm verify
 
+      - name: Stop the disposable test database
+        if: always()
+        run: docker compose -p notesapp-test -f compose.test.yaml down --volumes
+
+  browser:
+    name: Browser (${{ matrix.project }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      # Every project must report, so one broken engine does not hide another.
+      fail-fast: false
+      matrix:
+        include:
+          - project: chromium
+            browser: chromium
+          - project: firefox
+            browser: firefox
+          - project: webkit
+            browser: webkit
+          - project: phone-390
+            browser: chromium
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned package manager
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up the pinned Node release
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install the browser and its system packages
+        run: pnpm exec playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Start the disposable test database
+        run: docker compose -p notesapp-test -f compose.test.yaml up -d --wait
+
+      - name: Run the browser project
+        run: pnpm test:e2e --project=${{ matrix.project }}
+
+      - name: Publish the browser report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-${{ matrix.project }}
+          path: |
+            playwright-report
+            test-results/playwright/results.json
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop the disposable test database
+        if: always()
+        run: docker compose -p notesapp-test -f compose.test.yaml down --volumes
+
+  performance:
+    name: Performance budgets
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install the pinned package manager
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Set up the pinned Node release
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Enforce the initial JavaScript budget
         run: pnpm perf:bundle
 
-      - name: Enforce service performance budgets
+      # `perf:service` starts the test database itself.
+      - name: Enforce the service performance budgets
         run: pnpm perf:service
 
-      - name: Stop disposable integration services
+      - name: Stop the disposable test database
         if: always()
-        run: docker compose -f compose.test.yaml down --volumes
+        run: docker compose -p notesapp-test -f compose.test.yaml down --volumes
+
+  image:
+    name: Image build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # The example values of `.env.example`. They prove that the deployment
+    # needs no private address and no undocumented variable.
+    env:
+      NOTESAPP_ORIGIN: https://notes.example.com
+      NOTESAPP_ALLOWED_HOSTS: notes.example.com
+      NOTESAPP_BIND_HOST: 127.0.0.1
+      NOTESAPP_PORT: '3000'
+      NOTESAPP_LOG_LEVEL: info
+      POSTGRES_USER: postgres
+      POSTGRES_DB: notesapp
+      NOTESAPP_SECRETS_DIR: ${{ runner.temp }}/notesapp-secrets
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Write throwaway deployment secrets
+        run: |
+          mkdir -p "$NOTESAPP_SECRETS_DIR"
+          chmod 700 "$NOTESAPP_SECRETS_DIR"
+          for name in postgres_password migration_database_url \
+            runtime_database_password auth_database_password \
+            runtime_database_url auth_database_url auth_secret; do
+            printf '%s' 'ci-placeholder' > "$NOTESAPP_SECRETS_DIR/$name"
+            chmod 600 "$NOTESAPP_SECRETS_DIR/$name"
+          done
+
+      - name: Check that the deployment Compose file parses
+        run: docker compose config --quiet
+
+      - name: Build the application image
+        run: docker compose build
