@@ -2,7 +2,7 @@
  * Handlers for history, restore, and purge operations.
  *
  * This module connects the HTTP operations to the core domain services for
- * revisions, branches, and permanent deletion.
+ * revisions, restore, and permanent deletion.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { Result, WorkspaceStore } from '@notesapp/core';
