@@ -1309,6 +1309,11 @@ export function NoteEditorLoader({
   const navigate = useNavigate();
   const location = useLocation();
   const [status, setStatus] = useState<LoaderStatus>({ kind: 'loading' });
+  // A restore brings a deleted note back. The loader then reads the note once
+  // more, so the screen leaves the deleted state without a reload.
+  const [reloadToken, setReloadToken] = useState(0);
+  const statusKind = useRef<LoaderStatus['kind']>(status.kind);
+  statusKind.current = status.kind;
   const [linkNotice, setLinkNotice] = useState('');
   const routeState: unknown = location.state;
   const focusName =
@@ -1385,7 +1390,7 @@ export function NoteEditorLoader({
     return () => {
       cancelled = true;
     };
-  }, [store, accountId, workspaceId, fileId]);
+  }, [store, accountId, workspaceId, fileId, reloadToken]);
 
   // A newer accepted head can arrive while the note is open. Only the stale
   // head of the mounted status changes: the editor keeps its instance, its
@@ -1402,6 +1407,12 @@ export function NoteEditorLoader({
           fileId,
         );
         if (cancelled || cached === null) return;
+        // The note was in the trash and is not any more, so a restore
+        // reached this device. The loader reads it again.
+        if (!cached.deleted && statusKind.current === 'deleted') {
+          setReloadToken((token) => token + 1);
+          return;
+        }
         const next: StaleHead | undefined =
           cached.stale && cached.acceptedText !== null
             ? {

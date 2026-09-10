@@ -1031,6 +1031,66 @@ await test('a restore from the server puts a deleted note back in the tree', asy
   await store.close();
 });
 
+await test('a restore reaches a device whose deletion draft holds the text', async () => {
+  const backend = createBackend('restored-with-draft');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'keep me\n');
+  await store.saveDraft(draft);
+  const saved = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(saved, account, '3'));
+
+  // The editor deletes the note it has open, so the deletion draft keeps the
+  // buffer while the tombstone revision carries no text.
+  const removal = { ...draft, deleted: true, sequence: 2 };
+  await store.saveDraft(removal);
+  const removed = await store.checkpoint(removal, null);
+  await store.acknowledge(account, acceptanceOf(removed, account, '4'));
+  // The accepted head is the tombstone, so the accepted file states the
+  // deletion. Nothing local moved past it.
+  assert.deepEqual(
+    (await store.listAcceptedFiles(account, workspace)).map(
+      (file) => file.deleted,
+    ),
+    [true],
+  );
+
+  const digest = await contentDigest('keep me\n');
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId,
+          revisionId: 'restore-revision',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest,
+          text: 'keep me\n',
+        },
+        purgedFileId: null,
+      },
+    ],
+    '5',
+  );
+
+  // A tombstone carries no text, so the text of the deletion draft is not
+  // unsent work and the restore of the server wins.
+  const listed = await store.listLocalFiles(account, workspace);
+  assert.deepEqual(
+    listed.map((file) => ({ fileId: file.fileId, deleted: file.deleted })),
+    [{ fileId, deleted: false }],
+  );
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.deleted, false);
+  assert.equal(cached?.text, 'keep me\n');
+  await store.close();
+});
+
 await test('snapshot activation and clearing publish committed invalidations', async () => {
   const backend = createBackend('committed-invalidations');
   const store = await openLocalStore(origin, backend.options());

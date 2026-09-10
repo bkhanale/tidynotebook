@@ -343,17 +343,24 @@ export async function openLocalStore(
     readonly text: string | null;
   };
 
-  /** Whether one draft says something that neither head says. */
+  /**
+   * Whether one draft says something that neither head says.
+   *
+   * A tombstone carries no text, so a deleted draft and a deleted head at the
+   * same path say the same thing whatever text the draft still holds. Reading
+   * the text of a deleted draft as work would keep the tombstone shadowing
+   * the file for ever, and a restore on the server would never reach the
+   * device.
+   */
   const draftIsUnsentWork = (
     draft: DraftRow,
     heads: readonly HeadState[],
   ): boolean =>
     !heads.some(
       (head) =>
-        head.text !== null &&
-        draft.text === head.text &&
         draft.path === head.path &&
-        draft.deleted === head.deleted,
+        draft.deleted === head.deleted &&
+        (draft.deleted || (head.text !== null && draft.text === head.text)),
     );
 
   /**
@@ -1292,17 +1299,23 @@ export async function openLocalStore(
               const file =
                 stored === undefined ? null : validateAcceptedFile(stored);
               const previousAcceptedHead = file?.acceptedHeadRevisionId ?? null;
-              // Only the accepted head moves. The local head, the path, and
-              // the deletion state keep whatever later local work set, so a
-              // checkpoint created after the submission survives.
+              // The path and the deletion state follow the accepted
+              // checkpoint while it is still the local head. Later local work
+              // moves the local head past it, and that work keeps whatever it
+              // set, so a checkpoint created after the submission survives.
+              const later =
+                file !== null &&
+                file.localHeadRevisionId !== checkpoint.revisionId
+                  ? file
+                  : null;
               await tables.acceptedFiles.put({
                 serverOrigin,
                 accountId,
                 workspaceId,
                 fileId,
                 kind: file?.kind ?? 'note',
-                path: file?.path ?? checkpoint.path,
-                deleted: file?.deleted ?? checkpoint.deleted,
+                path: later?.path ?? checkpoint.path,
+                deleted: later?.deleted ?? checkpoint.deleted,
                 acceptedHeadRevisionId: checkpoint.revisionId,
                 acceptedHeadDigest: checkpoint.digest,
                 localHeadRevisionId:
