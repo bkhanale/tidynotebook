@@ -932,6 +932,86 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/trash:
+    get:
+      operationId: listDeletedFiles
+      summary: List the deleted files of a workspace.
+      description: >-
+        Lists the files of the workspace that a tombstone revision deleted,
+        ordered by identifier and paged with a cursor, exactly as the live
+        listing is. A deleted file holds no place in the file tree, so it
+        appears here instead. Each entry names the instant of the deletion and
+        the tombstone that is the accepted head, which the restore operation
+        needs. A permanently purged file is not listed, because nothing of it
+        is left to restore.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageLimit'
+      responses:
+        '200':
+          $ref: '#/components/responses/DeletedFileList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/trash/{fileId}/restore:
+    post:
+      operationId: restoreFile
+      summary: Bring one deleted file back into the file tree.
+      description: >-
+        Writes one revision on top of the tombstone that un-deletes the file
+        with the content of its last revision before the deletion. The
+        tombstone is the expected head, so a change that arrived after the
+        deletion answers 412 and nothing is written. The file keeps its
+        identifier, so every link to it and its whole history stay valid.
+        The file goes back to the path it held before the deletion. If a live
+        file already holds that path, the answer restores the file beside it
+        under the name plus " (restored)" in the same folder, so a restore
+        never overwrites live work. A file that is not deleted answers 404, and
+        a permanently purged one answers 410.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+      requestBody:
+        $ref: '#/components/requestBodies/RestoreFile'
+      responses:
+        '200':
+          $ref: '#/components/responses/FileChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/workspaces/{workspaceId}/sync/snapshots:
     post:
       operationId: startSnapshot
@@ -1358,6 +1438,13 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/PurgeFilesInput'
+    RestoreFile:
+      description: Deleted file restore payload.
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RestoreFileInput'
     StartSnapshot:
       description: Snapshot start payload.
       required: true
@@ -1514,6 +1601,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/WorkspaceFileList'
+    DeletedFileList:
+      description: One page of the deleted files of a workspace.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/WorkspaceDeletedFileList'
     SearchResults:
       description: Accepted live notes that match the search query.
       content:
@@ -2032,6 +2125,67 @@ components:
           maxItems: 500
           items:
             $ref: '#/components/schemas/WorkspaceFileSummary'
+        nextCursor:
+          oneOf:
+            - $ref: '#/components/schemas/Uuid'
+            - type: 'null'
+          readOnly: true
+          description: >-
+            Cursor of the next page, or null when this page is the last one.
+    WorkspaceDeletedFileSummary:
+      type: object
+      description: One deleted file of a workspace, without its content.
+      additionalProperties: false
+      required:
+        - fileId
+        - path
+        - kind
+        - headRevisionId
+        - deletedAt
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: Stable identifier of the file. A rename never changes it.
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          readOnly: true
+          description: The path that the file held when it was deleted.
+        kind:
+          allOf:
+            - $ref: '#/components/schemas/FileKind'
+          readOnly: true
+          description: Whether the file holds Markdown or an attachment.
+        headRevisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: >-
+            The tombstone revision that deleted the file, which is its accepted
+            head and its entity tag. A restore states it as the expected head.
+        deletedAt:
+          type: string
+          readOnly: true
+          description: Instant at which the workspace accepted the deletion.
+          format: date-time
+          maxLength: 64
+    WorkspaceDeletedFileList:
+      type: object
+      description: One page of the deleted files of a workspace.
+      additionalProperties: false
+      required:
+        - files
+        - nextCursor
+      properties:
+        files:
+          type: array
+          readOnly: true
+          description: The deleted files of this page, ordered by identifier.
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/WorkspaceDeletedFileSummary'
         nextCursor:
           oneOf:
             - $ref: '#/components/schemas/Uuid'
@@ -2930,6 +3084,27 @@ components:
           $ref: '#/components/schemas/FilePath'
         message:
           $ref: '#/components/schemas/CheckpointMessage'
+    RestoreFileInput:
+      type: object
+      description: Payload to bring one deleted file back into the file tree.
+      additionalProperties: false
+      required:
+        - mutationId
+        - deviceId
+        - clientTime
+        - revisionId
+      properties:
+        mutationId:
+          $ref: '#/components/schemas/Uuid'
+        deviceId:
+          $ref: '#/components/schemas/DeviceId'
+        clientTime:
+          type: string
+          format: date-time
+          minLength: 20
+          maxLength: 64
+        revisionId:
+          $ref: '#/components/schemas/Uuid'
     PreviewPurgeInput:
       type: object
       description: Payload to preview permanent deletion of files.

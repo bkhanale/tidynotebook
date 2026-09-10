@@ -771,6 +771,16 @@ export type Removed = {
 };
 
 /**
+ * Payload to bring one deleted file back into the file tree.
+ */
+export type RestoreFileInput = {
+    mutationId: Uuid;
+    deviceId: DeviceId;
+    clientTime: string;
+    revisionId: Uuid;
+};
+
+/**
  * Payload to restore a file to an earlier historic revision.
  */
 export type RestoreRevisionInput = {
@@ -1078,6 +1088,46 @@ export type Workspace = {
      * True for the workspace that was created with the account.
      */
     readonly personal: boolean;
+};
+
+/**
+ * One page of the deleted files of a workspace.
+ */
+export type WorkspaceDeletedFileList = {
+    /**
+     * The deleted files of this page, ordered by identifier.
+     */
+    readonly files: Array<WorkspaceDeletedFileSummary>;
+    /**
+     * Cursor of the next page, or null when this page is the last one.
+     */
+    readonly nextCursor: Uuid | null;
+};
+
+/**
+ * One deleted file of a workspace, without its content.
+ */
+export type WorkspaceDeletedFileSummary = {
+    /**
+     * Stable identifier of the file. A rename never changes it.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The path that the file held when it was deleted.
+     */
+    readonly path: FilePath;
+    /**
+     * Whether the file holds Markdown or an attachment.
+     */
+    readonly kind: FileKind;
+    /**
+     * The tombstone revision that deleted the file, which is its accepted head and its entity tag. A restore states it as the expected head.
+     */
+    readonly headRevisionId: Uuid;
+    /**
+     * Instant at which the workspace accepted the deletion.
+     */
+    readonly deletedAt: string;
 };
 
 /**
@@ -1396,6 +1446,11 @@ export type PreviewPurge = PreviewPurgeInput;
  * File purge payload.
  */
 export type PurgeFiles = PurgeFilesInput;
+
+/**
+ * Deleted file restore payload.
+ */
+export type RestoreFile = RestoreFileInput;
 
 /**
  * Snapshot start payload.
@@ -3573,3 +3628,147 @@ export type GetSnapshotPageResponses = {
 };
 
 export type GetSnapshotPageResponse = GetSnapshotPageResponses[keyof GetSnapshotPageResponses];
+
+export type ListDeletedFilesData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: {
+        /**
+         * Position to continue a listing from. Use the nextCursor value of the previous page. The first page names no cursor.
+         */
+        cursor?: Uuid;
+        /**
+         * Largest number of entries in one page. The server uses 100 when the parameter is absent and never returns more than 500.
+         */
+        limit?: number;
+    };
+    url: '/api/workspaces/{workspaceId}/trash';
+};
+
+export type ListDeletedFilesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListDeletedFilesError = ListDeletedFilesErrors[keyof ListDeletedFilesErrors];
+
+export type ListDeletedFilesResponses = {
+    /**
+     * One page of the deleted files of a workspace.
+     */
+    200: WorkspaceDeletedFileList;
+};
+
+export type ListDeletedFilesResponse = ListDeletedFilesResponses[keyof ListDeletedFilesResponses];
+
+export type RestoreFileData = {
+    /**
+     * Deleted file restore payload.
+     */
+    body: RestoreFile;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/trash/{fileId}/restore';
+};
+
+export type RestoreFileErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * An expected head does not match the accepted head. The fileIds member names every file that moved on, so the client can resolve them.
+     */
+    412: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RestoreFileError = RestoreFileErrors[keyof RestoreFileErrors];
+
+export type RestoreFileResponses = {
+    /**
+     * The accepted revision and the outcome of its changeset.
+     */
+    200: FileChange;
+};
+
+export type RestoreFileResponse = RestoreFileResponses[keyof RestoreFileResponses];

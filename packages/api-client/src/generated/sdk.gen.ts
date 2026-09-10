@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateCheckpointData, CreateCheckpointErrors, CreateCheckpointResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetBacklinksData, GetBacklinksErrors, GetBacklinksResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -561,4 +561,38 @@ export const getSnapshotPage = <ThrowOnError extends boolean = false>(options: O
         }],
     url: '/api/workspaces/{workspaceId}/sync/snapshots/{token}',
     ...options
+});
+
+/**
+ * List the deleted files of a workspace.
+ *
+ * Lists the files of the workspace that a tombstone revision deleted, ordered by identifier and paged with a cursor, exactly as the live listing is. A deleted file holds no place in the file tree, so it appears here instead. Each entry names the instant of the deletion and the tombstone that is the accepted head, which the restore operation needs. A permanently purged file is not listed, because nothing of it is left to restore.
+ */
+export const listDeletedFiles = <ThrowOnError extends boolean = false>(options: Options<ListDeletedFilesData, ThrowOnError>): RequestResult<ListDeletedFilesResponses, ListDeletedFilesErrors, ThrowOnError> => (options.client ?? client).get<ListDeletedFilesResponses, ListDeletedFilesErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/trash',
+    ...options
+});
+
+/**
+ * Bring one deleted file back into the file tree.
+ *
+ * Writes one revision on top of the tombstone that un-deletes the file with the content of its last revision before the deletion. The tombstone is the expected head, so a change that arrived after the deletion answers 412 and nothing is written. The file keeps its identifier, so every link to it and its whole history stay valid. The file goes back to the path it held before the deletion. If a live file already holds that path, the answer restores the file beside it under the name plus " (restored)" in the same folder, so a restore never overwrites live work. A file that is not deleted answers 404, and a permanently purged one answers 410.
+ */
+export const restoreFile = <ThrowOnError extends boolean = false>(options: Options<RestoreFileData, ThrowOnError>): RequestResult<RestoreFileResponses, RestoreFileErrors, ThrowOnError> => (options.client ?? client).post<RestoreFileResponses, RestoreFileErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/trash/{fileId}/restore',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
