@@ -12,7 +12,7 @@ the user selects Save.
 - CommonMark and GFM preview with tables, tasks, footnotes, math, and Mermaid.
 - Search, outlines, backlinks, stable note links, and folder navigation.
 - Image attachments with content validation and deduplicated storage.
-- REST and MCP access from one operation contract.
+- REST access from one operation contract.
 - Responsive desktop, tablet, and phone layouts with light and dark themes.
 - Docker Compose deployment, health checks, metrics, backups, and restore.
 
@@ -47,21 +47,20 @@ saw:
 
 ## Repository layout
 
-| Path                       | Purpose                                     |
-| -------------------------- | ------------------------------------------- |
-| `apps/web`                 | React web application and PWA               |
-| `apps/server`              | Fastify API, authentication, and MCP server |
-| `apps/mcp-stdio`           | Local MCP bridge                            |
-| `packages/api-contract`    | OpenAPI source contract                     |
-| `packages/api-client`      | Generated typed client                      |
-| `packages/core`            | Domain rules and version validation         |
-| `packages/editor`          | CodeMirror source editor                    |
-| `packages/markdown`        | Safe CommonMark and GFM rendering           |
-| `packages/storage-browser` | IndexedDB persistence                       |
-| `packages/storage-server`  | PostgreSQL stores, migrations, and files    |
-| `packages/sync`            | Offline queue, lease, and synchronization   |
-| `packages/ui`              | Shared interface components and icons       |
-| `docs`                     | Development and operation guides            |
+| Path                       | Purpose                                   |
+| -------------------------- | ----------------------------------------- |
+| `apps/web`                 | React web application and PWA             |
+| `apps/server`              | Fastify API and authentication            |
+| `packages/api-contract`    | OpenAPI source contract                   |
+| `packages/api-client`      | Generated typed client                    |
+| `packages/core`            | Domain rules and version validation       |
+| `packages/editor`          | CodeMirror source editor                  |
+| `packages/markdown`        | Safe CommonMark and GFM rendering         |
+| `packages/storage-browser` | IndexedDB persistence                     |
+| `packages/storage-server`  | PostgreSQL stores, migrations, and files  |
+| `packages/sync`            | Offline queue, lease, and synchronization |
+| `packages/ui`              | Shared interface components and icons     |
+| `docs`                     | Development and operation guides          |
 
 ## Requirements
 

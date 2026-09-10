@@ -37,58 +37,54 @@ metadata checked. Packages outside the root quality tools are checked, not yet
 installed as application dependencies. Recheck their metadata immediately before
 the task that installs them. Registry availability does not prove runtime behavior.
 
-| Package                                                                                         | Version  | Status          |
-| ----------------------------------------------------------------------------------------------- | -------- | --------------- |
-| [react](https://registry.npmjs.org/react/19.2.8)                                                | 19.2.8   | Later task      |
-| [react-dom](https://registry.npmjs.org/react-dom/19.2.8)                                        | 19.2.8   | Later task      |
-| [vite](https://registry.npmjs.org/vite/8.2.2)                                                   | 8.2.2    | Later task      |
-| [react-router](https://registry.npmjs.org/react-router/8.3.1)                                   | 8.3.1    | Later task      |
-| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3)                                     | 4.3.3    | Later task      |
-| [@base-ui/react](https://registry.npmjs.org/@base-ui/react/1.8.0)                               | 1.8.0    | Later task      |
-| [@codemirror/state](https://registry.npmjs.org/@codemirror/state/6.7.4)                         | 6.7.4    | Later task      |
-| [@codemirror/view](https://registry.npmjs.org/@codemirror/view/6.43.11)                         | 6.43.11  | Later task      |
-| [@codemirror/commands](https://registry.npmjs.org/@codemirror/commands/6.11.0)                  | 6.11.0   | Later task      |
-| [@codemirror/language](https://registry.npmjs.org/@codemirror/language/6.12.4)                  | 6.12.4   | Later task      |
-| [@codemirror/lang-markdown](https://registry.npmjs.org/@codemirror/lang-markdown/6.5.2)         | 6.5.2    | Later task      |
-| [unified](https://registry.npmjs.org/unified/11.0.5)                                            | 11.0.5   | Later task      |
-| [remark-parse](https://registry.npmjs.org/remark-parse/11.0.0)                                  | 11.0.0   | Later task      |
-| [remark-gfm](https://registry.npmjs.org/remark-gfm/4.0.1)                                       | 4.0.1    | Later task      |
-| [remark-math](https://registry.npmjs.org/remark-math/6.0.0)                                     | 6.0.0    | Later task      |
-| [remark-rehype](https://registry.npmjs.org/remark-rehype/11.1.2)                                | 11.1.2   | Later task      |
-| [rehype-sanitize](https://registry.npmjs.org/rehype-sanitize/6.0.0)                             | 6.0.0    | Later task      |
-| [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)                          | 10.0.1   | Later task      |
-| [katex](https://registry.npmjs.org/katex/0.18.5)                                                | 0.18.5   | Later task      |
-| [mermaid](https://registry.npmjs.org/mermaid/11.17.2)                                           | 11.17.2  | Later task      |
-| [fastify](https://registry.npmjs.org/fastify/5.12.3)                                            | 5.12.3   | Installed       |
-| [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                                  | 2.51.2   | Installed       |
-| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                                    | 8.20.0   | Installed       |
-| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                     | 3.0.1    | Installed       |
-| [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                                    | 0.45.2   | Installed       |
-| [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                                   | 0.31.10  | Installed       |
-| [pg](https://registry.npmjs.org/pg/8.23.0)                                                      | 8.23.0   | Installed       |
-| [dexie](https://registry.npmjs.org/dexie/4.4.5)                                                 | 4.4.5    | Later task      |
-| [vite-plugin-pwa](https://registry.npmjs.org/vite-plugin-pwa/1.3.0)                             | 1.3.0    | Later task      |
-| [workbox-build](https://registry.npmjs.org/workbox-build/7.4.1)                                 | 7.4.1    | Later task      |
-| [@modelcontextprotocol/server](https://registry.npmjs.org/@modelcontextprotocol/server/2.0.0)   | 2.0.0    | Later task      |
-| [@modelcontextprotocol/client](https://registry.npmjs.org/@modelcontextprotocol/client/2.0.0)   | 2.0.0    | Later task      |
-| [@modelcontextprotocol/fastify](https://registry.npmjs.org/@modelcontextprotocol/fastify/2.0.0) | 2.0.0    | Later task      |
-| [@modelcontextprotocol/node](https://registry.npmjs.org/@modelcontextprotocol/node/2.0.0)       | 2.0.0    | Later task      |
-| [typescript](https://registry.npmjs.org/typescript/7.0.2)                                       | 7.0.2    | Root tool       |
-| [typescript](https://registry.npmjs.org/typescript/6.0.3)                                       | 6.0.3    | SDK generator   |
-| [pnpm](https://registry.npmjs.org/pnpm/12.3.4)                                                  | 12.3.4   | Package manager |
-| [oxlint](https://registry.npmjs.org/oxlint/1.81.0)                                              | 1.81.0   | Root tool       |
-| [oxlint-tsgolint](https://registry.npmjs.org/oxlint-tsgolint/7.0.2001)                          | 7.0.2001 | Root tool       |
-| [prettier](https://registry.npmjs.org/prettier/3.9.6)                                           | 3.9.6    | Root tool       |
-| [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)                    | 0.99.0   | Installed       |
-| [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                                     | 1.7.2    | Installed       |
-| [@better-auth/oauth-provider](https://registry.npmjs.org/@better-auth/oauth-provider/1.7.2)     | 1.7.2    | Installed       |
-| [@better-auth/core](https://registry.npmjs.org/@better-auth/core/1.7.2)                         | 1.7.2    | Installed       |
-| [@better-auth/utils](https://registry.npmjs.org/@better-auth/utils/0.4.2)                       | 0.4.2    | Installed       |
-| [@better-fetch/fetch](https://registry.npmjs.org/@better-fetch/fetch/1.3.1)                     | 1.3.1    | Installed       |
-| [better-call](https://registry.npmjs.org/better-call/1.4.0)                                     | 1.4.0    | Installed       |
-| [nodemailer](https://registry.npmjs.org/nodemailer/10.0.0)                                      | 10.0.0   | Installed       |
-| [@types/node](https://registry.npmjs.org/@types/node/26.4.1)                                    | 26.4.1   | Root tool       |
-| [oxc-parser](https://registry.npmjs.org/oxc-parser/0.148.0)                                     | 0.148.0  | Root tool       |
+| Package                                                                                     | Version  | Status          |
+| ------------------------------------------------------------------------------------------- | -------- | --------------- |
+| [react](https://registry.npmjs.org/react/19.2.8)                                            | 19.2.8   | Later task      |
+| [react-dom](https://registry.npmjs.org/react-dom/19.2.8)                                    | 19.2.8   | Later task      |
+| [vite](https://registry.npmjs.org/vite/8.2.2)                                               | 8.2.2    | Later task      |
+| [react-router](https://registry.npmjs.org/react-router/8.3.1)                               | 8.3.1    | Later task      |
+| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3)                                 | 4.3.3    | Later task      |
+| [@base-ui/react](https://registry.npmjs.org/@base-ui/react/1.8.0)                           | 1.8.0    | Later task      |
+| [@codemirror/state](https://registry.npmjs.org/@codemirror/state/6.7.4)                     | 6.7.4    | Later task      |
+| [@codemirror/view](https://registry.npmjs.org/@codemirror/view/6.43.11)                     | 6.43.11  | Later task      |
+| [@codemirror/commands](https://registry.npmjs.org/@codemirror/commands/6.11.0)              | 6.11.0   | Later task      |
+| [@codemirror/language](https://registry.npmjs.org/@codemirror/language/6.12.4)              | 6.12.4   | Later task      |
+| [@codemirror/lang-markdown](https://registry.npmjs.org/@codemirror/lang-markdown/6.5.2)     | 6.5.2    | Later task      |
+| [unified](https://registry.npmjs.org/unified/11.0.5)                                        | 11.0.5   | Later task      |
+| [remark-parse](https://registry.npmjs.org/remark-parse/11.0.0)                              | 11.0.0   | Later task      |
+| [remark-gfm](https://registry.npmjs.org/remark-gfm/4.0.1)                                   | 4.0.1    | Later task      |
+| [remark-math](https://registry.npmjs.org/remark-math/6.0.0)                                 | 6.0.0    | Later task      |
+| [remark-rehype](https://registry.npmjs.org/remark-rehype/11.1.2)                            | 11.1.2   | Later task      |
+| [rehype-sanitize](https://registry.npmjs.org/rehype-sanitize/6.0.0)                         | 6.0.0    | Later task      |
+| [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)                      | 10.0.1   | Later task      |
+| [katex](https://registry.npmjs.org/katex/0.18.5)                                            | 0.18.5   | Later task      |
+| [mermaid](https://registry.npmjs.org/mermaid/11.17.2)                                       | 11.17.2  | Later task      |
+| [fastify](https://registry.npmjs.org/fastify/5.12.3)                                        | 5.12.3   | Installed       |
+| [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                              | 2.51.2   | Installed       |
+| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                                | 8.20.0   | Installed       |
+| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                                 | 3.0.1    | Installed       |
+| [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                                | 0.45.2   | Installed       |
+| [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                               | 0.31.10  | Installed       |
+| [pg](https://registry.npmjs.org/pg/8.23.0)                                                  | 8.23.0   | Installed       |
+| [dexie](https://registry.npmjs.org/dexie/4.4.5)                                             | 4.4.5    | Later task      |
+| [vite-plugin-pwa](https://registry.npmjs.org/vite-plugin-pwa/1.3.0)                         | 1.3.0    | Later task      |
+| [workbox-build](https://registry.npmjs.org/workbox-build/7.4.1)                             | 7.4.1    | Later task      |
+| [typescript](https://registry.npmjs.org/typescript/7.0.2)                                   | 7.0.2    | Root tool       |
+| [typescript](https://registry.npmjs.org/typescript/6.0.3)                                   | 6.0.3    | SDK generator   |
+| [pnpm](https://registry.npmjs.org/pnpm/12.3.4)                                              | 12.3.4   | Package manager |
+| [oxlint](https://registry.npmjs.org/oxlint/1.81.0)                                          | 1.81.0   | Root tool       |
+| [oxlint-tsgolint](https://registry.npmjs.org/oxlint-tsgolint/7.0.2001)                      | 7.0.2001 | Root tool       |
+| [prettier](https://registry.npmjs.org/prettier/3.9.6)                                       | 3.9.6    | Root tool       |
+| [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)                | 0.99.0   | Installed       |
+| [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                                 | 1.7.2    | Installed       |
+| [@better-auth/oauth-provider](https://registry.npmjs.org/@better-auth/oauth-provider/1.7.2) | 1.7.2    | Installed       |
+| [@better-auth/core](https://registry.npmjs.org/@better-auth/core/1.7.2)                     | 1.7.2    | Installed       |
+| [@better-auth/utils](https://registry.npmjs.org/@better-auth/utils/0.4.2)                   | 0.4.2    | Installed       |
+| [@better-fetch/fetch](https://registry.npmjs.org/@better-fetch/fetch/1.3.1)                 | 1.3.1    | Installed       |
+| [better-call](https://registry.npmjs.org/better-call/1.4.0)                                 | 1.4.0    | Installed       |
+| [nodemailer](https://registry.npmjs.org/nodemailer/10.0.0)                                  | 10.0.0   | Installed       |
+| [@types/node](https://registry.npmjs.org/@types/node/26.4.1)                                | 26.4.1   | Root tool       |
+| [oxc-parser](https://registry.npmjs.org/oxc-parser/0.148.0)                                 | 0.148.0  | Root tool       |
 
 `@types/node` 26.4.1 matches the runtime major. `oxc-parser` 0.148.0 is an
 additional development dependency. The boundary checker uses its TypeScript AST
@@ -125,8 +121,8 @@ TypeScript 7 JavaScript compiler API. It requires Node `^20.19.0 || >=22.12.0`.
   needs `@better-auth/core` 1.7.2, `@better-auth/utils` 0.4.2,
   `@better-fetch/fetch` 1.3.1, and `better-call` 1.4.0 as direct dependencies.
   All four are the exact versions that Better Auth 1.7.2 already resolves, so
-  no second copy is installed. The OAuth provider itself is not enabled yet:
-  it serves the remote MCP authorization of Task 20.
+  no second copy is installed. The OAuth provider itself is not installed and
+  is not enabled.
 - Better Auth 1.7.2 declares optional peers `drizzle-orm` `^0.45.2` and
   `drizzle-kit` `>=0.31.4`, which the selected versions satisfy. Its Drizzle
   adapter reads a field through the property name of the table object, so the
@@ -157,9 +153,6 @@ TypeScript 7 JavaScript compiler API. It requires Node `^20.19.0 || >=22.12.0`.
   [Ajv dialect support](https://ajv.js.org/json-schema.html).
 - Drizzle ORM 0.45.2 accepts pg `>=8`; pg 8.23.0 requires Node `>=16`.
   Better Auth accepts the selected Drizzle ORM and Kit versions.
-- MCP adapters 2.0.0 require Node `>=20`. The Fastify adapter accepts Fastify
-  `^5.2.0` and MCP server `^2.0.0`. The Node adapter also requires Hono
-  `^4.11.4`; verify and pin that peer if the later task uses this adapter.
 - Oxlint 1.81.0 requires Node `^20.19.0 || >=22.12.0` and the selected
   oxlint-tsgolint version `>=7.0.2001`. Its vite-plus peer is optional.
   [Oxlint release](https://github.com/oxc-project/oxc/releases/tag/oxlint_v1.81.0).
@@ -272,10 +265,9 @@ A browser-safe package must not import a Node built-in module. This covers the
 `node:` prefix and the bare built-in names, for example `node:fs`, `fs`,
 `fs/promises`, `path`, and `crypto`. It must not import a Node-only package
 either: `pg`, `fastify`, `fastify-plugin`, `drizzle-orm`, `drizzle-kit`,
-`better-auth`, `sharp`, `dotenv`, and every `@fastify/`,
-`@modelcontextprotocol/`, or `@better-auth/` package. It must not import the
-server-only workspace packages `@notesapp/server` and
-`@notesapp/storage-server`.
+`better-auth`, `sharp`, `dotenv`, and every `@fastify/` or `@better-auth/`
+package. It must not import the server-only workspace packages
+`@notesapp/server` and `@notesapp/storage-server`.
 
 The same rule applies to the package manifest. A browser-safe package cannot
 list such a package in `dependencies`, `optionalDependencies`, or
@@ -370,8 +362,7 @@ Every other rule still applies there, including package direction, deep imports,
 and undeclared dependencies.
 
 Protocol exceptions use exact adapter files:
-`apps/server/src/auth/better-auth.ts`, `apps/server/src/mcp/server.ts`, and
-`apps/mcp-stdio/src/main.ts`. A protocol adapter also states an exact list of
+`apps/server/src/auth/better-auth.ts`. A protocol adapter also states an exact list of
 the routes it serves, and startup fails when a contract operation that names
 that protocol is not in the list. See `docs/development/api-contract.md`. PWA asset handling uses only
 `apps/web/src/pwa/service-worker.ts`; literal application API paths are rejected

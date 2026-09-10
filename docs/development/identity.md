@@ -55,14 +55,8 @@ settings, workspace, usage record, sync cursor, and owner row in one
 transaction.
 
 The workspace owner row remains part of the storage model. It provides row
-access control for the browser session and agent tokens. No product operation
-can add another member.
-
-## Agent tokens
-
-The user can create revocable agent tokens for REST and MCP clients. A token
-stores only a hash of its secret. Its scope names a workspace and permitted
-note actions. A bearer token never falls back to a browser cookie.
+access control for the browser session. No product operation can add another
+member.
 
 ## Password recovery
 

@@ -1,6 +1,6 @@
 # Self-hosting and recovery
 
-NotesApp runs as one application service and one PostgreSQL service. A one-shot service applies database migrations before the application starts. The application serves the web app, REST API, authentication routes, and MCP routes on one origin.
+NotesApp runs as one application service and one PostgreSQL service. A one-shot service applies database migrations before the application starts. The application serves the web app, REST API, and authentication routes on one origin.
 
 Put an HTTPS reverse proxy in front of `127.0.0.1:3000`. Do not publish the PostgreSQL port. The Compose database network is private. The application uses a second network for optional SMTP and other required outbound traffic.
 
