@@ -143,6 +143,8 @@ export type TestServerOptions = {
   readonly identity?: IdentityResolver;
   /** Maintained protocol libraries that serve part of the HTTP surface. */
   readonly protocols?: readonly ProtocolAdapter[];
+  /** Built browser assets to serve, or null to serve none. */
+  readonly webDist?: string | null;
   /** Hook to configure or mount additional adapters on the Fastify instance before listen. */
   readonly onApp?: (
     app: Awaited<ReturnType<typeof createAppWithHandlers>>,
@@ -167,6 +169,7 @@ export async function startTestServer(
       : { logStream: options.logStream }),
     identity: options.identity ?? anonymousIdentity,
     protocols: options.protocols ?? [stubProtocol],
+    webDist: options.webDist ?? null,
   });
   if (options.onApp !== undefined) {
     await options.onApp(app, config);

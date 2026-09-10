@@ -7,8 +7,8 @@
  * validation, contract response validation, and problem details for every
  * failure.
  */
-import { createReadStream, existsSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
@@ -48,6 +48,8 @@ import {
   createProblem,
   problemMediaType,
 } from './http/problem.ts';
+import { baseSecurityHeaders } from './http/security-headers.ts';
+import { sendStaticFile, statFile } from './http/static-assets.ts';
 import { attachRequestLogging, redactUrl } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
@@ -84,24 +86,6 @@ function contractStatus(id: OperationId | undefined, status: number): number {
     (response) => response.status === status,
   );
   return declared ? status : 500;
-}
-
-/** MIME content type mapping for web assets. */
-function mimeTypeFor(filePath: string): string {
-  if (filePath.endsWith('.html')) return 'text/html; charset=utf-8';
-  if (filePath.endsWith('.js') || filePath.endsWith('.mjs'))
-    return 'application/javascript; charset=utf-8';
-  if (filePath.endsWith('.css')) return 'text/css; charset=utf-8';
-  if (filePath.endsWith('.json')) return 'application/json; charset=utf-8';
-  if (filePath.endsWith('.webmanifest'))
-    return 'application/manifest+json; charset=utf-8';
-  if (filePath.endsWith('.svg')) return 'image/svg+xml';
-  if (filePath.endsWith('.png')) return 'image/png';
-  if (filePath.endsWith('.ico')) return 'image/x-icon';
-  if (filePath.endsWith('.woff')) return 'font/woff';
-  if (filePath.endsWith('.woff2')) return 'font/woff2';
-  if (filePath.endsWith('.map')) return 'application/json; charset=utf-8';
-  return 'application/octet-stream';
 }
 
 /** Everything that a deployment or a test supplies besides configuration. */
@@ -169,6 +153,15 @@ export function createAppWithHandlers(
   });
 
   attachRequestLogging(app);
+
+  // One hook writes the security headers of every answer, including the ones
+  // that the not-found handler, the error handler and a protocol adapter
+  // produce. A route that needs a different content policy, such as an HTML
+  // document, replaces that one header on its own reply.
+  const securityHeaders = baseSecurityHeaders(config.origin);
+  app.addHook('onRequest', async (_request, reply) => {
+    for (const [name, value] of securityHeaders) reply.header(name, value);
+  });
 
   app.addHook('onSend', async (request, reply) => {
     reply.header('x-request-id', request.id);
@@ -246,25 +239,21 @@ export function createAppWithHandlers(
         if (decodedPath !== null) {
           const targetPath = resolve(webDist, '.' + decodedPath);
           if (
-            (targetPath === webDist || targetPath.startsWith(`${webDist}/`)) &&
-            existsSync(targetPath)
+            targetPath.startsWith(`${webDist}/`) &&
+            statFile(targetPath) !== null
           ) {
-            const stat = statSync(targetPath);
-            if (stat.isFile()) {
-              const contentType = mimeTypeFor(targetPath);
-              return reply
-                .status(200)
-                .header('content-type', contentType)
-                .send(createReadStream(targetPath));
-            }
+            return sendStaticFile(request, reply, {
+              filePath: targetPath,
+              relativePath: relative(webDist, targetPath).split(sep).join('/'),
+            });
           }
         }
         const indexPath = resolve(webDist, 'index.html');
-        if (existsSync(indexPath)) {
-          return reply
-            .status(200)
-            .header('content-type', 'text/html; charset=utf-8')
-            .send(createReadStream(indexPath));
+        if (statFile(indexPath) !== null) {
+          return sendStaticFile(request, reply, {
+            filePath: indexPath,
+            relativePath: 'index.html',
+          });
         }
       }
     }
@@ -289,6 +278,15 @@ export function createAppWithHandlers(
     const status = contractStatus(id, classified.status);
     const code =
       status === classified.status ? classified.code : 'internal_error';
+    // `setErrorHandler` replaces Fastify's own error logging, so a fault that
+    // the client never sees in detail would otherwise leave no trace at all.
+    // Every answer that classifies as an unexpected server error is logged
+    // with the failure itself, under the request id that the caller received.
+    if (code === 'internal_error')
+      request.log.error(
+        { err: error, operationId: id ?? null },
+        'The service failed to complete the request.',
+      );
     await reply
       .status(status)
       .header('content-type', `${problemMediaType}; charset=utf-8`)
