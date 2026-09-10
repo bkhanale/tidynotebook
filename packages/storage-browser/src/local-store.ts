@@ -2549,6 +2549,26 @@ export async function openLocalStore(
                   localHeadRevisionId: file.revisionId,
                   updatedAt: nowIso(),
                 });
+                // A live file that this device holds a tombstone draft for was
+                // restored. That draft says nothing the file does not already
+                // say, and it would shadow every later edit of the note, so it
+                // goes with the deletion it recorded.
+                if (!file.deleted) {
+                  const stale = await draftsOfFile(
+                    accountId,
+                    workspaceId,
+                    file.fileId,
+                  );
+                  for (const draft of stale) {
+                    if (!draft.deleted) continue;
+                    await tables.drafts.delete([
+                      serverOrigin,
+                      accountId,
+                      workspaceId,
+                      draft.workingCopyId,
+                    ]);
+                  }
+                }
               } else {
                 await tables.acceptedFiles.put({
                   ...current,

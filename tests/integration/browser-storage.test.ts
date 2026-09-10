@@ -1088,6 +1088,10 @@ await test('a restore reaches a device whose deletion draft holds the text', asy
   const cached = await store.readCachedNote(account, workspace, fileId);
   assert.equal(cached?.deleted, false);
   assert.equal(cached?.text, 'keep me\n');
+
+  // The tombstone draft goes with the deletion it recorded. A draft that
+  // stayed would shadow every later edit of the note it names.
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
   await store.close();
 });
 

@@ -151,6 +151,24 @@ export type DiagramFrameOptions = {
 };
 
 /**
+ * The inline style of the frame element.
+ *
+ * The frame is a sandboxed document, so a utility class cannot reach it and
+ * the parent sets its presentation here.
+ *
+ * `pointerEvents: 'none'` is the important one. The frame is a separate
+ * document: a click on it moves the focus into that document, so the widget
+ * around it never learns of the click, the source of the diagram never opens,
+ * and every keystroke after the click is lost. The rendered diagram offers
+ * nothing to press, so letting the click through to the editor costs nothing.
+ */
+export const diagramFrameStyle: Readonly<Record<string, string>> = {
+  width: '100%',
+  border: '0',
+  pointerEvents: 'none',
+};
+
+/**
  * Creates the parent side of one diagram frame.
  *
  * Returns a wrapper element holding the sandboxed iframe. The iframe starts
@@ -195,8 +213,7 @@ export function createDiagramFrame(options: DiagramFrameOptions): {
   iframe.setAttribute('referrerpolicy', 'no-referrer');
   iframe.setAttribute('loading', 'lazy');
   iframe.setAttribute('src', options.framePath);
-  iframe.style.width = '100%';
-  iframe.style.border = '0';
+  Object.assign(iframe.style, diagramFrameStyle);
   iframe.style.height = `${String(diagramLimits.minHeightPx)}px`;
   wrapper.appendChild(iframe);
 
