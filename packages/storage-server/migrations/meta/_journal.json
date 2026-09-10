@@ -78,6 +78,13 @@
       "when": 1788714156329,
       "tag": "0010_indexed_search",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789200000000,
+      "tag": "0012_purge_attachment_safety",
+      "breakpoints": true
     }
   ]
 }

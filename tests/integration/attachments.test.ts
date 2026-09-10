@@ -9,16 +9,18 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import {
   configureClient,
+  deleteFile,
   finalizeAttachment,
   getAccount,
   getAttachmentRevision,
   listWorkspaces,
+  purgeFiles,
   signInWithPassword,
   uploadAttachment,
 } from '@notesapp/api-client';
@@ -38,7 +40,12 @@ import {
   openWorkspaceStore,
 } from '@notesapp/storage-server';
 import sharp from 'sharp';
-import { createDisposableDatabase, seedWorkspace } from './support/database.ts';
+import {
+  createDisposableDatabase,
+  memberActor,
+  openSession,
+  seedWorkspace,
+} from './support/database.ts';
 import { LogRecorder, startTestServer } from './support/server.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
@@ -207,6 +214,143 @@ const sampleGifBytes = await sharp({
 })
   .gif()
   .toBuffer();
+
+/** A PNG whose colour no other test uses, so its digest belongs to one test. */
+async function uniquePng(
+  red: number,
+  green: number,
+  blue: number,
+): Promise<Buffer<ArrayBuffer>> {
+  return sharp({
+    create: {
+      width: 100,
+      height: 100,
+      channels: 4,
+      background: { r: red, g: green, b: blue, alpha: 1 },
+    },
+  })
+    .png()
+    .toBuffer();
+}
+
+/** The objects that the database offers to a reclaim run at this clock. */
+async function candidateIds(now: Date): Promise<readonly string[]> {
+  const cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const session = await openSession(database.migrationUrl);
+  try {
+    const rows = await session.query<{ id: string }>(
+      'select id::text as id from notesapp_reclaim_attachments($1)',
+      [cutoff],
+    );
+    return rows.map((row) => row.id);
+  } finally {
+    await session.close();
+  }
+}
+
+/** The stored state of one attachment object, or `missing`. */
+async function objectState(objectId: string): Promise<string> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    const rows = await session.query<{ state: string }>(
+      `select state::text as state from attachment_objects
+        where workspace_id = $1 and id = $2`,
+      [workspaceId, objectId],
+    );
+    return rows[0]?.state ?? 'missing';
+  } finally {
+    await session.close();
+  }
+}
+
+/** Moves one attachment object out of the 24 hour reclaim window. */
+async function ageObject(objectId: string): Promise<void> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    await session.query(
+      `update attachment_objects
+          set created_at = now() - interval '48 hours',
+              finalized_at = now() - interval '48 hours'
+        where workspace_id = $1 and id = $2`,
+      [workspaceId, objectId],
+    );
+  } finally {
+    await session.close();
+  }
+}
+
+/** True while another session holds the advisory lock of the workspace. */
+async function workspaceLockHeld(): Promise<boolean> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    const rows = await session.query<{ free: boolean }>(
+      'select pg_try_advisory_xact_lock(hashtext($1::text)::bigint) as free',
+      [workspaceId],
+    );
+    return rows[0]?.free === false;
+  } finally {
+    await session.close();
+  }
+}
+
+/**
+ * Waits until one session waits for an advisory lock.
+ *
+ * The database of this test is disposable and only this test takes advisory
+ * locks, so an ungranted advisory lock is the competing call.
+ */
+async function waitForLockWaiter(): Promise<boolean> {
+  const session = await openSession(database.migrationUrl);
+  const deadline = Date.now() + 20000;
+  try {
+    while (Date.now() < deadline) {
+      const rows = await session.query<{ waiting: string }>(
+        `select count(*)::text as waiting from pg_locks
+          where locktype = 'advisory' and not granted`,
+      );
+      if (Number(rows[0]?.waiting ?? '0') > 0) return true;
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+    }
+    return false;
+  } finally {
+    await session.close();
+  }
+}
+
+/** Uploads bytes and finalizes them into a new note. Answers the revision. */
+async function uploadAndFinalize(
+  bytes: Buffer<ArrayBuffer>,
+  notePath: string,
+): Promise<string> {
+  const uploaded = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      file: new File([bytes], 'rescued.png', { type: 'image/png' }),
+    },
+  });
+  if (!uploaded.data) {
+    throw new Error('notesapp: the competing upload was refused.');
+  }
+  const revisionId = randomUUID();
+  const finalized = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: uploaded.data.objectId },
+    body: {
+      fileId: randomUUID(),
+      revisionId,
+      path: notePath,
+      digest: uploaded.data.digest,
+      ...mutationIds(),
+    },
+  });
+  if (responseOf(finalized.response).status !== 200) {
+    throw new Error('notesapp: the competing finalize was refused.');
+  }
+  return revisionId;
+}
 
 await test('upload and finalize PNG image with binary streaming download', async () => {
   const file = new File([samplePngBytes], 'diagram.png', {
@@ -828,10 +972,19 @@ await test('reclaim unreferenced temporary and finalized objects older than 24 h
   assert.ok(existsSync(tempFilePath), 'fresh temporary file is retained');
   assert.ok(existsSync(keptFilePath), 'fresh finalized file is retained');
 
-  // Reclaim with clock advanced 25 hours
+  // Reclaim with clock advanced 25 hours. The run takes exactly the objects
+  // that the database rule lists, and a second run takes none of them again.
   const future = new Date(Date.now() + 25 * 60 * 60 * 1000);
+  const listed = await candidateIds(future);
+  assert.ok(
+    listed.includes(tempObjectId),
+    'the abandoned temporary object is a candidate',
+  );
+  // The kept object shares its digest with an object of an earlier check, so
+  // the reclaim may claim the row. The digest guard keeps the bytes.
   const reclaimedLater = await attachments.reclaimAttachments(future);
-  assert.ok(reclaimedLater >= 1, 'abandoned temporary object is reclaimed');
+  assert.equal(reclaimedLater, listed.length);
+  assert.equal(await attachments.reclaimAttachments(future), 0);
 
   // Temporary file was unlinked
   assert.equal(
@@ -866,13 +1019,344 @@ await test('reclaim unreferenced temporary and finalized objects older than 24 h
 });
 
 await test('cleanup race safety on concurrent invocations', async () => {
+  // Two fresh objects that both runs see in their candidate list.
+  const first = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      file: new File([samplePngBytes], 'race-a.png', { type: 'image/png' }),
+    },
+  });
+  const second = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      file: new File([samplePngBytes], 'race-b.png', { type: 'image/png' }),
+    },
+  });
+  assert.ok(first.data);
+  assert.ok(second.data);
+
   const future = new Date(Date.now() + 30 * 60 * 60 * 1000);
-  // Concurrently invoking reclaimAttachments does not cause errors or deadlock
+  const listed = await candidateIds(future);
+  assert.ok(listed.includes(first.data.objectId));
+  assert.ok(listed.includes(second.data.objectId));
+
+  // Two runs at once claim every candidate once between them, never twice.
   const results = await Promise.all([
     attachments.reclaimAttachments(future),
     attachments.reclaimAttachments(future),
   ]);
-  assert.ok(results.every((count) => typeof count === 'number'));
+  assert.equal(results[0] + results[1], listed.length);
+  assert.equal(await attachments.reclaimAttachments(future), 0);
+  assert.equal(
+    existsSync(attachments.temporaryPath(first.data.objectId)),
+    false,
+  );
+  assert.equal(
+    existsSync(attachments.temporaryPath(second.data.objectId)),
+    false,
+  );
+});
+
+await test('a purge leaves an upload that is still in flight alone', async () => {
+  // A note with an attachment. The purge below removes this note.
+  const noteBytes = await uniquePng(10, 20, 30);
+  const attached = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { file: new File([noteBytes], 'purged.png', { type: 'image/png' }) },
+  });
+  assert.ok(attached.data);
+  const purgedFileId = randomUUID();
+  const attachedRevision = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: attached.data.objectId },
+    body: {
+      fileId: purgedFileId,
+      revisionId: randomUUID(),
+      path: 'assets/purged.png',
+      digest: attached.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(attachedRevision.response).status, 200);
+
+  // An upload of the same person that has not been finalized yet.
+  const flightBytes = await uniquePng(40, 50, 60);
+  const inFlight = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      file: new File([flightBytes], 'in-flight.png', { type: 'image/png' }),
+    },
+  });
+  assert.ok(inFlight.data);
+  const inFlightPath = attachments.temporaryPath(inFlight.data.objectId);
+  assert.ok(existsSync(inFlightPath), 'the upload wrote its bytes');
+
+  const purged = await purgeFiles({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { mutationId: randomUUID(), fileIds: [purgedFileId] },
+  });
+  assert.equal(purged.error, undefined, JSON.stringify(purged.error));
+
+  // The purge of an unrelated note leaves the upload untouched.
+  assert.equal(await objectState(inFlight.data.objectId), 'temporary');
+  assert.ok(existsSync(inFlightPath), 'the bytes of the upload stay on disk');
+
+  // The upload still finalizes into its own note.
+  const late = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: inFlight.data.objectId },
+    body: {
+      fileId: randomUUID(),
+      revisionId: randomUUID(),
+      path: 'assets/in-flight.png',
+      digest: inFlight.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(late.response).status, 200);
+});
+
+/** Uploads one image, finalizes it into a new note, and answers the parts. */
+async function noteWithAttachment(
+  bytes: Buffer<ArrayBuffer>,
+  notePath: string,
+): Promise<{
+  readonly fileId: string;
+  readonly objectId: string;
+  readonly bytesPath: string;
+}> {
+  const uploaded = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      file: new File([bytes], 'note.png', { type: 'image/png' }),
+    },
+  });
+  assert.ok(uploaded.data);
+  const fileId = randomUUID();
+  const revisionId = randomUUID();
+  const finalized = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: uploaded.data.objectId },
+    body: {
+      fileId,
+      revisionId,
+      path: notePath,
+      digest: uploaded.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(finalized.response).status, 200);
+  const removed = await deleteFile({
+    headers: { ...browser(cookie), 'if-match': `"${revisionId}"` },
+    path: { workspaceId, fileId },
+    body: { revisionId: randomUUID(), ...mutationIds() },
+  });
+  assert.equal(removed.error, undefined, JSON.stringify(removed.error));
+  return {
+    fileId,
+    objectId: uploaded.data.objectId,
+    bytesPath: attachments.immutablePath(workspaceId, uploaded.data.digest),
+  };
+}
+
+/** Deletes one note permanently. */
+async function purgeNote(fileId: string): Promise<void> {
+  const purged = await purgeFiles({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { mutationId: randomUUID(), fileIds: [fileId] },
+  });
+  assert.equal(purged.error, undefined, JSON.stringify(purged.error));
+}
+
+await test('a purge and the reclaim delete the attachment bytes', async () => {
+  const first = await noteWithAttachment(
+    await uniquePng(70, 80, 90),
+    'assets/gone-one.png',
+  );
+  const second = await noteWithAttachment(
+    await uniquePng(75, 85, 95),
+    'assets/gone-two.png',
+  );
+  assert.ok(existsSync(first.bytesPath), 'the finalized bytes are on disk');
+  assert.ok(existsSync(second.bytesPath), 'the finalized bytes are on disk');
+
+  // Delete the first note permanently. The purge leaves the row finalized,
+  // because the object was finalized inside the reclaim window.
+  await purgeNote(first.fileId);
+  assert.equal(await objectState(first.objectId), 'finalized');
+
+  // Age the first object and delete the second note permanently. That purge
+  // now sees a finalized object that nothing references any more, and marks
+  // it unavailable.
+  await ageObject(first.objectId);
+  await purgeNote(second.fileId);
+  assert.equal(await objectState(first.objectId), 'unavailable');
+  assert.equal(await objectState(second.objectId), 'finalized');
+
+  // The reclaim takes the unavailable object and deletes its bytes. The
+  // second object was finalized inside the window, so it waits.
+  assert.deepEqual(await candidateIds(new Date()), [first.objectId]);
+  assert.equal(await attachments.reclaimAttachments(new Date()), 1);
+  assert.equal(
+    existsSync(first.bytesPath),
+    false,
+    'the permanent deletion took the bytes off the disk',
+  );
+  assert.ok(existsSync(second.bytesPath), 'the fresh object keeps its bytes');
+
+  // Once the second object leaves the window the reclaim takes it as well.
+  await ageObject(second.objectId);
+  assert.deepEqual(await candidateIds(new Date()), [second.objectId]);
+  assert.equal(await attachments.reclaimAttachments(new Date()), 1);
+  assert.equal(existsSync(second.bytesPath), false);
+  assert.equal(await objectState(second.objectId), 'unavailable');
+  assert.equal(await attachments.reclaimAttachments(new Date()), 0);
+});
+
+await test('a reclaim cannot take the bytes of a concurrent finalize', async () => {
+  // One object holds the only copy of these bytes, and a purge unreferences
+  // it. The reclaim below is entitled to delete the file.
+  const bytes = await uniquePng(100, 110, 120);
+  const doomed = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { file: new File([bytes], 'shared.png', { type: 'image/png' }) },
+  });
+  assert.ok(doomed.data);
+  const doomedFileId = randomUUID();
+  const doomedFinalize = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: doomed.data.objectId },
+    body: {
+      fileId: doomedFileId,
+      revisionId: randomUUID(),
+      path: 'assets/shared.png',
+      digest: doomed.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(doomedFinalize.response).status, 200);
+  const sharedPath = attachments.immutablePath(workspaceId, doomed.data.digest);
+  assert.ok(existsSync(sharedPath));
+
+  const purged = await purgeFiles({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { mutationId: randomUUID(), fileIds: [doomedFileId] },
+  });
+  assert.equal(purged.error, undefined, JSON.stringify(purged.error));
+  await ageObject(doomed.data.objectId);
+
+  // A second upload of the same bytes starts while the reclaim holds the
+  // workspace lock, between the mark of the doomed object and the deletion of
+  // its file. The competing call parks on the lock, so the reclaim cannot
+  // delete bytes that the new object then depends on.
+  const race: {
+    lockHeld: boolean | null;
+    parked: boolean;
+    pending: Promise<string> | null;
+  } = { lockHeld: null, parked: false, pending: null };
+
+  const racing = openAttachmentStore(database.runtimeUrl, storageRoot, {
+    poolSize: 2,
+    onReclaimMarked: async (objectId) => {
+      if (objectId !== doomed.data?.objectId) return;
+      race.lockHeld = await workspaceLockHeld();
+      race.pending = uploadAndFinalize(bytes, 'assets/rescued.png');
+      race.parked = await waitForLockWaiter();
+    },
+  });
+  let reclaimed = 0;
+  try {
+    reclaimed = await racing.reclaimAttachments(new Date());
+  } finally {
+    await racing.close();
+  }
+  assert.equal(reclaimed, 1);
+  assert.equal(
+    race.lockHeld,
+    true,
+    'the reclaim holds the workspace lock while it decides about the bytes',
+  );
+  assert.equal(
+    race.parked,
+    true,
+    'the competing call waited for the lock of the reclaim',
+  );
+
+  // The competing call kept its bytes and reads back byte for byte.
+  const rescuedRevision = await race.pending;
+  assert.ok(rescuedRevision);
+  assert.ok(existsSync(sharedPath), 'the finalized object kept its bytes');
+  const read = await getAttachmentRevision({
+    headers: browser(cookie),
+    path: { workspaceId, revisionId: rescuedRevision },
+  });
+  assert.equal(responseOf(read.response).status, 200);
+  assert.ok(read.data instanceof Blob);
+  assert.equal(
+    sha256Hex(Buffer.from(await read.data.arrayBuffer())),
+    doomed.data.digest,
+  );
+  assert.equal(await objectState(doomed.data.objectId), 'unavailable');
+});
+
+await test('a workspace deletion sends its attachment bytes to the reclaim', async () => {
+  const otherWorkspaceId = randomUUID();
+  const otherAccountId = randomUUID();
+  await seedWorkspace(database, otherWorkspaceId, [
+    { accountId: otherAccountId, role: 'owner' },
+  ]);
+  const actor = memberActor(otherAccountId, otherWorkspaceId);
+  const bytes = await uniquePng(130, 140, 150);
+  const digest = sha256Hex(bytes);
+  const objectId = randomUUID();
+  await attachments.saveTemporaryAttachment(actor, otherWorkspaceId, {
+    id: objectId,
+    digest,
+    size: BigInt(bytes.length),
+    mediaType: 'image/png',
+    width: 100,
+    height: 100,
+  });
+  const tempPath = attachments.temporaryPath(objectId);
+  await mkdir(dirname(tempPath), { recursive: true });
+  await writeFile(tempPath, bytes);
+  const finalized = await attachments.finalizeAttachmentObject(
+    actor,
+    otherWorkspaceId,
+    objectId,
+    digest,
+  );
+  assert.equal(finalized.ok, true);
+  const bytesPath = attachments.immutablePath(otherWorkspaceId, digest);
+  assert.ok(existsSync(bytesPath), 'the finalized bytes are on disk');
+
+  // The owner deletes the workspace. The rows go, the bytes are queued.
+  const session = await openSession(database.runtimeUrl, otherAccountId);
+  try {
+    await session.query('select notesapp_delete_workspace($1)', [
+      otherWorkspaceId,
+    ]);
+  } finally {
+    await session.close();
+  }
+
+  // The reclaim is the one code that deletes attachment bytes.
+  assert.equal(await attachments.reclaimAttachments(new Date()), 1);
+  assert.equal(
+    existsSync(bytesPath),
+    false,
+    'the workspace deletion took the bytes off the disk',
+  );
+  assert.equal(await attachments.reclaimAttachments(new Date()), 0);
 });
 
 // Teardown

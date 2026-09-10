@@ -176,11 +176,38 @@ export const attachmentObjects = pgTable(
       .notNull()
       .defaultNow(),
     finalizedAt: timestamp('finalized_at', { withTimezone: true }),
+    /** When the reclaim handled the bytes of this object. */
+    reclaimedAt: timestamp('reclaimed_at', { withTimezone: true }),
   },
   (table) => [
     primaryKey({ columns: [table.workspaceId, table.id] }),
     index('attachment_objects_digest_idx').on(table.workspaceId, table.digest),
     check('attachment_objects_size_check', sql`${table.size} >= 0`),
+  ],
+);
+
+/**
+ * Attachment bytes that wait for the reclaim after a workspace deletion.
+ *
+ * A workspace deletion removes the attachment rows, so the digests move here
+ * first. The row outlives the workspace row and therefore carries no foreign
+ * key. Only the SECURITY DEFINER reclaim functions reach this table.
+ */
+export const attachmentReclaimQueue = pgTable(
+  'attachment_reclaim_queue',
+  {
+    workspaceId: uuid('workspace_id').notNull(),
+    objectId: uuid('object_id').notNull(),
+    digest: text('digest').notNull(),
+    queuedAt: timestamp('queued_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      name: 'attachment_reclaim_queue_pk',
+      columns: [table.workspaceId, table.objectId],
+    }),
   ],
 );
 

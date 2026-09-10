@@ -6,7 +6,7 @@
  * stays strictly inside one workspace.
  */
 import { createReadStream, existsSync } from 'node:fs';
-import { mkdir, rename, unlink } from 'node:fs/promises';
+import { mkdir, rename, rm, unlink } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Readable } from 'node:stream';
 import { and, eq } from 'drizzle-orm';
@@ -88,8 +88,13 @@ export type AttachmentStore = {
   } | null>;
 
   /**
-   * Reclaims abandoned temporary objects and unreferenced finalized objects
-   * older than 24 hours.
+   * Reclaims attachment bytes. This is the only code that deletes them.
+   *
+   * It takes an abandoned temporary object, an unreferenced finalized object
+   * older than 24 hours, an object that a purge marked unavailable, and the
+   * attachments of a deleted workspace. Every deletion runs inside the locked
+   * transaction that claims the row, so a concurrent finalize cannot lose its
+   * bytes. Returns how many objects were reclaimed.
    */
   reclaimAttachments(now: Date): Promise<number>;
 
@@ -107,7 +112,38 @@ export type AttachmentStoreHandle = AttachmentStore & {
 export type AttachmentStoreOptions = {
   readonly poolSize?: number;
   readonly statementTimeoutMs?: number;
+  /**
+   * Runs inside the locked reclaim transaction, after the object was claimed
+   * and before its bytes are deleted.
+   *
+   * The concurrency check of the reclaim needs to act in that window, which no
+   * public call can reach. Production composition leaves this undefined.
+   */
+  readonly onReclaimMarked?: (objectId: string) => Promise<void>;
 };
+
+/** How many queued objects of deleted workspaces one reclaim batch takes. */
+const reclaimBatchSize = 100;
+
+/** True when the value is a lowercase hexadecimal SHA-256 digest. */
+function isDigest(value: string): boolean {
+  return /^[0-9a-f]{64}$/.test(value);
+}
+
+/** True when the value has the shape of a UUID. */
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+}
+
+/** Deletes one file and ignores a file that is already gone. */
+async function removeFile(path: string): Promise<void> {
+  if (!existsSync(path)) return;
+  try {
+    await unlink(path);
+  } catch {
+    // A file that another run removed first needs no report.
+  }
+}
 
 /** Opens an attachment store backed by PostgreSQL and local volume storage. */
 export function openAttachmentStore(
@@ -129,6 +165,59 @@ export function openAttachmentStore(
 
   function immutablePath(workspaceId: string, digest: string): string {
     return join(storageRoot, 'workspaces', workspaceId, 'attachments', digest);
+  }
+
+  /**
+   * Deletes the attachment bytes that a workspace deletion queued.
+   *
+   * The workspace row and its attachment rows are already gone, so the whole
+   * workspace directory is dead. The queue row is taken and the bytes are
+   * deleted inside one transaction, so a failed deletion returns the row.
+   */
+  async function reclaimDeletedWorkspaces(
+    client: pg.PoolClient,
+  ): Promise<number> {
+    let count = 0;
+    for (;;) {
+      let taken: readonly { workspace_id: string; object_id: string }[] = [];
+      try {
+        await client.query('begin');
+        const result = await client.query<{
+          workspace_id: string;
+          object_id: string;
+          digest: string;
+        }>(
+          'SELECT workspace_id, object_id, digest FROM public.notesapp_take_attachment_reclaim($1)',
+          [reclaimBatchSize],
+        );
+        taken = result.rows;
+        if (taken.length === 0) {
+          await client.query('rollback');
+          return count;
+        }
+        for (const row of taken) {
+          await removeFile(temporaryPath(row.object_id));
+        }
+        const workspaces = new Set(taken.map((row) => row.workspace_id));
+        for (const id of workspaces) {
+          if (!isUuid(id)) continue;
+          await rm(join(storageRoot, 'workspaces', id), {
+            recursive: true,
+            force: true,
+          });
+        }
+        await client.query('commit');
+      } catch {
+        try {
+          await client.query('rollback');
+        } catch {
+          // The connection is unusable; the next run repeats the work.
+        }
+        return count;
+      }
+      count += taken.length;
+      if (taken.length < reclaimBatchSize) return count;
+    }
   }
 
   async function withClient<T>(
@@ -450,7 +539,7 @@ export function openAttachmentStore(
               [candidate.workspace_id],
             );
 
-            // Check if any reference appeared
+            // A reference may have appeared after the candidate was listed.
             const refResult = await client.query<{ exists: boolean }>(
               'SELECT public.notesapp_has_attachment_content_ref($1, $2) as exists',
               [candidate.workspace_id, candidate.id],
@@ -460,6 +549,8 @@ export function openAttachmentStore(
               continue;
             }
 
+            // The mark claims the row for this run. A second run, and a run in
+            // another process, gets no row and therefore deletes no bytes.
             const updated = await client.query<{ ok: boolean }>(
               'SELECT public.notesapp_mark_attachment_unavailable($1, $2) as ok',
               [candidate.workspace_id, candidate.id],
@@ -469,47 +560,41 @@ export function openAttachmentStore(
               continue;
             }
 
-            await client.query('commit');
+            await options.onReclaimMarked?.(candidate.id);
 
-            // Cleanup files on disk
-            const tmp = temporaryPath(candidate.id);
-            if (existsSync(tmp)) {
-              try {
-                await unlink(tmp);
-              } catch {
-                // Ignore unlink errors
-              }
-            }
-
-            // Check if any active object still uses this digest
+            // The digest check and both deletions stay inside this locked
+            // transaction. A finalize of another object with the same digest
+            // holds the same workspace lock, so it cannot pass between the
+            // check and the deletion and lose its bytes. It waits, sees no
+            // file at the immutable path, and moves its own upload there.
             const digestStillUsed = await client.query<{ exists: boolean }>(
               'SELECT public.notesapp_is_attachment_digest_used($1, $2) as exists',
               [candidate.workspace_id, candidate.digest],
             );
-            if (!digestStillUsed.rows[0]?.exists) {
-              const target = immutablePath(
-                candidate.workspace_id,
-                candidate.digest,
+
+            await removeFile(temporaryPath(candidate.id));
+            if (
+              !digestStillUsed.rows[0]?.exists &&
+              isDigest(candidate.digest) &&
+              isUuid(candidate.workspace_id)
+            ) {
+              await removeFile(
+                immutablePath(candidate.workspace_id, candidate.digest),
               );
-              if (existsSync(target)) {
-                try {
-                  await unlink(target);
-                } catch {
-                  // Ignore unlink errors
-                }
-              }
             }
 
+            await client.query('commit');
             count++;
           } catch {
             try {
               await client.query('rollback');
             } catch {
-              // Ignore
+              // The connection is unusable; the next run repeats the work.
             }
           }
         }
-        return count;
+
+        return count + (await reclaimDeletedWorkspaces(client));
       } finally {
         client.release();
       }
