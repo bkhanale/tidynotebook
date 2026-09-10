@@ -33,9 +33,17 @@ sample.
 engines import it.
 
 - One dollar is money. `It costs $5 and $10 today.` is text.
-- Inline math is `$$...$$` or `\(...\)` on one line.
+- Inline math is `$$...$$` or `\(...\)` on one line. Math ends at the first
+  closing pair, and a pair that its line does not close stays text.
 - Display math is a `$$` fence on its own line with an optional info string
   that holds no dollar sign.
+
+remark-math gives the renderer the dollar pair only, because `\(` is a
+CommonMark character escape. `packages/markdown/src/math-parens.ts` adds the
+second pair as a micromark text construct on the backslash, ahead of that
+escape, and it writes the tokens remark-math already reads, so both pairs
+build the same node. Every other backslash keeps its CommonMark meaning:
+`\\(x\)` is an escaped backslash and then text.
 
 ## Feature matrix
 
@@ -68,7 +76,7 @@ editor shows while you type.
 | Thematic breaks, `---` and `***`   | yes                       | yes, both render as a rule                                       |
 | Entities                           | yes                       | left exactly as written                                          |
 | Escapes                            | yes                       | left exactly as written, never emphasis                          |
-| Inline math                        | yes                       | yes, inline, no box                                              |
+| Inline math, `$$` and `\(`         | yes, both pairs           | yes, both pairs, inline, no box                                  |
 | Display math                       | yes                       | yes, block widget                                                |
 | Mermaid                            | placeholder `pre`         | yes, sandboxed frame                                             |
 | Front matter                       | document content          | document content                                                 |

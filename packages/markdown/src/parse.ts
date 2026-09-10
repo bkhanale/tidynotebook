@@ -17,7 +17,8 @@
  *   the source stays addressable, but the renderer never emits it.
  * - One dollar is money, not math. The math delimiter rule comes from
  *   `./math-syntax.ts`, which the live preview parser reads as well, so both
- *   engines open math at the same place.
+ *   engines open math at the same place. remark-math gives `$$...$$` only, so
+ *   `./math-parens.ts` adds the `\(...\)` pair of the same rule.
  * - Every entry point is bounded. The size and nesting checks in `./limits.ts`
  *   run before the parser sees the text, and the tree depth is checked after.
  *
@@ -33,8 +34,9 @@ import type { Root } from 'mdast';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
-import { unified } from 'unified';
+import { unified, type Processor } from 'unified';
 import { assertNestingDepth, assertParseLimits } from './limits.ts';
+import { mathTextParensExtension } from './math-parens.ts';
 import { singleDollarTextMath } from './math-syntax.ts';
 
 /**
@@ -48,7 +50,21 @@ export function createMarkdownProcessor() {
   return unified()
     .use(remarkParse)
     .use(remarkGfm)
-    .use(remarkMath, { singleDollarTextMath });
+    .use(remarkMath, { singleDollarTextMath })
+    .use(remarkMathParens);
+}
+
+/**
+ * Adds the `\(...\)` inline math pair to the parser.
+ *
+ * It runs after remark-math, so the mdast handlers of remark-math are already
+ * installed and they read the tokens this construct writes.
+ */
+function remarkMathParens(this: Processor): undefined {
+  const data = this.data();
+  const extensions = data.micromarkExtensions ?? [];
+  extensions.push(mathTextParensExtension);
+  data.micromarkExtensions = extensions;
 }
 
 const markdownProcessor = createMarkdownProcessor().freeze();

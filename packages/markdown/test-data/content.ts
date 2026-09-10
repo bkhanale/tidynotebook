@@ -31,8 +31,8 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * footnote, double bracket text in four forms, a note link, a reference link, a
  * malformed note identifier, blocked URL schemes, an attachment image, an
  * external image, a blocked image, raw HTML including a script element and an
- * `onerror` attribute, inline and display math, a Mermaid fence, a hard line
- * break, six ATX heading levels, both setext heading levels, an ordered list
+ * `onerror` attribute, both inline math pairs, display math, a Mermaid fence,
+ * a hard line break, six ATX heading levels, both setext heading levels, an ordered list
  * with a start number, both thematic break forms, an indented code block,
  * pointy, bare, and email autolinks, a nested block quote, and an unclosed
  * code fence at the end.
@@ -92,6 +92,8 @@ Inline raw <b>bold text</b> and <span onclick="alert(4)">span text</span>.
 Prices stay text: $5 and $10 today.
 
 Inline math $$E = mc^2$$ inside a sentence.
+
+Inline math \\(a^2 + b^2 = c^2\\) with the other pair.
 
 $$
 \\int_0^1 x^2 \\, dx

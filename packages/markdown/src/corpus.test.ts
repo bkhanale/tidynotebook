@@ -124,6 +124,13 @@ await test('front matter renders as document content', () => {
 
 await test('math renders to sanitized KaTeX and diagrams stay source', () => {
   assert.ok(html.includes('class="notes-math notes-math-inline"'));
+  // Both inline pairs of the delimiter rule reach the math stage, so the
+  // corpus holds two inline math spans and no leftover parenthesis pair.
+  assert.equal(
+    html.split('class="notes-math notes-math-inline"').length - 1,
+    2,
+  );
+  assert.ok(!html.includes('(a^2 + b^2 = c^2)'));
   assert.ok(html.includes('class="notes-math notes-math-display"'));
   assert.ok(html.includes('class="katex"'));
   assert.ok(!html.includes('<span data-math="inline">E = mc^2</span>'));
