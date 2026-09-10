@@ -121,12 +121,12 @@ inside its transaction, so a race only sends the request down the normal path,
 where the receipt is found again.
 
 `onFilesDeleted` runs after `accept`, inside the same transaction. It removes
-the search index rows and the link index rows of the deleted file.
+the search index row of the deleted file.
 
-The link index holds one row for each standard Markdown link to
-`/notes/<file-id>`. A link that names no live note is stored unresolved. There
-is no wiki syntax and no title lookup: a link names an identifier, so a rename
-of the target never breaks it.
+A link from one note to another is a standard Markdown link to
+`/notes/<file-id>`. There is no wiki syntax and no title lookup: a link names
+an identifier, so a rename of the target never breaks it. No index of links is
+kept; backlinks return in a later version.
 
 ## Preconditions and entity tags
 
