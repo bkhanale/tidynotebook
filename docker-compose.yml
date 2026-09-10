@@ -1,4 +1,9 @@
 # Production Compose file for one NotesApp instance.
+#
+# NOTESAPP_ORIGIN is required and has no default. Every other value has a safe
+# default: the listener is published on the loopback address, the allowed-host
+# list holds the host of the origin only, and both services rotate their logs.
+# Copy `.env.example` to `.env` and set the values there.
 services:
   postgres:
     image: postgres@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
@@ -10,9 +15,16 @@ services:
     secrets:
       - postgres_password
     volumes:
-      - postgres_data:/var/lib/postgresql
+      # A host directory, not a named volume, so the host encryption check and
+      # the backup and restore scripts can name the same path.
+      - ${NOTESAPP_DATABASE_DIR:-./.data/postgres}:/var/lib/postgresql
     networks:
       - database
+    logging:
+      driver: json-file
+      options:
+        max-size: ${NOTESAPP_LOG_MAX_SIZE:-10m}
+        max-file: ${NOTESAPP_LOG_MAX_FILE:-5}
     healthcheck:
       test:
         [
@@ -28,24 +40,20 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: notesapp:latest
+    image: ${NOTESAPP_IMAGE:-notesapp:latest}
     restart: unless-stopped
     depends_on:
       postgres:
         condition: service_healthy
-    command:
-      [
-        'sh',
-        '-c',
-        'NOTESAPP_DATABASE_URL_FILE=/run/secrets/migration_database_url NOTESAPP_RUNTIME_PASSWORD_FILE=/run/secrets/runtime_database_password NOTESAPP_AUTH_PASSWORD_FILE=/run/secrets/auth_database_password node server/node_modules/@notesapp/storage-server/dist/migrate.js --profile deploy && exec node server/dist/main.js',
-      ]
     environment:
-      NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:-http://10.20.30.98:3000}
+      NOTESAPP_ORIGIN: ${NOTESAPP_ORIGIN:?set NOTESAPP_ORIGIN in .env to the public URL of this installation, for example https://notes.example.com}
       NOTESAPP_DATABASE_URL_FILE: /run/secrets/runtime_database_url
       NOTESAPP_AUTH_DATABASE_URL_FILE: /run/secrets/auth_database_url
       NOTESAPP_STORAGE_ROOT: /var/lib/notesapp
       NOTESAPP_AUTH_SECRET_FILE: /run/secrets/auth_secret
-      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:-10.20.30.98,localhost,127.0.0.1,personal}
+      # An empty list serves the host of the origin and nothing else. Add more
+      # host names only when a second name reaches this installation.
+      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:-}
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}
@@ -60,26 +68,26 @@ services:
       - runtime_database_password
       - auth_database_password
     ports:
-      - '${NOTESAPP_BIND_HOST:-0.0.0.0}:${NOTESAPP_PORT:-3000}:3000'
+      # Loopback only. Put an HTTPS reverse proxy in front of this address.
+      - '${NOTESAPP_BIND_HOST:-127.0.0.1}:${NOTESAPP_PORT:-3000}:3000'
     volumes:
-      - storage_data:/var/lib/notesapp
+      # The storage root must belong to uid 10001, which is the notesapp user
+      # of the image. See docs/operations/self-hosting.md.
+      - ${NOTESAPP_STORAGE_DIR:-./.storage}:/var/lib/notesapp
     networks:
       - database
       - frontend
+    logging:
+      driver: json-file
+      options:
+        max-size: ${NOTESAPP_LOG_MAX_SIZE:-10m}
+        max-file: ${NOTESAPP_LOG_MAX_FILE:-5}
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'node -e "fetch(''http://127.0.0.1:3000/ready'').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"',
-        ]
+      test: ['CMD', 'node', '/app/healthcheck.mjs']
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 10s
-
-volumes:
-  postgres_data:
-  storage_data:
 
 networks:
   database:

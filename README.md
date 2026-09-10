@@ -14,7 +14,7 @@ the user selects Save.
 - Image attachments with content validation and deduplicated storage.
 - REST access from one operation contract.
 - Responsive desktop, tablet, and phone layouts with light and dark themes.
-- Docker Compose deployment, health checks, metrics, backups, and restore.
+- Docker Compose deployment, health checks, backups, and restore.
 
 ## Save model
 
@@ -60,6 +60,7 @@ saw:
 | `packages/storage-server`  | PostgreSQL stores, migrations, and files  |
 | `packages/sync`            | Offline queue, lease, and synchronization |
 | `packages/ui`              | Shared interface components and icons     |
+| `docker`                   | Container entry point and health check    |
 | `docs`                     | Development and operation guides          |
 
 ## Requirements
@@ -97,8 +98,8 @@ Useful commands:
 
 ## Self-hosting
 
-Copy `.env.example` to `.env`, create the protected secret files, and start the
-Compose stack:
+Copy `.env.example` to `.env`, set `NOTESAPP_ORIGIN`, create the data
+directories and the protected secret files, and start the Compose stack:
 
 ```bash
 cp .env.example .env
@@ -107,6 +108,9 @@ docker compose build
 docker compose up -d
 docker compose ps
 ```
+
+`NOTESAPP_ORIGIN` is required and has no default. The application is published
+on `127.0.0.1` and answers the host of its origin only.
 
 Open the application after the first startup. The setup page asks for the
 email address and password of the single user. Later visits show the normal

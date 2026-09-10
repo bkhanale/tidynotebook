@@ -51,6 +51,10 @@ WORKDIR /app
 COPY --chown=notesapp:notesapp --from=builder /prod/server /app/server
 COPY --chown=notesapp:notesapp --from=builder /app/apps/web/dist /app/web/dist
 
+# Migrate-then-serve entry point and the readiness health check.
+COPY --chown=notesapp:notesapp --chmod=755 docker/entrypoint.sh /app/entrypoint.sh
+COPY --chown=notesapp:notesapp docker/healthcheck.mjs /app/healthcheck.mjs
+
 USER notesapp:notesapp
 
 ENV NODE_ENV=production
@@ -60,4 +64,4 @@ ENV NOTESAPP_STORAGE_ROOT=/var/lib/notesapp
 
 EXPOSE 3000
 
-CMD ["node", "server/dist/main.js"]
+CMD ["/app/entrypoint.sh"]

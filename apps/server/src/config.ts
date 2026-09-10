@@ -267,10 +267,7 @@ export function loadServerConfig(
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
     authSecret: raw.NOTESAPP_AUTH_SECRET,
-    allowedHosts: allowedHosts(
-      raw.NOTESAPP_ALLOWED_HOSTS,
-      raw.NOTESAPP_ORIGIN,
-    ),
+    allowedHosts: allowedHosts(raw.NOTESAPP_ALLOWED_HOSTS, raw.NOTESAPP_ORIGIN),
     logLevel: isLogLevel(raw.NOTESAPP_LOG_LEVEL)
       ? raw.NOTESAPP_LOG_LEVEL
       : 'info',

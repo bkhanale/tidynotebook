@@ -242,7 +242,7 @@ await test('host encryption verification script', async () => {
   }
 });
 
-await test('coordinated backup and verified restoration cycle', async () => {
+await test('backup and restore round-trip a note with its history and attachments', async () => {
   const sourceStorage = await mkdtemp(join(tmpdir(), 'notesapp-backup-src-'));
   const targetStorage = await mkdtemp(join(tmpdir(), 'notesapp-backup-tgt-'));
   const backupRoot = await mkdtemp(join(tmpdir(), 'notesapp-backups-'));
@@ -288,7 +288,10 @@ await test('coordinated backup and verified restoration cycle', async () => {
     const accountId = randomUUID();
     const fileId = randomUUID();
     const notePath = 'notes/backup-round-trip.md';
-    const bodies = ['# First save\n\nOriginal text.\n', '# Second save\n\nEdited text.\n'];
+    const bodies = [
+      '# First save\n\nOriginal text.\n',
+      '# Second save\n\nEdited text.\n',
+    ];
     const noteDigests = bodies.map((body) =>
       createHash('sha256').update(body, 'utf8').digest('hex'),
     );
