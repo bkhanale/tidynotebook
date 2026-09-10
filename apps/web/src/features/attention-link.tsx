@@ -49,7 +49,15 @@ export function useParkedSaves(
     };
     void load();
     const unsubscribe = activeStore.subscribe((change) => {
-      if (change.accountId === accountId && change.workspaceId === workspaceId)
+      // Draft writes happen on every keystroke and never change kept work,
+      // so only the durable kinds trigger a reread.
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        (change.kind === 'conflict' ||
+          change.kind === 'queue' ||
+          change.kind === 'reset')
+      )
         void load();
     });
     return () => {

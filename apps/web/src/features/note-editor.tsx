@@ -214,8 +214,14 @@ export function NoteEditor({
     ReadonlyMap<string, string>
   >(new Map());
   const [mathReady, setMathReady] = useState(false);
-  const [staleOpen, setStaleOpen] = useState(staleHead !== undefined);
+  // The bar closes for the accepted head the person answered for. A later
+  // accepted head is a new question, so the bar opens again by itself.
+  const [answeredHead, setAnsweredHead] = useState<string | null | undefined>(
+    undefined,
+  );
   const [staleNotice, setStaleNotice] = useState('');
+  const staleOpen =
+    staleHead !== undefined && answeredHead !== staleHead.revisionId;
   // The base only moves when the person keeps a stale draft or takes the
   // accepted head. Until then the opened base is the one the loader read.
   const [baseOverride, setBaseOverride] = useState<string | null | undefined>(
@@ -349,6 +355,11 @@ export function NoteEditor({
           buildDraft(isDeleting),
           isDeleting ? null : 'Manual save',
         );
+        // The new checkpoint is the parent of the next one. Holding it here
+        // keeps the editor right even when its draft row is removed, so a
+        // later save never names a parent the file already passed.
+        const created = entry?.input.revisions[0]?.id;
+        if (created !== undefined) setBaseOverride(created);
         callbacks.current.onQueued?.(entry);
         setStorageError(null);
         await refreshQueue.current();
@@ -685,7 +696,7 @@ export function NoteEditor({
           current.workingCopyId,
         );
         setBaseOverride(staleHead?.revisionId ?? null);
-        setStaleOpen(false);
+        setAnsweredHead(staleHead?.revisionId ?? null);
         setStaleNotice('Your text is kept. Save sends it to the server.');
         setStorageError(null);
       } catch (failure: unknown) {
@@ -734,7 +745,7 @@ export function NoteEditor({
         setBufferText(head.text);
         pathRef.current = head.path;
         setName(displayNoteName(head.path));
-        setStaleOpen(false);
+        setAnsweredHead(head.revisionId);
         setStaleNotice(
           'The latest version is open. Your older text waits under Needs attention.',
         );
@@ -1069,6 +1080,54 @@ export function NoteEditorLoader({
     void load();
     return () => {
       cancelled = true;
+    };
+  }, [store, accountId, workspaceId, fileId]);
+
+  // A newer accepted head can arrive while the note is open. Only the stale
+  // head of the mounted status changes: the editor keeps its instance, its
+  // document, its undo history, and its selection.
+  useEffect(() => {
+    if (store === null) return;
+    const activeStore = store;
+    let cancelled = false;
+    const recheck = async (): Promise<void> => {
+      try {
+        const cached = await activeStore.readCachedNote(
+          accountId,
+          workspaceId,
+          fileId,
+        );
+        if (cancelled || cached === null) return;
+        const next: StaleHead | undefined =
+          cached.stale && cached.acceptedText !== null
+            ? {
+                revisionId: cached.acceptedRevisionId,
+                path: cached.acceptedPath ?? cached.path,
+                text: cached.acceptedText,
+              }
+            : undefined;
+        setStatus((current) =>
+          current.kind !== 'ready' ||
+          current.staleHead?.revisionId === next?.revisionId
+            ? current
+            : { ...current, staleHead: next },
+        );
+      } catch {
+        // The open note keeps its buffer. A failed recheck changes nothing.
+      }
+    };
+    const unsubscribe = activeStore.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        change.kind === 'file' &&
+        (change.fileId === null || change.fileId === fileId)
+      )
+        void recheck();
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
     };
   }, [store, accountId, workspaceId, fileId]);
 

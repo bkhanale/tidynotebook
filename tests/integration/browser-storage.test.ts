@@ -1618,3 +1618,35 @@ await test('an unknown refusal code still parks the text', async () => {
   assert.equal(kept[0]?.reason, 'save_refused');
   await store.close();
 });
+
+await test('a draft with no base is not reported as stale', async () => {
+  const backend = createBackend('draft-no-base');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  // The note starts on this device, so its first draft names no base.
+  const created = draftOf(account, workspace, file, 'copy-a', 'first\n');
+  await store.saveDraft(created);
+  const entry = await store.checkpoint(created, null);
+  const revisionId = entry?.input.revisions[0]?.id ?? '';
+  await store.acknowledge(account, acceptanceOf(entry, account, '10'));
+
+  // A second working copy of the same file writes without a base, which is
+  // what a caller does when its own draft row was already removed. An
+  // unknown base is not evidence that the server moved on, so no stale
+  // choice is offered and no false warning reaches the person.
+  await store.saveDraft(
+    draftOf(account, workspace, file, 'copy-b', 'later text\n', {
+      baseRevisionId: null,
+      sequence: 1,
+    }),
+  );
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.stale, false);
+  assert.equal(cached?.acceptedText, null);
+  assert.equal(cached?.text, 'later text\n');
+  assert.equal(cached?.acceptedRevisionId, revisionId);
+  await store.close();
+});
