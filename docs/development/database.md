@@ -50,13 +50,13 @@ boundary holds even where a row access policy hides the parent.
 | `revision_parents`            | Parent edges, in submitted order.                          |
 | `changesets`                  | One atomic operation and its cursor.                       |
 | `mutation_receipts`           | The stored outcome of an accepted mutation.                |
-| `branches`                    | A divergent tip and its conflict group.                    |
+| `branches`                    | Compatibility only, removed in the next migration.         |
 | `purge_markers`               | A content free marker of a permanently deleted file.       |
 | `audit_events`                | Content free records of protected actions.                 |
 | `sync_changes`                | Commit ordered incremental change records.                 |
 | `snapshots`, `snapshot_items` | A bounded materialized download snapshot.                  |
-| `link_index`                  | Links found in accepted revisions.                         |
-| `shares`                      | A pinned public publication and its token hash.            |
+| `link_index`                  | Links to `/notes/<file-id>` found in accepted revisions.   |
+| `shares`                      | Compatibility only, removed in the next migration.         |
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 | `attachment_reclaim_queue`    | Attachment bytes of a deleted workspace, until reclaimed.  |
 
@@ -72,8 +72,8 @@ last five are the application's own.
 | `account_identities`   | The map from a Better Auth user to an application account. |
 | `account_preferences`  | Settings that follow one account to every device.          |
 | `account_audit_events` | Content free records of protected actions of one account.  |
-| `agent_tokens`         | One revocable agent token, by the hash of its secret.      |
-| `invitations`          | One invitation to one workspace, by its token hash.        |
+| `agent_tokens`         | Compatibility only, removed in the next migration.         |
+| `invitations`          | Compatibility only, removed in the next migration.         |
 
 The four Better Auth tables are not scoped by a workspace. Sign-in must find a
 user by an address before any identity exists, so no row policy can narrow them
@@ -114,9 +114,8 @@ alter table live_paths
   deferrable initially deferred;
 ```
 
-A file holds a row here only while it is live. A deleted file releases its row,
-and a file that exists only on a conflict branch never receives one, so pending
-branch only files occupy no accepted path.
+A file holds a row here only while it is live. A deleted file releases its
+row, so it occupies no accepted path.
 
 `accept` writes every path change, then runs `set constraints all immediate`
 before it returns. A conflict therefore surfaces inside the call as the
@@ -198,38 +197,35 @@ Row level security is enabled and forced on every workspace scoped table, on
 migrate, provision, and run the SECURITY DEFINER helpers. The runtime role gets
 narrower policies.
 
-| Table                        | Runtime role policy                                                                                                                                                                                                                                                                                                                                                     |
-| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                                                                                                                                                                                                                                       |
-| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                                                                                                                                                                                                                                          |
-| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                                                                                                                                                                                                                                      |
-| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner` or `admin`, never on the actor's own row, and the `owner` role only from an `owner`. The last owner rule is not expressed here: a policy sees one row at a time and cannot count the remaining owners. Task 5's workspace use case enforces it inside the same workspace lock as a content write. |
-| `accounts`                   | `notesapp_shares_workspace_with(id)`: the account itself and every co-member                                                                                                                                                                                                                                                                                            |
+| Table                        | Runtime role policy                                                                                                                                                                                                    |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| every workspace scoped table | `FOR ALL` with `notesapp_is_member(workspace_id)`                                                                                                                                                                      |
+| `mutation_receipts`          | the same, plus `actor_account_id = notesapp_current_account()`                                                                                                                                                         |
+| `workspaces`                 | `FOR SELECT` for members; `FOR UPDATE` only for `owner` or `admin`                                                                                                                                                     |
+| `memberships`                | `FOR SELECT` for members; insert, update, and delete only for `owner`, never on the actor's own row. The last owner rule is not expressed here: a policy sees one row at a time and cannot count the remaining owners. |
+| `accounts`                   | `notesapp_shares_workspace_with(id)`: the account itself and every co-member                                                                                                                                           |
 
-Task 5 replaced two of these policies and added a trigger:
+The product serves one account, so these policies are defence in depth. The
+application rules scope every read and write first, and the policies prove
+that the database refuses the same things on its own. Two of them need a note:
 
-- `accounts_member_policy` now shows the account row of a co-member, which is
-  what a member list needs. Migration `0001` recorded that widening as work of
-  Task 5.
-- `memberships_delete_policy` now lets only an owner delete an owner. A delete
-  that the policy refuses removes no row rather than failing, because a `USING`
-  clause hides the row from the statement.
+- `accounts_member_policy` also shows the account row of a co-member. Nothing
+  creates a second member now, so it shows the account's own row.
 - `memberships_keep_owner` is a `BEFORE UPDATE OR DELETE` trigger that refuses
   a change which would leave a workspace without an owner. A policy sees one
   row at a time and cannot count the remaining owners, so the last owner rule
   needs a trigger. Workspace deletion sets `notesapp.purge` and is exempt,
-  exactly like the immutability triggers. The core use case enforces the same
-  rule first, inside the same workspace lock as a content write.
+  exactly like the immutability triggers.
 
 The Task 5 identity tables use these policies:
 
-| Table                 | Policy                                                                                              |
-| --------------------- | --------------------------------------------------------------------------------------------------- |
-| the four `auth_*`     | `FOR ALL` to `notesapp_auth` with `true`. `notesapp_app` holds no right at all.                     |
-| `account_identities`  | The owner policy only. `notesapp_app` holds no right at all.                                        |
-| `account_preferences` | `account_id = notesapp_current_account()`                                                           |
-| `agent_tokens`        | `account_id = notesapp_current_account()`                                                           |
-| `invitations`         | `FOR SELECT` for members; insert and update for `owner` or `admin`, and never with the `owner` role |
+| Table                 | Policy                                                                          |
+| --------------------- | ------------------------------------------------------------------------------- |
+| the four `auth_*`     | `FOR ALL` to `notesapp_auth` with `true`. `notesapp_app` holds no right at all. |
+| `account_identities`  | The owner policy only. `notesapp_app` holds no right at all.                    |
+| `account_preferences` | `account_id = notesapp_current_account()`                                       |
+| `agent_tokens`        | `account_id = notesapp_current_account()`. Compatibility only.                  |
+| `invitations`         | `FOR SELECT` for members; insert and update for an owner. Compatibility only.   |
 
 A role that matches no policy sees nothing, so an anonymous transaction with no
 identity setting reads no row and writes no row.
@@ -262,14 +258,15 @@ on the identity tables:
 | --------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `notesapp_link_account`                       | Creates an account, its map row, and its personal workspace.                               |
 | `notesapp_create_workspace`                   | Creates a workspace owned by the calling account.                                          |
-| `notesapp_transfer_ownership`                 | Moves ownership; owner only.                                                               |
 | `notesapp_delete_workspace`                   | Removes a workspace and its rows; owner only. Queues its attachment bytes for the reclaim. |
-| `notesapp_claim_invitation`                   | Consumes one invitation in one statement.                                                  |
-| `notesapp_open_invitation`                    | The workspace and the address of an open invitation.                                       |
 | `notesapp_account_of`, `notesapp_has_account` | One account identifier, and whether any account exists.                                    |
-| `notesapp_workspace_members`                  | The member directory of one workspace; members only.                                       |
-| `notesapp_agent_token`                        | One agent token by the hash of its secret.                                                 |
-| `notesapp_discard_account`                    | Removes an account that an invitation attempt never used.                                  |
+| `notesapp_discard_account`                    | Removes an account that a sign-up attempt never used.                                      |
+
+No application code calls `notesapp_transfer_ownership`,
+`notesapp_claim_invitation`, `notesapp_open_invitation`,
+`notesapp_workspace_members`, `notesapp_share_lookup`,
+`notesapp_share_attachment_lookup`, or `notesapp_agent_token` any more. They
+are compatibility only, and the next migration removes them.
 
 Every function that changes state checks the caller with `IS DISTINCT FROM`
 rather than `<>`, because a stranger has no role and no account identity at

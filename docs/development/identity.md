@@ -56,7 +56,11 @@ transaction.
 
 The workspace owner row remains part of the storage model. It provides row
 access control for the browser session. No product operation can add another
-member.
+member, invite an address, or move ownership.
+
+The `Role` type has one value, `owner`. The permission matrix grants the four
+actions that have a reachable operation: `read`, `write`, `history`, and
+`purge`. A stored membership row with any other role grants nothing.
 
 ## Password recovery
 

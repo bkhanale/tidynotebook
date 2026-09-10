@@ -99,6 +99,12 @@ reload the page or replace the buffer with server content.
 
 ## Compatibility data
 
-Released IndexedDB and PostgreSQL migrations are immutable. Old branch and
-sharing tables can remain in an upgraded database, but current application
-routes do not create or expose collaboration or conflict records.
+The local database has no branch or conflict store. Schema version 4 deletes
+the `branches` table of the removed conflict-branch feature and drops the
+branch members of a queue entry. A queued mutation that the server refuses
+for good keeps the state `conflict` and the reason of the refusal, which is
+the only meaning that word still has.
+
+Some PostgreSQL tables of the removed multi-user features stay in the
+database. They are compatibility only, and the next migration removes them.
+No application route creates or reads a row in them.

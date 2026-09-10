@@ -78,7 +78,7 @@ one passed:
 ```text
 refuse an empty changeset and one over 1000 files      (before any query)
 take the workspace lock                                (store.transact)
-check the current role and the verified grants for `write`
+check the owner role and the verified grants for `write`
 read the actor bound receipt
   same digest    -> return the stored outcome
   other digest   -> mutation_reused
@@ -121,7 +121,12 @@ inside its transaction, so a race only sends the request down the normal path,
 where the receipt is found again.
 
 `onFilesDeleted` runs after `accept`, inside the same transaction. It removes
-the file's link index rows and other derived records.
+the search index rows and the link index rows of the deleted file.
+
+The link index holds one row for each standard Markdown link to
+`/notes/<file-id>`. A link that names no live note is stored unresolved. There
+is no wiki syntax and no title lookup: a link names an identifier, so a rename
+of the target never breaks it.
 
 ## Preconditions and entity tags
 
