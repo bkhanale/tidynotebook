@@ -13,20 +13,25 @@
   --text-ui: 0.875rem;
   --text-ui--line-height: 1.375rem;
 
-  --color-app: var(--notes-bg);
-  --color-surface: var(--notes-surface);
-  --color-card: var(--notes-surface-card);
-  --color-hover: var(--notes-surface-hover);
-  --color-active: var(--notes-surface-active);
-  --color-ink: var(--notes-text);
-  --color-strong: var(--notes-text-strong);
-  --color-muted: var(--notes-text-muted);
-  --color-accent: var(--notes-accent-text);
-  --color-accent-fill: var(--notes-accent-fill);
-  --color-on-accent: var(--notes-accent-on-fill);
-  --color-success: var(--notes-success-text);
-  --color-danger: var(--notes-danger-text);
-  --color-edge: var(--notes-border);
-  --color-edge-subtle: var(--notes-border-subtle);
-  --color-focus: var(--notes-focus);
+  --spacing-header: 3rem;
+
+  --color-app: var(--notes-bg, #1a1b26);
+  --color-surface: var(--notes-surface, #16161e);
+  --color-card: var(--notes-surface-card, #1f2335);
+  --color-hover: var(--notes-surface-hover, #24283b);
+  --color-active: var(--notes-surface-active, #292e42);
+  --color-ink: var(--notes-text, #c0caf5);
+  --color-strong: var(--notes-text-strong, #e8ecff);
+  --color-muted: var(--notes-text-muted, #9099bd);
+  --color-accent: var(--notes-accent-text, #7aa2f7);
+  --color-accent-fill: var(--notes-accent-fill, #7aa2f7);
+  --color-on-accent: var(--notes-accent-on-fill, #0c0c14);
+  --color-success: var(--notes-success-text, #9ece6a);
+  --color-danger: var(--notes-danger-text, #f7768e);
+  --color-danger-fill: var(--notes-danger-fill, #f7768e);
+  --color-on-danger: var(--notes-on-danger, #0c0c14);
+  --color-edge: var(--notes-border, #737ca3);
+  --color-edge-subtle: var(--notes-border-subtle, #303349);
+  --color-focus: var(--notes-focus, #7aa2f7);
+  --color-scrim: var(--notes-scrim, #0c0c14);
 }

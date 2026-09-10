@@ -43,22 +43,29 @@ export function Button({
     variant === 'secondary'
       ? 'border-edge bg-transparent text-strong hover:bg-hover'
       : variant === 'danger'
-        ? 'border-danger bg-danger text-white hover:brightness-110'
+        ? 'border-danger-fill bg-danger-fill text-on-danger hover:brightness-110'
         : variant === 'ghost'
           ? 'border-transparent bg-transparent text-strong hover:bg-hover'
           : variant === 'subtle'
             ? 'border-edge-subtle bg-hover text-strong hover:bg-active'
             : 'border-accent-fill bg-accent-fill text-on-accent shadow-sm hover:brightness-110';
 
-  const sizeClass = size === 'sm' ? 'h-8 px-2.5' : 'min-h-9 px-3';
+  // Touch pointers get the 44 px minimum. A mouse pointer keeps the compact
+  // control scale, so the chrome stays quiet on a desktop screen.
+  const sizeClass =
+    size === 'sm' ? 'min-h-11 px-2.5 md:min-h-8' : 'min-h-11 px-3 md:min-h-9';
   const classes = [
-    'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
+    'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-safe:active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
     variantClass,
     sizeClass,
     extraClassName ?? '',
   ]
     .filter(Boolean)
     .join(' ');
+
+  // WCAG 2.5.3 Label in Name: a visible label is the accessible name. Only
+  // an icon-only button names itself with `aria-label`.
+  const hasChildren = children !== undefined && children !== null;
 
   return (
     <button
@@ -67,10 +74,10 @@ export function Button({
       className={classes}
       disabled={disabled ?? false}
       onClick={onClick}
-      aria-label={label}
+      aria-label={hasChildren ? undefined : label}
       aria-controls={ariaControls}
       aria-expanded={ariaExpanded}
-      title={title}
+      title={title ?? (hasChildren ? undefined : label)}
     >
       {icon !== undefined ? (
         <span
@@ -93,8 +100,7 @@ export function Badge({
   variant = 'default',
 }: {
   readonly children: ReactNode;
-  readonly variant?:
-    'default' | 'accent' | 'success' | 'danger' | 'warning' | undefined;
+  readonly variant?: 'default' | 'accent' | 'success' | 'danger' | undefined;
 }): ReactNode {
   const variantClass =
     variant === 'accent'
@@ -103,12 +109,10 @@ export function Badge({
         ? 'border-success/30 bg-success/15 text-success'
         : variant === 'danger'
           ? 'border-danger/30 bg-danger/15 text-danger'
-          : variant === 'warning'
-            ? 'border-accent/30 bg-accent/15 text-accent'
-            : 'border-edge-subtle bg-hover text-muted';
+          : 'border-edge-subtle bg-hover text-muted';
   return (
     <span
-      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${variantClass}`}
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-control font-semibold ${variantClass}`}
     >
       {children}
     </span>
@@ -148,7 +152,7 @@ export function TextField({
       </label>
       <input
         id={id}
-        className="w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
+        className="w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
         type={inputType ?? 'text'}
         value={value}
         autoComplete={autoComplete}
@@ -201,7 +205,7 @@ export function SelectField({
       </label>
       <select
         id={id}
-        className="w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
+        className="min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9"
         value={value}
         onChange={(event): void => {
           onChange(event.target.value);
@@ -218,7 +222,7 @@ export function SelectField({
 }
 
 /**
- * A collapsible region, for the outline and backlinks panel.
+ * A collapsible region, for the outline panel.
  *
  * The toggle button owns `aria-expanded` and the panel is a labeled region,
  * so screen reader and keyboard users can open, enter, and close it.
@@ -226,14 +230,12 @@ export function SelectField({
 export function CollapsibleSection({
   id,
   title,
-  count,
   open,
   onToggle,
   children,
 }: {
   readonly id: string;
   readonly title: string;
-  readonly count?: number | undefined;
   readonly open: boolean;
   readonly onToggle: (open: boolean) => void;
   readonly children: ReactNode;
@@ -244,7 +246,7 @@ export function CollapsibleSection({
       <button
         id={id}
         type="button"
-        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-control font-semibold uppercase tracking-wide text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
+        className="flex min-h-11 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-control font-semibold uppercase tracking-wide text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={(): void => {
@@ -259,11 +261,6 @@ export function CollapsibleSection({
           )}
         </span>
         <span className="flex-1">{title}</span>
-        {count !== undefined && count > 0 ? (
-          <span className="rounded-full bg-hover px-1.5 py-0.5 text-xs font-medium text-muted">
-            {count}
-          </span>
-        ) : null}
       </button>
       {open ? (
         <div

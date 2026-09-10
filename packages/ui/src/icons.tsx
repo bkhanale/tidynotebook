@@ -165,6 +165,115 @@ export function HistoryIcon({ size = 16, className }: IconProps): ReactNode {
   );
 }
 
+/** A three dot overflow icon for a menu button. */
+export function MoreIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <circle cx="12" cy="5" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="12" cy="19" r="1.5" />
+    </svg>
+  );
+}
+
+/** A side panel icon for the outline rail. */
+export function PanelRightIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="15" y1="4" x2="15" y2="20" />
+    </svg>
+  );
+}
+
+/** A disconnected cloud icon for the offline state. */
+export function CloudOffIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M6.5 19A4.5 4.5 0 0 1 6 10.03" />
+      <path d="M9.5 5.7A6 6 0 0 1 18 10h.5a3.5 3.5 0 0 1 2.6 5.83" />
+      <line x1="3" y1="3" x2="21" y2="21" />
+      <line x1="7" y1="19" x2="17" y2="19" />
+    </svg>
+  );
+}
+
+/** A pencil icon for a rename action. */
+export function PencilIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  );
+}
+
+/** A folder with a plus, for the new folder action. */
+export function FolderPlusIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+      <line x1="12" y1="11" x2="12" y2="17" />
+      <line x1="9" y1="14" x2="15" y2="14" />
+    </svg>
+  );
+}
+
 /** A settings gear icon. */
 export function SettingsIcon({ size = 16, className }: IconProps): ReactNode {
   return (

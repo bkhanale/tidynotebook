@@ -3,10 +3,22 @@
  *
  * The palette values below are copied from the upstream Tokyo Night Night and
  * Day palettes; see `THIRD_PARTY_LICENSES.md`. The semantic `*Text` variants
- * are derived within the palette
- * so that every text combination meets WCAG 2.2 AA contrast (4.5 to 1) on
- * both the main background and the sidebar surface. The accent, focus, and
- * border tokens meet the 3 to 1 non-text minimum on both surfaces.
+ * are derived within the palette.
+ *
+ * Contrast rules that `theme.test.ts` enforces per surface:
+ *
+ * - `text` is the body color of the main background and the card surface
+ *   only. On the sidebar surface, and on the hover and active states, a
+ *   container sets `textStrong` or `textMuted`, which pass on all five
+ *   surfaces. No screen lets `text` inherit onto a sidebar row.
+ * - `textStrong`, `textMuted`, `accentText`, `successText`, and `dangerText`
+ *   meet 4.5 to 1 on every surface of the palette.
+ * - `border` and `focus` meet the 3 to 1 non-text minimum on every surface,
+ *   so a component edge uses `border`. `borderSubtle` is decorative only: it
+ *   separates regions that already differ in fill and never identifies a
+ *   control.
+ * - A control fill carries its own label token: `accentOnFill` on
+ *   `accentFill`, and `onDanger` on `dangerFill`.
  *
  * This module is the runtime palette source. `applyTheme` writes the values
  * as custom properties for the central Tailwind theme.
@@ -50,13 +62,13 @@ export function parseThemeChoice(value: unknown): ThemeChoice {
 /**
  * Every color that the application shell needs, for one palette.
  *
- * `text` is the main body color on the main background only. `textStrong` and
- * `textMuted` also pass on the sidebar surface, so every surface label uses
- * one of those two. `accentText`, `successText`,
- * and `dangerText` are the derived variants for small text; the bare
- * `accent`, `success`, and `danger` stay available for large text, icons with
- * a label, and graphics. `accentFill` is a control fill whose label uses
- * `accentOnFill`.
+ * `text` is the body color of the main background and the card surface.
+ * `textStrong` and `textMuted` pass on every surface, so a sidebar row, a
+ * hover state, and an active state always use one of those two. `accentText`,
+ * `successText`, and `dangerText` are the derived variants for small text.
+ * `accentFill` and `dangerFill` are control fills whose labels use
+ * `accentOnFill` and `onDanger`. `scrim` is the fill behind a dialog; a page
+ * applies it with an opacity utility.
  */
 export type ThemeTokens = {
   readonly background: string;
@@ -67,17 +79,17 @@ export type ThemeTokens = {
   readonly text: string;
   readonly textStrong: string;
   readonly textMuted: string;
-  readonly accent: string;
   readonly accentText: string;
   readonly accentFill: string;
   readonly accentOnFill: string;
-  readonly success: string;
   readonly successText: string;
-  readonly danger: string;
   readonly dangerText: string;
+  readonly dangerFill: string;
+  readonly onDanger: string;
   readonly border: string;
   readonly borderSubtle: string;
   readonly focus: string;
+  readonly scrim: string;
 };
 
 /** Tokyo Night Night with accessible semantic variants. */
@@ -89,18 +101,18 @@ export const nightTokens: ThemeTokens = {
   surfaceActive: '#292e42',
   text: '#c0caf5',
   textStrong: '#e8ecff',
-  textMuted: '#8b93b8',
-  accent: '#7aa2f7',
+  textMuted: '#9099bd',
   accentText: '#7aa2f7',
   accentFill: '#7aa2f7',
   accentOnFill: '#0c0c14',
-  success: '#9ece6a',
   successText: '#9ece6a',
-  danger: '#f7768e',
   dangerText: '#f7768e',
-  border: '#6b7499',
+  dangerFill: '#f7768e',
+  onDanger: '#0c0c14',
+  border: '#737ca3',
   borderSubtle: '#303349',
   focus: '#7aa2f7',
+  scrim: '#0c0c14',
 };
 
 /** Tokyo Night Day with accessible semantic variants. */
@@ -113,17 +125,17 @@ export const dayTokens: ThemeTokens = {
   text: '#3760bf',
   textStrong: '#2f3d67',
   textMuted: '#4a4e69',
-  accent: '#2e7de9',
-  accentText: '#1f4fd8',
+  accentText: '#1c46c0',
   accentFill: '#1f4fd8',
   accentOnFill: '#ffffff',
-  success: '#587539',
   successText: '#3f5e2a',
-  danger: '#f52a65',
   dangerText: '#a8154a',
+  dangerFill: '#a8154a',
+  onDanger: '#ffffff',
   border: '#5a6a8a',
   borderSubtle: '#b9c0d0',
   focus: '#1f4fd8',
+  scrim: '#2f3d67',
 };
 
 /** Both palettes by resolved theme. */
@@ -200,17 +212,17 @@ export const themePropertyNames = [
   'text',
   'textStrong',
   'textMuted',
-  'accent',
   'accentText',
   'accentFill',
   'accentOnFill',
-  'success',
   'successText',
-  'danger',
   'dangerText',
+  'dangerFill',
+  'onDanger',
   'border',
   'borderSubtle',
   'focus',
+  'scrim',
 ] as const;
 
 /** One of the property names of {@link themePropertyNames}. */
@@ -234,12 +246,12 @@ export function themePropertyName(name: ThemePropertyName): string {
   if (name === 'accentOnFill') return '--notes-accent-on-fill';
   if (name === 'successText') return '--notes-success-text';
   if (name === 'dangerText') return '--notes-danger-text';
+  if (name === 'dangerFill') return '--notes-danger-fill';
+  if (name === 'onDanger') return '--notes-on-danger';
   if (name === 'text') return '--notes-text';
-  if (name === 'accent') return '--notes-accent';
-  if (name === 'success') return '--notes-success';
-  if (name === 'danger') return '--notes-danger';
   if (name === 'border') return '--notes-border';
   if (name === 'borderSubtle') return '--notes-border-subtle';
+  if (name === 'scrim') return '--notes-scrim';
   return '--notes-focus';
 }
 

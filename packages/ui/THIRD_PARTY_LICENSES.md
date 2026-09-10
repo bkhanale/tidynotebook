@@ -7,8 +7,10 @@
 - Used files: Night palette (`extras/lua/tokyonight_night.lua`) and Day palette
   (`extras/lua/tokyonight_day.lua`)
 
-The palette values per mode in `src/theme.ts`
-(background, sidebar surface, main text, accent blue, green, red) are copied
+The palette values per mode in `src/theme.ts` (background, sidebar surface,
+card, hover, active, main text, and the Night blue, green, and red) are copied
 from that project. The copyright and license belong to the upstream author.
-Semantic text, fill, border, and focus variants are derived by notesapp within
-the palette so that text meets WCAG 2.2 AA contrast.
+Every other token, including the Day accent, success, and danger values and
+all border, focus, fill, and scrim tokens, is derived by notesapp inside the
+palette so that each rendered pair meets WCAG 2.2 AA contrast. The derivation
+is checked by `src/theme.test.ts`.
