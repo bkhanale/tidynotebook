@@ -30,10 +30,11 @@ export {
   textContrastMinimum,
   uiContrastMinimum,
 } from './theme.ts';
-export type { SelectOption } from './controls.tsx';
+export type { ButtonSize, ButtonVariant, SelectOption } from './controls.tsx';
 export {
   Badge,
   Button,
+  buttonClassName,
   CollapsibleSection,
   SelectField,
   StatusRegion,

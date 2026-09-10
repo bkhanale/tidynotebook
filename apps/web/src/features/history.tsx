@@ -1,20 +1,30 @@
 /**
- * File history, old revision viewing, and restore.
+ * The history of one note: a timeline of versions, with one way back.
  *
- * This screen shows one file in one pane: the paginated server version list,
- * one unified inline diff between an old version and the current head, and
- * restore. Attachment files offer binary revision selection with a preview of
- * each revision instead of a text merge.
+ * Every row says how long ago the version was made and how many lines it
+ * added and removed, and carries one Restore action. Nothing on the screen
+ * names a revision or prints an instant of the machine. Opening a row shows
+ * the lines that changed between that version and the newest one, and the
+ * whole text of the version.
  *
- * Opening history never changes the working draft. Restoring creates a new
- * revision on top of the current head and records the restored source; it
- * does not rewind history and it leaves drafts and queued saves on this
- * device untouched.
+ * Opening the history never changes the text on this device. Restore writes
+ * one new version on top of the newest one and records where it came from;
+ * it never rewinds the history and never touches a draft or a queued save.
+ *
+ * An image file has no line comparison, so a row of an image shows the
+ * picture of that version instead.
  *
  * Every server action uses a generated operation. There is no handwritten
  * request, URL, or response shape here.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Link, useParams } from 'react-router';
 import {
   getFile,
@@ -24,16 +34,38 @@ import {
   type HistoryRevisionItem,
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
-import { alignLines, type DiffHunk } from '@notesapp/editor';
+import {
+  alignLines,
+  countHunkLines,
+  type DiffHunk,
+  type LineChangeCount,
+} from '@notesapp/editor';
 import type { LocalStore } from '@notesapp/sync';
-import { Button, StatusRegion } from '@notesapp/ui';
+import {
+  Button,
+  buttonClassName,
+  Card,
+  EmptyState,
+  HistoryIcon,
+  ListRow,
+  Notice,
+  Page,
+  PageHeader,
+  StatusRegion,
+} from '@notesapp/ui';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import {
   loadAttachmentBinary,
   type LoadedAttachment,
 } from './attachment-content.ts';
 import { displayNoteName } from './note-name.ts';
-import { requestDiff } from './diff-worker.ts';
+import {
+  requestDiff,
+  requestDiffSeries,
+  type DiffPair,
+} from './diff-worker.ts';
+import { rowChangeOf, rowChangeText } from './history-rows.ts';
+import { relativeTime } from './relative-time.ts';
 
 /** How many history entries one page requests. */
 const historyPageSize = 50;
@@ -186,22 +218,19 @@ export function HistoryView(): ReactNode {
 
   if (workspaceId === null || fileId === null)
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          History not found
-        </h1>
-        <p>The address names no file history.</p>
-        <p>
-          <Link to="/">Back to all notes.</Link>
-        </p>
-      </main>
+      <HistoryNotice
+        workspaceId={null}
+        title="This address names no history"
+        description="Open a note and choose History in its menu."
+      />
     );
   const accountId = session.account?.accountId ?? null;
   if (accountId === null)
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <Page width="wide">
+        <PageHeader title="History" />
         <StatusRegion message="Loading the history." />
-      </main>
+      </Page>
     );
   return (
     <HistoryDetail
@@ -209,6 +238,36 @@ export function HistoryView(): ReactNode {
       workspaceId={workspaceId}
       fileId={fileId}
     />
+  );
+}
+
+/** One message screen of the history, with the way back to the notes. */
+function HistoryNotice({
+  workspaceId,
+  title,
+  description,
+}: {
+  readonly workspaceId: string | null;
+  readonly title: string;
+  readonly description: string;
+}): ReactNode {
+  return (
+    <Page width="wide">
+      <PageHeader title="History" />
+      <EmptyState
+        icon={<HistoryIcon size={24} />}
+        title={title}
+        description={description}
+        action={
+          <Link
+            className={buttonClassName({ variant: 'secondary' })}
+            to={workspaceId === null ? '/' : `/w/${workspaceId}`}
+          >
+            Back to your notes
+          </Link>
+        }
+      />
+    </Page>
   );
 }
 
@@ -230,6 +289,9 @@ function HistoryDetail({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RevisionDetail | null>(null);
   const [diff, setDiff] = useState<DiffState>({ status: 'idle' });
+  const [counts, setCounts] = useState<ReadonlyMap<string, LineChangeCount>>(
+    new Map(),
+  );
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -293,6 +355,46 @@ function HistoryDetail({
       cancelled = true;
     };
   }, [workspaceId, fileId]);
+
+  /**
+   * Measures what every listed version changed.
+   *
+   * A row says how many lines the version added and removed, which is one
+   * comparison of each version with the one before it. The whole series
+   * shares a single worker, so the timeline never blocks typing and never
+   * pays for a worker per row.
+   */
+  useEffect(() => {
+    if (head.status !== 'ready' || head.kind !== 'note') {
+      setCounts(new Map());
+      return;
+    }
+    let cancelled = false;
+    const positions: number[] = [];
+    const pairs: DiffPair[] = [];
+    for (let index = 0; index + 1 < items.length; index += 1) {
+      const newer = items[index];
+      const older = items[index + 1];
+      if (newer === undefined || older === undefined) continue;
+      if (newer.text === null || older.text === null) continue;
+      positions.push(index);
+      pairs.push({ before: older.text, after: newer.text });
+    }
+    void requestDiffSeries(pairs).then((results) => {
+      if (cancelled) return;
+      const measured = new Map<string, LineChangeCount>();
+      results.forEach((result, position) => {
+        const index = positions[position];
+        const item = index === undefined ? undefined : items[index];
+        if (item === undefined || result.kind !== 'complete') return;
+        measured.set(item.revisionId, countHunkLines(result.hunks));
+      });
+      setCounts(measured);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [items, head]);
 
   /** Revokes the attachment preview when it closes or changes. */
   useEffect(
@@ -422,214 +524,242 @@ function HistoryDetail({
       return;
     }
     setActionMessage(
-      'The revision is restored as a new version. History is kept, and the draft on this device is unchanged.',
+      'That text is back as the newest version. Every earlier version is kept.',
     );
     await reloadHistory();
   }
 
   if (head.status === 'loading')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <StatusRegion message="Loading the file history." />
-      </main>
+      <Page width="wide">
+        <PageHeader title="History" />
+        <StatusRegion message="Loading the history of this note." />
+      </Page>
     );
   if (head.status === 'error')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          History unavailable
-        </h1>
-        <p className="text-control text-danger" role="alert">
-          {head.message}
-        </p>
-      </main>
+      <HistoryNotice
+        workspaceId={workspaceId}
+        title="The history is not available"
+        description={head.message}
+      />
     );
   if (head.status === 'unknown')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          Note not found
-        </h1>
-        <p>
-          This file has no history in this workspace. It is not an empty note.
-        </p>
-        <p>
-          <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
-        </p>
-      </main>
+      <HistoryNotice
+        workspaceId={workspaceId}
+        title="This note has no history here"
+        description="The note is not in this workspace. It may have been deleted for good."
+      />
     );
   if (head.status === 'purged')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          Note permanently deleted
-        </h1>
-        <p>
-          This file was purged by the workspace owner, so its server history is
-          gone. Pending offline work for it stays on this device for recovery
-          into a new file.
-        </p>
-        <p>
-          <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
-        </p>
-      </main>
+      <HistoryNotice
+        workspaceId={workspaceId}
+        title="This note is deleted for good"
+        description="Its versions on the server are gone. Work that never left this device is still in Needs attention."
+      />
     );
 
-  const selectedItem =
-    selectedId === null
-      ? null
-      : (items.find((entry) => entry.revisionId === selectedId) ?? null);
+  const name = displayNoteName(head.path);
+  const now = Date.now();
+  const restorable = head.headRevisionId !== null;
   return (
-    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-      <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-        History of {displayNoteName(head.path)}
-      </h1>
-      <p>
-        <Link to={`/w/${workspaceId}/notes/${fileId}`}>Back to the note.</Link>
-      </p>
-      <p>
-        Opening history never changes the working draft. Restoring creates a new
-        revision on top of the current head and keeps every earlier revision.
-      </p>
-      {actionMessage !== '' ? <StatusRegion message={actionMessage} /> : null}
-      {actionError !== null ? (
-        <p className="text-control text-danger" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
-      <section aria-labelledby="history-server-heading">
-        <h2
-          className="mb-3 mt-0 text-base font-semibold text-strong"
-          id="history-server-heading"
-        >
-          Server history
-        </h2>
-        {historyError !== null ? (
-          <p className="text-control text-danger" role="alert">
-            {historyError}
-          </p>
-        ) : null}
+    <Page width="wide">
+      <PageHeader
+        title={`History of ${name}`}
+        description="Restore brings a version back as the newest one. Nothing is lost, and the text on this device stays as it is."
+        actions={
+          <Link
+            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            to={`/w/${workspaceId}/notes/${fileId}`}
+          >
+            Back to the note
+          </Link>
+        }
+      />
+      <div className="space-y-4">
+        {actionMessage === '' ? null : (
+          <Notice tone="success" message={actionMessage} />
+        )}
+        {actionError === null ? null : (
+          <Notice tone="problem" message={actionError} />
+        )}
+        {historyError === null ? null : (
+          <Notice tone="problem" message={historyError} />
+        )}
         {items.length === 0 && historyError === null ? (
-          <p>No server revisions are listed for this file yet.</p>
+          <EmptyState
+            icon={<HistoryIcon size={24} />}
+            title="No version yet"
+            description="Save this note once and its first version appears here."
+          />
         ) : (
-          <ol>
-            {items.map((item) => (
-              <li key={item.revisionId}>
+          <Card title="Versions" titleId="history-versions">
+            <ol className="m-0 list-none p-0">
+              {items.map((item, index) => {
+                const when = relativeTime(item.serverTime, now);
+                const change = rowChangeOf({
+                  deleted: item.deleted,
+                  restored: item.restoredFrom !== null,
+                  first: item.parents.length === 0,
+                  count: counts.get(item.revisionId) ?? null,
+                });
+                const selected = item.revisionId === selectedId;
+                const panelId = `history-panel-${String(index)}`;
+                const label = when === '' ? 'Saved' : `Saved ${when}`;
+                return (
+                  <Fragment key={item.revisionId}>
+                    <ListRow>
+                      <button
+                        type="button"
+                        className="min-w-0 flex-1 cursor-pointer rounded-lg border-0 bg-transparent px-2 py-1 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        aria-expanded={selected}
+                        aria-controls={panelId}
+                        onClick={() => {
+                          if (selected) {
+                            setSelectedId(null);
+                            return;
+                          }
+                          void openRevision(item);
+                        }}
+                      >
+                        <span className="block truncate text-ui font-medium text-strong">
+                          {label}
+                        </span>
+                        <span className="block truncate text-control text-muted">
+                          {rowChangeText(change)}
+                        </span>
+                      </button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={busy || !restorable}
+                        label={`Restore the version ${label.toLowerCase()}`}
+                        onClick={() => {
+                          void restore(item.revisionId);
+                        }}
+                      >
+                        Restore
+                      </Button>
+                    </ListRow>
+                    {selected ? (
+                      <li
+                        className="border-b border-edge-subtle px-1 py-3 last:border-b-0"
+                        id={panelId}
+                      >
+                        <RevisionPanel
+                          detail={detail}
+                          diff={diff}
+                          kind={head.kind}
+                          preview={preview}
+                          previewRevisionId={previewRevisionId}
+                          name={name}
+                        />
+                      </li>
+                    ) : null}
+                  </Fragment>
+                );
+              })}
+            </ol>
+            {nextCursor === null ? null : (
+              <div className="mt-4">
                 <Button
                   variant="secondary"
-                  label={`Open revision ${item.revisionId}`}
+                  size="sm"
+                  disabled={loadingMore}
                   onClick={() => {
-                    void openRevision(item);
+                    void loadMore();
                   }}
                 >
-                  {describeRevision(item)}
+                  {loadingMore
+                    ? 'Loading older versions'
+                    : 'Show older versions'}
                 </Button>
-              </li>
-            ))}
-          </ol>
+              </div>
+            )}
+          </Card>
         )}
-        {nextCursor !== null ? (
-          <Button
-            variant="secondary"
-            label="Load older history entries"
-            disabled={loadingMore}
-            onClick={() => {
-              void loadMore();
-            }}
-          >
-            {loadingMore ? 'Loading older entries.' : 'Load older entries'}
-          </Button>
-        ) : null}
-      </section>
-
-      {selectedItem !== null ? (
-        <section aria-labelledby="history-revision-heading">
-          <h2
-            className="mb-3 mt-0 text-base font-semibold text-strong"
-            id="history-revision-heading"
-          >
-            Selected revision
-          </h2>
-          {detail === null || detail.status === 'loading' ? (
-            <StatusRegion message="Loading the selected revision." />
-          ) : detail.status === 'error' ? (
-            <p className="text-control text-danger" role="alert">
-              {detail.message}
-            </p>
-          ) : (
-            <div>
-              <p>{describeRevision(detail.item)}</p>
-              {head.kind === 'attachment' ? (
-                <div>
-                  {preview !== null &&
-                  previewRevisionId === detail.item.revisionId ? (
-                    <img
-                      src={preview.url}
-                      alt={`Preview of revision ${detail.item.revisionId}`}
-                    />
-                  ) : (
-                    <p>That revision has no preview on this device.</p>
-                  )}
-                </div>
-              ) : (
-                <div>
-                  <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
-                    Old text of the selected revision
-                  </h3>
-                  <pre>{detail.text}</pre>
-                  <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
-                    Changes from the selected revision to the current head
-                  </h3>
-                  {diff.status === 'idle' ? (
-                    <p>The comparison is not available for this file.</p>
-                  ) : diff.status === 'loading' ? (
-                    <StatusRegion message="Comparing the two versions." />
-                  ) : diff.status === 'ready' ? (
-                    <InlineDiff
-                      hunks={diff.hunks}
-                      idPrefix={`history-${detail.item.revisionId}`}
-                      oldLabel="Selected revision"
-                      newLabel="Current head"
-                    />
-                  ) : diff.status === 'limit' ? (
-                    <p>
-                      The two versions differ by more than the comparison limit,
-                      so no inline diff is shown. Open the old text above, or
-                      restore the whole revision below.
-                    </p>
-                  ) : (
-                    <p className="text-control text-danger" role="alert">
-                      {diff.message}
-                    </p>
-                  )}
-                </div>
-              )}
-              <Button
-                variant="primary"
-                label={`Restore revision ${detail.item.revisionId} as a new version`}
-                disabled={busy || head.headRevisionId === null}
-                onClick={() => {
-                  void restore(detail.item.revisionId);
-                }}
-              >
-                Restore this revision as a new version
-              </Button>
-            </div>
-          )}
-        </section>
-      ) : null}
-    </main>
+      </div>
+    </Page>
   );
 }
 
-/** One readable line for a history entry. */
-function describeRevision(item: HistoryRevisionItem): string {
-  const parts = [`Revision ${item.revisionId}`, `saved ${item.serverTime}`];
-  if (item.message !== null) parts.push(`named ${item.message}`);
-  if (item.deleted) parts.push('deletion marker');
-  if (item.restoredFrom !== null)
-    parts.push(`restored from ${item.restoredFrom}`);
-  if (item.objectId !== null) parts.push('attachment version');
-  return parts.join(', ');
+/**
+ * What one selected version holds, under its row.
+ *
+ * A note shows the lines that changed between that version and the newest
+ * one, and offers its whole text. An image shows the picture of that
+ * version.
+ */
+function RevisionPanel({
+  detail,
+  diff,
+  kind,
+  preview,
+  previewRevisionId,
+  name,
+}: {
+  readonly detail: RevisionDetail | null;
+  readonly diff: DiffState;
+  readonly kind: 'note' | 'attachment';
+  readonly preview: LoadedAttachment | null;
+  readonly previewRevisionId: string | null;
+  readonly name: string;
+}): ReactNode {
+  if (detail === null || detail.status === 'loading')
+    return <StatusRegion message="Loading this version." />;
+  if (detail.status === 'error')
+    return <Notice tone="problem" message={detail.message} />;
+  if (kind === 'attachment')
+    return preview !== null && previewRevisionId === detail.item.revisionId ? (
+      <img
+        className="max-h-96 rounded-lg border border-edge-subtle"
+        src={preview.url}
+        alt={`${name} as it was in this version`}
+      />
+    ) : (
+      <p className="m-0 text-control text-muted">
+        This version has no picture on this device.
+      </p>
+    );
+  return (
+    <div className="space-y-3">
+      <h3 className="m-0 text-control font-semibold uppercase tracking-wide text-muted">
+        Changes to the newest version
+      </h3>
+      {diff.status === 'idle' ? (
+        <p className="m-0 text-control text-muted">
+          No comparison is available for this version.
+        </p>
+      ) : diff.status === 'loading' ? (
+        <StatusRegion message="Comparing the two versions." />
+      ) : diff.status === 'ready' ? (
+        <InlineDiff
+          hunks={diff.hunks}
+          idPrefix={`history-${detail.item.revisionId}`}
+          oldLabel="This version"
+          newLabel="Newest version"
+        />
+      ) : diff.status === 'limit' ? (
+        <p className="m-0 text-control text-muted">
+          The two versions are too far apart to compare line by line. Open the
+          whole text below, or restore the version.
+        </p>
+      ) : (
+        <Notice tone="problem" message={diff.message} />
+      )}
+      <details>
+        <summary className="cursor-pointer text-control text-muted">
+          Whole text of this version
+        </summary>
+        <pre
+          className="mt-2 max-h-96 overflow-auto whitespace-pre-wrap rounded-lg border border-edge-subtle bg-surface p-3 font-mono text-control text-strong"
+          aria-label={`Whole text of ${name} in this version`}
+        >
+          {detail.text}
+        </pre>
+      </details>
+    </div>
+  );
 }

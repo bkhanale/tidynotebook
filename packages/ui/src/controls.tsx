@@ -8,6 +8,55 @@
 import type { ReactNode, Ref } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
 
+/** How a button looks. */
+export type ButtonVariant =
+  'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle';
+
+/** How large a button is. */
+export type ButtonSize = 'sm' | 'md';
+
+/**
+ * The appearance of a button, as classes.
+ *
+ * A control that navigates is an anchor and never a button, so the platform
+ * keeps the middle click, the context menu, and the address. The router of
+ * the application owns that anchor, so this function hands out the same
+ * appearance to it and every action button of a screen looks the same.
+ */
+export function buttonClassName(
+  options: {
+    readonly variant?: ButtonVariant | undefined;
+    readonly size?: ButtonSize | undefined;
+    readonly className?: string | undefined;
+  } = {},
+): string {
+  const variant = options.variant ?? 'primary';
+  const size = options.size ?? 'md';
+  const variantClass =
+    variant === 'secondary'
+      ? 'border-edge bg-transparent text-strong hover:bg-hover'
+      : variant === 'danger'
+        ? 'border-danger-fill bg-danger-fill text-on-danger hover:brightness-110'
+        : variant === 'ghost'
+          ? 'border-transparent bg-transparent text-strong hover:bg-hover'
+          : variant === 'subtle'
+            ? 'border-edge-subtle bg-hover text-strong hover:bg-active'
+            : 'border-accent-fill bg-accent-fill text-on-accent shadow-sm hover:brightness-110';
+
+  // Touch pointers get the 44 px minimum. A mouse pointer keeps the compact
+  // control scale, so the chrome stays quiet on a desktop screen.
+  const sizeClass =
+    size === 'sm' ? 'min-h-11 px-2.5 md:min-h-8' : 'min-h-11 px-3 md:min-h-9';
+  return [
+    'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium no-underline motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-safe:active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
+    variantClass,
+    sizeClass,
+    options.className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
 /** A labeled push button. */
 export function Button({
   type,
@@ -25,9 +74,8 @@ export function Button({
   ariaExpanded,
 }: {
   readonly type?: 'button' | 'submit' | undefined;
-  readonly variant?:
-    'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle' | undefined;
-  readonly size?: 'sm' | 'md' | undefined;
+  readonly variant?: ButtonVariant | undefined;
+  readonly size?: ButtonSize | undefined;
   readonly disabled?: boolean | undefined;
   readonly onClick?: (() => void) | undefined;
   readonly children?: ReactNode | undefined;
@@ -39,29 +87,11 @@ export function Button({
   readonly ariaControls?: string | undefined;
   readonly ariaExpanded?: boolean | undefined;
 }): ReactNode {
-  const variantClass =
-    variant === 'secondary'
-      ? 'border-edge bg-transparent text-strong hover:bg-hover'
-      : variant === 'danger'
-        ? 'border-danger-fill bg-danger-fill text-on-danger hover:brightness-110'
-        : variant === 'ghost'
-          ? 'border-transparent bg-transparent text-strong hover:bg-hover'
-          : variant === 'subtle'
-            ? 'border-edge-subtle bg-hover text-strong hover:bg-active'
-            : 'border-accent-fill bg-accent-fill text-on-accent shadow-sm hover:brightness-110';
-
-  // Touch pointers get the 44 px minimum. A mouse pointer keeps the compact
-  // control scale, so the chrome stays quiet on a desktop screen.
-  const sizeClass =
-    size === 'sm' ? 'min-h-11 px-2.5 md:min-h-8' : 'min-h-11 px-3 md:min-h-9';
-  const classes = [
-    'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-safe:active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
-    variantClass,
-    sizeClass,
-    extraClassName ?? '',
-  ]
-    .filter(Boolean)
-    .join(' ');
+  const classes = buttonClassName({
+    variant,
+    size,
+    className: extraClassName,
+  });
 
   // WCAG 2.5.3 Label in Name: a visible label is the accessible name. Only
   // an icon-only button names itself with `aria-label`.

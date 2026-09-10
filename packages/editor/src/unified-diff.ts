@@ -265,6 +265,40 @@ export function alignLines(
   return aligned;
 }
 
+/** How many lines one comparison added and how many it removed. */
+export type LineChangeCount = {
+  readonly added: number;
+  readonly removed: number;
+};
+
+/**
+ * Counts the added and removed lines of a complete comparison.
+ *
+ * A hunk carries up to three unchanged context lines on each side, so the
+ * length of a hunk is not the size of its change. Each hunk is therefore
+ * aligned exactly and only the lines that one side holds and the other does
+ * not are counted. A hunk that cannot be aligned within the bound counts
+ * every line of both sides, which is the same reading the inline view
+ * shows.
+ */
+export function countHunkLines(hunks: readonly DiffHunk[]): LineChangeCount {
+  let added = 0;
+  let removed = 0;
+  for (const hunk of hunks) {
+    const aligned = alignLines(hunk.before.join(''), hunk.after.join(''));
+    if (aligned === null) {
+      removed += hunk.before.length;
+      added += hunk.after.length;
+      continue;
+    }
+    for (const entry of aligned) {
+      if (entry.kind === 'add') added += 1;
+      else if (entry.kind === 'del') removed += 1;
+    }
+  }
+  return { added, removed };
+}
+
 /**
  * Merges one decision per hunk back into a single text.
  *

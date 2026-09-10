@@ -132,3 +132,103 @@ export function requestDiff(
     }
   });
 }
+
+/** One pair of texts of a series comparison. */
+export type DiffPair = {
+  readonly before: string;
+  readonly after: string;
+};
+
+/**
+ * Compares a series of pairs in one worker.
+ *
+ * The history timeline needs a summary for every listed version, which is
+ * one comparison per neighbouring pair. Spawning a worker for each of them
+ * costs more than the comparisons themselves, so the series shares one
+ * worker and answers in order. Every pair keeps the same budget as a single
+ * comparison; a pair that passes it resolves to a limit and the series goes
+ * on with the next one. Never rejects.
+ */
+export async function requestDiffSeries(
+  pairs: readonly DiffPair[],
+): Promise<readonly DiffResult[]> {
+  if (pairs.length === 0) return [];
+  if (!isWorkerAvailable()) return pairs.map(compareOnThisThread);
+  let worker: Worker;
+  try {
+    worker = new DiffWorker();
+  } catch {
+    return pairs.map(compareOnThisThread);
+  }
+  try {
+    const results: DiffResult[] = [];
+    for (let index = 0; index < pairs.length; index += 1) {
+      const pair = pairs[index];
+      if (pair === undefined) continue;
+      results.push(await answerOf(worker, index + 1, pair));
+    }
+    return results;
+  } finally {
+    try {
+      worker.terminate();
+    } catch {
+      // Termination is best effort once every answer is recorded.
+    }
+  }
+}
+
+/** Compares one pair on the calling thread, within the same bound. */
+function compareOnThisThread(pair: DiffPair): DiffResult {
+  try {
+    return compareLines(pair.before, pair.after);
+  } catch {
+    return { kind: 'limit' };
+  }
+}
+
+/** Waits for the answer of one request of a series, inside the budget. */
+function answerOf(
+  worker: Worker,
+  id: number,
+  pair: DiffPair,
+): Promise<DiffResult> {
+  if (byteLength(pair.before) + byteLength(pair.after) > maxWorkerDiffBytes)
+    return Promise.resolve({ kind: 'limit' });
+  return new Promise<DiffResult>((resolve) => {
+    let settled = false;
+    const finish = (result: DiffResult): void => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timer);
+      worker.onmessage = null;
+      worker.onerror = null;
+      resolve(result);
+    };
+    const timer = window.setTimeout(() => {
+      finish({ kind: 'limit' });
+    }, diffWorkerTimeoutMs);
+    worker.onmessage = (event: MessageEvent<DiffWorkerResponse>): void => {
+      const response = event.data;
+      if (
+        response === null ||
+        typeof response !== 'object' ||
+        response.id !== id
+      )
+        return;
+      finish(response.result);
+    };
+    worker.onerror = (): void => {
+      finish(compareOnThisThread(pair));
+    };
+    try {
+      const request: DiffWorkerRequest = {
+        id,
+        before: pair.before,
+        after: pair.after,
+      };
+      worker.postMessage(request);
+    } catch {
+      finish({ kind: 'limit' });
+    }
+  });
+}

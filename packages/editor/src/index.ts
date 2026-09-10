@@ -10,10 +10,12 @@ export type {
   DiffHunk,
   DiffResult,
   HunkDecision,
+  LineChangeCount,
 } from './unified-diff.ts';
 export {
   alignLines,
   compareLines,
+  countHunkLines,
   diffContextLines,
   maxDiffEdits,
   mergeHunks,
