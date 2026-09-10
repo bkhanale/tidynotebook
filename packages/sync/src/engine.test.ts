@@ -8,7 +8,11 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
+import type {
+  AcceptedChangeset,
+  ChangesetInput,
+  SupersededHead,
+} from '@notesapp/core';
 import {
   LocalStorageError,
   type Draft,
@@ -28,6 +32,7 @@ import {
   backoffDelay,
   pushQueue,
   type CommitResult,
+  type PushOutcome,
   type QueueNetwork,
   type SyncContext,
   type SyncNotice,
@@ -56,6 +61,8 @@ class FakeStore implements LocalStore {
   entries = new Map<string, QueueEntry>();
   order: string[] = [];
   acks: AcceptedChangeset[] = [];
+  discarded: string[] = [];
+  acceptedHeads = new Map<string, string | null>();
   cursors = new Map<string, string>();
   staged = new Map<string, Staged>();
   lease: { ownerId: string; expiresAt: number } | null = null;
@@ -157,6 +164,34 @@ class FakeStore implements LocalStore {
     return Promise.resolve();
   }
 
+  discardQueueEntry(_account: string, mutationId: string): Promise<void> {
+    this.discarded.push(mutationId);
+    this.entries.delete(mutationId);
+    this.order = this.order.filter((id) => id !== mutationId);
+    return Promise.resolve();
+  }
+
+  reparentQueueEntry(
+    _account: string,
+    mutationId: string,
+    expectedHeads: Readonly<Record<string, string | null>>,
+  ): Promise<QueueEntry | null> {
+    const entry = this.entries.get(mutationId);
+    if (entry === undefined || entry.state === 'conflict')
+      return Promise.resolve(null);
+    const moved: QueueEntry = {
+      ...entry,
+      state: 'pending',
+      digest: null,
+      input: {
+        ...entry.input,
+        expectedHeads: { ...entry.input.expectedHeads, ...expectedHeads },
+      },
+    };
+    this.entries.set(mutationId, moved);
+    return Promise.resolve(moved);
+  }
+
   acknowledge(_account: string, result: AcceptedChangeset): Promise<void> {
     if (!this.entries.has(result.mutationId)) return Promise.resolve();
     this.entries.delete(result.mutationId);
@@ -223,7 +258,7 @@ class FakeStore implements LocalStore {
       latestMutationId: null,
       queueState: null,
       conflictGroupId: null,
-      acceptedHeadRevisionId: null,
+      acceptedHeadRevisionId: this.acceptedHeads.get(fileId) ?? null,
       localHeadRevisionId: null,
       hasUncheckpointedDraft: false,
     });
@@ -403,6 +438,12 @@ class FakeStore implements LocalStore {
   }
 }
 
+/** A refusal of a failed precondition, as the server answers it. */
+const staleHead = (fileId: string): CommitResult => ({
+  ok: false as const,
+  problem: { status: 412, code: 'stale_head', fileIds: [fileId] },
+});
+
 /** One queued mutation of one file, pending by default. */
 function queuedEntry(
   fileId: string,
@@ -547,9 +588,19 @@ function accepted(
   mutationId: string,
   revisionIds: readonly string[],
   cursor: string,
+  superseded: readonly SupersededHead[] = [],
 ): AcceptedChangeset {
-  return { mutationId, revisionIds: [...revisionIds], revisions: [], cursor };
+  return {
+    mutationId,
+    revisionIds: [...revisionIds],
+    revisions: [],
+    cursor,
+    superseded: [...superseded],
+  };
 }
+
+/** A pull that reports nothing new, for a push that needs no refresh. */
+const noPull = (): Promise<PushOutcome> => Promise.resolve('done');
 
 await test('a single entry submits and acknowledges its exact result', async () => {
   const store = new FakeStore();
@@ -571,6 +622,7 @@ await test('a single entry submits and acknowledges its exact result', async () 
     workspaceId,
     ops,
     testContext(notices, delays),
+    noPull,
   );
   assert.equal(outcome, 'done');
   assert.equal(ops.commitCalls.length, 1);
@@ -607,6 +659,7 @@ await test('the digest freezes on first send and the retry repeats the body', as
     workspaceId,
     ops,
     testContext(notices, delays),
+    noPull,
   );
   assert.equal(outcome, 'done');
   assert.equal(attempts, 2);
@@ -639,6 +692,7 @@ await test('two offline edits of one file commit as one atomic changeset', async
     workspaceId,
     ops,
     testContext(notices, delays),
+    noPull,
   );
   assert.equal(outcome, 'done');
   assert.equal(ops.commitCalls.length, 1);
@@ -656,17 +710,14 @@ await test('two offline edits of one file commit as one atomic changeset', async
   assert.deepEqual((await store.pending(accountId, workspaceId)).length, 0);
 });
 
-await test('a stale head is preserved when an old server returns it', async () => {
+await test('a refused update of a live file is parked as deleted remotely', async () => {
   const store = new FakeStore();
   store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
   const notices: SyncNotice[] = [];
   const delays: number[] = [];
+  let pulls = 0;
   const ops = stubOperations({
-    commit: () =>
-      Promise.resolve({
-        ok: false as const,
-        problem: { status: 412, code: 'stale_head', fileIds: ['file-a'] },
-      }),
+    commit: () => Promise.resolve(staleHead('file-a')),
   });
   const outcome = await pushQueue(
     store,
@@ -674,18 +725,26 @@ await test('a stale head is preserved when an old server returns it', async () =
     workspaceId,
     ops,
     testContext(notices, delays),
+    () => {
+      pulls += 1;
+      return Promise.resolve('done');
+    },
   );
   assert.equal(outcome, 'done');
+  // The workspace rebases every other stale update, so a refused update of a
+  // file that already had a head means the head is now a tombstone.
+  assert.equal(pulls, 1);
   assert.equal(store.acks.length, 0);
   const kept = store.queued();
   assert.ok(kept !== null);
   assert.equal(kept.state, 'conflict');
+  assert.equal(kept.errorCode, 'deleted_remotely');
   assert.equal(kept.input.mutationId, 'mutation-2');
   assert.deepEqual(notices, [
     {
       kind: 'preserved',
       mutationId: 'mutation-2',
-      code: 'stale_head',
+      code: 'deleted_remotely',
       fileIds: ['file-a'],
     },
   ]);
@@ -711,6 +770,7 @@ await test('permanent file failures are preserved', async () => {
       workspaceId,
       ops,
       testContext(notices, delays),
+      noPull,
     );
     assert.equal(outcome, 'done');
     const kept = store.queued();
@@ -746,6 +806,7 @@ await test('an invalid graph is preserved after exactly one attempt', async () =
     workspaceId,
     ops,
     testContext(notices, delays),
+    noPull,
   );
   assert.equal(outcome, 'done');
   assert.equal(ops.commitCalls.length, 1);
@@ -776,6 +837,7 @@ await test('an expired session pauses and a lost workspace stops the push', asyn
       workspaceId,
       ops,
       testContext([], []),
+      noPull,
     );
     assert.equal(outcome, problem.status === 401 ? 'paused' : 'access-lost');
     assert.equal(store.acks.length, 0);
@@ -784,6 +846,172 @@ await test('an expired session pauses and a lost workspace stops the push', asyn
     assert.equal(store.queued()?.state, 'sending');
     assert.equal(store.queued()?.digest, 'digest-for-mutation-1');
   }
+});
+
+await test('a rebased save announces the head that it superseded', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', 'rev-old', 'm-1'));
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  const ops = stubOperations({
+    commit: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: accepted('m-1', ['rev-a'], '9', [
+          {
+            fileId: 'file-a',
+            previousHeadRevisionId: 'rev-other-device',
+            acceptedRevisionId: 'rev-a',
+          },
+        ]),
+      }),
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+    noPull,
+  );
+  assert.equal(outcome, 'done');
+  assert.deepEqual(notices, [
+    { kind: 'superseded', fileId: 'file-a', path: 'notes/file-a.md' },
+    { kind: 'pushed', mutationIds: ['m-1'], fileIds: ['file-a'] },
+  ]);
+  assert.deepEqual(store.acks[0]?.superseded, [
+    {
+      fileId: 'file-a',
+      previousHeadRevisionId: 'rev-other-device',
+      acceptedRevisionId: 'rev-a',
+    },
+  ]);
+});
+
+await test('a refused deletion is dropped after the changes are pulled', async () => {
+  const store = new FakeStore();
+  const entry = queuedEntry('file-a', 'rev-a', '', 'rev-old', 'm-1');
+  store.enqueue({
+    ...entry,
+    input: {
+      ...entry.input,
+      revisions: entry.input.revisions.map((revision) => ({
+        ...revision,
+        deleted: true,
+      })),
+    },
+  });
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let pulls = 0;
+  const ops = stubOperations({
+    commit: () => Promise.resolve(staleHead('file-a')),
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+    () => {
+      pulls += 1;
+      return Promise.resolve('done');
+    },
+  );
+  assert.equal(outcome, 'done');
+  // The accepted state is read before the entry is judged.
+  assert.equal(pulls, 1);
+  assert.deepEqual(store.discarded, ['m-1']);
+  assert.equal((await store.pending(accountId, workspaceId)).length, 0);
+  assert.equal(ops.commitCalls.length, 1);
+  assert.deepEqual(notices, [
+    { kind: 'delete-refused', fileId: 'file-a', path: 'notes/file-a.md' },
+  ]);
+});
+
+await test('a refused create is reparented on the accepted head and resent once', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'm-1'));
+  store.acceptedHeads.set('file-a', 'rev-from-other-device');
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let attempts = 0;
+  const ops = stubOperations({
+    commit: (input) => {
+      attempts += 1;
+      if (attempts === 1) return Promise.resolve(staleHead('file-a'));
+      assert.deepEqual(input.expectedHeads, {
+        'file-a': 'rev-from-other-device',
+      });
+      return Promise.resolve({
+        ok: true as const,
+        value: accepted('m-1', ['rev-a'], '12'),
+      });
+    },
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+    () => Promise.resolve('done'),
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(ops.commitCalls.length, 2);
+  assert.equal((await store.pending(accountId, workspaceId)).length, 0);
+  assert.deepEqual(
+    store.acks.map((ack) => ack.mutationId),
+    ['m-1'],
+  );
+  assert.deepEqual(notices, [
+    { kind: 'pushed', mutationIds: ['m-1'], fileIds: ['file-a'] },
+  ]);
+});
+
+await test('a resent mutation that is refused again is parked, not resent forever', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'm-1'));
+  store.acceptedHeads.set('file-a', 'rev-from-other-device');
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  const ops = stubOperations({
+    commit: () => Promise.resolve(staleHead('file-a')),
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+    () => Promise.resolve('done'),
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(ops.commitCalls.length, 2);
+  assert.equal(store.queued()?.state, 'conflict');
+});
+
+await test('a refused precondition with an unreachable server defers the recovery', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'm-1'));
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  const ops = stubOperations({
+    commit: () => Promise.resolve(staleHead('file-a')),
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+    () => Promise.resolve('deferred'),
+  );
+  assert.equal(outcome, 'deferred');
+  // The entry keeps its work: nothing is dropped and nothing is parked.
+  assert.equal(store.queued()?.state, 'sending');
+  assert.equal(store.discarded.length, 0);
+  assert.deepEqual(notices, []);
 });
 
 await test('transport failures back off with bounded delays and then defer', async () => {
@@ -800,6 +1028,7 @@ await test('transport failures back off with bounded delays and then defer', asy
     workspaceId,
     ops,
     testContext(notices, delays),
+    noPull,
   );
   assert.equal(outcome, 'deferred');
   assert.equal(ops.commitCalls.length, 4);

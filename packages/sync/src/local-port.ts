@@ -508,17 +508,54 @@ export type LocalStore = {
     digest: string,
   ): Promise<void>;
 
-  /** Marks one queued mutation as conflicting, keeping its body. */
+  /**
+   * Marks one queued mutation as conflicting, keeping its body.
+   *
+   * Every member of `details` is optional, so a caller that only knows why
+   * the server refused the mutation can record the reason without inventing
+   * branch identifiers. A member that is left out keeps its stored value.
+   */
   markConflict(
     accountId: string,
     mutationId: string,
     details?: {
-      readonly conflictGroupId: string;
-      readonly branchMutationId: string;
-      readonly branchState: Exclude<BranchSubmissionState, 'none'>;
-      readonly errorCode: string | null;
+      readonly conflictGroupId?: string;
+      readonly branchMutationId?: string;
+      readonly branchState?: Exclude<BranchSubmissionState, 'none'>;
+      readonly errorCode?: string | null;
     },
   ): Promise<void>;
+
+  /**
+   * Removes one queued mutation and the local work that only it held.
+   *
+   * Used when the server refused the mutation for good and repeating it can
+   * never help, for example a deletion that the server refused because the
+   * note changed on another device. The queue entry, the checkpoints of the
+   * mutation, and the local head that they set are removed in one
+   * transaction, so the file goes back to its accepted state. A deletion flag
+   * that the discarded mutation set is cleared as well, because the accepted
+   * head that the server kept is not a tombstone.
+   *
+   * Discarding an unknown mutation does nothing.
+   */
+  discardQueueEntry(accountId: string, mutationId: string): Promise<void>;
+
+  /**
+   * Moves the preconditions of one queued mutation to the current heads.
+   *
+   * Used after the server refused a mutation with a failed precondition and
+   * the client has read the accepted state again. Only a mutation that still
+   * waits may move, so a frozen body is never rewritten: the answer is `null`
+   * when the mutation is unknown or already sent. The frozen digest is
+   * cleared with the change, because the body that the next send covers is
+   * not the body that the digest names.
+   */
+  reparentQueueEntry(
+    accountId: string,
+    mutationId: string,
+    expectedHeads: Readonly<Record<string, string | null>>,
+  ): Promise<QueueEntry | null>;
 
   /**
    * Applies one server acknowledgment.

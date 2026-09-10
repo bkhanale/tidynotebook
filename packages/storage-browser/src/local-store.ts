@@ -826,6 +826,124 @@ export async function openLocalStore(
       for (const change of changes) publish(change);
     },
 
+    async discardQueueEntry(
+      accountId: string,
+      mutationId: string,
+    ): Promise<void> {
+      const changes: LocalChange[] = [];
+      await guard('discarding a queued mutation', () =>
+        db.transaction(
+          'rw',
+          [tables.queue, tables.checkpoints, tables.acceptedFiles],
+          async () => {
+            const entry = await queueEntryOf(accountId, mutationId);
+            if (entry === null) return;
+            const workspaceId = entry.workspaceId;
+            await tables.queue.delete([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              entry.mutationId,
+            ]);
+            const rows: unknown[] = await tables.checkpoints
+              .where('[serverOrigin+accountId+workspaceId+mutationId]')
+              .equals([serverOrigin, accountId, workspaceId, entry.mutationId])
+              .toArray();
+            for (const row of rows) {
+              const checkpoint = validateCheckpoint(row);
+              await tables.checkpoints.delete([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                checkpoint.revisionId,
+              ]);
+            }
+            // The tip of the discarded mutation decides what it had set on the
+            // file row: a tombstone tip set the deletion flag, and every tip
+            // set the local head.
+            const tips = new Map<string, boolean>();
+            for (const revision of entry.input.revisions)
+              tips.set(revision.fileId, revision.deleted);
+            for (const [fileId, wasDeletion] of tips) {
+              const stored: unknown = await tables.acceptedFiles.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                fileId,
+              ]);
+              if (stored !== undefined) {
+                const file = validateAcceptedFile(stored);
+                await tables.acceptedFiles.put({
+                  ...file,
+                  deleted: wasDeletion ? false : file.deleted,
+                  localHeadRevisionId: file.acceptedHeadRevisionId,
+                  updatedAt: nowIso(),
+                });
+              }
+              changes.push({
+                accountId,
+                workspaceId,
+                fileId,
+                kind: 'file',
+              });
+            }
+            changes.push({
+              accountId,
+              workspaceId,
+              fileId: entry.input.revisions[0]?.fileId ?? null,
+              kind: 'queue',
+            });
+          },
+        ),
+      );
+      for (const change of changes) publish(change);
+    },
+
+    async reparentQueueEntry(
+      accountId: string,
+      mutationId: string,
+      expectedHeads: Readonly<Record<string, string | null>>,
+    ): Promise<QueueEntry | null> {
+      const changes: LocalChange[] = [];
+      const moved = await guard('reparenting a queued mutation', () =>
+        db.transaction('rw', tables.queue, async () => {
+          const entry = await queueEntryOf(accountId, mutationId);
+          if (entry === null) return null;
+          // A sent mutation froze its body. Rewriting it would describe a
+          // request that the frozen digest does not cover.
+          if (entry.state === 'conflict') return null;
+          const next: QueueRow = {
+            ...entry,
+            state: 'pending',
+            digest: null,
+            input: {
+              ...entry.input,
+              expectedHeads: { ...entry.input.expectedHeads, ...expectedHeads },
+            },
+          };
+          await tables.queue.put(next);
+          changes.push({
+            accountId,
+            workspaceId: entry.workspaceId,
+            fileId: entry.input.revisions[0]?.fileId ?? null,
+            kind: 'queue',
+          });
+          return {
+            accountId: next.accountId,
+            input: next.input,
+            state: next.state,
+            digest: next.digest,
+            conflictGroupId: next.conflictGroupId,
+            branchMutationId: next.branchMutationId,
+            branchState: next.branchState,
+            errorCode: next.errorCode,
+          };
+        }),
+      );
+      for (const change of changes) publish(change);
+      return moved;
+    },
+
     async acknowledge(
       accountId: string,
       result: AcceptedChangeset,

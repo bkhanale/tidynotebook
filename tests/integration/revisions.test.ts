@@ -552,6 +552,181 @@ await test('two files swap their paths in one changeset', async () => {
   assert.equal(readLeft.data?.path, 'swap/right.md');
 });
 
+await test('a stale delete after newer edits is refused and the edits survive', async () => {
+  const file = await newFile('rebase/kept.md', '# first\n');
+  // Another device saves newer text that this delete never saw.
+  const newer = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'rebase/kept.md',
+          text: '# text that must survive\n',
+          parents: [file.revisionId],
+        }),
+      ],
+    },
+  });
+  assert.equal(newer.error, undefined, JSON.stringify(newer.error));
+  const newHead = newer.data?.revisionIds[0] ?? '';
+
+  const staleDelete = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'rebase/kept.md',
+          text: '',
+          deleted: true,
+          parents: [file.revisionId],
+        }),
+      ],
+    },
+  });
+  assert.equal(responseOf(staleDelete.response).status, 412);
+  assert.equal(problemCode(staleDelete.error), 'stale_head');
+  assert.deepEqual(problemFiles(staleDelete.error), [file.fileId]);
+
+  // The note is still in the tree, and its head is the newer text.
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(read.error, undefined);
+  assert.equal(read.data?.headRevisionId, newHead);
+  const kept = await getRevision({
+    headers: browser(cookie),
+    path: { workspaceId, revisionId: newHead },
+  });
+  assert.equal(kept.data?.text, '# text that must survive\n');
+});
+
+await test('a stale save answer names the head that the rebase passed', async () => {
+  const file = await newFile('rebase/reported.md', '# first\n');
+  const elsewhere = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'rebase/renamed.md',
+          text: '# from another device\n',
+          parents: [file.revisionId],
+        }),
+      ],
+    },
+  });
+  assert.equal(elsewhere.error, undefined, JSON.stringify(elsewhere.error));
+  const passedHead = elsewhere.data?.revisionIds[0] ?? '';
+
+  const stale = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'rebase/reported.md',
+          text: '# saved later\n',
+          parents: [file.revisionId],
+        }),
+      ],
+    },
+  });
+  assert.equal(stale.error, undefined, JSON.stringify(stale.error));
+  const acceptedId = stale.data?.revisionIds[0] ?? '';
+  assert.deepEqual(stale.data?.superseded, [
+    {
+      fileId: file.fileId,
+      previousHeadRevisionId: passedHead,
+      acceptedRevisionId: acceptedId,
+    },
+  ]);
+  // The later save wins its text, and it keeps the name that the rename set.
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(read.data?.path, 'rebase/renamed.md');
+  assert.equal(read.data?.headRevisionId, acceptedId);
+});
+
+await test('a save on the current head reports no superseded head', async () => {
+  const file = await newFile('rebase/linear.md', '# first\n');
+  const next = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'rebase/linear.md',
+          text: '# second\n',
+          parents: [file.revisionId],
+        }),
+      ],
+    },
+  });
+  assert.equal(next.error, undefined, JSON.stringify(next.error));
+  assert.deepEqual(next.data?.superseded, []);
+});
+
+await test('a stale update over a deleted note is refused', async () => {
+  const file = await newFile('rebase/gone.md', '# first\n');
+  const removed = await deleteFile({
+    headers: { ...browser(cookie), 'if-match': file.tag },
+    path: { workspaceId, fileId: file.fileId },
+    body: ids(),
+  });
+  assert.equal(removed.error, undefined, JSON.stringify(removed.error));
+
+  const stale = await commitChangeset({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: { [file.fileId]: file.revisionId },
+      revisions: [
+        await revisionBody({
+          fileId: file.fileId,
+          path: 'rebase/gone.md',
+          text: '# typed before the delete\n',
+          parents: [file.revisionId],
+        }),
+      ],
+    },
+  });
+  assert.equal(responseOf(stale.response).status, 412);
+  assert.equal(problemCode(stale.error), 'stale_head');
+  // The note stays deleted: a stale save cannot bring it back.
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(responseOf(read.response).status, 404);
+});
+
 await test('one conflicting file rolls back the whole changeset', async () => {
   const moved = await newFile('batch/moved.md');
   const other = await newFile('batch/other.md');

@@ -36,6 +36,7 @@ import {
   type ResolvedTheme,
   type ThemeChoice,
 } from '@notesapp/ui';
+import { displayNoteName } from './features/note-name.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
@@ -363,6 +364,14 @@ export function useWorkspaceSync(
       else if (notice.kind === 'preserved')
         setMessage(
           `Local work is preserved: ${notice.mutationId} (${notice.code}).`,
+        );
+      else if (notice.kind === 'superseded')
+        setMessage(
+          `Your save of ${displayNoteName(notice.path)} is now the latest version. Text saved from another device is kept in History.`,
+        );
+      else if (notice.kind === 'delete-refused')
+        setMessage(
+          `${displayNoteName(notice.path)} changed on another device, so it was not deleted.`,
         );
       else if (notice.kind === 'retry')
         setMessage(

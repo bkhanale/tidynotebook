@@ -133,6 +133,7 @@ function acceptanceOf(
     revisionIds: revisions.map((revision) => revision.revisionId),
     cursor,
     revisions,
+    superseded: [],
   };
 }
 
@@ -391,7 +392,9 @@ await test('two working copies of one file create ordered local saves', async ()
   const revisionA = fromA?.input.revisions[0]?.id ?? '';
   const revisionB = fromB?.input.revisions[0]?.id ?? '';
   assert.notEqual(revisionA, revisionB);
-  // Both can name the accepted head. The server will rebase the later save.
+  // Both name the accepted head that their tab read. The server rebases the
+  // later save on the earlier one and reports the head that it passed, so the
+  // person is told that the text of the first tab moved into history.
   assert.deepEqual(fromA?.input.revisions[0]?.parents, [firstRevision]);
   assert.deepEqual(fromB?.input.revisions[0]?.parents, [firstRevision]);
 
@@ -408,8 +411,15 @@ await test('two working copies of one file create ordered local saves', async ()
   const file2 = await withRawDatabase(backend, (tables) =>
     tables.acceptedFiles.get([origin, account, workspace, file]),
   );
+  // The newest local save is the local head, and both texts are kept: the
+  // first tab's checkpoint stays until the server acknowledges it.
   assert.equal(file2?.localHeadRevisionId, revisionB);
   assert.equal(file2?.acceptedHeadRevisionId, firstRevision);
+  const kept = await store.listCheckpoints(account, workspace, file);
+  assert.deepEqual(
+    kept.map((checkpoint) => checkpoint.revisionId).sort(),
+    [firstRevision, revisionA, revisionB].sort(),
+  );
 
   await store.markSending(
     account,
@@ -421,9 +431,65 @@ await test('two working copies of one file create ordered local saves', async ()
     (entry) => entry.input.mutationId === fromB?.input.mutationId,
   );
   // The later save remains queued with the accepted head that it observed.
+  // Its precondition is not advanced here, because its revision is not a
+  // child of the accepted revision. The server therefore rebases it and
+  // reports the head of the first tab as superseded.
   assert.deepEqual(sibling?.input.expectedHeads, {
     [file]: firstRevision,
   });
+
+  // The precondition moves to the head that the server accepted, exactly as
+  // the sync engine does after a refused precondition.
+  const moved = await store.reparentQueueEntry(
+    account,
+    fromB?.input.mutationId ?? '',
+    { [file]: revisionA },
+  );
+  assert.deepEqual(moved?.input.expectedHeads, { [file]: revisionA });
+  assert.equal(moved?.state, 'pending');
+  assert.equal(moved?.digest, null);
+  await store.close();
+});
+
+await test('a discarded deletion leaves the note in its accepted state', async () => {
+  const backend = createBackend('discard');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const base = draftOf(account, workspace, file, 'copy-a', 'body\n');
+  await store.saveDraft(base);
+  const created = await store.checkpoint(base, null);
+  const acceptedHead = created?.input.revisions[0]?.id ?? '';
+  await store.acknowledge(account, acceptanceOf(created, account, '10'));
+
+  // The person deletes the note, and the server refuses the deletion because
+  // the note changed on another device.
+  const removal = {
+    ...draftOf(account, workspace, file, 'copy-a', '', {
+      baseRevisionId: acceptedHead,
+      sequence: 2,
+    }),
+    deleted: true,
+  };
+  await store.saveDraft(removal);
+  const queued = await store.checkpoint(removal, null);
+  assert.ok(queued !== null);
+  await store.discardQueueEntry(account, queued.input.mutationId);
+
+  assert.deepEqual(await store.pending(account, workspace), []);
+  const kept = await store.listCheckpoints(account, workspace, file);
+  assert.deepEqual(
+    kept.map((checkpoint) => checkpoint.revisionId),
+    [acceptedHead],
+  );
+  const row = await withRawDatabase(backend, (tables) =>
+    tables.acceptedFiles.get([origin, account, workspace, file]),
+  );
+  assert.equal(row?.deleted, false);
+  assert.equal(row?.localHeadRevisionId, acceptedHead);
+  assert.equal(row?.acceptedHeadRevisionId, acceptedHead);
   await store.close();
 });
 

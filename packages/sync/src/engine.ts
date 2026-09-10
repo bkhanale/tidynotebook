@@ -45,6 +45,7 @@ import {
   SyncFailedError,
   pushQueue,
   type Problem,
+  type PushOutcome,
   type QueueNetwork,
   type ServiceOutcome,
   type SyncContext,
@@ -354,12 +355,17 @@ export function createSyncEngine(
             id: newId,
             announce,
           };
+          // A refused precondition makes the queue read the server again
+          // before it decides what to do with the refused mutation.
+          const pull = (): Promise<PushOutcome> =>
+            pullNew(local, accountId, workspaceId, operations, ctx);
           const pushed = await pushQueue(
             local,
             accountId,
             workspaceId,
             operations,
             ctx,
+            pull,
           );
           if (pushed === 'paused') {
             noteSession('paused');
@@ -506,6 +512,11 @@ function createOperations(
             actorAccountId: revision.actorAccountId,
             serverTime: revision.serverTime,
             message: revision.message,
+          })),
+          superseded: sent.data.superseded.map((entry) => ({
+            fileId: entry.fileId,
+            previousHeadRevisionId: entry.previousHeadRevisionId,
+            acceptedRevisionId: entry.acceptedRevisionId,
           })),
         },
       };

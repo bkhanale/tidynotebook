@@ -62,6 +62,16 @@ export type SyncNotice =
       readonly fileIds: readonly string[];
     }
   | {
+      readonly kind: 'superseded';
+      readonly fileId: string;
+      readonly path: string;
+    }
+  | {
+      readonly kind: 'delete-refused';
+      readonly fileId: string;
+      readonly path: string;
+    }
+  | {
       readonly kind: 'retry';
       readonly attempt: number;
       readonly delayMs: number;
@@ -88,6 +98,15 @@ export type SyncContext = {
 
 /** How one push run ended. `deferred` means transport failed; retry later. */
 export type PushOutcome = 'done' | 'deferred' | 'paused' | 'access-lost';
+
+/**
+ * Brings the local accepted state up to date.
+ *
+ * The engine passes its own download run. A refused precondition means that
+ * the local view of the accepted heads is old, so the queue reads the server
+ * again before it decides what to do with the refused mutation.
+ */
+export type PullChanges = () => Promise<PushOutcome>;
 
 /**
  * A failure the engine must not swallow into a queue entry.
@@ -196,13 +215,140 @@ type SubmissionAction = 'preserve' | 'leave' | 'paused' | 'access-lost';
  *
  * A quota failure stays queued for a later cycle because space may appear.
  * Anything else the server can never accept is preserved as a conflict so it
- * is neither dropped nor retried forever.
+ * is neither dropped nor retried forever. A refused precondition reaches
+ * `preserve` as well, and `submitSingle` recovers it before it parks the
+ * entry.
  */
 function submissionAction(problem: Problem): SubmissionAction {
   if (problem.status === 401) return 'paused';
   if (problem.status === 403 || problem.status === 404) return 'access-lost';
   if (problem.status === 413) return 'leave';
   return 'preserve';
+}
+
+/**
+ * Announces every head that the server rebased for one submission.
+ *
+ * The answer of an accepted changeset names the heads that it passed. Each
+ * one means that text saved elsewhere is now only in the history of that
+ * file, so the person gets one notice per file rather than a silent replace.
+ */
+function announceSuperseded(
+  ctx: SyncContext,
+  input: ChangesetInput,
+  accepted: AcceptedChangeset,
+): void {
+  for (const entry of accepted.superseded) {
+    const revision =
+      accepted.revisions.find(
+        (candidate) => candidate.revisionId === entry.acceptedRevisionId,
+      ) ??
+      input.revisions.find((candidate) => candidate.fileId === entry.fileId);
+    ctx.announce({
+      kind: 'superseded',
+      fileId: entry.fileId,
+      path: revision?.path ?? '',
+    });
+  }
+}
+
+/** The path that one queued mutation gave the named file. */
+function pathOf(input: ChangesetInput, fileId: string): string {
+  const revisions = input.revisions.filter(
+    (revision) => revision.fileId === fileId,
+  );
+  return revisions[revisions.length - 1]?.path ?? '';
+}
+
+/** The files of one entry that the server named in its refusal. */
+function refusedFiles(entry: QueueEntry, problem: Problem): readonly string[] {
+  const own = new Set(entry.input.revisions.map((revision) => revision.fileId));
+  const named = problem.fileIds.filter((fileId) => own.has(fileId));
+  return named.length > 0 ? named : [...own];
+}
+
+/**
+ * Recovers one queued mutation that the server refused with a stale head.
+ *
+ * The accepted state is read again first, because a refused precondition
+ * means the local view of the heads is old. Then the shape of the refusal
+ * decides, and each case ends the recovery of this entry:
+ *
+ * - The mutation deletes the file. The server refuses a stale deletion so
+ *   that it cannot remove text that this device never saw. Repeating it can
+ *   never help, so the entry and its local tombstone are dropped and the
+ *   person is told that the note stays.
+ * - The mutation updates a file that already had an accepted head. The
+ *   workspace rebases every other stale update, so the only remaining reason
+ *   is a head that is now a tombstone. The entry is parked as a conflict with
+ *   the reason `deleted_remotely`, so the text is kept for the person to
+ *   place again.
+ * - Anything else, for example a create that found an existing head. The
+ *   precondition moves to the current accepted head and the mutation is sent
+ *   once more.
+ */
+async function recoverStaleHead(
+  local: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  net: QueueNetwork,
+  ctx: SyncContext,
+  pull: PullChanges,
+  entry: QueueEntry,
+  problem: Problem,
+): Promise<PushOutcome> {
+  const pulled = await pull();
+  if (pulled !== 'done') return pulled;
+  const files = refusedFiles(entry, problem);
+  const tips = new Map<string, boolean>();
+  for (const revision of entry.input.revisions)
+    tips.set(revision.fileId, revision.deleted);
+
+  const deletion = files.find((fileId) => tips.get(fileId) === true);
+  if (deletion !== undefined) {
+    await local.discardQueueEntry(accountId, entry.input.mutationId);
+    ctx.announce({
+      kind: 'delete-refused',
+      fileId: deletion,
+      path: pathOf(entry.input, deletion),
+    });
+    return 'done';
+  }
+
+  const updated = files.find(
+    (fileId) => (entry.input.expectedHeads[fileId] ?? null) !== null,
+  );
+  if (updated !== undefined) {
+    await local.markConflict(accountId, entry.input.mutationId, {
+      errorCode: 'deleted_remotely',
+    });
+    ctx.announce({
+      kind: 'preserved',
+      mutationId: entry.input.mutationId,
+      code: 'deleted_remotely',
+      fileIds: [...files],
+    });
+    return 'done';
+  }
+
+  const heads: Record<string, string | null> = {};
+  for (const fileId of files) {
+    const snapshot = await local.readFileSaveSnapshot(
+      accountId,
+      workspaceId,
+      fileId,
+    );
+    heads[fileId] = snapshot.acceptedHeadRevisionId;
+  }
+  const moved = await local.reparentQueueEntry(
+    accountId,
+    entry.input.mutationId,
+    heads,
+  );
+  if (moved === null) return 'done';
+  return submitSingle(local, accountId, workspaceId, net, ctx, pull, moved, {
+    recoverStale: false,
+  });
 }
 
 /** The most entries combined into one atomic changeset submission. */
@@ -245,6 +391,7 @@ export async function pushQueue(
   workspaceId: string,
   net: QueueNetwork,
   ctx: SyncContext,
+  pull: PullChanges,
 ): Promise<PushOutcome> {
   const entries = await local.pending(accountId, workspaceId);
   const work = entries.filter((entry) => entry.state !== 'conflict');
@@ -252,10 +399,11 @@ export async function pushQueue(
   const head = work[0];
   if (head === undefined) return 'done';
   if (head.state === 'sending')
-    return submitSingle(local, accountId, net, ctx, head);
+    return submitSingle(local, accountId, workspaceId, net, ctx, pull, head);
   const batch = takeBatchable(work);
-  if (batch.length <= 1) return submitSingle(local, accountId, net, ctx, head);
-  return submitBatch(local, accountId, workspaceId, net, ctx, batch);
+  if (batch.length <= 1)
+    return submitSingle(local, accountId, workspaceId, net, ctx, pull, head);
+  return submitBatch(local, accountId, workspaceId, net, ctx, pull, batch);
 }
 
 /**
@@ -274,6 +422,7 @@ async function submitBatch(
   workspaceId: string,
   net: QueueNetwork,
   ctx: SyncContext,
+  pull: PullChanges,
   batch: readonly QueueEntry[],
 ): Promise<PushOutcome> {
   const first = batch[0];
@@ -312,8 +461,14 @@ async function submitBatch(
         revisionIds,
         revisions,
         cursor: outcome.value.cursor,
+        superseded: outcome.value.superseded.filter((moved) =>
+          entry.input.revisions.some(
+            (revision) => revision.fileId === moved.fileId,
+          ),
+        ),
       });
     }
+    announceSuperseded(ctx, body, outcome.value);
     ctx.announce({
       kind: 'pushed',
       mutationIds: batch.map((entry) => entry.input.mutationId),
@@ -332,7 +487,15 @@ async function submitBatch(
   if (action === 'access-lost') return 'access-lost';
   if (action === 'leave') return 'done';
   for (const entry of batch) {
-    const single = await submitSingle(local, accountId, net, ctx, entry);
+    const single = await submitSingle(
+      local,
+      accountId,
+      workspaceId,
+      net,
+      ctx,
+      pull,
+      entry,
+    );
     if (single !== 'done') return single;
   }
   return 'done';
@@ -348,9 +511,12 @@ async function submitBatch(
 async function submitSingle(
   local: LocalStore,
   accountId: string,
+  workspaceId: string,
   net: QueueNetwork,
   ctx: SyncContext,
+  pull: PullChanges,
   entry: QueueEntry,
+  options: { readonly recoverStale: boolean } = { recoverStale: true },
 ): Promise<PushOutcome> {
   const input = entry.input;
   const digest = entry.digest ?? (await net.prepareCommit(input));
@@ -365,7 +531,9 @@ async function submitSingle(
       revisionIds: [...outcome.value.revisionIds],
       revisions: [...outcome.value.revisions],
       cursor: outcome.value.cursor,
+      superseded: [...outcome.value.superseded],
     });
+    announceSuperseded(ctx, input, outcome.value);
     ctx.announce({
       kind: 'pushed',
       mutationIds: [input.mutationId],
@@ -377,6 +545,21 @@ async function submitSingle(
   if (action === 'paused') return 'paused';
   if (action === 'access-lost') return 'access-lost';
   if (action === 'leave') return 'done';
+  // A refused precondition is not a permanent failure. The workspace refuses
+  // it only where a rebase would remove content, so the client reads the
+  // accepted state and decides per case. One recovery per entry per run: a
+  // resent mutation is never recovered again in the same pass.
+  if (outcome.problem.code === 'stale_head' && options.recoverStale)
+    return recoverStaleHead(
+      local,
+      accountId,
+      workspaceId,
+      net,
+      ctx,
+      pull,
+      entry,
+      outcome.problem,
+    );
   await local.markConflict(accountId, input.mutationId);
   ctx.announce({
     kind: 'preserved',
