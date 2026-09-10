@@ -73,6 +73,30 @@ export function toggleTaskSpec(state: EditorState): TransactionSpec | null {
 }
 
 /**
+ * Toggles the task box of the line that holds `position`.
+ *
+ * The clicked checkbox passes its own document position, so the toggle
+ * always changes the task the person pointed at and never the task of the
+ * current selection. Returns null when that line holds no task.
+ */
+export function taskToggleAt(
+  state: EditorState,
+  position: number,
+): TransactionSpec | null {
+  const clamped = Math.min(Math.max(position, 0), state.doc.length);
+  const line = state.doc.lineAt(clamped);
+  const box = findTaskBox(line.text, line.from);
+  if (box === null) return null;
+  return {
+    changes: {
+      from: box.from + 1,
+      to: box.from + 2,
+      insert: box.checked ? ' ' : 'x',
+    },
+  };
+}
+
+/**
  * Sets or clears the heading level of every selected line.
  *
  * A line already at `level` loses its markers and becomes a paragraph. Any

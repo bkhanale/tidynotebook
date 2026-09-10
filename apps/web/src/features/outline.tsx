@@ -1,29 +1,40 @@
-/** The note outline panel, which does not mutate editor state. */
+/** The note outline panel, which reads the live buffer and moves the caret. */
 import { useEffect, useState, type ReactNode } from 'react';
 import { getFile } from '@notesapp/api-client';
+import {
+  outlineOf,
+  previewStructureOf,
+  type OutlineHeading,
+} from '@notesapp/editor';
+import {
+  activeNoteView,
+  revealInActiveNote,
+  subscribeActiveNote,
+} from './active-note.ts';
 
-/** One visible heading of a Markdown note. */
-type OutlineHeading = { readonly level: number; readonly text: string };
+/** The headings of one Markdown source, read from the shared grammar. */
+function outlineOfText(source: string): readonly OutlineHeading[] {
+  return previewStructureOf(source).flatMap((node, index) =>
+    node.kind === 'heading'
+      ? [{ level: node.level, text: node.text, from: index, to: index }]
+      : [],
+  );
+}
 
-/** Extracts ATX headings without changing or reparsing the editor document. */
-export function noteOutline(source: string): readonly OutlineHeading[] {
-  return source.split('\n').flatMap((line) => {
-    const match = /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
-    const marks = match?.[1];
-    const text = match?.[2]?.trim();
-    return marks === undefined || text === undefined || text === ''
-      ? []
-      : [{ level: marks.length, text }];
-  });
+/** The headings of the note that is open in the editor right now. */
+function liveOutline(): readonly OutlineHeading[] | null {
+  const view = activeNoteView();
+  return view === null ? null : outlineOf(view.state);
 }
 
 /**
  * Renders the outline of an open note.
  *
- * `text` is the live buffer of the open editor. When it is given, the
- * outline follows what the person types. Without it the panel falls back
- * to the accepted server text, which is what a screen outside the editor
- * can read.
+ * The rows come from the same Markdown syntax tree the editor renders, so a
+ * `#` inside a code fence is code here too. While the editor is mounted the
+ * panel follows the live buffer and a row moves the caret to its heading.
+ * Without an editor, for example on a screen that only reads, the panel
+ * falls back to the accepted server text.
  */
 export function OutlinePanel({
   workspaceId,
@@ -34,7 +45,16 @@ export function OutlinePanel({
   readonly fileId: string | null;
   readonly text?: string | undefined;
 }): ReactNode {
+  const [live, setLive] = useState<readonly OutlineHeading[] | null>(() =>
+    liveOutline(),
+  );
   const [accepted, setAccepted] = useState<readonly OutlineHeading[]>([]);
+  useEffect(() => {
+    setLive(liveOutline());
+    return subscribeActiveNote(() => {
+      setLive(liveOutline());
+    });
+  }, [fileId]);
   useEffect(() => {
     if (fileId === null || text !== undefined) {
       setAccepted([]);
@@ -43,13 +63,14 @@ export function OutlinePanel({
     let cancelled = false;
     void getFile({ path: { workspaceId, fileId } }).then((result) => {
       if (cancelled) return;
-      setAccepted(noteOutline(result.data?.head?.text ?? ''));
+      setAccepted(outlineOfText(result.data?.head?.text ?? ''));
     });
     return () => {
       cancelled = true;
     };
   }, [fileId, workspaceId, text]);
-  const headings = text === undefined ? accepted : noteOutline(text);
+  const headings =
+    live ?? (text === undefined ? accepted : outlineOfText(text));
   if (fileId === null)
     return (
       <p className="m-0 text-control text-muted">
@@ -61,15 +82,28 @@ export function OutlinePanel({
       <p className="m-0 text-control text-muted">This note has no headings.</p>
     );
   const indentation = ['', 'pl-2', 'pl-4', 'pl-6', 'pl-8', 'pl-10'];
+  const movable = live !== null;
   return (
     <ol className="m-0 list-none space-y-1 p-0 text-control text-muted">
       {headings.map((heading, index) => (
         <li key={`${String(index)}:${heading.text}`}>
-          <span
-            className={`block truncate ${indentation[heading.level - 1] ?? ''}`}
-          >
-            {heading.text}
-          </span>
+          {movable ? (
+            <button
+              type="button"
+              className={`block w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit hover:text-strong ${indentation[heading.level - 1] ?? ''}`}
+              onClick={(): void => {
+                revealInActiveNote(heading.from);
+              }}
+            >
+              {heading.text}
+            </button>
+          ) : (
+            <span
+              className={`block truncate ${indentation[heading.level - 1] ?? ''}`}
+            >
+              {heading.text}
+            </span>
+          )}
         </li>
       ))}
     </ol>

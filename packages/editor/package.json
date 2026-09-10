@@ -28,6 +28,7 @@
     "@lezer/common": "1.5.2",
     "@lezer/highlight": "1.2.3",
     "@lezer/markdown": "1.7.2",
+    "@notesapp/markdown": "workspace:*",
     "diff": "9.0.0"
   },
   "devDependencies": {

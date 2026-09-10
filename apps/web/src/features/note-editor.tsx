@@ -48,6 +48,7 @@ import type { RenderMarkdownOptions } from '@notesapp/markdown';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
+import { activeNoteChanged, setActiveNoteView } from './active-note.ts';
 import { downloadNote } from './export.ts';
 import { useFiles } from './files.tsx';
 import { useRegisterNoteActions } from './note-actions.tsx';
@@ -134,19 +135,6 @@ function sanitizeAttachmentName(name: string): string {
   return cleaned === '' || cleaned === '.' || cleaned === '..'
     ? 'pasted-image'
     : cleaned;
-}
-
-/** Reads the source from inside one Mermaid fence. */
-function diagramInnerSource(fence: string): string {
-  const lines = fence.split('\n');
-  lines.shift();
-  while (lines.length > 0) {
-    const last = lines.at(-1) ?? '';
-    const trimmed = last.trim();
-    if (trimmed === '' || /^(```+|~~~+)/.test(trimmed)) lines.pop();
-    else break;
-  }
-  return lines.join('\n');
 }
 
 /** Safety refresh when browser invalidation messages are unavailable. */
@@ -282,6 +270,8 @@ export function NoteEditor({
   const [attachmentUrls, setAttachmentUrls] = useState<
     ReadonlyMap<string, string>
   >(new Map());
+  const attachmentUrlsRef = useRef<ReadonlyMap<string, string>>(new Map());
+  attachmentUrlsRef.current = attachmentUrls;
   const [mathReady, setMathReady] = useState(false);
   // The bar closes for the accepted head the person answered for. A later
   // accepted head is a new question, so the bar opens again by itself.
@@ -483,11 +473,12 @@ export function NoteEditor({
     };
   }, [workingCopyId]);
 
-  // KaTeX loads after the first paint. The rich compartment refreshes without
-  // changing the editor document, selection, or undo history.
+  // KaTeX and its stylesheet load after the first paint. The rich
+  // compartment refreshes without changing the editor document, selection,
+  // or undo history.
   useEffect(() => {
     let cancelled = false;
-    void import('@notesapp/markdown').then((module) => {
+    void import('./math.ts').then((module) => {
       if (cancelled) return;
       mathRenderRef.current = module.renderMath;
       renderMarkdownRef.current = module.renderMarkdown;
@@ -510,8 +501,10 @@ export function NoteEditor({
       }
     }
     if (wanted.every((id) => owned.has(id))) {
-      setAttachmentUrls(
-        new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
+      setAttachmentUrls((current) =>
+        sameUrls(current, owned)
+          ? current
+          : new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
       );
       return;
     }
@@ -532,8 +525,12 @@ export function NoteEditor({
         }
       }
       if (!cancelled)
-        setAttachmentUrls(
-          new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
+        setAttachmentUrls((current) =>
+          sameUrls(current, owned)
+            ? current
+            : new Map(
+                [...owned].map(([id, entry]) => [id, entry.url] as const),
+              ),
         );
     })();
     return () => {
@@ -550,21 +547,24 @@ export function NoteEditor({
     [],
   );
 
+  // The resolvers keep their identity between keystrokes. They are rebuilt
+  // only when math arrives, when the palette changes, or when the set of
+  // resolved attachment URLs really changed, because a new object here
+  // reconfigures the widget compartment (MD-10).
   const richResolvers = useMemo<RichWidgetResolvers>(
     () => ({
-      renderMath:
-        mathRenderRef.current === null
-          ? undefined
-          : (source: string, display: boolean): string => {
-              const render = mathRenderRef.current;
-              if (render === null) throw new Error('Math is still loading.');
-              return render(source, display);
-            },
+      renderMath: !mathReady
+        ? undefined
+        : (source: string, display: boolean): string => {
+            const render = mathRenderRef.current;
+            if (render === null) throw new Error('Math is still loading.');
+            return render(source, display);
+          },
       resolveAttachment: (revisionId: string): string | null =>
-        attachmentUrls.get(revisionId) ?? null,
-      createDiagram: (fence: string): HTMLElement =>
+        attachmentUrlsRef.current.get(revisionId) ?? null,
+      createDiagram: (source: string): HTMLElement =>
         createDiagramFrame({
-          source: diagramInnerSource(fence),
+          source,
           theme: themeRef.current,
           framePath: diagramFramePath,
         }).element,
@@ -590,6 +590,7 @@ export function NoteEditor({
         const startedAt = performance.now();
         bufferRef.current = text;
         setBufferText(text);
+        activeNoteChanged();
         sequenceRef.current += 1;
         setDraftPending(true);
         if (saveTimerRef.current !== null)
@@ -620,8 +621,10 @@ export function NoteEditor({
       },
     );
     viewRef.current = view;
+    setActiveNoteView(view);
     return () => {
       viewRef.current = null;
+      setActiveNoteView(null);
       view.destroy();
     };
   }, [workingCopyId]);
@@ -1252,6 +1255,17 @@ export function NoteEditor({
       <NoteFooter text={bufferText} lastSavedAt={lastSavedAt} />
     </div>
   );
+}
+
+/** Whether the resolved attachment URLs are already the ones we hold. */
+function sameUrls(
+  current: ReadonlyMap<string, string>,
+  owned: ReadonlyMap<string, { url: string }>,
+): boolean {
+  if (current.size !== owned.size) return false;
+  for (const [id, entry] of owned)
+    if (current.get(id) !== entry.url) return false;
+  return true;
 }
 
 /** The loading states of one note before its editor mounts. */

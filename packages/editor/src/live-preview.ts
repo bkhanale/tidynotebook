@@ -1,388 +1,114 @@
 /**
- * Source-preserving live preview decorations.
+ * The live preview, built from the Markdown syntax tree.
  *
- * The editor always keeps the Markdown source as the document. This module
- * computes two things from that source: the ranges of the syntax markers
- * (`#`, `**`, list bullets, link brackets, and similar) and the ranges of the
- * content those markers format. The editor extension hides the markers that
- * sit outside the active selection and styles the content in place, so the
- * note looks formatted while the text stays editable. When the cursor enters
- * a formatted region its markers are shown again.
+ * The document is always Markdown source. This module reads the Lezer
+ * Markdown tree that `./language.ts` installs and turns it into CodeMirror
+ * decorations: markers are hidden, content is styled, and the source stays
+ * editable at every position. There is no second Markdown scanner here. The
+ * tree already knows escapes, flanking rules, setext headings, thematic
+ * breaks, fence state at any offset, table ranges, and autolinks, so this
+ * module only decides how each node looks.
  *
- * The scanning is line based and viewport scoped. Fenced code content gets a
- * code style, but is excluded from other formatting, so a `#` inside code is
- * never treated as a heading. Decorations never rewrite the document; they
- * only hide or style ranges. React rerenders and theme changes must never
- * replace the document to update them.
+ * The reveal rule follows Obsidian Live Preview and is per construct, never
+ * per marker:
+ *
+ * - A block construct shows its source when the selection touches the line
+ *   that carries its marker. A fenced block shows its fences when the
+ *   selection is anywhere inside it.
+ * - An inline construct shows its source when the selection touches the
+ *   whole construct, so a cursor inside a bold word shows both `**` runs.
+ *
+ * Cost. Only the visible ranges are walked, and only the tree is read: no
+ * `doc.toString()` and no regular expression over the document. The walk
+ * reports how many tree nodes it entered so a test can bound it.
+ *
+ * Block level decorations are not here. A decoration that replaces a line
+ * break or a whole line must come from a state field, which is what
+ * `./widgets.ts` provides.
  */
-import { RangeSetBuilder, type Extension } from '@codemirror/state';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
+import { EditorState, type Extension, type Range } from '@codemirror/state';
 import {
   Decoration,
   EditorView,
   ViewPlugin,
   WidgetType,
   type DecorationSet,
+  type ViewUpdate,
 } from '@codemirror/view';
+import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
+import { taskToggleAt } from './commands.ts';
+import { noteMarkdown } from './language.ts';
 
-/** What kind of Markdown syntax a range belongs to. */
-export type MarkerKind =
-  | 'heading'
-  | 'emphasis'
-  | 'list'
-  | 'task'
-  | 'link'
-  | 'code'
-  | 'code-block'
-  | 'quote';
+/** One structural fact the preview decorated, in document order. */
+export type PreviewNode =
+  | { readonly kind: 'heading'; readonly level: number; readonly text: string }
+  | {
+      readonly kind: 'list-item';
+      readonly depth: number;
+      readonly ordered: boolean;
+    }
+  | { readonly kind: 'task'; readonly checked: boolean }
+  | { readonly kind: 'code-block'; readonly info: string }
+  | {
+      readonly kind: 'table';
+      readonly rows: number;
+      readonly columns: number;
+    }
+  | { readonly kind: 'quote'; readonly depth: number }
+  | { readonly kind: 'thematic-break' };
 
-/** One range of syntax marker text, for example the `#` run or the `**`. */
-export type Marker = {
-  readonly from: number;
-  readonly to: number;
-  readonly kind: MarkerKind;
+/** The result of one preview build. */
+export type PreviewBuild = {
+  /** The decorations to render. */
+  readonly decorations: DecorationSet;
+  /**
+   * The structure the decorations describe, in document order.
+   *
+   * Every entry is produced at the same place as the decoration for that
+   * construct, so a construct that stops being decorated also disappears
+   * here. The equivalence test compares this list with the reference
+   * renderer output.
+   */
+  readonly structure: readonly PreviewNode[];
+  /** How many tree nodes the walk entered. Used to bound the cost. */
+  readonly visited: number;
 };
 
-/** One range of formatted content, for example the heading text. */
-export type StyledSpan = {
-  readonly from: number;
-  readonly to: number;
-  readonly kind: MarkerKind;
-  readonly level?: number | undefined;
-  readonly variant?: 'bold' | 'italic' | 'strike' | 'code' | undefined;
-};
+/** One half-open document range. */
+export type PreviewRange = { readonly from: number; readonly to: number };
 
-/** The result of scanning one block of source text. */
-export type MarkerScan = {
-  readonly markers: readonly Marker[];
-  readonly styles: readonly StyledSpan[];
-};
+/** Column alignment taken from the delimiter row of a table. */
+type ColumnAlign = 'left' | 'center' | 'right' | null;
 
-/** One line with its absolute offset in the scanned block. */
-type Line = {
-  readonly text: string;
-  readonly from: number;
-};
-
-/** Splits text into lines while keeping absolute offsets. */
-function splitLines(text: string, base: number): Line[] {
-  const lines: Line[] = [];
-  let start = 0;
-  for (let index = 0; index < text.length; index += 1) {
-    if (text[index] === '\n') {
-      lines.push({ text: text.slice(start, index), from: base + start });
-      start = index + 1;
-    }
-  }
-  lines.push({ text: text.slice(start), from: base + start });
-  return lines;
+/** Reads the per-column alignment of one GFM delimiter row. */
+export function tableAlignments(row: string): readonly ColumnAlign[] {
+  const trimmed = row.trim();
+  const inner =
+    trimmed.startsWith('|') && trimmed.endsWith('|') && trimmed.length > 1
+      ? trimmed.slice(1, -1)
+      : trimmed;
+  return inner.split('|').map((cell): ColumnAlign => {
+    const text = cell.trim();
+    const left = text.startsWith(':');
+    const right = text.endsWith(':');
+    if (left && right) return 'center';
+    if (right) return 'right';
+    if (left) return 'left';
+    return null;
+  });
 }
 
-/** A fence run that opens or closes a code block, or null. */
-function fenceRun(line: string): { readonly char: string } | null {
-  const match = /^(?: {0,3})(```+|~~~+)/.exec(line);
-  if (match === null) return null;
-  const run = match[1] ?? '';
-  const char = run[0] ?? '';
-  return char === '' ? null : { char };
+/** The heading level of an ATX or setext heading node name, or 0. */
+export function headingLevel(name: string): number {
+  const atx = /^ATXHeading([1-6])$/.exec(name);
+  if (atx !== null) return Number(atx[1]);
+  const setext = /^SetextHeading([12])$/.exec(name);
+  if (setext !== null) return Number(setext[1]);
+  return 0;
 }
 
-/** Inline code spans of one line, with absolute offsets. */
-function codeSpans(line: Line): Array<{ from: number; to: number }> {
-  const spans: Array<{ from: number; to: number }> = [];
-  const pattern = /(`+)([^`\n]*?)\1/g;
-  for (;;) {
-    const match = pattern.exec(line.text);
-    if (match === null) return spans;
-    const full = match[0] ?? '';
-    if (full === '') return spans;
-    const start = (match.index ?? 0) + line.from;
-    spans.push({ from: start, to: start + full.length });
-  }
-}
-
-/** Whether a range overlaps any of the given spans. */
-function overlaps(
-  from: number,
-  to: number,
-  spans: ReadonlyArray<{ from: number; to: number }>,
-): boolean {
-  return spans.some((span) => from < span.to && to > span.from);
-}
-
-/** Records one marker and returns nothing, so call sites stay short. */
-function mark(
-  markers: Marker[],
-  from: number,
-  to: number,
-  kind: MarkerKind,
-): void {
-  if (to > from) markers.push({ from, to, kind });
-}
-
-/** Scans a heading line. Returns true when the line is a heading. */
-function scanHeading(
-  line: Line,
-  markers: Marker[],
-  styles: StyledSpan[],
-): boolean {
-  const match = /^( {0,3})(#{1,6})([ \t]+|$)/.exec(line.text);
-  if (match === null) return false;
-  const indent = match[1] ?? '';
-  const hashes = match[2] ?? '';
-  const rest = match[3] ?? '';
-  const markerFrom = line.from + indent.length;
-  mark(markers, markerFrom, markerFrom + hashes.length, 'heading');
-  const contentFrom = markerFrom + hashes.length + rest.length;
-  const contentTo = line.from + line.text.replace(/\r$/, '').length;
-  if (contentTo > contentFrom)
-    styles.push({
-      from: contentFrom,
-      to: contentTo,
-      kind: 'heading',
-      level: hashes.length,
-    });
-  return true;
-}
-
-/** Scans a list bullet and an optional task box. */
-function scanList(
-  line: Line,
-  markers: Marker[],
-  code: ReturnType<typeof codeSpans>,
-): void {
-  const match = /^( {0,3})((?:[-+*])|(?:\d{1,9}[.)]))([ \t]+|$)/.exec(
-    line.text,
-  );
-  if (match === null) return;
-  const indent = match[1] ?? '';
-  const bullet = match[2] ?? '';
-  const gap = match[3] ?? '';
-  const bulletFrom = line.from + indent.length;
-  if (!overlaps(bulletFrom, bulletFrom + bullet.length, code))
-    mark(markers, bulletFrom, bulletFrom + bullet.length, 'list');
-  if (gap === '') return;
-  const boxStart = bulletFrom + bullet.length + gap.length;
-  const boxText = line.text.slice(
-    boxStart - line.from,
-    boxStart - line.from + 3,
-  );
-  if (boxText.length === 3 && boxText[0] === '[' && boxText[2] === ']') {
-    const middle = boxText[1] ?? '';
-    if (middle === ' ' || middle === 'x' || middle === 'X') {
-      if (!overlaps(boxStart, boxStart + 3, code))
-        mark(markers, boxStart, boxStart + 3, 'task');
-    }
-  }
-}
-
-/** Scans a block quote marker and styles the quoted content. */
-function scanQuote(line: Line, markers: Marker[], styles: StyledSpan[]): void {
-  const match = /^( {0,3})(>)([ \t]?)/.exec(line.text);
-  if (match === null) return;
-  const indent = match[1] ?? '';
-  const marker = match[2] ?? '';
-  const gap = match[3] ?? '';
-  const markerFrom = line.from + indent.length;
-  const contentFrom = markerFrom + marker.length + gap.length;
-  mark(markers, markerFrom, contentFrom, 'quote');
-  const contentTo = line.from + line.text.replace(/\r$/, '').length;
-  if (contentTo > contentFrom)
-    styles.push({ from: contentFrom, to: contentTo, kind: 'quote' });
-}
-
-/** Scans emphasis, strikethrough, and inline code of one line. */
-function scanInline(
-  line: Line,
-  markers: Marker[],
-  styles: StyledSpan[],
-  code: ReturnType<typeof codeSpans>,
-): void {
-  for (const span of code) {
-    const run = line.text.slice(span.from - line.from);
-    const ticks = /^`+/.exec(run)?.[0] ?? '';
-    if (ticks !== '') {
-      mark(markers, span.from, span.from + ticks.length, 'code');
-      mark(markers, span.to - ticks.length, span.to, 'code');
-      if (span.to - ticks.length > span.from + ticks.length)
-        styles.push({
-          from: span.from + ticks.length,
-          to: span.to - ticks.length,
-          kind: 'code',
-          variant: 'code',
-        });
-    }
-  }
-  const pattern = /(\*\*|__|~~|\*|_)(?=\S)(.+?)(?<=\S)\1/g;
-  for (;;) {
-    const match = pattern.exec(line.text);
-    if (match === null) return;
-    const full = match[0] ?? '';
-    if (full === '') return;
-    const delimiter = match[1] ?? '';
-    const inner = match[2] ?? '';
-    const start = (match.index ?? 0) + line.from;
-    const end = start + full.length;
-    if (overlaps(start, end, code)) continue;
-    const variant =
-      delimiter === '**' || delimiter === '__'
-        ? ('bold' as const)
-        : delimiter === '~~'
-          ? ('strike' as const)
-          : ('italic' as const);
-    mark(markers, start, start + delimiter.length, 'emphasis');
-    mark(markers, end - delimiter.length, end, 'emphasis');
-    const innerFrom = start + delimiter.length;
-    const innerTo = innerFrom + inner.length;
-    if (innerTo > innerFrom)
-      styles.push({ from: innerFrom, to: innerTo, kind: 'emphasis', variant });
-  }
-}
-
-/** Scans the Markdown links of one line. */
-function scanLinks(
-  line: Line,
-  markers: Marker[],
-  styles: StyledSpan[],
-  code: ReturnType<typeof codeSpans>,
-): void {
-  const inline = /\[([^\]\n]*)\]\(([^)\s\n]+)\)/g;
-  for (;;) {
-    const match = inline.exec(line.text);
-    if (match === null) break;
-    const full = match[0] ?? '';
-    if (full === '') break;
-    const label = match[1] ?? '';
-    const start = (match.index ?? 0) + line.from;
-    const end = start + full.length;
-    if (overlaps(start, end, code)) continue;
-    mark(markers, start, start + 1, 'link');
-    const labelFrom = start + 1;
-    const labelTo = labelFrom + label.length;
-    if (labelTo > labelFrom)
-      styles.push({ from: labelFrom, to: labelTo, kind: 'link' });
-    mark(markers, labelTo, end, 'link');
-  }
-}
-
-/**
- * Scans one block of source text for markers and styled spans.
- *
- * `base` is the absolute offset of `text` in the document, so a viewport
- * slice still reports document offsets. The scan never changes the text;
- * every reported range slices the original string.
- */
-export function scanBlockMarkers(text: string, base: number): MarkerScan {
-  const markers: Marker[] = [];
-  const styles: StyledSpan[] = [];
-  let inFence: string | null = null;
-  for (const line of splitLines(text, base)) {
-    const fence = fenceRun(line.text);
-    if (fence !== null && (inFence === null || inFence === fence.char)) {
-      const run = /```+|~~~+/.exec(line.text)?.[0] ?? '';
-      const at = line.text.indexOf(run);
-      if (run !== '' && at >= 0)
-        mark(markers, line.from + at, line.from + at + run.length, 'code');
-      inFence = inFence === null ? fence.char : null;
-      continue;
-    }
-    if (inFence !== null) {
-      const contentTo = line.from + line.text.replace(/\r$/, '').length;
-      if (contentTo > line.from)
-        styles.push({
-          from: line.from,
-          to: contentTo,
-          kind: 'code-block',
-        });
-      continue;
-    }
-    const code = codeSpans(line);
-    const isHeading = scanHeading(line, markers, styles);
-    if (!isHeading) scanList(line, markers, code);
-    scanQuote(line, markers, styles);
-    scanInline(line, markers, styles, code);
-    scanLinks(line, markers, styles, code);
-  }
-  return { markers, styles };
-}
-
-/**
- * Scans a whole document. A viewport slice uses `scanBlockMarkers` with its
- * document offset instead; this helper covers tests and single-block callers.
- */
-export function scanTextMarkers(text: string): MarkerScan {
-  return scanBlockMarkers(text, 0);
-}
-
-/**
- * Whether a marker is revealed because the selection touches it.
- *
- * A collapsed cursor reveals the marker it sits in or at the edge of, so the
- * syntax appears as soon as the cursor enters it. A range selection reveals
- * every marker it overlaps, so a selection across hidden syntax keeps its
- * Markdown visible for copying.
- */
-export function isRevealed(
-  from: number,
-  to: number,
-  selectionFrom: number,
-  selectionTo: number,
-): boolean {
-  if (selectionFrom === selectionTo)
-    return from <= selectionFrom && selectionFrom <= to;
-  return from < selectionTo && to > selectionFrom;
-}
-
-/**
- * Splits markers into hidden and revealed sets for one selection.
- *
- * Task boxes and code ticks are always revealed: a checkbox must stay visible
- * to show its state, and code ticks mark editable source. All other markers
- * outside the selection are hidden.
- */
-export function partitionMarkers(
-  markers: readonly Marker[],
-  selectionFrom: number,
-  selectionTo: number,
-): {
-  readonly hidden: readonly Marker[];
-  readonly revealed: readonly Marker[];
-} {
-  const hidden: Marker[] = [];
-  const revealed: Marker[] = [];
-  for (const marker of markers) {
-    if (marker.kind === 'task' || marker.kind === 'code') {
-      revealed.push(marker);
-      continue;
-    }
-    if (isRevealed(marker.from, marker.to, selectionFrom, selectionTo))
-      revealed.push(marker);
-    else hidden.push(marker);
-  }
-  return { hidden, revealed };
-}
-
-/** The CSS class of one styled span. */
-function styleClass(span: StyledSpan): string {
-  if (span.kind === 'heading') {
-    const level = span.level ?? 1;
-    if (level <= 1) return 'cm-np-heading cm-np-h1';
-    if (level === 2) return 'cm-np-heading cm-np-h2';
-    return 'cm-np-heading cm-np-h3';
-  }
-  if (span.kind === 'emphasis') {
-    if (span.variant === 'bold') return 'cm-np-bold';
-    if (span.variant === 'strike') return 'cm-np-strike';
-    return 'cm-np-italic';
-  }
-  if (span.kind === 'link') return 'cm-np-link';
-  if (span.kind === 'code') return 'cm-np-code';
-  if (span.kind === 'code-block') return 'cm-np-code-block';
-  if (span.kind === 'quote') return 'cm-np-quote';
-  if (span.kind === 'task') return 'cm-np-taskbox';
-  return 'cm-np-list';
-}
-
-/** Replaces an unordered list marker with an accessible visual bullet. */
+/** Replaces a bullet with one consistent mark at every depth. */
 class BulletWidget extends WidgetType {
   toDOM(): HTMLElement {
     const span = document.createElement('span');
@@ -397,163 +123,653 @@ class BulletWidget extends WidgetType {
   }
 }
 
-/**
- * Builds the decoration set of one editor view.
- *
- * Only the visible ranges are scanned, after expanding each to full lines, so
- * a long note renders only its affected visible regions. Hidden markers use a
- * replaced decoration; revealed markers and styled spans use marks. The
- * document is never changed.
- */
-export function buildLivePreviewDecorations(view: EditorView): DecorationSet {
-  const builder = new RangeSetBuilder<Decoration>();
-  const selection = view.state.selection.main;
-  type Placed = { from: number; to: number; decoration: Decoration };
-  const placed: Placed[] = [];
-  for (const range of view.visibleRanges) {
-    const first = view.state.doc.lineAt(range.from);
-    const last = view.state.doc.lineAt(range.to);
-    const slice = view.state.doc.sliceString(first.from, last.to);
-    const scan = scanBlockMarkers(slice, first.from);
-    const { hidden, revealed } = partitionMarkers(
-      scan.markers,
-      selection.from,
-      selection.to,
-    );
-
-    for (const marker of hidden) {
-      if (marker.kind === 'list') {
-        const markerText = view.state.doc.sliceString(marker.from, marker.to);
-        const isOrdered = /^\d+[.)]$/.test(markerText);
-        if (isOrdered) {
-          placed.push({
-            from: marker.from,
-            to: marker.to,
-            decoration: Decoration.mark({ class: 'cm-np-list-number' }),
-          });
-        } else {
-          const line = view.state.doc.lineAt(marker.from);
-          const hasTask = /^( {0,3})[-+*][ \t]+\[[ xX]\]/.test(line.text);
-          if (hasTask) {
-            placed.push({
-              from: marker.from,
-              to: marker.to,
-              decoration: Decoration.replace({}),
-            });
-          } else {
-            placed.push({
-              from: marker.from,
-              to: marker.to,
-              decoration: Decoration.replace({ widget: new BulletWidget() }),
-            });
-          }
-        }
-      } else {
-        placed.push({
-          from: marker.from,
-          to: marker.to,
-          decoration: Decoration.replace({}),
-        });
-      }
-    }
-    for (const marker of revealed) {
-      const isOrdered =
-        marker.kind === 'list' &&
-        /^\d+[.)]$/.test(view.state.doc.sliceString(marker.from, marker.to));
-      placed.push({
-        from: marker.from,
-        to: marker.to,
-        decoration: Decoration.mark({
-          class: isOrdered ? 'cm-np-list-number' : 'cm-np-marker',
-        }),
-      });
-    }
-    for (const span of scan.styles) {
-      if (span.to > span.from)
-        placed.push({
-          from: span.from,
-          to: span.to,
-          decoration: Decoration.mark({ class: styleClass(span) }),
-        });
-    }
+/** Draws a thematic break in place of its source characters. */
+class RuleWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-np-rule';
+    span.setAttribute('role', 'separator');
+    return span;
   }
-  placed.sort((left, right) => left.from - right.from || left.to - right.to);
-  for (const item of placed) builder.add(item.from, item.to, item.decoration);
-  return builder.finish();
+
+  override eq(): boolean {
+    return true;
+  }
 }
 
-/** The preview styles. Colors follow CSS variables with neutral fallbacks. */
-const livePreviewTheme = EditorView.baseTheme({
-  '& .cm-np-heading': { fontWeight: '700' },
-  '& .cm-np-h1': { fontSize: 'var(--text-xl)' },
-  '& .cm-np-h2': { fontSize: 'var(--text-lg)' },
-  '& .cm-np-h3': { fontSize: 'var(--text-base)' },
-  '& .cm-np-bold': { fontWeight: '700' },
-  '& .cm-np-italic': { fontStyle: 'italic' },
-  '& .cm-np-strike': { textDecoration: 'line-through' },
-  '& .cm-np-code': {
-    fontFamily: 'var(--font-mono)',
-    backgroundColor: 'var(--notes-surface-hover)',
-    borderRadius: 'var(--radius-sm)',
-    paddingInline: 'calc(var(--spacing) * 0.5)',
-  },
-  '& .cm-np-code-block': {
-    fontFamily: 'var(--font-mono)',
-    backgroundColor: 'var(--notes-surface-hover)',
-    borderRadius: 'var(--radius-sm)',
-    boxDecorationBreak: 'clone',
-    paddingInline: 'calc(var(--spacing) * 1.5)',
-  },
-  '& .cm-np-quote': {
-    color: 'var(--notes-text-muted)',
-    fontStyle: 'italic',
-    borderLeft: '2px solid var(--notes-border-subtle)',
-    paddingLeft: 'calc(var(--spacing) * 2)',
-  },
-  '& .cm-np-link': {
-    color: 'var(--notes-accent-text)',
-    textDecoration: 'underline',
-  },
-  '& .cm-np-marker': { opacity: '0.55' },
-  '& .cm-np-bullet': {
-    color: 'var(--notes-accent-fill)',
-    fontWeight: '700',
-    display: 'inline-block',
-    paddingRight: 'calc(var(--spacing) * 1.5)',
-  },
-  '& .cm-np-list-number': {
-    color: 'var(--notes-text-muted)',
-    fontWeight: '600',
-    opacity: '0.85',
-  },
-  '& .cm-np-taskbox': { fontWeight: '700' },
-});
+/**
+ * A real checkbox for one task item.
+ *
+ * The widget carries the document position of its own `[ ]`, so a click
+ * toggles the task it belongs to and never the task of the current
+ * selection. A pointer, a touch, and the keyboard all reach the same
+ * command.
+ */
+class TaskCheckboxWidget extends WidgetType {
+  readonly position: number;
+  readonly checked: boolean;
+
+  constructor(position: number, checked: boolean) {
+    super();
+    this.position = position;
+    this.checked = checked;
+  }
+
+  override eq(other: TaskCheckboxWidget): boolean {
+    return other.position === this.position && other.checked === this.checked;
+  }
+
+  override ignoreEvent(): boolean {
+    return false;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'cm-np-task';
+    box.checked = this.checked;
+    box.setAttribute(
+      'aria-label',
+      this.checked ? 'Task done' : 'Task not done',
+    );
+    box.disabled = view.state.readOnly;
+    const toggle = (event: Event): void => {
+      event.preventDefault();
+      const spec = taskToggleAt(view.state, this.position);
+      if (spec === null) return;
+      view.dispatch(view.state.update(spec));
+    };
+    box.addEventListener('mousedown', toggle);
+    box.addEventListener('touchstart', toggle, { passive: false });
+    box.addEventListener('keydown', (event: KeyboardEvent): void => {
+      if (event.key === ' ' || event.key === 'Enter') toggle(event);
+    });
+    return box;
+  }
+}
+
+/**
+ * The nodes whose text is syntax rather than content.
+ *
+ * Removing them from a heading gives the words a reader sees, which is what
+ * the outline lists and what the reference renderer puts inside its heading
+ * element.
+ */
+const syntaxOnlyNodes = new Set([
+  'HeaderMark',
+  'EmphasisMark',
+  'StrikethroughMark',
+  'CodeMark',
+  'LinkMark',
+  'MathMark',
+  'URL',
+  'LinkTitle',
+  'CodeInfo',
+]);
+
+/**
+ * Whether a link or image hides its brackets.
+ *
+ * Only an inline link resolves from the tree alone. A bare `[word]` with no
+ * definition is plain text in CommonMark, and the Lezer parser still wraps
+ * it in a `Link` node, so hiding its brackets would remove characters that
+ * are really in the file.
+ */
+function hidesItsMarkers(owner: SyntaxNode | null): boolean {
+  if (owner === null) return false;
+  if (owner.name === 'Autolink') return true;
+  return (
+    (owner.name === 'Link' || owner.name === 'Image') &&
+    owner.getChild('URL') !== null
+  );
+}
+
+/** The reader visible text of one node range. */
+export function contentText(
+  state: EditorState,
+  from: number,
+  to: number,
+): string {
+  let text = '';
+  let at = from;
+  syntaxTree(state).iterate({
+    from,
+    to,
+    enter: (node) => {
+      if (!syntaxOnlyNodes.has(node.name)) return true;
+      if (node.name === 'LinkMark' && !hidesItsMarkers(node.node.parent))
+        return false;
+      if (node.from >= at) {
+        text += state.doc.sliceString(at, node.from);
+        at = node.to;
+      }
+      return false;
+    },
+  });
+  text += state.doc.sliceString(Math.max(at, from), to);
+  return text.replace(/\s+/g, ' ').trim();
+}
+
+/** Merges overlapping ranges so a line is decorated once. */
+function mergeRanges(ranges: readonly PreviewRange[]): PreviewRange[] {
+  const sorted = [...ranges].sort((left, right) => left.from - right.from);
+  const merged: PreviewRange[] = [];
+  for (const range of sorted) {
+    const last = merged[merged.length - 1];
+    if (last !== undefined && range.from <= last.to) {
+      merged[merged.length - 1] = {
+        from: last.from,
+        to: Math.max(last.to, range.to),
+      };
+      continue;
+    }
+    merged.push(range);
+  }
+  return merged;
+}
+
+/**
+ * Builds the preview decorations of one state over the given ranges.
+ *
+ * `ranges` are document ranges, normally the visible ranges of a view. They
+ * are expanded to whole lines and merged. `selection` decides which
+ * constructs show their source.
+ */
+export function buildPreview(
+  state: EditorState,
+  ranges: readonly PreviewRange[],
+  selection: PreviewRange,
+): PreviewBuild {
+  const doc = state.doc;
+  const items: Range<Decoration>[] = [];
+  const structure: PreviewNode[] = [];
+  const lineClasses = new Set<string>();
+  let visited = 0;
+
+  /** Whether the selection touches a range, edges included. */
+  const touches = (from: number, to: number): boolean =>
+    selection.from <= to && selection.to >= from;
+
+  /** Whether the selection touches the lines a range covers. */
+  const touchesLines = (from: number, to: number): boolean =>
+    touches(doc.lineAt(from).from, doc.lineAt(to).to);
+
+  const hide = (from: number, to: number): void => {
+    if (to > from) items.push(Decoration.replace({}).range(from, to));
+  };
+  const mark = (from: number, to: number, className: string): void => {
+    if (to > from)
+      items.push(Decoration.mark({ class: className }).range(from, to));
+  };
+  const dim = (from: number, to: number): void => {
+    mark(from, to, 'cm-np-marker');
+  };
+  const lineClass = (from: number, to: number, className: string): void => {
+    let pos = from;
+    for (;;) {
+      const line = doc.lineAt(pos);
+      const key = `${String(line.from)}:${className}`;
+      if (!lineClasses.has(key)) {
+        lineClasses.add(key);
+        items.push(Decoration.line({ class: className }).range(line.from));
+      }
+      if (line.to >= to || line.number >= doc.lines) break;
+      pos = line.to + 1;
+    }
+  };
+
+  const tree = syntaxTree(state);
+  const stack: string[] = [];
+  let alignments: readonly ColumnAlign[] = [];
+  let cellIndex = 0;
+
+  /** The nesting depth of the given container kind on the current stack. */
+  const depthOf = (...names: readonly string[]): number =>
+    stack.reduce(
+      (count, name) => (names.includes(name) ? count + 1 : count),
+      0,
+    );
+
+  /**
+   * Decides how one tree node looks.
+   *
+   * Returns true to walk into the children of the node, false to stop. Every
+   * decoration and every structure entry of one construct is produced here,
+   * so the two cannot describe different documents.
+   */
+  const visit = (node: SyntaxNodeRef, parent: string): boolean => {
+    const name = node.name;
+    const level = headingLevel(name);
+    if (level > 0) {
+      const markerLine = name.startsWith('ATX')
+        ? doc.lineAt(node.from)
+        : doc.lineAt(node.to);
+      const contentTo = name.startsWith('ATX')
+        ? node.to
+        : doc.lineAt(markerLine.from - 1).to;
+      lineClass(node.from, contentTo, `cm-np-heading cm-np-h${String(level)}`);
+      structure.push({
+        kind: 'heading',
+        level,
+        text: contentText(state, node.from, node.to),
+      });
+      return true;
+    }
+
+    if (name === 'HeaderMark') {
+      if (!parent.startsWith('ATXHeading')) return false;
+      if (touchesLines(node.from, node.to)) {
+        dim(node.from, node.to);
+        return false;
+      }
+      const line = doc.lineAt(node.from);
+      if (
+        node.from ===
+        line.from + (line.text.length - line.text.trimStart().length)
+      ) {
+        let end = node.to;
+        while (end < line.to && /[ \t]/.test(doc.sliceString(end, end + 1)))
+          end += 1;
+        hide(node.from, end);
+      } else {
+        let start = node.from;
+        while (
+          start > line.from &&
+          /[ \t]/.test(doc.sliceString(start - 1, start))
+        )
+          start -= 1;
+        hide(start, node.to);
+      }
+      return false;
+    }
+
+    if (
+      name === 'Emphasis' ||
+      name === 'StrongEmphasis' ||
+      name === 'Strikethrough'
+    ) {
+      mark(
+        node.from,
+        node.to,
+        name === 'Emphasis'
+          ? 'cm-np-italic'
+          : name === 'StrongEmphasis'
+            ? 'cm-np-bold'
+            : 'cm-np-strike',
+      );
+      return true;
+    }
+
+    if (name === 'EmphasisMark' || name === 'StrikethroughMark') {
+      const owner = node.node.parent;
+      if (owner !== null && touches(owner.from, owner.to))
+        dim(node.from, node.to);
+      else hide(node.from, node.to);
+      return false;
+    }
+
+    if (name === 'InlineCode') {
+      mark(node.from, node.to, 'cm-np-code');
+      return true;
+    }
+
+    if (name === 'CodeMark') {
+      if (parent === 'InlineCode') {
+        const owner = node.node.parent;
+        if (owner !== null && touches(owner.from, owner.to))
+          dim(node.from, node.to);
+        else hide(node.from, node.to);
+        return false;
+      }
+      dim(node.from, node.to);
+      return false;
+    }
+
+    if (name === 'CodeInfo') {
+      mark(node.from, node.to, 'cm-np-code-info');
+      return false;
+    }
+
+    if (name === 'FencedCode' || name === 'CodeBlock') {
+      const info =
+        name === 'FencedCode'
+          ? (() => {
+              const first = node.node.getChild('CodeInfo');
+              return first === null
+                ? ''
+                : doc.sliceString(first.from, first.to).trim();
+            })()
+          : '';
+      structure.push({ kind: 'code-block', info });
+      lineClass(node.from, node.to, 'cm-np-code-block-line');
+      return true;
+    }
+
+    if (name === 'HorizontalRule') {
+      structure.push({ kind: 'thematic-break' });
+      lineClass(node.from, node.to, 'cm-np-rule-line');
+      if (!touchesLines(node.from, node.to))
+        items.push(
+          Decoration.replace({ widget: new RuleWidget() }).range(
+            node.from,
+            node.to,
+          ),
+        );
+      return false;
+    }
+
+    if (name === 'Blockquote') {
+      // The node is pushed on the stack only after this returns, so the
+      // depth of the node itself is one more than the stack reports.
+      const depth = depthOf('Blockquote') + 1;
+      structure.push({ kind: 'quote', depth });
+      lineClass(
+        node.from,
+        node.to,
+        `cm-np-quote cm-np-quote-${String(Math.min(depth, 4))}`,
+      );
+      return true;
+    }
+
+    if (name === 'QuoteMark') {
+      if (touchesLines(node.from, node.to)) dim(node.from, node.to);
+      else {
+        let end = node.to;
+        const line = doc.lineAt(node.from);
+        if (end < line.to && doc.sliceString(end, end + 1) === ' ') end += 1;
+        hide(node.from, end);
+      }
+      return false;
+    }
+
+    if (name === 'ListItem') {
+      structure.push({
+        kind: 'list-item',
+        depth: depthOf('BulletList', 'OrderedList'),
+        ordered: parent === 'OrderedList',
+      });
+      return true;
+    }
+
+    if (name === 'ListMark') {
+      const text = doc.sliceString(node.from, node.to);
+      if (/^\d+[.)]$/.test(text)) {
+        mark(node.from, node.to, 'cm-np-list-number');
+        return false;
+      }
+      if (touchesLines(node.from, node.to)) {
+        dim(node.from, node.to);
+        return false;
+      }
+      const item = node.node.parent;
+      const hasTask = item !== null && item.getChild('Task') !== null;
+      items.push(
+        (hasTask
+          ? Decoration.replace({})
+          : Decoration.replace({ widget: new BulletWidget() })
+        ).range(node.from, node.to),
+      );
+      return false;
+    }
+
+    if (name === 'Task') {
+      const marker = node.node.getChild('TaskMarker');
+      const checked =
+        marker !== null &&
+        /[xX]/.test(doc.sliceString(marker.from + 1, marker.to - 1));
+      structure.push({ kind: 'task', checked });
+      return true;
+    }
+
+    if (name === 'TaskMarker') {
+      const checked = /[xX]/.test(doc.sliceString(node.from + 1, node.to - 1));
+      if (touchesLines(node.from, node.to)) {
+        mark(node.from, node.to, 'cm-np-task-source');
+        return false;
+      }
+      items.push(
+        Decoration.replace({
+          widget: new TaskCheckboxWidget(node.from, checked),
+        }).range(node.from, node.to),
+      );
+      return false;
+    }
+
+    if (name === 'Table') {
+      const table = node.node;
+      let rows = 0;
+      let columns = 0;
+      alignments = [];
+      for (
+        let child = table.firstChild;
+        child !== null;
+        child = child.nextSibling
+      ) {
+        if (child.name === 'TableHeader') {
+          rows += 1;
+          columns = child.getChildren('TableCell').length;
+        } else if (child.name === 'TableRow') {
+          rows += 1;
+        } else if (child.name === 'TableDelimiter') {
+          alignments = tableAlignments(doc.sliceString(child.from, child.to));
+          lineClass(child.from, child.to, 'cm-np-table-align');
+        }
+      }
+      structure.push({ kind: 'table', rows, columns });
+      lineClass(node.from, node.to, 'cm-np-table-line');
+      return true;
+    }
+
+    if (name === 'TableHeader' || name === 'TableRow') {
+      cellIndex = 0;
+      return true;
+    }
+
+    if (name === 'TableCell') {
+      const align = alignments[cellIndex] ?? null;
+      cellIndex += 1;
+      const header = parent === 'TableHeader';
+      const classes = [
+        header ? 'cm-np-table-head' : 'cm-np-table-cell',
+        align === null ? '' : `cm-np-align-${align}`,
+      ]
+        .filter((part) => part !== '')
+        .join(' ');
+      mark(node.from, node.to, classes);
+      return true;
+    }
+
+    if (name === 'TableDelimiter') {
+      dim(node.from, node.to);
+      return false;
+    }
+
+    if (name === 'Image') {
+      mark(node.from, node.to, 'cm-np-image');
+      return true;
+    }
+
+    if (name === 'Link') {
+      const text = doc.sliceString(node.from, Math.min(node.to, node.from + 2));
+      if (text === '[^') {
+        mark(node.from, node.to, 'cm-np-footnote');
+        return false;
+      }
+      const link = node.node;
+      // A bare `[word]` with no definition is plain text, so it is left
+      // exactly as written.
+      if (link.getChild('URL') === null && link.getChild('LinkLabel') === null)
+        return false;
+      mark(node.from, node.to, 'cm-np-link');
+      return true;
+    }
+
+    if (name === 'LinkReference') {
+      lineClass(node.from, node.to, 'cm-np-link-definition');
+      return true;
+    }
+
+    if (name === 'Autolink') {
+      mark(node.from, node.to, 'cm-np-link');
+      return true;
+    }
+
+    if (name === 'LinkMark') {
+      const owner = node.node.parent;
+      if (owner === null || owner.name === 'LinkReference') return false;
+      if (!hidesItsMarkers(owner) || touches(owner.from, owner.to))
+        dim(node.from, node.to);
+      else hide(node.from, node.to);
+      return false;
+    }
+
+    if (name === 'URL' || name === 'LinkTitle' || name === 'LinkLabel') {
+      const owner = node.node.parent;
+      // Inside a link or an image the target is chrome and hides. Anywhere
+      // else, including inside an autolink, the URL is the visible text.
+      // Inside an autolink the URL is the visible text, and the mark on the
+      // autolink node already styles it.
+      if (owner !== null && owner.name === 'Autolink') return false;
+      if (hidesItsMarkers(owner)) {
+        if (owner !== null && touches(owner.from, owner.to))
+          dim(node.from, node.to);
+        else hide(node.from, node.to);
+        return false;
+      }
+      if (owner !== null && (owner.name === 'Link' || owner.name === 'Image')) {
+        dim(node.from, node.to);
+        return false;
+      }
+      if (owner === null || owner.name !== 'LinkReference')
+        mark(node.from, node.to, 'cm-np-link');
+      return false;
+    }
+
+    if (name === 'HardBreak') {
+      mark(node.from, node.to, 'cm-np-hard-break');
+      return false;
+    }
+
+    if (
+      name === 'HTMLBlock' ||
+      name === 'HTMLTag' ||
+      name === 'Comment' ||
+      name === 'CommentBlock' ||
+      name === 'ProcessingInstruction' ||
+      name === 'ProcessingInstructionBlock'
+    ) {
+      mark(node.from, node.to, 'cm-np-html');
+      return false;
+    }
+
+    if (name === 'Paragraph') {
+      const first = node.node.firstChild;
+      if (
+        first !== null &&
+        first.name === 'Link' &&
+        first.from === node.from &&
+        doc.sliceString(node.from, node.from + 2) === '[^' &&
+        doc.sliceString(first.to, first.to + 1) === ':'
+      )
+        lineClass(node.from, node.to, 'cm-np-footnote-definition');
+      return true;
+    }
+
+    return true;
+  };
+
+  for (const range of mergeRanges(
+    ranges.map((item) => ({
+      from: doc.lineAt(item.from).from,
+      to: doc.lineAt(Math.min(item.to, doc.length)).to,
+    })),
+  )) {
+    tree.iterate({
+      from: range.from,
+      to: range.to,
+      // The tree walk calls `leave` only for a node whose `enter` returned
+      // true, so the stack is pushed at the one place that returns.
+      enter: (node) => {
+        visited += 1;
+        const descend = visit(node, stack[stack.length - 1] ?? '');
+        if (descend) stack.push(node.name);
+        return descend;
+      },
+      leave: () => {
+        stack.pop();
+      },
+    });
+  }
+
+  return { decorations: Decoration.set(items, true), structure, visited };
+}
+
+/**
+ * The structure the preview would decorate for one Markdown document.
+ *
+ * This is the offline entry point of the preview: it builds a state with
+ * the note language, parses the whole document, and returns the structure
+ * the decoration builder reported. The equivalence gate compares the result
+ * with the reference renderer, so both readers of a note must agree.
+ *
+ * A view parses at least its viewport before it renders. A headless state
+ * parses in slices and keeps the result in its parse context, so the loop
+ * below pumps that work into the state field until the tree covers the
+ * document.
+ */
+export function previewStructureOf(doc: string): readonly PreviewNode[] {
+  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  for (
+    let attempt = 0;
+    attempt < 500 && syntaxTree(state).length < state.doc.length;
+    attempt += 1
+  ) {
+    ensureSyntaxTree(state, state.doc.length, 5000);
+    state = state.update({}).state;
+  }
+  // A selection outside the document reveals nothing, so every construct is
+  // reported in its rendered form.
+  return buildPreview(state, [{ from: 0, to: state.doc.length }], {
+    from: -1,
+    to: -1,
+  }).structure;
+}
 
 /**
  * The live preview extension.
  *
- * Recomputes decorations when the document, the selection, or the viewport
- * changes. Nothing here dispatches a document change, so undo history, IME
- * composition, and the selection survive decoration updates.
+ * Decorations are rebuilt when the document, the selection, or the viewport
+ * changes, and only for the visible ranges. Nothing here dispatches a
+ * document change, so undo history, IME composition, and the selection
+ * survive every rebuild.
  */
 export function livePreview(): Extension {
-  const plugin = ViewPlugin.fromClass(
+  return ViewPlugin.fromClass(
     class {
       decorations: DecorationSet;
+
       constructor(view: EditorView) {
-        this.decorations = buildLivePreviewDecorations(view);
+        this.decorations = buildPreview(
+          view.state,
+          view.visibleRanges,
+          view.state.selection.main,
+        ).decorations;
       }
-      update(update: {
-        readonly docChanged: boolean;
-        readonly selectionSet: boolean;
-        readonly viewportChanged: boolean;
-        readonly view: EditorView;
-      }): void {
-        if (update.docChanged || update.selectionSet || update.viewportChanged)
-          this.decorations = buildLivePreviewDecorations(update.view);
+
+      update(update: ViewUpdate): void {
+        if (
+          !update.docChanged &&
+          !update.selectionSet &&
+          !update.viewportChanged
+        )
+          return;
+        this.decorations = buildPreview(
+          update.view.state,
+          update.view.visibleRanges,
+          update.view.state.selection.main,
+        ).decorations;
       }
     },
     { decorations: (value) => value.decorations },
   );
-  return [plugin, livePreviewTheme];
 }

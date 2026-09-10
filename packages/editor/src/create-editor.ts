@@ -10,16 +10,21 @@
  * content survive them.
  */
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
-import { markdown } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import {
   EditorView,
+  highlightActiveLine,
   keymap,
   placeholder,
   type ViewUpdate,
 } from '@codemirror/view';
 import {
-  findTaskBox,
+  EditorView,
+  highlightActiveLine,
+  keymap,
+  type ViewUpdate,
+} from '@codemirror/view';
+import {
   headingSpec,
   linkTargetAt,
   toggleTaskSpec,
@@ -27,6 +32,8 @@ import {
   type LinkTarget,
 } from './commands.ts';
 import { editorCommands } from './extensions.ts';
+import { editorTheme } from './editor-theme.ts';
+import { noteMarkdownExtensions } from './language.ts';
 import { livePreview } from './live-preview.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
@@ -57,13 +64,6 @@ function linkAtCursor(view: EditorView): LinkTarget | null {
   return linkTargetAt(view.state.doc.toString(), position);
 }
 
-/** Whether the position sits inside the task box of its line. */
-function positionInTaskBox(view: EditorView, position: number): boolean {
-  const line = view.state.doc.lineAt(position);
-  const box = findTaskBox(line.text, line.from);
-  return box !== null && position >= box.from && position <= box.to;
-}
-
 /** The theme compartment, so palette changes never rebuild the editor. */
 const themeCompartment = new Compartment();
 
@@ -73,39 +73,24 @@ const richCompartment = new Compartment();
 /** The access compartment, so a loaded role can unlock the same editor. */
 const readOnlyCompartment = new Compartment();
 
-/** Editor chrome for one palette. */
-function themeExtension(theme: 'light' | 'dark'): Extension {
-  return EditorView.theme(
-    {
-      '&': {
-        backgroundColor: 'var(--notes-bg)',
-        color: 'var(--notes-text)',
-        fontSize: 'var(--text-ui)',
-        lineHeight: 'var(--text-ui--line-height)',
-        minHeight: 'calc(var(--spacing) * 96)',
-      },
-      '.cm-scroller': {
-        fontFamily: 'var(--font-sans)',
-        paddingBlock: 'calc(var(--spacing) * 4)',
-      },
-      '.cm-content': {
-        caretColor: 'var(--notes-focus)',
-        maxWidth: 'calc(var(--spacing) * 192)',
-        marginInline: 'auto',
-        paddingInline: 'calc(var(--spacing) * 4)',
-      },
-      '.cm-line': { paddingInline: 'calc(var(--spacing) * 1)' },
-      '.cm-cursor': {
-        borderLeftColor: 'var(--notes-focus)',
-      },
-      '&.cm-focused': { outline: 'none' },
-      '.cm-activeLine': {
-        backgroundColor:
-          'color-mix(in srgb, var(--notes-focus) 8%, transparent)',
-      },
-    },
-    { dark: theme === 'dark' },
-  );
+/**
+ * The live preview half of the editor.
+ *
+ * Everything that decides how Markdown looks is composed here, in order:
+ * the language and its code colors, the decoration layer, and the block
+ * widget layer inside its compartment. Other composition (keymaps, search,
+ * completion, paste) is added next to this call, never inside it.
+ */
+export function livePreviewExtensions(
+  resolvers: RichWidgetResolvers,
+): Extension {
+  return [
+    noteMarkdownExtensions(),
+    livePreview(),
+    richCompartment.of(richWidgets(resolvers)),
+    highlightActiveLine(),
+    EditorView.lineWrapping,
+  ];
 }
 
 /** The line an empty note shows until the person types. */
@@ -160,12 +145,9 @@ export function createEditor(
     doc: initialText,
     extensions: [
       history(),
-      markdown(),
-      livePreview(),
-      richCompartment.of(richWidgets(options.rich ?? {})),
-      EditorView.lineWrapping,
+      livePreviewExtensions(options.rich ?? {}),
       placeholder(emptyNoteHint),
-      themeCompartment.of(themeExtension(options.theme ?? 'dark')),
+      themeCompartment.of(editorTheme(options.theme ?? 'dark')),
       saveKeymap,
       editorCommands(),
       keymap.of([...defaultKeymap, ...historyKeymap]),
@@ -180,14 +162,6 @@ export function createEditor(
             y: event.clientY,
           });
           if (position === null || position === undefined) return false;
-          if (!view.state.readOnly && positionInTaskBox(view, position)) {
-            const spec = toggleTaskSpec(view.state);
-            if (spec === null) return false;
-            view.dispatch(view.state.update(spec));
-            view.focus();
-            event.preventDefault();
-            return true;
-          }
           const withModifier = event.metaKey || event.ctrlKey;
           const isTouchAction =
             target?.getAttribute('data-notesapp-touch-link') === 'true';
@@ -202,6 +176,9 @@ export function createEditor(
           return false;
         },
       }),
+      // The content element carries the accessible name. The wrapper around
+      // it must not declare a second text box (UI-26, MD-19).
+      EditorView.contentAttributes.of({ 'aria-label': 'Note text' }),
       readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
     ],
   });
@@ -222,7 +199,7 @@ export function setEditorTheme(
   theme: 'light' | 'dark',
 ): void {
   view.dispatch({
-    effects: themeCompartment.reconfigure(themeExtension(theme)),
+    effects: themeCompartment.reconfigure(editorTheme(theme)),
   });
   view.dom.setAttribute('data-notesapp-theme', theme);
 }

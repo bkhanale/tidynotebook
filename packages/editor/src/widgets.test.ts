@@ -1,108 +1,239 @@
 /**
- * Rich widget scanning checks.
+ * Widget checks.
  *
- * These tests assert exact source boundaries and prove the original text is
- * untouched. Rendering itself needs a browser document, so failure paths are
- * covered through the pure helpers: oversized regions stay source, unknown
- * tables stay source, and code spans never become widgets. Manual focus and
- * source editing checks happen during development; see `widgets.ts`.
+ * Two things are tested here. The region finder, which reads the syntax tree
+ * and decides which ranges become widgets, and the view model, which decides
+ * what one widget shows. Both are pure, so no DOM is needed. The element
+ * builder in `./widgets.ts` is a direct translation of the view model.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
+import { EditorState } from '@codemirror/state';
+import { noteMarkdown } from './language.ts';
 import {
-  findRichWidgets,
-  parseTableSource,
+  attachmentIdOf,
+  buildRichWidgets,
+  findRichRegions,
   richLimits,
   shouldPreserveAsSource,
+  widgetView,
   type RichWidget,
 } from './widgets.ts';
 
-/** Finds the single widget of one kind, or fails with its kinds. */
-function single(
-  widgets: readonly RichWidget[],
-  kind: RichWidget['kind'],
-): RichWidget {
-  const found = widgets.filter((widget) => widget.kind === kind);
-  assert.equal(
-    found.length,
-    1,
-    `expected one ${kind}, found ${found.map((widget) => widget.kind).join(',')}`,
-  );
-  const first = found[0];
-  assert.ok(first !== undefined);
-  return first;
+/** Builds a state whose whole document is parsed. */
+function stateOf(doc: string, selection?: number): EditorState {
+  let state = EditorState.create({
+    doc,
+    extensions: [noteMarkdown()],
+    ...(selection === undefined
+      ? {}
+      : { selection: { anchor: selection, head: selection } }),
+  });
+  for (
+    let attempt = 0;
+    attempt < 200 && syntaxTree(state).length < state.doc.length;
+    attempt += 1
+  ) {
+    ensureSyntaxTree(state, state.doc.length, 5000);
+    state = state.update({}).state;
+  }
+  return state;
 }
 
-await test('an inline image reports its exact range', () => {
-  const text = 'See ![alt](/attachments/abc) here.';
-  const widget = single(findRichWidgets(text), 'image');
-  assert.equal(text.slice(widget.from, widget.to), '![alt](/attachments/abc)');
-  assert.equal(widget.source, '![alt](/attachments/abc)');
+const attachment = '/attachments/0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
+
+await test('an attachment image alone on its line is a block region', () => {
+  const doc = `text\n\n![shot](${attachment})\n\nmore\n`;
+  const [region, ...rest] = findRichRegions(stateOf(doc, 0));
+  assert.equal(rest.length, 0);
+  assert.equal(region?.kind, 'image');
+  assert.equal(region?.block, true);
+  assert.equal(region?.content, 'shot');
+  assert.equal(region?.destination, attachment);
+  // The range covers the whole line, which is what a block widget needs.
+  assert.equal(doc.slice(region?.from, region?.to), `![shot](${attachment})`);
 });
 
-await test('an image inside code never becomes a widget', () => {
-  const fenced = '```\n![alt](/attachments/abc)\n```';
-  assert.ok(findRichWidgets(fenced).every((widget) => widget.kind !== 'image'));
-  const span = 'Use `![alt](/attachments/abc)` here.';
-  assert.ok(findRichWidgets(span).every((widget) => widget.kind !== 'image'));
+await test('an image inside a sentence stays an inline region', () => {
+  const doc = `see ![shot](${attachment}) here\n`;
+  const [region] = findRichRegions(stateOf(doc, 0));
+  assert.equal(region?.block, false);
 });
 
-await test('inline and display math report exact ranges', () => {
-  const text = 'Pay $x^2$ now.\n\n$$y^2$$\n';
-  const widgets = findRichWidgets(text);
-  const inline = single(widgets, 'math-inline');
-  assert.equal(text.slice(inline.from, inline.to), '$x^2$');
-  const display = single(widgets, 'math-display');
-  assert.equal(text.slice(display.from, display.to), '$$y^2$$');
+await test('an external image is its own kind and never loads by itself', () => {
+  const doc = '![alt](https://example.invalid/x.png)\n';
+  const [region] = findRichRegions(stateOf(doc, 0));
+  assert.equal(region?.kind, 'image-external');
+  assert.ok(region !== undefined);
+  const view = widgetView(region, {}, () => false);
+  assert.equal(view.kind, 'image-placeholder');
+  if (view.kind === 'image-placeholder') {
+    assert.ok(view.label.includes('https://example.invalid/x.png'));
+    assert.equal(view.action, 'Load');
+  }
 });
 
-await test('a mermaid fence reports from its opener to its closer', () => {
-  const text = 'Before.\n\n```mermaid\ngraph TD;\n  A-->B;\n```\n\nAfter.';
-  const widget = single(findRichWidgets(text), 'diagram');
-  assert.equal(text.slice(widget.from, widget.to), widget.source);
-  assert.ok(widget.source.startsWith('```mermaid'));
-  assert.ok(widget.source.trimEnd().endsWith('```'));
+await test('an external image renders once the reader pressed Load', () => {
+  const doc = '![alt](https://example.invalid/x.png)\n';
+  const [region] = findRichRegions(stateOf(doc, 0));
+  assert.ok(region !== undefined);
+  const view = widgetView(region, {}, () => true);
+  assert.equal(view.kind, 'image');
+  if (view.kind === 'image') {
+    assert.equal(view.url, 'https://example.invalid/x.png');
+    assert.equal(view.external, true);
+  }
 });
 
-await test('an unclosed fence reports no diagram widget', () => {
-  const text = '```mermaid\ngraph TD;\n  A-->B;\n';
-  assert.ok(findRichWidgets(text).every((widget) => widget.kind !== 'diagram'));
+await test('a mermaid fence is a diagram region and other fences are not', () => {
+  const doc =
+    '```mermaid\ngraph TD;\n  A-->B;\n```\n\n```js\nconst a = 1;\n```\n';
+  const regions = findRichRegions(stateOf(doc, 0));
+  assert.equal(regions.length, 1);
+  assert.equal(regions[0]?.kind, 'diagram');
+  assert.equal(regions[0]?.block, true);
+  assert.equal(regions[0]?.content, 'graph TD;\n  A-->B;');
 });
 
-await test('a table reports one range over its rows', () => {
-  const text = '| A | B |\n|---|---|\n| 1 | 2 |\n| 3 | 4 |\n';
-  const widget = single(findRichWidgets(text), 'table');
-  assert.equal(text.slice(widget.from, widget.to), widget.source);
-  const parsed = parseTableSource(widget.source);
-  assert.ok(parsed !== null);
-  assert.deepEqual(parsed.header, ['A', 'B']);
-  assert.equal(parsed.rows.length, 2);
+await test('display math is a block region and inline math is not', () => {
+  const doc = 'a $$x^2$$ b\n\n$$\n\\int_0^1 x\n$$\n';
+  const regions = findRichRegions(stateOf(doc, 0));
+  assert.deepEqual(
+    regions.map((region) => [region.kind, region.block, region.content]),
+    [
+      ['math-inline', false, 'x^2'],
+      ['math-display', true, '\\int_0^1 x'],
+    ],
+  );
 });
 
-await test('a non table with pipes parses to null and stays source', () => {
-  assert.equal(parseTableSource('| A | B |\n| plain | text |\n'), null);
-  assert.equal(parseTableSource('just text'), null);
+await test('the LaTeX parentheses form is inline math as well', () => {
+  const doc = 'a \\(x^2\\) b\n';
+  const [region] = findRichRegions(stateOf(doc, 0));
+  assert.equal(region?.kind, 'math-inline');
+  assert.equal(region?.content, 'x^2');
 });
 
-await test('an oversized region is preserved as editable source', () => {
-  const big = `$$${'x'.repeat(richLimits.maxMathChars + 1)}$$`;
-  const widget = single(findRichWidgets(big), 'math-display');
-  assert.ok(shouldPreserveAsSource(widget));
-  const tall = `${'| A |\n|---|\n'}${'| x |\n'.repeat(richLimits.maxTableRows + 1)}`;
-  const table = single(findRichWidgets(tall), 'table');
-  assert.ok(shouldPreserveAsSource(table));
+await test('one dollar is money and never math', () => {
+  const doc = 'It costs $5 and $10 today.\n';
+  assert.deepEqual(findRichRegions(stateOf(doc, 0)), []);
 });
 
-await test('an ordinary region renders rather than staying source', () => {
-  const text = 'See $x$ here.';
-  const widget = single(findRichWidgets(text), 'math-inline');
-  assert.equal(shouldPreserveAsSource(widget), false);
+await test('a widget the selection touches is dropped so its source shows', () => {
+  const doc = `text\n\n![shot](${attachment})\n\nmore\n`;
+  const away = buildRichWidgets(stateOf(doc, 0), {});
+  let count = 0;
+  away.decorations.between(0, doc.length, () => {
+    count += 1;
+  });
+  assert.equal(count, 1);
+  const inside = buildRichWidgets(stateOf(doc, 10), {});
+  let insideCount = 0;
+  inside.decorations.between(0, doc.length, () => {
+    insideCount += 1;
+  });
+  assert.equal(insideCount, 0);
 });
 
-await test('scanning leaves the source string untouched', () => {
-  const text =
-    '# T\n\nSee ![a](/attachments/b) and $x$.\n\n```mermaid\nA\n```\n';
-  const before = text;
-  findRichWidgets(text);
-  assert.equal(text, before);
+await test('the remaining widgets are declared as atomic ranges', () => {
+  const doc = `![shot](${attachment})\n\ntail\n`;
+  const set = buildRichWidgets(stateOf(doc, doc.length), {});
+  const atomic: Array<[number, number]> = [];
+  set.atomic.between(0, doc.length, (from, to) => {
+    atomic.push([from, to]);
+  });
+  assert.deepEqual(atomic, [[0, doc.indexOf('\n')]]);
+});
+
+await test('a setext underline is hidden together with the break above it', () => {
+  const doc = 'Title\n=====\n\ntail\n';
+  const set = buildRichWidgets(stateOf(doc, doc.length), {});
+  const hidden: Array<[number, number]> = [];
+  set.decorations.between(0, doc.length, (from, to) => {
+    hidden.push([from, to]);
+  });
+  assert.deepEqual(hidden, [[5, 11]]);
+  // A cursor on either line brings the underline back.
+  const revealed = buildRichWidgets(stateOf(doc, 2), {});
+  let count = 0;
+  revealed.decorations.between(0, doc.length, () => {
+    count += 1;
+  });
+  assert.equal(count, 0);
+});
+
+await test('the attachment reader accepts only the attachment path', () => {
+  assert.equal(attachmentIdOf('/attachments/abc'), 'abc');
+  assert.equal(attachmentIdOf('https://example.com/attachments/abc'), null);
+  assert.equal(attachmentIdOf('/attachments/abc/extra'), null);
+});
+
+await test('an oversized region stays source with a message', () => {
+  const widget: RichWidget = {
+    from: 0,
+    to: 10,
+    kind: 'math-display',
+    source: '$$\n$$',
+    content: 'x'.repeat(richLimits.maxMathChars + 1),
+    destination: '',
+    block: true,
+  };
+  assert.equal(shouldPreserveAsSource(widget), true);
+  const view = widgetView(
+    widget,
+    { renderMath: () => '<span></span>' },
+    () => false,
+  );
+  assert.equal(view.kind, 'source');
+});
+
+await test('math that throws keeps its source instead of a broken preview', () => {
+  const widget: RichWidget = {
+    from: 0,
+    to: 7,
+    kind: 'math-inline',
+    source: '$$x^2$$',
+    content: 'x^2',
+    destination: '',
+    block: false,
+  };
+  const view = widgetView(
+    widget,
+    {
+      renderMath: () => {
+        throw new Error('refused');
+      },
+    },
+    () => false,
+  );
+  assert.equal(view.kind, 'source');
+  if (view.kind === 'source') assert.equal(view.source, '$$x^2$$');
+});
+
+await test('a missing resolver says so and keeps the source', () => {
+  const widget: RichWidget = {
+    from: 0,
+    to: 7,
+    kind: 'math-inline',
+    source: '$$x^2$$',
+    content: 'x^2',
+    destination: '',
+    block: false,
+  };
+  const view = widgetView(widget, {}, () => false);
+  assert.equal(view.kind, 'source');
+  if (view.kind === 'source') assert.match(view.message, /loading/);
+});
+
+await test('an attachment whose bytes are missing keeps its source', () => {
+  const doc = `![shot](${attachment})\n`;
+  const [region] = findRichRegions(stateOf(doc, doc.length));
+  assert.ok(region !== undefined);
+  const view = widgetView(
+    region,
+    { resolveAttachment: () => null },
+    () => false,
+  );
+  assert.equal(view.kind, 'source');
 });

@@ -182,18 +182,7 @@ const allowedElements = new Map<string, ReadonlySet<string>>([
     ]),
   ],
   ['path', new Set(['class', 'style', 'd'])],
-  [
-    'line',
-    new Set([
-      'class',
-      'style',
-      'x1',
-      'y1',
-      'x2',
-      'y2',
-      'stroke-width',
-    ]),
-  ],
+  ['line', new Set(['class', 'style', 'x1', 'y1', 'x2', 'y2', 'stroke-width'])],
 ]);
 
 /**

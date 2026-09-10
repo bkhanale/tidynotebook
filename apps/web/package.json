@@ -23,6 +23,7 @@
     "@notesapp/storage-browser": "workspace:*",
     "@notesapp/sync": "workspace:*",
     "@notesapp/ui": "workspace:*",
+    "katex": "0.18.5",
     "mermaid": "11.17.2",
     "react": "19.2.8",
     "react-dom": "19.2.8",

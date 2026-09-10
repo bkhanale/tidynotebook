@@ -75,9 +75,7 @@ export type DisplayMathFence = {
  * not hold a dollar sign, which is what keeps `$$x^2$$` inline math rather
  * than an empty display block.
  */
-export function openingDisplayMathFence(
-  line: string,
-): DisplayMathFence | null {
+export function openingDisplayMathFence(line: string): DisplayMathFence | null {
   const indent = leadingSpaces(line);
   if (indent > maxBlockIndent) return null;
   let mark = indent;

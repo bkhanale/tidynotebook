@@ -1,240 +1,417 @@
 /**
- * Live preview decorations and editor transactions.
+ * Live preview decoration checks.
  *
- * The scan tests check exact source ranges and prove the original text is
- * untouched. The transaction tests apply specs to a real `EditorState` and
- * check the resulting document, so undo grouping and selection behavior rest
- * on CodeMirror itself rather than on a mock.
+ * The decorations come from the Markdown syntax tree, so these tests build a
+ * real `EditorState` with the note language and read the decoration set. No
+ * DOM is needed: a decoration is data until a view renders it, and the two
+ * widgets that do build DOM are checked through their range and their kind
+ * rather than through their element.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { markdown } from '@codemirror/lang-markdown';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
+import { noteMarkdown } from './language.ts';
 import {
-  findTaskBox,
-  headingSpec,
-  linkTargetAt,
-  toggleTaskSpec,
-} from './commands.ts';
-import {
-  isRevealed,
-  partitionMarkers,
-  scanBlockMarkers,
-  scanTextMarkers,
+  buildPreview,
+  headingLevel,
+  tableAlignments,
+  type PreviewNode,
 } from './live-preview.ts';
 
-await test('heading markers cover the hash run and style the text', () => {
-  const text = '## Shopping list';
-  const scan = scanTextMarkers(text);
-  assert.deepEqual(scan.markers, [{ from: 0, to: 2, kind: 'heading' }]);
-  assert.equal(scan.styles.length, 1);
-  const style = scan.styles[0];
-  assert.equal(style?.kind, 'heading');
-  assert.equal(style?.level, 2);
-  assert.equal(text.slice(style?.from ?? 0, style?.to ?? 0), 'Shopping list');
-});
+/**
+ * Builds a state whose whole document is parsed.
+ *
+ * A view parses at least its viewport before it renders, so the preview
+ * reads a ready tree there. A headless state parses in slices and keeps the
+ * result in its parse context, so the loop below pumps that work into the
+ * state field until the tree covers the document.
+ */
+function stateOf(doc: string): EditorState {
+  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  for (
+    let attempt = 0;
+    attempt < 200 && syntaxTree(state).length < state.doc.length;
+    attempt += 1
+  ) {
+    ensureSyntaxTree(state, state.doc.length, 5000);
+    state = state.update({}).state;
+  }
+  return state;
+}
 
-await test('a fenced block uses code style and does not parse headings', () => {
-  const text = '```\n## not a heading\n```';
-  const scan = scanTextMarkers(text);
-  assert.ok(
-    scan.markers.every((marker) => marker.kind === 'code'),
-    'only fence markers are reported',
+/** One decoration, described as text so a test can assert on it. */
+type Described = {
+  readonly from: number;
+  readonly to: number;
+  readonly kind: 'line' | 'mark' | 'hide' | 'widget';
+  readonly value: string;
+};
+
+/**
+ * Lists the decorations of one document with the given selection.
+ *
+ * The default selection sits on the empty last line, away from every
+ * construct, because a cursor on a line is what reveals that line.
+ */
+function describe(
+  doc: string,
+  selection: { from: number; to: number } = {
+    from: doc.length,
+    to: doc.length,
+  },
+): readonly Described[] {
+  const state = stateOf(doc);
+  const built = buildPreview(
+    state,
+    [{ from: 0, to: state.doc.length }],
+    selection,
   );
-  assert.deepEqual(scan.styles, [{ from: 4, to: 20, kind: 'code-block' }]);
+  const found: Described[] = [];
+  built.decorations.between(0, state.doc.length, (from, to, value) => {
+    const spec = value.spec as {
+      class?: string;
+      widget?: { constructor: { name: string } };
+    };
+    if (spec.widget !== undefined)
+      found.push({
+        from,
+        to,
+        kind: 'widget',
+        value: spec.widget.constructor.name,
+      });
+    else if (spec.class === undefined)
+      found.push({ from, to, kind: 'hide', value: '' });
+    else
+      found.push({
+        from,
+        to,
+        kind: from === to ? 'line' : 'mark',
+        value: spec.class,
+      });
+  });
+  return found;
+}
+
+/** The structure the preview reports for one document. */
+function structureOf(doc: string): readonly PreviewNode[] {
+  const state = stateOf(doc);
+  return buildPreview(state, [{ from: 0, to: state.doc.length }], {
+    from: state.doc.length,
+    to: state.doc.length,
+  }).structure;
+}
+
+/** Whether a decoration of the given kind and class covers a range. */
+function has(
+  found: readonly Described[],
+  kind: Described['kind'],
+  value: string,
+  from?: number,
+  to?: number,
+): boolean {
+  return found.some(
+    (item) =>
+      item.kind === kind &&
+      item.value.split(' ').includes(value) &&
+      (from === undefined || item.from === from) &&
+      (to === undefined || item.to === to),
+  );
+}
+
+/** The source text a reader still sees, with hidden ranges removed. */
+function visibleText(
+  doc: string,
+  selection: { from: number; to: number } = {
+    from: doc.length,
+    to: doc.length,
+  },
+): string {
+  const hidden = describe(doc, selection).filter(
+    (item) => item.kind === 'hide' || item.kind === 'widget',
+  );
+  let text = '';
+  let at = 0;
+  for (const range of [...hidden].sort(
+    (left, right) => left.from - right.from,
+  )) {
+    if (range.from < at) continue;
+    text += doc.slice(at, range.from);
+    at = range.to;
+  }
+  return text + doc.slice(at);
+}
+
+await test('every heading level gets its own line class', () => {
+  const doc = '# a\n\n## b\n\n### c\n\n#### d\n\n##### e\n\n###### f\n';
+  const found = describe(doc);
+  for (let level = 1; level <= 6; level += 1)
+    assert.ok(
+      has(found, 'line', `cm-np-h${String(level)}`),
+      `h${String(level)}`,
+    );
+  assert.equal(visibleText(doc).trim().split('\n\n').join(''), 'abcdef');
 });
 
-await test('a block quote hides its marker and styles its content', () => {
-  const text = '> Quoted **text**';
-  const scan = scanTextMarkers(text);
-  assert.deepEqual(scan.markers[0], { from: 0, to: 2, kind: 'quote' });
-  const quote = scan.styles.find((span) => span.kind === 'quote');
-  assert.equal(text.slice(quote?.from ?? 0, quote?.to ?? 0), 'Quoted **text**');
-  const bold = scan.styles.find((span) => span.variant === 'bold');
-  assert.equal(text.slice(bold?.from ?? 0, bold?.to ?? 0), 'text');
+await test('a setext heading is reported at its level', () => {
+  assert.deepEqual(structureOf('Title\n=====\n'), [
+    { kind: 'heading', level: 1, text: 'Title' },
+  ]);
+  assert.deepEqual(structureOf('Title\n-----\n'), [
+    { kind: 'heading', level: 2, text: 'Title' },
+  ]);
 });
 
-await test('emphasis markers surround the styled content', () => {
-  const text = 'Buy **milk** and *bread*.';
-  const scan = scanTextMarkers(text);
-  const markers = scan.markers.filter((marker) => marker.kind === 'emphasis');
+await test('the heading marker comes back when the cursor is on its line', () => {
+  const doc = '# Title\n';
+  assert.equal(visibleText(doc, { from: 5, to: 5 }), '# Title\n');
+  assert.equal(visibleText(doc, { from: 8, to: 8 }), 'Title\n');
+});
+
+await test('emphasis hides both delimiters and reveals both together', () => {
+  const doc = 'a **bold** b\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'mark', 'cm-np-bold', 2, 10));
+  assert.equal(visibleText(doc), 'a bold b\n');
+  // The cursor inside the word reveals the whole construct, never one side.
+  assert.equal(visibleText(doc, { from: 6, to: 6 }), 'a **bold** b\n');
+});
+
+await test('an escaped star is never emphasis and never disappears', () => {
+  const doc = 'plain \\*star\\* text\n';
+  assert.equal(visibleText(doc), doc);
+  assert.ok(!has(describe(doc), 'mark', 'cm-np-italic'));
+});
+
+await test('an intraword underscore is not emphasis', () => {
+  assert.ok(!has(describe('do_a_thing here\n'), 'mark', 'cm-np-italic'));
+});
+
+await test('inline code hides its ticks and keeps the mono class', () => {
+  const doc = 'call `run()` now\n';
+  assert.ok(has(describe(doc), 'mark', 'cm-np-code', 5, 12));
+  assert.equal(visibleText(doc), 'call run() now\n');
+});
+
+await test('a link hides its target and shows it when the cursor is inside', () => {
+  const doc = 'see [label](https://example.com/p) here\n';
+  assert.ok(has(describe(doc), 'mark', 'cm-np-link'));
+  assert.equal(visibleText(doc), 'see label here\n');
+  assert.equal(visibleText(doc, { from: 8, to: 8 }), doc);
+});
+
+await test('an autolink and a bare URL are styled as links', () => {
+  const found = describe('<https://example.com/x> and https://bare.example\n');
+  const links = found.filter(
+    (item) => item.kind === 'mark' && item.value.includes('cm-np-link'),
+  );
+  assert.ok(links.length >= 2);
+  assert.equal(
+    visibleText('<https://example.com/x> and https://bare.example\n'),
+    'https://example.com/x and https://bare.example\n',
+  );
+});
+
+await test('both thematic break forms render as a rule and never as a bullet', () => {
+  for (const rule of ['---', '***']) {
+    const doc = `text\n\n${rule}\n\nmore\n`;
+    const found = describe(doc);
+    assert.ok(has(found, 'widget', 'RuleWidget'), rule);
+    assert.ok(!has(found, 'widget', 'BulletWidget'), rule);
+    assert.deepEqual(structureOf(doc), [{ kind: 'thematic-break' }]);
+  }
+});
+
+await test('a bullet is replaced at every depth and an ordered marker is kept', () => {
+  const doc = '- a\n  - b\n    - c\n';
+  const bullets = describe(doc).filter(
+    (item) => item.kind === 'widget' && item.value === 'BulletWidget',
+  );
+  assert.equal(bullets.length, 3);
+  assert.deepEqual(structureOf(doc), [
+    { kind: 'list-item', depth: 1, ordered: false },
+    { kind: 'list-item', depth: 2, ordered: false },
+    { kind: 'list-item', depth: 3, ordered: false },
+  ]);
+  const ordered = describe('3. three\n4. four\n');
+  assert.ok(has(ordered, 'mark', 'cm-np-list-number', 0, 2));
+  assert.equal(visibleText('3. three\n4. four\n'), '3. three\n4. four\n');
+});
+
+await test('a task marker becomes a checkbox that carries its own position', () => {
+  const doc = '- [ ] one\n- [x] two\n';
+  const found = describe(doc);
+  const boxes = found.filter(
+    (item) => item.kind === 'widget' && item.value === 'TaskCheckboxWidget',
+  );
   assert.deepEqual(
-    markers.map((marker) => text.slice(marker.from, marker.to)),
-    ['**', '**', '*', '*'],
-  );
-  const bold = scan.styles.find((span) => span.variant === 'bold');
-  assert.equal(text.slice(bold?.from ?? 0, bold?.to ?? 0), 'milk');
-  const italic = scan.styles.find((span) => span.variant === 'italic');
-  assert.equal(text.slice(italic?.from ?? 0, italic?.to ?? 0), 'bread');
-});
-
-await test('emphasis inside inline code is left alone', () => {
-  const text = 'Use `a **b** c` here.';
-  const scan = scanTextMarkers(text);
-  assert.ok(
-    scan.markers.every((marker) => marker.kind === 'code'),
-    'code ticks are the only markers',
-  );
-});
-
-await test('list bullets and task boxes are reported with exact ranges', () => {
-  const text = '- [ ] milk\n1. bread';
-  const scan = scanTextMarkers(text);
-  assert.equal(text.slice(0, 1), '-');
-  assert.deepEqual(
-    scan.markers.map((marker) => ({ ...marker })),
+    boxes.map((box) => [box.from, box.to]),
     [
-      { from: 0, to: 1, kind: 'list' },
-      { from: 2, to: 5, kind: 'task' },
-      { from: 11, to: 13, kind: 'list' },
+      [2, 5],
+      [12, 15],
     ],
   );
-  assert.equal(text.slice(2, 5), '[ ]');
-});
-
-await test('links expose bracket markers and a styled label', () => {
-  const text = 'See [notes](/notes/abc) and [[Shopping]].';
-  const scan = scanTextMarkers(text);
-  const open = scan.markers.find(
-    (marker) =>
-      marker.kind === 'link' && text.slice(marker.from, marker.to) === '[',
-  );
-  assert.ok(open !== undefined, 'an opening bracket marker exists');
-  const label = scan.styles.find(
-    (span) =>
-      span.kind === 'link' && text.slice(span.from, span.to) === 'notes',
-  );
-  assert.ok(label !== undefined, 'the label is styled');
-  // Double bracket text is not a link in v0.1, so it gets no link style.
-  const brackets = scan.styles.find(
-    (span) =>
-      span.kind === 'link' && text.slice(span.from, span.to) === 'Shopping',
-  );
-  assert.equal(brackets, undefined, 'double bracket text stays plain');
-});
-
-await test('markers outside the selection hide and markers at the cursor reveal', () => {
-  const text = '## Title\n\nSome **bold** text.';
-  const scan = scanTextMarkers(text);
-  const caret = text.indexOf('bold');
-  const { hidden, revealed } = partitionMarkers(scan.markers, caret, caret);
-  assert.ok(hidden.length > 0, 'distant markers hide');
-  assert.ok(
-    hidden.every((marker) => !isRevealed(marker.from, marker.to, caret, caret)),
-    'every hidden marker sits outside the cursor',
-  );
-  const boldOpen = scan.markers.find(
-    (marker) =>
-      marker.kind === 'emphasis' && text.slice(marker.from, marker.to) === '**',
-  );
-  assert.ok(boldOpen !== undefined, 'a bold marker exists');
-  assert.ok(
-    revealed.some(
-      (marker) => marker.from === boldOpen.from && marker.to === boldOpen.to,
-    ),
-    'the marker around the cursor is revealed',
+  assert.deepEqual(
+    structureOf(doc).filter((item) => item.kind === 'task'),
+    [
+      { kind: 'task', checked: false },
+      { kind: 'task', checked: true },
+    ],
   );
 });
 
-await test('a range selection reveals every marker it overlaps', () => {
-  const text = '**one** and **two**';
-  const scan = scanTextMarkers(text);
-  const from = 0;
-  const to = text.length;
-  const { hidden } = partitionMarkers(scan.markers, from, to);
-  assert.equal(hidden.length, 0);
+await test('a fenced block keeps its info string and dims its fences', () => {
+  const doc = '```ts\nconst a = 1;\n```\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'mark', 'cm-np-code-info', 3, 5));
+  assert.ok(has(found, 'mark', 'cm-np-marker', 0, 3));
+  assert.ok(has(found, 'line', 'cm-np-code-block-line'));
+  assert.deepEqual(structureOf(doc), [{ kind: 'code-block', info: 'ts' }]);
 });
 
-await test('task boxes and code ticks are never hidden', () => {
-  const text = '- [ ] milk\n`code`';
-  const scan = scanTextMarkers(text);
-  const { hidden } = partitionMarkers(scan.markers, text.length, text.length);
-  assert.ok(
-    hidden.every((marker) => marker.kind !== 'task' && marker.kind !== 'code'),
-    'checkboxes and code ticks stay visible',
+await test('an indented code block is reported and styled', () => {
+  const doc = 'text\n\n    indented\n';
+  assert.ok(has(describe(doc), 'line', 'cm-np-code-block-line'));
+  assert.deepEqual(structureOf(doc), [{ kind: 'code-block', info: '' }]);
+});
+
+await test('a hash inside a fence is code and never a heading', () => {
+  const doc = '```\n# not a heading\n```\n';
+  assert.deepEqual(
+    structureOf(doc).filter((item) => item.kind === 'heading'),
+    [],
   );
-  assert.ok(
-    scan.markers.some((marker) => marker.kind === 'task'),
-    'a task marker exists',
+});
+
+await test('nested quotes nest and each level gets a bar', () => {
+  const doc = '> outer\n>\n> > inner\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'line', 'cm-np-quote-1'));
+  assert.ok(has(found, 'line', 'cm-np-quote-2'));
+  assert.deepEqual(
+    structureOf(doc).filter((item) => item.kind === 'quote'),
+    [
+      { kind: 'quote', depth: 1 },
+      { kind: 'quote', depth: 2 },
+    ],
   );
+  assert.equal(visibleText(doc), 'outer\n\ninner\n');
 });
 
-await test('toggling a task flips the box through a transaction', () => {
-  const state = EditorState.create({ doc: '- [ ] milk' });
-  const spec = toggleTaskSpec(state);
-  assert.ok(spec !== null, 'a change is described');
-  const next = state.update(spec).state;
-  assert.equal(next.doc.toString(), '- [x] milk');
-  const back = next.update(toggleTaskSpec(next) ?? {}).state;
-  assert.equal(back.doc.toString(), '- [ ] milk');
+await test('a table stays text with dim separators and per column alignment', () => {
+  const doc = '| a | b | c |\n| :- | :-: | -: |\n| 1 | 2 | 3 |\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'line', 'cm-np-table-line'));
+  assert.ok(has(found, 'mark', 'cm-np-table-head'));
+  assert.ok(has(found, 'mark', 'cm-np-align-left'));
+  assert.ok(has(found, 'mark', 'cm-np-align-center'));
+  assert.ok(has(found, 'mark', 'cm-np-align-right'));
+  // Nothing of the table is hidden, so every cell can be edited in place.
+  assert.equal(visibleText(doc), doc);
+  assert.deepEqual(structureOf(doc), [{ kind: 'table', rows: 2, columns: 3 }]);
 });
 
-await test('toggling touches every selected task line and skips plain lines', () => {
-  const state = EditorState.create({
-    doc: '- [ ] one\nplain\n- [x] two',
-    selection: { anchor: 0, head: 24 },
+await test('the alignment reader follows the delimiter row', () => {
+  assert.deepEqual(tableAlignments('| :- | :-: | -: | --- |'), [
+    'left',
+    'center',
+    'right',
+    null,
+  ]);
+});
+
+await test('a footnote reference and its definition are styled', () => {
+  const doc = 'text[^one] more\n\n[^one]: the note\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'mark', 'cm-np-footnote', 4, 10));
+  assert.ok(has(found, 'line', 'cm-np-footnote-definition'));
+  assert.equal(visibleText(doc), doc);
+});
+
+await test('a hard break and raw HTML keep their source', () => {
+  const doc = 'one  \ntwo\n\n<div>raw</div>\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'mark', 'cm-np-hard-break'));
+  assert.ok(has(found, 'mark', 'cm-np-html'));
+  assert.equal(visibleText(doc), doc);
+});
+
+await test('an entity is left exactly as written', () => {
+  assert.equal(visibleText('five &amp; six\n'), 'five &amp; six\n');
+});
+
+await test('the heading level reader knows both heading shapes', () => {
+  assert.equal(headingLevel('ATXHeading4'), 4);
+  assert.equal(headingLevel('SetextHeading2'), 2);
+  assert.equal(headingLevel('Paragraph'), 0);
+});
+
+await test('only the visible ranges are walked', () => {
+  const doc = Array.from(
+    { length: 400 },
+    (_, index) => `# heading ${String(index)}`,
+  ).join('\n\n');
+  const state = stateOf(doc);
+  const whole = buildPreview(state, [{ from: 0, to: state.doc.length }], {
+    from: 0,
+    to: 0,
   });
-  const spec = toggleTaskSpec(state);
-  assert.ok(spec !== null, 'a change is described');
-  const next = state.update(spec).state;
-  assert.equal(next.doc.toString(), '- [x] one\nplain\n- [ ] two');
-});
-
-await test('toggling without a task returns null and keeps history clean', () => {
-  const state = EditorState.create({ doc: 'just text' });
-  assert.equal(toggleTaskSpec(state), null);
-});
-
-await test('findTaskBox reports the box and its checked state', () => {
-  const box = findTaskBox('- [X] done', 10);
-  assert.deepEqual(box, { from: 12, to: 15, checked: true });
-  assert.equal(findTaskBox('- plain', 0), null);
-});
-
-await test('heading levels apply and clear through transactions', () => {
-  const state = EditorState.create({ doc: 'Title' });
-  const headed = state.update(headingSpec(state, 2) ?? {}).state;
-  assert.equal(headed.doc.toString(), '## Title');
-  const cleared = headed.update(headingSpec(headed, 2) ?? {}).state;
-  assert.equal(cleared.doc.toString(), 'Title');
-});
-
-await test('link targets resolve at a position and miss plain text', () => {
-  const text = 'See [notes](/notes/abc) here.';
-  const inside = text.indexOf('notes') + 2;
-  assert.deepEqual(linkTargetAt(text, inside), {
-    kind: 'url',
-    target: '/notes/abc',
+  const window = buildPreview(state, [{ from: 0, to: 200 }], {
+    from: 0,
+    to: 0,
   });
-  const brackets = 'Open [[Shopping]] now.';
-  assert.equal(linkTargetAt(brackets, brackets.indexOf('Shopping')), null);
-  assert.equal(linkTargetAt(text, 0), null);
+  assert.ok(window.visited < whole.visited / 4);
+  assert.ok(window.structure.length < whole.structure.length);
 });
 
-await test('typical note typing stays inside the module response target', () => {
-  const paragraph =
-    'A **typical** note has [links](/notes/example), tasks, and plain text.\n';
-  const document = `# Performance note\n\n${paragraph.repeat(300)}`;
-  let state = EditorState.create({ doc: document, extensions: [markdown()] });
-  const samples: number[] = [];
-  for (let index = 0; index < 60; index += 1) {
-    const started = performance.now();
-    state = state.update({
-      changes: { from: state.doc.length, insert: 'x' },
-      userEvent: 'input.type',
-    }).state;
-    const line = state.doc.lineAt(state.doc.length);
-    scanBlockMarkers(line.text, line.from);
-    samples.push(performance.now() - started);
-  }
-  samples.sort((left, right) => left - right);
-  const p95 = samples[Math.ceil(samples.length * 0.95) - 1] ?? 0;
-  console.log(
-    `typing transaction over ${String(samples.length)} runs: p95 ${p95.toFixed(2)} ms ` +
-      `(Node module check, without browser paint or IME)`,
-  );
+await test('a long document costs a bounded number of tree visits', () => {
+  // Five thousand lines of ordinary prose and lists. The walk must stay
+  // proportional to the tree, so the count is asserted rather than a clock.
+  const lines: string[] = [];
+  for (let index = 0; index < 1000; index += 1)
+    lines.push(
+      `## Section ${String(index)}`,
+      '',
+      'A paragraph with **bold** and `code`.',
+      '',
+      `- item ${String(index)}`,
+      '',
+    );
+  const doc = lines.join('\n');
+  const state = stateOf(doc);
+  const built = buildPreview(state, [{ from: 0, to: state.doc.length }], {
+    from: 0,
+    to: 0,
+  });
+  assert.equal(state.doc.lines, 6000);
+  // Twelve nodes per source line is already generous for this shape.
   assert.ok(
-    p95 < 50,
-    `the typing target is 50 ms, measured ${p95.toFixed(2)} ms`,
+    built.visited < state.doc.lines * 12,
+    `visited ${String(built.visited)} nodes`,
   );
+  // One screen costs a small fraction of the document.
+  const screen = buildPreview(state, [{ from: 0, to: 2000 }], {
+    from: 0,
+    to: 0,
+  });
+  assert.ok(
+    screen.visited < built.visited / 10,
+    `screen ${String(screen.visited)} of ${String(built.visited)}`,
+  );
+});
+
+await test('a bare bracket pair with no definition stays plain text', () => {
+  // The parser wraps `[word]` in a link node, but CommonMark renders it as
+  // text, so hiding its brackets would remove real characters.
+  const doc = 'tags: [demo, markdown]\n';
+  assert.equal(visibleText(doc), doc);
+  assert.ok(!has(describe(doc), 'mark', 'cm-np-link'));
+});
+
+await test('a reference link keeps its brackets and is styled', () => {
+  const doc = 'a [shown][ref] b\n\n[ref]: /notes/x\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'mark', 'cm-np-link'));
+  assert.ok(has(found, 'line', 'cm-np-link-definition'));
+  assert.equal(visibleText(doc), doc);
 });
