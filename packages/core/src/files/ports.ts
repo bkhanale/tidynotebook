@@ -11,7 +11,12 @@
  * use case runs its reads and its `accept` call inside that one transaction.
  */
 import type { Actor, Role } from '../identity/actor.ts';
-import type { AcceptedChangeset, ChangesetInput, Result } from './model.ts';
+import type {
+  AcceptedChangeset,
+  ChangesetInput,
+  Result,
+  SupersededHead,
+} from './model.ts';
 import type { Backlink, SearchHit } from '../search/service.ts';
 
 /** A stored outcome of an earlier accepted changeset, kept for safe retries. */
@@ -22,6 +27,20 @@ export type MutationReceipt<T = AcceptedChangeset> = {
 
 /** Whether a file holds Markdown or an attachment. */
 export type FileKind = 'note' | 'attachment';
+
+/**
+ * The accepted head of one file, with the two members that decide a rebase.
+ *
+ * A rebase has to know more than the identifier of the head: a tombstone head
+ * is a boundary that no stale save may cross, and the path of the head is
+ * content that a stale save must not revert. Both members come from the same
+ * row as the identifier, so reading them costs no extra query.
+ */
+export type HeadState = {
+  readonly revisionId: string;
+  readonly path: string;
+  readonly deleted: boolean;
+};
 
 /**
  * The accepted state of one file.
@@ -131,6 +150,25 @@ export type WorkspaceTransaction = {
     fileIds: readonly string[],
   ): Promise<ReadonlyMap<string, string | null>>;
   /**
+   * The accepted head of each requested file, with its path and its deletion
+   * state. A file that holds no accepted revision is absent from the result.
+   *
+   * A rebase reads this instead of `heads`, because it must respect the
+   * deletion boundary of the head and must keep the path that the head holds.
+   */
+  headStates(
+    fileIds: readonly string[],
+  ): Promise<ReadonlyMap<string, HeadState>>;
+  /**
+   * The accepted path of each requested stored revision.
+   *
+   * A rebase compares the path of the head that the client saw with the path
+   * that the client submitted, so it can tell a rename made elsewhere from a
+   * rename made by this save. A revision that this workspace does not hold is
+   * absent from the result.
+   */
+  revisionPaths(ids: readonly string[]): Promise<ReadonlyMap<string, string>>;
+  /**
    * The owning file of each requested stored revision. A revision that this
    * workspace does not hold is absent from the result. The value feeds the
    * `known` argument of `validateGraph`.
@@ -189,11 +227,16 @@ export type WorkspaceTransaction = {
    * transaction. An expected failure such as `path_conflict` or `quota` is
    * returned as a `Result`; an infrastructure failure throws an
    * `OperationalError`.
+   *
+   * `superseded` names the files whose accepted head this changeset rebased.
+   * The implementation copies it into the outcome and into the stored
+   * receipt, so a retry of the same mutation reports the moved parent again.
    */
   accept(
     actor: Actor,
     input: ChangesetInput,
     digest: string,
+    superseded?: readonly SupersededHead[],
   ): Promise<Result<AcceptedChangeset>>;
   /**
    * Removes the accepted side records of files that a changeset deleted.

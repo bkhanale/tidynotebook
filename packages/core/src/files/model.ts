@@ -87,18 +87,40 @@ export type AcceptedRevision = {
 };
 
 /**
+ * One file whose accepted head moved between the client read and this commit.
+ *
+ * The workspace rebases a stale save on the current head, so a later save
+ * still wins. The record says which head the save passed, so the client can
+ * tell the person that text from another device is now only in history. It
+ * carries no content and no path, because the accepted revision of the same
+ * answer already names the path.
+ */
+export type SupersededHead = {
+  readonly fileId: string;
+  /** The accepted head that the client did not see, now a history entry. */
+  readonly previousHeadRevisionId: string;
+  /** The revision of this changeset that became the new accepted head. */
+  readonly acceptedRevisionId: string;
+};
+
+/**
  * The outcome of an accepted changeset, also stored as a mutation receipt.
  *
  * The accepted revisions travel with the outcome, so an answer to a write is
  * built from the write itself rather than from a later read. A retry of the
  * same mutation therefore repeats the same records, and a caller that may
  * write but not read still receives its own acknowledgement.
+ *
+ * `superseded` is empty for the normal case. It names every file whose head
+ * this changeset rebased, so the answer of a write reports a moved parent
+ * instead of leaving the client to guess.
  */
 export type AcceptedChangeset = {
   readonly mutationId: string;
   readonly revisionIds: readonly string[];
   readonly cursor: string;
   readonly revisions: readonly AcceptedRevision[];
+  readonly superseded: readonly SupersededHead[];
 };
 
 /**

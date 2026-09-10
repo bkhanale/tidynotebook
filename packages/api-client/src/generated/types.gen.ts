@@ -24,6 +24,10 @@ export type AcceptedChangeset = {
      * Every accepted revision with the values that the workspace assigned. A client applies these without reading the workspace again, and a retry of the same mutation repeats them.
      */
     readonly revisions: Array<AcceptedRevision>;
+    /**
+     * Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.
+     */
+    readonly superseded: Array<SupersededHead>;
 };
 
 /**
@@ -1028,6 +1032,24 @@ export type StartSnapshotInput = {
      * Largest number of snapshot items in one page. The server uses 100 when the value is absent and never stores more than 500.
      */
     pageSize?: number;
+};
+
+/**
+ * One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.
+ */
+export type SupersededHead = {
+    /**
+     * The file whose accepted head moved.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost.
+     */
+    readonly previousHeadRevisionId: Uuid;
+    /**
+     * The revision of this changeset that became the new accepted head of the file.
+     */
+    readonly acceptedRevisionId: Uuid;
 };
 
 /**

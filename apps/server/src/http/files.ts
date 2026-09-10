@@ -230,6 +230,11 @@ export function acceptedBody(
     revisionIds: [...outcome.revisionIds],
     cursor: outcome.cursor,
     revisions: outcome.revisions.map(acceptedRevisionBody),
+    superseded: outcome.superseded.map((entry) => ({
+      fileId: entry.fileId,
+      previousHeadRevisionId: entry.previousHeadRevisionId,
+      acceptedRevisionId: entry.acceptedRevisionId,
+    })),
   };
 }
 

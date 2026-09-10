@@ -21,11 +21,13 @@ import {
   snapshotTtlMs,
   type OperationalErrorKind,
   type AcceptedChangeset,
+  type SupersededHead,
   type AcceptedRevision,
   type Actor,
   type ChangesetInput,
   type FilePage,
   type FileRecord,
+  type HeadState,
   type PageRequest,
   type Result,
   type RevisionInput,
@@ -384,6 +386,37 @@ function parseAcceptedRevision(value: unknown): AcceptedRevision {
   );
 }
 
+/**
+ * Reads the moved heads of a stored outcome.
+ *
+ * A receipt written before this member existed carries none, which reads as an
+ * answer with no superseded head.
+ */
+function parseSuperseded(value: unknown): readonly SupersededHead[] {
+  if (!Array.isArray(value)) return [];
+  const entries: SupersededHead[] = [];
+  for (const entry of value as unknown[]) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const fileId = readString(entry, 'fileId');
+    const previous = readString(entry, 'previousHeadRevisionId');
+    const accepted = readString(entry, 'acceptedRevisionId');
+    if (fileId === null || previous === null || accepted === null) continue;
+    entries.push({
+      fileId,
+      previousHeadRevisionId: previous,
+      acceptedRevisionId: accepted,
+    });
+  }
+  return entries;
+}
+
+/** One string member of an unknown stored object, or `null`. */
+function readString(value: object, key: string): string | null {
+  if (!(key in value)) return null;
+  const member = (value as Record<string, unknown>)[key];
+  return typeof member === 'string' ? member : null;
+}
+
 /** Reads the stored outcome of a mutation receipt. */
 function parseOutcome<T = AcceptedChangeset>(value: unknown): T {
   if (
@@ -404,6 +437,9 @@ function parseOutcome<T = AcceptedChangeset>(value: unknown): T {
       cursor: value.cursor,
       revisionIds: [...value.revisionIds],
       revisions: value.revisions.map(parseAcceptedRevision),
+      superseded: parseSuperseded(
+        'superseded' in value ? value.superseded : undefined,
+      ),
     } as unknown as T;
   }
   if (typeof value === 'object' && value !== null && 'mutationId' in value) {
@@ -799,6 +835,62 @@ function createTransaction(
           ),
         );
       for (const row of rows) result.set(row.id, row.head);
+      return result;
+    },
+
+    async headStates(
+      fileIds: readonly string[],
+    ): Promise<ReadonlyMap<string, HeadState>> {
+      const wanted = new Set<string>();
+      for (const fileId of fileIds) {
+        assertUuid(fileId, 'a file');
+        wanted.add(fileId);
+      }
+      const result = new Map<string, HeadState>();
+      if (wanted.size === 0) return result;
+      const rows = await db
+        .select({
+          id: files.id,
+          head: files.headRevisionId,
+          path: files.path,
+          deleted: files.deleted,
+        })
+        .from(files)
+        .where(
+          and(
+            eq(files.workspaceId, workspaceId),
+            inArray(files.id, [...wanted]),
+          ),
+        );
+      for (const row of rows) {
+        // A file row without a head holds no accepted revision, so it has no
+        // head state and stays absent from the answer.
+        if (row.head === null) continue;
+        result.set(row.id, {
+          revisionId: row.head,
+          path: row.path,
+          deleted: row.deleted,
+        });
+      }
+      return result;
+    },
+
+    async revisionPaths(
+      ids: readonly string[],
+    ): Promise<ReadonlyMap<string, string>> {
+      const result = new Map<string, string>();
+      if (ids.length === 0) return result;
+      for (const id of ids) assertUuid(id, 'a revision');
+      const rows = await db
+        .select({ id: revisions.id, path: revisions.path })
+        .from(revisions)
+        .where(
+          and(
+            eq(revisions.workspaceId, workspaceId),
+            inArray(revisions.id, [...ids]),
+          ),
+        );
+      for (const row of rows) result.set(row.id, row.path);
       return result;
     },
 
@@ -1235,6 +1327,7 @@ function createTransaction(
       writer: Actor,
       input: ChangesetInput,
       digest: string,
+      superseded: readonly SupersededHead[] = [],
     ): Promise<Result<AcceptedChangeset>> {
       if (input.workspaceId !== workspaceId) {
         throw new OperationalError(
@@ -1267,6 +1360,7 @@ function createTransaction(
           input,
           digest,
           fileIds,
+          superseded,
         );
         if (!outcome.ok) {
           await client.query('rollback to savepoint notesapp_accept');
@@ -1754,6 +1848,7 @@ async function writeChangeset(
   input: ChangesetInput,
   digest: string,
   fileIds: readonly string[],
+  superseded: readonly SupersededHead[],
 ): Promise<Result<AcceptedChangeset>> {
   assertUuid(input.mutationId, 'the mutation');
   for (const revision of input.revisions) {
@@ -2088,6 +2183,9 @@ async function writeChangeset(
         message: revision.message,
       };
     }),
+    // The receipt stores the moved heads with the outcome, so a retry after a
+    // lost answer reports the same superseded heads instead of none.
+    superseded: superseded.map((entry) => ({ ...entry })),
   };
   await db.insert(mutationReceipts).values({
     workspaceId,

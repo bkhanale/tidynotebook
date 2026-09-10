@@ -94,6 +94,34 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           ]),
         ),
       ),
+    headStates: (fileIds: readonly string[]) =>
+      Promise.resolve(
+        new Map(
+          fileIds.flatMap((fileId) => {
+            const file = state.files.get(fileId);
+            if (file === undefined || file.headRevisionId === null) return [];
+            return [
+              [
+                fileId,
+                {
+                  revisionId: file.headRevisionId,
+                  path: file.path,
+                  deleted: file.deleted,
+                },
+              ] as const,
+            ];
+          }),
+        ),
+      ),
+    revisionPaths: (ids: readonly string[]) =>
+      Promise.resolve(
+        new Map(
+          ids.flatMap((id) => {
+            const rev = state.revisions.get(id);
+            return rev === undefined ? [] : [[id, rev.path] as const];
+          }),
+        ),
+      ),
     parents: (ids: readonly string[]) =>
       Promise.resolve(
         new Map(
@@ -163,6 +191,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           revisionIds: acceptedRev.map((r) => r.revisionId),
           cursor: '1',
           revisions: acceptedRev,
+          superseded: [],
         }),
       );
     },

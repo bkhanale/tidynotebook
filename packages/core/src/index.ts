@@ -22,6 +22,7 @@ export type {
   DomainErrorCode,
   Result,
   RevisionInput,
+  SupersededHead,
 } from './files/model.ts';
 export { fail, ok } from './files/model.ts';
 export type { PathKind } from './files/path.ts';
@@ -42,6 +43,7 @@ export type {
   FileKind,
   FilePage,
   FileRecord,
+  HeadState,
   HistoryPage,
   HistoryRevision,
   MutationReceipt,

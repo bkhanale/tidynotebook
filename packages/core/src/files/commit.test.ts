@@ -18,6 +18,7 @@ import type {
   ContentRef,
   Result,
   RevisionInput,
+  SupersededHead,
 } from './model.ts';
 import { fail, ok } from './model.ts';
 import type {
@@ -84,6 +85,34 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           ]),
         ),
       ),
+    headStates: (fileIds: readonly string[]) =>
+      Promise.resolve(
+        new Map(
+          fileIds.flatMap((fileId) => {
+            const file = state.files.get(fileId);
+            if (file === undefined || file.headRevisionId === null) return [];
+            return [
+              [
+                fileId,
+                {
+                  revisionId: file.headRevisionId,
+                  path: file.path,
+                  deleted: file.deleted,
+                },
+              ] as const,
+            ];
+          }),
+        ),
+      ),
+    revisionPaths: (ids: readonly string[]) =>
+      Promise.resolve(
+        new Map(
+          ids.flatMap((id) => {
+            const revision = state.revisions.get(id);
+            return revision === undefined ? [] : [[id, revision.path] as const];
+          }),
+        ),
+      ),
     parents: (ids: readonly string[]) =>
       Promise.resolve(
         new Map(
@@ -109,6 +138,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
       writer: Actor,
       input: ChangesetInput,
       digest: string,
+      superseded: readonly SupersededHead[] = [],
     ): Promise<Result<AcceptedChangeset>> => {
       if (state.refuse !== null) return Promise.resolve(state.refuse);
       state.accepted.push(input);
@@ -165,6 +195,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           serverTime: '2026-09-06T10:00:00.000Z',
           message: revision.message,
         })),
+        superseded: superseded.map((entry) => ({ ...entry })),
       };
       state.receipts.set(`${writer.accountId}:${input.mutationId}`, {
         digest,
@@ -396,6 +427,264 @@ await test('a stale save is rebased onto the current head', async () => {
   assert.deepEqual(result.revisions[0]?.parents, [second.id]);
   assert.deepEqual(state.revisions.get(stale.id)?.parents, [second.id]);
   assert.equal(state.files.get(fileId)?.headRevisionId, stale.id);
+  // The later save still wins, and the answer says which head it passed, so
+  // the client can tell the person where the other text went.
+  assert.deepEqual(result.superseded, [
+    {
+      fileId,
+      previousHeadRevisionId: second.id,
+      acceptedRevisionId: stale.id,
+    },
+  ]);
+});
+
+await test('a save on the current head reports no superseded head', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  const result = accepted(
+    await commitChangeset(store, actor, changeset([first]), 'd-1'),
+  );
+  assert.deepEqual(result.superseded, []);
+});
+
+await test('a stale update over a deleted head is refused', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const tombstone = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    deleted: true,
+    content: await content(''),
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([tombstone], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+
+  // The other device still holds the note and saves text it typed before the
+  // deletion. Accepting it would bring the deleted note back.
+  const stale = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+  });
+  const failure = rejected(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([stale], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(failure.code, 'stale_head');
+  assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.files.get(fileId)?.headRevisionId, tombstone.id);
+  assert.equal(state.files.get(fileId)?.deleted, true);
+});
+
+await test('a stale rename over a deleted head is refused', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const tombstone = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    deleted: true,
+    content: await content(''),
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([tombstone], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+  const renamed = await revision({
+    fileId,
+    path: 'notes/renamed.md',
+    parents: [first.id],
+  });
+  const failure = rejected(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([renamed], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(failure.code, 'stale_head');
+  assert.deepEqual(failure.fileIds, [fileId]);
+});
+
+await test('a stale delete after newer edits is refused', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const newer = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    content: await content('# text that must survive\n'),
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([newer], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+
+  // The delete was made against the first revision, so it never saw the newer
+  // text. A rebase would remove text that the person never read.
+  const staleDelete = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    deleted: true,
+    content: await content(''),
+  });
+  const failure = rejected(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([staleDelete], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(failure.code, 'stale_head');
+  assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.files.get(fileId)?.headRevisionId, newer.id);
+  assert.equal(state.files.get(fileId)?.deleted, false);
+  assert.equal(state.deletions.length, 0);
+});
+
+await test('a delete on the current head is accepted', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const tombstone = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    deleted: true,
+    content: await content(''),
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([tombstone], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+  assert.equal(state.files.get(fileId)?.deleted, true);
+  assert.deepEqual(state.deletions, [[fileId]]);
+});
+
+await test('a stale save after a rename elsewhere keeps the new name', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const renamed = await revision({
+    fileId,
+    path: 'notes/renamed.md',
+    parents: [first.id],
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([renamed], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+
+  // The other device saves text under the name it read. The path is content,
+  // so keeping the submitted path would undo the rename.
+  const stale = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    content: await content('# later text\n'),
+  });
+  const result = accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([stale], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(result.revisions[0]?.path, 'notes/renamed.md');
+  assert.equal(state.files.get(fileId)?.path, 'notes/renamed.md');
+  assert.equal(state.revisions.get(stale.id)?.path, 'notes/renamed.md');
+});
+
+await test('a stale save that renames the file wins its own rename', async () => {
+  const state = workspaceWith('editor');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const elsewhere = await revision({
+    fileId,
+    path: 'notes/from-other-device.md',
+    parents: [first.id],
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([elsewhere], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+
+  // This save renamed the note itself: its path differs from the path of the
+  // head it saw, so the rename of this save is the newer decision.
+  const staleRename = await revision({
+    fileId,
+    path: 'notes/chosen-here.md',
+    parents: [first.id],
+  });
+  const result = accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([staleRename], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(result.revisions[0]?.path, 'notes/chosen-here.md');
+  assert.equal(state.files.get(fileId)?.path, 'notes/chosen-here.md');
 });
 
 await test('a duplicate create is not rebased into an update', async () => {

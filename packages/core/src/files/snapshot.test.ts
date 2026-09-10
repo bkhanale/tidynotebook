@@ -58,6 +58,8 @@ function fakeStore(
     role: (id: string) => Promise.resolve(roles.get(id) ?? null),
     receipt: () => Promise.resolve(null),
     heads: () => Promise.resolve(new Map()),
+    headStates: () => Promise.resolve(new Map()),
+    revisionPaths: () => Promise.resolve(new Map()),
     parents: () => Promise.resolve(new Map()),
     purgedFiles: () => Promise.resolve([]),
     listFiles: () => Promise.resolve({ files: [], nextCursor: null }),

@@ -439,7 +439,8 @@ export const operations: readonly OperationEntry[] = [
             "mutationId",
             "revisionIds",
             "cursor",
-            "revisions"
+            "revisions",
+            "superseded"
           ],
           "properties": {
             "mutationId": {
@@ -614,6 +615,66 @@ export const operations: readonly OperationEntry[] = [
                     ],
                     "readOnly": true,
                     "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
+            },
+            "superseded": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                "additionalProperties": false,
+                "required": [
+                  "fileId",
+                  "previousHeadRevisionId",
+                  "acceptedRevisionId"
+                ],
+                "properties": {
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file whose accepted head moved."
+                  },
+                  "previousHeadRevisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                  },
+                  "acceptedRevisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The revision of this changeset that became the new accepted head of the file."
                   }
                 }
               }
@@ -2960,7 +3021,8 @@ export const operations: readonly OperationEntry[] = [
             "mutationId",
             "revisionIds",
             "cursor",
-            "revisions"
+            "revisions",
+            "superseded"
           ],
           "properties": {
             "mutationId": {
@@ -3135,6 +3197,66 @@ export const operations: readonly OperationEntry[] = [
                     ],
                     "readOnly": true,
                     "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
+            },
+            "superseded": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                "additionalProperties": false,
+                "required": [
+                  "fileId",
+                  "previousHeadRevisionId",
+                  "acceptedRevisionId"
+                ],
+                "properties": {
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file whose accepted head moved."
+                  },
+                  "previousHeadRevisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                  },
+                  "acceptedRevisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The revision of this changeset that became the new accepted head of the file."
                   }
                 }
               }
@@ -4783,7 +4905,8 @@ export const operations: readonly OperationEntry[] = [
                     "mutationId",
                     "revisionIds",
                     "cursor",
-                    "revisions"
+                    "revisions",
+                    "superseded"
                   ],
                   "properties": {
                     "mutationId": {
@@ -4958,6 +5081,66 @@ export const operations: readonly OperationEntry[] = [
                             ],
                             "readOnly": true,
                             "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
+                    },
+                    "superseded": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                        "additionalProperties": false,
+                        "required": [
+                          "fileId",
+                          "previousHeadRevisionId",
+                          "acceptedRevisionId"
+                        ],
+                        "properties": {
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file whose accepted head moved."
+                          },
+                          "previousHeadRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                          },
+                          "acceptedRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The revision of this changeset that became the new accepted head of the file."
                           }
                         }
                       }
@@ -7893,7 +8076,8 @@ export const operations: readonly OperationEntry[] = [
                     "mutationId",
                     "revisionIds",
                     "cursor",
-                    "revisions"
+                    "revisions",
+                    "superseded"
                   ],
                   "properties": {
                     "mutationId": {
@@ -8068,6 +8252,66 @@ export const operations: readonly OperationEntry[] = [
                             ],
                             "readOnly": true,
                             "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
+                    },
+                    "superseded": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                        "additionalProperties": false,
+                        "required": [
+                          "fileId",
+                          "previousHeadRevisionId",
+                          "acceptedRevisionId"
+                        ],
+                        "properties": {
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file whose accepted head moved."
+                          },
+                          "previousHeadRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                          },
+                          "acceptedRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The revision of this changeset that became the new accepted head of the file."
                           }
                         }
                       }
@@ -10392,7 +10636,8 @@ export const operations: readonly OperationEntry[] = [
                     "mutationId",
                     "revisionIds",
                     "cursor",
-                    "revisions"
+                    "revisions",
+                    "superseded"
                   ],
                   "properties": {
                     "mutationId": {
@@ -10567,6 +10812,66 @@ export const operations: readonly OperationEntry[] = [
                             ],
                             "readOnly": true,
                             "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
+                    },
+                    "superseded": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                        "additionalProperties": false,
+                        "required": [
+                          "fileId",
+                          "previousHeadRevisionId",
+                          "acceptedRevisionId"
+                        ],
+                        "properties": {
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file whose accepted head moved."
+                          },
+                          "previousHeadRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                          },
+                          "acceptedRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The revision of this changeset that became the new accepted head of the file."
                           }
                         }
                       }
@@ -26291,7 +26596,8 @@ export const operations: readonly OperationEntry[] = [
             "mutationId",
             "revisionIds",
             "cursor",
-            "revisions"
+            "revisions",
+            "superseded"
           ],
           "properties": {
             "mutationId": {
@@ -26466,6 +26772,66 @@ export const operations: readonly OperationEntry[] = [
                     ],
                     "readOnly": true,
                     "description": "The checkpoint name of the revision, or null."
+                  }
+                }
+              }
+            },
+            "superseded": {
+              "type": "array",
+              "readOnly": true,
+              "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+              "maxItems": 4000,
+              "items": {
+                "type": "object",
+                "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                "additionalProperties": false,
+                "required": [
+                  "fileId",
+                  "previousHeadRevisionId",
+                  "acceptedRevisionId"
+                ],
+                "properties": {
+                  "fileId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The file whose accepted head moved."
+                  },
+                  "previousHeadRevisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                  },
+                  "acceptedRevisionId": {
+                    "allOf": [
+                      {
+                        "type": "string",
+                        "description": "A UUID that names one record.",
+                        "format": "uuid",
+                        "minLength": 36,
+                        "maxLength": 36,
+                        "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                      }
+                    ],
+                    "readOnly": true,
+                    "description": "The revision of this changeset that became the new accepted head of the file."
                   }
                 }
               }
@@ -32331,7 +32697,8 @@ export const operations: readonly OperationEntry[] = [
                     "mutationId",
                     "revisionIds",
                     "cursor",
-                    "revisions"
+                    "revisions",
+                    "superseded"
                   ],
                   "properties": {
                     "mutationId": {
@@ -32506,6 +32873,66 @@ export const operations: readonly OperationEntry[] = [
                             ],
                             "readOnly": true,
                             "description": "The checkpoint name of the revision, or null."
+                          }
+                        }
+                      }
+                    },
+                    "superseded": {
+                      "type": "array",
+                      "readOnly": true,
+                      "description": "Every file whose accepted head this changeset rebased, empty for the normal case. A client shows the person that a save from another device is now only in the history of the file.",
+                      "maxItems": 4000,
+                      "items": {
+                        "type": "object",
+                        "description": "One file whose accepted head moved between the read of the client and this changeset. The workspace rebased the save on the current head, so the later save still wins and the head that it passed stays in history. The record carries no text and no path: the accepted revision of the same answer already names the path.",
+                        "additionalProperties": false,
+                        "required": [
+                          "fileId",
+                          "previousHeadRevisionId",
+                          "acceptedRevisionId"
+                        ],
+                        "properties": {
+                          "fileId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The file whose accepted head moved."
+                          },
+                          "previousHeadRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The accepted head that the client did not see. It is now a history entry of the file, and its text is not lost."
+                          },
+                          "acceptedRevisionId": {
+                            "allOf": [
+                              {
+                                "type": "string",
+                                "description": "A UUID that names one record.",
+                                "format": "uuid",
+                                "minLength": 36,
+                                "maxLength": 36,
+                                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+                              }
+                            ],
+                            "readOnly": true,
+                            "description": "The revision of this changeset that became the new accepted head of the file."
                           }
                         }
                       }

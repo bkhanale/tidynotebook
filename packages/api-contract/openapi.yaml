@@ -2612,6 +2612,39 @@ components:
             - $ref: '#/components/schemas/CheckpointMessage'
           readOnly: true
           description: The checkpoint name of the revision, or null.
+    SupersededHead:
+      type: object
+      description: >-
+        One file whose accepted head moved between the read of the client and
+        this changeset. The workspace rebased the save on the current head, so
+        the later save still wins and the head that it passed stays in history.
+        The record carries no text and no path: the accepted revision of the
+        same answer already names the path.
+      additionalProperties: false
+      required:
+        - fileId
+        - previousHeadRevisionId
+        - acceptedRevisionId
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: The file whose accepted head moved.
+        previousHeadRevisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: >-
+            The accepted head that the client did not see. It is now a history
+            entry of the file, and its text is not lost.
+        acceptedRevisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+          description: >-
+            The revision of this changeset that became the new accepted head
+            of the file.
     AcceptedChangeset:
       type: object
       description: The outcome of one accepted changeset.
@@ -2621,6 +2654,7 @@ components:
         - revisionIds
         - cursor
         - revisions
+        - superseded
       properties:
         mutationId:
           allOf:
@@ -2657,6 +2691,16 @@ components:
           maxItems: 4000
           items:
             $ref: '#/components/schemas/AcceptedRevision'
+        superseded:
+          type: array
+          readOnly: true
+          description: >-
+            Every file whose accepted head this changeset rebased, empty for
+            the normal case. A client shows the person that a save from
+            another device is now only in the history of the file.
+          maxItems: 4000
+          items:
+            $ref: '#/components/schemas/SupersededHead'
     FileChange:
       type: object
       description: The revision that one single file operation accepted.
