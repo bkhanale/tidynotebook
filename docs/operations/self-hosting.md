@@ -78,7 +78,10 @@ names it when it is not set. Leave `NOTESAPP_ALLOWED_HOSTS` empty unless a
 second host name reaches this installation. An empty list serves the host of
 the origin and nothing else.
 
-Create the directory named by `NOTESAPP_SECRETS_DIR`. Keep it outside the repository. Create these files with mode `0600`:
+Create the directory named by `NOTESAPP_SECRETS_DIR`. Keep it outside the
+repository. Create these files with mode `0600` and owner uid 10001, which is
+the `notesapp` user of the image. The application runs as that user and cannot
+read a file that belongs to another owner:
 
 | File                        | Content                                                                       |
 | --------------------------- | ----------------------------------------------------------------------------- |
@@ -89,6 +92,13 @@ Create the directory named by `NOTESAPP_SECRETS_DIR`. Keep it outside the reposi
 | `runtime_database_url`      | URL for `notesapp_app`, with host `postgres`.                                 |
 | `auth_database_url`         | URL for `notesapp_auth`, with host `postgres`.                                |
 | `auth_secret`               | A random session-signing secret of at least 32 characters.                    |
+
+Set the owner and the mode after you write the files:
+
+```bash
+sudo chown 10001:10001 /etc/notesapp/secrets/*
+sudo chmod 600 /etc/notesapp/secrets/*
+```
 
 The migration URL can use the initial PostgreSQL administrator for the first installation. The migration creates the restricted application roles and sets their passwords. Do not give either application role migration rights.
 
