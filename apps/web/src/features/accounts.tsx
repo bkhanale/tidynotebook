@@ -61,63 +61,102 @@ export function RequireSession({
   return children;
 }
 
-/** First-run setup and email-password login. */
+/** The shortest password the server accepts. */
+export const minPasswordLength = 12;
+
+/** The rule of the password field, stated before anything is submitted. */
+export const passwordRule = `Use at least ${String(minPasswordLength)} characters.`;
+
+/** How far the setup status call got. */
+type SetupStatus =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'unreachable'; readonly message: string }
+  /** True when the owner account of this installation already exists. */
+  | { readonly kind: 'ready'; readonly initialized: boolean };
+
+/**
+ * First-run setup and email and password sign in.
+ *
+ * One screen serves both, and it says which one it is: setup states that it
+ * creates the single owner account of the installation and asks for the
+ * password twice, sign in asks for it once. The password rule is under the
+ * field from the start, so nobody learns it from a refusal. A status call
+ * that does not answer offers Retry instead of a dead submit button.
+ */
 export function LoginPage(): ReactNode {
   const session = useSession();
   const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [reveal, setReveal] = useState(false);
   const [error, setError] = useState('');
+  const [fieldError, setFieldError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [initialized, setInitialized] = useState<boolean | null>(null);
+  const [status, setStatus] = useState<SetupStatus>({ kind: 'loading' });
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    setStatus({ kind: 'loading' });
     void getSetupStatus().then((result) => {
       if (cancelled) return;
       if (result.error !== undefined || result.data === undefined) {
-        setError(problemMessage(result.error));
+        setStatus({
+          kind: 'unreachable',
+          message: problemMessage(result.error),
+        });
         return;
       }
-      setInitialized(result.data.initialized);
+      setStatus({ kind: 'ready', initialized: result.data.initialized });
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [attempt]);
+
+  const setup = status.kind === 'ready' && !status.initialized;
 
   async function submitPassword(): Promise<void> {
+    setFieldError('');
+    if (setup && password.length < minPasswordLength) {
+      setFieldError(passwordRule);
+      return;
+    }
+    if (setup && confirmation !== password) {
+      setFieldError('The two passwords are not the same.');
+      return;
+    }
     setBusy(true);
     setError('');
-    const result =
-      initialized === false
-        ? await createOwner({ body: { email, password } })
-        : await signInWithPassword({ body: { email, password } });
+    const result = setup
+      ? await createOwner({ body: { email, password } })
+      : await signInWithPassword({ body: { email, password } });
     setBusy(false);
     if (result.error !== undefined || result.data === undefined) {
-      const status =
-        result.response?.status ??
-        (typeof result.error === 'object' &&
-        result.error !== null &&
-        'status' in result.error
-          ? (result.error as { readonly status?: number }).status
-          : undefined);
       const code =
         typeof result.error === 'object' &&
         result.error !== null &&
         'code' in result.error
           ? (result.error as { readonly code?: string }).code
           : undefined;
+      const httpStatus =
+        result.response?.status ??
+        (typeof result.error === 'object' &&
+        result.error !== null &&
+        'status' in result.error
+          ? (result.error as { readonly status?: number }).status
+          : undefined);
       if (
-        status === 400 ||
-        status === 401 ||
+        httpStatus === 400 ||
+        httpStatus === 401 ||
         code === 'unauthenticated' ||
         code === 'invalid_request'
       ) {
         setError(
-          initialized === false
-            ? 'The account could not be created. Use at least 12 password characters.'
-            : 'Incorrect email or password.',
+          setup
+            ? 'The account could not be created. Check the address and the password.'
+            : 'That address and password do not match an account.',
         );
         return;
       }
@@ -130,68 +169,106 @@ export function LoginPage(): ReactNode {
 
   if (session.status === 'signed-in') return <Navigate to="/" replace />;
 
+  const title = setup ? 'Create your account' : 'Sign in';
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-6 shadow-xl sm:p-8">
-        <div className="mb-6 flex items-center gap-2.5 text-lg font-semibold text-strong">
-          <span
-            className="inline-flex size-8 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
-            aria-hidden="true"
-          >
-            <WorkspaceIcon size={18} />
-          </span>
-          <span>Notesapp</span>
-        </div>
-        <h1 className="mb-5 mt-0 text-xl font-semibold text-strong">
-          {initialized === false ? 'Create your account' : 'Sign in'}
-        </h1>
-        <form
-          onSubmit={(event): void => {
-            event.preventDefault();
-            void submitPassword();
-          }}
+    <div className="flex min-h-dvh flex-col items-center justify-center px-4 py-10">
+      <div className="mb-5 flex items-center gap-2.5 text-lg font-semibold text-strong">
+        <span
+          className="inline-flex size-8 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
+          aria-hidden="true"
         >
-          <TextField
-            id="login-email"
-            label="Address"
-            value={email}
-            inputType="email"
-            autoComplete="email"
-            required
-            onChange={setEmail}
-          />
-          <TextField
-            id="login-password"
-            label="Password"
-            value={password}
-            inputType="password"
-            autoComplete={
-              initialized === false ? 'new-password' : 'current-password'
-            }
-            required
-            onChange={setPassword}
-          />
-          {error !== '' ? (
-            <p className="text-control text-danger" role="alert">
-              {error}
-            </p>
-          ) : null}
-          <div className="mt-4">
+          <WorkspaceIcon size={18} />
+        </span>
+        <span>Notesapp</span>
+      </div>
+      <div className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-6 shadow-xl sm:p-8">
+        <h1 className="mb-2 mt-0 text-xl font-semibold text-strong">
+          {status.kind === 'loading' ? 'Notesapp' : title}
+        </h1>
+        {status.kind === 'loading' ? (
+          <StatusRegion message="Reading the state of this installation." />
+        ) : status.kind === 'unreachable' ? (
+          <div className="mt-4 space-y-3">
+            <Notice tone="problem" message={status.message} />
             <Button
-              type="submit"
-              disabled={busy || initialized === null}
-              className="w-full"
+              onClick={() => {
+                setAttempt((value) => value + 1);
+              }}
             >
-              {busy
-                ? initialized === false
-                  ? 'Creating account.'
-                  : 'Signing in.'
-                : initialized === false
-                  ? 'Create account'
-                  : 'Sign in'}
+              Try again
             </Button>
           </div>
-        </form>
+        ) : (
+          <>
+            <p className="mb-5 mt-0 text-control text-muted">
+              {setup
+                ? 'This installation has no account yet. What you enter here becomes the one owner account, and it owns every note.'
+                : 'Enter the address and the password of your account.'}
+            </p>
+            <form
+              onSubmit={(event): void => {
+                event.preventDefault();
+                void submitPassword();
+              }}
+            >
+              <TextField
+                id="login-email"
+                label="Email address"
+                value={email}
+                inputType="email"
+                autoComplete={setup ? 'email' : 'username'}
+                required
+                autoFocus
+                onChange={setEmail}
+              />
+              <TextField
+                id="login-password"
+                label="Password"
+                value={password}
+                inputType={reveal ? 'text' : 'password'}
+                autoComplete={setup ? 'new-password' : 'current-password'}
+                hint={setup ? passwordRule : undefined}
+                minLength={setup ? minPasswordLength : undefined}
+                required
+                error={fieldError}
+                onChange={setPassword}
+              />
+              {setup ? (
+                <TextField
+                  id="login-password-again"
+                  label="Password again"
+                  value={confirmation}
+                  inputType={reveal ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  required
+                  onChange={setConfirmation}
+                />
+              ) : null}
+              <label className="mb-4 flex min-h-11 items-center gap-2 text-control text-strong md:min-h-9">
+                <input
+                  type="checkbox"
+                  checked={reveal}
+                  onChange={(event): void => {
+                    setReveal(event.target.checked);
+                  }}
+                />
+                Show the password
+              </label>
+              {error === '' ? null : (
+                <Notice className="mb-4" tone="problem" message={error} />
+              )}
+              <Button type="submit" disabled={busy} className="w-full">
+                {busy
+                  ? setup
+                    ? 'Creating your account'
+                    : 'Signing in'
+                  : setup
+                    ? 'Create account'
+                    : 'Sign in'}
+              </Button>
+            </form>
+          </>
+        )}
       </div>
     </div>
   );

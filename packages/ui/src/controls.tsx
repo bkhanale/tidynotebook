@@ -149,29 +149,49 @@ export function Badge({
   );
 }
 
-/** A labeled text input with an optional field error. */
+/**
+ * A labeled text input with an optional rule and an optional field error.
+ *
+ * `hint` states the rule of the field before anything is submitted, so a
+ * person never learns a requirement from a failure. Both the hint and the
+ * error are named by `aria-describedby`, so a screen reader reads them with
+ * the field.
+ */
 export function TextField({
   id,
   label,
   value,
   onChange,
   error,
+  hint,
   inputType,
   autoComplete,
   placeholder,
   required,
+  minLength,
+  autoFocus,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly error?: string | undefined;
+  /** The rule of the field, stated under it at all times. */
+  readonly hint?: string | undefined;
   readonly inputType?: 'text' | 'email' | 'password' | undefined;
   readonly autoComplete?: string | undefined;
   readonly placeholder?: string | undefined;
   readonly required?: boolean | undefined;
+  readonly minLength?: number | undefined;
+  readonly autoFocus?: boolean | undefined;
 }): ReactNode {
   const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+  const hasError = error !== undefined && error !== '';
+  const hasHint = hint !== undefined && hint !== '';
+  const described = [hasHint ? hintId : '', hasError ? errorId : '']
+    .filter(Boolean)
+    .join(' ');
   return (
     <div className="mb-3.5">
       <label
@@ -188,15 +208,20 @@ export function TextField({
         autoComplete={autoComplete}
         placeholder={placeholder}
         required={required ?? false}
-        aria-invalid={error !== undefined && error !== ''}
-        aria-describedby={
-          error !== undefined && error !== '' ? errorId : undefined
-        }
+        minLength={minLength}
+        autoFocus={autoFocus ?? false}
+        aria-invalid={hasError}
+        aria-describedby={described === '' ? undefined : described}
         onChange={(event): void => {
           onChange(event.target.value);
         }}
       />
-      {error !== undefined && error !== '' ? (
+      {hasHint ? (
+        <p className="mb-0 mt-1 text-control text-muted" id={hintId}>
+          {hint}
+        </p>
+      ) : null}
+      {hasError ? (
         <p className="mt-1 text-control text-danger" id={errorId} role="alert">
           {error}
         </p>
