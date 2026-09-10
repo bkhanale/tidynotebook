@@ -32,7 +32,10 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * malformed note identifier, blocked URL schemes, an attachment image, an
  * external image, a blocked image, raw HTML including a script element and an
  * `onerror` attribute, inline and display math, a Mermaid fence, a hard line
- * break, and an unclosed code fence at the end.
+ * break, six ATX heading levels, both setext heading levels, an ordered list
+ * with a start number, both thematic break forms, an indented code block,
+ * pointy, bare, and email autolinks, a nested block quote, and an unclosed
+ * code fence at the end.
  */
 export const corpusMarkdown = `---
 title: Corpus example
@@ -86,7 +89,9 @@ Unsafe links: [click me](javascript:alert(1)), [encoded](data:text/html;base64,P
 
 Inline raw <b>bold text</b> and <span onclick="alert(4)">span text</span>.
 
-Inline math $E = mc^2$ inside a sentence.
+Prices stay text: $5 and $10 today.
+
+Inline math $$E = mc^2$$ inside a sentence.
 
 $$
 \\int_0^1 x^2 \\, dx
@@ -98,6 +103,39 @@ graph TD;
 \`\`\`
 
 Escaping check: 5 < 6 & 7 > 4, "quoted" and 'single'.
+
+## Heading level two
+
+### Heading level three
+
+#### Heading level four
+
+##### Heading level five
+
+###### Heading level six
+
+Setext heading level one
+========================
+
+Setext heading level two
+------------------------
+
+3. third item
+4. fourth item
+
+***
+
+---
+
+    indented code line one
+    indented code line two
+
+Autolinks: <https://example.com/pointy>, https://example.com/bare, and
+<person@example.com>.
+
+> outer quote
+>
+> > inner quote
 
 \`\`\`js
 const unclosed = true;

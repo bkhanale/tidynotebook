@@ -46,7 +46,7 @@ const document = [
   '',
   '[^note]: Footnote text.',
   '',
-  'Inline math $x^2$ and display math:',
+  'Inline math $$x^2$$ and display math:',
   '',
   '$$',
   'x = {-b \\pm \\sqrt{b^2-4ac} \\over 2a}',

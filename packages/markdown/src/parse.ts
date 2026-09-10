@@ -15,6 +15,9 @@
  *   metadata, permissions, or rendering options.
  * - Unknown syntax stays text. Raw HTML is parsed into `html` nodes so that
  *   the source stays addressable, but the renderer never emits it.
+ * - One dollar is money, not math. The math delimiter rule comes from
+ *   `./math-syntax.ts`, which the live preview parser reads as well, so both
+ *   engines open math at the same place.
  * - Every entry point is bounded. The size and nesting checks in `./limits.ts`
  *   run before the parser sees the text, and the tree depth is checked after.
  *
@@ -32,6 +35,7 @@ import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
 import { unified } from 'unified';
 import { assertNestingDepth, assertParseLimits } from './limits.ts';
+import { singleDollarTextMath } from './math-syntax.ts';
 
 /**
  * Builds the shared Markdown half of a processor.
@@ -41,7 +45,10 @@ import { assertNestingDepth, assertParseLimits } from './limits.ts';
  * pass, and no plugin that reads a directive out of a note.
  */
 export function createMarkdownProcessor() {
-  return unified().use(remarkParse).use(remarkGfm).use(remarkMath);
+  return unified()
+    .use(remarkParse)
+    .use(remarkGfm)
+    .use(remarkMath, { singleDollarTextMath });
 }
 
 const markdownProcessor = createMarkdownProcessor().freeze();

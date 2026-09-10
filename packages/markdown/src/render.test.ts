@@ -89,7 +89,7 @@ await test('a note link can name a safe heading fragment', async () => {
 
 await test('hostile text inside math or a diagram stays inert', async () => {
   const html = await renderMarkdown(
-    '$</span><script>x</script>$\n\n```mermaid\n</pre><script>y</script>\n```\n',
+    '$$</span><script>x</script>$$\n\n```mermaid\n</pre><script>y</script>\n```\n',
   );
   assert.ok(!html.includes('<script'));
   // KaTeX renders the brackets as relation symbols, so the source appears as

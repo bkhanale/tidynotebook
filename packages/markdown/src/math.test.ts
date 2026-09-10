@@ -87,3 +87,42 @@ await test('invalid syntax throws a syntax error', () => {
 await test('an unclosed source throws rather than emitting markup', () => {
   assert.throws(() => renderMath('\\frac{1}{', false), MathRenderError);
 });
+
+await test('the sanitizer keeps the drawing elements of a radical', () => {
+  const html = renderMath('\\sqrt{x}', false);
+  assert.ok(html.includes('<svg'));
+  assert.ok(html.includes('<path'));
+  assert.ok(/ d="[Mm][^"]*"/.test(html));
+  assert.ok(!html.includes('onload'));
+});
+
+await test('the sanitizer refuses a drawing attribute that is not a number', () => {
+  const cleaned = sanitizeMathHtml(
+    '<svg width="400em" height="javascript:1" viewBox="0 0 1 2"><path d="M1,2z" onclick="x"/></svg>',
+  );
+  assert.ok(cleaned.includes('width="400em"'));
+  assert.ok(cleaned.includes('viewBox="0 0 1 2"'));
+  assert.ok(!cleaned.includes('javascript:'));
+  assert.ok(!cleaned.includes('onclick'));
+  assert.ok(cleaned.includes('<path d="M1,2z"/>'));
+});
+
+await test('the sanitizer drops the LaTeX annotation with its text', () => {
+  const cleaned = sanitizeMathHtml(
+    '<span class="katex-mathml"><math><semantics><mi>x</mi><annotation encoding="application/x-tex">\\alpha</annotation></semantics></math></span>',
+  );
+  assert.ok(cleaned.includes('x'));
+  assert.ok(!cleaned.includes('\\alpha'));
+  assert.ok(!cleaned.includes('annotation'));
+});
+
+await test('accented text in math mode renders instead of failing', () => {
+  const html = renderMath('café', false);
+  assert.ok(html.includes('class="katex"'));
+});
+
+await test('the MathML branch reaches a screen reader', () => {
+  const html = renderMath('x^2', false);
+  assert.ok(html.includes('katex-mathml'));
+  assert.ok(html.includes('aria-hidden="true"'));
+});

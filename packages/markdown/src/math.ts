@@ -11,19 +11,25 @@
  *
  * - It never trusts the source. KaTeX runs with `trust: false`, so `\href`,
  *   `\includegraphics`, `\htmlData`, and similar commands render as red text
- *   rather than as links or markup. `strict: 'error'` refuses LaTeX
- *   incompatible input instead of warning through the console.
+ *   rather than as links or markup. `strict: 'warn'` keeps Unicode text such
+ *   as an accented word inside math mode, and warns instead of refusing.
  * - It never renders unbounded work. The source length, the macro count, the
  *   KaTeX `maxSize`, and the KaTeX `maxExpand` are all capped. A document that
  *   exceeds them throws `MathRenderError` and the caller keeps editable source.
- * - It never returns raw KaTeX output. The sanitizer below keeps only `span`
- *   elements with KaTeX classes, `aria-hidden`, and safe inline styles. A
- *   `style` value may only set a numeric size or the error red, so `url(`,
- *   `expression(`, and similar shapes cannot survive.
+ * - It never returns raw KaTeX output. The sanitizer below keeps only the
+ *   elements KaTeX draws with: `span` for layout and `svg`, `path`, and
+ *   `line` for the radical, the arrow, and the rule. Their attributes are on
+ *   a per-element allow list of class tokens, sizes, number lists, keywords,
+ *   and path command strings. A `style` value may only set a numeric size or
+ *   the error red, so `url(`, `expression(`, and similar shapes cannot
+ *   survive.
  *
- * The output uses `output: 'html'` only, so the tag set is `span`. The KaTeX
+ * The output uses `output: 'htmlAndMathml'`, so a screen reader reads the
+ * MathML branch while the drawn branch stays `aria-hidden`. The KaTeX
  * stylesheet colors follow `currentColor` with Tokyo Night variables set by
- * the caller, for example `--notes-text` on the surrounding note.
+ * the caller, for example `--notes-text` on the surrounding note. That
+ * stylesheet is loaded by the module that renders the math, so the layout
+ * sizes the KaTeX markup needs are present wherever a formula appears.
  */
 import katex from 'katex';
 
@@ -160,50 +166,164 @@ function parseAttributes(raw: string): Array<{ name: string; value: string }> {
   }
 }
 
+/** The elements KaTeX draws with, and the attributes each one may carry. */
+const allowedElements = new Map<string, ReadonlySet<string>>([
+  ['span', new Set(['class', 'aria-hidden', 'style'])],
+  [
+    'svg',
+    new Set([
+      'class',
+      'style',
+      'width',
+      'height',
+      'viewbox',
+      'preserveaspectratio',
+      'xmlns',
+    ]),
+  ],
+  ['path', new Set(['class', 'style', 'd'])],
+  [
+    'line',
+    new Set([
+      'class',
+      'style',
+      'x1',
+      'y1',
+      'x2',
+      'y2',
+      'stroke-width',
+    ]),
+  ],
+]);
+
+/**
+ * The element whose text is dropped with it.
+ *
+ * The MathML branch of the KaTeX output ends with an `annotation` element
+ * that repeats the LaTeX source. Keeping that text would make a screen
+ * reader read the formula and then read its source, so the sanitizer drops
+ * the element and everything inside it.
+ */
+const droppedElement = 'annotation';
+
+/** A number, with an optional unit, as an SVG attribute value. */
+const numberValue = /^-?[0-9]*\.?[0-9]+(?:em|ex|px|pt|%)?$/;
+
+/** A `viewBox` value: two to four numbers separated by spaces or commas. */
+const viewBoxValue = /^-?[0-9.]+(?:[ ,]+-?[0-9.]+){1,3}$/;
+
+/** A `preserveAspectRatio` value: alignment keywords only. */
+const aspectRatioValue = /^[a-zA-Z]+(?: [a-zA-Z]+)?$/;
+
+/** An SVG path command string: path commands, numbers, and separators only. */
+const pathDataValue = /^[MmLlHhVvCcSsQqTtAaZz0-9,.\-+eE\s]+$/;
+
+/** The one namespace KaTeX writes on its `svg` elements. */
+const svgNamespace = 'http://www.w3.org/2000/svg';
+
+/**
+ * The SVG attribute names that are not all lower case.
+ *
+ * The parser above compares names in lower case. An HTML parser corrects the
+ * case of these two on its own, but an XML parser does not, so the sanitizer
+ * writes the canonical spelling back.
+ */
+const canonicalAttributeNames = new Map([
+  ['viewbox', 'viewBox'],
+  ['preserveaspectratio', 'preserveAspectRatio'],
+]);
+
+/**
+ * Reports whether one attribute of a drawing element may stay.
+ *
+ * Every accepted value is a number, a list of numbers, an alignment keyword,
+ * or a path command string. None of them can hold a URL, a script, or a CSS
+ * expression, so no drawing attribute can reach outside the formula.
+ */
+function isSafeDrawingAttribute(name: string, value: string): boolean {
+  if (name === 'viewbox') return viewBoxValue.test(value);
+  if (name === 'preserveaspectratio') return aspectRatioValue.test(value);
+  if (name === 'd') return pathDataValue.test(value);
+  if (name === 'xmlns') return value === svgNamespace;
+  return numberValue.test(value.trim());
+}
+
+/** Renders one accepted attribute back into the output. */
+function keptAttribute(
+  tagName: string,
+  name: string,
+  value: string,
+): string | null {
+  if (name === 'class')
+    return isSafeClassValue(value) ? `class="${value}"` : null;
+  if (name === 'aria-hidden')
+    return value === 'true' || value === 'false'
+      ? `aria-hidden="${value}"`
+      : null;
+  if (name === 'style') {
+    const cleaned = sanitizeStyleValue(value);
+    return cleaned === null ? null : `style="${cleaned}"`;
+  }
+  if (tagName === 'span') return null;
+  if (!isSafeDrawingAttribute(name, value)) return null;
+  const canonical = canonicalAttributeNames.get(name) ?? name;
+  return `${canonical}="${value.trim()}"`;
+}
+
 /**
  * Sanitizes KaTeX HTML output.
  *
- * Only `span` elements survive, with `class`, `aria-hidden`, and safe
- * `style` attributes. Every other element is dropped but its text content is
- * kept, so no content is lost. Every other attribute is dropped. The result
- * holds no `script`, no event handler, no `href`, no `src`, and no `url(`.
+ * Only the elements KaTeX draws with survive: `span` for layout and `svg`,
+ * `path`, and `line` for the radical, the arrow, and the rule. Every other
+ * element is dropped but its text content is kept, so no content is lost.
+ * The one exception is the MathML `annotation` element, whose text is the
+ * LaTeX source and is dropped with it. Every attribute that is not on the
+ * per-element allow list is dropped, and every accepted value must be a
+ * class token, a size, a number list, a keyword, or a path command string.
+ * The result holds no `script`, no event handler, no `href`, no `src`, and
+ * no `url(`.
  */
 export function sanitizeMathHtml(html: string): string {
-  const tagPattern = /<\/?([a-zA-Z][a-zA-Z0-9]*)(\s[^<>]*)?(\/?)>/g;
+  // The attribute group is lazy so that the trailing slash of a self closing
+  // tag stays outside it and reaches the third group.
+  const tagPattern = /<\/?([a-zA-Z][a-zA-Z0-9-]*)(\s[^<>]*?)?\s*(\/?)>/g;
   let result = '';
   let index = 0;
+  let dropDepth = 0;
   for (;;) {
     const match = tagPattern.exec(html);
     if (match === null) {
-      result += html.slice(index);
+      if (dropDepth === 0) result += html.slice(index);
       return result;
     }
     const full = match[0] ?? '';
     const tagName = (match[1] ?? '').toLowerCase();
     const rawAttributes = match[2] ?? '';
+    const selfClosing = (match[3] ?? '') === '/';
     const start = match.index ?? 0;
-    result += html.slice(index, start);
+    if (dropDepth === 0) result += html.slice(index, start);
     index = start + full.length;
     const closing = full.startsWith('</');
-    if (tagName !== 'span') continue;
+    if (tagName === droppedElement) {
+      if (closing) dropDepth = Math.max(0, dropDepth - 1);
+      else if (!selfClosing) dropDepth += 1;
+      continue;
+    }
+    if (dropDepth > 0) continue;
+    const allowed = allowedElements.get(tagName);
+    if (allowed === undefined) continue;
     if (closing) {
-      result += '</span>';
+      result += `</${tagName}>`;
       continue;
     }
     const kept: string[] = [];
     for (const attribute of parseAttributes(rawAttributes)) {
-      if (attribute.name === 'class') {
-        if (isSafeClassValue(attribute.value))
-          kept.push(`class="${attribute.value}"`);
-      } else if (attribute.name === 'aria-hidden') {
-        if (attribute.value === 'true' || attribute.value === 'false')
-          kept.push(`aria-hidden="${attribute.value}"`);
-      } else if (attribute.name === 'style') {
-        const cleaned = sanitizeStyleValue(attribute.value);
-        if (cleaned !== null) kept.push(`style="${cleaned}"`);
-      }
+      if (!allowed.has(attribute.name)) continue;
+      const rendered = keptAttribute(tagName, attribute.name, attribute.value);
+      if (rendered !== null) kept.push(rendered);
     }
-    result += kept.length === 0 ? '<span>' : `<span ${kept.join(' ')}>`;
+    const open = kept.length === 0 ? tagName : `${tagName} ${kept.join(' ')}`;
+    result += selfClosing ? `<${open}/>` : `<${open}>`;
   }
 }
 
@@ -231,9 +351,9 @@ export function renderMath(source: string, display: boolean): string {
     html = katex.renderToString(source, {
       displayMode: display,
       trust: false,
-      strict: 'error',
+      strict: 'warn',
       throwOnError: true,
-      output: 'html',
+      output: 'htmlAndMathml',
       maxSize: mathLimits.maxSize,
       maxExpand: mathLimits.maxExpand,
     });
