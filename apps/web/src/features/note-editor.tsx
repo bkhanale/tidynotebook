@@ -478,7 +478,7 @@ export function NoteEditor({
   // or undo history.
   useEffect(() => {
     let cancelled = false;
-    void import('./math.ts').then((module) => {
+    void import('./markdown.ts').then((module) => {
       if (cancelled) return;
       mathRenderRef.current = module.renderMath;
       renderMarkdownRef.current = module.renderMarkdown;

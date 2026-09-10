@@ -19,12 +19,6 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import {
-  EditorView,
-  highlightActiveLine,
-  keymap,
-  type ViewUpdate,
-} from '@codemirror/view';
-import {
   headingSpec,
   linkTargetAt,
   toggleTaskSpec,
