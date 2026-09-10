@@ -150,7 +150,21 @@ export const files = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.workspaceId, table.id] }),
-    index('files_live_idx').on(table.workspaceId, table.deleted),
+    // The two keyset orders of the file listing. Each one carries the whole
+    // sort key, so a page reads only the rows it returns and the count of
+    // live files reads the index alone.
+    index('files_recent_idx').on(
+      table.workspaceId,
+      table.deleted,
+      table.updatedAt.desc(),
+      table.id.desc(),
+    ),
+    index('files_path_idx').on(
+      table.workspaceId,
+      table.deleted,
+      table.path,
+      table.id,
+    ),
   ],
 );
 
@@ -540,7 +554,13 @@ export const snapshotItems = pgTable(
   ],
 );
 
-/** The current accepted searchable text of one live note. */
+/**
+ * The current accepted searchable text of one live note.
+ *
+ * The name of the note and its body are separate columns, because the search
+ * document weights the name above the body. `title` is the last segment of
+ * the path without the `.md` suffix, which is the name a person sees.
+ */
 export const searchIndex = pgTable(
   'search_index',
   {
@@ -550,7 +570,8 @@ export const searchIndex = pgTable(
     fileId: uuid('file_id').notNull(),
     revisionId: uuid('revision_id').notNull(),
     path: text('path').notNull(),
-    searchText: text('search_text').notNull(),
+    title: text('title').notNull(),
+    body: text('body').notNull(),
   },
   (table) => [
     primaryKey({ columns: [table.workspaceId, table.fileId] }),
@@ -564,9 +585,16 @@ export const searchIndex = pgTable(
       columns: [table.workspaceId, table.revisionId],
       foreignColumns: [revisions.workspaceId, revisions.id],
     }),
+    // The workspace identifier leads the index, so a search of one workspace
+    // never reads the postings of another. `btree_gin` supplies the operator
+    // class of the uuid column; the migration installs it.
+    //
+    // The expression has to stay the same as the one in `notesapp_search`,
+    // or the planner cannot use this index for the match.
     index('search_index_document_idx').using(
       'gin',
-      sql`to_tsvector('simple', ${table.searchText})`,
+      table.workspaceId,
+      sql`(setweight(to_tsvector('english', ${table.title}), 'A') || setweight(to_tsvector('english', ${table.body}), 'B'))`,
     ),
   ],
 );

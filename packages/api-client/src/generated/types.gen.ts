@@ -806,13 +806,24 @@ export type RevisionInput = {
 export type Role = 'owner';
 
 /**
+ * One part of a search excerpt. A part with `marked` true is a word that the query matched. The excerpt carries no markup, so a reader renders every part as text and decides itself how a marked part looks.
+ */
+export type SearchExcerptPart = {
+    readonly text: string;
+    readonly marked: boolean;
+};
+
+/**
  * One accepted live note that matched a search.
  */
 export type SearchHit = {
     readonly fileId: Uuid;
     readonly path: FilePath;
     readonly revisionId: Uuid;
-    readonly excerpt: string;
+    /**
+     * The matching part of the note, in reading order.
+     */
+    readonly excerpt: Array<SearchExcerptPart>;
 };
 
 /**

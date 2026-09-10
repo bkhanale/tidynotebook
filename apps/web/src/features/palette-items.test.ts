@@ -15,9 +15,30 @@ const notes: readonly PaletteNote[] = [
   { fileId: 'c', path: 'shopping.md', updatedAt: '2026-01-04T00:00:00Z' },
 ];
 
+/** One excerpt with the query word marked, as the search operations give it. */
+function excerpt(
+  before: string,
+  word: string,
+  after: string,
+): readonly { readonly text: string; readonly marked: boolean }[] {
+  return [
+    { text: before, marked: false },
+    { text: word, marked: true },
+    { text: after, marked: false },
+  ];
+}
+
 const hits: readonly PaletteHit[] = [
-  { fileId: 'c', path: 'shopping.md', excerpt: 'the roadmap is in the fridge' },
-  { fileId: 'a', path: 'plans/roadmap.md', excerpt: 'roadmap of the year' },
+  {
+    fileId: 'c',
+    path: 'shopping.md',
+    excerpt: excerpt('the ', 'roadmap', ' is in the fridge'),
+  },
+  {
+    fileId: 'a',
+    path: 'plans/roadmap.md',
+    excerpt: excerpt('', 'roadmap', ' of the year'),
+  },
 ];
 
 await test('an empty query lists the notes that changed last', () => {
@@ -37,7 +58,10 @@ await test('a name match comes before a content match', () => {
   );
   assert.equal(ranked[0]?.excerpt, null);
   assert.equal(ranked[1]?.excerpt, null);
-  assert.equal(ranked[2]?.excerpt, 'the roadmap is in the fridge');
+  assert.deepEqual(
+    ranked[2]?.excerpt,
+    excerpt('the ', 'roadmap', ' is in the fridge'),
+  );
 });
 
 await test('a note that matches twice is listed once', () => {
@@ -47,11 +71,21 @@ await test('a note that matches twice is listed once', () => {
 });
 
 await test('server and local hits merge with the local one winning', () => {
+  const stored = excerpt('', 'old', '');
+  const drafted = excerpt('', 'new', '');
   const merged = mergeHits(
-    [{ fileId: 'a', path: 'a.md', excerpt: 'old' }],
-    [{ fileId: 'a', path: 'a.md', excerpt: 'new' }],
+    [{ fileId: 'a', path: 'a.md', excerpt: stored }],
+    [{ fileId: 'a', path: 'a.md', excerpt: drafted }],
   );
-  assert.deepEqual(merged, [{ fileId: 'a', path: 'a.md', excerpt: 'new' }]);
+  assert.deepEqual(merged, [{ fileId: 'a', path: 'a.md', excerpt: drafted }]);
+});
+
+await test('a content match keeps the rank of the search that gave it', () => {
+  const ranked = rankNotes('roadmap', [], hits, 10);
+  assert.deepEqual(
+    ranked.map((match) => match.fileId),
+    ['c', 'a'],
+  );
 });
 
 const actions: readonly PaletteAction[] = [

@@ -3,10 +3,14 @@
  *
  * One list answers one query. A note whose name matches comes first,
  * because a person who types a name wants that note. A note that only
- * matches in its text follows, with the line that matched. A note is never
- * listed twice, whatever the source of the match was. Actions match on
- * their own words and sit under the notes.
+ * matches in its text follows, with the part of the note that matched. A note
+ * is never listed twice, whatever the source of the match was. Actions match
+ * on their own words and sit under the notes.
+ *
+ * The content matches arrive already ranked, the server first and this device
+ * after it, so this module keeps the order it was given.
  */
+import type { ExcerptPart } from '@notesapp/core';
 
 /** One note the palette can open. */
 export type PaletteNote = {
@@ -19,15 +23,15 @@ export type PaletteNote = {
 export type PaletteHit = {
   readonly fileId: string;
   readonly path: string;
-  readonly excerpt: string;
+  readonly excerpt: readonly ExcerptPart[];
 };
 
 /** One ranked row of the note part of the list. */
 export type NoteMatch = {
   readonly fileId: string;
   readonly path: string;
-  /** The matching line, when the match was in the text of the note. */
-  readonly excerpt: string | null;
+  /** The matching part of the note, when the match was in its text. */
+  readonly excerpt: readonly ExcerptPart[] | null;
 };
 
 /** Joins server and local content hits, keeping one row per note. */
@@ -84,7 +88,6 @@ export function rankNotes(
   const named = new Set(byName.map((match) => match.fileId));
   const byContent = hits
     .filter((hit) => !named.has(hit.fileId))
-    .sort((left, right) => (left.path < right.path ? -1 : 1))
     .map((hit): NoteMatch => ({
       fileId: hit.fileId,
       path: hit.path,

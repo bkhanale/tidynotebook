@@ -54,6 +54,7 @@ import {
   type SearchHit,
 } from '@notesapp/core';
 import { parseMarkdown } from '@notesapp/markdown';
+import { splitExcerpt } from './excerpt.ts';
 import { markdownLimitCode } from './markdown-limits.ts';
 import {
   and,
@@ -562,6 +563,15 @@ function clientTime(revision: RevisionInput): Date {
 }
 
 /**
+ * The name of a note as a person sees it: the last path segment, without the
+ * one `.md` suffix that storage always keeps.
+ */
+function noteTitle(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.endsWith('.md') ? name.slice(0, -'.md'.length) : name;
+}
+
+/**
  * Replaces the search rows of every accepted head in this write.
  *
  * This runs after the file heads and paths move, inside the same transaction.
@@ -604,7 +614,8 @@ async function updateAcceptedIndexes(
         fileId: tip.fileId,
         revisionId: tip.id,
         path: tip.path,
-        searchText: `${tip.path}\n${text}`,
+        title: noteTitle(tip.path),
+        body: text,
       };
     }),
   );
@@ -944,7 +955,8 @@ function createTransaction(
     async listDeletedFiles(page: FilePageRequest): Promise<DeletedFilePage> {
       // The complement of `listFiles`, and the same paging: one row more than
       // the page is read, so the answer knows whether a next page exists
-      // without a second count query. `files_live_idx` covers the filter.
+      // without a second count query. The two keyset indexes on `files`
+      // cover the filter and both sort orders.
       const limit = Math.min(Math.max(1, Math.trunc(page.limit)), maxPageSize);
       const from = listingCursor(page);
       const rows = await db
@@ -1110,7 +1122,7 @@ function createTransaction(
         fileId: row.file_id,
         path: row.path,
         revisionId: row.revision_id,
-        excerpt: row.excerpt,
+        excerpt: splitExcerpt(row.excerpt),
       }));
     },
 

@@ -980,8 +980,8 @@
         }
       },
       "indexes": {
-        "files_live_idx": {
-          "name": "files_live_idx",
+        "files_recent_idx": {
+          "name": "files_recent_idx",
           "columns": [
             {
               "expression": "workspace_id",
@@ -991,6 +991,51 @@
             },
             {
               "expression": "deleted",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": false,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "files_path_idx": {
+          "name": "files_path_idx",
+          "columns": [
+            {
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "deleted",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "path",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1624,8 +1669,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "search_text": {
-          "name": "search_text",
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -1636,7 +1687,13 @@
           "name": "search_index_document_idx",
           "columns": [
             {
-              "expression": "to_tsvector('simple', \"search_text\")",
+              "expression": "workspace_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "(setweight(to_tsvector('english', \"title\"), 'A') || setweight(to_tsvector('english', \"body\"), 'B'))",
               "asc": true,
               "isExpression": true,
               "nulls": "last"

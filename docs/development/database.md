@@ -53,7 +53,7 @@ even where a row access policy hides the parent.
 | `purge_markers`               | A content free marker of a permanently deleted file.       |
 | `sync_changes`                | Commit ordered incremental change records.                 |
 | `snapshots`, `snapshot_items` | A bounded materialized download snapshot.                  |
-| `search_index`                | The searchable text of every live note.                    |
+| `search_index`                | The name and body of every live note, for search.          |
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 | `attachment_reclaim_queue`    | Attachment bytes of a deleted workspace, until reclaimed.  |
 
@@ -90,6 +90,33 @@ cannot name an object of another workspace either.
 `revisions.server_time` and `changesets.server_time` are the acceptance time.
 They default to `clock_timestamp()`, not `now()`, so two changesets written in
 one transaction keep the order of their cursors.
+
+### The search document
+
+`search_index` holds one row for each live note. `title` is the name a person
+sees, which is the last path segment without the `.md` suffix, and `body` is
+the Markdown of the accepted head. The search document is
+
+```sql
+setweight(to_tsvector('english', title), 'A')
+  || setweight(to_tsvector('english', body), 'B')
+```
+
+The `english` configuration stems and drops stop words, so `run` finds
+`running`. The GIN index holds `workspace_id` before the document, so a search
+of one workspace never reads the postings of another. The `btree_gin`
+extension supplies the operator class of the uuid column. The index expression
+and the expression in `notesapp_search` have to stay identical, or the planner
+cannot use the index.
+
+`notesapp_search` builds the query itself from the words of the typed text.
+Only letters and digits survive, so no part of the text can reach
+`to_tsquery` as an operator. The last word also matches as a prefix, which is
+what makes search as you type work: `not` finds a note named `Notes`. Results
+come back with the name matches first and `ts_rank_cd` inside each group. The
+excerpt comes from `ts_headline`, and every matched word arrives between two
+control characters that the storage adapter splits into the parts of the
+contract, so no markup reaches a reader.
 
 ### Accepted paths and the deferrable constraint
 

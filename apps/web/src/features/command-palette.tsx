@@ -9,6 +9,10 @@
  * whose name matches, then the notes whose text matches, then the actions.
  * The list is one `listbox`; the input keeps focus and points at the
  * highlighted row with `aria-activedescendant`.
+ *
+ * A content match shows the part of the note that matched. The excerpt is a
+ * list of plain parts, so the marked words are real elements and no markup
+ * from a note is ever put into the page.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
@@ -256,7 +260,18 @@ export function CommandPalette({
                 </span>
                 {row.match.excerpt === null ? null : (
                   <span className="truncate text-control text-muted">
-                    {row.match.excerpt}
+                    {row.match.excerpt.map((part, at) =>
+                      part.marked ? (
+                        <mark
+                          key={at}
+                          className="bg-transparent font-semibold text-accent"
+                        >
+                          {part.text}
+                        </mark>
+                      ) : (
+                        <span key={at}>{part.text}</span>
+                      ),
+                    )}
                   </span>
                 )}
               </>

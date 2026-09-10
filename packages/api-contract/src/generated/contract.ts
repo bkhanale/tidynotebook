@@ -5833,9 +5833,30 @@ export const operations: readonly OperationEntry[] = [
                     "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared63"
                   },
                   "excerpt": {
-                    "type": "string",
+                    "type": "array",
                     "readOnly": true,
-                    "maxLength": 1024
+                    "description": "The matching part of the note, in reading order.",
+                    "maxItems": 128,
+                    "items": {
+                      "type": "object",
+                      "description": "One part of a search excerpt. A part with `marked` true is a word that the query matched. The excerpt carries no markup, so a reader renders every part as text and decides itself how a marked part looks.",
+                      "additionalProperties": false,
+                      "required": [
+                        "text",
+                        "marked"
+                      ],
+                      "properties": {
+                        "text": {
+                          "type": "string",
+                          "readOnly": true,
+                          "maxLength": 1024
+                        },
+                        "marked": {
+                          "type": "boolean",
+                          "readOnly": true
+                        }
+                      }
+                    }
                   }
                 }
               }

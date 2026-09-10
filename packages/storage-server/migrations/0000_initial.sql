@@ -1,3 +1,12 @@
+-- ---------------------------------------------------------------------------
+-- Extensions.
+--
+-- `btree_gin` gives the uuid type a GIN operator class, so one GIN index can
+-- hold the workspace identifier next to the searchable document of a note. It
+-- is a trusted extension, so the migration role installs it and no superuser
+-- is needed. It has to exist before the search index below.
+-- ---------------------------------------------------------------------------
+CREATE EXTENSION IF NOT EXISTS btree_gin;--> statement-breakpoint
 CREATE TYPE "public"."attachment_state" AS ENUM('temporary', 'finalized', 'unavailable');--> statement-breakpoint
 CREATE TYPE "public"."content_kind" AS ENUM('markdown', 'attachment');--> statement-breakpoint
 CREATE TYPE "public"."file_kind" AS ENUM('note', 'attachment');--> statement-breakpoint
@@ -208,7 +217,8 @@ CREATE TABLE "search_index" (
 	"file_id" uuid NOT NULL,
 	"revision_id" uuid NOT NULL,
 	"path" text NOT NULL,
-	"search_text" text NOT NULL,
+	"title" text NOT NULL,
+	"body" text NOT NULL,
 	CONSTRAINT "search_index_workspace_id_file_id_pk" PRIMARY KEY("workspace_id","file_id")
 );
 --> statement-breakpoint
@@ -305,13 +315,14 @@ CREATE INDEX "attachment_objects_digest_idx" ON "attachment_objects" USING btree
 CREATE INDEX "auth_account_user_idx" ON "auth_account" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "auth_session_user_idx" ON "auth_session" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "auth_verification_identifier_idx" ON "auth_verification" USING btree ("identifier");--> statement-breakpoint
-CREATE INDEX "files_live_idx" ON "files" USING btree ("workspace_id","deleted");--> statement-breakpoint
+CREATE INDEX "files_recent_idx" ON "files" USING btree ("workspace_id","deleted","updated_at" DESC NULLS LAST,"id" DESC NULLS LAST);--> statement-breakpoint
+CREATE INDEX "files_path_idx" ON "files" USING btree ("workspace_id","deleted","path","id");--> statement-breakpoint
 CREATE INDEX "memberships_account_idx" ON "memberships" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "revision_parents_parent_idx" ON "revision_parents" USING btree ("workspace_id","parent_id");--> statement-breakpoint
 CREATE INDEX "revisions_file_idx" ON "revisions" USING btree ("workspace_id","file_id");--> statement-breakpoint
 CREATE INDEX "revisions_changeset_idx" ON "revisions" USING btree ("workspace_id","changeset_id");--> statement-breakpoint
 CREATE INDEX "revisions_restored_from_idx" ON "revisions" USING btree ("workspace_id","restored_from");--> statement-breakpoint
-CREATE INDEX "search_index_document_idx" ON "search_index" USING gin (to_tsvector('simple', "search_text"));--> statement-breakpoint
+CREATE INDEX "search_index_document_idx" ON "search_index" USING gin ("workspace_id",(setweight(to_tsvector('english', "title"), 'A') || setweight(to_tsvector('english', "body"), 'B')));--> statement-breakpoint
 CREATE INDEX "snapshot_items_workspace_idx" ON "snapshot_items" USING btree ("workspace_id");--> statement-breakpoint
 CREATE INDEX "snapshots_expiry_idx" ON "snapshots" USING btree ("workspace_id","expires_at");
 --> statement-breakpoint
@@ -1202,6 +1213,20 @@ CREATE FUNCTION public.notesapp_cleanup_sync(p_snapshot_cutoff timestamptz, p_ch
 -- it evaluates membership for each candidate row. This function checks the
 -- transaction identity once, then searches as the schema owner. The owner is
 -- still subject to FORCE ROW LEVEL SECURITY and has an explicit true policy.
+--
+-- The document weights the name of the note above its body, so a name match
+-- ranks first and `ts_rank_cd` orders the rest. The excerpt is the part of
+-- the body that matched, and every matched word is wrapped in the two control
+-- characters that the storage adapter splits on. The adapter removes both
+-- characters from the body first, so the split is exact and no caller ever
+-- receives markup.
+--
+-- The query is built here from words that hold letters and digits only, so no
+-- part of the typed text reaches `to_tsquery` as an operator. The last word
+-- also matches as a prefix, which is what makes search as you type work: a
+-- person who has typed `not` finds a note named `Notes`. `client_min_messages`
+-- is lowered because `plainto_tsquery` reports a word that is a stop word as
+-- a notice, and a stop word in a query is normal.
 CREATE FUNCTION public.notesapp_search(
   p_workspace_id uuid,
   p_query text,
@@ -1217,35 +1242,93 @@ LANGUAGE plpgsql
 STABLE
 SECURITY DEFINER
 SET search_path = pg_catalog, public
+SET client_min_messages = warning
 AS $$
 DECLARE
-  needle tsquery;
+  terms text[];
+  term text;
+  part tsquery;
+  needle tsquery := NULL;
+  at integer;
+  total integer;
 BEGIN
   IF NOT public.notesapp_is_member(p_workspace_id) THEN
     RETURN;
   END IF;
-  IF btrim(p_query) = '' THEN
+
+  terms := ARRAY(
+    SELECT left(word, 64)
+      FROM unnest(
+             regexp_split_to_array(lower(coalesce(p_query, '')), '[^[:alnum:]]+')
+           ) AS word
+     WHERE word <> ''
+     LIMIT 16
+  );
+  total := coalesce(array_length(terms, 1), 0);
+  IF total = 0 THEN
     RETURN;
   END IF;
-  needle := websearch_to_tsquery('simple', p_query);
+
+  FOR at IN 1..total LOOP
+    term := terms[at];
+    part := plainto_tsquery('english', term);
+    IF at = total THEN
+      -- The word the person may still be typing also matches as a prefix.
+      -- The `simple` configuration keeps the word itself, so the prefix of a
+      -- stop word such as `not` still reaches the stemmed lexeme `note`.
+      IF part::text = '' THEN
+        part := to_tsquery('simple', term || ':*');
+      ELSE
+        part := part || to_tsquery('simple', term || ':*');
+      END IF;
+    END IF;
+    IF part::text <> '' THEN
+      needle := CASE WHEN needle IS NULL THEN part ELSE needle && part END;
+    END IF;
+  END LOOP;
+
+  IF needle IS NULL THEN
+    RETURN;
+  END IF;
 
   RETURN QUERY
     WITH matches AS MATERIALIZED (
       SELECT indexed.file_id,
              indexed.path,
+             indexed.body,
              indexed.revision_id,
-             indexed.search_text
+             to_tsvector('english', indexed.title) @@ needle AS named,
+             setweight(to_tsvector('english', indexed.title), 'A')
+               || setweight(to_tsvector('english', indexed.body), 'B')
+               AS document
         FROM public.search_index indexed
        WHERE indexed.workspace_id = p_workspace_id
-         AND to_tsvector('simple', indexed.search_text) @@ needle
-       ORDER BY indexed.path, indexed.file_id
-       LIMIT least(greatest(coalesce(p_limit, 1), 1), 100)
+         AND (
+               setweight(to_tsvector('english', indexed.title), 'A')
+                 || setweight(to_tsvector('english', indexed.body), 'B')
+             ) @@ needle
     )
     SELECT matches.file_id,
            matches.path,
            matches.revision_id,
-           left(matches.search_text, 1024) AS excerpt
-      FROM matches;
+           ts_headline(
+             'english',
+             translate(matches.body, chr(1) || chr(2), ''),
+             needle,
+             'StartSel="' || chr(1) || '", StopSel="' || chr(2) || '",'
+               || ' MaxWords=28, MinWords=10, ShortWord=2, MaxFragments=2,'
+               || ' FragmentDelimiter=" ... "'
+           ) AS excerpt
+      FROM matches
+     ORDER BY matches.named DESC,
+              ts_rank_cd(
+                '{0.1, 0.2, 0.4, 1.0}'::float4[],
+                matches.document,
+                needle
+              ) DESC,
+              matches.path,
+              matches.file_id
+     LIMIT least(greatest(coalesce(p_limit, 1), 1), 100);
 END
 $$;--> statement-breakpoint
 

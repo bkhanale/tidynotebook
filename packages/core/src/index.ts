@@ -161,7 +161,7 @@ export {
   syncMaxLimit,
   syncRetentionDays,
 } from './files/snapshot.ts';
-export type { SearchHit } from './search/service.ts';
+export type { ExcerptPart, SearchHit } from './search/service.ts';
 export {
   defaultSearchLimit,
   maxSearchLimit,

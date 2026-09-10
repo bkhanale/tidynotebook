@@ -85,6 +85,92 @@ await test('search includes accepted titles and content but not deleted notes', 
   if (afterDelete.ok) assert.deepEqual(afterDelete.value, []);
 });
 
+await test('the index stems, so one word form finds another', async () => {
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'training/Sprints.md',
+      text: '# Sprints\nThe team is running along the canal.\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'run canal');
+  assert.equal(found.ok, true);
+  if (found.ok)
+    assert.deepEqual(
+      found.value.map((hit) => hit.fileId),
+      [fileId],
+    );
+});
+
+await test('the last word matches as a prefix, so search as you type works', async () => {
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'index/Notes.md',
+      text: '# Notes\nOne list of everything.\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'not');
+  assert.equal(found.ok, true);
+  if (found.ok)
+    assert.ok(
+      found.value.some((hit) => hit.fileId === fileId),
+      'a note named Notes answers the prefix "not"',
+    );
+});
+
+await test('a name match ranks above a note that matches in its text alone', async () => {
+  const namedId = randomUUID();
+  const bodyId = randomUUID();
+  await accept([
+    revision({
+      fileId: bodyId,
+      path: 'boats/Canoes.md',
+      text: `# Canoes\n${'A kayak is not a canoe. '.repeat(20)}`,
+    }),
+    revision({
+      fileId: namedId,
+      path: 'boats/Kayak.md',
+      text: '# Kayak\nOne boat for one person.\n',
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'kayak');
+  assert.equal(found.ok, true);
+  if (found.ok)
+    assert.deepEqual(
+      found.value.map((hit) => hit.fileId),
+      [namedId, bodyId],
+    );
+});
+
+await test('the excerpt is the matching part of the note, with the word marked', async () => {
+  const fileId = randomUUID();
+  await accept([
+    revision({
+      fileId,
+      path: 'gear/Jackets.md',
+      text: `# Jackets\n${'Padding and lining. '.repeat(40)}Every jacket carries its own flotation.\n`,
+    }),
+  ]);
+  const found = await searchFiles(store, actor, workspaceId, 'flotation');
+  assert.equal(found.ok, true);
+  if (!found.ok) return;
+  const hit = found.value.find((entry) => entry.fileId === fileId);
+  assert.ok(hit !== undefined);
+  assert.deepEqual(
+    hit.excerpt.filter((part) => part.marked).map((part) => part.text),
+    ['flotation'],
+  );
+  const whole = hit.excerpt.map((part) => part.text).join('');
+  assert.match(whole, /carries its own flotation/);
+  assert.ok(
+    !whole.includes('# Jackets'),
+    'the excerpt shows the match and not the head of the note',
+  );
+});
+
 await test('search requires the current role and a read grant', async () => {
   const created = verifyActor(accountId, [{ workspaceId, actions: ['write'] }]);
   assert.equal(created.ok, true);

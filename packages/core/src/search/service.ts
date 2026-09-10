@@ -10,12 +10,24 @@ import { authorize, type Actor } from '../identity/actor.ts';
 import { fail, ok, type Result } from '../files/model.ts';
 import type { WorkspaceStore, WorkspaceTransaction } from '../files/ports.ts';
 
+/**
+ * One part of a search excerpt.
+ *
+ * A marked part is a word that the query matched. The excerpt carries no
+ * markup, so a reading surface renders every part as text and decides for
+ * itself how a marked part looks.
+ */
+export type ExcerptPart = {
+  readonly text: string;
+  readonly marked: boolean;
+};
+
 /** One accepted note that matched a search query. */
 export type SearchHit = {
   readonly fileId: string;
   readonly path: string;
   readonly revisionId: string;
-  readonly excerpt: string;
+  readonly excerpt: readonly ExcerptPart[];
 };
 
 /** Default and maximum result counts at the domain boundary. */

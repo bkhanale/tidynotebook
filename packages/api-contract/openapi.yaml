@@ -2254,6 +2254,24 @@ components:
           description: >-
             Cursor of the next page, or null when this page is the last one.
             It continues the sort that produced it.
+    SearchExcerptPart:
+      type: object
+      description: >-
+        One part of a search excerpt. A part with `marked` true is a word that
+        the query matched. The excerpt carries no markup, so a reader renders
+        every part as text and decides itself how a marked part looks.
+      additionalProperties: false
+      required:
+        - text
+        - marked
+      properties:
+        text:
+          type: string
+          readOnly: true
+          maxLength: 1024
+        marked:
+          type: boolean
+          readOnly: true
     SearchHit:
       type: object
       description: One accepted live note that matched a search.
@@ -2277,9 +2295,12 @@ components:
             - $ref: '#/components/schemas/Uuid'
           readOnly: true
         excerpt:
-          type: string
+          type: array
           readOnly: true
-          maxLength: 1024
+          description: The matching part of the note, in reading order.
+          maxItems: 128
+          items:
+            $ref: '#/components/schemas/SearchExcerptPart'
     SearchResults:
       type: object
       description: Search results from current accepted note revisions.
