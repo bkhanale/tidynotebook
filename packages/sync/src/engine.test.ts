@@ -769,6 +769,12 @@ await test('a refused update of a live file is parked as deleted remotely', asyn
       fileIds: ['file-a'],
     },
   ]);
+  // The text is also kept where the Needs attention list reads it, so the
+  // person can place it again instead of losing it with the tombstone.
+  assert.equal(store.recovery.length, 1);
+  assert.equal(store.recovery[0]?.text, '# B\n');
+  assert.equal(store.recovery[0]?.reason, 'save_refused');
+  assert.equal(store.recovery[0]?.code, 'deleted_remotely');
 });
 
 await test('a preserved save writes its text into the recovery area', async () => {
@@ -782,7 +788,14 @@ await test('a preserved save writes its text into the recovery area', async () =
         problem: { status: 409, code: 'path_conflict', fileIds: ['file-a'] },
       }),
   });
-  await pushQueue(store, accountId, workspaceId, ops, testContext(notices, []));
+  await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, []),
+    noPull,
+  );
 
   // Parking alone would leave the text in a queue row that no screen reads.
   assert.equal(store.recovery.length, 1);
@@ -797,7 +810,7 @@ await test('a preserved save writes its text into the recovery area', async () =
   assert.equal(kept.workspaceId, workspaceId);
 });
 
-await test('an unknown refusal code is parked the same way', async () => {
+await test('a refusal code this release does not know is parked too', async () => {
   const store = new FakeStore();
   store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
   const ops = stubOperations({
@@ -806,14 +819,23 @@ await test('an unknown refusal code is parked the same way', async () => {
         ok: false as const,
         problem: {
           status: 409,
-          code: 'deleted_remotely',
+          code: 'a_reason_from_a_newer_server',
           fileIds: ['file-a'],
         },
       }),
   });
-  await pushQueue(store, accountId, workspaceId, ops, testContext([], []));
+  await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext([], []),
+    noPull,
+  );
+  // Parking never depends on knowing the code. The code travels with the
+  // record and the interface explains it in general words.
   assert.equal(store.recovery.length, 1);
-  assert.equal(store.recovery[0]?.code, 'deleted_remotely');
+  assert.equal(store.recovery[0]?.code, 'a_reason_from_a_newer_server');
   assert.equal(store.recovery[0]?.text, '# B\n');
 });
 

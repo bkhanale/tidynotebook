@@ -1637,7 +1637,8 @@ await test('a draft with no base is not reported as stale', async () => {
   // A second working copy of the same file writes without a base, which is
   // what a caller does when its own draft row was already removed. An
   // unknown base is not evidence that the server moved on, so no stale
-  // choice is offered and no false warning reaches the person.
+  // choice is offered and no false warning reaches the person. The accepted
+  // row is then the newer statement of the file and it opens instead.
   await store.saveDraft(
     draftOf(account, workspace, file, 'copy-b', 'later text\n', {
       baseRevisionId: null,
@@ -1647,7 +1648,36 @@ await test('a draft with no base is not reported as stale', async () => {
   const cached = await store.readCachedNote(account, workspace, file);
   assert.equal(cached?.stale, false);
   assert.equal(cached?.acceptedText, null);
-  assert.equal(cached?.text, 'later text\n');
+  assert.equal(cached?.text, 'first\n');
   assert.equal(cached?.acceptedRevisionId, revisionId);
+  await store.close();
+});
+
+await test('a queued save of this device never reads as a stale draft', async () => {
+  const backend = createBackend('own-head-not-stale');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
+  await store.saveDraft(first);
+  const accepted = await store.checkpoint(first, null);
+  const acceptedRevision = accepted?.input.revisions[0]?.id ?? '';
+  await store.acknowledge(account, acceptanceOf(accepted, account, '10'));
+
+  // A second save waits for the server, so the accepted head is behind the
+  // work of this device rather than ahead of it. That is not a stale draft.
+  const second = { ...first, text: 'two\n', sequence: 2 };
+  await store.saveDraft(second);
+  const queued = await store.checkpoint(second, null);
+  assert.ok(queued !== null);
+  await store.saveDraft({ ...second, text: 'three\n', sequence: 3 });
+
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.stale, false);
+  assert.equal(cached?.acceptedText, null);
+  assert.equal(cached?.text, 'three\n');
+  assert.equal(cached?.acceptedRevisionId, acceptedRevision);
   await store.close();
 });
