@@ -394,18 +394,15 @@ await test('a deletion writes a tombstone and hides the file', async () => {
   );
 });
 
-await test('a deletion clears the links of a file', async () => {
+await test('a deletion clears the search row of a file', async () => {
   const file = await newFile('notes/published.md');
   const session = await openSession(database.migrationUrl);
   try {
-    // The link index belongs to a later task, so its row is written with the
-    // migration role. The deletion has to reach it.
-    await session.query(
-      `insert into link_index
-        (workspace_id, source_file_id, source_revision_id, ordinal, target_file_id, source_text)
-        values ($1, $2, $3, 0, null, 'a link')`,
-      [workspaceId, file.fileId, file.revisionId],
+    const before = await session.query(
+      'select file_id from search_index where workspace_id = $1 and file_id = $2',
+      [workspaceId, file.fileId],
     );
+    assert.equal(before.length, 1);
   } finally {
     await session.close();
   }
@@ -419,11 +416,11 @@ await test('a deletion clears the links of a file', async () => {
 
   const after = await openSession(database.migrationUrl);
   try {
-    const links = await after.query(
-      'select ordinal from link_index where workspace_id = $1 and source_file_id = $2',
+    const rows = await after.query(
+      'select file_id from search_index where workspace_id = $1 and file_id = $2',
       [workspaceId, file.fileId],
     );
-    assert.equal(links.length, 0);
+    assert.equal(rows.length, 0);
   } finally {
     await after.close();
   }

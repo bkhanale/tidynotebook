@@ -51,10 +51,9 @@ import {
   type MutationReceipt,
   type PurgePreview,
   type PurgedFilesResult,
-  type Backlink,
   type SearchHit,
 } from '@notesapp/core';
-import { extractLinks } from '@notesapp/markdown';
+import { parseMarkdown } from '@notesapp/markdown';
 import { markdownLimitCode } from './markdown-limits.ts';
 import {
   and,
@@ -76,7 +75,6 @@ import {
   changesets,
   contents,
   files,
-  linkIndex,
   livePaths,
   memberships,
   mutationReceipts,
@@ -564,11 +562,17 @@ function clientTime(revision: RevisionInput): Date {
 }
 
 /**
- * Replaces the search and backlink rows of every accepted head in this write.
+ * Replaces the search rows of every accepted head in this write.
  *
  * This runs after the file heads and paths move, inside the same transaction.
- * A reader can therefore observe either the old head with its old indexes or
- * the new head with its new indexes, but never a mixed state.
+ * A reader can therefore observe either the old head with its old index row or
+ * the new head with its new one, but never a mixed state.
+ *
+ * Every accepted note goes through the Markdown parser first. A note that is
+ * larger or deeper than the shared package allows leaves this call as a
+ * `MarkdownLimitError`, which the caller turns into a domain failure with a
+ * message for the author. The server therefore never accepts a note that no
+ * reading surface can render.
  */
 async function updateAcceptedIndexes(
   db: NodePgDatabase,
@@ -577,14 +581,6 @@ async function updateAcceptedIndexes(
 ): Promise<void> {
   const fileIds = [...acceptedHeads.keys()];
   if (fileIds.length === 0) return;
-  await db
-    .delete(linkIndex)
-    .where(
-      and(
-        eq(linkIndex.workspaceId, workspaceId),
-        inArray(linkIndex.sourceFileId, fileIds),
-      ),
-    );
   await db
     .delete(searchIndex)
     .where(
@@ -600,46 +596,18 @@ async function updateAcceptedIndexes(
   if (searchable.length === 0) return;
 
   await db.insert(searchIndex).values(
-    searchable.map((tip) => ({
-      workspaceId,
-      fileId: tip.fileId,
-      revisionId: tip.id,
-      path: tip.path,
-      searchText: `${tip.path}\n${tip.content.kind === 'markdown' ? tip.content.text : ''}`,
-    })),
-  );
-
-  const live = await db
-    .select({ id: files.id })
-    .from(files)
-    .where(
-      and(
-        eq(files.workspaceId, workspaceId),
-        eq(files.kind, 'note'),
-        eq(files.deleted, false),
-        isNotNull(files.headRevisionId),
-      ),
-    );
-  const liveIds = new Set(live.map((file) => file.id));
-
-  const rows = searchable.flatMap((tip) => {
-    if (tip.content.kind !== 'markdown') return [];
-    return extractLinks(tip.content.text).map((link, ordinal) => {
-      const targetFileId =
-        link.targetId !== null && liveIds.has(link.targetId)
-          ? link.targetId
-          : null;
+    searchable.map((tip) => {
+      const text = tip.content.kind === 'markdown' ? tip.content.text : '';
+      parseMarkdown(text);
       return {
         workspaceId,
-        sourceFileId: tip.fileId,
-        sourceRevisionId: tip.id,
-        ordinal,
-        targetFileId,
-        sourceText: link.source,
+        fileId: tip.fileId,
+        revisionId: tip.id,
+        path: tip.path,
+        searchText: `${tip.path}\n${text}`,
       };
-    });
-  });
-  if (rows.length > 0) await db.insert(linkIndex).values(rows);
+    }),
+  );
 }
 
 /** Opens a workspace store over one PostgreSQL connection pool. */
@@ -1146,50 +1114,6 @@ function createTransaction(
       }));
     },
 
-    async backlinks(
-      fileId: string,
-      limit: number,
-    ): Promise<readonly Backlink[]> {
-      assertUuid(fileId, 'the backlink target');
-      const result = await client.query<{
-        file_id: string;
-        path: string;
-        revision_id: string;
-        excerpt: string;
-        source_text: string;
-      }>(
-        `select source.id as file_id,
-                source.path,
-                links.source_revision_id as revision_id,
-                left(content.markdown, 240) as excerpt,
-                links.source_text
-           from public.link_index links
-           join public.files source
-             on source.workspace_id = links.workspace_id
-            and source.id = links.source_file_id
-            and source.head_revision_id = links.source_revision_id
-            and source.deleted = false
-           join public.revisions revision
-             on revision.workspace_id = links.workspace_id
-            and revision.id = links.source_revision_id
-           join public.contents content
-             on content.workspace_id = revision.workspace_id
-            and content.digest = revision.content_digest
-          where links.workspace_id = $1
-            and links.target_file_id = $2
-          order by source.path, source.id, links.ordinal
-          limit $3`,
-        [workspaceId, fileId, limit],
-      );
-      return result.rows.map((row) => ({
-        fileId: row.file_id,
-        path: row.path,
-        revisionId: row.revision_id,
-        excerpt: row.excerpt,
-        sourceText: row.source_text,
-      }));
-    },
-
     async isAcceptedRevision(
       fileId: string,
       revisionId: string,
@@ -1219,16 +1143,7 @@ function createTransaction(
       if (fileIds.length === 0) return;
       for (const fileId of fileIds) assertUuid(fileId, 'a file');
       const ids = [...fileIds];
-      // The file leaves the link index, so it disappears from backlinks and
-      // from normal search. The search task adds its own rows to this call.
-      await db
-        .delete(linkIndex)
-        .where(
-          and(
-            eq(linkIndex.workspaceId, workspaceId),
-            inArray(linkIndex.sourceFileId, ids),
-          ),
-        );
+      // The file leaves the search index, so it disappears from search.
       await db
         .delete(searchIndex)
         .where(

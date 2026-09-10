@@ -50,7 +50,6 @@ const scopedTables = [
   'sync_changes',
   'snapshots',
   'snapshot_items',
-  'link_index',
   'search_index',
   'attachment_objects',
 ] as const;
@@ -114,11 +113,6 @@ async function seedEverything(): Promise<Seeded> {
       `insert into snapshot_items (token_hash, ordinal, workspace_id, file_id, revision_id)
        values ($1, 0, $2, $3, $4)`,
       [`snapshot-${workspaceId}`, workspaceId, first.fileId, second.id],
-    );
-    await session.query(
-      `insert into link_index (workspace_id, source_file_id, source_revision_id, ordinal, target_file_id, source_text)
-       values ($1, $2, $3, 0, null, 'Unresolved title')`,
-      [workspaceId, first.fileId, second.id],
     );
   } finally {
     await session.close();

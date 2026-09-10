@@ -17,7 +17,7 @@ import type {
   Result,
   SupersededHead,
 } from './model.ts';
-import type { Backlink, SearchHit } from '../search/service.ts';
+import type { SearchHit } from '../search/service.ts';
 
 /** A stored outcome of an earlier accepted changeset, kept for safe retries. */
 export type MutationReceipt<T = AcceptedChangeset> = {
@@ -229,8 +229,6 @@ export type WorkspaceTransaction = {
   revision(revisionId: string): Promise<RevisionRecord | null>;
   /** Searches the accepted live note index of this workspace. */
   search(query: string, limit: number): Promise<readonly SearchHit[]>;
-  /** Reads accepted live notes that link to the requested live note. */
-  backlinks(fileId: string, limit: number): Promise<readonly Backlink[]>;
   /** True when the revision is in the current accepted history of the file. */
   isAcceptedRevision(fileId: string, revisionId: string): Promise<boolean>;
   /**

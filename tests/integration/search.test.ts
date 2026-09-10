@@ -1,4 +1,4 @@
-/** Search, stable links, backlinks, and local draft search checks. */
+/** Search relevance, permission, and local draft search checks. */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
@@ -6,7 +6,6 @@ import { IDBFactory, IDBKeyRange } from 'fake-indexeddb';
 import pg from 'pg';
 import {
   commitChangeset,
-  getBacklinks,
   searchFiles,
   verifyActor,
   tombstoneContent,
@@ -86,65 +85,6 @@ await test('search includes accepted titles and content but not deleted notes', 
   if (afterDelete.ok) assert.deepEqual(afterDelete.value, []);
 });
 
-await test('a direct stable link survives target rename and gives one backlink', async () => {
-  const targetId = randomUUID();
-  const target = await accept([
-    revision({ fileId: targetId, path: 'Topic.md', text: '# Topic\n' }),
-  ]);
-  const sourceId = randomUUID();
-  const source = await accept([
-    revision({
-      fileId: sourceId,
-      path: 'source.md',
-      text: `[Topic](/notes/${targetId})`,
-    }),
-  ]);
-  const before = await getBacklinks(store, actor, workspaceId, targetId);
-  assert.equal(before.ok, true);
-  if (before.ok) assert.equal(before.value[0]?.revisionId, source.id);
-
-  await accept(
-    [
-      revision({
-        fileId: targetId,
-        parents: [target.id],
-        path: 'renamed/Topic.md',
-        content: target.content,
-      }),
-    ],
-    { [targetId]: target.id },
-  );
-  const after = await getBacklinks(store, actor, workspaceId, targetId);
-  assert.equal(after.ok, true);
-  if (after.ok)
-    assert.deepEqual(
-      after.value.map((hit) => hit.fileId),
-      [sourceId],
-    );
-});
-
-await test('double bracket text produces no link row', async () => {
-  const firstId = randomUUID();
-  const secondId = randomUUID();
-  await accept([
-    revision({ fileId: firstId, path: 'a/Duplicate.md' }),
-    revision({ fileId: secondId, path: 'b/Duplicate.md' }),
-  ]);
-  await accept([
-    revision({
-      fileId: randomUUID(),
-      path: 'bracket-source.md',
-      text: '[[Duplicate]]',
-    }),
-  ]);
-  const first = await getBacklinks(store, actor, workspaceId, firstId);
-  const second = await getBacklinks(store, actor, workspaceId, secondId);
-  assert.equal(first.ok, true);
-  assert.equal(second.ok, true);
-  if (first.ok) assert.deepEqual(first.value, []);
-  if (second.ok) assert.deepEqual(second.value, []);
-});
-
 await test('search requires the current role and a read grant', async () => {
   const created = verifyActor(accountId, [{ workspaceId, actions: ['write'] }]);
   assert.equal(created.ok, true);
@@ -162,6 +102,13 @@ await test('search requires the current role and a read grant', async () => {
 });
 
 await test('the indexed search function checks transaction membership directly', async () => {
+  await accept([
+    revision({
+      fileId: randomUUID(),
+      path: 'a/Duplicate.md',
+      text: '# Duplicate\nOne duplicate note for the membership check.\n',
+    }),
+  ]);
   const client = new pg.Client({ connectionString: database.runtimeUrl });
   await client.connect();
   try {

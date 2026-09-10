@@ -1,7 +1,7 @@
-/** HTTP adapters for accepted workspace search and backlinks. */
+/** HTTP adapter for accepted workspace search. */
 import type { FastifyRequest } from 'fastify';
 import type { Result, WorkspaceStore } from '@notesapp/core';
-import { getBacklinks, searchFiles } from '@notesapp/core';
+import { searchFiles } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import { readText } from './files.ts';
@@ -42,26 +42,6 @@ export function createSearchHandlers(store: WorkspaceStore): HandlerMap {
         status: 200,
         mediaType: jsonMediaType,
         body: { hits: hits.map((hit) => ({ ...hit })) },
-      };
-    },
-
-    getBacklinks: async (request: FastifyRequest): Promise<HandlerResult> => {
-      const actor = requireActor(request).actor;
-      const workspaceId = readText(request.params, 'workspaceId');
-      const fileId = readText(request.params, 'fileId');
-      const backlinks = unwrap(
-        await getBacklinks(
-          store,
-          actor,
-          workspaceId,
-          fileId,
-          optionalLimit(request.query),
-        ),
-      );
-      return {
-        status: 200,
-        mediaType: jsonMediaType,
-        body: { backlinks: backlinks.map((entry) => ({ ...entry })) },
       };
     },
   };

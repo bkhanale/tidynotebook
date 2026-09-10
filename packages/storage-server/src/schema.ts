@@ -540,37 +540,6 @@ export const snapshotItems = pgTable(
   ],
 );
 
-/** One link found in an accepted revision. */
-export const linkIndex = pgTable(
-  'link_index',
-  {
-    workspaceId: uuid('workspace_id')
-      .notNull()
-      .references(() => workspaces.id),
-    sourceFileId: uuid('source_file_id').notNull(),
-    sourceRevisionId: uuid('source_revision_id').notNull(),
-    ordinal: integer('ordinal').notNull(),
-    targetFileId: uuid('target_file_id'),
-    sourceText: text('source_text').notNull(),
-  },
-  (table) => [
-    primaryKey({
-      columns: [table.workspaceId, table.sourceRevisionId, table.ordinal],
-    }),
-    foreignKey({
-      name: 'link_index_source_file_fk',
-      columns: [table.workspaceId, table.sourceFileId],
-      foreignColumns: [files.workspaceId, files.id],
-    }),
-    foreignKey({
-      name: 'link_index_source_revision_fk',
-      columns: [table.workspaceId, table.sourceRevisionId],
-      foreignColumns: [revisions.workspaceId, revisions.id],
-    }),
-    index('link_index_target_idx').on(table.workspaceId, table.targetFileId),
-  ],
-);
-
 /** The current accepted searchable text of one live note. */
 export const searchIndex = pgTable(
   'search_index',

@@ -53,7 +53,6 @@ even where a row access policy hides the parent.
 | `purge_markers`               | A content free marker of a permanently deleted file.       |
 | `sync_changes`                | Commit ordered incremental change records.                 |
 | `snapshots`, `snapshot_items` | A bounded materialized download snapshot.                  |
-| `link_index`                  | Links to `/notes/<file-id>` found in accepted revisions.   |
 | `search_index`                | The searchable text of every live note.                    |
 | `attachment_objects`          | Immutable attachment objects on the private volume.        |
 | `attachment_reclaim_queue`    | Attachment bytes of a deleted workspace, until reclaimed.  |

@@ -1,5 +1,5 @@
 /**
- * Permission checked workspace search and backlink use cases.
+ * Permission checked workspace search use cases.
  *
  * Storage owns the text index. The core owns the read permission check, result
  * limits, and the public result shapes. This keeps database rows out of HTTP
@@ -16,11 +16,6 @@ export type SearchHit = {
   readonly path: string;
   readonly revisionId: string;
   readonly excerpt: string;
-};
-
-/** One accepted note that links to the requested note. */
-export type Backlink = SearchHit & {
-  readonly sourceText: string;
 };
 
 /** Default and maximum result counts at the domain boundary. */
@@ -61,29 +56,6 @@ export function searchFiles(
       const permitted = await permitRead(tx, actor, workspaceId);
       if (!permitted.ok) return permitted;
       return ok(await tx.search(normalized, searchLimit(limit)));
-    },
-    { readOnly: true },
-  );
-}
-
-/** Lists accepted live notes that link to one readable accepted note. */
-export function getBacklinks(
-  store: WorkspaceStore,
-  actor: Actor,
-  workspaceId: string,
-  fileId: string,
-  limit: number | null = null,
-): Promise<Result<readonly Backlink[]>> {
-  return store.transact<Result<readonly Backlink[]>>(
-    actor,
-    workspaceId,
-    async (tx) => {
-      const permitted = await permitRead(tx, actor, workspaceId);
-      if (!permitted.ok) return permitted;
-      const target = await tx.file(fileId);
-      if (target === null || target.deleted || target.headRevisionId === null)
-        return fail('not_found', [fileId]);
-      return ok(await tx.backlinks(fileId, searchLimit(limit)));
     },
     { readOnly: true },
   );

@@ -423,33 +423,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
-  /api/workspaces/{workspaceId}/files/{fileId}/backlinks:
-    get:
-      operationId: getBacklinks
-      summary: List accepted notes that link to one note.
-      description: >-
-        Returns backlinks from current accepted note revisions. Access checks
-        apply to the workspace and both ends of every returned link.
-      tags:
-        - files
-      parameters:
-        - $ref: '#/components/parameters/RequestId'
-        - $ref: '#/components/parameters/WorkspaceId'
-        - $ref: '#/components/parameters/FileId'
-        - $ref: '#/components/parameters/SearchLimit'
-      responses:
-        '200':
-          $ref: '#/components/responses/BacklinkResults'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '500':
-          $ref: '#/components/responses/ServerError'
   /api/workspaces/{workspaceId}/files/{fileId}:
     get:
       operationId: getFile
@@ -1321,7 +1294,7 @@ components:
       required: false
       style: form
       explode: true
-      description: Largest number of search or backlink results to return.
+      description: Largest number of search results to return.
       schema:
         type: integer
         minimum: 1
@@ -1647,12 +1620,6 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/SearchResults'
-    BacklinkResults:
-      description: Accepted live notes that link to the requested note.
-      content:
-        application/json:
-          schema:
-            $ref: '#/components/schemas/BacklinkResults'
     FileChange:
       description: The accepted revision and the outcome of its changeset.
       content:
@@ -2326,42 +2293,6 @@ components:
           maxItems: 100
           items:
             $ref: '#/components/schemas/SearchHit'
-    Backlink:
-      type: object
-      description: A current accepted note and its stored link source.
-      additionalProperties: false
-      required:
-        - fileId
-        - path
-        - revisionId
-        - excerpt
-        - sourceText
-      properties:
-        fileId:
-          $ref: '#/components/schemas/Uuid'
-        path:
-          $ref: '#/components/schemas/FilePath'
-        revisionId:
-          $ref: '#/components/schemas/Uuid'
-        excerpt:
-          type: string
-          maxLength: 1024
-        sourceText:
-          type: string
-          maxLength: 2048
-    BacklinkResults:
-      type: object
-      description: Backlinks from current accepted note revisions.
-      additionalProperties: false
-      required:
-        - backlinks
-      properties:
-        backlinks:
-          type: array
-          readOnly: true
-          maxItems: 100
-          items:
-            $ref: '#/components/schemas/Backlink'
     WorkspaceFile:
       type: object
       description: One live file and the content of its accepted head.

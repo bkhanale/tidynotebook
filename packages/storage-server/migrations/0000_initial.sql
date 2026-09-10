@@ -144,16 +144,6 @@ CREATE TABLE "files" (
 	CONSTRAINT "files_workspace_id_id_pk" PRIMARY KEY("workspace_id","id")
 );
 --> statement-breakpoint
-CREATE TABLE "link_index" (
-	"workspace_id" uuid NOT NULL,
-	"source_file_id" uuid NOT NULL,
-	"source_revision_id" uuid NOT NULL,
-	"ordinal" integer NOT NULL,
-	"target_file_id" uuid,
-	"source_text" text NOT NULL,
-	CONSTRAINT "link_index_workspace_id_source_revision_id_ordinal_pk" PRIMARY KEY("workspace_id","source_revision_id","ordinal")
-);
---> statement-breakpoint
 CREATE TABLE "live_paths" (
 	"workspace_id" uuid NOT NULL,
 	"file_id" uuid NOT NULL,
@@ -283,9 +273,6 @@ ALTER TABLE "changesets" ADD CONSTRAINT "changesets_actor_account_id_accounts_id
 ALTER TABLE "contents" ADD CONSTRAINT "contents_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "contents" ADD CONSTRAINT "contents_object_fk" FOREIGN KEY ("workspace_id","object_id") REFERENCES "public"."attachment_objects"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "files" ADD CONSTRAINT "files_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "link_index" ADD CONSTRAINT "link_index_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "link_index" ADD CONSTRAINT "link_index_source_file_fk" FOREIGN KEY ("workspace_id","source_file_id") REFERENCES "public"."files"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "link_index" ADD CONSTRAINT "link_index_source_revision_fk" FOREIGN KEY ("workspace_id","source_revision_id") REFERENCES "public"."revisions"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "live_paths" ADD CONSTRAINT "live_paths_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "live_paths" ADD CONSTRAINT "live_paths_file_fk" FOREIGN KEY ("workspace_id","file_id") REFERENCES "public"."files"("workspace_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "memberships" ADD CONSTRAINT "memberships_workspace_id_workspaces_id_fk" FOREIGN KEY ("workspace_id") REFERENCES "public"."workspaces"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -319,7 +306,6 @@ CREATE INDEX "auth_account_user_idx" ON "auth_account" USING btree ("user_id");-
 CREATE INDEX "auth_session_user_idx" ON "auth_session" USING btree ("user_id");--> statement-breakpoint
 CREATE INDEX "auth_verification_identifier_idx" ON "auth_verification" USING btree ("identifier");--> statement-breakpoint
 CREATE INDEX "files_live_idx" ON "files" USING btree ("workspace_id","deleted");--> statement-breakpoint
-CREATE INDEX "link_index_target_idx" ON "link_index" USING btree ("workspace_id","target_file_id");--> statement-breakpoint
 CREATE INDEX "memberships_account_idx" ON "memberships" USING btree ("account_id");--> statement-breakpoint
 CREATE INDEX "revision_parents_parent_idx" ON "revision_parents" USING btree ("workspace_id","parent_id");--> statement-breakpoint
 CREATE INDEX "revisions_file_idx" ON "revisions" USING btree ("workspace_id","file_id");--> statement-breakpoint
@@ -634,7 +620,6 @@ GRANT SELECT, INSERT ON public.purge_markers TO notesapp_app;--> statement-break
 GRANT SELECT, INSERT ON public.sync_changes TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, DELETE ON public.snapshots TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, DELETE ON public.snapshot_items TO notesapp_app;--> statement-breakpoint
-GRANT SELECT, INSERT, DELETE ON public.link_index TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.search_index TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.attachment_objects TO notesapp_app;--> statement-breakpoint
 GRANT SELECT, INSERT, UPDATE ON public.account_preferences TO notesapp_app;--> statement-breakpoint
@@ -664,7 +649,7 @@ DECLARE
 		'workspace_usage', 'workspace_cursors', 'files',
 		'live_paths', 'contents', 'revisions', 'revision_parents', 'changesets',
 		'purge_markers', 'sync_changes', 'snapshots', 'snapshot_items',
-		'link_index', 'search_index', 'attachment_objects'
+		'search_index', 'attachment_objects'
 	];
 	name text;
 	owner_role text := current_user;
@@ -997,7 +982,6 @@ CREATE FUNCTION public.notesapp_discard_account(p_auth_user_id text)
 					OR EXISTS (SELECT 1 FROM public.live_paths t WHERE t.workspace_id = m.workspace_id)
 					OR EXISTS (SELECT 1 FROM public.purge_markers t WHERE t.workspace_id = m.workspace_id)
 					OR EXISTS (SELECT 1 FROM public.snapshots t WHERE t.workspace_id = m.workspace_id)
-					OR EXISTS (SELECT 1 FROM public.link_index t WHERE t.workspace_id = m.workspace_id)
 					OR EXISTS (SELECT 1 FROM public.search_index t WHERE t.workspace_id = m.workspace_id)
 				)
 		) THEN
@@ -1047,7 +1031,6 @@ CREATE FUNCTION public.notesapp_delete_workspace(p_workspace_id uuid)
 		END IF;
 		PERFORM set_config('notesapp.purge', 'on', true);
 		DELETE FROM public.search_index WHERE workspace_id = p_workspace_id;
-		DELETE FROM public.link_index WHERE workspace_id = p_workspace_id;
 		DELETE FROM public.snapshot_items WHERE workspace_id = p_workspace_id;
 		DELETE FROM public.snapshots WHERE workspace_id = p_workspace_id;
 		DELETE FROM public.sync_changes WHERE workspace_id = p_workspace_id;
@@ -1433,10 +1416,6 @@ BEGIN
 
 	DELETE FROM public.search_index
 	WHERE workspace_id = p_workspace_id AND file_id = ANY(p_file_ids);
-
-	DELETE FROM public.link_index
-	WHERE workspace_id = p_workspace_id
-	  AND (source_file_id = ANY(p_file_ids) OR target_file_id = ANY(p_file_ids));
 
 	-- A live snapshot may pin a revision that this purge removes. Its items go
 	-- first, so the foreign key to `revisions` holds.
