@@ -617,6 +617,15 @@ function createOperations(
                     revisionId: change.revisionId,
                   }
                 : null,
+            // A file record with no revision and the deleted flag set is a
+            // purge marker: the revisions of that file no longer exist, so the
+            // record states the file itself instead of a revision to read.
+            purgedFileId:
+              change.entityKind === 'file' &&
+              change.revisionId === null &&
+              change.deleted
+                ? change.entityId
+                : null,
           })),
           nextCursor: sent.data.nextCursor,
         },

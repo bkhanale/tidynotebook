@@ -28,6 +28,7 @@ import {
   commitChangeset,
   createFileChangeset,
   defaultPageSize,
+  listDeletedFiles,
   listFiles,
   markdownContent,
   readFile,
@@ -35,6 +36,7 @@ import {
   readMutationReceipt,
   readRevision,
   requestDigest,
+  restoreFile,
   tombstoneContent,
   updateFileChangeset,
 } from '@notesapp/core';
@@ -481,6 +483,74 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
           nextCursor: page.nextCursor,
         },
       };
+    },
+
+    listDeletedFiles: async (request): Promise<HandlerResult> => {
+      const actor = requireActor(request).actor;
+      const workspaceId = readText(request.params, 'workspaceId');
+      const cursor = readProperty(request.query, 'cursor');
+      const limit = readProperty(request.query, 'limit');
+      const page = unwrap(
+        await listDeletedFiles(store, actor, workspaceId, {
+          cursor: typeof cursor === 'string' ? cursor : null,
+          limit: typeof limit === 'number' ? limit : defaultPageSize,
+        }),
+      );
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        body: {
+          files: page.files.map((file) => ({
+            fileId: file.fileId,
+            path: file.path,
+            kind: file.kind,
+            headRevisionId: file.headRevisionId,
+            deletedAt: file.deletedAt,
+          })),
+          nextCursor: page.nextCursor,
+        },
+      };
+    },
+
+    restoreFile: async (request, reply): Promise<HandlerResult> => {
+      const workspaceId = readText(request.params, 'workspaceId');
+      const fileId = readText(request.params, 'fileId');
+      const body = request.body;
+      // A restore carries no precondition header: the expected head is the
+      // tombstone that the use case reads, so the client does not have to know
+      // which revision deleted the file.
+      const digest = await requestDigest(
+        'restoreFile',
+        { workspaceId, fileId, ifMatch: null },
+        body,
+      );
+      const replayed = await replayedAnswer(request, reply, {
+        workspaceId,
+        fileId,
+        mutationId: readText(body, 'mutationId'),
+        digest,
+        status: 200,
+      });
+      if (replayed !== null) return replayed;
+      const actor = requireActor(request).actor;
+      const accepted = unwrap(
+        await restoreFile(
+          store,
+          actor,
+          {
+            workspaceId,
+            fileId,
+            revisionId: readText(body, 'revisionId'),
+            ids: {
+              mutationId: readText(body, 'mutationId'),
+              deviceId: readText(body, 'deviceId'),
+              clientTime: readText(body, 'clientTime'),
+            },
+          },
+          digest,
+        ),
+      );
+      return answerAccepted(reply, accepted, 200);
     },
 
     getFile: async (request, reply): Promise<HandlerResult> => {

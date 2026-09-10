@@ -25,6 +25,7 @@ import {
   type AcceptedRevision,
   type Actor,
   type ChangesetInput,
+  type DeletedFilePage,
   type FilePage,
   type FileRecord,
   type HeadState,
@@ -965,6 +966,66 @@ function createTransaction(
         })),
         nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
       };
+    },
+
+    async listDeletedFiles(page: PageRequest): Promise<DeletedFilePage> {
+      // The complement of `listFiles`, and the same paging: one row more than
+      // the page is read, so the answer knows whether a next page exists
+      // without a second count query. `files_live_idx` covers the filter.
+      const limit = Math.min(Math.max(1, Math.trunc(page.limit)), maxPageSize);
+      if (page.cursor !== null) assertUuid(page.cursor, 'the page cursor');
+      const rows = await db
+        .select({
+          id: files.id,
+          path: files.path,
+          kind: files.kind,
+          head: files.headRevisionId,
+          updatedAt: files.updatedAt,
+        })
+        .from(files)
+        .where(
+          and(
+            eq(files.workspaceId, workspaceId),
+            eq(files.deleted, true),
+            isNotNull(files.headRevisionId),
+            page.cursor === null ? undefined : gt(files.id, page.cursor),
+          ),
+        )
+        .orderBy(files.id)
+        .limit(limit + 1);
+      const wanted = rows.slice(0, limit);
+      return {
+        files: wanted.flatMap((row) =>
+          row.head === null
+            ? []
+            : [
+                {
+                  fileId: row.id,
+                  path: row.path,
+                  kind: row.kind,
+                  headRevisionId: row.head,
+                  // The last accepted change of a deleted file is its
+                  // tombstone, so this instant is the deletion time.
+                  deletedAt: row.updatedAt.toISOString(),
+                },
+              ],
+        ),
+        nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
+      };
+    },
+
+    async takenPaths(paths: readonly string[]): Promise<readonly string[]> {
+      if (paths.length === 0) return [];
+      const rows = await db
+        .select({ path: livePaths.path })
+        .from(livePaths)
+        .where(
+          and(
+            eq(livePaths.workspaceId, workspaceId),
+            inArray(livePaths.path, [...paths]),
+          ),
+        );
+      return rows.map((row) => row.path);
     },
 
     async file(fileId: string): Promise<FileRecord | null> {

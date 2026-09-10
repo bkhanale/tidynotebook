@@ -37,6 +37,8 @@ export {
 export type {
   AcceptedBranch,
   BlockingReference,
+  DeletedFilePage,
+  DeletedFileRecord,
   BranchFilter,
   BranchRecord,
   BranchState,
@@ -96,6 +98,12 @@ export {
   createAttachmentChangeset,
   isAllowedMediaType,
 } from './files/attachments.ts';
+export type { RestoreFileInput } from './files/trash.ts';
+export {
+  listDeletedFiles,
+  restoreCandidates,
+  restoreFile,
+} from './files/trash.ts';
 export type { FileWithHead } from './files/read.ts';
 export {
   defaultPageSize,

@@ -22,6 +22,7 @@ import type {
 } from './model.ts';
 import { fail, ok } from './model.ts';
 import type {
+  DeletedFilePage,
   FilePage,
   FileRecord,
   MutationReceipt,
@@ -131,6 +132,28 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           .slice(0, page.limit),
         nextCursor: null,
       }),
+    listDeletedFiles: (page: PageRequest): Promise<DeletedFilePage> =>
+      Promise.resolve({
+        files: [...state.files.values()]
+          .filter((file) => file.deleted && file.headRevisionId !== null)
+          .slice(0, page.limit)
+          .map((file) => ({
+            fileId: file.fileId,
+            path: file.path,
+            kind: file.kind,
+            headRevisionId: file.headRevisionId ?? '',
+            deletedAt: file.updatedAt,
+          })),
+        nextCursor: null,
+      }),
+    takenPaths: (paths: readonly string[]) =>
+      Promise.resolve(
+        paths.filter((path) =>
+          [...state.files.values()].some(
+            (file) => !file.deleted && file.path === path,
+          ),
+        ),
+      ),
     file: (fileId: string) => Promise.resolve(state.files.get(fileId) ?? null),
     revision: (revisionId: string) =>
       Promise.resolve(state.revisions.get(revisionId) ?? null),

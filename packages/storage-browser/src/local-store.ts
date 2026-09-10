@@ -303,6 +303,45 @@ export async function openLocalStore(
     row.accountId === accountId &&
     row.workspaceId === workspaceId;
 
+  /**
+   * Forgets the cached metadata and working copies of one permanently deleted
+   * file.
+   *
+   * The listing of the server can only say which files exist, so a cache
+   * entry that the server dropped stays until something removes it. A purge
+   * marker in the ordered change feed is that signal. The working copy goes
+   * with the metadata, because a draft carries the path and the deletion state
+   * of the file and would otherwise keep the note in the file tree.
+   *
+   * The call runs inside the transaction of its caller, which must cover the
+   * accepted files and the drafts.
+   */
+  const forgetFile = async (
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+  ): Promise<void> => {
+    await tables.acceptedFiles.delete([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      fileId,
+    ]);
+    for (const row of await tables.drafts.toArray()) {
+      const parsed = validateDraft(row);
+      if (
+        matchesPartition(parsed, accountId, workspaceId) &&
+        parsed.fileId === fileId
+      )
+        await tables.drafts.delete([
+          parsed.serverOrigin,
+          parsed.accountId,
+          parsed.workspaceId,
+          parsed.workingCopyId,
+        ]);
+    }
+  };
+
   /** Deletes every private row of one workspace partition. */
   const clearWorkspacePartition = async (
     accountId: string,
@@ -1230,6 +1269,17 @@ export async function openLocalStore(
           }
           for (const draft of newestDrafts.values()) {
             const known = result.get(draft.fileId);
+            // A draft describes the file only while local work is ahead of the
+            // accepted head: a file that this device never sent, or one whose
+            // local head moved past what the server accepted. Once the two
+            // heads agree, the accepted row is the newer statement of the
+            // path and of the deletion state, so a draft left over from an
+            // earlier deletion cannot hide a note that the server restored.
+            const ahead =
+              known === undefined ||
+              known.acceptedHeadRevisionId === null ||
+              known.localHeadRevisionId !== known.acceptedHeadRevisionId;
+            if (!ahead) continue;
             result.set(draft.fileId, {
               fileId: draft.fileId,
               path: draft.path,
@@ -2286,11 +2336,25 @@ export async function openLocalStore(
       await guard('applying remote changes', () =>
         db.transaction(
           'rw',
-          [tables.contents, tables.acceptedFiles, tables.cursors],
+          [
+            tables.contents,
+            tables.acceptedFiles,
+            tables.drafts,
+            tables.cursors,
+          ],
           async () => {
             for (const change of changes) {
               const file = change.file;
-              if (file === null) continue;
+              if (file === null) {
+                // A permanent deletion leaves nothing to restore, so the
+                // cached metadata and the cached working copy of that file go
+                // with it. Without this the note would stay in the file tree
+                // for as long as the cache lives, because the listing of the
+                // server can only say which files exist, not which vanished.
+                if (change.purgedFileId !== null)
+                  await forgetFile(accountId, workspaceId, change.purgedFileId);
+                continue;
+              }
               if (file.text !== null) {
                 await tables.contents.put({
                   serverOrigin,
@@ -2347,13 +2411,15 @@ export async function openLocalStore(
           },
         ),
       );
-      for (const change of changes)
+      for (const change of changes) {
+        const fileId = change.file?.fileId ?? change.purgedFileId;
         publish({
           accountId,
           workspaceId,
-          fileId: change.file?.fileId ?? null,
-          kind: change.file === null ? 'cursor' : 'file',
+          fileId,
+          kind: fileId === null ? 'cursor' : 'file',
         });
+      }
     },
 
     close(): Promise<void> {

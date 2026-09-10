@@ -50,12 +50,21 @@ export type RevisionData = {
   readonly text: string | null;
 };
 
-/** One ordered change record: a file pointer or a cursor-only marker. */
+/**
+ * One ordered change record.
+ *
+ * `file` names the revision that a write accepted. `purgedFileId` names a file
+ * that a permanent deletion removed; such a record has no revision to read,
+ * because the revisions are gone. A record with neither is a membership or
+ * share record, which only advances the cursor.
+ */
 export type ChangeRecord = {
   readonly file: {
     readonly fileId: string;
     readonly revisionId: string;
   } | null;
+  /** The file that a permanent deletion removed, or `null`. */
+  readonly purgedFileId: string | null;
 };
 
 /** What download needs from the network. */
@@ -263,7 +272,10 @@ async function fetchAndApply(
   for (const change of fed.value.changes) {
     const pointer = change.file;
     if (pointer === null) {
-      files.push({ file: null });
+      // A purge carries no revision to read: the revisions are gone. The
+      // record therefore travels on its own, so the local cache learns to
+      // forget the file instead of only moving the cursor past it.
+      files.push({ file: null, purgedFileId: change.purgedFileId });
       continue;
     }
     const fetched = await sendWithRetry(ctx, (signal) =>
@@ -288,6 +300,7 @@ async function fetchAndApply(
         digest: revision.digest,
         text: revision.text,
       },
+      purgedFileId: null,
     });
   }
   await local.applyRemoteChanges(
@@ -296,7 +309,9 @@ async function fetchAndApply(
     files,
     fed.value.nextCursor,
   );
-  const fileCount = files.filter((change) => change.file !== null).length;
+  const fileCount = files.filter(
+    (change) => change.file !== null || change.purgedFileId !== null,
+  ).length;
   if (fileCount > 0)
     ctx.announce({ kind: 'changes-applied', count: fileCount });
   return 'done';

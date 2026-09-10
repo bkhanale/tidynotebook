@@ -63,6 +63,8 @@ function fakeStore(
     parents: () => Promise.resolve(new Map()),
     purgedFiles: () => Promise.resolve([]),
     listFiles: () => Promise.resolve({ files: [], nextCursor: null }),
+    listDeletedFiles: () => Promise.resolve({ files: [], nextCursor: null }),
+    takenPaths: () => Promise.resolve([]),
     file: () => Promise.resolve(null),
     revision: () => Promise.resolve(null),
     accept: () => Promise.reject(new Error('no write in this test')),

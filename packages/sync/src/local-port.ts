@@ -351,9 +351,18 @@ export type RemoteFileChange = {
   readonly text: string | null;
 };
 
-/** One applied position of the ordered change feed. */
+/**
+ * One applied position of the ordered change feed.
+ *
+ * `file` is `null` for a membership or share record, which advances the cursor
+ * without touching file metadata, and for a permanent deletion, which has no
+ * revision left to name. `purgedFileId` names the file of such a deletion, so
+ * the local cache can forget it.
+ */
 export type RemoteChange = {
   readonly file: RemoteFileChange | null;
+  /** The file that a permanent deletion removed, or `null`. */
+  readonly purgedFileId: string | null;
 };
 
 /**

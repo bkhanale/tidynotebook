@@ -66,6 +66,31 @@ export type FilePage = {
   readonly nextCursor: string | null;
 };
 
+/**
+ * The accepted state of one deleted file, as the trash lists it.
+ *
+ * A deleted file always has a head: the tombstone that deleted it. The record
+ * therefore states the head as a plain identifier rather than a nullable one,
+ * so a restore does not have to handle a case that cannot occur.
+ */
+export type DeletedFileRecord = {
+  readonly fileId: string;
+  /** The path that the file held when it was deleted. */
+  readonly path: string;
+  readonly kind: FileKind;
+  /** The tombstone revision, which is the accepted head of the file. */
+  readonly headRevisionId: string;
+  /** Instant of the accepted deletion, as an ISO 8601 string. */
+  readonly deletedAt: string;
+};
+
+/** One page of deleted files, ordered by file identifier. */
+export type DeletedFilePage = {
+  readonly files: readonly DeletedFileRecord[];
+  /** The cursor of the next page, or `null` when this page is the last. */
+  readonly nextCursor: string | null;
+};
+
 /** What a caller asks for when it reads a page of files. */
 export type PageRequest = {
   /** The last file identifier of the previous page, or `null` to start. */
@@ -189,6 +214,22 @@ export type WorkspaceTransaction = {
    * Its history stays reachable through its revisions.
    */
   listFiles(page: PageRequest): Promise<FilePage>;
+  /**
+   * One page of the deleted files of this workspace, ordered by identifier.
+   *
+   * This is the complement of `listFiles`: a file that a tombstone removed
+   * from the file tree is listed here, so the trash can offer it back. A
+   * permanently purged file is not listed, because it holds no row any more.
+   */
+  listDeletedFiles(page: PageRequest): Promise<DeletedFilePage>;
+  /**
+   * The requested paths that a live file already holds.
+   *
+   * A restore needs this to pick a free path without writing and rolling back
+   * a refused changeset. Every candidate travels in one call, because one
+   * query per candidate would be one round trip per candidate.
+   */
+  takenPaths(paths: readonly string[]): Promise<readonly string[]>;
   /** One file of this workspace, or `null` when it holds no such file. */
   file(fileId: string): Promise<FileRecord | null>;
   /** One revision of this workspace, or `null` when it holds no such one. */
