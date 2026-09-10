@@ -123,7 +123,7 @@ await test('a direct stable link survives target rename and gives one backlink',
     );
 });
 
-await test('an ambiguous wiki title is left unresolved', async () => {
+await test('double bracket text produces no link row', async () => {
   const firstId = randomUUID();
   const secondId = randomUUID();
   await accept([
@@ -133,7 +133,7 @@ await test('an ambiguous wiki title is left unresolved', async () => {
   await accept([
     revision({
       fileId: randomUUID(),
-      path: 'ambiguous-source.md',
+      path: 'bracket-source.md',
       text: '[[Duplicate]]',
     }),
   ]);

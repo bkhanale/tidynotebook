@@ -10,9 +10,7 @@ import type { ChangeSpec, TransactionSpec } from '@codemirror/state';
 import { EditorState } from '@codemirror/state';
 
 /** A link found at one document position. */
-export type LinkTarget =
-  | { readonly kind: 'url'; readonly target: string }
-  | { readonly kind: 'wiki'; readonly title: string };
+export type LinkTarget = { readonly kind: 'url'; readonly target: string };
 
 /** Callbacks the editor receives for navigation out of the text. */
 export type EditorNavigation = {
@@ -164,30 +162,12 @@ function inlineLinkAt(
   }
 }
 
-/** Finds the wiki link at a line offset, or null. */
-function wikiLinkAt(
-  lineText: string,
-  lineFrom: number,
-  offset: number,
-): { readonly title: string } | null {
-  const pattern = /\[\[([^\]\n]+)\]\]/g;
-  for (;;) {
-    const match = pattern.exec(lineText);
-    if (match === null) return null;
-    const full = match[0] ?? '';
-    if (full === '') return null;
-    const start = (match.index ?? 0) + lineFrom;
-    if (offset < start || offset > start + full.length) continue;
-    return { title: match[1] ?? '' };
-  }
-}
-
 /**
  * Finds the link target at one document position.
  *
- * Returns the Markdown destination for `[label](destination)` and the title
- * for `[[Title]]`. Returns null on plain text, so a normal click keeps
- * placing the cursor instead of navigating.
+ * Returns the Markdown destination of `[label](destination)`. Returns null on
+ * plain text, so a normal click keeps placing the cursor instead of
+ * navigating.
  */
 export function linkTargetAt(
   text: string,
@@ -201,8 +181,6 @@ export function linkTargetAt(
       const lineText = text.slice(lineFrom, lineTo);
       const inline = inlineLinkAt(lineText, lineFrom, position);
       if (inline !== null) return { kind: 'url', target: inline.destination };
-      const wiki = wikiLinkAt(lineText, lineFrom, position);
-      if (wiki !== null) return { kind: 'wiki', title: wiki.title };
       return null;
     }
     if (end === -1) return null;

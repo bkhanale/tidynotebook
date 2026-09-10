@@ -1,17 +1,18 @@
 /**
  * Account screens: first-run setup, login, and settings.
  *
- * Theme changes apply locally first and sync in the background through the
- * provider in `app.tsx`.
+ * Settings is the one place for the profile, the palette, offline
+ * availability, and sign-out. Theme changes apply locally first and sync in
+ * the background through the provider in `app.tsx`.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import {
   createOwner,
   getSetupStatus,
-  listWorkspaces,
   signInWithPassword,
 } from '@notesapp/api-client';
+import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
   ChevronLeftIcon,
@@ -25,7 +26,12 @@ import {
   useLocalStore,
   useSession,
   useTheme,
+  useWorkspace,
 } from '../app.tsx';
+import {
+  signOut as endSession,
+  revokeSessionViaClient,
+} from '../pwa/lifecycle.ts';
 
 /** Redirects to login when no session exists. */
 export function RequireSession({
@@ -198,17 +204,18 @@ export function ThemeSettings(): ReactNode {
         Theme
       </h2>
       <p className="m-0 text-control text-muted">
-        System follows the device. The choice applies at once on this device and
-        syncs to the account in the background.
+        System follows the device. Light and Dark use the Tokyo Night palette.
+        The choice applies at once on this device and syncs to the account in
+        the background.
       </p>
       <SelectField
         id="theme-choice"
-        label="Palette"
+        label="Theme"
         value={theme.choice}
         options={[
           { value: 'system', label: 'System' },
-          { value: 'light', label: 'Tokyo Night Day' },
-          { value: 'dark', label: 'Tokyo Night Night' },
+          { value: 'light', label: 'Light' },
+          { value: 'dark', label: 'Dark' },
         ]}
         onChange={(value): void => {
           if (value === 'light' || value === 'dark' || value === 'system')
@@ -219,51 +226,170 @@ export function ThemeSettings(): ReactNode {
   );
 }
 
-/** Account page: identity, theme, and sign-out. */
+/** What is kept on this device for use without a connection. */
+type OfflineChoices = {
+  readonly images: boolean;
+  readonly history: boolean;
+};
+
+/**
+ * Reads and writes what this device keeps for offline use.
+ *
+ * Notes are always kept. Images and older versions are larger, so each one
+ * is a choice. A choice is on when every known item of that kind is already
+ * kept, which is what the store records.
+ */
+function useOfflineChoices(
+  store: LocalStore | null,
+  accountId: string | null,
+  workspaceId: string | null,
+): {
+  readonly choices: OfflineChoices;
+  readonly ready: boolean;
+  readonly setChoice: (kind: keyof OfflineChoices, keep: boolean) => void;
+} {
+  const [choices, setChoices] = useState<OfflineChoices>({
+    images: false,
+    history: false,
+  });
+  const [ready, setReady] = useState(false);
+  const [generation, setGeneration] = useState(0);
+
+  useEffect(() => {
+    if (store === null || accountId === null || workspaceId === null) {
+      setReady(false);
+      return;
+    }
+    const activeStore = store;
+    let cancelled = false;
+    async function read(): Promise<void> {
+      try {
+        const files = await activeStore.listAcceptedFiles(
+          accountId ?? '',
+          workspaceId ?? '',
+        );
+        const images = files.filter(
+          (file) => file.kind === 'attachment' && !file.deleted,
+        );
+        const versions = files.filter((file) => !file.deleted);
+        let allImages = images.length > 0;
+        for (const file of images) {
+          if (file.acceptedHeadDigest === null) continue;
+          if (
+            !(await activeStore.isAttachmentPinned(
+              accountId ?? '',
+              workspaceId ?? '',
+              file.acceptedHeadDigest,
+            ))
+          ) {
+            allImages = false;
+            break;
+          }
+        }
+        let allHistory = versions.length > 0;
+        for (const file of versions) {
+          if (file.acceptedHeadRevisionId === null) continue;
+          if (
+            !(await activeStore.isHistoryPinned(
+              accountId ?? '',
+              workspaceId ?? '',
+              file.acceptedHeadRevisionId,
+            ))
+          ) {
+            allHistory = false;
+            break;
+          }
+        }
+        if (cancelled) return;
+        setChoices({ images: allImages, history: allHistory });
+        setReady(true);
+      } catch {
+        if (!cancelled) setReady(false);
+      }
+    }
+    void read();
+    return () => {
+      cancelled = true;
+    };
+  }, [store, accountId, workspaceId, generation]);
+
+  const setChoice = useCallback(
+    (kind: keyof OfflineChoices, keep: boolean): void => {
+      if (store === null || accountId === null || workspaceId === null) return;
+      const activeStore = store;
+      const activeAccount = accountId;
+      const activeWorkspace = workspaceId;
+      setChoices((current) => ({ ...current, [kind]: keep }));
+      void (async (): Promise<void> => {
+        const files = await activeStore.listAcceptedFiles(
+          activeAccount,
+          activeWorkspace,
+        );
+        for (const file of files) {
+          if (kind === 'images') {
+            if (file.kind !== 'attachment' || file.acceptedHeadDigest === null)
+              continue;
+            await activeStore.setAttachmentPinned(
+              activeAccount,
+              activeWorkspace,
+              file.acceptedHeadDigest,
+              keep,
+            );
+          } else {
+            if (file.acceptedHeadRevisionId === null) continue;
+            await activeStore.setHistoryPinned(
+              activeAccount,
+              activeWorkspace,
+              file.acceptedHeadRevisionId,
+              keep,
+            );
+          }
+        }
+        setGeneration((value) => value + 1);
+      })();
+    },
+    [store, accountId, workspaceId],
+  );
+
+  return { choices, ready, setChoice };
+}
+
+/** Account page: profile, theme, offline availability, and sign-out. */
 export function AccountSettingsPage(): ReactNode {
   const session = useSession();
   const store = useLocalStore();
+  const workspace = useWorkspace();
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
-  const [confirmLeave, setConfirmLeave] = useState(false);
+  const [signOutError, setSignOutError] = useState('');
   const account = session.account;
+  const accountId = account?.accountId ?? null;
+  const workspaceId =
+    workspace.state.status === 'ready' ? workspace.state.workspaceId : null;
+  const offline = useOfflineChoices(store.store, accountId, workspaceId);
 
   useEffect(() => {
-    if (store.store === null || account === null) {
+    if (store.store === null || accountId === null || workspaceId === null) {
       setPendingCount(null);
       return;
     }
     const activeStore = store.store;
-    const activeAccount = account;
     let cancelled = false;
-    async function count(): Promise<void> {
-      try {
-        const spaces = await listWorkspaces();
-        if (spaces.error !== undefined || spaces.data === undefined) {
-          if (!cancelled) setPendingCount(null);
-          return;
-        }
-        let total = 0;
-        for (const entry of spaces.data.workspaces) {
-          const queue = await activeStore.pending(
-            activeAccount.accountId,
-            entry.workspaceId,
-          );
-          total += queue.length;
-        }
-        if (!cancelled) setPendingCount(total);
-      } catch {
+    void activeStore
+      .pending(accountId, workspaceId)
+      .then((queue) => {
+        if (!cancelled) setPendingCount(queue.length);
+      })
+      .catch(() => {
         if (!cancelled) setPendingCount(null);
-      }
-    }
-    void count();
+      });
     return () => {
       cancelled = true;
     };
-  }, [store.store, account]);
+  }, [store.store, accountId, workspaceId]);
 
   if (account === null) return <Navigate to="/login" replace />;
-  const mustConfirm = (pendingCount ?? 0) > 0;
+  const pending = pendingCount ?? 0;
 
   function handleBack(): void {
     if (window.history.length > 1) {
@@ -271,6 +397,38 @@ export function AccountSettingsPage(): ReactNode {
     } else {
       void navigate('/');
     }
+  }
+
+  /**
+   * Ends the session on this device.
+   *
+   * `discard` removes the work that never reached the server. Without it the
+   * queued work stays on this device and waits for the next sign-in. Offline
+   * sign-out records a marker, so the session is revoked on reconnect before
+   * any content comes back.
+   */
+  function endSignOut(discard: boolean): void {
+    setSignOutError('');
+    const activeStore = store.store;
+    if (!discard || activeStore === null || workspaceId === null) {
+      session.signOut();
+      return;
+    }
+    const online = typeof navigator === 'undefined' ? true : navigator.onLine;
+    void endSession(
+      activeStore,
+      account?.accountId ?? '',
+      [workspaceId],
+      online,
+      true,
+      revokeSessionViaClient,
+    )
+      .then(() => {
+        session.refresh();
+      })
+      .catch((failure: unknown) => {
+        setSignOutError(problemMessage(failure));
+      });
   }
 
   return (
@@ -284,7 +442,7 @@ export function AccountSettingsPage(): ReactNode {
         >
           Back
         </Button>
-        <h1 className="m-0 text-xl font-semibold text-strong">Account</h1>
+        <h1 className="m-0 text-xl font-semibold text-strong">Settings</h1>
       </div>
 
       <section
@@ -295,19 +453,52 @@ export function AccountSettingsPage(): ReactNode {
           className="m-0 text-base font-semibold text-strong"
           id="profile-heading"
         >
-          Profile
+          Account
         </h2>
         <p className="m-0 text-control text-muted">
           {account.email ?? 'No address linked'}
-          {account.name !== null &&
-          account.name !== undefined &&
-          account.name !== ''
-            ? ` (${account.name})`
-            : null}
         </p>
       </section>
 
       <ThemeSettings />
+
+      <section
+        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
+        aria-labelledby="offline-heading"
+      >
+        <h2
+          className="m-0 text-base font-semibold text-strong"
+          id="offline-heading"
+        >
+          Available offline
+        </h2>
+        <p className="m-0 text-control text-muted">
+          Your notes are always kept on this device. Images and older versions
+          take more space, so you choose whether to keep them too.
+        </p>
+        <label className="flex items-center gap-2 text-control text-strong">
+          <input
+            type="checkbox"
+            checked={offline.choices.images}
+            disabled={!offline.ready}
+            onChange={(event): void => {
+              offline.setChoice('images', event.target.checked);
+            }}
+          />
+          Keep images on this device
+        </label>
+        <label className="flex items-center gap-2 text-control text-strong">
+          <input
+            type="checkbox"
+            checked={offline.choices.history}
+            disabled={!offline.ready}
+            onChange={(event): void => {
+              offline.setChoice('history', event.target.checked);
+            }}
+          />
+          Keep older versions on this device
+        </label>
+      </section>
 
       <section
         className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
@@ -319,32 +510,36 @@ export function AccountSettingsPage(): ReactNode {
         >
           Sign out
         </h2>
-        {mustConfirm ? (
+        {pending > 0 ? (
           <p className="m-0 text-control text-danger" role="alert">
-            {String(pendingCount)} change(s) still wait on this device. They
-            stay here for recovery; signing out does not upload them.
+            {pending} save(s) did not reach the server yet. Keep them on this
+            device for the next sign-in, or remove them now.
           </p>
         ) : null}
-        {mustConfirm ? (
-          <label className="inline-flex items-center gap-1.5 text-control">
-            <input
-              type="checkbox"
-              checked={confirmLeave}
-              onChange={(event): void => {
-                setConfirmLeave(event.target.checked);
-              }}
-            />
-            I understand pending work stays on this device.
-          </label>
+        {signOutError !== '' ? (
+          <p className="m-0 text-control text-danger" role="alert">
+            {signOutError}
+          </p>
         ) : null}
-        <div>
+        <div className="flex flex-wrap gap-2">
           <Button
             variant="secondary"
-            disabled={mustConfirm && !confirmLeave}
-            onClick={() => session.signOut()}
+            onClick={() => {
+              endSignOut(false);
+            }}
           >
-            Sign out on this device
+            {pending > 0 ? 'Sign out and keep them' : 'Sign out on this device'}
           </Button>
+          {pending > 0 ? (
+            <Button
+              variant="danger"
+              onClick={() => {
+                endSignOut(true);
+              }}
+            >
+              Sign out and remove them
+            </Button>
+          ) : null}
         </div>
       </section>
     </main>

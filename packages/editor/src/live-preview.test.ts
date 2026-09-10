@@ -105,11 +105,12 @@ await test('links expose bracket markers and a styled label', () => {
       span.kind === 'link' && text.slice(span.from, span.to) === 'notes',
   );
   assert.ok(label !== undefined, 'the label is styled');
-  const wiki = scan.styles.find(
+  // Double bracket text is not a link in v0.1, so it gets no link style.
+  const brackets = scan.styles.find(
     (span) =>
       span.kind === 'link' && text.slice(span.from, span.to) === 'Shopping',
   );
-  assert.ok(wiki !== undefined, 'the wiki title is styled');
+  assert.equal(brackets, undefined, 'double bracket text stays plain');
 });
 
 await test('markers outside the selection hide and markers at the cursor reveal', () => {
@@ -205,11 +206,8 @@ await test('link targets resolve at a position and miss plain text', () => {
     kind: 'url',
     target: '/notes/abc',
   });
-  const wiki = 'Open [[Shopping]] now.';
-  assert.deepEqual(linkTargetAt(wiki, wiki.indexOf('Shopping')), {
-    kind: 'wiki',
-    title: 'Shopping',
-  });
+  const brackets = 'Open [[Shopping]] now.';
+  assert.equal(linkTargetAt(brackets, brackets.indexOf('Shopping')), null);
   assert.equal(linkTargetAt(text, 0), null);
 });
 

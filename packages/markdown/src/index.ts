@@ -14,13 +14,8 @@
  */
 export type { Root } from 'mdast';
 export { parseMarkdown } from './parse.ts';
-export type {
-  AttachmentRef,
-  NoteLink,
-  SourceRange,
-  WikiLink,
-} from './links.ts';
-export { extractAttachmentRefs, extractLinks, parseWikiLink } from './links.ts';
+export type { AttachmentRef, NoteLink, SourceRange } from './links.ts';
+export { extractAttachmentRefs, extractLinks } from './links.ts';
 export type { MarkdownLimitReason } from './limits.ts';
 export { markdownLimits, MarkdownLimitError } from './limits.ts';
 export type { ContentUrl } from './policy.ts';

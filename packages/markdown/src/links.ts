@@ -6,10 +6,7 @@
  * link. A note points at an image with `/attachments/<revision-id>`, which is
  * immutable, so replacing a file cannot change an image in historic content.
  *
- * An author can also write a wiki reference, `[[Title]]` or `[[Title|label]]`.
- * That form names a title, not an identifier, so it stays unresolved here.
- * Resolution needs the workspace file list and happens in the caller. Nothing
- * in this module fetches or resolves anything.
+ * Nothing in this module fetches or resolves anything.
  *
  * Every reported range is a pair of offsets into the exact source string that
  * was passed in, so `source.slice(range.from, range.to)` returns the reported
@@ -30,13 +27,10 @@ export type SourceRange = { readonly from: number; readonly to: number };
  * One reference from this note to another note.
  *
  * `targetId` holds the file identifier when the reference names one. It is
- * `null` for a wiki reference and for a `/notes/` link with a malformed
- * identifier: an unresolved reference is never treated as a target.
+ * `null` for a `/notes/` link with a malformed identifier: an unresolved
+ * reference is never treated as a target.
  *
- * `label` is the text a reader sees. For a wiki reference that is the label
- * part when the author wrote one, otherwise the title. `source` keeps the raw
- * text, so a caller that needs the title of `[[Title|label]]` can read it back
- * with `parseWikiLink`.
+ * `label` is the text a reader sees. `source` keeps the raw text.
  */
 export type NoteLink = {
   readonly range: SourceRange;
@@ -51,31 +45,6 @@ export type AttachmentRef = {
   readonly revisionId: string;
   readonly source: string;
 };
-
-/** The two parts of a wiki reference. */
-export type WikiLink = { readonly title: string; readonly label: string };
-
-/**
- * A wiki reference: `[[Title]]` or `[[Title|label]]`.
- *
- * A title cannot contain a bracket, a pipe, or a line break, so a stray
- * bracket in running text cannot swallow the rest of a paragraph.
- */
-const wikiPattern = /\[\[([^[\]|\n\r]*)(?:\|([^[\]|\n\r]*))?\]\]/g;
-
-/**
- * Reads the title and the label out of the raw text of a wiki reference.
- *
- * Returns `null` when the text is not a single complete wiki reference.
- */
-export function parseWikiLink(source: string): WikiLink | null {
-  const match = /^\[\[([^[\]|\n\r]*)(?:\|([^[\]|\n\r]*))?\]\]$/.exec(source);
-  if (!match) return null;
-  const title = (match[1] ?? '').trim();
-  const label = (match[2] ?? '').trim();
-  if (title === '') return null;
-  return { title, label: label === '' ? title : label };
-}
 
 /**
  * The length of a leading byte order mark, which the parser does not count.
@@ -96,69 +65,6 @@ function rangeOf(node: Nodes, shift: number): SourceRange | null {
   return { from: from + shift, to: to + shift };
 }
 
-/**
- * Merges the offsets of every plain text node into as few ranges as possible.
- *
- * Wiki syntax is not Markdown syntax, so the parser reports it as text. The
- * parser may still split one run of text into several nodes while it tries and
- * rejects a link, so neighboring ranges are joined before scanning. Scanning
- * text ranges only is what keeps a wiki reference inside a code span or a
- * fenced code block from counting.
- */
-function textRanges(tree: Nodes, shift: number): SourceRange[] {
-  const ranges: SourceRange[] = [];
-  visit(tree, 'text', (node) => {
-    const range = rangeOf(node, shift);
-    if (range === null) return;
-    const last = ranges.at(-1);
-    if (last !== undefined && last.to === range.from) {
-      ranges[ranges.length - 1] = { from: last.from, to: range.to };
-      return;
-    }
-    ranges.push(range);
-  });
-  return ranges;
-}
-
-/**
- * Reports whether the character before `index` escapes it.
- *
- * An odd number of backslashes escapes the bracket, so `\[[Title]]` is text
- * that the author asked to keep, not a reference.
- */
-function isEscaped(source: string, index: number): boolean {
-  let count = 0;
-  let position = index - 1;
-  while (position >= 0 && source[position] === '\\') {
-    count += 1;
-    position -= 1;
-  }
-  return count % 2 === 1;
-}
-
-/** Collects the wiki references inside one merged text range. */
-function wikiLinksIn(source: string, range: SourceRange): NoteLink[] {
-  const slice = source.slice(range.from, range.to);
-  const links: NoteLink[] = [];
-  wikiPattern.lastIndex = 0;
-  let match = wikiPattern.exec(slice);
-  while (match !== null) {
-    const start = range.from + match.index;
-    const raw = match[0];
-    const parsed = parseWikiLink(raw);
-    if (parsed !== null && !isEscaped(source, start)) {
-      links.push({
-        range: { from: start, to: start + raw.length },
-        label: parsed.label,
-        targetId: null,
-        source: raw,
-      });
-    }
-    match = wikiPattern.exec(slice);
-  }
-  return links;
-}
-
 /** Orders references by their position in the source. */
 function byPosition(
   left: { range: SourceRange },
@@ -170,10 +76,9 @@ function byPosition(
 /**
  * Extracts every reference from this note to another note.
  *
- * The result holds `/notes/` links, whether or not their identifier is valid,
- * and wiki references. It does not hold external links or attachment
- * references: those never produce a backlink. References are returned in
- * source order.
+ * The result holds `/notes/` links, whether or not their identifier is valid.
+ * It does not hold external links or attachment references: those never point
+ * at a note. References are returned in source order.
  */
 export function extractLinks(source: string): readonly NoteLink[] {
   const tree = parseMarkdown(source);
@@ -195,8 +100,6 @@ export function extractLinks(source: string): readonly NoteLink[] {
       source: source.slice(range.from, range.to),
     });
   });
-  for (const range of textRanges(tree, shift))
-    links.push(...wikiLinksIn(source, range));
   return links.sort(byPosition);
 }
 

@@ -28,7 +28,7 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  *
  * It contains front matter, nested lists, task items, a table with alignment,
  * escaping, Unicode in composed and decomposed form, an astral emoji, a
- * footnote, wiki references in four forms, a note link, a reference link, a
+ * footnote, double bracket text in four forms, a note link, a reference link, a
  * malformed note identifier, blocked URL schemes, an attachment image, an
  * external image, a blocked image, raw HTML including a script element and an
  * `onerror` attribute, inline and display math, a Mermaid fence, a hard line
@@ -58,11 +58,11 @@ and this line follows it.
 | cell \`a\` |     1 |
 | cell b   |     2 |
 
-> A quote with a footnote[^one] and a [[Wiki Title]] reference.
+> A quote with a footnote[^one] and a [[Bracket Title]] run of text.
 
 [^one]: The footnote text with a [second note](/notes/${noteIdB}).
 
-Wiki forms: [[Ambiguous]], [[Ambiguous|shown label]], \`[[in code]]\`, and \\[[escaped]].
+Bracket forms: [[Ambiguous]], [[Ambiguous|shown label]], \`[[in code]]\`, and \\[[escaped]].
 
 A [reference link][ref] resolves through a definition.
 

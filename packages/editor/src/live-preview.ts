@@ -238,7 +238,7 @@ function scanInline(
   }
 }
 
-/** Scans Markdown links and wiki links of one line. */
+/** Scans the Markdown links of one line. */
 function scanLinks(
   line: Line,
   markers: Marker[],
@@ -261,23 +261,6 @@ function scanLinks(
     if (labelTo > labelFrom)
       styles.push({ from: labelFrom, to: labelTo, kind: 'link' });
     mark(markers, labelTo, end, 'link');
-  }
-  const wiki = /\[\[([^\]\n]+)\]\]/g;
-  for (;;) {
-    const match = wiki.exec(line.text);
-    if (match === null) return;
-    const full = match[0] ?? '';
-    if (full === '') return;
-    const title = match[1] ?? '';
-    const start = (match.index ?? 0) + line.from;
-    const end = start + full.length;
-    if (overlaps(start, end, code)) continue;
-    mark(markers, start, start + 2, 'link');
-    mark(markers, end - 2, end, 'link');
-    const titleFrom = start + 2;
-    const titleTo = titleFrom + title.length;
-    if (titleTo > titleFrom)
-      styles.push({ from: titleFrom, to: titleTo, kind: 'link' });
   }
 }
 

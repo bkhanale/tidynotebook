@@ -12,7 +12,7 @@ import {
   noteIdA,
   noteIdB,
 } from '../test-data/content.ts';
-import { extractAttachmentRefs, extractLinks, parseWikiLink } from './links.ts';
+import { extractAttachmentRefs, extractLinks } from './links.ts';
 
 const links = extractLinks(corpusMarkdown);
 
@@ -54,13 +54,10 @@ await test('references are reported in source order', () => {
   );
 });
 
-await test('the corpus note links, definition, and wiki references are found', () => {
+await test('the corpus note links and definition are found', () => {
   assert.deepEqual(links, [
     expected(`[note link](/notes/${noteIdA})`, 'note link', noteIdA),
-    expected('[[Wiki Title]]', 'Wiki Title', null),
     expected(`[second note](/notes/${noteIdB})`, 'second note', noteIdB),
-    expected('[[Ambiguous]]', 'Ambiguous', null),
-    expected('[[Ambiguous|shown label]]', 'shown label', null),
     expected(`[ref]: /notes/${noteIdB}`, 'ref', noteIdB),
     expected('[broken note](/notes/not-a-uuid)', 'broken note', null),
   ]);
@@ -79,12 +76,14 @@ await test('a malformed identifier is unresolved and never a target', () => {
   }
 });
 
-await test('a wiki reference inside code or behind an escape is ignored', () => {
+await test('double bracket text is not a reference', () => {
+  // Wiki syntax is not part of the language, so `[[Title]]` is plain text
+  // everywhere it appears.
+  assert.deepEqual(extractLinks('text [[A Title]] text'), []);
+  assert.deepEqual(extractLinks('text [[Title|shown]] text'), []);
   assert.deepEqual(extractLinks('text `[[in code]]` text'), []);
   assert.deepEqual(extractLinks('    [[in an indented block]]\n'), []);
   assert.deepEqual(extractLinks('text \\[[escaped]] text'), []);
-  // Two backslashes escape the backslash, so the reference is real again.
-  assert.equal(extractLinks('text \\\\[[kept]] text').length, 1);
 });
 
 await test('a link that is not a note reference is ignored', () => {
@@ -134,42 +133,16 @@ await test('a malformed attachment identifier reports nothing', () => {
 await test('a byte order mark does not shift a reported range', () => {
   // The parser removes the mark before it assigns offsets, so every range
   // would be one character short without the correction.
-  const body = `intro [note](/notes/${noteIdA}) and [[A Title]] end\n`;
+  const body = `intro [note](/notes/${noteIdA}) and [second](/notes/${noteIdB}) end\n`;
   const source = `\ufeff${body}`;
   const found = extractLinks(source);
   assert.equal(found.length, 2);
   for (const link of found)
     assert.equal(source.slice(link.range.from, link.range.to), link.source);
   assert.equal(found[0]?.range.from, source.indexOf('[note]'));
-  assert.equal(found[1]?.range.from, source.indexOf('[[A Title]]'));
+  assert.equal(found[1]?.range.from, source.indexOf('[second]'));
   const images = extractAttachmentRefs(
     `\ufeff![a](/attachments/${attachmentIdA})\n`,
   );
   assert.equal(images[0]?.range.from, 1);
-});
-
-await test('a wiki reference splits into a title and a label', () => {
-  assert.deepEqual(parseWikiLink('[[Title]]'), {
-    title: 'Title',
-    label: 'Title',
-  });
-  assert.deepEqual(parseWikiLink('[[Title|shown]]'), {
-    title: 'Title',
-    label: 'shown',
-  });
-  assert.deepEqual(parseWikiLink('[[ Title | shown ]]'), {
-    title: 'Title',
-    label: 'shown',
-  });
-});
-
-await test('text that is not one complete wiki reference is rejected', () => {
-  for (const source of [
-    '[[]]',
-    '[[Title]',
-    '[Title]]',
-    '[[a]] and [[b]]',
-    'x [[a]]',
-  ])
-    assert.equal(parseWikiLink(source), null, source);
 });

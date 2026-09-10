@@ -137,3 +137,12 @@ await test('an identifier outside the generated namespace is removed', async () 
       id,
     );
 });
+
+await test('double bracket text renders as plain text', async () => {
+  // v0.1 has no wiki syntax, so the brackets stay visible and no link opens.
+  const html = await renderMarkdown(
+    'See [[A Title]] and [[A Title|shown label]].\n',
+  );
+  assert.ok(html.includes('See [[A Title]] and [[A Title|shown label]].'));
+  assert.ok(!html.includes('<a '));
+});

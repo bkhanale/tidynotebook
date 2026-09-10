@@ -18,6 +18,7 @@ import {
 } from 'react';
 import {
   getAccount,
+  listWorkspaces,
   signOut,
   updatePreferences,
   type Account,
@@ -205,6 +206,115 @@ function useSessionLoader(generation: number): {
   }, [generation]);
 
   return { status, account, error };
+}
+
+/** Where the one workspace of this account stands. */
+export type WorkspaceState =
+  | { readonly status: 'loading' }
+  | { readonly status: 'error'; readonly message: string }
+  | { readonly status: 'ready'; readonly workspaceId: string };
+
+/** The one workspace with a way to ask for it again. */
+export type WorkspaceValue = {
+  readonly state: WorkspaceState;
+  readonly reload: () => void;
+};
+
+const WorkspaceContext = createContext<WorkspaceValue>({
+  state: { status: 'loading' },
+  reload: () => {},
+});
+
+/**
+ * Reads the one workspace of the signed-in account.
+ *
+ * Every screen that needs the workspace reads it here. The list operation
+ * runs once for the session instead of once for every screen that mounts.
+ */
+export function useWorkspace(): WorkspaceValue {
+  return useContext(WorkspaceContext);
+}
+
+const cachedWorkspaceKey = 'notesapp.cached-workspace-id:';
+
+/** Reads the last known workspace of one account, for an offline start. */
+function readCachedWorkspaceId(accountId: string): string | null {
+  try {
+    const stored = window.localStorage.getItem(
+      `${cachedWorkspaceKey}${accountId}`,
+    );
+    return stored === null || stored === '' ? null : stored;
+  } catch {
+    return null;
+  }
+}
+
+function rememberWorkspaceId(accountId: string, workspaceId: string): void {
+  try {
+    window.localStorage.setItem(
+      `${cachedWorkspaceKey}${accountId}`,
+      workspaceId,
+    );
+  } catch {
+    // The live workspace stays usable when cache storage fails.
+  }
+}
+
+/**
+ * Resolves the one workspace of the signed-in account.
+ *
+ * The personal workspace wins when the server answers with more than one, so
+ * data that an older installation created cannot hide the notes of the owner.
+ * A network failure falls back to the last known workspace of this account,
+ * which keeps offline notes reachable after a reload.
+ */
+function useWorkspaceLoader(
+  status: SessionStatus,
+  accountId: string | null,
+  generation: number,
+): WorkspaceState {
+  const [state, setState] = useState<WorkspaceState>({ status: 'loading' });
+
+  useEffect(() => {
+    if (status !== 'signed-in' || accountId === null) {
+      setState({ status: 'loading' });
+      return;
+    }
+    const activeAccount = accountId;
+    let cancelled = false;
+    async function load(): Promise<void> {
+      setState({ status: 'loading' });
+      const result = await listWorkspaces();
+      if (cancelled) return;
+      if (result.error !== undefined || result.data === undefined) {
+        const cached = readCachedWorkspaceId(activeAccount);
+        const responseStatus = result.response?.status ?? 0;
+        if (cached !== null && (responseStatus === 0 || responseStatus >= 500))
+          setState({ status: 'ready', workspaceId: cached });
+        else
+          setState({ status: 'error', message: problemMessage(result.error) });
+        return;
+      }
+      const workspaces = result.data.workspaces;
+      const chosen =
+        workspaces.find((workspace) => workspace.personal) ?? workspaces[0];
+      if (chosen === undefined) {
+        setState({
+          status: 'error',
+          message: 'This account has no notes area yet.',
+        });
+        return;
+      }
+      rememberWorkspaceId(activeAccount, chosen.workspaceId);
+      setState({ status: 'ready', workspaceId: chosen.workspaceId });
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [status, accountId, generation]);
+
+  return state;
 }
 
 /** What the sync engine of the open workspace reports and accepts. */
@@ -550,7 +660,7 @@ export function useLocalSnapshotStatus(
 }
 
 /**
- * Provides session, store, and theme to the whole application.
+ * Provides session, workspace, store, and theme to the whole application.
  *
  * The `key` of the `SessionScope` below is the account ID: when the account
  * changes, every screen remounts and no private state leaks across accounts.
@@ -565,6 +675,12 @@ export function AppProviders({
   const [generation, setGeneration] = useState(0);
   const session = useSessionLoader(generation);
   const theme = useThemeLoader();
+  const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
+  const workspaceState = useWorkspaceLoader(
+    session.status,
+    session.account?.accountId ?? null,
+    workspaceGeneration,
+  );
 
   const refresh = useCallback(() => {
     setGeneration((current) => current + 1);
@@ -590,6 +706,16 @@ export function AppProviders({
     [session, refresh, doSignOut],
   );
 
+  const workspaceValue = useMemo<WorkspaceValue>(
+    () => ({
+      state: workspaceState,
+      reload: () => {
+        setWorkspaceGeneration((current) => current + 1);
+      },
+    }),
+    [workspaceState],
+  );
+
   const themeValue = useMemo<ThemeValue>(
     () => ({
       choice: theme.choice,
@@ -603,9 +729,13 @@ export function AppProviders({
     <ThemeContext.Provider value={themeValue}>
       <StoreContext.Provider value={storeValue}>
         <SessionContext.Provider value={sessionValue}>
-          <SessionScope accountKey={session.account?.accountId ?? 'signed-out'}>
-            {children}
-          </SessionScope>
+          <WorkspaceContext.Provider value={workspaceValue}>
+            <SessionScope
+              accountKey={session.account?.accountId ?? 'signed-out'}
+            >
+              {children}
+            </SessionScope>
+          </WorkspaceContext.Provider>
         </SessionContext.Provider>
       </StoreContext.Provider>
     </ThemeContext.Provider>

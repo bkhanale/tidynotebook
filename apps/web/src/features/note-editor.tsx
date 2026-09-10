@@ -30,25 +30,19 @@ import {
 } from '@notesapp/sync';
 import {
   createEditor,
-  setEditorReadOnly,
   setEditorRich,
   setEditorTheme,
   type EditorView,
   type LinkTarget,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
-import {
-  Badge,
-  Button,
-  CheckIcon,
-  StatusRegion,
-  TrashIcon,
-} from '@notesapp/ui';
+import { Button, CheckIcon, StatusRegion, TrashIcon } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
 import { useAttentionCount } from './attention-link.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
 import { displayNoteName, storageNotePath } from './note-name.ts';
-import { canWrite, validateNotePath } from './workspaces.tsx';
+import { validateNotePath } from './workspaces.tsx';
+import { missingNoteNotice, resolveLinkAction } from './note-link.ts';
 import { useDeleteNotice } from './trash.tsx';
 import { createDiagramFrame } from '../diagram/frame.ts';
 import { copyText } from '../platform.ts';
@@ -150,7 +144,6 @@ export type NoteEditorProps = {
   readonly baseRevisionId: string | null;
   readonly initialText: string;
   readonly initialPath: string;
-  readonly readOnly: boolean;
   /**
    * The accepted head this device did not see, when the opened text is a
    * draft written over an older version. The editor then asks the person to
@@ -180,7 +173,6 @@ export function NoteEditor({
   baseRevisionId,
   initialText,
   initialPath,
-  readOnly,
   staleHead,
   initialWorkingCopyId,
   initialSequence = 0,
@@ -242,10 +234,10 @@ export function NoteEditor({
   loaderRef.current = createAttachmentLoader(workspaceId);
 
   useEffect(() => {
-    if (!focusName || readOnly) return;
+    if (!focusName) return;
     nameInputRef.current?.focus();
     nameInputRef.current?.select();
-  }, [focusName, readOnly]);
+  }, [focusName]);
 
   const live = useRef({
     store,
@@ -254,7 +246,6 @@ export function NoteEditor({
     fileId,
     baseRevisionId: openedBase,
     workingCopyId,
-    readOnly,
   });
   live.current = {
     store,
@@ -263,7 +254,6 @@ export function NoteEditor({
     fileId,
     baseRevisionId: openedBase,
     workingCopyId,
-    readOnly,
   };
   const callbacks = useRef({ onOpenLink, onQueued });
   callbacks.current = { onOpenLink, onQueued };
@@ -382,7 +372,7 @@ export function NoteEditor({
     const insertStableLink = (event: Event): void => {
       const detail = (event as CustomEvent<StableLinkRequest>).detail;
       const view = viewRef.current;
-      if (view === null || readOnly) return;
+      if (view === null) return;
       const selection = view.state.selection.main;
       if (selection.empty) {
         setPasteNotice('Select text before you insert a stable note link.');
@@ -405,7 +395,7 @@ export function NoteEditor({
     return () => {
       window.removeEventListener('notesapp:insert-link', insertStableLink);
     };
-  }, [readOnly]);
+  }, []);
 
   useEffect(() => {
     void refreshQueue.current();
@@ -539,15 +529,13 @@ export function NoteEditor({
         bufferRef.current = text;
         setBufferText(text);
         sequenceRef.current += 1;
-        if (!live.current.readOnly) {
-          setDraftPending(true);
-          if (saveTimerRef.current !== null)
-            window.clearTimeout(saveTimerRef.current);
-          saveTimerRef.current = window.setTimeout(() => {
-            saveTimerRef.current = null;
-            void saveDraftNow.current();
-          }, draftSaveDelayMs);
-        }
+        setDraftPending(true);
+        if (saveTimerRef.current !== null)
+          window.clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = window.setTimeout(() => {
+          saveTimerRef.current = null;
+          void saveDraftNow.current();
+        }, draftSaveDelayMs);
         recordTiming('notesapp.typing-handler', startedAt);
       },
       {
@@ -565,7 +553,6 @@ export function NoteEditor({
             await checkpointNow.current();
           })();
         },
-        readOnly: live.current.readOnly,
         theme: themeRef.current,
         rich: richResolvers,
       },
@@ -583,13 +570,6 @@ export function NoteEditor({
     const view = viewRef.current;
     if (view !== null) setEditorTheme(view, resolved);
   }, [resolved]);
-
-  // Workspace access can finish loading after the editor mounts. Reconfigure
-  // the existing editor so an owner or editor can type without losing state.
-  useEffect(() => {
-    const view = viewRef.current;
-    if (view !== null) setEditorReadOnly(view, readOnly);
-  }, [readOnly]);
 
   const attentionCount = useAttentionCount(store, accountId, workspaceId);
   const saveState: SaveState = resolveSaveState({
@@ -624,7 +604,7 @@ export function NoteEditor({
    */
   const uploadPastedFiles = (files: readonly File[]): void => {
     const images = files.filter((file) => file.type.startsWith('image/'));
-    if (images.length === 0 || live.current.readOnly) return;
+    if (images.length === 0) return;
     void (async (): Promise<void> => {
       const current = live.current;
       for (const file of images) {
@@ -797,7 +777,6 @@ export function NoteEditor({
             className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-lg font-semibold text-strong outline-none transition-colors hover:border-edge-subtle hover:bg-hover focus:border-focus focus:bg-app focus:ring-2 focus:ring-focus/25"
             type="text"
             value={name}
-            disabled={readOnly}
             aria-label="Note name"
             aria-invalid={pathError !== ''}
             aria-describedby={
@@ -810,16 +789,14 @@ export function NoteEditor({
               setName(nextName);
               pathRef.current = nextPath;
               setPathError(validateNotePath(nextPath) ?? '');
-              if (!live.current.readOnly) {
-                sequenceRef.current += 1;
-                setDraftPending(true);
-                if (saveTimerRef.current !== null)
-                  window.clearTimeout(saveTimerRef.current);
-                saveTimerRef.current = window.setTimeout(() => {
-                  saveTimerRef.current = null;
-                  void saveDraftNow.current();
-                }, draftSaveDelayMs);
-              }
+              sequenceRef.current += 1;
+              setDraftPending(true);
+              if (saveTimerRef.current !== null)
+                window.clearTimeout(saveTimerRef.current);
+              saveTimerRef.current = window.setTimeout(() => {
+                saveTimerRef.current = null;
+                void saveDraftNow.current();
+              }, draftSaveDelayMs);
             }}
           />
           {pathError !== '' ? (
@@ -842,68 +819,64 @@ export function NoteEditor({
             attentionCount={attentionCount}
           />
 
-          {!readOnly ? (
-            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-              <Button
-                variant="primary"
-                size="sm"
-                icon={<CheckIcon size={14} />}
-                label="Save this note"
-                title="Save (Ctrl+S)"
-                onClick={() => {
-                  void (async (): Promise<void> => {
-                    if (saveTimerRef.current !== null) {
-                      window.clearTimeout(saveTimerRef.current);
-                      saveTimerRef.current = null;
-                    }
-                    await checkpointNow.current();
-                  })();
-                }}
-              >
-                Save
-              </Button>
-              {confirmingDelete ? (
-                <div className="flex items-center gap-1.5">
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    icon={<TrashIcon size={14} />}
-                    label="Confirm deletion of this note"
-                    onClick={handleDelete}
-                  >
-                    Confirm delete
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    label="Keep this note"
-                    onClick={() => {
-                      setConfirmingDelete(false);
-                    }}
-                  >
-                    Keep
-                  </Button>
-                </div>
-              ) : (
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="primary"
+              size="sm"
+              icon={<CheckIcon size={14} />}
+              label="Save this note"
+              title="Save (Ctrl+S)"
+              onClick={() => {
+                void (async (): Promise<void> => {
+                  if (saveTimerRef.current !== null) {
+                    window.clearTimeout(saveTimerRef.current);
+                    saveTimerRef.current = null;
+                  }
+                  await checkpointNow.current();
+                })();
+              }}
+            >
+              Save
+            </Button>
+            {confirmingDelete ? (
+              <div className="flex items-center gap-1.5">
                 <Button
-                  variant="ghost"
+                  variant="danger"
                   size="sm"
                   icon={<TrashIcon size={14} />}
-                  label="Delete this note"
-                  title="Delete this note"
+                  label="Confirm deletion of this note"
                   onClick={handleDelete}
                 >
-                  Delete
+                  Confirm delete
                 </Button>
-              )}
-            </div>
-          ) : (
-            <Badge variant="default">Read only</Badge>
-          )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  label="Keep this note"
+                  onClick={() => {
+                    setConfirmingDelete(false);
+                  }}
+                >
+                  Keep
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                icon={<TrashIcon size={14} />}
+                label="Delete this note"
+                title="Delete this note"
+                onClick={handleDelete}
+              >
+                Delete
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
-      {staleOpen && staleHead !== undefined && !readOnly ? (
+      {staleOpen && staleHead !== undefined ? (
         <section
           className="mb-4 rounded-lg border border-accent/40 bg-accent/10 p-3"
           aria-labelledby={`notes-stale-${fileId}`}
@@ -942,7 +915,6 @@ export function NoteEditor({
         className="min-h-96 overflow-hidden rounded-lg"
         role="textbox"
         aria-label={`Note ${name}`}
-        aria-readonly={readOnly}
         tabIndex={-1}
         onPaste={(event): void => {
           const files = Array.from(event.clipboardData?.files ?? []);
@@ -994,13 +966,11 @@ export function NoteEditorLoader({
   accountId,
   workspaceId,
   fileId,
-  role,
 }: {
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string;
-  readonly role: 'owner' | 'admin' | 'editor' | 'viewer' | null;
 }): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1204,7 +1174,7 @@ export function NoteEditorLoader({
       </main>
     );
 
-  const writable = role !== null && canWrite(role);
+  const activeStore = store;
   return (
     <div>
       <h1 className="sr-only">{displayNoteName(status.path)}</h1>
@@ -1218,25 +1188,45 @@ export function NoteEditorLoader({
         baseRevisionId={status.headRevisionId}
         initialText={status.text}
         initialPath={status.path}
-        readOnly={!writable}
         staleHead={status.staleHead}
         initialWorkingCopyId={status.workingCopyId}
         initialSequence={status.sequence}
         focusName={focusName}
         onOpenLink={(target: LinkTarget): void => {
-          if (target.kind === 'url' && target.target.startsWith('/notes/')) {
-            const noteId =
-              target.target.slice('/notes/'.length).split('/')[0] ?? '';
-            if (noteId !== '') {
-              void navigate(`/w/${workspaceId}/notes/${noteId}`);
-              return;
-            }
+          const action = resolveLinkAction(target.target);
+          if (action.kind === 'note-id') {
+            setLinkNotice('');
+            void navigate(`/w/${workspaceId}/notes/${action.fileId}`);
+            return;
           }
-          if (target.kind === 'wiki')
-            setLinkNotice(
-              `Note link [[${target.title}]] resolves in a later task.`,
-            );
-          else setLinkNotice('That link target opens in a later task.');
+          if (action.kind === 'external') {
+            setLinkNotice('');
+            window.open(action.url, '_blank', 'noopener,noreferrer');
+            return;
+          }
+          if (action.kind === 'note-name') {
+            void (async (): Promise<void> => {
+              const wanted = storageNotePath(action.name).toLowerCase();
+              const files = await activeStore.listLocalFiles(
+                accountId,
+                workspaceId,
+              );
+              const found = files.find(
+                (file) =>
+                  file.kind === 'note' &&
+                  !file.deleted &&
+                  file.path.toLowerCase() === wanted,
+              );
+              if (found === undefined) {
+                setLinkNotice(missingNoteNotice);
+                return;
+              }
+              setLinkNotice('');
+              void navigate(`/w/${workspaceId}/notes/${found.fileId}`);
+            })();
+            return;
+          }
+          setLinkNotice('This link points at nothing that can open here.');
         }}
       />
     </div>

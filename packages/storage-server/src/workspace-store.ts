@@ -57,11 +57,7 @@ import {
   type ShareRecord,
   type SharingStore,
 } from '@notesapp/core';
-import {
-  extractAttachmentRefs,
-  extractLinks,
-  parseWikiLink,
-} from '@notesapp/markdown';
+import { extractAttachmentRefs, extractLinks } from '@notesapp/markdown';
 import { markdownLimitCode } from './markdown-limits.ts';
 import { and, eq, gt, inArray, isNotNull, sql } from 'drizzle-orm';
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
@@ -505,22 +501,6 @@ function shareRecord(row: ShareRow | undefined): ShareRecord {
   };
 }
 
-/** A case folded title key used only to resolve author written wiki links. */
-function titleKey(value: string): string {
-  return value.normalize('NFC').trim().toLocaleLowerCase('en-US');
-}
-
-/** The full path title and basename title of one Markdown path. */
-function titleKeys(path: string): readonly string[] {
-  const withoutExtension = path.toLowerCase().endsWith('.md')
-    ? path.slice(0, -3)
-    : path;
-  const basename = withoutExtension.split('/').at(-1) ?? withoutExtension;
-  return basename === withoutExtension
-    ? [titleKey(withoutExtension)]
-    : [titleKey(withoutExtension), titleKey(basename)];
-}
-
 /**
  * Replaces the search and backlink rows of every accepted head in this write.
  *
@@ -568,7 +548,7 @@ async function updateAcceptedIndexes(
   );
 
   const live = await db
-    .select({ id: files.id, path: files.path })
+    .select({ id: files.id })
     .from(files)
     .where(
       and(
@@ -579,27 +559,14 @@ async function updateAcceptedIndexes(
       ),
     );
   const liveIds = new Set(live.map((file) => file.id));
-  const byTitle = new Map<string, string[]>();
-  for (const file of live) {
-    for (const key of titleKeys(file.path)) {
-      const matches = byTitle.get(key) ?? [];
-      if (!matches.includes(file.id)) matches.push(file.id);
-      byTitle.set(key, matches);
-    }
-  }
 
   const rows = searchable.flatMap((tip) => {
     if (tip.content.kind !== 'markdown') return [];
     return extractLinks(tip.content.text).map((link, ordinal) => {
-      let targetFileId: string | null = null;
-      if (link.targetId !== null && liveIds.has(link.targetId)) {
-        targetFileId = link.targetId;
-      } else {
-        const wiki = parseWikiLink(link.source);
-        const candidates =
-          wiki === null ? [] : (byTitle.get(titleKey(wiki.title)) ?? []);
-        if (candidates.length === 1) targetFileId = candidates[0] ?? null;
-      }
+      const targetFileId =
+        link.targetId !== null && liveIds.has(link.targetId)
+          ? link.targetId
+          : null;
       return {
         workspaceId,
         sourceFileId: tip.fileId,

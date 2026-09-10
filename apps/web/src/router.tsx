@@ -1,9 +1,11 @@
 /**
  * Web application routes.
  *
- * Routes compose the shell with the account and workspace screens. Session
+ * The one workspace of the account keeps its identifier in the address, so a
+ * note link stays stable, but no screen names the workspace. Session
  * protection wraps every private route. Login and first-run setup use the
- * only public page.
+ * only public page. The root address redirects to the note list, and that
+ * redirect has no sidebar.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Link, RouterProvider, createBrowserRouter } from 'react-router';
@@ -24,26 +26,11 @@ const WorkspaceView = lazy(async () => ({
 const WorkspaceHome = lazy(async () => ({
   default: (await import('./features/workspaces.tsx')).WorkspaceHome,
 }));
-const WorkspaceCreateView = lazy(async () => ({
-  default: (await import('./features/workspaces.tsx')).WorkspaceCreateView,
-}));
-const WorkspaceSettingsView = lazy(async () => ({
-  default: (await import('./features/workspaces.tsx')).WorkspaceSettingsView,
-}));
 const HistoryView = lazy(async () => ({
   default: (await import('./features/history.tsx')).HistoryView,
 }));
-const PurgeView = lazy(async () => ({
-  default: (await import('./features/purge.tsx')).PurgeView,
-}));
 const TrashView = lazy(async () => ({
   default: (await import('./features/trash.tsx')).TrashView,
-}));
-const OfflineStatusRoute = lazy(async () => ({
-  default: (await import('./features/offline-status.tsx')).OfflineStatusRoute,
-}));
-const RecoveryRoute = lazy(async () => ({
-  default: (await import('./features/recovery.tsx')).RecoveryRoute,
 }));
 const AttentionRoute = lazy(async () => ({
   default: (await import('./features/attention.tsx')).AttentionRoute,
@@ -73,7 +60,7 @@ function NotFoundPage(): ReactNode {
       </h1>
       <p>The address names no page of this application.</p>
       <p>
-        <Link to="/">Back to workspaces.</Link>
+        <Link to="/">Back to all notes.</Link>
       </p>
     </main>
   );
@@ -81,6 +68,10 @@ function NotFoundPage(): ReactNode {
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
+  {
+    path: '/',
+    element: <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>,
+  },
   {
     path: '/settings',
     element: (
@@ -90,41 +81,17 @@ const router = createBrowserRouter([
     ),
   },
   {
-    path: '/',
+    path: '/w/:workspaceId',
     element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
     children: [
-      { index: true, element: deferred(<WorkspaceHome />) },
+      { index: true, element: deferred(<WorkspaceView />) },
+      { path: 'notes/:fileId', element: deferred(<NoteView />) },
       {
-        path: 'workspaces/new',
-        element: deferred(<WorkspaceCreateView />),
-      },
-      { path: 'w/:workspaceId', element: deferred(<WorkspaceView />) },
-      {
-        path: 'w/:workspaceId/settings',
-        element: deferred(<WorkspaceSettingsView />),
-      },
-      {
-        path: 'w/:workspaceId/notes/:fileId',
-        element: deferred(<NoteView />),
-      },
-      {
-        path: 'w/:workspaceId/notes/:fileId/history',
+        path: 'notes/:fileId/history',
         element: deferred(<HistoryView />),
       },
-      { path: 'w/:workspaceId/trash', element: deferred(<TrashView />) },
-      { path: 'w/:workspaceId/purge', element: deferred(<PurgeView />) },
-      {
-        path: 'w/:workspaceId/offline',
-        element: deferred(<OfflineStatusRoute />),
-      },
-      {
-        path: 'w/:workspaceId/recovery',
-        element: deferred(<RecoveryRoute />),
-      },
-      {
-        path: 'w/:workspaceId/attention',
-        element: deferred(<AttentionRoute />),
-      },
+      { path: 'trash', element: deferred(<TrashView />) },
+      { path: 'attention', element: deferred(<AttentionRoute />) },
     ],
   },
   { path: '*', element: <NotFoundPage /> },
