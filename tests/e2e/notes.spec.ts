@@ -1,6 +1,7 @@
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  createNewNote,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -16,20 +17,25 @@ test('create, save, reload, rename, and delete use durable note state', async ({
 }) => {
   await signIn(page, stack);
   await openPersonalWorkspace(page);
-  await page.getByRole('button', { name: 'Create a new note' }).first().click();
-  await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
+  await createNewNote(page);
 
-  const path = `journey-${Date.now().toString()}.md`;
-  const renamed = `renamed-${Date.now().toString()}.md`;
+  const path = `journey-${Date.now().toString()}`;
+  const renamed = `renamed-${Date.now().toString()}`;
   const content = '# Durable journey\n\nExact browser text.';
-  await page.getByLabel('File path').fill(path);
+  await expect(page.getByLabel('Note name')).toBeFocused();
+  await page.getByLabel('Note name').fill(path);
   await replaceEditorText(page, content);
-  await expect(
-    page.getByText(/Saved on this device|Syncing|Saved to server/),
-  ).toBeVisible();
+  await waitForLocalWrite(page);
+  await expect(page.getByText('Saved on this device')).toHaveCount(0);
 
   const startedAt = Date.now();
+  const saveResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().includes('/changesets'),
+  );
   await page.getByRole('button', { name: 'Save this note' }).click();
+  expect((await saveResponse).ok()).toBe(true);
   await waitForServerSave(page);
   expect(Date.now() - startedAt).toBeLessThan(10_000);
   await expect(page.getByRole('link', { name: path }).first()).toBeVisible();
@@ -38,9 +44,9 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   await expect(page.locator('.cm-content')).toContainText(
     'Exact browser text.',
   );
-  await expect(page.getByLabel('File path')).toHaveValue(path);
+  await expect(page.getByLabel('Note name')).toHaveValue(path);
 
-  await page.getByLabel('File path').fill(renamed);
+  await page.getByLabel('Note name').fill(renamed);
   await waitForLocalWrite(page);
   await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
@@ -85,14 +91,10 @@ test('a save made during the first sync keeps its parent', async ({
   try {
     await signIn(page, stack);
     await openPersonalWorkspace(page);
-    await page
-      .getByRole('button', { name: 'Create a new note' })
-      .first()
-      .click();
-    await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
+    await createNewNote(page);
 
-    const path = `ordered-${Date.now().toString()}.md`;
-    await page.getByLabel('File path').fill(path);
+    const path = `ordered-${Date.now().toString()}`;
+    await page.getByLabel('Note name').fill(path);
     await replaceEditorText(page, '# First checkpoint');
     await page.getByRole('button', { name: 'Save this note' }).click();
     await firstRequestStarted;
@@ -102,9 +104,7 @@ test('a save made during the first sync keeps its parent', async ({
     releaseFirstRequest();
 
     await waitForServerSave(page);
-    await expect(page.locator('.notes-save-pill')).not.toContainText(
-      'Conflict',
-    );
+    await expect(page.getByText('Conflict')).toHaveCount(0);
     await page.reload();
     await expect(page.locator('.cm-content')).toContainText(
       'Second checkpoint',

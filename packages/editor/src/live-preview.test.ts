@@ -34,14 +34,24 @@ await test('heading markers cover the hash run and style the text', () => {
   assert.equal(text.slice(style?.from ?? 0, style?.to ?? 0), 'Shopping list');
 });
 
-await test('a hash inside a fenced block is not a heading', () => {
+await test('a fenced block uses code style and does not parse headings', () => {
   const text = '```\n## not a heading\n```';
   const scan = scanTextMarkers(text);
   assert.ok(
     scan.markers.every((marker) => marker.kind === 'code'),
     'only fence markers are reported',
   );
-  assert.equal(scan.styles.length, 0);
+  assert.deepEqual(scan.styles, [{ from: 4, to: 20, kind: 'code-block' }]);
+});
+
+await test('a block quote hides its marker and styles its content', () => {
+  const text = '> Quoted **text**';
+  const scan = scanTextMarkers(text);
+  assert.deepEqual(scan.markers[0], { from: 0, to: 2, kind: 'quote' });
+  const quote = scan.styles.find((span) => span.kind === 'quote');
+  assert.equal(text.slice(quote?.from ?? 0, quote?.to ?? 0), 'Quoted **text**');
+  const bold = scan.styles.find((span) => span.variant === 'bold');
+  assert.equal(text.slice(bold?.from ?? 0, bold?.to ?? 0), 'text');
 });
 
 await test('emphasis markers surround the styled content', () => {

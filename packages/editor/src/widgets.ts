@@ -24,12 +24,15 @@
  * `renderMath` and `createDiagram` in after a dynamic import, so the initial
  * bundle keeps them deferred and the service worker precaches them later.
  */
-import type { Extension } from '@codemirror/state';
-import { RangeSetBuilder } from '@codemirror/state';
+import {
+  RangeSetBuilder,
+  StateField,
+  type EditorState,
+  type Extension,
+} from '@codemirror/state';
 import {
   Decoration,
   EditorView,
-  ViewPlugin,
   WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
@@ -566,41 +569,41 @@ class RichWidgetType extends WidgetType {
   }
 }
 
-/** The preview styles. Colors follow Tokyo Night CSS variables. */
+/** The preview styles use the central semantic design tokens. */
 const richWidgetTheme = EditorView.baseTheme({
   '& .notes-rich': {
-    border: '1px solid var(--notes-border, #6b7499)',
-    borderRadius: '6px',
-    margin: '8px 0',
-    padding: '8px',
-    backgroundColor: 'var(--notes-surface, rgba(127, 127, 127, 0.08))',
-    color: 'var(--notes-text, inherit)',
+    border: '1px solid var(--notes-border)',
+    borderRadius: 'var(--radius-lg)',
+    marginBlock: 'calc(var(--spacing) * 2)',
+    padding: 'calc(var(--spacing) * 2)',
+    backgroundColor: 'var(--notes-surface)',
+    color: 'var(--notes-text)',
   },
   '& .notes-rich:focus-within': {
-    outline: '3px solid var(--notes-focus, #7aa2f7)',
-    outlineOffset: '2px',
+    outline: '2px solid var(--notes-focus)',
+    outlineOffset: 'var(--spacing)',
   },
-  '& .notes-rich-image': { maxWidth: '100%', borderRadius: '4px' },
+  '& .notes-rich-image': { maxWidth: '100%', borderRadius: 'var(--radius-md)' },
   '& .notes-rich-table': {
     borderCollapse: 'collapse',
     display: 'block',
     overflowX: 'auto',
   },
   '& .notes-rich-table th, & .notes-rich-table td': {
-    border: '1px solid var(--notes-border, #6b7499)',
-    padding: '4px 8px',
+    border: '1px solid var(--notes-border)',
+    padding: 'var(--spacing) calc(var(--spacing) * 2)',
   },
-  '& .notes-rich-fallback': { margin: '4px 0' },
+  '& .notes-rich-fallback': { marginBlock: 'var(--spacing)' },
   '& .notes-rich-source': {
-    fontFamily: 'ui-monospace, monospace',
+    fontFamily: 'var(--font-mono)',
     whiteSpace: 'pre-wrap',
   },
   '& .notes-rich-source-toggle, & .notes-rich-load': {
     font: 'inherit',
-    minHeight: '44px',
-    marginTop: '4px',
+    minHeight: 'calc(var(--spacing) * 9)',
+    marginTop: 'var(--spacing)',
   },
-  '& .notes-math, & .katex': { color: 'var(--notes-text, inherit)' },
+  '& .notes-math, & .katex': { color: 'var(--notes-text)' },
 });
 
 /**
@@ -612,11 +615,11 @@ const richWidgetTheme = EditorView.baseTheme({
  * message rather than with a rendered preview.
  */
 export function buildRichWidgetDecorations(
-  view: EditorView,
+  state: EditorState,
   resolvers: RichWidgetResolvers,
 ): DecorationSet {
   const builder = new RangeSetBuilder<Decoration>();
-  const text = view.state.doc.toString();
+  const text = state.doc.toString();
   const found = findRichWidgets(text);
   type Placed = { from: number; to: number; decoration: Decoration };
   const placed: Placed[] = [];
@@ -638,27 +641,18 @@ export function buildRichWidgetDecorations(
 /**
  * The rich widget extension.
  *
- * Recomputes previews when the document or the viewport changes. Resolvers
- * are injected by the web composition and may change without rebuilding the
- * editor. Nothing here dispatches a document change.
+ * Block replacements can cross line breaks, so they come from a state field.
+ * CodeMirror does not permit a view plugin to provide such decorations.
+ * Resolver changes rebuild this compartment without changing the document.
  */
 export function richWidgets(resolvers: RichWidgetResolvers = {}): Extension {
-  const plugin = ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet;
-      constructor(view: EditorView) {
-        this.decorations = buildRichWidgetDecorations(view, resolvers);
-      }
-      update(update: {
-        readonly docChanged: boolean;
-        readonly viewportChanged: boolean;
-        readonly view: EditorView;
-      }): void {
-        if (update.docChanged || update.viewportChanged)
-          this.decorations = buildRichWidgetDecorations(update.view, resolvers);
-      }
+  const decorations = StateField.define<DecorationSet>({
+    create: (state) => buildRichWidgetDecorations(state, resolvers),
+    update: (current, transaction) => {
+      if (!transaction.docChanged) return current;
+      return buildRichWidgetDecorations(transaction.state, resolvers);
     },
-    { decorations: (value) => value.decorations },
-  );
-  return [plugin, richWidgetTheme];
+    provide: (field) => EditorView.decorations.from(field),
+  });
+  return [decorations, richWidgetTheme];
 }

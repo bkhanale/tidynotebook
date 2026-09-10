@@ -95,7 +95,12 @@ export function OfflineStatusPanel({
 
   return (
     <section aria-labelledby="offline-status-heading">
-      <h2 id="offline-status-heading">Offline status</h2>
+      <h2
+        className="mb-3 mt-0 text-base font-semibold text-strong"
+        id="offline-status-heading"
+      >
+        Offline status
+      </h2>
       <StatusRegion message={readinessMessage(readiness)} />
       <p>
         <label htmlFor="offline-markdown-progress">Workspace notes</label>
@@ -267,7 +272,7 @@ export function OfflineStatusRoute(): ReactNode {
 
   if (workspaceId === null || accountId === null || store === null)
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading offline status." />
       </main>
     );
@@ -277,9 +282,9 @@ export function OfflineStatusRoute(): ReactNode {
   const activeWorkspace = workspaceId;
 
   return (
-    <main>
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
       {error !== null ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {error}
         </p>
       ) : null}

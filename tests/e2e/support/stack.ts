@@ -12,6 +12,11 @@ export type E2EStack = {
   readonly password: string;
 };
 
+/** One independently owned application stack for a browser journey. */
+export type RunningE2EStack = E2EStack & {
+  readonly close: () => Promise<void>;
+};
+
 type WorkerFixtures = {
   readonly stack: E2EStack;
 };
@@ -54,41 +59,66 @@ async function waitUntilReady(baseUrl: string): Promise<void> {
   throw new Error('The E2E application did not become ready.');
 }
 
+/** Starts an isolated stack with a new database and storage directory. */
+export async function startE2EStack(
+  browserName: string,
+  initialize = true,
+): Promise<RunningE2EStack> {
+  const database = await createDisposableDatabase();
+  const storageRoot = await mkdtemp(
+    resolve(tmpdir(), `notesapp-e2e-${browserName}-`),
+  );
+  const port = await freePort();
+  const baseUrl = `http://127.0.0.1:${String(port)}`;
+  const email = 'owner@e2e.notes.invalid';
+  const password = 'e2e-owner-password';
+  const config = loadServerConfig({
+    NOTESAPP_ORIGIN: baseUrl,
+    NOTESAPP_DATABASE_URL: database.runtimeUrl,
+    NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
+    NOTESAPP_STORAGE_ROOT: storageRoot,
+    NOTESAPP_AUTH_SECRET: 'e2e-session-secret-with-at-least-32-characters',
+    NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
+    NOTESAPP_LOG_LEVEL: 'silent',
+    NOTESAPP_MAX_BODY_BYTES: String(25 * 1024 * 1024),
+    NOTESAPP_MAX_HEADER_BYTES: '16384',
+    NOTESAPP_REQUEST_TIMEOUT_MS: '10000',
+  });
+  let app: Awaited<ReturnType<typeof createApp>> | null = null;
+  try {
+    if (initialize)
+      await bootstrapOwner({ config, email, name: 'E2E Owner', password });
+    app = await createApp(config, {
+      webDist: resolve(import.meta.dirname, '../../../apps/web/dist/web'),
+    });
+    await app.listen({ host: '127.0.0.1', port });
+    await waitUntilReady(baseUrl);
+    return {
+      baseUrl,
+      email,
+      password,
+      close: async (): Promise<void> => {
+        await app?.close();
+        await database.destroy();
+        await rm(storageRoot, { recursive: true, force: true });
+      },
+    };
+  } catch (error: unknown) {
+    await app?.close();
+    await database.destroy();
+    await rm(storageRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   stack: [
     async ({ browserName }, use) => {
-      const database = await createDisposableDatabase();
-      const storageRoot = await mkdtemp(
-        resolve(tmpdir(), `notesapp-e2e-${browserName}-`),
-      );
-      const port = await freePort();
-      const baseUrl = `http://127.0.0.1:${String(port)}`;
-      const email = 'owner@e2e.notes.invalid';
-      const password = 'e2e-owner-password';
-      const config = loadServerConfig({
-        NOTESAPP_ORIGIN: baseUrl,
-        NOTESAPP_DATABASE_URL: database.runtimeUrl,
-        NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
-        NOTESAPP_STORAGE_ROOT: storageRoot,
-        NOTESAPP_AUTH_SECRET: 'e2e-session-secret-with-at-least-32-characters',
-        NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
-        NOTESAPP_LOG_LEVEL: 'silent',
-        NOTESAPP_MAX_BODY_BYTES: String(25 * 1024 * 1024),
-        NOTESAPP_MAX_HEADER_BYTES: '16384',
-        NOTESAPP_REQUEST_TIMEOUT_MS: '10000',
-      });
-      await bootstrapOwner({ config, email, name: 'E2E Owner', password });
-      const app = await createApp(config, {
-        webDist: resolve(import.meta.dirname, '../../../apps/web/dist/web'),
-      });
+      const running = await startE2EStack(browserName);
       try {
-        await app.listen({ host: '127.0.0.1', port });
-        await waitUntilReady(baseUrl);
-        await use({ baseUrl, email, password });
+        await use(running);
       } finally {
-        await app.close();
-        await database.destroy();
-        await rm(storageRoot, { recursive: true, force: true });
+        await running.close();
       }
     },
     { scope: 'worker' },

@@ -35,6 +35,7 @@ import {
   loadAttachmentBinary,
   type LoadedAttachment,
 } from './attachment-content.ts';
+import { displayNoteName } from './note-name.ts';
 import { requestDiff } from './diff-worker.ts';
 
 /** How many history entries one page requests. */
@@ -101,18 +102,22 @@ export function InlineDiff({
   );
   if (rendered.length === 0) return <p>No line differences.</p>;
   return (
-    <ol className="notes-diff" aria-label="Line differences">
+    <ol className="m-0 list-none space-y-4 p-0" aria-label="Line differences">
       {rendered.map((entry, index) => {
         const beforeCount = entry.hunk.before.length;
         const afterCount = entry.hunk.after.length;
         return (
-          <li key={`${idPrefix}-hunk-${String(index)}`}>
-            <h4>
+          <li
+            className="overflow-hidden rounded-lg border border-edge-subtle"
+            key={`${idPrefix}-hunk-${String(index)}`}
+          >
+            <h4 className="m-0 bg-hover px-3 py-2 text-control font-semibold text-strong">
               {`Hunk ${String(index + 1)}: ${oldLabel} from line ${String(entry.hunk.beforeStart)} (${String(beforeCount)} lines), ${newLabel} from line ${String(entry.hunk.afterStart)} (${String(afterCount)} lines)`}
             </h4>
-            <ol>
+            <ol className="m-0 list-none p-0 font-mono text-xs">
               {entry.rows.map((row, rowIndex) => (
                 <li
+                  className={`flex gap-2 px-3 py-0.5 ${row.kind === 'removed' ? 'bg-danger/10 text-danger' : row.kind === 'added' ? 'bg-success/10 text-success' : 'text-muted'}`}
                   key={`${idPrefix}-hunk-${String(index)}-row-${String(rowIndex)}`}
                 >
                   <span>
@@ -122,7 +127,9 @@ export function InlineDiff({
                         ? '+ '
                         : '  '}
                   </span>
-                  <code>{row.text === '' ? '(empty line)' : row.text}</code>
+                  <code className="whitespace-pre-wrap">
+                    {row.text === '' ? '(empty line)' : row.text}
+                  </code>
                 </li>
               ))}
             </ol>
@@ -184,8 +191,10 @@ export function HistoryView(): ReactNode {
 
   if (workspaceId === null || fileId === null)
     return (
-      <main>
-        <h1>History not found</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          History not found
+        </h1>
         <p>The address names no file history.</p>
         <p>
           <Link to="/">Back to workspaces.</Link>
@@ -195,7 +204,7 @@ export function HistoryView(): ReactNode {
   const accountId = session.account?.accountId ?? null;
   if (accountId === null)
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading the history." />
       </main>
     );
@@ -496,23 +505,27 @@ function HistoryDetail({
 
   if (head.status === 'loading')
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading the file history." />
       </main>
     );
   if (head.status === 'error')
     return (
-      <main>
-        <h1>History unavailable</h1>
-        <p className="notes-status-error" role="alert">
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          History unavailable
+        </h1>
+        <p className="text-control text-danger" role="alert">
           {head.message}
         </p>
       </main>
     );
   if (head.status === 'unknown')
     return (
-      <main>
-        <h1>Note not found</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note not found
+        </h1>
         <p>
           This file has no history in this workspace. It is not an empty note.
         </p>
@@ -523,8 +536,10 @@ function HistoryDetail({
     );
   if (head.status === 'purged')
     return (
-      <main>
-        <h1>Note permanently deleted</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note permanently deleted
+        </h1>
         <p>
           This file was purged by the workspace owner, so its server history is
           gone. Pending offline work for it stays on this device for recovery
@@ -541,8 +556,10 @@ function HistoryDetail({
       ? null
       : (items.find((entry) => entry.revisionId === selectedId) ?? null);
   return (
-    <main>
-      <h1>History of {head.path}</h1>
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+        History of {displayNoteName(head.path)}
+      </h1>
       <p>
         <Link to={`/w/${workspaceId}/notes/${fileId}`}>Back to the note.</Link>
         {' | '}
@@ -554,15 +571,20 @@ function HistoryDetail({
       </p>
       {actionMessage !== '' ? <StatusRegion message={actionMessage} /> : null}
       {actionError !== null ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {actionError}
         </p>
       ) : null}
 
       <section aria-labelledby="history-server-heading">
-        <h2 id="history-server-heading">Server history</h2>
+        <h2
+          className="mb-3 mt-0 text-base font-semibold text-strong"
+          id="history-server-heading"
+        >
+          Server history
+        </h2>
         {historyError !== null ? (
-          <p className="notes-status-error" role="alert">
+          <p className="text-control text-danger" role="alert">
             {historyError}
           </p>
         ) : null}
@@ -600,7 +622,12 @@ function HistoryDetail({
       </section>
 
       <section aria-labelledby="history-local-heading">
-        <h2 id="history-local-heading">Pending history on this device</h2>
+        <h2
+          className="mb-3 mt-0 text-base font-semibold text-strong"
+          id="history-local-heading"
+        >
+          Pending history on this device
+        </h2>
         {store === null ? (
           <p>
             Local storage is unavailable, so this device keeps no local
@@ -623,7 +650,12 @@ function HistoryDetail({
 
       {writable ? (
         <section aria-labelledby="history-checkpoint-heading">
-          <h2 id="history-checkpoint-heading">Name the current version</h2>
+          <h2
+            className="mb-3 mt-0 text-base font-semibold text-strong"
+            id="history-checkpoint-heading"
+          >
+            Name the current version
+          </h2>
           {head.etag === null ? (
             <p>
               The current version carries no entity tag, so a named checkpoint
@@ -656,11 +688,16 @@ function HistoryDetail({
 
       {selectedItem !== null ? (
         <section aria-labelledby="history-revision-heading">
-          <h2 id="history-revision-heading">Selected revision</h2>
+          <h2
+            className="mb-3 mt-0 text-base font-semibold text-strong"
+            id="history-revision-heading"
+          >
+            Selected revision
+          </h2>
           {detail === null || detail.status === 'loading' ? (
             <StatusRegion message="Loading the selected revision." />
           ) : detail.status === 'error' ? (
-            <p className="notes-status-error" role="alert">
+            <p className="text-control text-danger" role="alert">
               {detail.message}
             </p>
           ) : (
@@ -680,9 +717,11 @@ function HistoryDetail({
                 </div>
               ) : (
                 <div>
-                  <h3>Old text of the selected revision</h3>
+                  <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
+                    Old text of the selected revision
+                  </h3>
                   <pre>{detail.text}</pre>
-                  <h3>
+                  <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
                     Changes from the selected revision to the current head
                   </h3>
                   {diff.status === 'idle' ? (
@@ -703,7 +742,7 @@ function HistoryDetail({
                       restore the whole revision below.
                     </p>
                   ) : (
-                    <p className="notes-status-error" role="alert">
+                    <p className="text-control text-danger" role="alert">
                       {diff.message}
                     </p>
                   )}

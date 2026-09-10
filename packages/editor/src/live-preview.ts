@@ -9,8 +9,8 @@
  * note looks formatted while the text stays editable. When the cursor enters
  * a formatted region its markers are shown again.
  *
- * The scanning is line based and viewport scoped. Fenced code blocks and
- * inline code spans are excluded from formatting, so a `#` inside code is
+ * The scanning is line based and viewport scoped. Fenced code content gets a
+ * code style, but is excluded from other formatting, so a `#` inside code is
  * never treated as a heading. Decorations never rewrite the document; they
  * only hide or style ranges. React rerenders and theme changes must never
  * replace the document to update them.
@@ -26,7 +26,14 @@ import {
 
 /** What kind of Markdown syntax a range belongs to. */
 export type MarkerKind =
-  'heading' | 'emphasis' | 'list' | 'task' | 'link' | 'code';
+  | 'heading'
+  | 'emphasis'
+  | 'list'
+  | 'task'
+  | 'link'
+  | 'code'
+  | 'code-block'
+  | 'quote';
 
 /** One range of syntax marker text, for example the `#` run or the `**`. */
 export type Marker = {
@@ -168,6 +175,21 @@ function scanList(
   }
 }
 
+/** Scans a block quote marker and styles the quoted content. */
+function scanQuote(line: Line, markers: Marker[], styles: StyledSpan[]): void {
+  const match = /^( {0,3})(>)([ \t]?)/.exec(line.text);
+  if (match === null) return;
+  const indent = match[1] ?? '';
+  const marker = match[2] ?? '';
+  const gap = match[3] ?? '';
+  const markerFrom = line.from + indent.length;
+  const contentFrom = markerFrom + marker.length + gap.length;
+  mark(markers, markerFrom, contentFrom, 'quote');
+  const contentTo = line.from + line.text.replace(/\r$/, '').length;
+  if (contentTo > contentFrom)
+    styles.push({ from: contentFrom, to: contentTo, kind: 'quote' });
+}
+
 /** Scans emphasis, strikethrough, and inline code of one line. */
 function scanInline(
   line: Line,
@@ -280,10 +302,20 @@ export function scanBlockMarkers(text: string, base: number): MarkerScan {
       inFence = inFence === null ? fence.char : null;
       continue;
     }
-    if (inFence !== null) continue;
+    if (inFence !== null) {
+      const contentTo = line.from + line.text.replace(/\r$/, '').length;
+      if (contentTo > line.from)
+        styles.push({
+          from: line.from,
+          to: contentTo,
+          kind: 'code-block',
+        });
+      continue;
+    }
     const code = codeSpans(line);
     const isHeading = scanHeading(line, markers, styles);
     if (!isHeading) scanList(line, markers, code);
+    scanQuote(line, markers, styles);
     scanInline(line, markers, styles, code);
     scanLinks(line, markers, styles, code);
   }
@@ -361,6 +393,8 @@ function styleClass(span: StyledSpan): string {
   }
   if (span.kind === 'link') return 'cm-np-link';
   if (span.kind === 'code') return 'cm-np-code';
+  if (span.kind === 'code-block') return 'cm-np-code-block';
+  if (span.kind === 'quote') return 'cm-np-quote';
   if (span.kind === 'task') return 'cm-np-taskbox';
   return 'cm-np-list';
 }
@@ -468,31 +502,44 @@ export function buildLivePreviewDecorations(view: EditorView): DecorationSet {
 /** The preview styles. Colors follow CSS variables with neutral fallbacks. */
 const livePreviewTheme = EditorView.baseTheme({
   '& .cm-np-heading': { fontWeight: '700' },
-  '& .cm-np-h1': { fontSize: '1.4em' },
-  '& .cm-np-h2': { fontSize: '1.25em' },
-  '& .cm-np-h3': { fontSize: '1.12em' },
+  '& .cm-np-h1': { fontSize: 'var(--text-xl)' },
+  '& .cm-np-h2': { fontSize: 'var(--text-lg)' },
+  '& .cm-np-h3': { fontSize: 'var(--text-base)' },
   '& .cm-np-bold': { fontWeight: '700' },
   '& .cm-np-italic': { fontStyle: 'italic' },
   '& .cm-np-strike': { textDecoration: 'line-through' },
   '& .cm-np-code': {
-    fontFamily: 'ui-monospace, monospace',
-    backgroundColor: 'var(--notesapp-code-bg, rgba(127, 127, 127, 0.15))',
-    borderRadius: '3px',
-    padding: '0 2px',
+    fontFamily: 'var(--font-mono)',
+    backgroundColor: 'var(--notes-surface-hover)',
+    borderRadius: 'var(--radius-sm)',
+    paddingInline: 'calc(var(--spacing) * 0.5)',
+  },
+  '& .cm-np-code-block': {
+    fontFamily: 'var(--font-mono)',
+    backgroundColor: 'var(--notes-surface-hover)',
+    borderRadius: 'var(--radius-sm)',
+    boxDecorationBreak: 'clone',
+    paddingInline: 'calc(var(--spacing) * 1.5)',
+  },
+  '& .cm-np-quote': {
+    color: 'var(--notes-text-muted)',
+    fontStyle: 'italic',
+    borderLeft: '2px solid var(--notes-border-subtle)',
+    paddingLeft: 'calc(var(--spacing) * 2)',
   },
   '& .cm-np-link': {
-    color: 'var(--notesapp-link, #2e7de9)',
+    color: 'var(--notes-accent-text)',
     textDecoration: 'underline',
   },
   '& .cm-np-marker': { opacity: '0.55' },
   '& .cm-np-bullet': {
-    color: 'var(--notesapp-bullet, var(--notes-accent-fill, #3b82f6))',
+    color: 'var(--notes-accent-fill)',
     fontWeight: '700',
     display: 'inline-block',
-    paddingRight: '6px',
+    paddingRight: 'calc(var(--spacing) * 1.5)',
   },
   '& .cm-np-list-number': {
-    color: 'var(--notesapp-marker, var(--notes-text-muted, #888888))',
+    color: 'var(--notes-text-muted)',
     fontWeight: '600',
     opacity: '0.85',
   },

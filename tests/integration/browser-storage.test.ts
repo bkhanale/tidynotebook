@@ -253,6 +253,8 @@ await test('a draft save and a checkpoint commit as one transaction each', async
     path: 'notes/one.md',
     text: '# One\n',
     deleted: false,
+    workingCopyId: 'copy-a',
+    sequence: 1,
     baseRevisionId: null,
   });
 
@@ -323,6 +325,7 @@ await test('an unchanged working copy of an accepted file writes nothing', async
     path: 'notes/one.md',
     text: 'body\n',
     deleted: false,
+    sequence: 0,
     baseRevisionId: revisionId,
   });
 
@@ -354,6 +357,8 @@ await test('a cached local deletion does not reopen accepted content', async () 
     path: 'notes/one.md',
     text: 'old body\n',
     deleted: true,
+    workingCopyId: 'copy-a',
+    sequence: 1,
     baseRevisionId: null,
   });
   await store.close();
@@ -862,6 +867,8 @@ await test('server conflict resolution clears its local queue atomically', async
     path: 'notes/one.md',
     text: mergedText,
     deleted: false,
+    workingCopyId: 'copy-a',
+    sequence: 1,
     baseRevisionId: mergedId,
   });
   const unchanged = draftOf(account, workspace, file, 'copy-a', mergedText, {
@@ -1024,6 +1031,7 @@ await test('a server-only conflict resolution becomes durable local state', asyn
     path: 'notes/remote-conflict.md',
     text,
     deleted: false,
+    sequence: 0,
     baseRevisionId: revisionId,
   });
   const attachmentFile = randomUUID();

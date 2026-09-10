@@ -26,6 +26,7 @@ import {
   type EditorNavigation,
   type LinkTarget,
 } from './commands.ts';
+import { livePreview } from './live-preview.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
 /** Optional behavior beyond the required creation signature. */
@@ -76,17 +77,30 @@ function themeExtension(theme: 'light' | 'dark'): Extension {
   return EditorView.theme(
     {
       '&': {
-        backgroundColor: 'var(--notesapp-bg, #ffffff)',
-        color: 'var(--notesapp-text, #000000)',
+        backgroundColor: 'var(--notes-bg)',
+        color: 'var(--notes-text)',
+        fontSize: 'var(--text-ui)',
+        lineHeight: 'var(--text-ui--line-height)',
+        minHeight: 'calc(var(--spacing) * 96)',
       },
-      '.cm-content': { caretColor: 'var(--notesapp-caret, auto)' },
+      '.cm-scroller': {
+        fontFamily: 'var(--font-sans)',
+        paddingBlock: 'calc(var(--spacing) * 4)',
+      },
+      '.cm-content': {
+        caretColor: 'var(--notes-focus)',
+        maxWidth: 'calc(var(--spacing) * 192)',
+        marginInline: 'auto',
+        paddingInline: 'calc(var(--spacing) * 4)',
+      },
+      '.cm-line': { paddingInline: 'calc(var(--spacing) * 1)' },
       '.cm-cursor': {
-        borderLeftColor: 'var(--notesapp-caret, #000000)',
+        borderLeftColor: 'var(--notes-focus)',
       },
       '&.cm-focused': { outline: 'none' },
       '.cm-activeLine': {
         backgroundColor:
-          'var(--notesapp-active-line, rgba(127, 127, 127, 0.08))',
+          'color-mix(in srgb, var(--notes-focus) 8%, transparent)',
       },
     },
     { dark: theme === 'dark' },
@@ -143,6 +157,8 @@ export function createEditor(
     extensions: [
       history(),
       markdown(),
+      livePreview(),
+      richCompartment.of(richWidgets(options.rich ?? {})),
       EditorView.lineWrapping,
       themeCompartment.of(themeExtension(options.theme ?? 'dark')),
       saveKeymap,

@@ -41,7 +41,7 @@ export function RequireSession({
   const session = useSession();
   if (session.status === 'loading') {
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Checking the session." />
       </main>
     );
@@ -122,15 +122,18 @@ export function LoginPage(): ReactNode {
   if (session.status === 'signed-in') return <Navigate to="/" replace />;
 
   return (
-    <div className="notes-auth-page">
-      <div className="notes-auth-card">
-        <div className="notes-auth-logo">
-          <span className="notes-brand-badge" aria-hidden="true">
+    <div className="flex min-h-dvh items-center justify-center p-4">
+      <div className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-6 shadow-xl sm:p-8">
+        <div className="mb-6 flex items-center gap-2.5 text-lg font-semibold text-strong">
+          <span
+            className="inline-flex size-8 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
+            aria-hidden="true"
+          >
             <WorkspaceIcon size={18} />
           </span>
           <span>Notesapp</span>
         </div>
-        <h1 style={{ fontSize: '1.25rem', marginTop: 0, marginBottom: '20px' }}>
+        <h1 className="mb-5 mt-0 text-xl font-semibold text-strong">
           {initialized === false ? 'Create your account' : 'Sign in'}
         </h1>
         <form
@@ -160,15 +163,15 @@ export function LoginPage(): ReactNode {
             onChange={setPassword}
           />
           {error !== '' ? (
-            <p className="notes-status-error" role="alert">
+            <p className="text-control text-danger" role="alert">
               {error}
             </p>
           ) : null}
-          <div style={{ marginTop: '16px' }}>
+          <div className="mt-4">
             <Button
               type="submit"
               disabled={busy || initialized === null}
-              style={{ width: '100%' }}
+              className="w-full"
             >
               {busy
                 ? initialized === false
@@ -189,11 +192,17 @@ export function LoginPage(): ReactNode {
 export function ThemeSettings(): ReactNode {
   const theme = useTheme();
   return (
-    <section className="notes-settings-card" aria-labelledby="theme-heading">
-      <h2 id="theme-heading" style={{ margin: 0 }}>
+    <section
+      className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
+      aria-labelledby="theme-heading"
+    >
+      <h2
+        className="m-0 text-base font-semibold text-strong"
+        id="theme-heading"
+      >
         Theme
       </h2>
-      <p style={{ margin: 0, color: 'var(--notes-text-muted)' }}>
+      <p className="m-0 text-control text-muted">
         System follows the device. The choice applies at once on this device and
         syncs to the account in the background.
       </p>
@@ -300,8 +309,16 @@ function AgentTokens(): ReactNode {
   }
 
   return (
-    <section className="notes-settings-card" aria-labelledby="tokens-heading">
-      <h2 id="tokens-heading">Agent tokens</h2>
+    <section
+      className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
+      aria-labelledby="tokens-heading"
+    >
+      <h2
+        className="m-0 text-base font-semibold text-strong"
+        id="tokens-heading"
+      >
+        Agent tokens
+      </h2>
       <p>
         Tokens expire after 30 days and never exceed the workspace role. The
         secret shows once, right after creation.
@@ -312,31 +329,15 @@ function AgentTokens(): ReactNode {
         </p>
       ) : null}
       {error !== '' ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {error}
         </p>
       ) : null}
-      <ul
-        style={{
-          listStyle: 'none',
-          padding: 0,
-          margin: 0,
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '0.5rem',
-        }}
-      >
+      <ul className="m-0 list-none space-y-2 p-0">
         {tokens.map((token) => (
           <li
+            className="flex items-center justify-between rounded-lg bg-hover px-3 py-2"
             key={token.id}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0.5rem 0.75rem',
-              backgroundColor: 'var(--notes-bg-subtle)',
-              borderRadius: 'var(--notes-radius-md)',
-            }}
           >
             <span>
               <strong>{token.name}</strong> ({token.prefix})
@@ -347,7 +348,7 @@ function AgentTokens(): ReactNode {
           </li>
         ))}
       </ul>
-      <h3 style={{ margin: '0.5rem 0 0 0', fontSize: '1rem' }}>
+      <h3 className="mb-0 mt-2 text-base font-semibold text-strong">
         Create a token
       </h3>
       <form
@@ -355,7 +356,7 @@ function AgentTokens(): ReactNode {
           event.preventDefault();
           void create();
         }}
-        style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}
+        className="flex flex-col gap-3"
       >
         <TextField
           id="token-name"
@@ -374,53 +375,35 @@ function AgentTokens(): ReactNode {
           }))}
           onChange={setWorkspaceId}
         />
-        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
+        <div className="flex items-center gap-4">
+          <label className="inline-flex items-center gap-1.5 text-control">
             <input
               type="checkbox"
               checked={read}
               onChange={(event): void => {
                 setRead(event.target.checked);
               }}
-            />{' '}
+            />
             Read
           </label>
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
+          <label className="inline-flex items-center gap-1.5 text-control">
             <input
               type="checkbox"
               checked={write}
               onChange={(event): void => {
                 setWrite(event.target.checked);
               }}
-            />{' '}
+            />
             Write
           </label>
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
+          <label className="inline-flex items-center gap-1.5 text-control">
             <input
               type="checkbox"
               checked={history}
               onChange={(event): void => {
                 setHistory(event.target.checked);
               }}
-            />{' '}
+            />
             History
           </label>
         </div>
@@ -489,37 +472,30 @@ export function AccountSettingsPage(): ReactNode {
   }
 
   return (
-    <main className="notes-settings-page">
-      <div className="notes-settings-header">
+    <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+      <div className="flex items-center gap-3">
         <Button
           variant="secondary"
           onClick={handleBack}
-          aria-label="Back"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-          }}
+          label="Back"
+          icon={<ChevronLeftIcon size={14} />}
         >
-          <ChevronLeftIcon />
-          <span>Back</span>
+          Back
         </Button>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>
-          Account
-        </h1>
+        <h1 className="m-0 text-xl font-semibold text-strong">Account</h1>
       </div>
 
       <section
-        className="notes-settings-card"
+        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
         aria-labelledby="profile-heading"
       >
         <h2
+          className="m-0 text-base font-semibold text-strong"
           id="profile-heading"
-          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
         >
           Profile
         </h2>
-        <p style={{ margin: 0, color: 'var(--notes-text-muted)' }}>
+        <p className="m-0 text-control text-muted">
           {account.email ?? 'No address linked'}
           {account.name !== null &&
           account.name !== undefined &&
@@ -533,39 +509,30 @@ export function AccountSettingsPage(): ReactNode {
       <AgentTokens />
 
       <section
-        className="notes-settings-card"
+        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
         aria-labelledby="signout-heading"
       >
         <h2
+          className="m-0 text-base font-semibold text-strong"
           id="signout-heading"
-          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
         >
           Sign out
         </h2>
         {mustConfirm ? (
-          <p
-            role="alert"
-            style={{ margin: 0, color: 'var(--notes-status-warning-color)' }}
-          >
+          <p className="m-0 text-control text-danger" role="alert">
             {String(pendingCount)} change(s) still wait on this device. They
             stay here for recovery; signing out does not upload them.
           </p>
         ) : null}
         {mustConfirm ? (
-          <label
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
+          <label className="inline-flex items-center gap-1.5 text-control">
             <input
               type="checkbox"
               checked={confirmLeave}
               onChange={(event): void => {
                 setConfirmLeave(event.target.checked);
               }}
-            />{' '}
+            />
             I understand pending work stays on this device.
           </label>
         ) : null}

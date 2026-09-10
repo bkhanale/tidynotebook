@@ -1,9 +1,11 @@
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  createNewNote,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
+  waitForLocalWrite,
   waitForServerSave,
 } from './support/account.ts';
 
@@ -21,10 +23,8 @@ test('an offline edit survives reload and syncs after reconnect', async ({
   );
   await signIn(page, stack);
   await openPersonalWorkspace(page);
-  await page.getByRole('button', { name: 'Create a new note' }).first().click();
-  await page
-    .getByLabel('File path')
-    .fill(`offline-${Date.now().toString()}.md`);
+  await createNewNote(page);
+  await page.getByLabel('Note name').fill(`offline-${Date.now().toString()}`);
   await replaceEditorText(page, '# Online base');
   await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
@@ -41,7 +41,8 @@ test('an offline edit survives reload and syncs after reconnect', async ({
 
   await context.setOffline(true);
   await replaceEditorText(page, '# Offline draft\n\nStill here.');
-  await expect(page.getByText(/Saved on this device/)).toBeVisible();
+  await waitForLocalWrite(page);
+  await expect(page.getByText('Saved on this device')).toHaveCount(0);
   // Playwright's WebKit engine fails the navigation itself when its context
   // is offline. It still covers the offline write, durable reload, and later
   // sync, but the reload starts after transport returns for that engine.

@@ -1,0 +1,32 @@
+@import 'tailwindcss';
+@source "../../../packages/ui/src";
+
+@theme inline {
+  --font-sans:
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
+    sans-serif;
+  --font-mono:
+    ui-monospace, SFMono-Regular, 'Cascadia Code', Menlo, Consolas, monospace;
+
+  --text-control: 0.8125rem;
+  --text-control--line-height: 1.25rem;
+  --text-ui: 0.875rem;
+  --text-ui--line-height: 1.375rem;
+
+  --color-app: var(--notes-bg);
+  --color-surface: var(--notes-surface);
+  --color-card: var(--notes-surface-card);
+  --color-hover: var(--notes-surface-hover);
+  --color-active: var(--notes-surface-active);
+  --color-ink: var(--notes-text);
+  --color-strong: var(--notes-text-strong);
+  --color-muted: var(--notes-text-muted);
+  --color-accent: var(--notes-accent-text);
+  --color-accent-fill: var(--notes-accent-fill);
+  --color-on-accent: var(--notes-accent-on-fill);
+  --color-success: var(--notes-success-text);
+  --color-danger: var(--notes-danger-text);
+  --color-edge: var(--notes-border);
+  --color-edge-subtle: var(--notes-border-subtle);
+  --color-focus: var(--notes-focus);
+}

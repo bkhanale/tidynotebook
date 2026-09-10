@@ -62,7 +62,7 @@ export function createSetupHandlers(
       try {
         accountId = await identity.linkFirstAccount({
           authUserId,
-          workspaceName: 'Notes',
+          workspaceName: 'Personal',
         });
       } catch (error) {
         await deleteUnlinkedUser(auth, authUserId);

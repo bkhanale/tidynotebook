@@ -1,44 +1,21 @@
 /**
  * Local save feedback of the note editor.
  *
- * The design fixes the wording: Saving on this device shows until the draft
- * transaction commits, Saved on this device shows after it, and Saved to
- * server shows only for acknowledged content. Storage full and Save failed
- * cover the failure paths. Labels use words and symbols, never
- * color alone, so the state survives themes and contrast limits.
+ * Routine local persistence stays quiet. Storage full and Save failed keep
+ * the recovery controls visible. The editor exposes its state as data for
+ * automation without showing a routine saved notification.
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import type { SaveState } from './save-state.ts';
 export { resolveSaveState } from './save-state.ts';
 export type { SaveState, SaveStateInput } from './save-state.ts';
-import {
-  AlertCircleIcon,
-  Button,
-  CheckIcon,
-  CloudCheckIcon,
-  CloudUploadIcon,
-  CopyIcon,
-} from '@notesapp/ui';
+import { Button, CheckIcon, CopyIcon } from '@notesapp/ui';
 
-/** The human readable label of one save state. */
-export const saveStateLabels: Record<SaveState, string> = {
-  'saving-local': 'Saving on this device',
-  'saved-local': 'Saved on this device',
-  syncing: 'Syncing',
-  'saved-server': 'Saved to server',
+/** Failure copy shown only when persistence needs user action. */
+const failureCopy = {
   'storage-full': 'Storage full',
   'save-failed': 'Save failed',
-};
-
-/** A text symbol of one save state, so color is never the only signal. */
-export const saveStateSymbols: Record<SaveState, string> = {
-  'saving-local': '...',
-  'saved-local': '[saved]',
-  syncing: '[syncing]',
-  'saved-server': '[synced]',
-  'storage-full': '[full]',
-  'save-failed': '[error]',
-};
+} as const;
 
 /**
  * Blocks an unsafe reload while unsaved work sits only in memory.
@@ -82,33 +59,22 @@ export function SaveStatus({
   const canCopy =
     failed && bufferText !== undefined && onCopyBuffer !== undefined;
 
-  const pillClass =
-    state === 'saving-local' || state === 'syncing'
-      ? 'notes-save-pill-saving'
-      : state === 'saved-local' || state === 'saved-server'
-        ? 'notes-save-pill-saved'
-        : 'notes-save-pill-error';
-
-  const icon =
-    state === 'saving-local' || state === 'syncing' ? (
-      <CloudUploadIcon size={14} />
-    ) : state === 'saved-local' || state === 'saved-server' ? (
-      <CloudCheckIcon size={14} />
-    ) : (
-      <AlertCircleIcon size={14} />
-    );
+  if (!failed) return null;
+  const label =
+    state === 'storage-full'
+      ? failureCopy['storage-full']
+      : failureCopy['save-failed'];
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-      <div className={`notes-save-pill ${pillClass}`}>
-        <span aria-hidden="true">{icon}</span>
+    <div className="flex flex-col gap-2">
+      <div className="inline-flex items-center rounded-full border border-danger/30 bg-danger/15 px-2.5 py-1 text-control font-medium text-danger">
         <span role="status" aria-live="polite">
-          {saveStateSymbols[state]} {saveStateLabels[state]}
+          [error] {label}
           {detail !== undefined && detail !== '' ? ` (${detail})` : null}
         </span>
       </div>
       {failed ? (
-        <p className="notes-status-error" role="alert">
+        <p className="m-0 text-control text-danger" role="alert">
           The note stays open with its text. Copy it before you close the tab.
         </p>
       ) : null}

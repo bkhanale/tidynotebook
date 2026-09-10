@@ -12,7 +12,7 @@ import { configureClient } from '@notesapp/api-client';
 import { AppProviders } from './app.tsx';
 import { AppRouter } from './router.tsx';
 import { registerServiceWorker } from './pwa/lifecycle.ts';
-import './shell.css';
+import './tailwind.css';
 
 configureClient(window.location.origin, undefined);
 registerServiceWorker();

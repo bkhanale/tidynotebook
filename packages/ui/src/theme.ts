@@ -2,16 +2,14 @@
  * Tokyo Night theme resolution, tokens, and contrast helpers.
  *
  * The palette values below are copied from the upstream Tokyo Night Night and
- * Day palettes; see `THIRD_PARTY_LICENSES.md` and the license notice in
- * `tokens.css`. The semantic `*Text` variants are derived within the palette
+ * Day palettes; see `THIRD_PARTY_LICENSES.md`. The semantic `*Text` variants
+ * are derived within the palette
  * so that every text combination meets WCAG 2.2 AA contrast (4.5 to 1) on
  * both the main background and the sidebar surface. The accent, focus, and
  * border tokens meet the 3 to 1 non-text minimum on both surfaces.
  *
- * `tokens.css` mirrors these values for stylesheets. This module is the
- * runtime source: `applyTheme` writes the same values as custom properties,
- * so the application works even when a stylesheet loads late. Keep the two
- * files in sync by hand; `theme.test.ts` guards every combination here.
+ * This module is the runtime palette source. `applyTheme` writes the values
+ * as custom properties for the central Tailwind theme.
  */
 
 /** The stored palette choice of an account. Matches the API `Theme` type. */
@@ -63,6 +61,9 @@ export function parseThemeChoice(value: unknown): ThemeChoice {
 export type ThemeTokens = {
   readonly background: string;
   readonly surface: string;
+  readonly surfaceCard: string;
+  readonly surfaceHover: string;
+  readonly surfaceActive: string;
   readonly text: string;
   readonly textStrong: string;
   readonly textMuted: string;
@@ -75,6 +76,7 @@ export type ThemeTokens = {
   readonly danger: string;
   readonly dangerText: string;
   readonly border: string;
+  readonly borderSubtle: string;
   readonly focus: string;
 };
 
@@ -82,6 +84,9 @@ export type ThemeTokens = {
 export const nightTokens: ThemeTokens = {
   background: '#1a1b26',
   surface: '#16161e',
+  surfaceCard: '#1f2335',
+  surfaceHover: '#24283b',
+  surfaceActive: '#292e42',
   text: '#c0caf5',
   textStrong: '#e8ecff',
   textMuted: '#8b93b8',
@@ -94,6 +99,7 @@ export const nightTokens: ThemeTokens = {
   danger: '#f7768e',
   dangerText: '#f7768e',
   border: '#6b7499',
+  borderSubtle: '#303349',
   focus: '#7aa2f7',
 };
 
@@ -101,6 +107,9 @@ export const nightTokens: ThemeTokens = {
 export const dayTokens: ThemeTokens = {
   background: '#e1e2e7',
   surface: '#d0d5e3',
+  surfaceCard: '#f2f4f8',
+  surfaceHover: '#d8dce8',
+  surfaceActive: '#c8cfde',
   text: '#3760bf',
   textStrong: '#2f3d67',
   textMuted: '#4a4e69',
@@ -113,6 +122,7 @@ export const dayTokens: ThemeTokens = {
   danger: '#f52a65',
   dangerText: '#a8154a',
   border: '#5a6a8a',
+  borderSubtle: '#b9c0d0',
   focus: '#1f4fd8',
 };
 
@@ -184,6 +194,9 @@ export function contrastRatio(first: string, second: string): number {
 export const themePropertyNames = [
   'background',
   'surface',
+  'surfaceCard',
+  'surfaceHover',
+  'surfaceActive',
   'text',
   'textStrong',
   'textMuted',
@@ -196,6 +209,7 @@ export const themePropertyNames = [
   'danger',
   'dangerText',
   'border',
+  'borderSubtle',
   'focus',
 ] as const;
 
@@ -210,6 +224,9 @@ export type ThemePropertyName = (typeof themePropertyNames)[number];
 export function themePropertyName(name: ThemePropertyName): string {
   if (name === 'background') return '--notes-bg';
   if (name === 'surface') return '--notes-surface';
+  if (name === 'surfaceCard') return '--notes-surface-card';
+  if (name === 'surfaceHover') return '--notes-surface-hover';
+  if (name === 'surfaceActive') return '--notes-surface-active';
   if (name === 'textStrong') return '--notes-text-strong';
   if (name === 'textMuted') return '--notes-text-muted';
   if (name === 'accentText') return '--notes-accent-text';
@@ -222,6 +239,7 @@ export function themePropertyName(name: ThemePropertyName): string {
   if (name === 'success') return '--notes-success';
   if (name === 'danger') return '--notes-danger';
   if (name === 'border') return '--notes-border';
+  if (name === 'borderSubtle') return '--notes-border-subtle';
   return '--notes-focus';
 }
 
@@ -234,9 +252,8 @@ export type ThemeRoot = {
 /**
  * Applies one palette to a root surface.
  *
- * Sets the `data-theme` attribute for the selectors in `tokens.css` and
- * writes every token as a custom property, so the first paint already has
- * the right colors even when the stylesheet is still loading.
+ * Sets the `data-theme` attribute and writes every token as a custom
+ * property, so the central Tailwind theme receives the active palette.
  */
 export function applyTheme(root: ThemeRoot, theme: ResolvedTheme): void {
   root.setAttribute('data-theme', theme);

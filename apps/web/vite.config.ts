@@ -1,4 +1,5 @@
 import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
 // The JSX transform comes from Vite's built-in esbuild support with the
@@ -40,6 +41,7 @@ export default defineConfig({
     port: 5173,
   },
   plugins: [
+    tailwindcss(),
     VitePWA({
       strategies: 'injectManifest',
       srcDir: 'src/pwa',

@@ -235,6 +235,10 @@ export type LocalCachedNote = {
   readonly path: string;
   readonly text: string;
   readonly deleted: boolean;
+  /** Reuses the newest draft instead of opening a second working copy. */
+  readonly workingCopyId?: string | undefined;
+  /** Continues the reused draft sequence so later writes stay monotonic. */
+  readonly sequence: number;
   /** The local parent that the next checkpoint must name. */
   readonly baseRevisionId: string | null;
 };

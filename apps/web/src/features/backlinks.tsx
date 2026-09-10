@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { getBacklinks, getFile, type Backlink } from '@notesapp/api-client';
 import { StatusRegion } from '@notesapp/ui';
 import { problemMessage } from '../app.tsx';
+import { displayNoteName } from './note-name.ts';
 
 /** One visible heading of a Markdown note. */
 type OutlineHeading = { readonly level: number; readonly text: string };
@@ -45,12 +46,13 @@ export function OutlinePanel({
   }, [fileId, workspaceId]);
   if (fileId === null) return <p>Open a note to see its outline.</p>;
   if (headings.length === 0) return <p>This note has no headings.</p>;
+  const indentation = ['', 'pl-2', 'pl-4', 'pl-6', 'pl-8', 'pl-10'];
   return (
-    <ol className="notes-outline-list">
+    <ol className="m-0 list-none space-y-1 p-0 text-control">
       {headings.map((heading, index) => (
         <li key={`${String(index)}:${heading.text}`}>
           <span
-            style={{ paddingInlineStart: `${String(heading.level - 1)}rem` }}
+            className={`block truncate ${indentation[heading.level - 1] ?? ''}`}
           >
             {heading.text}
           </span>
@@ -100,15 +102,15 @@ export function BacklinksPanel({
   if (message !== '') return <StatusRegion message={message} />;
   if (backlinks.length === 0) return <p>No accepted note links here.</p>;
   return (
-    <ul>
+    <ul className="m-0 list-none space-y-2 p-0 text-control">
       {backlinks.map((entry) => (
         <li key={`${entry.fileId}:${entry.sourceText}`}>
           <Link
-            className="notes-tree-link"
+            className="text-accent no-underline hover:underline"
             to={`/w/${workspaceId}/notes/${entry.fileId}`}
             onClick={onNavigate}
           >
-            {entry.path}
+            {displayNoteName(entry.path)}
           </Link>
           <span> {entry.sourceText}</span>
         </li>

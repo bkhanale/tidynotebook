@@ -80,7 +80,12 @@ export function RecoveryPanel({
 
   return (
     <section aria-labelledby="recovery-heading">
-      <h2 id="recovery-heading">Access and recovery</h2>
+      <h2
+        className="mb-3 mt-0 text-base font-semibold text-strong"
+        id="recovery-heading"
+      >
+        Access and recovery
+      </h2>
       <StatusRegion message={accessStateMessage(access)} />
       {pendingCount > 0 ? (
         <p>
@@ -137,7 +142,7 @@ export function RecoveryPanel({
           before any account content is restored.
         </p>
       ) : null}
-      <h3>Kept work</h3>
+      <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">Kept work</h3>
       {visible.length === 0 ? (
         <p>No kept work for this account in this workspace.</p>
       ) : (
@@ -221,7 +226,7 @@ export function RecoveryRoute(): ReactNode {
 
   if (workspaceId === null || accountId === null || store === null)
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading recovery." />
       </main>
     );
@@ -231,9 +236,9 @@ export function RecoveryRoute(): ReactNode {
   const activeWorkspace = workspaceId;
 
   return (
-    <main>
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
       {error !== null ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {error}
         </p>
       ) : null}

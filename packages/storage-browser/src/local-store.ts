@@ -4,7 +4,7 @@
  * Two transaction boundaries matter, and they come from the design:
  *
  * - A draft save is one transaction over one table. The target is at most
- *   150 ms after input, so the editor can show Saved on this device.
+ *   150 ms after input, so recovery state becomes durable promptly.
  * - A checkpoint is one transaction that writes the content, the immutable
  *   checkpoint with its parent, the local head, and the queue entry. Either
  *   all of them exist or none does, so a queued mutation always has the bytes
@@ -1535,6 +1535,8 @@ export async function openLocalStore(
                 path: draft.path,
                 text: draft.text,
                 deleted: draft.deleted,
+                workingCopyId: draft.workingCopyId,
+                sequence: draft.sequence,
                 baseRevisionId: draft.lastCheckpointId ?? draft.baseRevisionId,
               };
             }
@@ -1554,6 +1556,7 @@ export async function openLocalStore(
                 path: file.path,
                 text: '',
                 deleted: true,
+                sequence: 0,
                 baseRevisionId: file.localHeadRevisionId,
               };
 
@@ -1576,6 +1579,7 @@ export async function openLocalStore(
                   path: checkpoint.path,
                   text: '',
                   deleted: true,
+                  sequence: 0,
                   baseRevisionId: checkpoint.revisionId,
                 };
               const storedContent: unknown = await tables.contents.get([
@@ -1592,6 +1596,7 @@ export async function openLocalStore(
                 path: checkpoint.path,
                 text: content.text,
                 deleted: false,
+                sequence: 0,
                 baseRevisionId: checkpoint.revisionId,
               };
             }
@@ -1615,6 +1620,7 @@ export async function openLocalStore(
               path: file.path,
               text: content.text,
               deleted: false,
+              sequence: 0,
               baseRevisionId: file.acceptedHeadRevisionId,
             };
           },

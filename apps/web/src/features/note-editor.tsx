@@ -13,7 +13,7 @@
  * This screen never calls `fetch` and never builds a request URL by hand.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useLocation, useNavigate } from 'react-router';
 import {
   finalizeAttachment,
   getFile,
@@ -31,9 +31,11 @@ import {
 import {
   createEditor,
   setEditorReadOnly,
+  setEditorRich,
   setEditorTheme,
   type EditorView,
   type LinkTarget,
+  type RichWidgetResolvers,
 } from '@notesapp/editor';
 import {
   Badge,
@@ -43,7 +45,9 @@ import {
   TrashIcon,
 } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
-import { canWrite } from './workspaces.tsx';
+import { createAttachmentLoader } from './attachment-content.ts';
+import { displayNoteName, storageNotePath } from './note-name.ts';
+import { canWrite, validateNotePath } from './workspaces.tsx';
 import { createDiagramFrame } from '../diagram/frame.ts';
 import { copyText } from '../platform.ts';
 import { stableNoteLink, type StableLinkRequest } from './search.tsx';
@@ -79,8 +83,23 @@ function recordTiming(name: string, startedAt: number): void {
  */
 const diagramFramePath = '/src/diagram/frame.html';
 
+/** Attachment revision references in stored Markdown. */
+const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
+
 /** Largest pasted file the editor uploads directly, matching the server cap. */
 const maxPastedBytes = 20 * 1024 * 1024;
+
+/** The revision IDs referenced by one Markdown source, without duplicates. */
+function extractAttachmentIds(text: string): string[] {
+  const found: string[] = [];
+  attachmentReferencePattern.lastIndex = 0;
+  for (;;) {
+    const match = attachmentReferencePattern.exec(text);
+    if (match === null) return found;
+    const id = match[1] ?? '';
+    if (id !== '' && !found.includes(id)) found.push(id);
+  }
+}
 
 /** Makes a pasted file name safe for an attachment path segment. */
 function sanitizeAttachmentName(name: string): string {
@@ -91,6 +110,19 @@ function sanitizeAttachmentName(name: string): string {
   return cleaned === '' || cleaned === '.' || cleaned === '..'
     ? 'pasted-image'
     : cleaned;
+}
+
+/** Reads the source from inside one Mermaid fence. */
+function diagramInnerSource(fence: string): string {
+  const lines = fence.split('\n');
+  lines.shift();
+  while (lines.length > 0) {
+    const last = lines.at(-1) ?? '';
+    const trimmed = last.trim();
+    if (trimmed === '' || /^(```+|~~~+)/.test(trimmed)) lines.pop();
+    else break;
+  }
+  return lines.join('\n');
 }
 
 /** Safety refresh when browser invalidation messages are unavailable. */
@@ -107,6 +139,8 @@ export type NoteEditorProps = {
   readonly initialPath: string;
   readonly readOnly: boolean;
   readonly initialWorkingCopyId?: string | undefined;
+  readonly initialSequence?: number | undefined;
+  readonly focusName?: boolean | undefined;
   readonly onOpenLink?: ((target: LinkTarget) => void) | undefined;
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
 };
@@ -129,6 +163,8 @@ export function NoteEditor({
   initialPath,
   readOnly,
   initialWorkingCopyId,
+  initialSequence = 0,
+  focusName = false,
   onOpenLink,
   onQueued,
 }: NoteEditorProps): ReactNode {
@@ -136,19 +172,15 @@ export function NoteEditor({
   const isDeletedRef = useRef(false);
   const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const previewRef = useRef<HTMLElement | null>(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
   const pathRef = useRef(initialPath);
-  const sequenceRef = useRef(0);
-  const [path, setPath] = useState(initialPath);
+  const sequenceRef = useRef(initialSequence);
+  const [name, setName] = useState(displayNoteName(initialPath));
+  const [pathError, setPathError] = useState('');
   const [bufferText, setBufferText] = useState(initialText);
-  const [viewMode, setViewMode] = useState<'write' | 'preview'>(
-    readOnly ? 'preview' : 'write',
-  );
-  const [renderedHtml, setRenderedHtml] = useState('');
-  const [renderError, setRenderError] = useState('');
   const [draftPending, setDraftPending] = useState(false);
   const [saveSnapshot, setSaveSnapshot] = useState<FileSaveSnapshot | null>(
     null,
@@ -157,14 +189,28 @@ export function NoteEditor({
     useState<LocalStorageErrorKind | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [pasteNotice, setPasteNotice] = useState('');
+  const [attachmentUrls, setAttachmentUrls] = useState<
+    ReadonlyMap<string, string>
+  >(new Map());
+  const [mathReady, setMathReady] = useState(false);
   const workingCopyId = useMemo(
     () => initialWorkingCopyId ?? generateUUID(),
     [initialWorkingCopyId],
   );
+  const mathRenderRef = useRef<
+    ((source: string, display: boolean) => string) | null
+  >(null);
+  const ownedUrlsRef = useRef<
+    Map<string, { url: string; dispose: () => void }>
+  >(new Map());
+  const loaderRef = useRef(createAttachmentLoader(workspaceId));
+  loaderRef.current = createAttachmentLoader(workspaceId);
 
   useEffect(() => {
-    setViewMode(readOnly ? 'preview' : 'write');
-  }, [readOnly]);
+    if (!focusName || readOnly) return;
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
+  }, [focusName, readOnly]);
 
   const live = useRef({
     store,
@@ -239,6 +285,7 @@ export function NoteEditor({
       // newer write clears the pending flag.
       if (sequenceRef.current === savedSequence) setDraftPending(false);
       setStorageError(null);
+      await refreshQueue.current();
       return true;
     } catch (failure: unknown) {
       setDraftPending(false);
@@ -254,6 +301,11 @@ export function NoteEditor({
   );
   checkpointNow.current = (deleted = false): Promise<void> => {
     const isDeleting = deleted || isDeletedRef.current;
+    if (!isDeleting) {
+      const error = validateNotePath(pathRef.current);
+      setPathError(error ?? '');
+      if (error !== null) return Promise.resolve();
+    }
     const existing = checkpointInFlightRef.current;
     if (existing !== null)
       return isDeleting
@@ -339,48 +391,99 @@ export function NoteEditor({
     };
   }, [workingCopyId]);
 
-  // The shared CommonMark and GFM pipeline owns all preview rendering. This
-  // avoids a second, incomplete Markdown implementation in the note screen.
+  // KaTeX loads after the first paint. The rich compartment refreshes without
+  // changing the editor document, selection, or undo history.
   useEffect(() => {
     let cancelled = false;
-    void import('@notesapp/markdown')
-      .then((module) =>
-        module.renderMarkdown(bufferText, {
-          attachmentHref: (revisionId) =>
-            `/api/workspaces/${workspaceId}/attachments/${revisionId}`,
-        }),
-      )
-      .then((html) => {
-        if (cancelled) return;
-        setRenderedHtml(html);
-        setRenderError('');
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setRenderedHtml('');
-        setRenderError('This note could not be rendered. Its source is safe.');
-      });
+    void import('@notesapp/markdown').then((module) => {
+      if (cancelled) return;
+      mathRenderRef.current = module.renderMath;
+      setMathReady(true);
+    });
     return () => {
       cancelled = true;
     };
-  }, [bufferText, workspaceId]);
+  }, []);
 
-  // Mermaid stays in an isolated frame. The shared renderer emits inert
-  // placeholders, which this effect replaces only after safe HTML exists.
+  // Attachment widgets use authenticated object URLs. URLs are revoked when
+  // their references leave the note and when the editor closes.
   useEffect(() => {
-    const preview = previewRef.current;
-    if (preview === null || viewMode !== 'preview') return;
-    for (const placeholder of preview.querySelectorAll<HTMLElement>(
-      'pre[data-diagram="mermaid"]',
-    )) {
-      const frame = createDiagramFrame({
-        source: placeholder.textContent ?? '',
-        theme: themeRef.current,
-        framePath: diagramFramePath,
-      }).element;
-      placeholder.replaceWith(frame);
+    const loader = loaderRef.current;
+    const wanted = extractAttachmentIds(bufferText);
+    const owned = ownedUrlsRef.current;
+    for (const [id, entry] of owned) {
+      if (!wanted.includes(id)) {
+        entry.dispose();
+        owned.delete(id);
+      }
     }
-  }, [renderedHtml, resolved, viewMode]);
+    if (wanted.every((id) => owned.has(id))) {
+      setAttachmentUrls(
+        new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
+      );
+      return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    void (async (): Promise<void> => {
+      for (const id of wanted) {
+        if (cancelled || owned.has(id)) continue;
+        try {
+          const loaded = await loader.loadAttachment(id, controller.signal);
+          if (cancelled) {
+            loaded.dispose();
+            continue;
+          }
+          owned.set(id, { url: loaded.url, dispose: loaded.dispose });
+        } catch {
+          // A missing attachment stays as editable source in its widget.
+        }
+      }
+      if (!cancelled)
+        setAttachmentUrls(
+          new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
+        );
+    })();
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [workspaceId, bufferText]);
+
+  useEffect(
+    () => () => {
+      for (const entry of ownedUrlsRef.current.values()) entry.dispose();
+      ownedUrlsRef.current.clear();
+    },
+    [],
+  );
+
+  const richResolvers = useMemo<RichWidgetResolvers>(
+    () => ({
+      renderMath:
+        mathRenderRef.current === null
+          ? undefined
+          : (source: string, display: boolean): string => {
+              const render = mathRenderRef.current;
+              if (render === null) throw new Error('Math is still loading.');
+              return render(source, display);
+            },
+      resolveAttachment: (revisionId: string): string | null =>
+        attachmentUrls.get(revisionId) ?? null,
+      createDiagram: (fence: string): HTMLElement =>
+        createDiagramFrame({
+          source: diagramInnerSource(fence),
+          theme: themeRef.current,
+          framePath: diagramFramePath,
+        }).element,
+    }),
+    [attachmentUrls, mathReady, resolved],
+  );
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view !== null) setEditorRich(view, richResolvers);
+  }, [richResolvers]);
 
   // One editor instance per working copy. This effect never reruns for text,
   // path, or theme changes: those travel through transactions, the store, or
@@ -424,6 +527,7 @@ export function NoteEditor({
         },
         readOnly: live.current.readOnly,
         theme: themeRef.current,
+        rich: richResolvers,
       },
     );
     viewRef.current = view;
@@ -560,21 +664,28 @@ export function NoteEditor({
   };
 
   return (
-    <div className="notes-editor-wrap">
-      <div className="notes-doc-header">
-        <div className="notes-doc-path-row">
+    <div className="min-w-0" data-save-state={saveState}>
+      <div className="mb-4 flex flex-col gap-3 border-b border-edge-subtle pb-4">
+        <div className="min-w-0">
           <input
+            ref={nameInputRef}
             id={`notes-path-${fileId}`}
-            className="notes-doc-title-input"
+            className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-lg font-semibold text-strong outline-none transition-colors hover:border-edge-subtle hover:bg-hover focus:border-focus focus:bg-app focus:ring-2 focus:ring-focus/25"
             type="text"
-            value={path}
+            value={name}
             disabled={readOnly}
-            aria-label="File path"
-            placeholder="File path (e.g. notes/my-note.md)"
+            aria-label="Note name"
+            aria-invalid={pathError !== ''}
+            aria-describedby={
+              pathError === '' ? undefined : `notes-path-error-${fileId}`
+            }
+            placeholder="Note name"
             onChange={(event): void => {
-              const next = event.target.value;
-              setPath(next);
-              pathRef.current = next;
+              const nextName = event.target.value;
+              const nextPath = storageNotePath(nextName);
+              setName(nextName);
+              pathRef.current = nextPath;
+              setPathError(validateNotePath(nextPath) ?? '');
               if (!live.current.readOnly) {
                 sequenceRef.current += 1;
                 setDraftPending(true);
@@ -587,9 +698,18 @@ export function NoteEditor({
               }
             }}
           />
+          {pathError !== '' ? (
+            <p
+              className="my-1 px-2 text-control text-danger"
+              id={`notes-path-error-${fileId}`}
+              role="alert"
+            >
+              {pathError}
+            </p>
+          ) : null}
         </div>
 
-        <div className="notes-doc-toolbar">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <SaveStatus
             state={saveState}
             bufferText={bufferText}
@@ -597,27 +717,7 @@ export function NoteEditor({
           />
 
           {!readOnly ? (
-            <div className="notes-doc-actions">
-              <div
-                className="notes-view-switch"
-                role="group"
-                aria-label="Note view"
-              >
-                <Button
-                  variant={viewMode === 'write' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('write')}
-                >
-                  Write
-                </Button>
-                <Button
-                  variant={viewMode === 'preview' ? 'secondary' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('preview')}
-                >
-                  Preview
-                </Button>
-              </div>
+            <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
               <Button
                 variant="primary"
                 size="sm"
@@ -637,9 +737,7 @@ export function NoteEditor({
                 Save
               </Button>
               {confirmingDelete ? (
-                <div
-                  style={{ display: 'flex', gap: '6px', alignItems: 'center' }}
-                >
+                <div className="flex items-center gap-1.5">
                   <Button
                     variant="danger"
                     size="sm"
@@ -674,16 +772,16 @@ export function NoteEditor({
               )}
             </div>
           ) : (
-            <Badge variant="default">Preview</Badge>
+            <Badge variant="default">Read only</Badge>
           )}
         </div>
       </div>
 
       <div
         ref={containerRef}
-        className={viewMode === 'write' ? '' : 'notes-editor-hidden'}
+        className="min-h-96 overflow-hidden rounded-lg"
         role="textbox"
-        aria-label={`Note ${path}`}
+        aria-label={`Note ${name}`}
         aria-readonly={readOnly}
         tabIndex={-1}
         onPaste={(event): void => {
@@ -701,29 +799,6 @@ export function NoteEditor({
           }
         }}
       />
-      {viewMode === 'preview' ? (
-        renderError === '' ? (
-          <article
-            ref={previewRef}
-            className="notes-markdown"
-            onClick={(event): void => {
-              const link = (event.target as HTMLElement).closest('a');
-              const href = link?.getAttribute('href') ?? '';
-              const match = /^\/notes\/([0-9a-f-]{36})(#[A-Za-z0-9_-]+)?$/.exec(
-                href,
-              );
-              if (match === null) return;
-              event.preventDefault();
-              callbacks.current.onOpenLink?.({ kind: 'url', target: href });
-            }}
-            dangerouslySetInnerHTML={{ __html: renderedHtml }}
-          />
-        ) : (
-          <p className="notes-status-error" role="alert">
-            {renderError}
-          </p>
-        )
-      ) : null}
       {pasteNotice !== '' ? <StatusRegion message={pasteNotice} /> : null}
     </div>
   );
@@ -742,6 +817,7 @@ type LoaderStatus =
       readonly text: string;
       readonly headRevisionId: string | null;
       readonly workingCopyId?: string | undefined;
+      readonly sequence: number;
     };
 
 /**
@@ -765,8 +841,14 @@ export function NoteEditorLoader({
   readonly role: 'owner' | 'admin' | 'editor' | 'viewer' | null;
 }): ReactNode {
   const navigate = useNavigate();
+  const location = useLocation();
   const [status, setStatus] = useState<LoaderStatus>({ kind: 'loading' });
   const [linkNotice, setLinkNotice] = useState('');
+  const routeState: unknown = location.state;
+  const focusName =
+    routeState !== null &&
+    typeof routeState === 'object' &&
+    Object.fromEntries(Object.entries(routeState))['focusNoteName'] === true;
 
   useEffect(() => {
     let cancelled = false;
@@ -792,6 +874,8 @@ export function NoteEditorLoader({
               path: cached.path,
               text: cached.text,
               headRevisionId: cached.baseRevisionId,
+              workingCopyId: cached.workingCopyId,
+              sequence: cached.sequence,
             });
             return;
           }
@@ -820,6 +904,7 @@ export function NoteEditorLoader({
         path: result.data.path,
         text: result.data.head?.text ?? '',
         headRevisionId: result.data.headRevisionId,
+        sequence: 0,
       });
     }
     void load();
@@ -830,14 +915,16 @@ export function NoteEditorLoader({
 
   if (status.kind === 'loading')
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading the note." />
       </main>
     );
   if (status.kind === 'unknown')
     return (
-      <main>
-        <h1>Note not found</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note not found
+        </h1>
         <p>
           The server knows no file with that ID in this workspace. It may be
           removed, or the address may be wrong. This is not an empty note.
@@ -849,8 +936,10 @@ export function NoteEditorLoader({
     );
   if (status.kind === 'purged')
     return (
-      <main>
-        <h1>Note permanently deleted</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note permanently deleted
+        </h1>
         <p>
           This file was purged by the workspace owner. Pending offline work for
           it stays on this device for recovery into a new file.
@@ -859,11 +948,13 @@ export function NoteEditorLoader({
     );
   if (status.kind === 'deleted')
     return (
-      <main>
-        <h1>Note deleted on this device</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note deleted on this device
+        </h1>
         <p>
-          {status.path} is deleted locally. The deletion stays queued until this
-          device can sync it.
+          {displayNoteName(status.path)} is deleted locally. The deletion stays
+          queued until this device can sync it.
         </p>
         <p>
           <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
@@ -872,18 +963,22 @@ export function NoteEditorLoader({
     );
   if (status.kind === 'unavailable')
     return (
-      <main>
-        <h1>Note unavailable</h1>
-        <p className="notes-status-error" role="alert">
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note unavailable
+        </h1>
+        <p className="text-control text-danger" role="alert">
           {status.message}
         </p>
       </main>
     );
   if (store === null)
     return (
-      <main>
-        <h1>{status.path}</h1>
-        <p className="notes-status-error" role="alert">
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          {displayNoteName(status.path)}
+        </h1>
+        <p className="text-control text-danger" role="alert">
           Local storage is unavailable, so offline editing is closed. The
           accepted server text follows read-only.
         </p>
@@ -894,7 +989,7 @@ export function NoteEditorLoader({
   const writable = role !== null && canWrite(role);
   return (
     <div>
-      <h1 className="notes-visually-hidden">{status.path}</h1>
+      <h1 className="sr-only">{displayNoteName(status.path)}</h1>
       {linkNotice !== '' ? <StatusRegion message={linkNotice} /> : null}
       <NoteEditor
         key={fileId}
@@ -907,6 +1002,8 @@ export function NoteEditorLoader({
         initialPath={status.path}
         readOnly={!writable}
         initialWorkingCopyId={status.workingCopyId}
+        initialSequence={status.sequence}
+        focusName={focusName}
         onOpenLink={(target: LinkTarget): void => {
           if (target.kind === 'url' && target.target.startsWith('/notes/')) {
             const noteId =

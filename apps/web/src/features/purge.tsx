@@ -71,8 +71,10 @@ export function PurgeView(): ReactNode {
 
   if (workspaceId === null)
     return (
-      <main>
-        <h1>Deletion not found</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Deletion not found
+        </h1>
         <p>The address names no workspace.</p>
         <p>
           <Link to="/">Back to workspaces.</Link>
@@ -81,7 +83,7 @@ export function PurgeView(): ReactNode {
     );
   if (session.account === null)
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading the deletion screen." />
       </main>
     );
@@ -91,8 +93,10 @@ export function PurgeView(): ReactNode {
       : null;
   if (role !== 'owner')
     return (
-      <main>
-        <h1>Deletion and purge</h1>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Deletion and purge
+        </h1>
         <p>
           {role === null
             ? 'Loading the workspace role.'
@@ -339,8 +343,10 @@ function PurgeDetail({
   }
 
   return (
-    <main>
-      <h1>Deletion and purge</h1>
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+        Deletion and purge
+      </h1>
       <p>
         <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
       </p>
@@ -353,15 +359,20 @@ function PurgeDetail({
       </p>
       {outcome !== null ? <StatusRegion message={outcome} /> : null}
       {failure !== null ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {failure}
         </p>
       ) : null}
 
       <section aria-labelledby="purge-files-heading">
-        <h2 id="purge-files-heading">Files</h2>
+        <h2
+          className="mb-3 mt-0 text-base font-semibold text-strong"
+          id="purge-files-heading"
+        >
+          Files
+        </h2>
         {filesError !== null ? (
-          <p className="notes-status-error" role="alert">
+          <p className="text-control text-danger" role="alert">
             {filesError}
           </p>
         ) : null}
@@ -402,7 +413,12 @@ function PurgeDetail({
       </section>
 
       <section aria-labelledby="purge-deletions-heading">
-        <h2 id="purge-deletions-heading">Deletion history</h2>
+        <h2
+          className="mb-3 mt-0 text-base font-semibold text-strong"
+          id="purge-deletions-heading"
+        >
+          Deletion history
+        </h2>
         {selected.length === 0 ? (
           <p>Select files above to see their deletion markers.</p>
         ) : (
@@ -413,11 +429,13 @@ function PurgeDetail({
               };
               return (
                 <li key={fileId}>
-                  <h3>{fileId}</h3>
+                  <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
+                    {fileId}
+                  </h3>
                   {history.status === 'loading' ? (
                     <StatusRegion message="Loading the deletion markers." />
                   ) : history.status === 'error' ? (
-                    <p className="notes-status-error" role="alert">
+                    <p className="text-control text-danger" role="alert">
                       {history.message}
                     </p>
                   ) : history.status === 'purged' ? (
@@ -451,7 +469,12 @@ function PurgeDetail({
       </section>
 
       <section aria-labelledby="purge-preview-heading">
-        <h2 id="purge-preview-heading">Purge preview and confirmation</h2>
+        <h2
+          className="mb-3 mt-0 text-base font-semibold text-strong"
+          id="purge-preview-heading"
+        >
+          Purge preview and confirmation
+        </h2>
         <Button
           variant="secondary"
           label="Preview the purge of the selected files"
@@ -463,7 +486,7 @@ function PurgeDetail({
           Preview the purge
         </Button>
         {previewError !== null ? (
-          <p className="notes-status-error" role="alert">
+          <p className="text-control text-danger" role="alert">
             {previewError}
           </p>
         ) : null}
@@ -481,7 +504,9 @@ function PurgeDetail({
               <p>No blocking references.</p>
             ) : (
               <div>
-                <h3>Blocking references</h3>
+                <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
+                  Blocking references
+                </h3>
                 <ol>
                   {preview.blockingReferences.map((blocker, index) => (
                     <li
@@ -517,7 +542,7 @@ function PurgeDetail({
                 </Button>
               </div>
             ) : (
-              <p className="notes-status-error" role="alert">
+              <p className="text-control text-danger" role="alert">
                 The purge cannot run while blocking references exist.
               </p>
             )}
@@ -527,7 +552,12 @@ function PurgeDetail({
 
       {captured.length > 0 ? (
         <section aria-labelledby="purge-recovery-heading">
-          <h2 id="purge-recovery-heading">Recovery copies</h2>
+          <h2
+            className="mb-3 mt-0 text-base font-semibold text-strong"
+            id="purge-recovery-heading"
+          >
+            Recovery copies
+          </h2>
           <p>
             Each copy below creates a new file under a new ID from text captured
             on this device. A recovery copy is a new file, not a server restore:
@@ -536,7 +566,7 @@ function PurgeDetail({
           <ol>
             {captured.map((entry) => (
               <li key={entry.fileId}>
-                <h3>
+                <h3 className="mb-2 mt-4 text-ui font-semibold text-strong">
                   {entry.createdFileId !== null
                     ? `Recovery copy of ${entry.path} created as ${entry.createdFileId}.`
                     : `Text captured from ${entry.path}.`}

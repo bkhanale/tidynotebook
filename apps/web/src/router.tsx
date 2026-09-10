@@ -24,6 +24,9 @@ const WorkspaceView = lazy(async () => ({
 const WorkspaceHome = lazy(async () => ({
   default: (await import('./features/workspaces.tsx')).WorkspaceHome,
 }));
+const WorkspaceCreateView = lazy(async () => ({
+  default: (await import('./features/workspaces.tsx')).WorkspaceCreateView,
+}));
 const WorkspaceSettingsView = lazy(async () => ({
   default: (await import('./features/workspaces.tsx')).WorkspaceSettingsView,
 }));
@@ -45,7 +48,7 @@ function deferred(element: ReactNode): ReactNode {
   return (
     <Suspense
       fallback={
-        <main>
+        <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
           <p role="status">Loading this screen.</p>
         </main>
       }
@@ -58,8 +61,10 @@ function deferred(element: ReactNode): ReactNode {
 /** Shown for an address that names no route. */
 function NotFoundPage(): ReactNode {
   return (
-    <main>
-      <h1>Page not found</h1>
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+        Page not found
+      </h1>
       <p>The address names no page of this application.</p>
       <p>
         <Link to="/">Back to workspaces.</Link>
@@ -83,6 +88,10 @@ const router = createBrowserRouter([
     element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
     children: [
       { index: true, element: deferred(<WorkspaceHome />) },
+      {
+        path: 'workspaces/new',
+        element: deferred(<WorkspaceCreateView />),
+      },
       { path: 'w/:workspaceId', element: deferred(<WorkspaceView />) },
       {
         path: 'w/:workspaceId/settings',

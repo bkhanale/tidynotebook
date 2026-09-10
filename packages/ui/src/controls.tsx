@@ -3,10 +3,9 @@
  *
  * Every control is a thin wrapper over a native element, so keyboard use,
  * focus, labels, and touch target size come from the platform. Styling uses
- * the classes in `tokens.css`, which guarantees visible focus rings,
- * reduced motion support, and clear interactive feedback.
+ * the central Tailwind theme and a fixed control scale.
  */
-import type { CSSProperties, ReactNode, Ref } from 'react';
+import type { ReactNode, Ref } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
 
 /** A labeled push button. */
@@ -20,7 +19,6 @@ export function Button({
   label,
   icon,
   className: extraClassName,
-  style,
   title,
   buttonRef,
   ariaControls,
@@ -32,11 +30,10 @@ export function Button({
   readonly size?: 'sm' | 'md' | undefined;
   readonly disabled?: boolean | undefined;
   readonly onClick?: (() => void) | undefined;
-  readonly children: ReactNode;
+  readonly children?: ReactNode | undefined;
   readonly label?: string | undefined;
   readonly icon?: ReactNode | undefined;
   readonly className?: string | undefined;
-  readonly style?: CSSProperties | undefined;
   readonly title?: string | undefined;
   readonly buttonRef?: Ref<HTMLButtonElement> | undefined;
   readonly ariaControls?: string | undefined;
@@ -44,18 +41,18 @@ export function Button({
 }): ReactNode {
   const variantClass =
     variant === 'secondary'
-      ? 'notes-button-secondary'
+      ? 'border-edge bg-transparent text-strong hover:bg-hover'
       : variant === 'danger'
-        ? 'notes-button-danger'
+        ? 'border-danger bg-danger text-white hover:brightness-110'
         : variant === 'ghost'
-          ? 'notes-button-ghost'
+          ? 'border-transparent bg-transparent text-strong hover:bg-hover'
           : variant === 'subtle'
-            ? 'notes-button-subtle'
-            : 'notes-button-primary';
+            ? 'border-edge-subtle bg-hover text-strong hover:bg-active'
+            : 'border-accent-fill bg-accent-fill text-on-accent shadow-sm hover:brightness-110';
 
-  const sizeClass = size === 'sm' ? 'notes-button-sm' : '';
+  const sizeClass = size === 'sm' ? 'h-8 px-2.5' : 'min-h-9 px-3';
   const classes = [
-    'notes-button',
+    'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
     variantClass,
     sizeClass,
     extraClassName ?? '',
@@ -73,15 +70,19 @@ export function Button({
       aria-label={label}
       aria-controls={ariaControls}
       aria-expanded={ariaExpanded}
-      style={style}
       title={title}
     >
       {icon !== undefined ? (
-        <span className="notes-button-icon" aria-hidden="true">
+        <span
+          className="inline-flex items-center justify-center"
+          aria-hidden="true"
+        >
           {icon}
         </span>
       ) : null}
-      <span className="notes-button-label">{children}</span>
+      {children === undefined || children === null ? null : (
+        <span>{children}</span>
+      )}
     </button>
   );
 }
@@ -95,8 +96,22 @@ export function Badge({
   readonly variant?:
     'default' | 'accent' | 'success' | 'danger' | 'warning' | undefined;
 }): ReactNode {
+  const variantClass =
+    variant === 'accent'
+      ? 'border-accent/30 bg-accent/15 text-accent'
+      : variant === 'success'
+        ? 'border-success/30 bg-success/15 text-success'
+        : variant === 'danger'
+          ? 'border-danger/30 bg-danger/15 text-danger'
+          : variant === 'warning'
+            ? 'border-accent/30 bg-accent/15 text-accent'
+            : 'border-edge-subtle bg-hover text-muted';
   return (
-    <span className={`notes-badge notes-badge-${variant}`}>{children}</span>
+    <span
+      className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-semibold ${variantClass}`}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -124,13 +139,16 @@ export function TextField({
 }): ReactNode {
   const errorId = `${id}-error`;
   return (
-    <div className="notes-field-group">
-      <label className="notes-label" htmlFor={id}>
+    <div className="mb-3.5">
+      <label
+        className="mb-1.5 block text-control font-semibold text-strong"
+        htmlFor={id}
+      >
         {label}
       </label>
       <input
         id={id}
-        className="notes-input"
+        className="w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
         type={inputType ?? 'text'}
         value={value}
         autoComplete={autoComplete}
@@ -145,7 +163,7 @@ export function TextField({
         }}
       />
       {error !== undefined && error !== '' ? (
-        <p className="notes-field-error" id={errorId} role="alert">
+        <p className="mt-1 text-control text-danger" id={errorId} role="alert">
           {error}
         </p>
       ) : null}
@@ -174,13 +192,16 @@ export function SelectField({
   readonly onChange: (value: string) => void;
 }): ReactNode {
   return (
-    <div className="notes-field-group">
-      <label className="notes-label" htmlFor={id}>
+    <div className="mb-3.5">
+      <label
+        className="mb-1.5 block text-control font-semibold text-strong"
+        htmlFor={id}
+      >
         {label}
       </label>
       <select
         id={id}
-        className="notes-select"
+        className="w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
         value={value}
         onChange={(event): void => {
           onChange(event.target.value);
@@ -219,33 +240,35 @@ export function CollapsibleSection({
 }): ReactNode {
   const panelId = `${id}-panel`;
   return (
-    <section className="notes-collapsible" aria-labelledby={id}>
+    <section className="mt-2" aria-labelledby={id}>
       <button
         id={id}
         type="button"
-        className="notes-collapsible-trigger"
+        className="flex w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-control font-semibold uppercase tracking-wide text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
         aria-expanded={open}
         aria-controls={panelId}
         onClick={(): void => {
           onToggle(!open);
         }}
       >
-        <span className="notes-collapsible-icon" aria-hidden="true">
+        <span className="inline-flex items-center" aria-hidden="true">
           {open ? (
             <ChevronDownIcon size={14} />
           ) : (
             <ChevronRightIcon size={14} />
           )}
         </span>
-        <span className="notes-collapsible-title">{title}</span>
+        <span className="flex-1">{title}</span>
         {count !== undefined && count > 0 ? (
-          <span className="notes-collapsible-count">{count}</span>
+          <span className="rounded-full bg-hover px-1.5 py-0.5 text-xs font-medium text-muted">
+            {count}
+          </span>
         ) : null}
       </button>
       {open ? (
         <div
           id={panelId}
-          className="notes-collapsible-content"
+          className="py-2 pl-2"
           role="region"
           aria-label={title}
         >
@@ -268,7 +291,11 @@ export function StatusRegion({
   readonly message: string;
 }): ReactNode {
   return (
-    <p className="notes-status-region" role="status" aria-live="polite">
+    <p
+      className="my-1 text-control text-muted"
+      role="status"
+      aria-live="polite"
+    >
       {message}
     </p>
   );

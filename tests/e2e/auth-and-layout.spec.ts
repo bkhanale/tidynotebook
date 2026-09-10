@@ -1,6 +1,7 @@
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  createNewNote,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -15,14 +16,17 @@ test('login has loaded theme and layout styles', async ({
 }) => {
   await page.goto(`${stack.baseUrl}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
-  const style = await page.locator('.notes-auth-card').evaluate((card) => {
-    const computed = getComputedStyle(card);
-    return {
-      display: getComputedStyle(card.parentElement as Element).display,
-      background: computed.backgroundColor,
-      radius: computed.borderRadius,
-    };
-  });
+  const style = await page
+    .getByRole('heading', { name: 'Sign in' })
+    .locator('..')
+    .evaluate((card) => {
+      const computed = getComputedStyle(card);
+      return {
+        display: getComputedStyle(card.parentElement as Element).display,
+        background: computed.backgroundColor,
+        radius: computed.borderRadius,
+      };
+    });
   expect(style.display).toBe('flex');
   expect(style.background).not.toBe('rgba(0, 0, 0, 0)');
   expect(style.radius).not.toBe('0px');
@@ -58,10 +62,8 @@ test('workspace fits the viewport and the mobile drawer manages focus', async ({
     initialTheme ?? '',
   );
 
-  const viewport = page.viewportSize();
-  if ((viewport?.width ?? 1000) <= 768) {
-    const menu = page.getByRole('button', { name: /navigation/ });
-    await expect(menu).toBeVisible();
+  const menu = page.getByRole('button', { name: /navigation/ });
+  if (await menu.isVisible()) {
     await menu.click();
     const drawer = page.getByRole('dialog', { name: 'Notes navigation' });
     await expect(drawer).toBeVisible();
@@ -69,10 +71,21 @@ test('workspace fits the viewport and the mobile drawer manages focus', async ({
     await expect(
       page.locator('#notes-sidebar a, #notes-sidebar button').first(),
     ).toBeFocused();
+    await drawer.getByRole('button', { name: /Personal/ }).click();
+    await expect(
+      drawer.getByRole('menuitem', { name: 'Create new workspace' }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await expect(menu).toBeFocused();
   } else {
+    const switcher = page.getByRole('button', { name: /Personal/ });
+    await switcher.click();
+    await expect(
+      page.getByRole('menuitem', { name: 'Create new workspace' }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
     await expect(page.getByLabel('Notes navigation')).toBeVisible();
   }
 
@@ -107,10 +120,10 @@ test('plain HTTP browser capabilities do not block note saves', async ({
   });
   await signIn(page, stack);
   await openPersonalWorkspace(page);
-  await page.getByRole('button', { name: 'Create a new note' }).first().click();
+  await createNewNote(page);
   await page
-    .getByLabel('File path')
-    .fill(`plain-http-${Date.now().toString()}.md`);
+    .getByLabel('Note name')
+    .fill(`plain-http-${Date.now().toString()}`);
   await replaceEditorText(page, '# Plain HTTP\n\nThe note stays durable.');
   await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);

@@ -8,6 +8,7 @@ import {
   type LocalStore,
 } from '@notesapp/sync';
 import { Button, PlusIcon } from '@notesapp/ui';
+import { displayNoteName } from './note-name.ts';
 
 /**
  * Creates a new note file and opens it.
@@ -42,6 +43,7 @@ export function NewNoteButton({
   return (
     <div className={className}>
       <Button
+        className="w-full"
         variant={variant}
         size={size}
         icon={<PlusIcon size={size === 'sm' ? 14 : 16} />}
@@ -55,21 +57,21 @@ export function NewNoteButton({
             }
             const fileId = generateUUID();
             const workingCopyId = generateUUID();
-            let targetPath = 'Untitled.md';
+            let targetPath = 'New note.md';
             try {
               const files = await store.listLocalFiles(accountId, workspaceId);
               const existingPaths = new Set(
                 files.map((file) => file.path.toLowerCase()),
               );
-              if (existingPaths.has('untitled.md')) {
-                let index = 1;
-                while (existingPaths.has(`untitled ${String(index)}.md`)) {
+              if (existingPaths.has('new note.md')) {
+                let index = 2;
+                while (existingPaths.has(`new note ${String(index)}.md`)) {
                   index += 1;
                 }
-                targetPath = `Untitled ${String(index)}.md`;
+                targetPath = `New note ${String(index)}.md`;
               }
             } catch {
-              // Keep Untitled.md if reading local file list fails.
+              // Keep the default name if reading the local file list fails.
             }
             const path = targetPath;
             const draft: Draft = {
@@ -94,14 +96,19 @@ export function NewNoteButton({
               return;
             }
             setError(null);
-            await navigate(`/w/${workspaceId}/notes/${fileId}`);
+            await navigate(`/w/${workspaceId}/notes/${fileId}`, {
+              state: {
+                focusNoteName: true,
+                noteName: displayNoteName(path),
+              },
+            });
           })();
         }}
       >
         {children ?? 'New note'}
       </Button>
       {error !== null ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {error}
         </p>
       ) : null}

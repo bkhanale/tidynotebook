@@ -7,7 +7,7 @@
 - Used files: Night palette (`extras/lua/tokyonight_night.lua`) and Day palette
   (`extras/lua/tokyonight_day.lua`)
 
-The six palette values per mode in `src/tokens.css` and `src/theme.ts`
+The palette values per mode in `src/theme.ts`
 (background, sidebar surface, main text, accent blue, green, red) are copied
 from that project. The copyright and license belong to the upstream author.
 Semantic text, fill, border, and focus variants are derived by notesapp within

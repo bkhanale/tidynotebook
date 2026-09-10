@@ -22,7 +22,6 @@ import {
   PlusIcon,
   StatusRegion,
   TextField,
-  WorkspaceIcon,
 } from '@notesapp/ui';
 import { problemMessage, useSession } from '../app.tsx';
 
@@ -161,54 +160,43 @@ export function validateNotePath(input: string): string | null {
   const result = normalizePath(input);
   if (result.ok) return null;
   if (result.error.code === 'invalid_path')
-    return 'Use a relative .md path without traversal, for example notes/today.md.';
-  return `This path is refused: ${result.error.code}.`;
+    return 'Use a note name without empty folders, traversal, or edge spaces.';
+  return `This note name is refused: ${result.error.code}.`;
 }
 
-/** Workspace home: the list and creation form for writers. */
+/** Redirects the signed-in account to its last or personal workspace. */
 export function WorkspaceHome(): ReactNode {
   const { state, reload } = useWorkspaces();
   const navigate = useNavigate();
-  const [name, setName] = useState('');
-  const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (state.status === 'ready' && state.workspaces.length > 0) {
       const lastId = window.localStorage.getItem('notesapp:last-workspace-id');
-      if (
-        lastId !== null &&
-        state.workspaces.some((w) => w.workspaceId === lastId)
-      ) {
-        void navigate(`/w/${lastId}`, { replace: true });
-      }
+      const remembered = state.workspaces.find(
+        (workspace) => workspace.workspaceId === lastId,
+      );
+      const target =
+        remembered ??
+        state.workspaces.find((workspace) => workspace.personal) ??
+        state.workspaces[0];
+      if (target !== undefined)
+        void navigate(`/w/${target.workspaceId}`, { replace: true });
     }
   }, [state, navigate]);
 
-  async function create(): Promise<void> {
-    setBusy(true);
-    setError('');
-    const result = await createWorkspace({ body: { name } });
-    setBusy(false);
-    if (result.error !== undefined || result.data === undefined) {
-      setError(problemMessage(result.error));
-      return;
-    }
-    setName('');
-    reload();
-  }
-
   if (state.status === 'loading')
     return (
-      <main>
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
         <StatusRegion message="Loading workspaces." />
       </main>
     );
   if (state.status === 'error')
     return (
-      <main>
-        <h1>Workspaces</h1>
-        <p className="notes-status-error" role="alert">
+      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Workspaces
+        </h1>
+        <p className="text-control text-danger" role="alert">
           {state.message}
         </p>
         <Button variant="secondary" onClick={() => reload()}>
@@ -218,85 +206,52 @@ export function WorkspaceHome(): ReactNode {
     );
 
   return (
-    <main>
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ margin: '0 0 6px 0' }}>Workspaces</h1>
-        <p
-          style={{
-            margin: 0,
-            color: 'var(--notes-text-muted)',
-            fontSize: '0.9rem',
-          }}
+    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <StatusRegion message="Opening your workspace." />
+    </main>
+  );
+}
+
+/** Creates an additional workspace from the workspace switcher. */
+export function WorkspaceCreateView(): ReactNode {
+  const { reload } = useWorkspaces();
+  const navigate = useNavigate();
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function create(): Promise<void> {
+    setBusy(true);
+    setError('');
+    const result = await createWorkspace({ body: { name: name.trim() } });
+    setBusy(false);
+    if (result.error !== undefined || result.data === undefined) {
+      setError(problemMessage(result.error));
+      return;
+    }
+    window.localStorage.setItem(
+      'notesapp:last-workspace-id',
+      result.data.workspaceId,
+    );
+    reload();
+    await navigate(`/w/${result.data.workspaceId}`, { replace: true });
+  }
+
+  return (
+    <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+      <div className="flex items-center gap-3">
+        <Link
+          to="/"
+          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-edge px-3 text-control text-strong no-underline hover:bg-hover"
         >
-          Select a workspace to open your notes.
-        </p>
+          <ChevronLeftIcon size={16} />
+          <span>Back</span>
+        </Link>
+        <h1 className="m-0 text-xl font-semibold text-strong">
+          Create workspace
+        </h1>
       </div>
-
-      <ul className="notes-workspaces-grid">
-        {state.workspaces.map((entry) => (
-          <li key={entry.workspaceId} style={{ listStyle: 'none' }}>
-            <Link
-              to={`/w/${entry.workspaceId}`}
-              className="notes-workspace-card"
-              onClick={() => {
-                window.localStorage.setItem(
-                  'notesapp:last-workspace-id',
-                  entry.workspaceId,
-                );
-              }}
-            >
-              <div className="notes-workspace-card-header">
-                <div className="notes-workspace-card-title">
-                  <span className="notes-tree-icon" aria-hidden="true">
-                    <WorkspaceIcon size={18} />
-                  </span>
-                  <span>{entry.name}</span>
-                </div>
-                <Badge variant={entry.role === 'owner' ? 'accent' : 'default'}>
-                  {entry.role}
-                </Badge>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  marginTop: 'auto',
-                  paddingTop: '8px',
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: '0.75rem',
-                    color: 'var(--notes-text-muted)',
-                  }}
-                >
-                  {entry.personal ? 'Personal' : 'Team'}
-                </span>
-                <span
-                  style={{
-                    fontSize: '0.8125rem',
-                    color: 'var(--notes-accent-text)',
-                    fontWeight: 500,
-                  }}
-                >
-                  Open →
-                </span>
-              </div>
-            </Link>
-          </li>
-        ))}
-      </ul>
-      {state.workspaces.length === 0 ? (
-        <p className="notes-status-region">
-          No workspace yet. Create the first one below.
-        </p>
-      ) : null}
-
-      <div className="notes-card" style={{ marginTop: '32px' }}>
-        <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '1.15rem' }}>
-          Create a workspace
-        </h2>
+      <section className="rounded-xl border border-edge-subtle bg-card p-5 shadow-sm">
         <form
           onSubmit={(event): void => {
             event.preventDefault();
@@ -308,25 +263,23 @@ export function WorkspaceHome(): ReactNode {
             label="Workspace name"
             value={name}
             required
-            placeholder="e.g. Personal Notes, Engineering"
+            placeholder="Project notes"
             onChange={setName}
           />
-          {error !== '' ? (
-            <p className="notes-status-error" role="alert">
+          {error === '' ? null : (
+            <p className="text-control text-danger" role="alert">
               {error}
             </p>
-          ) : null}
-          <div style={{ marginTop: '14px' }}>
-            <Button
-              type="submit"
-              icon={<PlusIcon size={16} />}
-              disabled={busy || name.trim() === ''}
-            >
-              {busy ? 'Creating.' : 'Create workspace'}
-            </Button>
-          </div>
+          )}
+          <Button
+            type="submit"
+            icon={<PlusIcon size={16} />}
+            disabled={busy || name.trim() === ''}
+          >
+            {busy ? 'Creating.' : 'Create workspace'}
+          </Button>
         </form>
-      </div>
+      </section>
     </main>
   );
 }
@@ -374,19 +327,24 @@ export function WorkspaceOwnerControls({
   }
 
   return (
-    <section aria-labelledby="owner-heading">
-      <h2 id="owner-heading">Owner controls</h2>
+    <section className="space-y-4" aria-labelledby="owner-heading">
+      <h2
+        className="m-0 text-base font-semibold text-strong"
+        id="owner-heading"
+      >
+        Owner controls
+      </h2>
       {error !== '' ? (
-        <p className="notes-status-error" role="alert">
+        <p className="text-control text-danger" role="alert">
           {error}
         </p>
       ) : null}
       {notice !== '' ? (
-        <p className="notes-status-ok" role="status">
+        <p className="text-control text-success" role="status">
           {notice}
         </p>
       ) : null}
-      <h3>Rename</h3>
+      <h3 className="m-0 text-ui font-semibold text-strong">Rename</h3>
       <form
         onSubmit={(event): void => {
           event.preventDefault();
@@ -402,15 +360,17 @@ export function WorkspaceOwnerControls({
         />
         <Button type="submit">Save name</Button>
       </form>
-      <h3>Delete workspace</h3>
-      <label>
+      <h3 className="m-0 text-ui font-semibold text-strong">
+        Delete workspace
+      </h3>
+      <label className="flex items-center gap-2 text-control text-strong">
         <input
           type="checkbox"
           checked={confirmDelete}
           onChange={(event): void => {
             setConfirmDelete(event.target.checked);
           }}
-        />{' '}
+        />
         I understand this deletes the workspace and its files.
       </label>
       <Button
@@ -433,8 +393,10 @@ export function WorkspaceSettingsView(): ReactNode {
 
   if (workspaceId === null) {
     return (
-      <main className="notes-settings-page">
-        <h1>Workspace not found</h1>
+      <main className="mx-auto max-w-3xl p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Workspace not found
+        </h1>
         <p>The address names no workspace.</p>
       </main>
     );
@@ -442,7 +404,7 @@ export function WorkspaceSettingsView(): ReactNode {
 
   if (state.status === 'loading') {
     return (
-      <main className="notes-settings-page">
+      <main className="mx-auto max-w-3xl p-4 sm:p-6">
         <StatusRegion message="Loading workspace settings." />
       </main>
     );
@@ -450,9 +412,11 @@ export function WorkspaceSettingsView(): ReactNode {
 
   if (state.status === 'error') {
     return (
-      <main className="notes-settings-page">
-        <h1>Workspace</h1>
-        <p className="notes-status-error" role="alert">
+      <main className="mx-auto max-w-3xl p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Workspace
+        </h1>
+        <p className="text-control text-danger" role="alert">
           {state.message}
         </p>
       </main>
@@ -462,8 +426,10 @@ export function WorkspaceSettingsView(): ReactNode {
   const workspace = findWorkspace(state.workspaces, workspaceId);
   if (workspace === null) {
     return (
-      <main className="notes-settings-page">
-        <h1>Workspace not found</h1>
+      <main className="mx-auto max-w-3xl p-4 sm:p-6">
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Workspace not found
+        </h1>
         <p>This account has no workspace with that ID.</p>
         <p>
           <Link to="/">Back to workspaces.</Link>
@@ -473,37 +439,31 @@ export function WorkspaceSettingsView(): ReactNode {
   }
 
   return (
-    <main className="notes-settings-page">
-      <div className="notes-settings-header">
+    <main className="mx-auto max-w-3xl space-y-4 p-4 sm:p-6">
+      <div className="flex items-center gap-3">
         <Link
           to={`/w/${workspaceId}`}
-          className="notes-btn notes-btn-secondary"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '0.25rem',
-            textDecoration: 'none',
-          }}
+          className="inline-flex min-h-9 items-center gap-1 rounded-lg border border-edge px-3 text-control text-strong no-underline hover:bg-hover"
         >
-          <ChevronLeftIcon />
+          <ChevronLeftIcon size={14} />
           <span>Back to notes</span>
         </Link>
-        <h1 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>
+        <h1 className="m-0 text-xl font-semibold text-strong">
           {workspace.name} Settings
         </h1>
       </div>
 
       <section
-        className="notes-settings-card"
+        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
         aria-labelledby="workspace-info-heading"
       >
         <h2
+          className="m-0 text-base font-semibold text-strong"
           id="workspace-info-heading"
-          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
         >
           General
         </h2>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="flex items-center gap-2">
           <Badge variant={workspace.role === 'owner' ? 'accent' : 'default'}>
             Role: {workspace.role}
           </Badge>
@@ -514,24 +474,28 @@ export function WorkspaceSettingsView(): ReactNode {
       </section>
 
       {workspace.role === 'owner' ? (
-        <section className="notes-settings-card">
+        <section className="rounded-xl border border-edge-subtle bg-card p-5 shadow-sm">
           <WorkspaceOwnerControls workspace={workspace} onChanged={reload} />
         </section>
       ) : null}
 
       <section
-        className="notes-settings-card"
+        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
         aria-labelledby="advanced-heading"
       >
         <h2
+          className="m-0 text-base font-semibold text-strong"
           id="advanced-heading"
-          style={{ margin: 0, fontSize: '1rem', fontWeight: 600 }}
         >
           Advanced
         </h2>
-        <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-          <Link to={`/w/${workspaceId}/purge`}>Deletion and purge</Link>
-          <Link to={`/w/${workspaceId}/recovery`}>Access and recovery</Link>
+        <div className="flex flex-wrap gap-4 text-control">
+          <Link className="text-accent" to={`/w/${workspaceId}/purge`}>
+            Deletion and purge
+          </Link>
+          <Link className="text-accent" to={`/w/${workspaceId}/recovery`}>
+            Access and recovery
+          </Link>
         </div>
       </section>
     </main>
