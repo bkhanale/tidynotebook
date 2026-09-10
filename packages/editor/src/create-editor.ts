@@ -9,12 +9,7 @@
  * the document, so undo history, IME composition, selection, and clipboard
  * content survive them.
  */
-import {
-  defaultKeymap,
-  history,
-  historyKeymap,
-  indentWithTab,
-} from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
 import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
@@ -26,6 +21,7 @@ import {
   type EditorNavigation,
   type LinkTarget,
 } from './commands.ts';
+import { editorCommands } from './extensions.ts';
 import { livePreview } from './live-preview.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
@@ -162,7 +158,8 @@ export function createEditor(
       EditorView.lineWrapping,
       themeCompartment.of(themeExtension(options.theme ?? 'dark')),
       saveKeymap,
-      keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
+      editorCommands(),
+      keymap.of([...defaultKeymap, ...historyKeymap]),
       EditorView.updateListener.of((update: ViewUpdate): void => {
         if (update.docChanged) onChange(update.state.doc.toString());
       }),

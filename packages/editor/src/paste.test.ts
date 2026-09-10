@@ -1,0 +1,161 @@
+/**
+ * HTML to Markdown paste checks.
+ *
+ * The converter parses text, not a DOM, so every case here runs without a
+ * browser. Each test asserts the exact Markdown, because that text is what
+ * the note stores.
+ */
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  decodeEntities,
+  htmlToMarkdown,
+  isPastedUrl,
+  normalizePastedUrl,
+} from './paste.ts';
+
+await test('headings and paragraphs become Markdown blocks', () => {
+  assert.equal(
+    htmlToMarkdown('<h1>Title</h1><p>First line.</p><p>Second line.</p>'),
+    '# Title\n\nFirst line.\n\nSecond line.',
+  );
+  assert.equal(htmlToMarkdown('<h3>Deep</h3>'), '### Deep');
+});
+
+await test('bold, italic, strike through and inline code convert', () => {
+  assert.equal(
+    htmlToMarkdown('<p>A <strong>bold</strong> and <em>soft</em> word.</p>'),
+    'A **bold** and *soft* word.',
+  );
+  assert.equal(
+    htmlToMarkdown('<p><del>gone</del> and <code>value</code></p>'),
+    '~~gone~~ and `value`',
+  );
+});
+
+await test('links and images keep their destination', () => {
+  assert.equal(
+    htmlToMarkdown('<p>See <a href="https://example.com/a">the page</a>.</p>'),
+    'See [the page](https://example.com/a).',
+  );
+  assert.equal(
+    htmlToMarkdown('<p><img src="/attachments/abc" alt="A chart"></p>'),
+    '![A chart](/attachments/abc)',
+  );
+});
+
+await test('a code block keeps its text and its language', () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<pre><code class="language-ts">const a = 1;\n</code></pre>',
+    ),
+    '```ts\nconst a = 1;\n```',
+  );
+  assert.equal(
+    htmlToMarkdown('<pre>plain\ncode</pre>'),
+    '```\nplain\ncode\n```',
+  );
+});
+
+await test('a code block is not escaped as Markdown text', () => {
+  assert.equal(
+    htmlToMarkdown('<pre><code>a[b]*c*</code></pre>'),
+    '```\na[b]*c*\n```',
+  );
+});
+
+await test('lists convert and nest', () => {
+  assert.equal(
+    htmlToMarkdown('<ul><li>one</li><li>two</li></ul>'),
+    '- one\n- two',
+  );
+  assert.equal(
+    htmlToMarkdown('<ol><li>one</li><li>two</li></ol>'),
+    '1. one\n2. two',
+  );
+  assert.equal(
+    htmlToMarkdown('<ul><li>one<ul><li>deep</li></ul></li></ul>'),
+    '- one\n  - deep',
+  );
+});
+
+await test('a block quote prefixes every line', () => {
+  assert.equal(
+    htmlToMarkdown('<blockquote><p>one</p><p>two</p></blockquote>'),
+    '> one\n>\n> two',
+  );
+});
+
+await test('a table becomes a GFM table', () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<table><thead><tr><th>Name</th><th>Count</th></tr></thead>' +
+        '<tbody><tr><td>alpha</td><td>2</td></tr></tbody></table>',
+    ),
+    '| Name | Count |\n| --- | --- |\n| alpha | 2 |',
+  );
+});
+
+await test('a horizontal rule and a line break convert', () => {
+  assert.equal(htmlToMarkdown('<p>a</p><hr><p>b</p>'), 'a\n\n---\n\nb');
+  assert.equal(htmlToMarkdown('<p>a<br>b</p>'), 'a  \nb');
+});
+
+await test('script and style content never reaches the note', () => {
+  assert.equal(
+    htmlToMarkdown('<p>text</p><script>alert(1)</script><style>a{}</style>'),
+    'text',
+  );
+});
+
+await test('unknown tags contribute their text only', () => {
+  assert.equal(
+    htmlToMarkdown('<div class="x"><span>plain</span> text</div>'),
+    'plain text',
+  );
+});
+
+await test('Markdown characters in pasted text are escaped', () => {
+  // The back ticks here are literal text, not a code element, so they are
+  // escaped like every other Markdown character.
+  assert.equal(
+    htmlToMarkdown('<p>a * b [c] `d`</p>'),
+    'a \\* b \\[c\\] \\`d\\`',
+  );
+});
+
+await test('entities decode', () => {
+  assert.equal(
+    decodeEntities('a &amp; b &lt;c&gt; &#65; &#x42;'),
+    'a & b <c> A B',
+  );
+  assert.equal(htmlToMarkdown('<p>a &amp; b</p>'), 'a & b');
+});
+
+await test('white space collapses the way a browser renders it', () => {
+  assert.equal(htmlToMarkdown('<p>a\n   b\tc</p>'), 'a b c');
+});
+
+await test('a full clipboard document keeps only its body', () => {
+  assert.equal(
+    htmlToMarkdown(
+      '<html><head><title>Ignore</title></head><body><h2>Kept</h2></body></html>',
+    ),
+    '## Kept',
+  );
+});
+
+await test('a pasted URL is recognised and completed', () => {
+  assert.ok(isPastedUrl('https://example.com/a'));
+  assert.ok(isPastedUrl('www.example.com'));
+  assert.ok(!isPastedUrl('two words'));
+  assert.ok(!isPastedUrl('example.com'));
+  assert.equal(
+    normalizePastedUrl('www.example.com'),
+    'https://www.example.com',
+  );
+  assert.equal(
+    normalizePastedUrl(' https://example.com '),
+    'https://example.com',
+  );
+});
