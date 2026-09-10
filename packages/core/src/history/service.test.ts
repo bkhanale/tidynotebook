@@ -1,16 +1,11 @@
 /**
- * Unit tests for history, branch, restore, and purge services.
+ * Unit tests for the history, restore, and purge services.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyActor, type Actor, type Role } from '../identity/actor.ts';
 import { contentDigest } from '../files/digest.ts';
-import {
-  listHistory,
-  resolveBranches,
-  restoreRevision,
-  submitBranch,
-} from './service.ts';
+import { listHistory, restoreRevision } from './service.ts';
 import { previewPurge, purgeFiles } from './purge.ts';
 import {
   ok,
@@ -20,9 +15,6 @@ import {
   type Result,
 } from '../files/model.ts';
 import type {
-  AcceptedBranch,
-  BranchFilter,
-  BranchRecord,
   DeletedFilePage,
   FilePage,
   FileRecord,
@@ -33,7 +25,6 @@ import type {
   PurgePreview,
   PurgedFilesResult,
   RevisionRecord,
-  SubmitBranchInput,
   WorkspaceStore,
   WorkspaceTransaction,
 } from '../files/ports.ts';
@@ -61,7 +52,6 @@ class FakeWorkspace {
   readonly revisions = new Map<string, RevisionRecord>();
   readonly receipts = new Map<string, MutationReceipt<unknown>>();
   readonly purged = new Set<string>();
-  readonly branches: BranchRecord[] = [];
   readonly history: HistoryRevision[] = [];
 
   constructor() {
@@ -219,84 +209,6 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
         revisions: state.history.filter((h) => h.fileId === fileId),
         nextCursor: null,
       }),
-    listBranches: (filter?: BranchFilter): Promise<readonly BranchRecord[]> => {
-      let result = [...state.branches];
-      if (filter?.fileId) {
-        result = result.filter((b) => b.fileId === filter.fileId);
-      }
-      if (filter?.conflictGroupId) {
-        result = result.filter(
-          (b) => b.conflictGroupId === filter.conflictGroupId,
-        );
-      }
-      if (filter?.state) {
-        result = result.filter((b) => b.state === filter.state);
-      }
-      return Promise.resolve(result);
-    },
-    markBranchesResolved: (
-      branchTipRevisionIds: readonly string[],
-    ): Promise<readonly string[]> => {
-      const resolved: string[] = [];
-      for (let index = 0; index < state.branches.length; index += 1) {
-        const branch = state.branches[index];
-        if (
-          branch !== undefined &&
-          branchTipRevisionIds.includes(branch.tipRevisionId) &&
-          branch.state === 'unresolved'
-        ) {
-          state.branches[index] = { ...branch, state: 'resolved' };
-          resolved.push(branch.id);
-        }
-      }
-      return Promise.resolve(resolved);
-    },
-    acceptBranch: (
-      _writer: Actor,
-      input: SubmitBranchInput,
-      _digest: string,
-    ): Promise<Result<AcceptedBranch>> => {
-      const createdBranches: BranchRecord[] = [];
-      for (const rev of input.revisions) {
-        state.revisions.set(rev.id, {
-          revisionId: rev.id,
-          fileId: rev.fileId,
-          path: rev.path,
-          kind: rev.content.kind === 'markdown' ? 'note' : 'attachment',
-          deleted: rev.deleted,
-          parents: [...rev.parents],
-          digest: rev.content.digest,
-          size: rev.content.kind === 'markdown' ? rev.content.text.length : 100,
-          text: rev.content.kind === 'markdown' ? rev.content.text : null,
-          objectId:
-            rev.content.kind === 'attachment' ? rev.content.objectId : null,
-          message: rev.message,
-          restoredFrom: rev.restoredFrom,
-          clientTime: rev.clientTime,
-          serverTime: new Date().toISOString(),
-        });
-        const branchRecord: BranchRecord = {
-          id: `branch-${rev.id}`,
-          workspaceId: input.workspaceId,
-          fileId: rev.fileId,
-          baseRevisionId: input.expectedHeads[rev.fileId] ?? null,
-          tipRevisionId: rev.id,
-          conflictGroupId: input.conflictGroupId,
-          state: 'unresolved',
-          createdAt: new Date().toISOString(),
-        };
-        state.branches.push(branchRecord);
-        createdBranches.push(branchRecord);
-      }
-      return Promise.resolve(
-        ok({
-          mutationId: input.mutationId,
-          conflictGroupId: input.conflictGroupId,
-          revisionIds: input.revisions.map((r) => r.id),
-          branches: createdBranches,
-        }),
-      );
-    },
     previewPurge: (fileIds: readonly string[]): Promise<Result<PurgePreview>> =>
       Promise.resolve(
         ok({
@@ -406,162 +318,6 @@ await test('listHistory: returns history page for existing file', async () => {
     assert.equal(res.value.revisions[0]?.isCheckpoint, true);
     assert.equal(res.value.revisions[0]?.checkpointName, 'Initial');
   }
-});
-
-await test('submitBranch: stores branch revision without advancing accepted head', async () => {
-  const state = new FakeWorkspace();
-  const text = 'branch draft';
-  const digest = await contentDigest(text);
-  state.files.set('f1', {
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    headRevisionId: 'r1',
-    deleted: false,
-    updatedAt: new Date().toISOString(),
-  });
-  state.revisions.set('r1', {
-    revisionId: 'r1',
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    deleted: false,
-    parents: [],
-    digest: 'old',
-    size: 3,
-    text: 'old',
-    objectId: null,
-    message: null,
-    restoredFrom: null,
-    clientTime: new Date().toISOString(),
-    serverTime: new Date().toISOString(),
-  });
-  const store = fakeStore(state);
-  const user = buildActor(writerId, 'editor');
-
-  const res = await submitBranch(
-    store,
-    user,
-    {
-      workspaceId,
-      mutationId: 'm-branch',
-      deviceId: 'd1',
-      conflictGroupId: 'cg-1',
-      expectedHeads: { f1: 'r1' },
-      revisions: [
-        {
-          id: 'b-rev1',
-          fileId: 'f1',
-          parents: ['r1'],
-          path: 'note.md',
-          deleted: false,
-          content: { kind: 'markdown', digest, text },
-          clientTime: new Date().toISOString(),
-          message: 'Divergent edit',
-          restoredFrom: null,
-        },
-      ],
-    },
-    'req-branch',
-  );
-
-  assert.equal(res.ok, true);
-  // File head revision must remain r1, not b-rev1
-  assert.equal(state.files.get('f1')?.headRevisionId, 'r1');
-  assert.equal(state.branches.length, 1);
-  assert.equal(state.branches[0]?.tipRevisionId, 'b-rev1');
-  assert.equal(state.branches[0]?.state, 'unresolved');
-});
-
-await test('resolveBranches: merges two parents and marks branch resolved', async () => {
-  const state = new FakeWorkspace();
-  const text = 'merged content';
-  const digest = await contentDigest(text);
-
-  state.files.set('f1', {
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    headRevisionId: 'r1',
-    deleted: false,
-    updatedAt: new Date().toISOString(),
-  });
-  state.revisions.set('r1', {
-    revisionId: 'r1',
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    deleted: false,
-    parents: [],
-    digest: 'd1',
-    size: 5,
-    text: 'head1',
-    objectId: null,
-    message: null,
-    restoredFrom: null,
-    clientTime: new Date().toISOString(),
-    serverTime: new Date().toISOString(),
-  });
-  state.revisions.set('b-rev1', {
-    revisionId: 'b-rev1',
-    fileId: 'f1',
-    path: 'note.md',
-    kind: 'note',
-    deleted: false,
-    parents: ['r0'],
-    digest: 'd2',
-    size: 5,
-    text: 'branch',
-    objectId: null,
-    message: null,
-    restoredFrom: null,
-    clientTime: new Date().toISOString(),
-    serverTime: new Date().toISOString(),
-  });
-  state.branches.push({
-    id: 'br-1',
-    workspaceId,
-    fileId: 'f1',
-    baseRevisionId: 'r0',
-    tipRevisionId: 'b-rev1',
-    conflictGroupId: 'cg-1',
-    state: 'unresolved',
-    createdAt: new Date().toISOString(),
-  });
-
-  const store = fakeStore(state);
-  const user = buildActor(writerId, 'editor');
-
-  const res = await resolveBranches(
-    store,
-    user,
-    {
-      workspaceId,
-      mutationId: 'm-resolve',
-      deviceId: 'd1',
-      clientTime: new Date().toISOString(),
-      conflictGroupId: 'cg-1',
-      resolutions: [
-        {
-          fileId: 'f1',
-          expectedHead: 'r1',
-          branchTip: 'b-rev1',
-          revisionId: 'merge-rev',
-          path: 'note.md',
-          content: { kind: 'markdown', digest, text },
-          deleted: false,
-        },
-      ],
-    },
-    'req-resolve',
-  );
-
-  assert.equal(res.ok, true);
-  const mergeRev = state.revisions.get('merge-rev');
-  assert.ok(mergeRev);
-  assert.deepEqual(mergeRev.parents, ['r1', 'b-rev1']);
-  assert.equal(state.files.get('f1')?.headRevisionId, 'merge-rev');
-  assert.equal(state.branches[0]?.state, 'resolved');
 });
 
 await test('restoreRevision: creates child revision referencing historic revision without rewriting history', async () => {

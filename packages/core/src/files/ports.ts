@@ -250,18 +250,6 @@ export type WorkspaceTransaction = {
   onFilesDeleted(fileIds: readonly string[]): Promise<void>;
   /** One page of history revisions for one file, ordered newest first. */
   listHistory(fileId: string, page: PageRequest): Promise<HistoryPage>;
-  /** Divergent branches of this workspace. */
-  listBranches(filter?: BranchFilter): Promise<readonly BranchRecord[]>;
-  /** Marks open branches resolved by their tip revision identifiers. */
-  markBranchesResolved(
-    branchTipRevisionIds: readonly string[],
-  ): Promise<readonly string[]>;
-  /** Submits a branch without advancing accepted heads. */
-  acceptBranch(
-    actor: Actor,
-    input: SubmitBranchInput,
-    digest: string,
-  ): Promise<Result<AcceptedBranch>>;
   /** Previews permanent deletion of the requested files. */
   previewPurge(fileIds: readonly string[]): Promise<Result<PurgePreview>>;
   /** Permanently deletes files and writes purge markers. */
@@ -331,44 +319,9 @@ export type HistoryPage = {
   readonly nextCursor: string | null;
 };
 
-/** State of a divergent branch. */
-export type BranchState = 'unresolved' | 'resolved';
-
-/** One recorded divergent branch. */
-export type BranchRecord = {
-  readonly id: string;
-  readonly workspaceId: string;
-  readonly fileId: string;
-  readonly baseRevisionId: string | null;
-  readonly tipRevisionId: string;
-  readonly conflictGroupId: string;
-  readonly state: BranchState;
-  readonly createdAt: string;
-};
-
-/** Optional filter criteria when querying branches. */
-export type BranchFilter = {
-  readonly fileId?: string;
-  readonly conflictGroupId?: string;
-  readonly state?: BranchState;
-};
-
-/** Input payload when submitting a divergent branch. */
-export type SubmitBranchInput = ChangesetInput & {
-  readonly conflictGroupId: string;
-};
-
-/** Stored outcome of an accepted branch submission. */
-export type AcceptedBranch = {
-  readonly mutationId: string;
-  readonly conflictGroupId: string;
-  readonly revisionIds: readonly string[];
-  readonly branches: readonly BranchRecord[];
-};
-
 /** A reference that prevents permanent deletion of a file. */
 export type BlockingReference = {
-  readonly kind: 'revision' | 'branch';
+  readonly kind: 'revision';
   readonly targetId: string;
   readonly referrerId: string;
   readonly description: string;

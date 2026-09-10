@@ -227,17 +227,6 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
       return Promise.resolve();
     },
     listHistory: () => Promise.resolve({ revisions: [], nextCursor: null }),
-    listBranches: () => Promise.resolve([]),
-    markBranchesResolved: () => Promise.resolve([]),
-    acceptBranch: () =>
-      Promise.resolve(
-        ok({
-          mutationId: '',
-          conflictGroupId: '',
-          revisionIds: [],
-          branches: [],
-        }),
-      ),
     previewPurge: () =>
       Promise.resolve(
         ok({

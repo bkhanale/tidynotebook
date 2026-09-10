@@ -300,7 +300,7 @@ export type BacklinkResults = {
  * A reference that blocks permanent deletion.
  */
 export type BlockingReference = {
-    kind: 'revision' | 'branch';
+    kind: 'revision';
     targetId: string;
     referrerId: string;
     description: string;

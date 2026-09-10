@@ -4751,8 +4751,7 @@ export const operations: readonly OperationEntry[] = [
                   "kind": {
                     "type": "string",
                     "enum": [
-                      "revision",
-                      "branch"
+                      "revision"
                     ]
                   },
                   "targetId": {

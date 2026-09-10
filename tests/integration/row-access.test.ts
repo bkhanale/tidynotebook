@@ -42,7 +42,6 @@ const scopedTables = [
   'revision_parents',
   'changesets',
   'mutation_receipts',
-  'branches',
   'purge_markers',
   'audit_events',
   'sync_changes',
@@ -97,11 +96,6 @@ async function seedEverything(): Promise<Seeded> {
       `insert into attachment_objects (workspace_id, id, digest, size, media_type, state)
        values ($1, $2, 'sha256-object', 12, 'image/png', 'finalized')`,
       [workspaceId, randomUUID()],
-    );
-    await session.query(
-      `insert into branches (workspace_id, id, file_id, base_revision_id, tip_revision_id, conflict_group_id, state)
-       values ($1, $2, $3, $4, $4, $5, 'unresolved')`,
-      [workspaceId, randomUUID(), first.fileId, first.id, randomUUID()],
     );
     await session.query(
       'insert into purge_markers (workspace_id, file_id) values ($1, $2)',

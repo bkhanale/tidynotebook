@@ -66,9 +66,6 @@ function fakeStore(
     accept: () => Promise.reject(new Error('no write in this test')),
     onFilesDeleted: () => Promise.resolve(),
     listHistory: () => Promise.resolve({ revisions: [], nextCursor: null }),
-    listBranches: () => Promise.resolve([]),
-    markBranchesResolved: () => Promise.resolve([]),
-    acceptBranch: () => Promise.reject(new Error('no branch in this test')),
     previewPurge: () =>
       Promise.reject(new Error('no purge preview in this test')),
     purgeFiles: () => Promise.reject(new Error('no purge in this test')),

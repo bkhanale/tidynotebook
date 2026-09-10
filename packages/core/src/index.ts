@@ -35,13 +35,9 @@ export {
   requestDigest,
 } from './files/digest.ts';
 export type {
-  AcceptedBranch,
   BlockingReference,
   DeletedFilePage,
   DeletedFileRecord,
-  BranchFilter,
-  BranchRecord,
-  BranchState,
   FileKind,
   FilePage,
   FileRecord,
@@ -58,7 +54,6 @@ export type {
   SnapshotPage,
   SnapshotStart,
   StartSnapshotInput,
-  SubmitBranchInput,
   SyncChange,
   SyncChangeFeed,
   SyncEntityKind,
@@ -139,20 +134,12 @@ export {
   updatePreferences,
   updateWorkspace,
 } from './workspaces/service.ts';
-export type {
-  AcceptedBranchResolution,
-  BranchResolution,
-  ResolveBranchesInput,
-  RestoreRevisionInput,
-} from './history/service.ts';
+export type { RestoreRevisionInput } from './history/service.ts';
 export {
   defaultHistoryLimit,
-  listBranches,
   listHistory,
   maxHistoryLimit,
-  resolveBranches,
   restoreRevision,
-  submitBranch,
 } from './history/service.ts';
 export { previewPurge, purgeFiles } from './history/purge.ts';
 export type {
