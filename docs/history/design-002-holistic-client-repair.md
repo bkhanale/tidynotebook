@@ -1,3 +1,6 @@
+> Superseded by `docs/plans/003-v0.1-revamp.md`. It describes an earlier product.
+> It is kept for provenance only. Do not use it as a reference.
+
 # 002: Holistic client repair
 
 Date: 2026-09-07

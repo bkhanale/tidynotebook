@@ -1,3 +1,6 @@
+> Superseded by `docs/plans/003-v0.1-revamp.md`. It describes an earlier product.
+> It is kept for provenance only. Do not use it as a reference.
+
 # Holistic Client Repair Implementation Plan
 
 **Goal:** Make every existing web journey durable, prompt, responsive, and easy to understand, with accurate save and conflict state.
