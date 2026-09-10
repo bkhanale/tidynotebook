@@ -36,7 +36,6 @@ import {
   type RecoveryInput,
   type RecoveryRecord,
   type RemoteChange,
-  type ResolvedConflict,
   type SnapshotRevision,
 } from '@notesapp/sync';
 import {
@@ -53,7 +52,6 @@ import {
 import {
   ensureSchema,
   validateAcceptedFile,
-  validateBranch,
   validateCheckpoint,
   validateContent,
   validateCursor,
@@ -650,16 +648,6 @@ export async function openLocalStore(
           parsed.fileId,
         ]);
     }
-    for (const row of await tables.branches.toArray()) {
-      const parsed = validateBranch(row);
-      if (matchesPartition(parsed, accountId, workspaceId))
-        await tables.branches.delete([
-          parsed.serverOrigin,
-          parsed.accountId,
-          parsed.workspaceId,
-          parsed.branchId,
-        ]);
-    }
     for (const row of await tables.queue.toArray()) {
       const parsed = validateQueueRow(row);
       if (matchesPartition(parsed, accountId, workspaceId))
@@ -747,8 +735,6 @@ export async function openLocalStore(
       collect(validateContent(row));
     for (const row of await tables.acceptedFiles.toArray())
       collect(validateAcceptedFile(row));
-    for (const row of await tables.branches.toArray())
-      collect(validateBranch(row));
     for (const row of await tables.queue.toArray())
       collect(validateQueueRow(row));
     for (const row of await tables.receipts.toArray())
@@ -1013,9 +999,6 @@ export async function openLocalStore(
               input,
               state: 'pending',
               digest: null,
-              conflictGroupId: null,
-              branchMutationId: null,
-              branchState: 'none',
               errorCode: null,
               createdAt: clientTime,
             });
@@ -1030,9 +1013,6 @@ export async function openLocalStore(
               input,
               state: 'pending',
               digest: null,
-              conflictGroupId: null,
-              branchMutationId: null,
-              branchState: 'none',
               errorCode: null,
             };
           },
@@ -1066,9 +1046,6 @@ export async function openLocalStore(
               input: row.input,
               state: row.state,
               digest: row.digest,
-              conflictGroupId: row.conflictGroupId,
-              branchMutationId: row.branchMutationId,
-              branchState: row.branchState,
               errorCode: row.errorCode,
             }));
         }),
@@ -1115,18 +1092,14 @@ export async function openLocalStore(
           if (entry === null) return;
           await tables.queue.put({
             ...entry,
-            state: details?.branchState === 'pending' ? 'sending' : 'conflict',
-            conflictGroupId: details?.conflictGroupId ?? entry.conflictGroupId,
-            branchMutationId:
-              details?.branchMutationId ?? entry.branchMutationId,
-            branchState: details?.branchState ?? entry.branchState,
+            state: 'conflict',
             errorCode: details?.errorCode ?? entry.errorCode,
           });
           changes.push({
             accountId,
             workspaceId: entry.workspaceId,
             fileId: entry.input.revisions[0]?.fileId ?? null,
-            kind: 'conflict',
+            kind: 'queue',
           });
         }),
       );
@@ -1240,9 +1213,6 @@ export async function openLocalStore(
             input: next.input,
             state: next.state,
             digest: next.digest,
-            conflictGroupId: next.conflictGroupId,
-            branchMutationId: next.branchMutationId,
-            branchState: next.branchState,
             errorCode: next.errorCode,
           };
         }),
@@ -1683,7 +1653,6 @@ export async function openLocalStore(
               latestDraftSequence: draft?.sequence ?? null,
               latestMutationId: queue?.mutationId ?? null,
               queueState: queue?.state ?? null,
-              conflictGroupId: queue?.conflictGroupId ?? null,
               acceptedHeadRevisionId: file?.acceptedHeadRevisionId ?? null,
               localHeadRevisionId: file?.localHeadRevisionId ?? null,
               hasUncheckpointedDraft,
@@ -1706,249 +1675,10 @@ export async function openLocalStore(
               fileId: revision.fileId,
               mutationId: entry.input.mutationId,
               input: entry.input,
-              conflictGroupId: entry.conflictGroupId,
-              branchMutationId: entry.branchMutationId,
-              branchState: entry.branchState,
               errorCode: entry.errorCode,
             })),
           ),
       );
-    },
-
-    async resolveConflict(
-      accountId: string,
-      workspaceId: string,
-      conflictGroupId: string,
-      result: ResolvedConflict,
-    ): Promise<void> {
-      const resolvedByFile = new Map(
-        result.revisions.map(
-          (revision) => [revision.fileId, revision] as const,
-        ),
-      );
-      if (resolvedByFile.size !== result.revisions.length)
-        throw new LocalStorageError(
-          'corrupt',
-          'a conflict result contains two revisions for one file',
-        );
-      for (const revision of result.revisions) {
-        if (
-          revision.text !== null &&
-          (await contentDigest(revision.text)) !== revision.digest
-        )
-          throw new LocalStorageError(
-            'corrupt',
-            'a conflict result does not match its content digest',
-          );
-      }
-      const affected = new Set<string>();
-      await guard('clearing a resolved conflict', () =>
-        db.transaction(
-          'rw',
-          [
-            tables.queue,
-            tables.checkpoints,
-            tables.contents,
-            tables.drafts,
-            tables.acceptedFiles,
-            tables.branches,
-          ],
-          async () => {
-            const resolvedCheckpointIds = new Set<string>();
-            const resolvedCheckpoints = new Map<string, CheckpointRow>();
-            const previousFiles = new Map<string, FileRow | null>();
-            const rows: unknown[] = await tables.queue
-              .where('[serverOrigin+accountId+workspaceId+sequence]')
-              .between(
-                partitionRange(serverOrigin, accountId, workspaceId).lower,
-                partitionRange(serverOrigin, accountId, workspaceId).upper,
-                true,
-                true,
-              )
-              .toArray();
-            const conflicts = rows
-              .map((row: unknown) => validateQueueRow(row))
-              .filter((row) => row.conflictGroupId === conflictGroupId);
-            for (const entry of conflicts) {
-              await tables.queue.delete([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                entry.mutationId,
-              ]);
-              const checkpoints: unknown[] = await tables.checkpoints
-                .where('[serverOrigin+accountId+workspaceId+mutationId]')
-                .equals([
-                  serverOrigin,
-                  accountId,
-                  workspaceId,
-                  entry.mutationId,
-                ])
-                .toArray();
-              for (const raw of checkpoints) {
-                const checkpoint = validateCheckpoint(raw);
-                affected.add(checkpoint.fileId);
-                resolvedCheckpointIds.add(checkpoint.revisionId);
-                resolvedCheckpoints.set(checkpoint.revisionId, checkpoint);
-                await tables.checkpoints.put({
-                  ...checkpoint,
-                  accepted: true,
-                });
-              }
-            }
-            if ([...affected].some((fileId) => !resolvedByFile.has(fileId)))
-              throw new LocalStorageError(
-                'corrupt',
-                'a conflict result does not match the affected local files',
-              );
-            for (const revision of result.revisions) {
-              affected.add(revision.fileId);
-              const stored: unknown = await tables.acceptedFiles.get([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                revision.fileId,
-              ]);
-              const file =
-                stored === undefined ? null : validateAcceptedFile(stored);
-              previousFiles.set(revision.fileId, file);
-              if (revision.text !== null)
-                await tables.contents.put({
-                  serverOrigin,
-                  accountId,
-                  workspaceId,
-                  digest: revision.digest,
-                  text: revision.text,
-                  bytes: null,
-                  size: byteLength(revision.text),
-                });
-              const hasNewerLocalHead =
-                file?.localHeadRevisionId !== null &&
-                file?.localHeadRevisionId !== file?.acceptedHeadRevisionId &&
-                !resolvedCheckpointIds.has(file?.localHeadRevisionId ?? '');
-              await tables.acceptedFiles.put({
-                serverOrigin,
-                accountId,
-                workspaceId,
-                fileId: revision.fileId,
-                kind: file?.kind ?? revision.kind,
-                path: revision.path,
-                deleted: revision.deleted,
-                acceptedHeadRevisionId: revision.revisionId,
-                acceptedHeadDigest: revision.digest,
-                localHeadRevisionId: hasNewerLocalHead
-                  ? (file?.localHeadRevisionId ?? revision.revisionId)
-                  : revision.revisionId,
-                updatedAt: revision.serverTime,
-              });
-            }
-            for (const fileId of affected) {
-              const resolution = resolvedByFile.get(fileId);
-              if (resolution === undefined) continue;
-              const draftRows: unknown[] = await tables.drafts
-                .where('[serverOrigin+accountId+workspaceId+fileId]')
-                .equals([serverOrigin, accountId, workspaceId, fileId])
-                .toArray();
-              for (const raw of draftRows) {
-                const draft = validateDraft(raw);
-                // An immutable checkpoint outside the resolved group is later
-                // work. Its draft and local head must stay on that branch.
-                if (
-                  draft.lastCheckpointId !== null &&
-                  !resolvedCheckpointIds.has(draft.lastCheckpointId)
-                )
-                  continue;
-
-                let baseline: {
-                  readonly text: string;
-                  readonly path: string;
-                  readonly deleted: boolean;
-                } | null = null;
-                const checkpoint =
-                  draft.lastCheckpointId === null
-                    ? null
-                    : (resolvedCheckpoints.get(draft.lastCheckpointId) ?? null);
-                if (checkpoint !== null) {
-                  const storedContent: unknown = await tables.contents.get([
-                    serverOrigin,
-                    accountId,
-                    workspaceId,
-                    checkpoint.digest,
-                  ]);
-                  const content =
-                    storedContent === undefined
-                      ? null
-                      : validateContent(storedContent);
-                  if (content?.text !== null && content?.text !== undefined)
-                    baseline = {
-                      text: content.text,
-                      path: checkpoint.path,
-                      deleted: checkpoint.deleted,
-                    };
-                } else {
-                  const previous = previousFiles.get(fileId) ?? null;
-                  if (
-                    previous?.acceptedHeadRevisionId === draft.baseRevisionId &&
-                    previous.acceptedHeadDigest !== null
-                  ) {
-                    const storedContent: unknown = await tables.contents.get([
-                      serverOrigin,
-                      accountId,
-                      workspaceId,
-                      previous.acceptedHeadDigest,
-                    ]);
-                    const content =
-                      storedContent === undefined
-                        ? null
-                        : validateContent(storedContent);
-                    if (content?.text !== null && content?.text !== undefined)
-                      baseline = {
-                        text: content.text,
-                        path: previous.path,
-                        deleted: previous.deleted,
-                      };
-                  }
-                }
-                const changedAfterCheckpoint =
-                  baseline === null ||
-                  baseline.text !== draft.text ||
-                  baseline.path !== draft.path ||
-                  baseline.deleted !== draft.deleted;
-                // An unchanged branch draft adopts the selected resolution.
-                // New uncheckpointed text keeps its body but moves its base to
-                // the accepted merge, so its next checkpoint is not stale.
-                await tables.drafts.put({
-                  ...draft,
-                  baseRevisionId: resolution.revisionId,
-                  lastCheckpointId: resolution.revisionId,
-                  text:
-                    changedAfterCheckpoint || resolution.text === null
-                      ? draft.text
-                      : resolution.text,
-                  path: changedAfterCheckpoint ? draft.path : resolution.path,
-                  deleted: changedAfterCheckpoint
-                    ? draft.deleted
-                    : resolution.deleted,
-                  savedAt: nowIso(),
-                });
-              }
-            }
-            const branches: unknown[] = await tables.branches.toArray();
-            for (const raw of branches) {
-              const branch = validateBranch(raw);
-              if (
-                matchesPartition(branch, accountId, workspaceId) &&
-                affected.has(branch.fileId)
-              )
-                await tables.branches.put({ ...branch, resolved: true });
-            }
-          },
-        ),
-      );
-      for (const fileId of affected) {
-        publish({ accountId, workspaceId, fileId, kind: 'conflict' });
-        publish({ accountId, workspaceId, fileId, kind: 'file' });
-      }
     },
 
     async readCachedNote(
@@ -2402,7 +2132,6 @@ export async function openLocalStore(
             tables.checkpoints,
             tables.contents,
             tables.acceptedFiles,
-            tables.branches,
             tables.queue,
             tables.receipts,
             tables.stagedSnapshots,

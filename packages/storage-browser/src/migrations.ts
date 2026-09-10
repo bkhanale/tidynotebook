@@ -12,17 +12,12 @@
  * and read-only server content, which is better than editing on top of records
  * whose shape is unknown.
  */
-import {
-  LocalStorageError,
-  type BranchSubmissionState,
-  type QueueState,
-} from '@notesapp/sync';
+import { LocalStorageError, type QueueState } from '@notesapp/sync';
 import type { ChangesetInput, ContentRef, RevisionInput } from '@notesapp/core';
 import {
   metaKey,
   schemaVersions,
   tableNames,
-  type BranchRow,
   type CheckpointRow,
   type ContentRow,
   type CursorRow,
@@ -246,12 +241,6 @@ export function validateChangesetInput(value: unknown): ChangesetInput {
 export function validateQueueRow(value: unknown): QueueRow {
   const row = object(value, 'queue entry');
   const states: readonly QueueState[] = ['pending', 'sending', 'conflict'];
-  const branchStates: readonly BranchSubmissionState[] = [
-    'none',
-    'pending',
-    'submitted',
-    'failed',
-  ];
   return {
     ...partition(row, 'queue entry'),
     mutationId: text(row, 'mutationId', 'queue entry'),
@@ -259,9 +248,6 @@ export function validateQueueRow(value: unknown): QueueRow {
     input: validateChangesetInput(row['input']),
     state: member(row, 'state', states, 'queue entry'),
     digest: optionalText(row, 'digest', 'queue entry'),
-    conflictGroupId: optionalText(row, 'conflictGroupId', 'queue entry'),
-    branchMutationId: optionalText(row, 'branchMutationId', 'queue entry'),
-    branchState: member(row, 'branchState', branchStates, 'queue entry'),
     errorCode: optionalText(row, 'errorCode', 'queue entry'),
     createdAt: text(row, 'createdAt', 'queue entry'),
   };
@@ -320,20 +306,6 @@ export function validateAcceptedFile(value: unknown): FileRow {
     localHeadRevisionId: optionalText(row, 'localHeadRevisionId', 'file'),
     deleted: flag(row, 'deleted', 'file'),
     updatedAt: text(row, 'updatedAt', 'file'),
-  };
-}
-
-/** Narrows one stored local branch. */
-export function validateBranch(value: unknown): BranchRow {
-  const row = object(value, 'branch');
-  return {
-    ...partition(row, 'branch'),
-    branchId: text(row, 'branchId', 'branch'),
-    fileId: text(row, 'fileId', 'branch'),
-    baseRevisionId: optionalText(row, 'baseRevisionId', 'branch'),
-    tips: textList(row, 'tips', 'branch'),
-    resolved: flag(row, 'resolved', 'branch'),
-    createdAt: text(row, 'createdAt', 'branch'),
   };
 }
 
@@ -427,14 +399,7 @@ export function validateRecovery(value: unknown): RecoveryRow {
     reason: member(
       row,
       'reason',
-      [
-        'access_revoked',
-        'role_downgraded',
-        'purged',
-        'sign_out',
-        'save_refused',
-        'stale_draft',
-      ] as const,
+      ['purged', 'sign_out', 'save_refused', 'stale_draft'] as const,
       'recovery',
     ),
     code: addedText(row, 'code', 'recovery'),
@@ -461,8 +426,9 @@ export function validateMeta(value: unknown): MetaRow {
  *
  * Version 1 is the first released schema. Version 2 adds the sync worker
  * lease and the staged snapshot items; both tables start empty, so the step
- * only records the move. A gap between two stored versions with no step is
- * a refusal, never a silent continuation.
+ * only records the move. Version 4 removes what the conflict-branch feature
+ * wrote. A gap between two stored versions with no step is a refusal, never
+ * a silent continuation.
  */
 export const migrationSteps: readonly {
   readonly from: number;
@@ -481,11 +447,33 @@ export const migrationSteps: readonly {
       await tables.queue.toCollection().modify((value: unknown) => {
         if (value === null || typeof value !== 'object') return;
         const row = value as Record<string, unknown>;
-        row['conflictGroupId'] = null;
-        row['branchMutationId'] = null;
-        row['branchState'] = 'none';
         row['errorCode'] = null;
       });
+    },
+  },
+  {
+    from: 3,
+    to: 4,
+    run: async (tables): Promise<void> => {
+      // The branch members of a queue entry have no reader left. The Dexie
+      // schema of version 4 already deleted the `branches` table itself.
+      await tables.queue.toCollection().modify((value: unknown) => {
+        if (value === null || typeof value !== 'object') return;
+        const row = value as Record<string, unknown>;
+        delete row['conflictGroupId'];
+        delete row['branchMutationId'];
+        delete row['branchState'];
+      });
+      // Only a revoked membership or a viewer downgrade wrote these two
+      // reasons, and neither can happen now. No shipped code path ever wrote
+      // one, so nothing of the person's work is dropped here.
+      await tables.recovery
+        .filter((row: unknown) => {
+          if (row === null || typeof row !== 'object') return false;
+          const reason: unknown = (row as Record<string, unknown>)['reason'];
+          return reason === 'access_revoked' || reason === 'role_downgraded';
+        })
+        .delete();
     },
   },
 ];
@@ -503,7 +491,6 @@ async function revalidate(tables: Tables): Promise<void> {
   for (const row of await tables.contents.toArray()) validateContent(row);
   for (const row of await tables.acceptedFiles.toArray())
     validateAcceptedFile(row);
-  for (const row of await tables.branches.toArray()) validateBranch(row);
   for (const row of await tables.queue.toArray()) validateQueueRow(row);
   for (const row of await tables.receipts.toArray()) validateReceipt(row);
   for (const row of await tables.stagedSnapshots.toArray())

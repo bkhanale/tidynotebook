@@ -307,10 +307,10 @@ export async function completePendingSignOut(
 /**
  * Copies queued pending work into the account-bound recovery area.
  *
- * Used when revoked access, a viewer downgrade, or a purge leaves local
- * work the server can no longer accept. The queue itself is kept, so a
- * restored role can still submit it; the recovery copy is the clipboard
- * source and the explicit-removal target. Returns the copied count.
+ * Used when a purge or a sign-out leaves local work that the server can no
+ * longer accept. The queue itself is kept, so a later retry can still submit
+ * it; the recovery copy is the clipboard source and the explicit-removal
+ * target. Returns the copied count.
  */
 export async function copyPendingToRecovery(
   store: LocalStore,
@@ -335,13 +335,6 @@ export async function copyPendingToRecovery(
   return copied;
 }
 
-/** Whether a workspace role may write. Viewers cannot. */
-export function isWriterRole(
-  role: 'owner' | 'admin' | 'editor' | 'viewer',
-): boolean {
-  return role !== 'viewer';
-}
-
 /**
  * Whether one recovery record may be shown to one signed-in account.
  *
@@ -356,8 +349,7 @@ export function isRecoveryVisible(
 }
 
 /** Where the sync engine paused and what the user does next. */
-export type AccessState =
-  'ok' | 'session-expired' | 'access-revoked' | 'viewer';
+export type AccessState = 'ok' | 'session-expired' | 'access-revoked';
 
 /** One readable sentence for an access state. No note content is named. */
 export function accessStateMessage(state: AccessState): string {
@@ -365,7 +357,5 @@ export function accessStateMessage(state: AccessState): string {
     return 'The session expired. Sync is paused and drafts are kept. Sign in again.';
   if (state === 'access-revoked')
     return 'This account lost access to the workspace. Server reads and writes stop; kept work waits in recovery.';
-  if (state === 'viewer')
-    return 'The role is now viewer. Writes stop and pending edits wait in recovery while permitted reads continue.';
   return 'Sync is running.';
 }

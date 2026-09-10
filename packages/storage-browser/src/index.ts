@@ -6,7 +6,6 @@
  * browser database.
  */
 export type {
-  BranchRow,
   CheckpointRow,
   ContentRow,
   CursorRow,
@@ -41,7 +40,6 @@ export {
   isBlockedUpgradeError,
   migrationSteps,
   validateAcceptedFile,
-  validateBranch,
   validateChangesetInput,
   validateCheckpoint,
   validateContent,

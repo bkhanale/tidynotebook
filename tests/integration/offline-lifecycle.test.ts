@@ -398,7 +398,7 @@ await test('recovery copies stay bound to the original account', async () => {
     store,
     accountA,
     workspace,
-    'access_revoked',
+    'purged',
   );
   assert.equal(copied, 1);
 
@@ -407,11 +407,11 @@ await test('recovery copies stay bound to the original account', async () => {
   const firstKept = keptA[0];
   assert.ok(firstKept !== undefined, 'the recovery copy must exist');
   assert.equal(firstKept.text, 'private edit\n');
-  assert.equal(firstKept.reason, 'access_revoked');
+  assert.equal(firstKept.reason, 'purged');
   assert.equal(isRecordVisible(firstKept, accountA), true);
   assert.equal(isRecordVisible(firstKept, accountB), false);
 
-  // The queue itself is kept for a restored role; the recovery copy is extra.
+  // The queue itself is kept for a later retry; the recovery copy is extra.
   assert.equal((await store.pending(accountA, workspace)).length, 1);
 
   // The other account sees nothing and cannot remove what it cannot name.
@@ -422,7 +422,7 @@ await test('recovery copies stay bound to the original account', async () => {
     fileId: randomUUID(),
     path: 'notes/extra.md',
     text: 'extra\n',
-    reason: 'role_downgraded',
+    reason: 'sign_out',
   });
   await store.removeRecovery(accountB, workspace, stored.recoveryId);
   assert.equal((await store.recover(accountA, workspace)).length, 2);

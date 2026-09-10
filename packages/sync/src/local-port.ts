@@ -15,11 +15,7 @@
  *
  * Local browser data is not a backup. It is the working copy of one device.
  */
-import type {
-  AcceptedChangeset,
-  AcceptedRevision,
-  ChangesetInput,
-} from '@notesapp/core';
+import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
 import type { LocalSearchFile } from './local-search.ts';
 
 /**
@@ -68,11 +64,13 @@ export type Draft = {
   readonly sequence: number;
 };
 
-/** Where one queued mutation stands. */
+/**
+ * Where one queued mutation stands.
+ *
+ * `conflict` means that the server refused the mutation for good and that the
+ * body is kept for the person to place again.
+ */
 export type QueueState = 'pending' | 'sending' | 'conflict';
-
-/** Where the server-side branch submission of one conflict stands. */
-export type BranchSubmissionState = 'none' | 'pending' | 'submitted' | 'failed';
 
 /**
  * One mutation that waits for the server.
@@ -87,13 +85,15 @@ export type QueueEntry = {
   readonly input: ChangesetInput;
   readonly state: QueueState;
   readonly digest: string | null;
-  readonly conflictGroupId: string | null;
-  readonly branchMutationId: string | null;
-  readonly branchState: BranchSubmissionState;
   readonly errorCode: string | null;
 };
 
-/** Content-free notice that durable local state changed. */
+/**
+ * Content-free notice that durable local state changed.
+ *
+ * `conflict` names a change of the Needs attention list: a save the server
+ * refused for good, or a recovery copy that was kept or removed.
+ */
 export type LocalChange = {
   readonly accountId: string;
   readonly workspaceId: string;
@@ -119,33 +119,23 @@ export type FileSaveSnapshot = {
   readonly latestDraftSequence: number | null;
   readonly latestMutationId: string | null;
   readonly queueState: QueueState | null;
-  readonly conflictGroupId: string | null;
   readonly acceptedHeadRevisionId: string | null;
   readonly localHeadRevisionId: string | null;
   readonly hasUncheckpointedDraft: boolean;
 };
 
-/** Durable local record of a server conflict group. */
+/**
+ * One queued mutation that the server refused for good.
+ *
+ * The Needs attention list reads these. The body is kept, so the person can
+ * place the text again or discard it.
+ */
 export type LocalConflict = {
   readonly accountId: string;
   readonly fileId: string;
   readonly mutationId: string;
   readonly input: ChangesetInput;
-  readonly conflictGroupId: string | null;
-  readonly branchMutationId: string | null;
-  readonly branchState: BranchSubmissionState;
   readonly errorCode: string | null;
-};
-
-/** Server result needed to clear a resolved conflict locally. */
-export type ResolvedConflict = {
-  readonly mutationId: string;
-  readonly revisions: readonly (AcceptedRevision & {
-    /** The accepted file kind supplied with the resolution. */
-    readonly kind: LocalFileKind;
-    /** The submitted Markdown body, or `null` for an attachment. */
-    readonly text: string | null;
-  })[];
 };
 
 /**
@@ -292,27 +282,6 @@ export type LocalReceipt = {
   readonly acknowledgedAt: string;
 };
 
-/**
- * A divergent local tip of one file.
- *
- * Two working copies of one file that both checkpoint produce two tips over
- * one base. The design forbids a silent merge, so both are kept and the user
- * resolves them.
- */
-export type LocalBranch = {
-  readonly serverOrigin: string;
-  readonly accountId: string;
-  readonly workspaceId: string;
-  readonly branchId: string;
-  readonly fileId: string;
-  /** The revision both tips descend from, or `null` for two new files. */
-  readonly baseRevisionId: string | null;
-  /** The two divergent tips, the existing local head first. */
-  readonly tips: readonly string[];
-  readonly resolved: boolean;
-  readonly createdAt: string;
-};
-
 /** The commit ordered position this device has consumed. */
 export type LocalCursor = {
   readonly serverOrigin: string;
@@ -360,8 +329,8 @@ export type SnapshotRevision = {
 /**
  * One file change read from the ordered change feed.
  *
- * `file` is `null` for a membership or share record, which advances the
- * cursor without touching file metadata.
+ * `file` is `null` for a membership record, which advances the cursor
+ * without touching file metadata.
  */
 export type RemoteFileChange = {
   readonly fileId: string;
@@ -376,7 +345,7 @@ export type RemoteFileChange = {
 /**
  * One applied position of the ordered change feed.
  *
- * `file` is `null` for a membership or share record, which advances the cursor
+ * `file` is `null` for a membership record, which advances the cursor
  * without touching file metadata, and for a permanent deletion, which has no
  * revision left to name. `purgedFileId` names the file of such a deletion, so
  * the local cache can forget it.
@@ -413,20 +382,13 @@ export type Preference = {
  * server text instead. The old text is kept so the choice is reversible.
  */
 export type RecoveryReason =
-  | 'access_revoked'
-  | 'role_downgraded'
-  | 'purged'
-  | 'sign_out'
-  | 'save_refused'
-  | 'stale_draft';
+  'purged' | 'sign_out' | 'save_refused' | 'stale_draft';
 
 /**
  * Pending work that the server can no longer accept.
  *
- * The design requires that revoked access, a downgrade to viewer, and a purge
- * keep the user's text for clipboard copying or explicit removal, bound to the
- * account that wrote it. Task 17 owns the screens and the writers; this record
- * and the read below are their storage contract.
+ * A purge and a sign-out keep the user's text for clipboard copying or
+ * explicit removal, bound to the account that wrote it.
  */
 export type RecoveryRecord = {
   readonly serverOrigin: string;
@@ -596,19 +558,13 @@ export type LocalStore = {
   /**
    * Marks one queued mutation as conflicting, keeping its body.
    *
-   * Every member of `details` is optional, so a caller that only knows why
-   * the server refused the mutation can record the reason without inventing
-   * branch identifiers. A member that is left out keeps its stored value.
+   * `errorCode` is optional, so a caller that does not know why the server
+   * refused the mutation keeps the stored reason.
    */
   markConflict(
     accountId: string,
     mutationId: string,
-    details?: {
-      readonly conflictGroupId?: string;
-      readonly branchMutationId?: string;
-      readonly branchState?: Exclude<BranchSubmissionState, 'none'>;
-      readonly errorCode?: string | null;
-    },
+    details?: { readonly errorCode?: string | null },
   ): Promise<void>;
 
   /**
@@ -675,9 +631,9 @@ export type LocalStore = {
   /**
    * Keeps one pending text in the account-bound recovery area.
    *
-   * Used when revoked access, a viewer downgrade, or a purge leaves local
-   * work the server can no longer accept. The record stays under the
-   * original account for clipboard copying or explicit removal.
+   * Used when a purge or a sign-out leaves local work that the server can no
+   * longer accept. The record stays under the original account for clipboard
+   * copying or explicit removal.
    */
   addRecovery(
     accountId: string,
@@ -711,19 +667,11 @@ export type LocalStore = {
     fileId: string,
   ): Promise<FileSaveSnapshot>;
 
-  /** Unresolved local conflict queue records of one workspace. */
+  /** Refused queue records of one workspace, for the Needs attention list. */
   listLocalConflicts(
     accountId: string,
     workspaceId: string,
   ): Promise<readonly LocalConflict[]>;
-
-  /** Clears one resolved server conflict from local durable state. */
-  resolveConflict(
-    accountId: string,
-    workspaceId: string,
-    conflictGroupId: string,
-    result: ResolvedConflict,
-  ): Promise<void>;
 
   /**
    * Reads one cached note, with the newest saved draft applied.
@@ -803,9 +751,9 @@ export type LocalStore = {
    *
    * With a workspace ID only that partition is cleared, otherwise every
    * workspace of the account. Drafts, checkpoints, contents, accepted
-   * metadata, branches, queue entries, receipts, staged snapshots, cursors,
-   * recovery records, and workspace preferences are removed. The
-   * account-wide sign-out marker and the device identity survive.
+   * metadata, queue entries, receipts, staged snapshots, cursors, recovery
+   * records, and workspace preferences are removed. The account-wide
+   * sign-out marker and the device identity survive.
    */
   clearPrivateData(accountId: string, workspaceId?: string): Promise<void>;
 

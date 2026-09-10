@@ -83,8 +83,6 @@ export type SyncNotice =
   | { readonly kind: 'changes-applied'; readonly count: number }
   | { readonly kind: 'paused'; readonly reason: 'session' }
   | { readonly kind: 'access-lost' }
-  | { readonly kind: 'role-downgraded' }
-  | { readonly kind: 'writes-resumed' }
   | { readonly kind: 'lease-held' }
   | { readonly kind: 'lease-lost' }
   | { readonly kind: 'cycle-error'; readonly code: string };

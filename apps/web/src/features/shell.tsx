@@ -107,7 +107,6 @@ function useWorkspaceFiles(workspaceId: string): {
       change.kind === 'draft' ||
       change.kind === 'queue' ||
       change.kind === 'file' ||
-      change.kind === 'conflict' ||
       change.kind === 'reset',
   );
 
@@ -743,7 +742,6 @@ export function WorkspaceView(): ReactNode {
       change.kind === 'draft' ||
       change.kind === 'queue' ||
       change.kind === 'file' ||
-      change.kind === 'conflict' ||
       change.kind === 'reset',
   );
 

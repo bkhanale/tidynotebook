@@ -541,10 +541,6 @@ export function useWorkspaceSync(
         setMessage('Sync paused: the session expired. Sign in again.');
       else if (notice.kind === 'access-lost')
         setMessage('Sync stopped: this account lost access to the workspace.');
-      else if (notice.kind === 'role-downgraded')
-        setMessage('Sync paused for writes: the role is now viewer.');
-      else if (notice.kind === 'writes-resumed')
-        setMessage('Sync resumed writes after a role change.');
       else if (notice.kind === 'lease-held')
         setMessage('Another tab is syncing this workspace.');
       else setMessage('Sync lost its worker lease and retries.');

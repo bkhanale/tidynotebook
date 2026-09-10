@@ -54,10 +54,6 @@ await test('an unknown refusal code still reads as a sentence', () => {
 
 await test('every other recovery reason has its own sentence', () => {
   assert.equal(
-    parkedSaveReason('access_revoked', null),
-    'Your access to this workspace was removed.',
-  );
-  assert.equal(
     parkedSaveReason('sign_out', null),
     'You signed out while this save waited.',
   );

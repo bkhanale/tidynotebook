@@ -4,7 +4,6 @@
  * This module coordinates history pagination and revision restoration.
  */
 import { authorize, type Actor } from '../identity/actor.ts';
-import { contentDigest } from '../files/digest.ts';
 import { validateGraph } from '../files/graph.ts';
 import {
   fail,

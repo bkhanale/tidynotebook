@@ -10,15 +10,13 @@ export type { CheckpointComparison } from './checkpoints.ts';
 export { shouldCheckpoint } from './checkpoints.ts';
 export type {
   AttachmentPin,
-  BranchSubmissionState,
   CheckpointRecord,
   Draft,
   LocalAcceptedFile,
-  LocalBranch,
   LocalCachedNote,
+  LocalConflict,
   LocalContent,
   LocalChange,
-  LocalConflict,
   LocalCursor,
   LocalFileKind,
   LocalFileSummary,
@@ -33,7 +31,6 @@ export type {
   RecoveryInput,
   RecoveryReason,
   RecoveryRecord,
-  ResolvedConflict,
   StagedSnapshot,
 } from './local-port.ts';
 export {

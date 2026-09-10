@@ -22,13 +22,11 @@ import {
   type CheckpointRecord,
   type Draft,
   type LocalAcceptedFile,
-  type LocalBranch,
   type LocalContent,
   type LocalCursor,
   type LocalFileKind,
   type LocalReceipt,
   type Preference,
-  type BranchSubmissionState,
   type QueueState,
   type RecoveryRecord,
   type StagedSnapshot,
@@ -64,9 +62,6 @@ export type QueueRow = {
   readonly input: ChangesetInput;
   readonly state: QueueState;
   readonly digest: string | null;
-  readonly conflictGroupId: string | null;
-  readonly branchMutationId: string | null;
-  readonly branchState: BranchSubmissionState;
   readonly errorCode: string | null;
   readonly createdAt: string;
 };
@@ -84,9 +79,6 @@ export type FileRow = LocalAcceptedFile;
 
 /** The stored form of one immutable content body. */
 export type ContentRow = LocalContent;
-
-/** The stored form of one divergent local tip. */
-export type BranchRow = LocalBranch;
 
 /** The stored form of one acknowledgment. */
 export type ReceiptRow = LocalReceipt;
@@ -164,7 +156,6 @@ export type Tables = {
   readonly checkpoints: Table<CheckpointRow, [string, string, string, string]>;
   readonly contents: Table<ContentRow, [string, string, string, string]>;
   readonly acceptedFiles: Table<FileRow, [string, string, string, string]>;
-  readonly branches: Table<BranchRow, [string, string, string, string]>;
   readonly queue: Table<QueueRow, [string, string, string, string]>;
   readonly receipts: Table<ReceiptRow, [string, string, string, string]>;
   readonly stagedSnapshots: Table<
@@ -189,12 +180,14 @@ export type Tables = {
  * `./migrations.ts`. An entry is never edited once it is released, because a
  * released browser already ran it.
  *
- * Version 2 adds the sync worker lease and the staged snapshot items of
- * Task 11. Both tables start empty; the migration only revalidates.
+ * Version 2 adds the sync worker lease and the staged snapshot items. Both
+ * tables start empty; the migration only revalidates. Version 4 drops the
+ * `branches` table of the removed conflict-branch feature.
  */
 export const schemaVersions: readonly {
   readonly version: number;
-  readonly stores: Readonly<Record<string, string>>;
+  /** An index specification, or `null` to delete the store. */
+  readonly stores: Readonly<Record<string, string | null>>;
 }[] = [
   {
     version: 1,
@@ -271,6 +264,14 @@ export const schemaVersions: readonly {
       meta: 'key',
     },
   },
+  {
+    version: 4,
+    stores: {
+      // `null` deletes the store. The conflict-branch feature left the
+      // product, so the table it wrote has no reader and no writer.
+      branches: null,
+    },
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */
@@ -279,7 +280,6 @@ export const tableNames: readonly string[] = [
   'checkpoints',
   'contents',
   'acceptedFiles',
-  'branches',
   'queue',
   'receipts',
   'stagedSnapshots',
@@ -334,7 +334,6 @@ export function createDatabase(
     acceptedFiles: db.table<FileRow, [string, string, string, string]>(
       'acceptedFiles',
     ),
-    branches: db.table<BranchRow, [string, string, string, string]>('branches'),
     queue: db.table<QueueRow, [string, string, string, string]>('queue'),
     receipts: db.table<ReceiptRow, [string, string, string, string]>(
       'receipts',

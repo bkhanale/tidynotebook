@@ -174,10 +174,7 @@ class FakeStore implements LocalStore {
     if (entry !== undefined)
       this.entries.set(mutationId, {
         ...entry,
-        state: details?.branchState === 'pending' ? 'sending' : 'conflict',
-        conflictGroupId: details?.conflictGroupId ?? entry.conflictGroupId,
-        branchMutationId: details?.branchMutationId ?? entry.branchMutationId,
-        branchState: details?.branchState ?? entry.branchState,
+        state: 'conflict',
         errorCode: details?.errorCode ?? entry.errorCode,
       });
     return Promise.resolve();
@@ -278,7 +275,6 @@ class FakeStore implements LocalStore {
       latestDraftSequence: null,
       latestMutationId: null,
       queueState: null,
-      conflictGroupId: null,
       acceptedHeadRevisionId: this.acceptedHeads.get(fileId) ?? null,
       localHeadRevisionId: null,
       hasUncheckpointedDraft: false,
@@ -287,10 +283,6 @@ class FakeStore implements LocalStore {
 
   listLocalConflicts(): Promise<readonly LocalConflict[]> {
     return Promise.resolve([]);
-  }
-
-  resolveConflict(): Promise<void> {
-    return Promise.resolve();
   }
 
   readCachedNote(): Promise<null> {
@@ -501,9 +493,6 @@ function queuedEntry(
     input,
     state: 'pending',
     digest: null,
-    conflictGroupId: null,
-    branchMutationId: null,
-    branchState: 'none',
     errorCode: null,
   };
 }
@@ -1466,63 +1455,6 @@ await test('an expired session pauses the run without sending anything', async (
   controller.abort();
   await running;
   assert.equal(store.lease, null);
-});
-
-await test('a viewer downgrade suspends writes but keeps reads, then recovers', async () => {
-  const store = new FakeStore();
-  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
-  store.cursors.set(`${accountId}/${workspaceId}`, '20');
-  const notices: SyncNotice[] = [];
-  let editor = false;
-  let commits = 0;
-  const ops = stubOperations({
-    commit: (input) => {
-      commits += 1;
-      if (!editor)
-        return Promise.resolve({
-          ok: false as const,
-          problem: { status: 403, code: 'forbidden', fileIds: [] },
-        });
-      return Promise.resolve({
-        ok: true as const,
-        value: accepted(input.mutationId, ['rev-a'], '21'),
-      });
-    },
-    changes: (cursor) =>
-      Promise.resolve({
-        ok: true as const,
-        value: { changes: [], nextCursor: cursor },
-      }),
-  });
-  const engine = createSyncEngine(store, accountId, workspaceId, {
-    ownerId: 'owner-1',
-    operations: ops,
-    announce: (notice) => {
-      notices.push(notice);
-    },
-    pollIntervalMs: 5,
-    leaseTtlMs: 60_000,
-    random: () => 0,
-  });
-  const controller = new AbortController();
-  const running = engine.run(controller.signal);
-  await waitFor(() =>
-    notices.some((notice) => notice.kind === 'role-downgraded'),
-  );
-  // Writes wait while reads continue: the entry stays queued and the change
-  // poll keeps running.
-  assert.equal(store.queued()?.input.mutationId, 'mutation-1');
-  assert.ok(commits >= 1);
-  assert.equal(store.acks.length, 0);
-  editor = true;
-  await waitFor(() => store.acks.length === 1);
-  assert.ok(
-    notices.some((notice) => notice.kind === 'writes-resumed'),
-    'the restored role must resume writes',
-  );
-  controller.abort();
-  await running;
-  assert.deepEqual(store.acks, [accepted('mutation-1', ['rev-a'], '21')]);
 });
 
 await test('the worker lease is exclusive, renewable, and taken over on expiry', async () => {

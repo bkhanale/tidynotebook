@@ -37,8 +37,6 @@ const codeSentences: Readonly<Record<string, string>> = {
 
 /** One sentence for each reason a text reached the recovery area. */
 const reasonSentences: Readonly<Record<RecoveryReason, string>> = {
-  access_revoked: 'Your access to this workspace was removed.',
-  role_downgraded: 'Your role changed, so saves stopped.',
   purged: 'The note was permanently deleted.',
   sign_out: 'You signed out while this save waited.',
   save_refused: 'The server refused this save.',

@@ -323,7 +323,6 @@ export function createSyncEngine(
         if (!(await rest(pollIntervalMs, signal))) return;
         session = await verifyOnce(signal);
       }
-      let writesSuspended = false;
       for (;;) {
         if (signal.aborted) return;
         const renewed = await acquireWorkerLease(local, {
@@ -372,33 +371,10 @@ export function createSyncEngine(
             if (!(await rest(pollIntervalMs, signal))) return;
             continue;
           }
-          if (pushed === 'access-lost' && !writesSuspended) {
-            // Reads may still be permitted: a viewer keeps read access while
-            // losing writes. Pull once before deciding between a downgrade
-            // and a lost membership.
-            const probe = await pullNew(
-              local,
-              accountId,
-              workspaceId,
-              operations,
-              ctx,
-            );
-            if (probe === 'paused') {
-              noteSession('paused');
-            } else if (probe === 'access-lost') {
-              noteSession('access-lost');
-            } else {
-              // Deferred is a transport failure, not a denial: the probe
-              // reached the service, so reads work and only writes wait.
-              writesSuspended = true;
-              announce({ kind: 'role-downgraded' });
-            }
+          if (pushed === 'access-lost') {
+            noteSession('access-lost');
             if (!(await rest(pollIntervalMs, signal))) return;
             continue;
-          }
-          if (pushed === 'done' && writesSuspended) {
-            writesSuspended = false;
-            announce({ kind: 'writes-resumed' });
           }
           if (pushed === 'deferred') {
             if (!(await rest(pollIntervalMs, signal))) return;
