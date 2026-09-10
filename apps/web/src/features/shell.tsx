@@ -22,6 +22,7 @@ import {
 } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
+import { shortcuts } from '@notesapp/editor';
 import {
   Button,
   ChevronDownIcon,
@@ -690,19 +691,15 @@ function ShellFrame({
                 >
                   Keyboard shortcuts
                 </h2>
-                <dl className="my-4 space-y-2 text-ui">
-                  <div className="flex justify-between gap-4">
-                    <dt>Open note</dt>
-                    <dd>Cmd or Ctrl + O</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt>Save note</dt>
-                    <dd>Cmd or Ctrl + S</dd>
-                  </div>
-                  <div className="flex justify-between gap-4">
-                    <dt>Toggle task</dt>
-                    <dd>Cmd or Ctrl + Enter</dd>
-                  </div>
+                <dl className="my-4 max-h-96 space-y-2 overflow-y-auto text-ui">
+                  {shortcuts.map((row) => (
+                    <div className="flex justify-between gap-4" key={row.keys}>
+                      <dt>{row.description}</dt>
+                      <dd className="whitespace-nowrap text-muted">
+                        {row.keys}
+                      </dd>
+                    </div>
+                  ))}
                 </dl>
                 <Button
                   variant="secondary"
