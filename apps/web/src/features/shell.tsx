@@ -33,11 +33,13 @@ import {
   SettingsIcon,
   StatusRegion,
   SunIcon,
+  TrashIcon,
   UserIcon,
   WorkspaceIcon,
 } from '@notesapp/ui';
 import {
   problemMessage,
+  SyncProvider,
   useLocalStore,
   useSession,
   useTheme,
@@ -48,6 +50,7 @@ import { NewNoteButton } from './new-note.tsx';
 import { displayNoteName } from './note-name.ts';
 import { BacklinksPanel, OutlinePanel } from './backlinks.tsx';
 import { QuickOpenDialog, SearchDialog } from './search.tsx';
+import { DeleteNoticeBar, DeleteNoticeProvider } from './trash.tsx';
 import { mergeFileSummaries, useLocalQuery } from '../local-state.ts';
 
 const NoteEditorLoader = lazy(async () => ({
@@ -532,7 +535,8 @@ export function Shell(): ReactNode {
 
   const canEdit = activeWorkspace !== null && canWrite(activeWorkspace.role);
   const accountId = session.account?.accountId ?? null;
-  const syncMessage = useWorkspaceSync(store.store, accountId, workspaceId);
+  const sync = useWorkspaceSync(store.store, accountId, workspaceId);
+  const syncMessage = sync.message;
   const showSyncProblem =
     syncMessage.includes('stopped') ||
     syncMessage.includes('retries') ||
@@ -614,183 +618,213 @@ export function Shell(): ReactNode {
   };
 
   return (
-    <div className="min-h-dvh bg-app text-ink">
-      <a
-        className="fixed left-2 top-2 z-50 -translate-y-20 rounded-md bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
-        href="#notes-content"
-      >
-        Skip to content
-      </a>
-
-      <header className="sticky top-0 z-30 flex h-13 items-center gap-3 border-b border-edge-subtle bg-card px-3">
-        <Button
-          buttonRef={menuButtonRef}
-          variant="ghost"
-          size="sm"
-          className="md:hidden"
-          label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-          icon={<MenuIcon size={18} />}
-          ariaControls="notes-sidebar"
-          ariaExpanded={drawerOpen}
-          onClick={() => {
-            setDrawerOpen((open) => !open);
-          }}
-        >
-          Menu
-        </Button>
-
-        <Link
-          className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
-          to="/"
-        >
-          <span
-            className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
-            aria-hidden="true"
+    <SyncProvider value={sync}>
+      <DeleteNoticeProvider>
+        <div className="min-h-dvh bg-app text-ink">
+          <a
+            className="fixed left-2 top-2 z-50 -translate-y-20 rounded-md bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
+            href="#notes-content"
           >
-            <WorkspaceIcon size={16} />
-          </span>
-          <span>Notesapp</span>
-        </Link>
+            Skip to content
+          </a>
 
-        {workspaceId !== null ? (
-          <SearchDialog
-            store={store.store}
-            accountId={accountId}
-            workspaceId={workspaceId}
-            onNavigate={() => setDrawerOpen(false)}
-          />
-        ) : null}
-
-        <span className="min-w-0 flex-1" />
-
-        <div className="flex shrink-0 items-center gap-1">
-          {workspaceId !== null && canEdit && session.account !== null ? (
-            <NewNoteButton
-              store={store.store}
-              accountId={session.account.accountId}
-              workspaceId={workspaceId}
-              variant="primary"
+          <header className="sticky top-0 z-30 flex h-13 items-center gap-3 border-b border-edge-subtle bg-card px-3">
+            <Button
+              buttonRef={menuButtonRef}
+              variant="ghost"
               size="sm"
-            />
-          ) : null}
+              className="md:hidden"
+              label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+              icon={<MenuIcon size={18} />}
+              ariaControls="notes-sidebar"
+              ariaExpanded={drawerOpen}
+              onClick={() => {
+                setDrawerOpen((open) => !open);
+              }}
+            >
+              Menu
+            </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            label={
-              resolved === 'dark'
-                ? 'Switch to light mode'
-                : 'Switch to dark mode'
-            }
-            icon={
-              resolved === 'dark' ? (
-                <SunIcon size={16} />
-              ) : (
-                <MoonIcon size={16} />
-              )
-            }
-            onClick={toggleTheme}
+            <Link
+              className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
+              to="/"
+            >
+              <span
+                className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
+                aria-hidden="true"
+              >
+                <WorkspaceIcon size={16} />
+              </span>
+              <span>Notesapp</span>
+            </Link>
+
+            {workspaceId !== null ? (
+              <SearchDialog
+                store={store.store}
+                accountId={accountId}
+                workspaceId={workspaceId}
+                onNavigate={() => setDrawerOpen(false)}
+              />
+            ) : null}
+
+            <span className="min-w-0 flex-1" />
+
+            <div className="flex shrink-0 items-center gap-1">
+              {workspaceId !== null && canEdit && session.account !== null ? (
+                <NewNoteButton
+                  store={store.store}
+                  accountId={session.account.accountId}
+                  workspaceId={workspaceId}
+                  variant="primary"
+                  size="sm"
+                />
+              ) : null}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                label={
+                  resolved === 'dark'
+                    ? 'Switch to light mode'
+                    : 'Switch to dark mode'
+                }
+                icon={
+                  resolved === 'dark' ? (
+                    <SunIcon size={16} />
+                  ) : (
+                    <MoonIcon size={16} />
+                  )
+                }
+                onClick={toggleTheme}
+              />
+
+              <Link
+                className="inline-flex size-8 items-center justify-center rounded-lg text-strong hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus"
+                to="/settings"
+                aria-label="Account settings"
+                title="Account settings"
+              >
+                <UserIcon size={16} />
+              </Link>
+            </div>
+          </header>
+
+          <div
+            className={`${drawerOpen ? 'fixed inset-0 z-30 bg-black/50 md:hidden' : 'hidden'}`}
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
           />
 
-          <Link
-            className="inline-flex size-8 items-center justify-center rounded-lg text-strong hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus"
-            to="/settings"
-            aria-label="Account settings"
-            title="Account settings"
+          <aside
+            ref={sidebarRef}
+            id="notes-sidebar"
+            className={`fixed bottom-0 left-0 top-13 z-40 flex w-64 flex-col border-r border-edge-subtle bg-surface transition-transform md:translate-x-0 ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+            aria-label="Notes navigation"
+            aria-modal={drawerOpen ? true : undefined}
+            role={drawerOpen ? 'dialog' : undefined}
           >
-            <UserIcon size={16} />
-          </Link>
-        </div>
-      </header>
+            <Sidebar
+              workspaceId={workspaceId}
+              files={workspaceFiles.files}
+              filesLoading={workspaceFiles.loading}
+              onNavigate={() => setDrawerOpen(false)}
+            />
+            <div className="border-t border-edge-subtle p-2">
+              {workspaceId === null ? null : (
+                <Link
+                  className="flex min-h-8 items-center gap-2 rounded-md px-2 text-control text-muted no-underline transition-colors hover:bg-hover hover:text-strong"
+                  to={`/w/${workspaceId}/trash`}
+                  onClick={() => setDrawerOpen(false)}
+                  aria-current={
+                    location.pathname === `/w/${workspaceId}/trash`
+                      ? 'page'
+                      : undefined
+                  }
+                >
+                  <span
+                    className="inline-flex shrink-0 items-center"
+                    aria-hidden="true"
+                  >
+                    <TrashIcon size={14} />
+                  </span>
+                  <span>Trash</span>
+                </Link>
+              )}
+              <button
+                type="button"
+                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
+                onClick={() => setShortcutsOpen(true)}
+              >
+                Keyboard shortcuts
+              </button>
+              {showSyncProblem ? <StatusRegion message={syncMessage} /> : null}
+              {store.error !== null ? (
+                <p className="my-1 text-control text-danger" role="alert">
+                  {store.error}
+                </p>
+              ) : null}
+            </div>
+          </aside>
 
-      <div
-        className={`${drawerOpen ? 'fixed inset-0 z-30 bg-black/50 md:hidden' : 'hidden'}`}
-        onClick={() => setDrawerOpen(false)}
-        aria-hidden="true"
-      />
+          <div id="notes-content" className="min-h-0 md:pl-64">
+            <Outlet />
+          </div>
 
-      <aside
-        ref={sidebarRef}
-        id="notes-sidebar"
-        className={`fixed bottom-0 left-0 top-13 z-40 flex w-64 flex-col border-r border-edge-subtle bg-surface transition-transform md:translate-x-0 ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
-        aria-label="Notes navigation"
-        aria-modal={drawerOpen ? true : undefined}
-        role={drawerOpen ? 'dialog' : undefined}
-      >
-        <Sidebar
-          workspaceId={workspaceId}
-          files={workspaceFiles.files}
-          filesLoading={workspaceFiles.loading}
-          onNavigate={() => setDrawerOpen(false)}
-        />
-        <div className="border-t border-edge-subtle p-2">
-          <button
-            type="button"
-            className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
-            onClick={() => setShortcutsOpen(true)}
-          >
-            Keyboard shortcuts
-          </button>
-          {showSyncProblem ? <StatusRegion message={syncMessage} /> : null}
-          {store.error !== null ? (
-            <p className="my-1 text-control text-danger" role="alert">
-              {store.error}
-            </p>
+          <DeleteNoticeBar />
+
+          <QuickOpenDialog
+            open={quickOpen}
+            workspaceId={workspaceId}
+            files={workspaceFiles.files}
+            onOpenChange={setQuickOpen}
+          />
+          {shortcutsOpen ? (
+            <div
+              className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 px-4 pt-24"
+              role="presentation"
+              onMouseDown={(event): void => {
+                if (event.target === event.currentTarget)
+                  setShortcutsOpen(false);
+              }}
+            >
+              <section
+                className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-5 text-ink shadow-xl"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="keyboard-shortcuts-title"
+              >
+                <h2
+                  className="m-0 text-lg font-semibold text-strong"
+                  id="keyboard-shortcuts-title"
+                >
+                  Keyboard shortcuts
+                </h2>
+                <dl className="my-4 space-y-2 text-ui">
+                  <div className="flex justify-between gap-4">
+                    <dt>Open note</dt>
+                    <dd>Cmd or Ctrl + O</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Save note</dt>
+                    <dd>Cmd or Ctrl + S</dd>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <dt>Toggle task</dt>
+                    <dd>Cmd or Ctrl + Enter</dd>
+                  </div>
+                </dl>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShortcutsOpen(false)}
+                >
+                  Close
+                </Button>
+              </section>
+            </div>
           ) : null}
         </div>
-      </aside>
-
-      <div id="notes-content" className="min-h-0 md:pl-64">
-        <Outlet />
-      </div>
-
-      <QuickOpenDialog
-        open={quickOpen}
-        workspaceId={workspaceId}
-        files={workspaceFiles.files}
-        onOpenChange={setQuickOpen}
-      />
-      {shortcutsOpen ? (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 px-4 pt-24"
-          role="presentation"
-          onMouseDown={(event): void => {
-            if (event.target === event.currentTarget) setShortcutsOpen(false);
-          }}
-        >
-          <section
-            className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-5 text-ink shadow-xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="keyboard-shortcuts-title"
-          >
-            <h2
-              className="m-0 text-lg font-semibold text-strong"
-              id="keyboard-shortcuts-title"
-            >
-              Keyboard shortcuts
-            </h2>
-            <dl className="my-4 space-y-2 text-ui">
-              <div className="flex justify-between gap-4">
-                <dt>Open note</dt>
-                <dd>Cmd or Ctrl + O</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt>Save note</dt>
-                <dd>Cmd or Ctrl + S</dd>
-              </div>
-              <div className="flex justify-between gap-4">
-                <dt>Toggle task</dt>
-                <dd>Cmd or Ctrl + Enter</dd>
-              </div>
-            </dl>
-            <Button variant="secondary" onClick={() => setShortcutsOpen(false)}>
-              Close
-            </Button>
-          </section>
-        </div>
-      ) : null}
-    </div>
+      </DeleteNoticeProvider>
+    </SyncProvider>
   );
 }
 

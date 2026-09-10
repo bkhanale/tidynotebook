@@ -214,12 +214,7 @@ export async function restoreFile(
   input: RestoreFileInput,
   digest: string,
 ): Promise<Result<AcceptedChangeset>> {
-  const plan = await planRestore(
-    store,
-    actor,
-    input.workspaceId,
-    input.fileId,
-  );
+  const plan = await planRestore(store, actor, input.workspaceId, input.fileId);
   if (!plan.ok) return plan;
   return commitChangeset(
     store,

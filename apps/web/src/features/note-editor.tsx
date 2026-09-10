@@ -48,6 +48,7 @@ import { problemMessage, useTheme } from '../app.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
 import { displayNoteName, storageNotePath } from './note-name.ts';
 import { canWrite, validateNotePath } from './workspaces.tsx';
+import { useDeleteNotice } from './trash.tsx';
 import { createDiagramFrame } from '../diagram/frame.ts';
 import { copyText } from '../platform.ts';
 import { stableNoteLink, type StableLinkRequest } from './search.tsx';
@@ -169,6 +170,7 @@ export function NoteEditor({
   onQueued,
 }: NoteEditorProps): ReactNode {
   const navigate = useNavigate();
+  const { announce: announceDeleted } = useDeleteNotice();
   const isDeletedRef = useRef(false);
   const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -649,10 +651,14 @@ export function NoteEditor({
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    const deletedName = name;
     void (async (): Promise<void> => {
       sequenceRef.current += 1;
       try {
         await checkpointNow.current(true);
+        // The note is in the trash now, so the person leaves for the note
+        // list and the notice there offers one step back.
+        announceDeleted({ workspaceId, fileId, name: deletedName });
         void navigate(`/w/${workspaceId}`);
       } catch (failure: unknown) {
         isDeletedRef.current = false;

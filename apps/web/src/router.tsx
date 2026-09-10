@@ -36,6 +36,9 @@ const HistoryView = lazy(async () => ({
 const PurgeView = lazy(async () => ({
   default: (await import('./features/purge.tsx')).PurgeView,
 }));
+const TrashView = lazy(async () => ({
+  default: (await import('./features/trash.tsx')).TrashView,
+}));
 const OfflineStatusRoute = lazy(async () => ({
   default: (await import('./features/offline-status.tsx')).OfflineStatusRoute,
 }));
@@ -105,6 +108,7 @@ const router = createBrowserRouter([
         path: 'w/:workspaceId/notes/:fileId/history',
         element: deferred(<HistoryView />),
       },
+      { path: 'w/:workspaceId/trash', element: deferred(<TrashView />) },
       { path: 'w/:workspaceId/purge', element: deferred(<PurgeView />) },
       {
         path: 'w/:workspaceId/offline',

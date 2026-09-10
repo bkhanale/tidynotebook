@@ -12,6 +12,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -206,6 +207,14 @@ function useSessionLoader(generation: number): {
   return { status, account, error };
 }
 
+/** What the sync engine of the open workspace reports and accepts. */
+export type SyncValue = {
+  /** One sentence about the last thing the engine did. */
+  readonly message: string;
+  /** Asks the engine for a pass without waiting for its interval. */
+  readonly requestSync: () => void;
+};
+
 /** The local store of one server origin, once it is open. */
 export type StoreValue = {
   readonly origin: string;
@@ -346,9 +355,10 @@ export function useWorkspaceSync(
   store: LocalStore | null,
   accountId: string | null,
   workspaceId: string | null,
-): string {
+): SyncValue {
   const [message, setMessage] = useState<string>('Sync has not started yet.');
   const ownerId = useMemo(syncWorkerId, []);
+  const wake = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (store === null || accountId === null || workspaceId === null) {
@@ -404,6 +414,7 @@ export function useWorkspaceSync(
     const requestSync = (): void => {
       engine.requestSync();
     };
+    wake.current = requestSync;
     const unsubscribe = store.subscribe((change) => {
       if (
         change.accountId === accountId &&
@@ -424,10 +435,40 @@ export function useWorkspaceSync(
       window.removeEventListener('focus', requestSync);
       controller.abort();
       engine.stop();
+      wake.current = () => {};
     };
   }, [store, accountId, workspaceId, ownerId]);
 
-  return message;
+  const requestSync = useCallback((): void => {
+    wake.current();
+  }, []);
+  return useMemo(() => ({ message, requestSync }), [message, requestSync]);
+}
+
+const SyncContext = createContext<SyncValue>({
+  message: 'Sync has not started yet.',
+  requestSync: () => {},
+});
+
+/** Publishes the sync state of the open workspace to the screens below. */
+export function SyncProvider({
+  value,
+  children,
+}: {
+  readonly value: SyncValue;
+  readonly children: ReactNode;
+}): ReactNode {
+  return <SyncContext.Provider value={value}>{children}</SyncContext.Provider>;
+}
+
+/**
+ * Asks the sync engine for a pass now.
+ *
+ * A screen calls this after it changed workspace state through the server, so
+ * the local cache follows at once instead of at the next safety interval.
+ */
+export function useRequestSync(): () => void {
+  return useContext(SyncContext).requestSync;
 }
 
 /**
