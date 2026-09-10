@@ -94,22 +94,27 @@ export type LocalStoreOptions = {
 
 /** The number of UTF-8 bytes of a string. */
 /**
- * Whether a working copy states something newer than the accepted head.
+ * Whether a working copy still describes the current state of its file.
  *
- * A draft describes the file only while local work is ahead: a file this
- * device never sent has no accepted head, and a file with unsent checkpoints
- * has a local head past the accepted one. Once the two heads agree, the
- * accepted row is the newer statement of the path and of the deletion state.
- * A draft left over from an earlier deletion therefore cannot hide a note that
- * the server brought back.
+ * A draft is built on one revision: its last checkpoint, or the head it was
+ * opened from. It leads whenever that anchor is still the accepted head, which
+ * is the ordinary case of typing into a file that is in sync, and whenever
+ * this device holds unsent work, whose local head is past the accepted one.
+ *
+ * It does not lead when the server moved the file past the anchor and nothing
+ * local is pending. The accepted row is then the newer statement of the path
+ * and of the deletion state, so a draft left over from an earlier deletion
+ * cannot hide a note that the server brought back.
  */
-function draftLeads(file: FileRow | null | undefined): boolean {
-  return (
-    file === null ||
-    file === undefined ||
-    file.acceptedHeadRevisionId === null ||
-    file.localHeadRevisionId !== file.acceptedHeadRevisionId
-  );
+function draftLeads(
+  file: FileRow | null | undefined,
+  draft: DraftRow,
+): boolean {
+  if (file === null || file === undefined) return true;
+  if (file.acceptedHeadRevisionId === null) return true;
+  const anchor = draft.lastCheckpointId ?? draft.baseRevisionId;
+  if (file.acceptedHeadRevisionId === anchor) return true;
+  return file.localHeadRevisionId !== file.acceptedHeadRevisionId;
 }
 
 function byteLength(text: string): number {
@@ -1290,7 +1295,7 @@ export async function openLocalStore(
           }
           for (const draft of newestDrafts.values()) {
             const known = result.get(draft.fileId);
-            if (!draftLeads(accepted.get(draft.fileId))) continue;
+            if (!draftLeads(accepted.get(draft.fileId), draft)) continue;
             result.set(draft.fileId, {
               fileId: draft.fileId,
               path: draft.path,
@@ -1708,7 +1713,17 @@ export async function openLocalStore(
                 return left.savedAt < right.savedAt ? 1 : -1;
               return left.workingCopyId < right.workingCopyId ? 1 : -1;
             })[0];
-            if (draft !== undefined) {
+            const storedFile: unknown = await tables.acceptedFiles.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+            ]);
+            const known =
+              storedFile === undefined
+                ? null
+                : validateAcceptedFile(storedFile);
+            if (draft !== undefined && draftLeads(known, draft)) {
               return {
                 fileId,
                 path: draft.path,
@@ -1720,14 +1735,8 @@ export async function openLocalStore(
               };
             }
 
-            const storedFile: unknown = await tables.acceptedFiles.get([
-              serverOrigin,
-              accountId,
-              workspaceId,
-              fileId,
-            ]);
-            if (storedFile === undefined) return null;
-            const file = validateAcceptedFile(storedFile);
+            if (known === null) return null;
+            const file = known;
             if (file.kind !== 'note') return null;
             if (file.deleted)
               return {
@@ -1865,7 +1874,7 @@ export async function openLocalStore(
                 latest.set(draft.fileId, draft);
             }
             for (const draft of latest.values()) {
-              if (!draftLeads(accepted.get(draft.fileId))) continue;
+              if (!draftLeads(accepted.get(draft.fileId), draft)) continue;
               if (draft.deleted) {
                 result.delete(draft.fileId);
                 continue;

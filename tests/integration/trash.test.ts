@@ -139,21 +139,30 @@ async function removeNote(fileId: string, tag: string): Promise<void> {
   assert.equal(deleted.error, undefined, JSON.stringify(deleted.error));
 }
 
+/** One deleted file as the trash listing reports it. */
+type TrashEntry = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: 'note' | 'attachment';
+  readonly headRevisionId: string;
+  readonly deletedAt: string;
+};
+
 /** Every deleted file of the workspace, over every page. */
-async function trash(): Promise<
-  readonly { readonly fileId: string; readonly path: string }[]
-> {
-  const found: { readonly fileId: string; readonly path: string }[] = [];
+async function trash(): Promise<readonly TrashEntry[]> {
+  const found: TrashEntry[] = [];
   let cursor: string | null = null;
   for (;;) {
+    const query: { readonly cursor?: string; readonly limit: number } =
+      cursor === null ? { limit: 100 } : { cursor, limit: 100 };
     const page = await listDeletedFiles({
       headers,
       path: { workspaceId },
-      query: cursor === null ? { limit: 100 } : { cursor, limit: 100 },
+      query: { ...query },
     });
     assert.equal(page.error, undefined, JSON.stringify(page.error));
     found.push(...(page.data?.files ?? []));
-    const next = page.data?.nextCursor ?? null;
+    const next: string | null = page.data?.nextCursor ?? null;
     if (next === null) break;
     cursor = next;
   }
@@ -172,18 +181,9 @@ await test('a deleted note is listed in the trash and not in the live list', asy
   const listed = await trash();
   const entry = listed.find((file) => file.fileId === note.fileId);
   assert.ok(entry !== undefined, 'the deleted note is listed in the trash');
-  const full = await listDeletedFiles({
-    headers,
-    path: { workspaceId },
-    query: { limit: 100 },
-  });
-  const summary = full.data?.files.find(
-    (file) => file.fileId === note.fileId,
-  );
-  assert.ok(summary !== undefined);
-  assert.equal(summary.kind, 'note');
-  assert.ok(Number.isFinite(Date.parse(summary.deletedAt)));
-  assert.notEqual(summary.headRevisionId, null);
+  assert.equal(entry.kind, 'note');
+  assert.ok(Number.isFinite(Date.parse(entry.deletedAt)));
+  assert.equal(entry.headRevisionId.length, 36);
 
   const live = await listFiles({
     headers,

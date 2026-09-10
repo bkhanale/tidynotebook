@@ -889,6 +889,29 @@ await test('local files and save state follow committed writes per file', async 
   await store.close();
 });
 
+await test('an uncheckpointed draft still describes a note that is in sync', async () => {
+  const backend = createBackend('leading-draft');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'saved\n');
+  await store.saveDraft(draft);
+  const queued = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(queued, account, '2'));
+  // Typing writes a draft and no checkpoint, so the accepted head does not
+  // move. The text must survive a reload.
+  await store.saveDraft({ ...draft, text: 'typed\n', sequence: 2 });
+
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, 'typed\n');
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['notes/one.md'],
+  );
+  await store.close();
+});
+
 await test('a purge marker drops the note from the local file list', async () => {
   const backend = createBackend('purged-file');
   const store = await openLocalStore(origin, backend.options());
@@ -972,6 +995,11 @@ await test('a restore from the server puts a deleted note back in the tree', asy
     (await store.listSearchFiles(account, workspace)).map((file) => file.path),
     ['notes/one.md'],
   );
+  // The note opens with its content again: the draft of the deletion no
+  // longer describes the file, because the server moved past it.
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.deleted, false);
+  assert.equal(cached?.text, 'keep me\n');
   await store.close();
 });
 
