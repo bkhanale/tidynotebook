@@ -301,6 +301,245 @@ export async function openLocalStore(
     return stored === undefined ? null : validateQueueRow(stored);
   };
 
+  /** Every stored draft of one file, newest first. */
+  const draftsOfFile = async (
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+  ): Promise<DraftRow[]> => {
+    const rows: unknown[] = await tables.drafts
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .equals([serverOrigin, accountId, workspaceId, fileId])
+      .toArray();
+    return rows
+      .map((row: unknown) => validateDraft(row))
+      .sort((left, right) => {
+        if (left.savedAt !== right.savedAt)
+          return left.savedAt < right.savedAt ? 1 : -1;
+        if (left.sequence !== right.sequence)
+          return right.sequence - left.sequence;
+        return left.workingCopyId < right.workingCopyId ? 1 : -1;
+      });
+  };
+
+  /** The stored Markdown body of one digest, or `null` when it is absent. */
+  const bodyOfDigest = async (
+    accountId: string,
+    workspaceId: string,
+    digest: string,
+  ): Promise<string | null> => {
+    const stored: unknown = await tables.contents.get([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      digest,
+    ]);
+    if (stored === undefined) return null;
+    return validateContent(stored).text;
+  };
+
+  /** One state of a file that a draft can be compared with. */
+  type HeadState = {
+    readonly path: string;
+    readonly deleted: boolean;
+    readonly text: string | null;
+  };
+
+  /** Whether one draft says something that neither head says. */
+  const draftIsUnsentWork = (
+    draft: DraftRow,
+    heads: readonly HeadState[],
+  ): boolean =>
+    !heads.some(
+      (head) =>
+        head.text !== null &&
+        draft.text === head.text &&
+        draft.path === head.path &&
+        draft.deleted === head.deleted,
+    );
+
+  /**
+   * Whether a draft of one file holds work that no head of it holds.
+   *
+   * This is the second half of the dirty test. A local head that is ahead of
+   * the accepted head is unsubmitted work, and so is a draft whose text, path
+   * or deletion state neither the current accepted head nor the arriving one
+   * contains. Without the draft half, an arriving head moves the local head
+   * while the draft keeps shadowing it, and the person then edits stale text
+   * with no notice.
+   *
+   * A draft that one of the two heads already contains is not work: the
+   * arriving head either states it or supersedes it, so the file follows the
+   * server and `readCachedNote` removes the draft on the next open.
+   */
+  const hasDivergentDraft = async (
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+    heads: readonly HeadState[],
+  ): Promise<boolean> => {
+    const drafts = await draftsOfFile(accountId, workspaceId, fileId);
+    return drafts.some((draft) => draftIsUnsentWork(draft, heads));
+  };
+
+  /** The accepted state of one file as a comparable head. */
+  const acceptedHeadState = async (
+    accountId: string,
+    workspaceId: string,
+    file: FileRow | null,
+  ): Promise<HeadState | null> => {
+    if (file === null || file.acceptedHeadDigest === null) return null;
+    return {
+      path: file.path,
+      deleted: file.deleted,
+      text: await bodyOfDigest(accountId, workspaceId, file.acceptedHeadDigest),
+    };
+  };
+
+  /**
+   * One note as it reads with no draft applied.
+   *
+   * The local head wins over the accepted head, because an unsent checkpoint
+   * is work this device already promised to send. Returns `null` when the
+   * body this device would need is not stored, so the caller can fall back
+   * to the server instead of showing an empty note.
+   */
+  const headNote = async (
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+    file: FileRow | null,
+  ): Promise<LocalCachedNote | null> => {
+    if (file === null || file.kind !== 'note') return null;
+    const acceptedPath = file.path;
+    const acceptedRevisionId = file.acceptedHeadRevisionId;
+    if (file.deleted)
+      return {
+        fileId,
+        path: file.path,
+        text: '',
+        deleted: true,
+        sequence: 0,
+        baseRevisionId: file.localHeadRevisionId,
+        stale: false,
+        acceptedText: null,
+        acceptedPath,
+        acceptedRevisionId,
+      };
+    const localHead = file.localHeadRevisionId;
+    if (localHead !== null && localHead !== file.acceptedHeadRevisionId) {
+      const storedCheckpoint: unknown = await tables.checkpoints.get([
+        serverOrigin,
+        accountId,
+        workspaceId,
+        localHead,
+      ]);
+      if (storedCheckpoint === undefined) return null;
+      const checkpoint = validateCheckpoint(storedCheckpoint);
+      if (checkpoint.deleted)
+        return {
+          fileId,
+          path: checkpoint.path,
+          text: '',
+          deleted: true,
+          sequence: 0,
+          baseRevisionId: checkpoint.revisionId,
+          stale: false,
+          acceptedText: null,
+          acceptedPath,
+          acceptedRevisionId,
+        };
+      const body = await bodyOfDigest(
+        accountId,
+        workspaceId,
+        checkpoint.digest,
+      );
+      if (body === null) return null;
+      return {
+        fileId,
+        path: checkpoint.path,
+        text: body,
+        deleted: false,
+        sequence: 0,
+        baseRevisionId: checkpoint.revisionId,
+        stale: false,
+        acceptedText: null,
+        acceptedPath,
+        acceptedRevisionId,
+      };
+    }
+    if (
+      file.acceptedHeadRevisionId === null ||
+      file.acceptedHeadDigest === null
+    )
+      return null;
+    const body = await bodyOfDigest(
+      accountId,
+      workspaceId,
+      file.acceptedHeadDigest,
+    );
+    if (body === null) return null;
+    return {
+      fileId,
+      path: file.path,
+      text: body,
+      deleted: false,
+      sequence: 0,
+      baseRevisionId: file.acceptedHeadRevisionId,
+      stale: false,
+      acceptedText: null,
+      acceptedPath,
+      acceptedRevisionId,
+    };
+  };
+
+  /**
+   * Removes one draft that the accepted head already contains.
+   *
+   * The removal repeats the check inside its own write transaction: a
+   * keystroke may have arrived between the read and this write, and that
+   * newer text must survive.
+   */
+  const dropStaleDraft = async (
+    accountId: string,
+    workspaceId: string,
+    draft: DraftRow,
+  ): Promise<void> => {
+    const removed = await guard('removing a matched draft', () =>
+      db.transaction('rw', tables.drafts, async (): Promise<boolean> => {
+        const stored: unknown = await tables.drafts.get([
+          serverOrigin,
+          accountId,
+          workspaceId,
+          draft.workingCopyId,
+        ]);
+        if (stored === undefined) return false;
+        const current = validateDraft(stored);
+        if (
+          current.sequence !== draft.sequence ||
+          current.text !== draft.text ||
+          current.path !== draft.path ||
+          current.deleted !== draft.deleted
+        )
+          return false;
+        await tables.drafts.delete([
+          serverOrigin,
+          accountId,
+          workspaceId,
+          draft.workingCopyId,
+        ]);
+        return true;
+      }),
+    );
+    if (removed)
+      publish({
+        accountId,
+        workspaceId,
+        fileId: draft.fileId,
+        kind: 'draft',
+      });
+  };
+
   /** The key of the single sync worker lease row. */
   const leaseKey = 'worker';
 
@@ -638,6 +877,15 @@ export async function openLocalStore(
             ]);
             const current =
               storedDraft === undefined ? null : validateDraft(storedDraft);
+            // A caller that supplies an older buffer than the stored draft
+            // would commit older text as an immutable version. The write is
+            // refused, so the newer draft stays intact and the caller can
+            // flush it and try again.
+            if (current !== null && current.sequence > draft.sequence)
+              throw new LocalStorageError(
+                'stale',
+                'a newer draft of this working copy is stored',
+              );
             const storedFile: unknown = await tables.acceptedFiles.get([
               serverOrigin,
               accountId,
@@ -772,12 +1020,8 @@ export async function openLocalStore(
               createdAt: clientTime,
             });
 
-            const base =
-              current !== null && current.sequence > draft.sequence
-                ? current
-                : draftRow(draft, lastCheckpointId);
             await tables.drafts.put({
-              ...base,
+              ...draftRow(draft, lastCheckpointId),
               lastCheckpointId: revisionId,
               savedAt: clientTime,
             });
@@ -1181,12 +1425,12 @@ export async function openLocalStore(
       );
     },
 
-    addRecovery(
+    async addRecovery(
       accountId: string,
       workspaceId: string,
       entry: RecoveryInput,
     ): Promise<RecoveryRecord> {
-      return guard('keeping a recovery copy', () =>
+      const record = await guard('keeping a recovery copy', () =>
         db.transaction('rw', tables.recovery, async () => {
           if (entry.fileId === '' || entry.path === '')
             throw new LocalStorageError(
@@ -1202,36 +1446,55 @@ export async function openLocalStore(
             path: entry.path,
             text: entry.text,
             reason: entry.reason,
+            code: entry.code ?? null,
+            mutationId: entry.mutationId ?? null,
             createdAt: entry.createdAt ?? nowIso(),
           };
           await tables.recovery.put(validateRecovery(record));
           return record;
         }),
       );
+      // The Needs attention list reads this table, so a kept copy is a
+      // durable change that other views must learn about.
+      publish({
+        accountId,
+        workspaceId,
+        fileId: record.fileId,
+        kind: 'conflict',
+      });
+      return record;
     },
 
-    removeRecovery(
+    async removeRecovery(
       accountId: string,
       workspaceId: string,
       recoveryId: string,
     ): Promise<void> {
-      return guard('removing a recovery copy', () =>
-        db.transaction('rw', tables.recovery, async () => {
-          const stored: unknown = await tables.recovery.get([
-            serverOrigin,
-            accountId,
-            workspaceId,
-            recoveryId,
-          ]);
-          if (stored === undefined) return;
-          await tables.recovery.delete([
-            serverOrigin,
-            accountId,
-            workspaceId,
-            recoveryId,
-          ]);
-        }),
+      const removed = await guard('removing a recovery copy', () =>
+        db.transaction(
+          'rw',
+          tables.recovery,
+          async (): Promise<string | null> => {
+            const stored: unknown = await tables.recovery.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              recoveryId,
+            ]);
+            if (stored === undefined) return null;
+            const record = validateRecovery(stored);
+            await tables.recovery.delete([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              recoveryId,
+            ]);
+            return record.fileId;
+          },
+        ),
       );
+      if (removed === null) return;
+      publish({ accountId, workspaceId, fileId: removed, kind: 'conflict' });
     },
 
     listAcceptedFiles(
@@ -1688,12 +1951,17 @@ export async function openLocalStore(
       }
     },
 
-    readCachedNote(
+    async readCachedNote(
       accountId: string,
       workspaceId: string,
       fileId: string,
     ): Promise<LocalCachedNote | null> {
-      return guard('reading a cached note', () =>
+      // The read runs first and alone. A digest of the draft text may be
+      // needed to compare it with the accepted head, and WebCrypto is not a
+      // database promise: awaiting it inside a Dexie transaction would leave
+      // the transaction zone. So the comparison and any removal follow the
+      // read in their own steps.
+      const snapshot = await guard('reading a cached note', () =>
         db.transaction(
           'r',
           [
@@ -1703,117 +1971,191 @@ export async function openLocalStore(
             tables.drafts,
           ],
           async () => {
-            const draftRows: unknown[] = await tables.drafts
-              .where('[serverOrigin+accountId+workspaceId+fileId]')
-              .equals([serverOrigin, accountId, workspaceId, fileId])
-              .toArray();
-            const drafts = draftRows.map((row: unknown) => validateDraft(row));
-            const draft = drafts.sort((left, right) => {
-              if (left.savedAt !== right.savedAt)
-                return left.savedAt < right.savedAt ? 1 : -1;
-              return left.workingCopyId < right.workingCopyId ? 1 : -1;
-            })[0];
+            const drafts = await draftsOfFile(accountId, workspaceId, fileId);
+            const draft = drafts[0] ?? null;
             const storedFile: unknown = await tables.acceptedFiles.get([
               serverOrigin,
               accountId,
               workspaceId,
               fileId,
             ]);
-            const known =
+            const file =
               storedFile === undefined
                 ? null
                 : validateAcceptedFile(storedFile);
-            if (draft !== undefined && draftLeads(known, draft)) {
-              return {
-                fileId,
-                path: draft.path,
-                text: draft.text,
-                deleted: draft.deleted,
-                workingCopyId: draft.workingCopyId,
-                sequence: draft.sequence,
-                baseRevisionId: draft.lastCheckpointId ?? draft.baseRevisionId,
-              };
-            }
-
-            if (known === null) return null;
-            const file = known;
-            if (file.kind !== 'note') return null;
-            if (file.deleted)
-              return {
-                fileId,
-                path: file.path,
-                text: '',
-                deleted: true,
-                sequence: 0,
-                baseRevisionId: file.localHeadRevisionId,
-              };
-
-            const localHead = file.localHeadRevisionId;
-            if (
-              localHead !== null &&
-              localHead !== file.acceptedHeadRevisionId
-            ) {
-              const storedCheckpoint: unknown = await tables.checkpoints.get([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                localHead,
-              ]);
-              if (storedCheckpoint === undefined) return null;
-              const checkpoint = validateCheckpoint(storedCheckpoint);
-              if (checkpoint.deleted)
-                return {
-                  fileId,
-                  path: checkpoint.path,
-                  text: '',
-                  deleted: true,
-                  sequence: 0,
-                  baseRevisionId: checkpoint.revisionId,
-                };
-              const storedContent: unknown = await tables.contents.get([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                checkpoint.digest,
-              ]);
-              if (storedContent === undefined) return null;
-              const content = validateContent(storedContent);
-              if (content.text === null) return null;
-              return {
-                fileId,
-                path: checkpoint.path,
-                text: content.text,
-                deleted: false,
-                sequence: 0,
-                baseRevisionId: checkpoint.revisionId,
-              };
-            }
-
-            if (
-              file.acceptedHeadRevisionId === null ||
-              file.acceptedHeadDigest === null
-            )
-              return null;
-            const storedContent: unknown = await tables.contents.get([
-              serverOrigin,
-              accountId,
-              workspaceId,
-              file.acceptedHeadDigest,
-            ]);
-            if (storedContent === undefined) return null;
-            const content = validateContent(storedContent);
-            if (content.text === null) return null;
-            return {
-              fileId,
-              path: file.path,
-              text: content.text,
-              deleted: false,
-              sequence: 0,
-              baseRevisionId: file.acceptedHeadRevisionId,
+            const acceptedText =
+              file === null || file.acceptedHeadDigest === null
+                ? null
+                : await bodyOfDigest(
+                    accountId,
+                    workspaceId,
+                    file.acceptedHeadDigest,
+                  );
+            // A head this device created has a checkpoint row. A head that
+            // has none came from the server, so it is the one that can leave
+            // a draft behind. Without this test a queued save of this device
+            // would read as a newer version of somebody else.
+            const acceptedIsLocal =
+              file === null || file.acceptedHeadRevisionId === null
+                ? false
+                : (await tables.checkpoints.get([
+                    serverOrigin,
+                    accountId,
+                    workspaceId,
+                    file.acceptedHeadRevisionId,
+                  ])) !== undefined;
+            const accepted = {
+              revisionId: file?.acceptedHeadRevisionId ?? null,
+              digest: file?.acceptedHeadDigest ?? null,
+              path: file === null ? null : file.path,
+              deleted: file?.deleted ?? false,
+              text: acceptedText,
+              isLocal: acceptedIsLocal,
             };
+            const head = await headNote(accountId, workspaceId, fileId, file);
+            const leads = draft === null ? false : draftLeads(file, draft);
+            return { draft, accepted, head, leads };
           },
         ),
       );
+
+      const draft = snapshot.draft;
+      if (draft === null) return snapshot.head;
+      const accepted = snapshot.accepted;
+      const draftBase = draft.lastCheckpointId ?? draft.baseRevisionId;
+
+      // A draft that says nothing the accepted head does not already say is
+      // recovery data with nothing left to recover. It is removed, so one
+      // keystroke cannot shadow newer server text for the life of the
+      // device. A pending rename or deletion is never treated as equal.
+      if (
+        accepted.digest !== null &&
+        !draft.deleted &&
+        draft.path === accepted.path
+      ) {
+        const equal =
+          accepted.text !== null
+            ? accepted.text === draft.text
+            : (await guard('reading a cached note', () =>
+                contentDigest(draft.text),
+              )) === accepted.digest;
+        if (equal) {
+          await dropStaleDraft(accountId, workspaceId, draft);
+          return snapshot.head;
+        }
+      }
+
+      // A stale draft is text of this device over a server version it never
+      // saw. "Based on an older head" needs a base to compare, the head must
+      // be one the server set, and a deleted head is not a version to offer:
+      // deletion recovery is the Trash, not this choice.
+      const stale =
+        !draft.deleted &&
+        !accepted.deleted &&
+        !accepted.isLocal &&
+        draftBase !== null &&
+        accepted.revisionId !== null &&
+        accepted.text !== null &&
+        draftBase !== accepted.revisionId;
+
+      // The draft no longer describes its file and holds no stale text to
+      // choose from, so the accepted row is the newer statement of the path
+      // and of the deletion state.
+      if (!snapshot.leads && !stale) return snapshot.head;
+
+      return {
+        fileId,
+        path: draft.path,
+        text: draft.text,
+        deleted: draft.deleted,
+        workingCopyId: draft.workingCopyId,
+        sequence: draft.sequence,
+        baseRevisionId: draftBase,
+        stale,
+        acceptedText: stale ? accepted.text : null,
+        acceptedPath: accepted.path,
+        acceptedRevisionId: accepted.revisionId,
+      };
+    },
+
+    async rebaseDraft(
+      accountId: string,
+      workspaceId: string,
+      workingCopyId: string,
+    ): Promise<void> {
+      const rebased = await guard('rebasing a draft', () =>
+        db.transaction(
+          'rw',
+          [tables.drafts, tables.acceptedFiles],
+          async (): Promise<DraftRow | null> => {
+            const stored: unknown = await tables.drafts.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              workingCopyId,
+            ]);
+            if (stored === undefined) return null;
+            const draft = validateDraft(stored);
+            const storedFile: unknown = await tables.acceptedFiles.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              draft.fileId,
+            ]);
+            if (storedFile === undefined) return null;
+            const file = validateAcceptedFile(storedFile);
+            const next: DraftRow = {
+              ...draft,
+              baseRevisionId: file.acceptedHeadRevisionId,
+              // The draft keeps its text and drops its old local parent, so
+              // the next checkpoint names the accepted head the server has.
+              lastCheckpointId: null,
+              savedAt: nowIso(),
+            };
+            await tables.drafts.put(next);
+            return next;
+          },
+        ),
+      );
+      if (rebased === null) return;
+      publish({
+        accountId,
+        workspaceId,
+        fileId: rebased.fileId,
+        kind: 'draft',
+      });
+    },
+
+    async dropDraft(
+      accountId: string,
+      workspaceId: string,
+      workingCopyId: string,
+    ): Promise<void> {
+      const removed = await guard('removing a draft', () =>
+        db.transaction(
+          'rw',
+          tables.drafts,
+          async (): Promise<string | null> => {
+            const stored: unknown = await tables.drafts.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              workingCopyId,
+            ]);
+            if (stored === undefined) return null;
+            const draft = validateDraft(stored);
+            await tables.drafts.delete([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              workingCopyId,
+            ]);
+            return draft.fileId;
+          },
+        ),
+      );
+      if (removed === null) return;
+      publish({ accountId, workspaceId, fileId: removed, kind: 'draft' });
     },
 
     listSearchFiles(accountId: string, workspaceId: string) {
@@ -2218,6 +2560,7 @@ export async function openLocalStore(
             tables.contents,
             tables.acceptedFiles,
             tables.cursors,
+            tables.drafts,
           ],
           async () => {
             const plans: unknown[] = await tables.stagedSnapshots.toArray();
@@ -2275,10 +2618,30 @@ export async function openLocalStore(
               ]);
               const file =
                 known === undefined ? null : validateAcceptedFile(known);
+              // Same dirty test as the change feed: a local head ahead of
+              // the accepted head, or a draft that neither head contains.
+              const heads: HeadState[] = [];
+              const knownHead = await acceptedHeadState(
+                accountId,
+                workspaceId,
+                file,
+              );
+              if (knownHead !== null) heads.push(knownHead);
+              heads.push({
+                path: item.path,
+                deleted: item.deleted,
+                text: await bodyOfDigest(accountId, workspaceId, item.digest),
+              });
               const dirty =
                 file !== null &&
-                file.localHeadRevisionId !== null &&
-                file.localHeadRevisionId !== file.acceptedHeadRevisionId;
+                ((file.localHeadRevisionId !== null &&
+                  file.localHeadRevisionId !== file.acceptedHeadRevisionId) ||
+                  (await hasDivergentDraft(
+                    accountId,
+                    workspaceId,
+                    item.fileId,
+                    heads,
+                  )));
               if (!dirty) {
                 await tables.acceptedFiles.put({
                   serverOrigin,
@@ -2397,10 +2760,35 @@ export async function openLocalStore(
               ]);
               const current =
                 known === undefined ? null : validateAcceptedFile(known);
+              // Unsubmitted work is a local head ahead of the accepted head,
+              // and it is also a draft that neither the accepted head nor
+              // the arriving one contains. Without the draft half this write
+              // moves the local head while the draft keeps shadowing it.
+              const heads: HeadState[] = [];
+              const knownHead = await acceptedHeadState(
+                accountId,
+                workspaceId,
+                current,
+              );
+              if (knownHead !== null) heads.push(knownHead);
+              heads.push({
+                path: file.path,
+                deleted: file.deleted,
+                text:
+                  file.text ??
+                  (await bodyOfDigest(accountId, workspaceId, file.digest)),
+              });
               const dirty =
                 current !== null &&
-                current.localHeadRevisionId !== null &&
-                current.localHeadRevisionId !== current.acceptedHeadRevisionId;
+                ((current.localHeadRevisionId !== null &&
+                  current.localHeadRevisionId !==
+                    current.acceptedHeadRevisionId) ||
+                  (await hasDivergentDraft(
+                    accountId,
+                    workspaceId,
+                    file.fileId,
+                    heads,
+                  )));
               if (current === null || !dirty) {
                 await tables.acceptedFiles.put({
                   serverOrigin,

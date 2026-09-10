@@ -87,6 +87,25 @@ function optionalText(
   return value;
 }
 
+/**
+ * Text, or `null` for a field that a record written before it existed omits.
+ *
+ * A stored recovery record from an earlier release carries no server answer
+ * code. Reading it must keep the kept text usable, so an absent field reads
+ * as `null` instead of refusing the record.
+ */
+function addedText(
+  row: Record<string, unknown>,
+  field: string,
+  where: string,
+): string | null {
+  const value: unknown = row[field];
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'string')
+    corrupt(`${where}.${field} is not text or null`);
+  return value;
+}
+
 function flag(
   row: Record<string, unknown>,
   field: string,
@@ -408,9 +427,18 @@ export function validateRecovery(value: unknown): RecoveryRow {
     reason: member(
       row,
       'reason',
-      ['access_revoked', 'role_downgraded', 'purged', 'sign_out'] as const,
+      [
+        'access_revoked',
+        'role_downgraded',
+        'purged',
+        'sign_out',
+        'save_refused',
+        'stale_draft',
+      ] as const,
       'recovery',
     ),
+    code: addedText(row, 'code', 'recovery'),
+    mutationId: addedText(row, 'mutationId', 'recovery'),
     createdAt: text(row, 'createdAt', 'recovery'),
   };
 }

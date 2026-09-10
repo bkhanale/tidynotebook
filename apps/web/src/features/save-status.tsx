@@ -10,6 +10,7 @@ import type { SaveState } from './save-state.ts';
 export { resolveSaveState } from './save-state.ts';
 export type { SaveState, SaveStateInput } from './save-state.ts';
 import { Button, CheckIcon, CopyIcon } from '@notesapp/ui';
+import { AttentionLink } from './attention-link.tsx';
 
 /** Failure copy shown only when persistence needs user action. */
 const failureCopy = {
@@ -48,11 +49,17 @@ export function SaveStatus({
   detail,
   bufferText,
   onCopyBuffer,
+  workspaceId,
+  attentionCount = 0,
 }: {
   readonly state: SaveState;
   readonly detail?: string | undefined;
   readonly bufferText?: string | undefined;
   readonly onCopyBuffer?: ((text: string) => Promise<boolean>) | undefined;
+  /** The workspace the Needs attention link points into. */
+  readonly workspaceId?: string | undefined;
+  /** How many saves wait in the Needs attention list. */
+  readonly attentionCount?: number | undefined;
 }): ReactNode {
   const [copied, setCopied] = useState(false);
   const failed = state === 'save-failed' || state === 'storage-full';
@@ -77,6 +84,13 @@ export function SaveStatus({
         <p className="m-0 text-control text-danger" role="alert">
           The note stays open with its text. Copy it before you close the tab.
         </p>
+      ) : null}
+      {workspaceId !== undefined ? (
+        <AttentionLink
+          workspaceId={workspaceId}
+          count={attentionCount}
+          className="text-control font-medium text-danger underline focus-visible:outline-2 focus-visible:outline-focus"
+        />
       ) : null}
       {canCopy ? (
         <Button

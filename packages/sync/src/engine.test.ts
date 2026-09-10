@@ -67,6 +67,7 @@ class FakeStore implements LocalStore {
   staged = new Map<string, Staged>();
   lease: { ownerId: string; expiresAt: number } | null = null;
   drafts = new Map<string, Draft>();
+  rebased: string[] = [];
   recovery: RecoveryRecord[] = [];
   recoverySeq = 1;
   markers = new Set<string>();
@@ -115,6 +116,34 @@ class FakeStore implements LocalStore {
 
   checkpoint(): Promise<QueueEntry | null> {
     throw new Error('FakeStore.checkpoint is never used');
+  }
+
+  rebaseDraft(
+    _account: string,
+    _workspace: string,
+    workingCopyId: string,
+  ): Promise<void> {
+    this.rebased.push(workingCopyId);
+    return Promise.resolve();
+  }
+
+  dropDraft(
+    _account: string,
+    _workspace: string,
+    workingCopyId: string,
+  ): Promise<void> {
+    this.drafts.delete(workingCopyId);
+    return Promise.resolve();
+  }
+
+  discardParkedSave(
+    _account: string,
+    _workspace: string,
+    mutationId: string,
+  ): Promise<void> {
+    this.entries.delete(mutationId);
+    this.order = this.order.filter((id) => id !== mutationId);
+    return Promise.resolve();
   }
 
   pending(account: string, workspace: string): Promise<readonly QueueEntry[]> {
@@ -222,6 +251,8 @@ class FakeStore implements LocalStore {
       path: entry.path,
       text: entry.text,
       reason: entry.reason,
+      code: entry.code ?? null,
+      mutationId: entry.mutationId ?? null,
       createdAt: entry.createdAt ?? new Date(this.nowMs).toISOString(),
     };
     this.recovery.push(record);

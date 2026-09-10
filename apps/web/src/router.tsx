@@ -45,6 +45,9 @@ const OfflineStatusRoute = lazy(async () => ({
 const RecoveryRoute = lazy(async () => ({
   default: (await import('./features/recovery.tsx')).RecoveryRoute,
 }));
+const AttentionRoute = lazy(async () => ({
+  default: (await import('./features/attention.tsx')).AttentionRoute,
+}));
 
 /** Holds a route while its deferred module loads. */
 function deferred(element: ReactNode): ReactNode {
@@ -117,6 +120,10 @@ const router = createBrowserRouter([
       {
         path: 'w/:workspaceId/recovery',
         element: deferred(<RecoveryRoute />),
+      },
+      {
+        path: 'w/:workspaceId/attention',
+        element: deferred(<AttentionRoute />),
       },
     ],
   },

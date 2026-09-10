@@ -193,6 +193,10 @@ export type RecoveryInput = {
   readonly path: string;
   readonly text: string;
   readonly reason: RecoveryReason;
+  /** The server answer code that refused the save, when there was one. */
+  readonly code?: string | null;
+  /** The parked queue entry this text came from, when there is one. */
+  readonly mutationId?: string | null;
   readonly recoveryId?: string;
   readonly createdAt?: string;
 };
@@ -229,7 +233,17 @@ export type LocalAcceptedFile = {
   readonly updatedAt: string;
 };
 
-/** One Markdown note that is ready to open from local storage. */
+/**
+ * One Markdown note that is ready to open from local storage.
+ *
+ * `text` is what the editor opens. A draft of this device wins over the
+ * accepted head, because only an explicit Save creates a server version.
+ *
+ * `stale` states that the draft was written over an older accepted head and
+ * that its text differs from the current one. The caller then holds both
+ * texts: `text` is the draft of this device, and `acceptedText` is the
+ * current accepted head. The person chooses; nothing is dropped silently.
+ */
 export type LocalCachedNote = {
   readonly fileId: string;
   readonly path: string;
@@ -241,6 +255,14 @@ export type LocalCachedNote = {
   readonly sequence: number;
   /** The local parent that the next checkpoint must name. */
   readonly baseRevisionId: string | null;
+  /** A draft over an older accepted head whose text differs from it. */
+  readonly stale: boolean;
+  /** The current accepted head text, present only for a stale draft. */
+  readonly acceptedText: string | null;
+  /** The path of the current accepted head, when it is known. */
+  readonly acceptedPath: string | null;
+  /** The current accepted head revision, when the server confirmed one. */
+  readonly acceptedRevisionId: string | null;
 };
 
 /**
@@ -378,9 +400,25 @@ export type Preference = {
   readonly value: string;
 };
 
-/** Why pending work was moved into the recovery area. */
+/**
+ * Why pending work was moved into the recovery area.
+ *
+ * `save_refused` covers every save the server can never accept. Its `code`
+ * names the server answer, so the interface can explain the cause in words.
+ * An unknown code stays valid: the interface falls back to one general
+ * sentence rather than refusing the record.
+ *
+ * `stale_draft` is text a person left behind on purpose: the draft of this
+ * device was written over an older version, and the person took the newer
+ * server text instead. The old text is kept so the choice is reversible.
+ */
 export type RecoveryReason =
-  'access_revoked' | 'role_downgraded' | 'purged' | 'sign_out';
+  | 'access_revoked'
+  | 'role_downgraded'
+  | 'purged'
+  | 'sign_out'
+  | 'save_refused'
+  | 'stale_draft';
 
 /**
  * Pending work that the server can no longer accept.
@@ -399,6 +437,10 @@ export type RecoveryRecord = {
   readonly path: string;
   readonly text: string;
   readonly reason: RecoveryReason;
+  /** The server answer code that refused the save, or `null`. */
+  readonly code: string | null;
+  /** The parked queue entry this text came from, or `null`. */
+  readonly mutationId: string | null;
   readonly createdAt: string;
 };
 
@@ -410,9 +452,11 @@ export type RecoveryRecord = {
  * - `unavailable`: the database is closed, blocked, or absent.
  * - `corrupt`: a stored record does not match its schema, or the stored
  *   schema version is one this application cannot read.
+ * - `stale`: the caller supplied a working copy that is older than the
+ *   stored one. Nothing was written, so the newer text stays intact.
  */
 export type LocalStorageErrorKind =
-  'aborted' | 'quota' | 'unavailable' | 'corrupt';
+  'aborted' | 'quota' | 'unavailable' | 'corrupt' | 'stale';
 
 /**
  * A typed local persistence failure.
@@ -487,12 +531,44 @@ export type LocalStore = {
   ): Promise<Draft | null>;
 
   /**
+   * Moves the base of one working copy to the current accepted head.
+   *
+   * Used when a person keeps a draft that was written over an older head.
+   * The text is untouched; only the parent that the next checkpoint names
+   * changes, so the following Save reaches the server instead of naming a
+   * head the server no longer has. Does nothing when no draft is stored.
+   */
+  rebaseDraft(
+    accountId: string,
+    workspaceId: string,
+    workingCopyId: string,
+  ): Promise<void>;
+
+  /**
+   * Removes one working copy draft.
+   *
+   * Used when a person takes the accepted head instead of a stale draft.
+   * The caller keeps the text first, in the recovery area or the clipboard.
+   * Checkpoints and queue entries are never touched.
+   */
+  dropDraft(
+    accountId: string,
+    workspaceId: string,
+    workingCopyId: string,
+  ): Promise<void>;
+
+  /**
    * Creates one immutable checkpoint and queues its mutation.
    *
    * Content, the checkpoint, the local head, and the queue entry commit in one
    * transaction, so a queued mutation always has its content. Returns `null`
    * when the checkpoint is suppressed because the content, the path, and the
    * deletion state are unchanged and no message was given.
+   *
+   * Rejects with a `stale` failure when the stored draft of the same working
+   * copy is newer than the supplied one. An older buffer must never become
+   * an immutable version, so nothing is written and the caller flushes its
+   * newest text first.
    *
    * A new checkpoint always becomes the local head. The server rebases it on
    * the current accepted head when another save reached the server first.
@@ -649,7 +725,15 @@ export type LocalStore = {
     result: ResolvedConflict,
   ): Promise<void>;
 
-  /** Reads one cached note, with the newest saved draft applied. */
+  /**
+   * Reads one cached note, with the newest saved draft applied.
+   *
+   * The draft is compared with the accepted head before it is returned. A
+   * draft that matches the accepted head is removed and the head is
+   * returned, so one keystroke cannot shadow newer server text for good. A
+   * draft over an older head whose text differs is returned with `stale`
+   * set and with the accepted head text beside it.
+   */
   readCachedNote(
     accountId: string,
     workspaceId: string,
@@ -790,7 +874,8 @@ export type LocalStore = {
    * and keeps its local work. Otherwise advances accepted heads and the
    * cursor in one transaction. Files with unsubmitted local work keep their
    * local head, their drafts, and their queued mutations: a remote head never
-   * replaces a dirty working copy.
+   * replaces a dirty working copy. A draft that differs from the snapshot
+   * head counts as local work.
    */
   activateSnapshot(token: string): Promise<void>;
 
@@ -801,7 +886,10 @@ export type LocalStore = {
    * Applies ordered remote changes and advances the cursor.
    *
    * Every file change updates the accepted head and stores its content;
-   * files with unsubmitted local work keep their local head and drafts.
+   * files with unsubmitted local work keep their local head and drafts. A
+   * file counts as having local work when its local head is ahead of its
+   * accepted head, and also when a draft of it differs from the incoming
+   * head.
    * Records without a file only advance the cursor. The whole batch and the
    * cursor commit in one transaction.
    */

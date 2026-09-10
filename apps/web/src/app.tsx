@@ -345,6 +345,28 @@ function useThemeLoader(): ThemeValue & { readonly syncError: string | null } {
 }
 
 /**
+ * The note name of one file, or a general phrase when it is unknown.
+ *
+ * A status line must never show a raw identifier. The local file list is the
+ * only place a name is needed from, so a read failure falls back to words.
+ */
+async function noteNameOf(
+  store: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  fileId: string | undefined,
+): Promise<string> {
+  if (fileId === undefined) return 'a note';
+  try {
+    const files = await store.listLocalFiles(accountId, workspaceId);
+    const path = files.find((file) => file.fileId === fileId)?.path;
+    return path === undefined ? 'a note' : displayNoteName(path);
+  } catch {
+    return 'a note';
+  }
+}
+
+/**
  * Runs the foreground sync engine of one workspace.
  *
  * Returns the latest human readable sync state for the status region. The
@@ -365,6 +387,9 @@ export function useWorkspaceSync(
       setMessage('Sync waits for the account and the local store.');
       return;
     }
+    const activeStore = store;
+    const activeAccount = accountId;
+    const activeWorkspace = workspaceId;
     const controller = new AbortController();
     const onNotice = (notice: SyncNotice): void => {
       if (notice.kind === 'pushed')
@@ -372,9 +397,16 @@ export function useWorkspaceSync(
           `Saved to server: ${String(notice.mutationIds.length)} change(s).`,
         );
       else if (notice.kind === 'preserved')
-        setMessage(
-          `Local work is preserved: ${notice.mutationId} (${notice.code}).`,
-        );
+        // The mutation identity and the server code belong in the Needs
+        // attention list, not in a status line. The person needs the note.
+        void noteNameOf(
+          activeStore,
+          activeAccount,
+          activeWorkspace,
+          notice.fileIds[0],
+        ).then((name) => {
+          setMessage(`A save of ${name} needs attention.`);
+        });
       else if (notice.kind === 'superseded')
         setMessage(
           `Your save of ${displayNoteName(notice.path)} is now the latest version. Text saved from another device is kept in History.`,

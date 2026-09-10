@@ -13,7 +13,9 @@
  *   instead of conflicting with itself. An entry that was already sent is
  *   always retried alone under its frozen identity.
  * - A permanent server failure is kept locally instead of being dropped or
- *   retried forever. The single-user server rebases a stale save itself.
+ *   retried forever. The single-user server rebases a stale save itself. The
+ *   entry is parked, and its text is also written into the account-bound
+ *   recovery area, so a screen can list it and offer a retry.
  *
  * This module is transport agnostic: the caller injects `QueueNetwork`, and
  * the engine builds it from the generated client. Unit tests inject stubs.
@@ -227,6 +229,50 @@ function submissionAction(problem: Problem): SubmissionAction {
 }
 
 /**
+ * Parks one refused mutation and keeps its text where a screen can list it.
+ *
+ * Parking alone is not enough. A parked entry is never sent again, so its
+ * text would live only in an IndexedDB row that nothing reads. The
+ * account-bound recovery area is the place the Needs attention list reads,
+ * so the person can retry the save, keep the text as a new note, copy it, or
+ * discard it on purpose.
+ *
+ * The server answer code travels with the record. The interface maps a known
+ * code to one sentence and falls back to a general sentence for a code it
+ * does not know, so a new refusal reason needs no change here.
+ */
+export async function parkRefusedSave(
+  local: LocalStore,
+  accountId: string,
+  ctx: SyncContext,
+  entry: QueueEntry,
+  code: string,
+  fileIds: readonly string[],
+): Promise<void> {
+  const workspaceId = entry.input.workspaceId;
+  await local.markConflict(accountId, entry.input.mutationId, {
+    errorCode: code,
+  });
+  for (const revision of entry.input.revisions) {
+    if (revision.content.kind !== 'markdown') continue;
+    await local.addRecovery(accountId, workspaceId, {
+      fileId: revision.fileId,
+      path: revision.path,
+      text: revision.content.text,
+      reason: 'save_refused',
+      code,
+      mutationId: entry.input.mutationId,
+    });
+  }
+  ctx.announce({
+    kind: 'preserved',
+    mutationId: entry.input.mutationId,
+    code,
+    fileIds: [...fileIds],
+  });
+}
+
+/**
  * Announces every head that the server rebased for one submission.
  *
  * The answer of an accepted changeset names the heads that it passed. Each
@@ -319,15 +365,14 @@ async function recoverStaleHead(
     (fileId) => (entry.input.expectedHeads[fileId] ?? null) !== null,
   );
   if (updated !== undefined) {
-    await local.markConflict(accountId, entry.input.mutationId, {
-      errorCode: 'deleted_remotely',
-    });
-    ctx.announce({
-      kind: 'preserved',
-      mutationId: entry.input.mutationId,
-      code: 'deleted_remotely',
-      fileIds: [...files],
-    });
+    await parkRefusedSave(
+      local,
+      accountId,
+      ctx,
+      entry,
+      'deleted_remotely',
+      files,
+    );
     return 'done';
   }
 
@@ -560,12 +605,8 @@ async function submitSingle(
       entry,
       outcome.problem,
     );
-  await local.markConflict(accountId, input.mutationId);
-  ctx.announce({
-    kind: 'preserved',
-    mutationId: input.mutationId,
-    code: outcome.problem.code,
-    fileIds: [...new Set(input.revisions.map((revision) => revision.fileId))],
-  });
+  await parkRefusedSave(local, accountId, ctx, entry, outcome.problem.code, [
+    ...new Set(input.revisions.map((revision) => revision.fileId)),
+  ]);
   return 'done';
 }

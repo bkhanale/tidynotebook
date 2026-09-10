@@ -45,6 +45,7 @@ import {
   useTheme,
   useWorkspaceSync,
 } from '../app.tsx';
+import { AttentionLink, useAttentionCount } from './attention-link.tsx';
 import { canWrite, findWorkspace, useWorkspaces } from './workspaces.tsx';
 import { NewNoteButton } from './new-note.tsx';
 import { displayNoteName } from './note-name.ts';
@@ -537,10 +538,11 @@ export function Shell(): ReactNode {
   const accountId = session.account?.accountId ?? null;
   const sync = useWorkspaceSync(store.store, accountId, workspaceId);
   const syncMessage = sync.message;
+  const attentionCount = useAttentionCount(store.store, accountId, workspaceId);
   const showSyncProblem =
     syncMessage.includes('stopped') ||
     syncMessage.includes('retries') ||
-    syncMessage.includes('preserved') ||
+    syncMessage.includes('needs attention') ||
     syncMessage.includes('paused') ||
     syncMessage.includes('lost');
 
@@ -749,6 +751,12 @@ export function Shell(): ReactNode {
                   </span>
                   <span>Trash</span>
                 </Link>
+              )}
+              {workspaceId === null ? null : (
+                <AttentionLink
+                  workspaceId={workspaceId}
+                  count={attentionCount}
+                />
               )}
               <button
                 type="button"
