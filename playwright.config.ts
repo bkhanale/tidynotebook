@@ -1,3 +1,4 @@
+import process from 'node:process';
 import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
@@ -5,11 +6,15 @@ export default defineConfig({
   outputDir: './test-results/playwright',
   fullyParallel: false,
   workers: 1,
-  forbidOnly: true,
-  retries: 1,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 1 : 0,
   timeout: 45_000,
   expect: { timeout: 10_000 },
-  reporter: [['line'], ['html', { outputFolder: 'playwright-report' }]],
+  reporter: [
+    ['line'],
+    ['html', { outputFolder: 'playwright-report' }],
+    ['json', { outputFile: 'test-results/playwright/results.json' }],
+  ],
   use: {
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

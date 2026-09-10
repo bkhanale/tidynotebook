@@ -4,6 +4,19 @@ set -euo pipefail
 
 project_name='notesapp-test'
 
+# A reachable service is all that a test needs. CI starts the Compose service
+# itself, so the script must do nothing in that case. This check also keeps the
+# script quick when the local service is already up.
+if (exec 3<>/dev/tcp/127.0.0.1/55432) 2>/dev/null; then
+  printf '%s\n' 'notesapp test database: port 55432 already accepts connections.'
+  exit 0
+fi
+
+if ! command -v docker > /dev/null 2>&1; then
+  printf '%s\n' 'notesapp test database: no service on port 55432 and Docker is not installed.' >&2
+  exit 1
+fi
+
 mapfile -t containers < <(
   docker ps \
     --filter 'publish=55432' \
