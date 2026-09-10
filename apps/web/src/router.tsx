@@ -14,6 +14,7 @@ import {
   LoginPage,
   RequireSession,
 } from './features/accounts.tsx';
+import { useDocumentTitle } from './features/document-title.ts';
 const Shell = lazy(async () => ({
   default: (await import('./features/shell.tsx')).Shell,
 }));
@@ -53,6 +54,7 @@ function deferred(element: ReactNode): ReactNode {
 
 /** Shown for an address that names no route. */
 function NotFoundPage(): ReactNode {
+  useDocumentTitle('Page not found');
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
       <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">

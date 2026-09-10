@@ -22,6 +22,7 @@ export type { CreateEditorOptions } from './create-editor.ts';
 export {
   applyHeading,
   createEditor,
+  emptyNoteHint,
   setEditorReadOnly,
   setEditorRich,
   setEditorTheme,

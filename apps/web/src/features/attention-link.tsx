@@ -93,7 +93,7 @@ export function AttentionLink({
     <Link
       className={
         className ??
-        'block rounded-md px-2 py-1.5 text-xs font-medium text-danger hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus'
+        'flex min-h-11 items-center rounded-lg px-2 text-control font-medium text-danger no-underline hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-8'
       }
       to={`/w/${workspaceId}/attention`}
     >

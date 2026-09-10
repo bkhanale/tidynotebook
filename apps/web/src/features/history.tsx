@@ -111,7 +111,7 @@ export function InlineDiff({
             <h4 className="m-0 bg-hover px-3 py-2 text-control font-semibold text-strong">
               {`Hunk ${String(index + 1)}: ${oldLabel} from line ${String(entry.hunk.beforeStart)} (${String(beforeCount)} lines), ${newLabel} from line ${String(entry.hunk.afterStart)} (${String(afterCount)} lines)`}
             </h4>
-            <ol className="m-0 list-none p-0 font-mono text-xs">
+            <ol className="m-0 list-none p-0 font-mono text-control">
               {entry.rows.map((row, rowIndex) => (
                 <li
                   className={`flex gap-2 px-3 py-0.5 ${row.kind === 'removed' ? 'bg-danger/10 text-danger' : row.kind === 'added' ? 'bg-success/10 text-success' : 'text-muted'}`}

@@ -5,22 +5,12 @@
  * API paths, but the interface never shows the concept: there is no switcher,
  * no create screen, no settings screen, and no role. The provider in
  * `app.tsx` resolves the one workspace once; this module only redirects the
- * root address onto it and validates a note name.
+ * root address onto it.
  */
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router';
-import { normalizePath } from '@notesapp/core';
-import { Button, StatusRegion } from '@notesapp/ui';
+import { Button, Page, PageHeader, StatusRegion } from '@notesapp/ui';
 import { useWorkspace } from '../app.tsx';
-
-/** Validates a new note path with the shared domain rule. */
-export function validateNotePath(input: string): string | null {
-  const result = normalizePath(input);
-  if (result.ok) return null;
-  if (result.error.code === 'invalid_path')
-    return 'Use a note name without empty folders, traversal, or edge spaces.';
-  return `This note name is refused: ${result.error.code}.`;
-}
 
 /**
  * Sends the root address to the note list.
@@ -39,23 +29,21 @@ export function WorkspaceHome(): ReactNode {
 
   if (state.status === 'error')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          Your notes did not open
-        </h1>
+      <Page>
+        <PageHeader title="Your notes did not open" />
         <p className="text-control text-danger" role="alert">
           {state.message}
         </p>
         <Button variant="secondary" onClick={() => reload()}>
           Try again
         </Button>
-      </main>
+      </Page>
     );
 
   return (
-    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+    <Page>
       <StatusRegion message="Opening your notes." />
-    </main>
+    </Page>
   );
 }
 

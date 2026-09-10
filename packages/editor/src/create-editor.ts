@@ -12,7 +12,12 @@
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
 import { markdown } from '@codemirror/lang-markdown';
 import { Compartment, EditorState, type Extension } from '@codemirror/state';
-import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
+import {
+  EditorView,
+  keymap,
+  placeholder,
+  type ViewUpdate,
+} from '@codemirror/view';
 import {
   findTaskBox,
   headingSpec,
@@ -103,6 +108,9 @@ function themeExtension(theme: 'light' | 'dark'): Extension {
   );
 }
 
+/** The line an empty note shows until the person types. */
+export const emptyNoteHint = 'Start writing. Markdown works here.';
+
 /**
  * Creates the live Markdown editor inside `parent`.
  *
@@ -156,6 +164,7 @@ export function createEditor(
       livePreview(),
       richCompartment.of(richWidgets(options.rich ?? {})),
       EditorView.lineWrapping,
+      placeholder(emptyNoteHint),
       themeCompartment.of(themeExtension(options.theme ?? 'dark')),
       saveKeymap,
       editorCommands(),
