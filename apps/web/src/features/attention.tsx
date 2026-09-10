@@ -214,26 +214,29 @@ export function AttentionRoute(): ReactNode {
     );
   };
 
-  /** Removes the parked entry and its kept copy after an action settled it. */
-  const settle = async (save: ParkedSave): Promise<void> => {
-    if (save.mutationId !== null)
-      await activeStore.discardParkedSave(
-        activeAccount,
-        activeWorkspace,
-        save.mutationId,
-      );
-    await activeStore.removeRecovery(
-      activeAccount,
-      activeWorkspace,
-      save.recoveryId,
-    );
+  /**
+   * Drops the parked queue entry of one kept text.
+   *
+   * The entry, its checkpoints, and the local head they set go together, so
+   * the note returns to its accepted state before anything is written on top
+   * of it. The kept copy stays until the action that follows succeeded, so a
+   * failure never leaves the person with neither.
+   */
+  const dropParked = async (save: ParkedSave): Promise<void> => {
+    if (save.mutationId === null) return;
+    await activeStore.discardQueueEntry(activeAccount, save.mutationId);
   };
 
   const onRetry = (save: ParkedSave): void => {
     void (async (): Promise<void> => {
       try {
+        await dropParked(save);
         await queueText(save.fileId, save.path, save.text);
-        await settle(save);
+        await activeStore.removeRecovery(
+          activeAccount,
+          activeWorkspace,
+          save.recoveryId,
+        );
         setFailure(null);
         setNotice(`The save of ${save.name} is queued again.`);
         reload();
@@ -254,8 +257,13 @@ export function AttentionRoute(): ReactNode {
           save.name,
           files.map((file) => file.path),
         );
+        await dropParked(save);
         await queueText(generateUUID(), storageNotePath(name), save.text);
-        await settle(save);
+        await activeStore.removeRecovery(
+          activeAccount,
+          activeWorkspace,
+          save.recoveryId,
+        );
         setFailure(null);
         setNotice(`The text is kept as the note ${name}.`);
         reload();
@@ -268,7 +276,12 @@ export function AttentionRoute(): ReactNode {
   const onDiscard = (save: ParkedSave): void => {
     void (async (): Promise<void> => {
       try {
-        await settle(save);
+        await dropParked(save);
+        await activeStore.removeRecovery(
+          activeAccount,
+          activeWorkspace,
+          save.recoveryId,
+        );
         setFailure(null);
         setNotice(`The kept text of ${save.name} is discarded.`);
         reload();

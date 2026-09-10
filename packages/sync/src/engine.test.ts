@@ -136,16 +136,6 @@ class FakeStore implements LocalStore {
     return Promise.resolve();
   }
 
-  discardParkedSave(
-    _account: string,
-    _workspace: string,
-    mutationId: string,
-  ): Promise<void> {
-    this.entries.delete(mutationId);
-    this.order = this.order.filter((id) => id !== mutationId);
-    return Promise.resolve();
-  }
-
   pending(account: string, workspace: string): Promise<readonly QueueEntry[]> {
     const found: QueueEntry[] = [];
     for (const id of this.order) {

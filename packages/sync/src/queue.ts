@@ -240,14 +240,15 @@ function submissionAction(problem: Problem): SubmissionAction {
  * The server answer code travels with the record. The interface maps a known
  * code to one sentence and falls back to a general sentence for a code it
  * does not know, so a new refusal reason needs no change here.
+ *
+ * The caller announces the notice, because only the caller knows which files
+ * the refusal named.
  */
 export async function parkRefusedSave(
   local: LocalStore,
   accountId: string,
-  ctx: SyncContext,
   entry: QueueEntry,
   code: string,
-  fileIds: readonly string[],
 ): Promise<void> {
   const workspaceId = entry.input.workspaceId;
   await local.markConflict(accountId, entry.input.mutationId, {
@@ -264,12 +265,6 @@ export async function parkRefusedSave(
       mutationId: entry.input.mutationId,
     });
   }
-  ctx.announce({
-    kind: 'preserved',
-    mutationId: entry.input.mutationId,
-    code,
-    fileIds: [...fileIds],
-  });
 }
 
 /**
@@ -365,14 +360,13 @@ async function recoverStaleHead(
     (fileId) => (entry.input.expectedHeads[fileId] ?? null) !== null,
   );
   if (updated !== undefined) {
-    await parkRefusedSave(
-      local,
-      accountId,
-      ctx,
-      entry,
-      'deleted_remotely',
-      files,
-    );
+    await parkRefusedSave(local, accountId, entry, 'deleted_remotely');
+    ctx.announce({
+      kind: 'preserved',
+      mutationId: entry.input.mutationId,
+      code: 'deleted_remotely',
+      fileIds: [...files],
+    });
     return 'done';
   }
 
@@ -605,8 +599,12 @@ async function submitSingle(
       entry,
       outcome.problem,
     );
-  await parkRefusedSave(local, accountId, ctx, entry, outcome.problem.code, [
-    ...new Set(input.revisions.map((revision) => revision.fileId)),
-  ]);
+  await parkRefusedSave(local, accountId, entry, outcome.problem.code);
+  ctx.announce({
+    kind: 'preserved',
+    mutationId: input.mutationId,
+    code: outcome.problem.code,
+    fileIds: [...new Set(input.revisions.map((revision) => revision.fileId))],
+  });
   return 'done';
 }

@@ -1581,8 +1581,10 @@ await test('a parked save keeps its text in the recovery area', async () => {
   assert.ok(entry !== null);
 
   // The server refused the save for good, so the queue parks it.
-  await store.markConflict(account, entry.input.mutationId);
   await parkRefusedSave(store, account, entry, 'path_conflict');
+  const parked = await store.listLocalConflicts(account, workspace);
+  assert.equal(parked.length, 1);
+  assert.equal(parked[0]?.errorCode, 'path_conflict');
 
   const kept = await store.recover(account, workspace);
   assert.equal(kept.length, 1);
@@ -1594,7 +1596,7 @@ await test('a parked save keeps its text in the recovery area', async () => {
   assert.equal(kept[0]?.fileId, file);
 
   // Discarding the parked entry leaves the queue empty and never sends it.
-  await store.discardParkedSave(account, workspace, entry.input.mutationId);
+  await store.discardQueueEntry(account, entry.input.mutationId);
   assert.deepEqual(await store.pending(account, workspace), []);
   await store.close();
 });
@@ -1610,7 +1612,6 @@ await test('an unknown refusal code still parks the text', async () => {
   await store.saveDraft(draft);
   const entry = await store.checkpoint(draft, null);
   assert.ok(entry !== null);
-  await store.markConflict(account, entry.input.mutationId);
   await parkRefusedSave(store, account, entry, 'deleted_remotely');
 
   const kept = await store.recover(account, workspace);
