@@ -39,6 +39,13 @@ import {
   type ThemeChoice,
 } from '@notesapp/ui';
 import { displayNoteName } from './features/note-name.ts';
+import { problemSentence } from './features/problem-text.ts';
+import {
+  startingSyncState,
+  syncStateFileId,
+  syncStateOfNotice,
+  type SyncState,
+} from './features/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
@@ -48,23 +55,19 @@ function readProperty(value: unknown, key: string): unknown {
 }
 
 /**
- * Turns a generated failure into one readable sentence for a status region.
+ * Turns a generated failure into one plain sentence for the person.
  *
- * The message names the problem code and title only, never note content.
+ * The sentence never carries a problem code, a status number, a note
+ * identifier, or note content. The code goes to the browser console, where
+ * it is available for a report without reaching the screen.
  */
 export function problemMessage(error: unknown): string {
   const code = readProperty(error, 'code');
-  const title = readProperty(error, 'title');
   const status = readProperty(error, 'status');
-  const parts: string[] = [];
-  if (typeof code === 'string' && code !== '') parts.push(code);
-  if (typeof title === 'string' && title !== '') parts.push(title);
-  if (parts.length === 0) {
-    if (typeof status === 'number' && status !== 0)
-      return `The request failed with status ${String(status)}.`;
-    return 'The request did not reach the service.';
-  }
-  return parts.join(': ');
+  const knownCode = typeof code === 'string' && code !== '' ? code : null;
+  const knownStatus = typeof status === 'number' ? status : null;
+  if (knownCode !== null) console.warn('notesapp problem code', knownCode);
+  return problemSentence(knownCode, knownStatus);
 }
 
 /** Where the session stands. */
@@ -319,8 +322,10 @@ function useWorkspaceLoader(
 
 /** What the sync engine of the open workspace reports and accepts. */
 export type SyncValue = {
-  /** One sentence about the last thing the engine did. */
-  readonly message: string;
+  /** Where sync stands, as a typed value the view selects copy from. */
+  readonly state: SyncState;
+  /** The note the state speaks about, when the local list knew its name. */
+  readonly noteName: string | null;
   /** Asks the engine for a pass without waiting for its interval. */
   readonly requestSync: () => void;
 };
@@ -383,12 +388,15 @@ export type ThemeValue = {
   readonly choice: ThemeChoice;
   readonly resolved: ResolvedTheme;
   readonly setChoice: (choice: ThemeChoice) => void;
+  /** Why the choice did not reach the account, when that happened. */
+  readonly syncError: string | null;
 };
 
 const ThemeContext = createContext<ThemeValue>({
   choice: 'system',
   resolved: 'dark',
   setChoice: () => {},
+  syncError: null,
 });
 
 /** Reads the theme value. */
@@ -413,7 +421,7 @@ function readStoredChoice(): ThemeChoice {
  * change. A failed sync keeps the local choice and reports it; it never
  * rolls the visible theme back.
  */
-function useThemeLoader(): ThemeValue & { readonly syncError: string | null } {
+function useThemeLoader(): ThemeValue {
   const [choice, setChoiceState] = useState<ThemeChoice>(() =>
     readStoredChoice(),
   );
@@ -441,7 +449,7 @@ function useThemeLoader(): ThemeValue & { readonly syncError: string | null } {
       const result = await updatePreferences({ body: { theme: next } });
       if (result.error !== undefined)
         setSyncError(
-          `The theme is set on this device but not synced: ${problemMessage(result.error)}`,
+          'The palette is set on this device but not on your account yet.',
         );
       else setSyncError(null);
     }
@@ -479,22 +487,24 @@ async function noteNameOf(
 /**
  * Runs the foreground sync engine of one workspace.
  *
- * Returns the latest human readable sync state for the status region. The
- * engine only announces state changes; the returned message stays until the
- * next announcement.
+ * Returns the typed sync state. The engine only announces changes, so the
+ * returned state stays until the next announcement. The view selects the
+ * sentence from the state; no screen reads engine prose.
  */
 export function useWorkspaceSync(
   store: LocalStore | null,
   accountId: string | null,
   workspaceId: string | null,
 ): SyncValue {
-  const [message, setMessage] = useState<string>('Sync has not started yet.');
+  const [state, setState] = useState<SyncState>(startingSyncState);
+  const [noteName, setNoteName] = useState<string | null>(null);
   const ownerId = useMemo(syncWorkerId, []);
   const wake = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (store === null || accountId === null || workspaceId === null) {
-      setMessage('Sync waits for the account and the local store.');
+      setState(startingSyncState);
+      setNoteName(null);
       return;
     }
     const activeStore = store;
@@ -502,48 +512,21 @@ export function useWorkspaceSync(
     const activeWorkspace = workspaceId;
     const controller = new AbortController();
     const onNotice = (notice: SyncNotice): void => {
-      if (notice.kind === 'pushed')
-        setMessage(
-          `Saved to server: ${String(notice.mutationIds.length)} change(s).`,
-        );
-      else if (notice.kind === 'preserved')
-        // The mutation identity and the server code belong in the Needs
-        // attention list, not in a status line. The person needs the note.
-        void noteNameOf(
-          activeStore,
-          activeAccount,
-          activeWorkspace,
-          notice.fileIds[0],
-        ).then((name) => {
-          setMessage(`A save of ${name} needs attention.`);
-        });
-      else if (notice.kind === 'superseded')
-        setMessage(
-          `Your save of ${displayNoteName(notice.path)} is now the latest version. Text saved from another device is kept in History.`,
-        );
-      else if (notice.kind === 'delete-refused')
-        setMessage(
-          `${displayNoteName(notice.path)} changed on another device, so it was not deleted.`,
-        );
-      else if (notice.kind === 'retry')
-        setMessage(
-          `Sync retries in ${String(Math.round(notice.delayMs / 1000))} seconds.`,
-        );
-      else if (notice.kind === 'snapshot-restart')
-        setMessage(`Sync restarts the download: ${notice.reason}.`);
-      else if (notice.kind === 'snapshot-activated')
-        setMessage(
-          `Downloaded ${String(notice.count)} revision(s) for offline use.`,
-        );
-      else if (notice.kind === 'changes-applied')
-        setMessage(`Applied ${String(notice.count)} server change(s).`);
-      else if (notice.kind === 'paused')
-        setMessage('Sync paused: the session expired. Sign in again.');
-      else if (notice.kind === 'access-lost')
-        setMessage('Sync stopped: this account lost access to the workspace.');
-      else if (notice.kind === 'lease-held')
-        setMessage('Another tab is syncing this workspace.');
-      else setMessage('Sync lost its worker lease and retries.');
+      const next = syncStateOfNotice(notice);
+      if (next === null) return;
+      setState(next);
+      if (next.kind === 'superseded' || next.kind === 'delete-refused') {
+        setNoteName(displayNoteName(next.path));
+        return;
+      }
+      const fileId = syncStateFileId(next);
+      if (fileId === null) {
+        setNoteName(null);
+        return;
+      }
+      void noteNameOf(activeStore, activeAccount, activeWorkspace, fileId).then(
+        setNoteName,
+      );
     };
     const engine = createSyncEngine(store, accountId, workspaceId, {
       announce: onNotice,
@@ -561,15 +544,28 @@ export function useWorkspaceSync(
       )
         requestSync();
     });
-    window.addEventListener('online', requestSync);
+    const onOnline = (): void => {
+      setState({ kind: 'sending' });
+      requestSync();
+    };
+    const onOffline = (): void => {
+      setState({ kind: 'waiting' });
+    };
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
     window.addEventListener('focus', requestSync);
-    setMessage('Sync started.');
+    setState(
+      typeof navigator !== 'undefined' && !navigator.onLine
+        ? { kind: 'waiting' }
+        : { kind: 'sending' },
+    );
     void engine.run(controller.signal).catch(() => {
-      setMessage('Sync stopped.');
+      setState({ kind: 'stopped' });
     });
     return () => {
       unsubscribe();
-      window.removeEventListener('online', requestSync);
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
       window.removeEventListener('focus', requestSync);
       controller.abort();
       engine.stop();
@@ -580,13 +576,22 @@ export function useWorkspaceSync(
   const requestSync = useCallback((): void => {
     wake.current();
   }, []);
-  return useMemo(() => ({ message, requestSync }), [message, requestSync]);
+  return useMemo(
+    () => ({ state, noteName, requestSync }),
+    [state, noteName, requestSync],
+  );
 }
 
 const SyncContext = createContext<SyncValue>({
-  message: 'Sync has not started yet.',
+  state: startingSyncState,
+  noteName: null,
   requestSync: () => {},
 });
+
+/** Reads the sync state of the open notes area. */
+export function useSyncState(): SyncValue {
+  return useContext(SyncContext);
+}
 
 /** Publishes the sync state of the open workspace to the screens below. */
 export function SyncProvider({
@@ -607,52 +612,6 @@ export function SyncProvider({
  */
 export function useRequestSync(): () => void {
   return useContext(SyncContext).requestSync;
-}
-
-/**
- * Reads the local snapshot position and the pending queue of one workspace.
- *
- * Used by the status region next to the engine announcements. A failure to
- * read local state is reported but never throws into the layout.
- */
-export function useLocalSnapshotStatus(
-  store: LocalStore | null,
-  accountId: string | null,
-  workspaceId: string | null,
-): string {
-  const [message, setMessage] = useState<string>('');
-
-  useEffect(() => {
-    if (store === null || accountId === null || workspaceId === null) {
-      setMessage('');
-      return;
-    }
-    const activeStore = store;
-    const activeAccount = accountId;
-    const activeWorkspace = workspaceId;
-    let cancelled = false;
-    async function load(): Promise<void> {
-      try {
-        const [cursor, queue] = await Promise.all([
-          activeStore.readCursor(activeAccount, activeWorkspace),
-          activeStore.pending(activeAccount, activeWorkspace),
-        ]);
-        if (cancelled) return;
-        if (queue.length > 0)
-          setMessage(`${String(queue.length)} change(s) wait on this device.`);
-        else if (cursor === null) setMessage('No server snapshot yet.');
-        else setMessage(`Local snapshot is at ${cursor}.`);
-      } catch {
-        if (!cancelled) setMessage('Local snapshot status is unavailable.');
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [store, accountId, workspaceId]);
-
-  return message;
 }
 
 /**
@@ -717,6 +676,7 @@ export function AppProviders({
       choice: theme.choice,
       resolved: theme.resolved,
       setChoice: theme.setChoice,
+      syncError: theme.syncError,
     }),
     [theme],
   );

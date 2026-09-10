@@ -1,14 +1,16 @@
 /**
- * Application shell: responsive layout, navigation, and file tree.
+ * The application shell: one frame for every signed in screen.
  *
- * The shell owns routing chrome only: a header, a sidebar that becomes a
- * drawer on phones, the file tree, the status region, and the collapsible
- * outline. Note content editing lives in the note editor screen; the note
- * view tells an unknown note apart from an empty file and otherwise opens
- * that editor.
+ * The header is one row of 48 px with three zones. Left: the drawer toggle
+ * below `md`, then the product mark. Centre: one search affordance that
+ * opens the command palette at every width. Right: the save and sync chip,
+ * then one overflow menu. The sidebar is 256 px, holds the only primary
+ * action of the shell, the notes that changed last, the folder tree, and a
+ * quiet footer. Every route below owns exactly one `main` landmark.
  *
- * The one workspace of the account is an implicit container. It stays in the
- * address so that a note keeps a stable link, but nothing on screen names it.
+ * The one workspace of the account is an implicit container. It stays in
+ * the address so a note keeps a stable link, but nothing on screen names
+ * it.
  */
 import {
   lazy,
@@ -20,193 +22,122 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, Outlet, useLocation, useParams } from 'react-router';
-import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
-import { shortcuts } from '@notesapp/editor';
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigate,
+  useParams,
+} from 'react-router';
 import {
   Button,
   ChevronDownIcon,
   ChevronRightIcon,
-  CollapsibleSection,
+  ComputerIcon,
+  EmptyState,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
-  HistoryIcon,
+  FolderPlusIcon,
+  Menu,
   MenuIcon,
   MoonIcon,
+  MoreIcon,
+  Notice,
+  Page,
+  PageHeader,
+  PencilIcon,
+  SearchIcon,
+  SettingsIcon,
   StatusRegion,
   SunIcon,
   TrashIcon,
-  UserIcon,
   WorkspaceIcon,
+  type MenuItem,
 } from '@notesapp/ui';
 import {
-  problemMessage,
   SyncProvider,
   useLocalStore,
   useSession,
+  useSyncState,
   useTheme,
   useWorkspaceSync,
 } from '../app.tsx';
 import { AttentionLink, useAttentionCount } from './attention-link.tsx';
-import { RequireCurrentWorkspace } from './workspaces.tsx';
-import { NewNoteButton } from './new-note.tsx';
+import { CommandPalette } from './command-palette.tsx';
+import { useDocumentTitle } from './document-title.ts';
+import { FilesProvider, useFiles, useOpenFolders } from './files.tsx';
+import {
+  MoveNoteDialog,
+  NewFolderDialog,
+  RenameFolderDialog,
+} from './folders.tsx';
+import { NewNoteButton, useCreateNote, useStarterNote } from './new-note.tsx';
+import { NoteActionsScope, useNoteActions } from './note-actions.tsx';
+import {
+  buildNoteTree,
+  recentNotes,
+  type NoteSummary,
+  type TreeNode,
+} from './note-list.ts';
 import { displayNoteName } from './note-name.ts';
-import { OutlinePanel } from './outline.tsx';
-import { QuickOpenDialog, SearchDialog } from './search.tsx';
+import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
+import {
+  NoteSaveScope,
+  SaveStateChip,
+  useNoteSave,
+  useOnline,
+} from './save-status.tsx';
+import { ShortcutsDialog } from './shortcuts.tsx';
+import { syncStateMessage } from './sync-state.ts';
+import { RequireCurrentWorkspace } from './workspaces.tsx';
 import { DeleteNoticeBar, DeleteNoticeProvider } from './trash.tsx';
-import { mergeFileSummaries, useLocalQuery } from '../local-state.ts';
+import { copyText } from '../platform.ts';
 
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
 }));
 
-/**
- * Every live file of the workspace, in the order of the folder tree.
- *
- * The server sorts and pages the listing, so each page continues the previous
- * one through its cursor instead of scanning from the front. The sidebar
- * shows a folder tree, so it asks for the path order.
- */
-async function loadAllFiles(
-  workspaceId: string,
-): Promise<{ readonly files: readonly WorkspaceFileSummary[] }> {
-  const files: WorkspaceFileSummary[] = [];
-  let cursor: string | null = null;
-  for (;;) {
-    const page: { readonly cursor?: string } =
-      cursor === null ? {} : { cursor };
-    const result = await listFiles({
-      path: { workspaceId },
-      query: { ...page, limit: 100, sort: 'path' },
-    });
-    if (result.error !== undefined || result.data === undefined)
-      throw new Error(problemMessage(result.error));
-    files.push(...result.data.files);
-    if (result.data.nextCursor === null) break;
-    cursor = result.data.nextCursor;
-  }
-  return { files };
-}
+/** How many notes the Recent section holds. */
+const recentLimit = 6;
 
-/** Loads one merged server and local file list for shell navigation. */
-function useWorkspaceFiles(workspaceId: string): {
-  readonly files: readonly WorkspaceFileSummary[];
-  readonly loading: boolean;
-} {
-  const session = useSession();
-  const store = useLocalStore();
-  const [serverFiles, setServerFiles] = useState<
-    readonly WorkspaceFileSummary[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const emptyLocalFiles = useMemo(() => [], []);
-  const localFiles = useLocalQuery(
-    store.store,
-    session.account?.accountId ?? null,
-    workspaceId,
-    (activeStore, accountId, activeWorkspace) =>
-      activeStore.listLocalFiles(accountId, activeWorkspace),
-    emptyLocalFiles,
-    (change) =>
-      change.kind === 'draft' ||
-      change.kind === 'queue' ||
-      change.kind === 'file' ||
-      change.kind === 'reset',
+/** One note row of the tree. */
+function NoteRow({
+  note,
+  basename,
+  workspaceId,
+  active,
+  onNavigate,
+}: {
+  readonly note: NoteSummary;
+  readonly basename: string;
+  readonly workspaceId: string;
+  readonly active: boolean;
+  readonly onNavigate: () => void;
+}): ReactNode {
+  return (
+    <Link
+      className={`flex min-h-11 items-center gap-2 rounded-lg px-2 text-control no-underline motion-safe:transition-colors md:min-h-8 ${active ? 'bg-active text-strong' : 'text-muted hover:bg-hover hover:text-strong'}`}
+      to={`/w/${workspaceId}/notes/${note.fileId}`}
+      onClick={onNavigate}
+      aria-current={active ? 'page' : undefined}
+    >
+      <span className="inline-flex shrink-0 items-center" aria-hidden="true">
+        <FileTextIcon size={14} />
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        {displayNoteName(basename)}
+      </span>
+      {note.localOnly || note.unsent ? (
+        <span
+          className="shrink-0 rounded-full border border-edge px-1.5 text-control text-muted"
+          title="On this device only"
+        >
+          Local
+        </span>
+      ) : null}
+    </Link>
   );
-
-  useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    void loadAllFiles(workspaceId)
-      .then((loaded) => {
-        if (!cancelled) setServerFiles(loaded.files);
-      })
-      .catch(() => {
-        if (!cancelled) setServerFiles([]);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
-
-  return {
-    files: useMemo(
-      () => mergeFileSummaries(serverFiles, localFiles.value),
-      [serverFiles, localFiles.value],
-    ),
-    loading,
-  };
-}
-
-/** One node of the rendered file tree. */
-export type TreeNode =
-  | {
-      readonly kind: 'file';
-      readonly file: WorkspaceFileSummary;
-      readonly basename: string;
-    }
-  | {
-      readonly kind: 'folder';
-      readonly name: string;
-      readonly fullPath: string;
-      readonly children: readonly TreeNode[];
-    };
-
-/** Groups flat file paths into a folder tree. */
-export function buildFileTree(
-  files: readonly WorkspaceFileSummary[],
-): readonly TreeNode[] {
-  type MutableFolder = {
-    readonly folders: Map<string, MutableFolder>;
-    readonly files: Array<{
-      readonly file: WorkspaceFileSummary;
-      readonly basename: string;
-    }>;
-  };
-  const root: MutableFolder = { folders: new Map(), files: [] };
-  const ordered = [...files].sort((a, b) => (a.path < b.path ? -1 : 1));
-  for (const file of ordered) {
-    const segments = file.path.split('/');
-    let current = root;
-    for (let index = 0; index < segments.length - 1; index += 1) {
-      const segment = segments[index] ?? '';
-      let next = current.folders.get(segment);
-      if (next === undefined) {
-        next = { folders: new Map(), files: [] };
-        current.folders.set(segment, next);
-      }
-      current = next;
-    }
-    const basename = segments.at(-1) ?? file.path;
-    current.files.push({ file, basename });
-  }
-  const render = (
-    folder: MutableFolder,
-    prefix: string,
-  ): readonly TreeNode[] => {
-    const folders = [...folder.folders.entries()]
-      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
-      .map(([name, child]): TreeNode => {
-        const fullPath = prefix === '' ? name : `${prefix}/${name}`;
-        return {
-          kind: 'folder',
-          name,
-          fullPath,
-          children: render(child, fullPath),
-        };
-      });
-    const leaves = folder.files.map(({ file, basename }): TreeNode => ({
-      kind: 'file',
-      file,
-      basename,
-    }));
-    return [...folders, ...leaves];
-  };
-  return render(root, '');
 }
 
 /** Renders the tree nodes as interactive collapsible lists. */
@@ -216,6 +147,7 @@ function TreeView({
   activeFileId,
   openFolders,
   onToggleFolder,
+  onRenameFolder,
   onNavigate,
 }: {
   readonly nodes: readonly TreeNode[];
@@ -223,71 +155,71 @@ function TreeView({
   readonly activeFileId: string | null;
   readonly openFolders: ReadonlySet<string>;
   readonly onToggleFolder: (path: string) => void;
+  readonly onRenameFolder: (path: string) => void;
   readonly onNavigate: () => void;
 }): ReactNode {
-  if (nodes.length === 0) {
-    return <p className="my-1 px-2 text-control text-muted">No files yet.</p>;
-  }
-
   return (
     <ul className="m-0 list-none space-y-0.5 p-0">
       {nodes.map((node) => {
-        if (node.kind === 'file') {
-          const isActive = node.file.fileId === activeFileId;
+        if (node.kind === 'note')
           return (
-            <li key={node.file.fileId}>
-              <Link
-                className={`flex min-h-8 items-center gap-2 rounded-md px-2 text-control no-underline transition-colors ${isActive ? 'bg-active text-strong' : 'text-muted hover:bg-hover hover:text-strong'}`}
-                to={`/w/${workspaceId}/notes/${node.file.fileId}`}
-                onClick={onNavigate}
-                title={node.file.path}
-                aria-current={isActive ? 'page' : undefined}
+            <li key={node.note.fileId}>
+              <NoteRow
+                note={node.note}
+                basename={node.basename}
+                workspaceId={workspaceId}
+                active={node.note.fileId === activeFileId}
+                onNavigate={onNavigate}
+              />
+            </li>
+          );
+
+        const isOpen = openFolders.has(node.fullPath);
+        return (
+          <li key={`folder:${node.fullPath}`}>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className="flex min-h-11 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 text-left text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
+                onClick={() => onToggleFolder(node.fullPath)}
+                aria-expanded={isOpen}
               >
                 <span
                   className="inline-flex shrink-0 items-center"
                   aria-hidden="true"
                 >
-                  <FileTextIcon size={14} />
+                  {isOpen ? (
+                    <ChevronDownIcon size={14} />
+                  ) : (
+                    <ChevronRightIcon size={14} />
+                  )}
                 </span>
-                <span className="min-w-0 truncate">
-                  {displayNoteName(node.basename)}
+                <span
+                  className="inline-flex shrink-0 items-center"
+                  aria-hidden="true"
+                >
+                  {isOpen ? (
+                    <FolderOpenIcon size={14} />
+                  ) : (
+                    <FolderIcon size={14} />
+                  )}
                 </span>
-              </Link>
-            </li>
-          );
-        }
-
-        const isOpen = openFolders.has(node.fullPath);
-        return (
-          <li key={`folder:${node.fullPath}`}>
-            <button
-              type="button"
-              className="flex min-h-8 w-full cursor-pointer items-center gap-1.5 rounded-md border-0 bg-transparent px-2 text-left text-control text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
-              onClick={() => onToggleFolder(node.fullPath)}
-              aria-expanded={isOpen}
-            >
-              <span
-                className="inline-flex shrink-0 items-center"
-                aria-hidden="true"
-              >
-                {isOpen ? (
-                  <ChevronDownIcon size={13} />
-                ) : (
-                  <ChevronRightIcon size={13} />
-                )}
-              </span>
-              <span
-                className="inline-flex shrink-0 items-center"
-                aria-hidden="true"
-              >
-                {isOpen ? (
-                  <FolderOpenIcon size={15} />
-                ) : (
-                  <FolderIcon size={15} />
-                )}
-              </span>
-              <span className="min-w-0 truncate">{node.name}</span>
-            </button>
+                <span className="min-w-0 truncate">{node.name}</span>
+              </button>
+              <Menu
+                label={`Actions for the folder ${node.name}`}
+                icon={<MoreIcon size={14} />}
+                triggerClassName="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8"
+                items={[
+                  {
+                    id: 'rename',
+                    label: 'Rename folder',
+                    icon: <PencilIcon size={14} />,
+                    onSelect: () => onRenameFolder(node.fullPath),
+                  },
+                ]}
+              />
+            </div>
             {isOpen ? (
               <div className="ml-3 border-l border-edge-subtle pl-1">
                 <TreeView
@@ -296,6 +228,7 @@ function TreeView({
                   activeFileId={activeFileId}
                   openFolders={openFolders}
                   onToggleFolder={onToggleFolder}
+                  onRenameFolder={onRenameFolder}
                   onNavigate={onNavigate}
                 />
               </div>
@@ -307,148 +240,192 @@ function TreeView({
   );
 }
 
-/** The sidebar: the new note action, the file tree, and the outline. */
+/** A quiet group label inside the sidebar. */
+function GroupLabel({
+  id,
+  children,
+  action,
+}: {
+  readonly id: string;
+  readonly children: ReactNode;
+  readonly action?: ReactNode | undefined;
+}): ReactNode {
+  return (
+    <h2
+      className="mb-1 flex min-h-8 items-center justify-between gap-2 px-2 text-control font-semibold uppercase tracking-wide text-muted"
+      id={id}
+    >
+      <span>{children}</span>
+      {action}
+    </h2>
+  );
+}
+
+/** The sidebar: the new note action, Recent, the folder tree, a footer. */
 function Sidebar({
   workspaceId,
-  files,
-  filesLoading,
   onNavigate,
+  onNewFolder,
+  onRenameFolder,
 }: {
   readonly workspaceId: string;
-  readonly files: readonly WorkspaceFileSummary[];
-  readonly filesLoading: boolean;
   readonly onNavigate: () => void;
+  readonly onNewFolder: () => void;
+  readonly onRenameFolder: (folder: string) => void;
 }): ReactNode {
   const params = useParams();
+  const location = useLocation();
   const fileId = typeof params.fileId === 'string' ? params.fileId : null;
   const session = useSession();
   const store = useLocalStore();
-  const [outlineOpen, setOutlineOpen] = useState(false);
-  const [openFolders, setOpenFolders] = useState<ReadonlySet<string>>(
-    new Set(),
+  const sync = useSyncState();
+  const files = useFiles();
+  const online = useOnline();
+  const { openFolders, toggleFolder } = useOpenFolders(workspaceId);
+  const attentionCount = useAttentionCount(
+    store.store,
+    session.account?.accountId ?? null,
+    workspaceId,
   );
-
-  const toggleFolder = useCallback((folderPath: string): void => {
-    setOpenFolders((prev) => {
-      const next = new Set(prev);
-      if (next.has(folderPath)) next.delete(folderPath);
-      else next.add(folderPath);
-      return next;
-    });
-  }, []);
-
-  useEffect(() => {
-    const allFolders = new Set<string>();
-    for (const file of files) {
-      const parts = file.path.split('/');
-      let current = '';
-      for (let index = 0; index < parts.length - 1; index += 1) {
-        const segment = parts[index] ?? '';
-        if (segment === '') continue;
-        current = current === '' ? segment : `${current}/${segment}`;
-        allFolders.add(current);
-      }
-    }
-    setOpenFolders(allFolders);
-  }, [files, workspaceId]);
+  const recent = useMemo(
+    () => recentNotes(files.notes, recentLimit),
+    [files.notes],
+  );
+  const tree = useMemo(() => buildNoteTree(files.notes), [files.notes]);
+  const trashPath = `/w/${workspaceId}/trash`;
 
   return (
     <>
       {session.account !== null ? (
-        <div className="px-2 py-2">
+        <div className="flex items-center gap-1 px-2 py-2">
           <NewNoteButton
             store={store.store}
             accountId={session.account.accountId}
             workspaceId={workspaceId}
             variant="primary"
-            className="w-full"
+            className="min-w-0 flex-1"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            label="New folder"
+            title="New folder"
+            icon={<FolderPlusIcon size={16} />}
+            onClick={onNewFolder}
           />
         </div>
       ) : null}
 
-      <section
-        aria-labelledby="tree-heading"
-        className="min-h-0 flex-1 overflow-y-auto px-2 py-2"
-      >
-        <h2
-          id="tree-heading"
-          className="mb-1 flex items-center justify-between px-2 text-control font-semibold uppercase tracking-wide text-muted"
-        >
-          <span>Files</span>
-          <span className="rounded-full bg-hover px-1.5 py-0.5 text-xs font-medium">
-            {files.length}
-          </span>
-        </h2>
-        {filesLoading ? (
-          <StatusRegion message="Loading files." />
-        ) : (
-          <TreeView
-            nodes={buildFileTree(files)}
-            workspaceId={workspaceId}
-            activeFileId={fileId}
-            openFolders={openFolders}
-            onToggleFolder={toggleFolder}
-            onNavigate={onNavigate}
-          />
-        )}
-      </section>
+      <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
+        {recent.length > 0 ? (
+          <section aria-labelledby="recent-heading" className="mb-3">
+            <GroupLabel id="recent-heading">Recent</GroupLabel>
+            <ul className="m-0 list-none space-y-0.5 p-0">
+              {recent.map((note) => (
+                <li key={note.fileId}>
+                  <NoteRow
+                    note={note}
+                    basename={note.path.split('/').at(-1) ?? note.path}
+                    workspaceId={workspaceId}
+                    active={note.fileId === fileId}
+                    onNavigate={onNavigate}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
 
-      <CollapsibleSection
-        id="notes-outline"
-        title="Outline"
-        open={outlineOpen}
-        onToggle={setOutlineOpen}
-      >
-        <OutlinePanel workspaceId={workspaceId} fileId={fileId} />
-      </CollapsibleSection>
+        <section aria-labelledby="tree-heading">
+          <GroupLabel id="tree-heading">All notes</GroupLabel>
+          {files.loading ? (
+            <StatusRegion message="Loading your notes." />
+          ) : files.notes.length === 0 ? (
+            <p className="my-1 px-2 text-control text-muted">No notes yet.</p>
+          ) : (
+            <TreeView
+              nodes={tree}
+              workspaceId={workspaceId}
+              activeFileId={fileId}
+              openFolders={openFolders}
+              onToggleFolder={toggleFolder}
+              onRenameFolder={onRenameFolder}
+              onNavigate={onNavigate}
+            />
+          )}
+        </section>
+      </div>
+
+      <div className="border-t border-edge-subtle p-2">
+        <p className="m-0 px-2 pb-1 text-control text-muted">
+          {online
+            ? syncStateMessage(sync.state, sync.noteName)
+            : 'No connection. Your notes stay on this device.'}
+        </p>
+        <Link
+          className="flex min-h-11 items-center gap-2 rounded-lg px-2 text-control text-muted no-underline motion-safe:transition-colors hover:bg-hover hover:text-strong md:min-h-8"
+          to={trashPath}
+          onClick={onNavigate}
+          aria-current={location.pathname === trashPath ? 'page' : undefined}
+        >
+          <span
+            className="inline-flex shrink-0 items-center"
+            aria-hidden="true"
+          >
+            <TrashIcon size={14} />
+          </span>
+          <span>Trash</span>
+        </Link>
+        <AttentionLink workspaceId={workspaceId} count={attentionCount} />
+        {store.error !== null ? (
+          <p className="my-1 px-2 text-control text-danger" role="alert">
+            {store.error}
+          </p>
+        ) : null}
+      </div>
     </>
   );
 }
 
-/**
- * The application frame.
- *
- * On wide screens the sidebar sits next to the content. On phones it is a
- * drawer that the header button opens and that closes on navigation.
- */
+/** The application frame. */
 export function Shell(): ReactNode {
   const params = useParams();
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : '';
   return (
     <RequireCurrentWorkspace workspaceId={workspaceId}>
-      <ShellFrame workspaceId={workspaceId} />
+      <FilesProvider workspaceId={workspaceId}>
+        <ShellFrame workspaceId={workspaceId} />
+      </FilesProvider>
     </RequireCurrentWorkspace>
   );
 }
 
-/** The frame of one open workspace. */
+/** The frame of one open notes area. */
 function ShellFrame({
   workspaceId,
 }: {
   readonly workspaceId: string;
 }): ReactNode {
   const location = useLocation();
+  const navigate = useNavigate();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [quickOpen, setQuickOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
+  const [renameFolder, setRenameFolder] = useState<string | null>(null);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const drawerWasOpenRef = useRef(false);
   const session = useSession();
   const store = useLocalStore();
-  const { resolved, setChoice } = useTheme();
-  const workspaceFiles = useWorkspaceFiles(workspaceId);
+  const theme = useTheme();
+  const files = useFiles();
   const accountId = session.account?.accountId ?? null;
   const sync = useWorkspaceSync(store.store, accountId, workspaceId);
-  const syncMessage = sync.message;
-  const attentionCount = useAttentionCount(store.store, accountId, workspaceId);
-  const showSyncProblem =
-    syncMessage.includes('stopped') ||
-    syncMessage.includes('retries') ||
-    syncMessage.includes('needs attention') ||
-    syncMessage.includes('paused') ||
-    syncMessage.includes('lost');
+  const persistence = usePersistentStorage(useSavedOnce());
+  const newNote = useCreateNote(store.store, accountId, workspaceId);
+  const noteActions = useNoteActions();
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -456,12 +433,10 @@ function ShellFrame({
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'o') {
+      const key = event.key.toLowerCase();
+      if ((event.metaKey || event.ctrlKey) && (key === 'k' || key === 'o')) {
         event.preventDefault();
-        setQuickOpen(true);
-      } else if (event.key === 'Escape') {
-        setQuickOpen(false);
-        setShortcutsOpen(false);
+        setPaletteOpen(true);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -513,338 +488,391 @@ function ShellFrame({
     };
   }, [drawerOpen]);
 
-  const toggleTheme = (): void => {
-    setChoice(resolved === 'dark' ? 'light' : 'dark');
-  };
+  const cycleTheme = useCallback((): void => {
+    const order = ['system', 'light', 'dark'] as const;
+    const at = order.indexOf(theme.choice);
+    theme.setChoice(order[(at + 1) % order.length] ?? 'system');
+  }, [theme]);
+
+  const themeName =
+    theme.choice === 'system'
+      ? 'System'
+      : theme.choice === 'light'
+        ? 'Light'
+        : 'Dark';
+
+  const menuItems: readonly MenuItem[] = [
+    {
+      id: 'theme',
+      label: 'Theme',
+      hint: themeName,
+      icon:
+        theme.choice === 'system' ? (
+          <ComputerIcon size={14} />
+        ) : theme.choice === 'light' ? (
+          <SunIcon size={14} />
+        ) : (
+          <MoonIcon size={14} />
+        ),
+      onSelect: cycleTheme,
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      icon: <SettingsIcon size={14} />,
+      onSelect: () => {
+        void navigate('/settings');
+      },
+    },
+    {
+      id: 'shortcuts',
+      label: 'Keyboard shortcuts',
+      onSelect: () => setShortcutsOpen(true),
+    },
+    {
+      id: 'sign-out',
+      label: 'Sign out',
+      onSelect: () => session.signOut(),
+    },
+  ];
+
+  const paletteActions = useMemo(
+    () => [
+      {
+        id: 'new-note',
+        label: 'New note',
+        keywords: 'create add',
+        run: newNote.create,
+      },
+      {
+        id: 'new-folder',
+        label: 'New folder',
+        keywords: 'create add group',
+        run: () => setNewFolderOpen(true),
+      },
+      {
+        id: 'toggle-theme',
+        label: 'Toggle theme',
+        keywords: 'dark light system palette',
+        run: cycleTheme,
+      },
+      {
+        id: 'shortcuts',
+        label: 'Show keyboard shortcuts',
+        keywords: 'keys help',
+        run: () => setShortcutsOpen(true),
+      },
+      ...(noteActions === null
+        ? []
+        : [
+            {
+              id: 'history',
+              label: 'Open the history of this note',
+              keywords: 'versions revisions',
+              run: (): void => {
+                void navigate(
+                  `/w/${workspaceId}/notes/${noteActions.fileId}/history`,
+                );
+              },
+            },
+          ]),
+      ...(noteActions?.toggleReadMode == null
+        ? []
+        : [
+            {
+              id: 'read-mode',
+              label: 'Toggle Read mode',
+              keywords: 'write preview render',
+              run: noteActions.toggleReadMode,
+            },
+          ]),
+      {
+        id: 'trash',
+        label: 'Go to Trash',
+        keywords: 'deleted restore',
+        run: () => {
+          void navigate(`/w/${workspaceId}/trash`);
+        },
+      },
+      {
+        id: 'settings',
+        label: 'Go to Settings',
+        keywords: 'account theme sign out',
+        run: () => {
+          void navigate('/settings');
+        },
+      },
+    ],
+    [cycleTheme, navigate, newNote.create, noteActions, workspaceId],
+  );
 
   return (
     <SyncProvider value={sync}>
       <DeleteNoticeProvider>
-        <div className="min-h-dvh bg-app text-ink">
-          <a
-            className="fixed left-2 top-2 z-50 -translate-y-20 rounded-md bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
-            href="#notes-content"
-          >
-            Skip to content
-          </a>
-
-          <header className="sticky top-0 z-30 flex h-13 items-center gap-3 border-b border-edge-subtle bg-card px-3">
-            <Button
-              buttonRef={menuButtonRef}
-              variant="ghost"
-              size="sm"
-              className="md:hidden"
-              label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-              title={drawerOpen ? 'Close navigation' : 'Open navigation'}
-              icon={<MenuIcon size={18} />}
-              ariaControls="notes-sidebar"
-              ariaExpanded={drawerOpen}
-              onClick={() => {
-                setDrawerOpen((open) => !open);
-              }}
-            />
-
-            <Link
-              className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
-              to="/"
-            >
-              <span
-                className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
-                aria-hidden="true"
+        <NoteSaveScope>
+          <NoteActionsScope>
+            <div className="flex h-dvh flex-col bg-app text-ink">
+              <a
+                className="fixed left-2 top-2 z-50 -translate-y-20 rounded-lg bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
+                href="#notes-content"
               >
-                <WorkspaceIcon size={16} />
-              </span>
-              <span>Notesapp</span>
-            </Link>
+                Skip to content
+              </a>
 
-            <SearchDialog
-              store={store.store}
-              accountId={accountId}
-              workspaceId={workspaceId}
-              onNavigate={() => setDrawerOpen(false)}
-            />
+              <header className="z-30 flex h-header shrink-0 items-center gap-2 border-b border-edge-subtle bg-card px-2 sm:px-3">
+                <Button
+                  buttonRef={menuButtonRef}
+                  variant="ghost"
+                  size="sm"
+                  className="md:hidden"
+                  label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+                  title={drawerOpen ? 'Close navigation' : 'Open navigation'}
+                  icon={<MenuIcon size={18} />}
+                  ariaControls="notes-sidebar"
+                  ariaExpanded={drawerOpen}
+                  onClick={() => {
+                    setDrawerOpen((open) => !open);
+                  }}
+                />
 
-            <span className="min-w-0 flex-1" />
+                <Link
+                  className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
+                  to="/"
+                >
+                  <span
+                    className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
+                    aria-hidden="true"
+                  >
+                    <WorkspaceIcon size={16} />
+                  </span>
+                  <span className="hidden sm:inline">Notesapp</span>
+                </Link>
 
-            <div className="flex shrink-0 items-center gap-1">
-              {session.account !== null ? (
-                <NewNoteButton
+                <button
+                  type="button"
+                  className="mx-auto flex min-h-11 w-full max-w-md min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-edge bg-app px-3 text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8"
+                  onClick={() => setPaletteOpen(true)}
+                >
+                  <span
+                    className="inline-flex shrink-0 items-center"
+                    aria-hidden="true"
+                  >
+                    <SearchIcon size={15} />
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-left">
+                    Search notes
+                  </span>
+                  <kbd className="hidden shrink-0 rounded border border-edge bg-hover px-1.5 text-control text-muted sm:inline">
+                    Ctrl K
+                  </kbd>
+                </button>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <SaveStateChip
+                    workspaceId={workspaceId}
+                    onCopyBuffer={copyText}
+                  />
+                  <Menu
+                    label="More actions"
+                    icon={<MoreIcon size={18} />}
+                    items={menuItems}
+                  />
+                </div>
+              </header>
+
+              <div
+                className={
+                  drawerOpen
+                    ? 'fixed inset-0 z-30 bg-scrim/70 md:hidden'
+                    : 'hidden'
+                }
+                role="presentation"
+                onClick={() => setDrawerOpen(false)}
+              />
+
+              <aside
+                ref={sidebarRef}
+                id="notes-sidebar"
+                className={`fixed bottom-0 left-0 top-header z-40 flex w-64 flex-col border-r border-edge-subtle bg-surface text-muted motion-safe:transition-transform md:translate-x-0 ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
+                aria-label="Notes navigation"
+                aria-modal={drawerOpen ? true : undefined}
+                role={drawerOpen ? 'dialog' : undefined}
+              >
+                <Sidebar
+                  workspaceId={workspaceId}
+                  onNavigate={() => setDrawerOpen(false)}
+                  onNewFolder={() => setNewFolderOpen(true)}
+                  onRenameFolder={(folder) => setRenameFolder(folder)}
+                />
+              </aside>
+
+              <div
+                id="notes-content"
+                className="min-h-0 flex-1 overflow-y-auto md:pl-64"
+              >
+                <div className="mx-auto w-full max-w-3xl px-4 pt-4 empty:hidden sm:px-6">
+                  <UpdateNotice
+                    store={store.store}
+                    onFlushDrafts={() => Promise.resolve()}
+                  />
+                  {session.error === null ? null : (
+                    <Notice tone="info" message={session.error} />
+                  )}
+                  {theme.syncError === null ? null : (
+                    <Notice tone="info" message={theme.syncError} />
+                  )}
+                  {persistence.denial === null ? null : (
+                    <Notice tone="problem" message={persistence.denial}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={persistence.dismiss}
+                      >
+                        Understood
+                      </Button>
+                    </Notice>
+                  )}
+                </div>
+                <Outlet />
+              </div>
+
+              <DeleteNoticeBar />
+
+              <CommandPalette
+                open={paletteOpen}
+                onOpenChange={setPaletteOpen}
+                workspaceId={workspaceId}
+                notes={files.notes}
+                store={store.store}
+                accountId={accountId}
+                actions={paletteActions}
+              />
+              <ShortcutsDialog
+                open={shortcutsOpen}
+                onClose={() => setShortcutsOpen(false)}
+              />
+              {session.account === null ? null : (
+                <NewFolderDialog
+                  open={newFolderOpen}
+                  onClose={() => setNewFolderOpen(false)}
                   store={store.store}
                   accountId={session.account.accountId}
                   workspaceId={workspaceId}
-                  variant="primary"
-                  size="sm"
+                  notes={files.notes}
+                  onCreated={(fileId) => {
+                    void navigate(`/w/${workspaceId}/notes/${fileId}`, {
+                      state: { focusNoteName: true },
+                    });
+                  }}
                 />
-              ) : null}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                label={
-                  resolved === 'dark'
-                    ? 'Switch to light mode'
-                    : 'Switch to dark mode'
-                }
-                icon={
-                  resolved === 'dark' ? (
-                    <SunIcon size={16} />
-                  ) : (
-                    <MoonIcon size={16} />
-                  )
-                }
-                onClick={toggleTheme}
-              />
-
-              <Link
-                className="inline-flex size-8 items-center justify-center rounded-lg text-strong hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus"
-                to="/settings"
-                aria-label="Account settings"
-                title="Account settings"
-              >
-                <UserIcon size={16} />
-              </Link>
+              )}
+              {session.account === null || renameFolder === null ? null : (
+                <RenameFolderDialog
+                  open
+                  onClose={() => setRenameFolder(null)}
+                  store={store.store}
+                  accountId={session.account.accountId}
+                  workspaceId={workspaceId}
+                  notes={files.notes}
+                  folder={renameFolder}
+                  onRenamed={() => setRenameFolder(null)}
+                />
+              )}
             </div>
-          </header>
-
-          <div
-            className={`${drawerOpen ? 'fixed inset-0 z-30 bg-black/50 md:hidden' : 'hidden'}`}
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden="true"
-          />
-
-          <aside
-            ref={sidebarRef}
-            id="notes-sidebar"
-            className={`fixed bottom-0 left-0 top-13 z-40 flex w-64 flex-col border-r border-edge-subtle bg-surface transition-transform md:translate-x-0 ${drawerOpen ? 'translate-x-0' : '-translate-x-full'}`}
-            aria-label="Notes navigation"
-            aria-modal={drawerOpen ? true : undefined}
-            role={drawerOpen ? 'dialog' : undefined}
-          >
-            <Sidebar
-              workspaceId={workspaceId}
-              files={workspaceFiles.files}
-              filesLoading={workspaceFiles.loading}
-              onNavigate={() => setDrawerOpen(false)}
-            />
-            <div className="border-t border-edge-subtle p-2">
-              <Link
-                className="flex min-h-8 items-center gap-2 rounded-md px-2 text-control text-muted no-underline transition-colors hover:bg-hover hover:text-strong"
-                to={`/w/${workspaceId}/trash`}
-                onClick={() => setDrawerOpen(false)}
-                aria-current={
-                  location.pathname === `/w/${workspaceId}/trash`
-                    ? 'page'
-                    : undefined
-                }
-              >
-                <span
-                  className="inline-flex shrink-0 items-center"
-                  aria-hidden="true"
-                >
-                  <TrashIcon size={14} />
-                </span>
-                <span>Trash</span>
-              </Link>
-              <AttentionLink workspaceId={workspaceId} count={attentionCount} />
-              <button
-                type="button"
-                className="w-full rounded-md px-2 py-1.5 text-left text-xs text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus"
-                onClick={() => setShortcutsOpen(true)}
-              >
-                Keyboard shortcuts
-              </button>
-              {showSyncProblem ? <StatusRegion message={syncMessage} /> : null}
-              {store.error !== null ? (
-                <p className="my-1 text-control text-danger" role="alert">
-                  {store.error}
-                </p>
-              ) : null}
-            </div>
-          </aside>
-
-          <div id="notes-content" className="min-h-0 md:pl-64">
-            <Outlet />
-          </div>
-
-          <DeleteNoticeBar />
-
-          <QuickOpenDialog
-            open={quickOpen}
-            workspaceId={workspaceId}
-            files={workspaceFiles.files}
-            onOpenChange={setQuickOpen}
-          />
-          {shortcutsOpen ? (
-            <div
-              className="fixed inset-0 z-50 flex items-start justify-center bg-black/55 px-4 pt-24"
-              role="presentation"
-              onMouseDown={(event): void => {
-                if (event.target === event.currentTarget)
-                  setShortcutsOpen(false);
-              }}
-            >
-              <section
-                className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-5 text-ink shadow-xl"
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby="keyboard-shortcuts-title"
-              >
-                <h2
-                  className="m-0 text-lg font-semibold text-strong"
-                  id="keyboard-shortcuts-title"
-                >
-                  Keyboard shortcuts
-                </h2>
-                <dl className="my-4 max-h-96 space-y-2 overflow-y-auto text-ui">
-                  {shortcuts.map((row) => (
-                    <div className="flex justify-between gap-4" key={row.keys}>
-                      <dt>{row.description}</dt>
-                      <dd className="whitespace-nowrap text-muted">
-                        {row.keys}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShortcutsOpen(false)}
-                >
-                  Close
-                </Button>
-              </section>
-            </div>
-          ) : null}
-        </div>
+          </NoteActionsScope>
+        </NoteSaveScope>
       </DeleteNoticeProvider>
     </SyncProvider>
   );
 }
 
-/** The note list of the open workspace. */
-export function WorkspaceView(): ReactNode {
+/** Whether this session already created one version of any note. */
+function useSavedOnce(): boolean {
+  const note = useNoteSave();
+  const [seen, setSeen] = useState(false);
+  useEffect(() => {
+    if (note?.lastSavedAt != null) setSeen(true);
+  }, [note]);
+  return seen;
+}
+
+/** The note list of the open area. */
+export function NotesHomeView(): ReactNode {
   const params = useParams();
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : '';
   const session = useSession();
   const store = useLocalStore();
-  const [serverFiles, setServerFiles] = useState<
-    readonly WorkspaceFileSummary[]
-  >([]);
-  const [loading, setLoading] = useState(true);
-  const emptyLocalFiles = useMemo(() => [], []);
-  const localFiles = useLocalQuery(
+  const files = useFiles();
+  const { createStarterNote, error: starterError } = useStarterNote(
     store.store,
     session.account?.accountId ?? null,
     workspaceId,
-    (activeStore, accountId, activeWorkspace) =>
-      activeStore.listLocalFiles(accountId, activeWorkspace),
-    emptyLocalFiles,
-    (change) =>
-      change.kind === 'draft' ||
-      change.kind === 'queue' ||
-      change.kind === 'file' ||
-      change.kind === 'reset',
   );
+  useDocumentTitle('All notes');
 
-  useEffect(() => {
-    let cancelled = false;
-    async function load(): Promise<void> {
-      try {
-        const loaded = await loadAllFiles(workspaceId);
-        if (!cancelled) {
-          setServerFiles(loaded.files);
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setServerFiles([]);
-          setLoading(false);
-        }
-      }
-    }
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [workspaceId]);
-
-  const allFiles = useMemo(
-    () => mergeFileSummaries(serverFiles, localFiles.value),
-    [serverFiles, localFiles.value],
-  );
-
-  const activeNotes = useMemo(
-    () => allFiles.filter((f) => f.kind === 'note'),
-    [allFiles],
-  );
+  const ordered = useMemo(() => recentNotes(files.notes, 200), [files.notes]);
 
   return (
-    <main className="mx-auto max-w-5xl p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="m-0 text-xl font-semibold text-strong">All notes</h1>
-          <p className="mb-0 mt-1 text-control text-muted">
-            {activeNotes.length} {activeNotes.length === 1 ? 'note' : 'notes'}
-          </p>
-        </div>
-        {session.account !== null ? (
-          <NewNoteButton
-            store={store.store}
-            accountId={session.account.accountId}
-            workspaceId={workspaceId}
-            variant="primary"
-            size="sm"
+    <Page width="wide">
+      <PageHeader
+        title="All notes"
+        description={`${String(ordered.length)} ${ordered.length === 1 ? 'note' : 'notes'}`}
+      />
+      {files.loading ? (
+        <StatusRegion message="Loading your notes." />
+      ) : ordered.length === 0 ? (
+        <>
+          <EmptyState
+            icon={<FileTextIcon size={32} />}
+            title="No notes yet."
+            description="Start with a short note that shows what the editor can do, or make an empty one from the sidebar."
+            action={
+              <Button variant="primary" onClick={createStarterNote}>
+                Add a starter note
+              </Button>
+            }
           />
-        ) : null}
-      </div>
-
-      {loading ? (
-        <StatusRegion message="Loading notes." />
-      ) : activeNotes.length === 0 ? (
-        <div className="mt-6 rounded-xl border border-dashed border-edge-subtle bg-card px-4 py-16 text-center text-muted">
-          <FileTextIcon size={36} className="mx-auto" />
-          <p className="mb-4 mt-3 text-base text-strong">No notes yet.</p>
-          {session.account !== null ? (
-            <NewNoteButton
-              store={store.store}
-              accountId={session.account.accountId}
-              workspaceId={workspaceId}
-              variant="primary"
-            />
-          ) : null}
-        </div>
+          {starterError === null ? null : (
+            <p className="mt-3 text-control text-danger" role="alert">
+              {starterError}
+            </p>
+          )}
+        </>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {activeNotes.map((file) => {
-            const basename = file.path.split('/').at(-1) ?? file.path;
-            const updatedDate = new Date(file.updatedAt).toLocaleDateString(
-              undefined,
-              {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-              },
-            );
-            return (
+        <ul className="m-0 list-none p-0">
+          {ordered.map((note) => (
+            <li key={note.fileId}>
               <Link
-                key={file.fileId}
-                to={`/w/${workspaceId}/notes/${file.fileId}`}
-                className="flex flex-col gap-2 rounded-xl border border-edge-subtle bg-card p-4 text-ink no-underline shadow-sm transition hover:border-edge hover:shadow-md"
+                to={`/w/${workspaceId}/notes/${note.fileId}`}
+                className="flex min-h-11 items-center gap-3 border-b border-edge-subtle px-2 py-2 text-ink no-underline motion-safe:transition-colors hover:bg-hover"
               >
-                <div className="flex items-center gap-2 text-ui font-semibold text-strong">
+                <span
+                  className="inline-flex shrink-0 items-center text-muted"
+                  aria-hidden="true"
+                >
                   <FileTextIcon size={16} />
-                  <span>{displayNoteName(basename)}</span>
-                </div>
-                <div className="flex flex-col gap-1 text-xs text-muted">
-                  <span>{displayNoteName(file.path)}</span>
-                  <span>{updatedDate}</span>
-                </div>
+                </span>
+                <span className="min-w-0 flex-1 truncate text-ui font-medium text-strong">
+                  {displayNoteName(note.path.split('/').at(-1) ?? note.path)}
+                </span>
+                {note.path.includes('/') ? (
+                  <span className="hidden shrink-0 text-control text-muted sm:inline">
+                    {note.path.slice(0, note.path.lastIndexOf('/'))}
+                  </span>
+                ) : null}
+                <span className="shrink-0 text-control text-muted">
+                  {new Date(note.updatedAt).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })}
+                </span>
               </Link>
-            );
-          })}
-        </div>
+            </li>
+          ))}
+        </ul>
       )}
-    </main>
+    </Page>
   );
 }
 
@@ -856,47 +884,56 @@ export function NoteView(): ReactNode {
   const fileId = typeof params.fileId === 'string' ? params.fileId : null;
   const session = useSession();
   const store = useLocalStore();
+  const files = useFiles();
+  const [moveOpen, setMoveOpen] = useState(false);
+  const notePath =
+    files.notes.find((note) => note.fileId === fileId)?.path ?? null;
+  useDocumentTitle(notePath === null ? null : displayNoteName(notePath));
 
   if (workspaceId === null || fileId === null)
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
-        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          Note not found
-        </h1>
-        <p>
+      <Page>
+        <PageHeader title="Note not found" />
+        <p className="m-0">
           The address names no note. It may be removed, or the address may be
           wrong. This is not an empty note.
         </p>
-      </main>
+      </Page>
     );
 
   const accountId = session.account?.accountId ?? null;
   if (accountId === null)
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <StatusRegion message="Loading the note." />
       </main>
     );
 
   return (
-    <main className="mx-auto max-w-4xl space-y-4 p-4 pb-20 sm:p-6">
-      <div className="mb-3 flex items-center justify-between text-control">
-        <Link
-          className="inline-flex items-center gap-1 text-accent no-underline hover:underline"
-          to={`/w/${workspaceId}/notes/${fileId}/history`}
-        >
-          <HistoryIcon size={14} />
-          <span>History</span>
-        </Link>
-      </div>
+    <main className="flex h-full min-w-0 flex-col">
       <Suspense fallback={<StatusRegion message="Loading the editor." />}>
         <NoteEditorLoader
           store={store.store}
           accountId={accountId}
           workspaceId={workspaceId}
           fileId={fileId}
+          onMoveToFolder={() => setMoveOpen(true)}
         />
       </Suspense>
+      {notePath === null ? null : (
+        <MoveNoteDialog
+          open={moveOpen}
+          onClose={() => setMoveOpen(false)}
+          store={store.store}
+          accountId={accountId}
+          workspaceId={workspaceId}
+          notes={files.notes}
+          folders={files.folders}
+          fileId={fileId}
+          path={notePath}
+          onMoved={() => setMoveOpen(false)}
+        />
+      )}
     </main>
   );
 }

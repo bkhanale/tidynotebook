@@ -72,6 +72,7 @@ export {
   FolderOpenIcon,
   FolderPlusIcon,
   HistoryIcon,
+  ImageIcon,
   MenuIcon,
   MoonIcon,
   MoreIcon,

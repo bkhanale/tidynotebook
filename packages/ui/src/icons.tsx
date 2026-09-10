@@ -252,6 +252,28 @@ export function PencilIcon({ size = 16, className }: IconProps): ReactNode {
   );
 }
 
+/** A picture icon for the attach image action. */
+export function ImageIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8.5" cy="9.5" r="1.5" />
+      <path d="m21 16-5-5-4 4-2-2-4 4" />
+    </svg>
+  );
+}
+
 /** A folder with a plus, for the new folder action. */
 export function FolderPlusIcon({ size = 16, className }: IconProps): ReactNode {
   return (

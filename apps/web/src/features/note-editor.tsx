@@ -12,7 +12,14 @@
  * Save and Delete create versions that the foreground sync engine submits.
  * This screen never calls `fetch` and never builds a request URL by hand.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import {
   finalizeAttachment,
@@ -38,21 +45,28 @@ import {
   type RichWidgetResolvers,
 } from '@notesapp/editor';
 import type { RenderMarkdownOptions } from '@notesapp/markdown';
-import { Button, CheckIcon, StatusRegion, TrashIcon } from '@notesapp/ui';
+import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
-import { useAttentionCount } from './attention-link.tsx';
 import { createAttachmentLoader } from './attachment-content.ts';
-import { displayNoteName, storageNotePath } from './note-name.ts';
-import { validateNotePath } from './workspaces.tsx';
+import { useFiles } from './files.tsx';
+import { useRegisterNoteActions } from './note-actions.tsx';
+import { NoteFooter } from './note-footer.tsx';
+import { NoteHeader } from './note-header.tsx';
 import { missingNoteNotice, resolveLinkAction } from './note-link.ts';
+import {
+  cleanNoteName,
+  displayNoteName,
+  duplicateNameProblem,
+  noteNameProblem,
+  storageNotePath,
+} from './note-name.ts';
+import { OutlinePanel } from './outline.tsx';
 import { useDeleteNotice } from './trash.tsx';
 import { createDiagramFrame } from '../diagram/frame.ts';
-import { copyText } from '../platform.ts';
-import { stableNoteLink, type StableLinkRequest } from './search.tsx';
 import {
   resolveSaveState,
-  SaveStatus,
   useBlockUnsafeReload,
+  usePublishNoteSave,
   type SaveState,
 } from './save-status.tsx';
 
@@ -198,6 +212,8 @@ export type NoteEditorProps = {
   readonly focusName?: boolean | undefined;
   readonly onOpenLink?: ((target: LinkTarget) => void) | undefined;
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
+  /** Opens the Move to folder dialog that the note screen owns. */
+  readonly onMoveToFolder?: (() => void) | undefined;
 };
 
 /**
@@ -222,8 +238,10 @@ export function NoteEditor({
   focusName = false,
   onOpenLink,
   onQueued,
+  onMoveToFolder,
 }: NoteEditorProps): ReactNode {
   const navigate = useNavigate();
+  const noteList = useFiles();
   const { announce: announceDeleted } = useDeleteNotice();
   const isDeletedRef = useRef(false);
   const { resolved } = useTheme();
@@ -233,6 +251,9 @@ export function NoteEditor({
   const saveTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
   const pathRef = useRef(initialPath);
+  // A name that breaks a rule is never written. The draft, the tree, and
+  // the server keep the last valid name until the person fixes the field.
+  const validPathRef = useRef(initialPath);
   const sequenceRef = useRef(initialSequence);
   const [name, setName] = useState(displayNoteName(initialPath));
   const [pathError, setPathError] = useState('');
@@ -241,9 +262,11 @@ export function NoteEditor({
   const [saveSnapshot, setSaveSnapshot] = useState<FileSaveSnapshot | null>(
     null,
   );
+  const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [storageError, setStorageError] =
     useState<LocalStorageErrorKind | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(true);
   const [pasteNotice, setPasteNotice] = useState('');
   const [mode, setMode] = useState<NoteMode>('write');
   const [readError, setReadError] = useState('');
@@ -283,8 +306,10 @@ export function NoteEditor({
   const ownedUrlsRef = useRef<
     Map<string, { url: string; dispose: () => void }>
   >(new Map());
-  const loaderRef = useRef(createAttachmentLoader(workspaceId));
-  loaderRef.current = createAttachmentLoader(workspaceId);
+  const loader = useMemo(
+    () => createAttachmentLoader(workspaceId),
+    [workspaceId],
+  );
 
   useEffect(() => {
     if (!focusName) return;
@@ -323,7 +348,7 @@ export function NoteEditor({
       fileId: current.fileId,
       baseRevisionId: current.baseRevisionId,
       text: bufferRef.current,
-      path: pathRef.current,
+      path: validPathRef.current,
       deleted,
       sequence: sequenceRef.current,
     };
@@ -334,12 +359,25 @@ export function NoteEditor({
   refreshQueue.current = async (): Promise<void> => {
     const current = live.current;
     try {
-      const snapshot = await current.store.readFileSaveSnapshot(
-        current.accountId,
-        current.workspaceId,
-        current.fileId,
-      );
+      const [snapshot, checkpoints] = await Promise.all([
+        current.store.readFileSaveSnapshot(
+          current.accountId,
+          current.workspaceId,
+          current.fileId,
+        ),
+        current.store.listCheckpoints(
+          current.accountId,
+          current.workspaceId,
+          current.fileId,
+        ),
+      ]);
       setSaveSnapshot(snapshot);
+      const latest = checkpoints
+        .filter((entry) => !entry.deleted)
+        .map((entry) => entry.clientTime)
+        .sort()
+        .at(-1);
+      setLastSavedAt(latest ?? null);
     } catch {
       // Queue reads are feedback only. A failure here must not disturb the
       // buffer, the draft, or the draft timer.
@@ -380,7 +418,7 @@ export function NoteEditor({
   checkpointNow.current = (deleted = false): Promise<void> => {
     const isDeleting = deleted || isDeletedRef.current;
     if (!isDeleting) {
-      const error = validateNotePath(pathRef.current);
+      const error = nameProblemRef.current();
       setPathError(error ?? '');
       if (error !== null) return Promise.resolve();
     }
@@ -419,36 +457,6 @@ export function NoteEditor({
     });
     return run;
   };
-
-  // Stable links enter the current editor selection as normal Markdown.
-  useEffect(() => {
-    const insertStableLink = (event: Event): void => {
-      const detail = (event as CustomEvent<StableLinkRequest>).detail;
-      const view = viewRef.current;
-      if (view === null) return;
-      const selection = view.state.selection.main;
-      if (selection.empty) {
-        setPasteNotice('Select text before you insert a stable note link.');
-        return;
-      }
-      const selected = view.state.doc.sliceString(selection.from, selection.to);
-      const value = stableNoteLink({
-        fileId: detail.fileId,
-        label: selected === '' ? detail.label : selected,
-      });
-      view.dispatch({
-        changes: { from: selection.from, to: selection.to, insert: value },
-        selection: { anchor: selection.from + value.length },
-        userEvent: 'input.complete',
-      });
-      view.focus();
-      setPasteNotice('Stable note link inserted.');
-    };
-    window.addEventListener('notesapp:insert-link', insertStableLink);
-    return () => {
-      window.removeEventListener('notesapp:insert-link', insertStableLink);
-    };
-  }, []);
 
   useEffect(() => {
     void refreshQueue.current();
@@ -492,7 +500,6 @@ export function NoteEditor({
   // Attachment widgets use authenticated object URLs. URLs are revoked when
   // their references leave the note and when the editor closes.
   useEffect(() => {
-    const loader = loaderRef.current;
     const wanted = extractAttachmentIds(bufferText);
     const owned = ownedUrlsRef.current;
     for (const [id, entry] of owned) {
@@ -532,7 +539,7 @@ export function NoteEditor({
       cancelled = true;
       controller.abort();
     };
-  }, [workspaceId, bufferText]);
+  }, [loader, bufferText]);
 
   useEffect(
     () => () => {
@@ -741,7 +748,11 @@ export function NoteEditor({
     view.focus();
   }, [mode]);
 
-  const attentionCount = useAttentionCount(store, accountId, workspaceId);
+  /** Switches Write and Read, for the header toggle and the palette. */
+  const toggleMode = useCallback((): void => {
+    setMode((current) => (current === 'write' ? 'read' : 'write'));
+  }, []);
+
   const saveState: SaveState = resolveSaveState({
     draftWritePending: draftPending,
     queueState: saveSnapshot?.queueState ?? null,
@@ -751,8 +762,17 @@ export function NoteEditor({
     localHeadRevisionId: saveSnapshot?.localHeadRevisionId ?? null,
   });
   // The buffer is the only copy until the draft commits, and it is the only
-  // copy again when storage fails. Both cases block an unsafe reload.
+  // copy again when storage fails. Both cases block an unsafe reload. A
+  // queued save is durable on this device, so it never blocks one.
   useBlockUnsafeReload(draftPending || storageError !== null);
+  usePublishNoteSave({
+    state: saveState,
+    hasUnsavedEdits:
+      draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false),
+    lastSavedAt,
+    bufferText,
+  });
+  useRegisterNoteActions({ fileId, toggleReadMode: toggleMode });
 
   /** Inserts Markdown at the current cursor through an editor transaction. */
   const insertAtCursor = (text: string): void => {
@@ -915,6 +935,88 @@ export function NoteEditor({
     })();
   };
 
+  /** The one reason the typed name cannot be saved, or `null`. */
+  const nameProblemRef = useRef((): string | null => null);
+  nameProblemRef.current = (): string | null => {
+    const cleaned = cleanNoteName(displayNoteName(pathRef.current));
+    const problem = noteNameProblem(cleaned);
+    if (problem !== null) return problem;
+    return duplicateNameProblem(
+      storageNotePath(cleaned),
+      noteList.notes,
+      fileId,
+    );
+  };
+
+  /** Reports the typed name and applies it when every rule holds. */
+  const applyName = (nextName: string): void => {
+    setName(nextName);
+    pathRef.current = storageNotePath(cleanNoteName(nextName));
+    const problem = nameProblemRef.current();
+    setPathError(problem ?? '');
+    if (problem !== null) return;
+    validPathRef.current = pathRef.current;
+    sequenceRef.current += 1;
+    setDraftPending(true);
+    if (saveTimerRef.current !== null)
+      window.clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      saveTimerRef.current = null;
+      void saveDraftNow.current();
+    }, draftSaveDelayMs);
+  };
+
+  /**
+   * Writes the typed name into the field in its stored form.
+   *
+   * Edge spaces go, and a typed `.md` suffix disappears, so one note never
+   * carries two names on screen. This runs when the field loses focus and
+   * when the person presses Enter.
+   */
+  const commitName = (): void => {
+    const cleaned = cleanNoteName(name);
+    if (cleaned !== name) applyName(cleaned);
+    else setPathError(nameProblemRef.current() ?? '');
+  };
+
+  /** Copies the open note into a new note beside it. */
+  const duplicateNote = (): void => {
+    const current = live.current;
+    const base = displayNoteName(validPathRef.current);
+    const taken = new Set(
+      noteList.notes.map((entry) => entry.path.toLowerCase()),
+    );
+    let candidate = `${base} copy`;
+    let index = 2;
+    while (taken.has(storageNotePath(candidate).toLowerCase())) {
+      candidate = `${base} copy ${String(index)}`;
+      index += 1;
+    }
+    const copyId = generateUUID();
+    const copy: Draft = {
+      accountId: current.accountId,
+      workspaceId: current.workspaceId,
+      workingCopyId: generateUUID(),
+      fileId: copyId,
+      baseRevisionId: null,
+      text: bufferRef.current,
+      path: storageNotePath(candidate),
+      deleted: false,
+      sequence: 1,
+    };
+    void (async (): Promise<void> => {
+      try {
+        await current.store.saveDraft(copy);
+      } catch (failure: unknown) {
+        setStorageError(
+          isLocalStorageError(failure) ? failure.kind : 'aborted',
+        );
+        return;
+      }
+      void navigate(`/w/${current.workspaceId}/notes/${copyId}`);
+    })();
+  };
+
   const handleDelete = (): void => {
     if (!confirmingDelete) {
       setConfirmingDelete(true);
@@ -926,7 +1028,7 @@ export function NoteEditor({
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
-    const deletedName = name;
+    const deletedName = displayNoteName(validPathRef.current);
     void (async (): Promise<void> => {
       sequenceRef.current += 1;
       try {
@@ -949,192 +1051,104 @@ export function NoteEditor({
       className="flex h-full min-h-0 min-w-0 flex-col"
       data-save-state={saveState}
     >
-      <div className="mb-4 flex flex-col gap-3 border-b border-edge-subtle pb-4">
-        <div className="min-w-0">
-          <input
-            ref={nameInputRef}
-            id={`notes-path-${fileId}`}
-            className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-lg font-semibold text-strong outline-none transition-colors hover:border-edge-subtle hover:bg-hover focus:border-focus focus:bg-app focus:ring-2 focus:ring-focus/25"
-            type="text"
-            value={name}
-            aria-label="Note name"
-            aria-invalid={pathError !== ''}
-            aria-describedby={
-              pathError === '' ? undefined : `notes-path-error-${fileId}`
+      <NoteHeader
+        fileId={fileId}
+        name={name}
+        nameError={pathError}
+        nameInputRef={nameInputRef}
+        onNameChange={applyName}
+        onNameCommit={commitName}
+        onSave={() => {
+          void (async (): Promise<void> => {
+            if (saveTimerRef.current !== null) {
+              window.clearTimeout(saveTimerRef.current);
+              saveTimerRef.current = null;
             }
-            placeholder="Note name"
-            onChange={(event): void => {
-              const nextName = event.target.value;
-              const nextPath = storageNotePath(nextName);
-              setName(nextName);
-              pathRef.current = nextPath;
-              setPathError(validateNotePath(nextPath) ?? '');
-              sequenceRef.current += 1;
-              setDraftPending(true);
-              if (saveTimerRef.current !== null)
-                window.clearTimeout(saveTimerRef.current);
-              saveTimerRef.current = window.setTimeout(() => {
-                saveTimerRef.current = null;
-                void saveDraftNow.current();
-              }, draftSaveDelayMs);
-            }}
-          />
-          {pathError !== '' ? (
-            <p
-              className="my-1 px-2 text-control text-danger"
-              id={`notes-path-error-${fileId}`}
-              role="alert"
-            >
-              {pathError}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <SaveStatus
-            state={saveState}
-            bufferText={bufferText}
-            onCopyBuffer={copyText}
-            workspaceId={workspaceId}
-            attentionCount={attentionCount}
-          />
-
-          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              icon={<CheckIcon size={14} />}
-              label="Save this note"
-              title="Save (Ctrl+S)"
+            await checkpointNow.current();
+          })();
+        }}
+        readToggle={
+          <div className="inline-flex rounded-lg border border-edge p-0.5">
+            <button
+              type="button"
+              aria-pressed={mode === 'write'}
+              title="Write (Cmd or Ctrl + Shift + P)"
+              className={`min-h-11 cursor-pointer rounded-md border-0 px-3 text-control font-medium motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8 ${
+                mode === 'write'
+                  ? 'bg-accent-fill text-on-accent'
+                  : 'bg-transparent text-strong hover:bg-hover'
+              }`}
               onClick={() => {
-                void (async (): Promise<void> => {
-                  if (saveTimerRef.current !== null) {
-                    window.clearTimeout(saveTimerRef.current);
-                    saveTimerRef.current = null;
-                  }
-                  await checkpointNow.current();
-                })();
+                setMode('write');
               }}
             >
-              Save
-            </Button>
-            {confirmingDelete ? (
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="danger"
-                  size="sm"
-                  icon={<TrashIcon size={14} />}
-                  label="Confirm deletion of this note"
-                  onClick={handleDelete}
-                >
-                  Confirm delete
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  label="Keep this note"
-                  onClick={() => {
-                    setConfirmingDelete(false);
-                  }}
-                >
-                  Keep
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<TrashIcon size={14} />}
-                label="Delete this note"
-                title="Delete this note"
-                onClick={handleDelete}
-              >
-                Delete
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {staleOpen && staleHead !== undefined ? (
-        <section
-          className="mb-4 rounded-lg border border-accent/40 bg-accent/10 p-3"
-          aria-labelledby={`notes-stale-${fileId}`}
-        >
-          <p
-            className="m-0 text-ui font-medium text-strong"
-            id={`notes-stale-${fileId}`}
-            role="alert"
-          >
-            {staleDraftNotice}
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Button
-              variant="primary"
-              size="sm"
-              label="Keep the unsaved text of this device"
-              onClick={keepStaleDraft}
+              Write
+            </button>
+            <button
+              type="button"
+              aria-pressed={mode === 'read'}
+              title="Read (Cmd or Ctrl + Shift + P)"
+              className={`min-h-11 cursor-pointer rounded-md border-0 px-3 text-control font-medium motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8 ${
+                mode === 'read'
+                  ? 'bg-accent-fill text-on-accent'
+                  : 'bg-transparent text-strong hover:bg-hover'
+              }`}
+              onClick={() => {
+                setMode('read');
+              }}
             >
-              Keep my text
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              label="Open the latest saved version of this note"
-              onClick={useAcceptedHead}
-            >
-              Use the latest version
-            </Button>
+              Read
+            </button>
           </div>
-        </section>
-      ) : null}
-      {staleNotice !== '' ? <StatusRegion message={staleNotice} /> : null}
-
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        <div className="inline-flex rounded-lg border border-edge-subtle p-0.5">
-          <button
-            type="button"
-            aria-pressed={mode === 'write'}
-            title="Write (Ctrl+Shift+P)"
-            className={`h-8 cursor-pointer rounded-md border-0 px-3 text-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-              mode === 'write'
-                ? 'bg-accent-fill text-on-accent'
-                : 'bg-transparent text-strong hover:bg-hover'
-            }`}
-            onClick={() => {
-              setMode('write');
-            }}
-          >
-            Write
-          </button>
-          <button
-            type="button"
-            aria-pressed={mode === 'read'}
-            title="Read (Ctrl+Shift+P)"
-            className={`h-8 cursor-pointer rounded-md border-0 px-3 text-control font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus ${
-              mode === 'read'
-                ? 'bg-accent-fill text-on-accent'
-                : 'bg-transparent text-strong hover:bg-hover'
-            }`}
-            onClick={() => {
-              setMode('read');
-            }}
-          >
-            Read
-          </button>
-        </div>
-
-        <Button
-          variant="secondary"
-          size="sm"
-          label="Attach an image to this note"
-          title="Attach an image"
-          onClick={() => {
+        }
+        confirmingDelete={confirmingDelete}
+        onCancelDelete={() => setConfirmingDelete(false)}
+        handlers={{
+          onHistory: () => {
+            void navigate(`/w/${workspaceId}/notes/${fileId}/history`);
+          },
+          onMoveToFolder: () => onMoveToFolder?.(),
+          onDuplicate: duplicateNote,
+          onDelete: handleDelete,
+          onAttachImage: () => {
             fileInputRef.current?.click();
-          }}
-        >
-          Attach image
-        </Button>
+          },
+        }}
+      />
+
+      <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
+        {staleOpen && staleHead !== undefined ? (
+          <section
+            className="mt-4 rounded-lg border border-edge bg-card p-3"
+            aria-labelledby={`notes-stale-${fileId}`}
+          >
+            <p
+              className="m-0 text-ui font-medium text-strong"
+              id={`notes-stale-${fileId}`}
+              role="alert"
+            >
+              {staleDraftNotice}
+            </p>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Button variant="primary" size="sm" onClick={keepStaleDraft}>
+                Keep my text
+              </Button>
+              <Button variant="secondary" size="sm" onClick={useAcceptedHead}>
+                Use the latest version
+              </Button>
+            </div>
+          </section>
+        ) : null}
+        {staleNotice === '' ? null : (
+          <div className="mt-4">
+            <Notice tone="info" message={staleNotice} />
+          </div>
+        )}
+        {pasteNotice === '' ? null : (
+          <div className="mt-4">
+            <Notice tone="problem" message={pasteNotice} />
+          </div>
+        )}
         <input
           ref={fileInputRef}
           className="hidden"
@@ -1144,69 +1158,88 @@ export function NoteEditor({
           aria-hidden="true"
           tabIndex={-1}
           onChange={(event): void => {
-            const files = Array.from(event.target.files ?? []);
+            const chosen = Array.from(event.target.files ?? []);
             event.target.value = '';
-            uploadPastedFiles(files);
+            uploadPastedFiles(chosen);
           }}
         />
         {attachState.kind === 'uploading' ? (
-          <p className="m-0 text-control text-muted" role="status">
+          <p className="m-0 mt-4 text-control text-muted" role="status">
             {`Uploading ${attachState.name}.`}
           </p>
         ) : null}
         {attachState.kind === 'failed' ? (
-          <>
-            <p className="m-0 text-control text-danger" role="alert">
-              {attachState.message}
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              label="Try the image upload again"
-              onClick={() => {
-                uploadPastedFiles(lastFilesRef.current);
-              }}
-            >
-              Retry
-            </Button>
-          </>
+          <div className="mt-4">
+            <Notice tone="problem" message={attachState.message}>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => {
+                  uploadPastedFiles(lastFilesRef.current);
+                }}
+              >
+                Try again
+              </Button>
+            </Notice>
+          </div>
         ) : null}
+
+        <div className="flex min-h-0 flex-1 gap-6 py-4">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div
+              ref={containerRef}
+              className={`min-h-0 flex-1 overflow-hidden ${mode === 'read' ? 'hidden' : ''}`}
+              onPaste={(event): void => {
+                const dropped = Array.from(event.clipboardData?.files ?? []);
+                if (dropped.some((file) => file.type.startsWith('image/'))) {
+                  event.preventDefault();
+                  uploadPastedFiles(dropped);
+                }
+              }}
+              onDrop={(event): void => {
+                const dropped = Array.from(event.dataTransfer?.files ?? []);
+                if (dropped.some((file) => file.type.startsWith('image/'))) {
+                  event.preventDefault();
+                  uploadPastedFiles(dropped);
+                }
+              }}
+            />
+            {mode === 'read' ? (
+              <div className="min-h-0 flex-1 overflow-auto">
+                <div
+                  ref={readRef}
+                  data-note-view="read"
+                  className={readTypography}
+                />
+                {readError === '' ? null : (
+                  <p className="px-4 text-control text-danger" role="alert">
+                    {readError}
+                  </p>
+                )}
+              </div>
+            ) : null}
+          </div>
+          <aside
+            className="hidden w-56 shrink-0 overflow-y-auto lg:block"
+            aria-label="Note outline"
+          >
+            <CollapsibleSection
+              id="notes-outline"
+              title="Outline"
+              open={outlineOpen}
+              onToggle={setOutlineOpen}
+            >
+              <OutlinePanel
+                workspaceId={workspaceId}
+                fileId={fileId}
+                text={bufferText}
+              />
+            </CollapsibleSection>
+          </aside>
+        </div>
       </div>
 
-      <div
-        ref={containerRef}
-        className={`min-h-0 flex-1 overflow-hidden rounded-lg ${
-          mode === 'read' ? 'hidden' : ''
-        }`}
-        role="textbox"
-        aria-label={`Note ${name}`}
-        tabIndex={-1}
-        onPaste={(event): void => {
-          const files = Array.from(event.clipboardData?.files ?? []);
-          if (files.some((file) => file.type.startsWith('image/'))) {
-            event.preventDefault();
-            uploadPastedFiles(files);
-          }
-        }}
-        onDrop={(event): void => {
-          const files = Array.from(event.dataTransfer?.files ?? []);
-          if (files.some((file) => file.type.startsWith('image/'))) {
-            event.preventDefault();
-            uploadPastedFiles(files);
-          }
-        }}
-      />
-      {mode === 'read' ? (
-        <div className="min-h-0 flex-1 overflow-auto rounded-lg">
-          <div ref={readRef} data-note-view="read" className={readTypography} />
-          {readError !== '' ? (
-            <p className="px-4 text-control text-danger" role="alert">
-              {readError}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-      {pasteNotice !== '' ? <StatusRegion message={pasteNotice} /> : null}
+      <NoteFooter text={bufferText} lastSavedAt={lastSavedAt} />
     </div>
   );
 }
@@ -1241,11 +1274,13 @@ export function NoteEditorLoader({
   accountId,
   workspaceId,
   fileId,
+  onMoveToFolder,
 }: {
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string;
+  readonly onMoveToFolder?: (() => void) | undefined;
 }): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1378,82 +1413,90 @@ export function NoteEditorLoader({
 
   if (status.kind === 'loading')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <StatusRegion message="Loading the note." />
-      </main>
+      </section>
     );
   if (status.kind === 'unknown')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note not found
         </h1>
         <p>
-          The server knows no file with that ID in this workspace. It may be
-          removed, or the address may be wrong. This is not an empty note.
+          The server knows no note at that address. It may be removed, or the
+          address may be wrong. This is not an empty note.
         </p>
         <p>
-          <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
+          <Link to={`/w/${workspaceId}`}>Back to your notes.</Link>
         </p>
-      </main>
+      </section>
     );
   if (status.kind === 'purged')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-          Note permanently deleted
+          Note deleted permanently
         </h1>
         <p>
-          This file was purged by the workspace owner. Pending offline work for
-          it stays on this device for recovery into a new file.
+          This note was deleted permanently. Work for it that waits on this
+          device stays here and can go into a new note.
         </p>
-      </main>
+        <p>
+          <Link to={`/w/${workspaceId}`}>Back to your notes.</Link>
+        </p>
+      </section>
     );
   if (status.kind === 'deleted')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note deleted on this device
         </h1>
         <p>
-          {displayNoteName(status.path)} is deleted locally. The deletion stays
-          queued until this device can sync it.
+          {displayNoteName(status.path)} is in the trash. The deletion goes to
+          the server when this device has a connection.
         </p>
         <p>
-          <Link to={`/w/${workspaceId}`}>Back to the workspace.</Link>
+          <Link to={`/w/${workspaceId}/trash`}>Open Trash.</Link>
         </p>
-      </main>
+      </section>
     );
   if (status.kind === 'unavailable')
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           Note unavailable
         </h1>
         <p className="text-control text-danger" role="alert">
           {status.message}
         </p>
-      </main>
+      </section>
     );
   if (store === null)
     return (
-      <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+      <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
         <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
           {displayNoteName(status.path)}
         </h1>
         <p className="text-control text-danger" role="alert">
-          Local storage is unavailable, so offline editing is closed. The
-          accepted server text follows read-only.
+          Local storage is unavailable, so editing is closed here. The saved
+          text follows and can be read.
         </p>
-        <pre>{status.text}</pre>
-      </main>
+        <pre className="overflow-x-auto rounded-lg border border-edge-subtle bg-card p-3 text-control">
+          {status.text}
+        </pre>
+      </section>
     );
 
   const activeStore = store;
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <h1 className="sr-only">{displayNoteName(status.path)}</h1>
-      {linkNotice !== '' ? <StatusRegion message={linkNotice} /> : null}
+      {linkNotice === '' ? null : (
+        <div className="px-4 pt-4 sm:px-6">
+          <Notice tone="info" message={linkNotice} />
+        </div>
+      )}
       <NoteEditor
         key={fileId}
         store={store}
@@ -1467,6 +1510,7 @@ export function NoteEditorLoader({
         initialWorkingCopyId={status.workingCopyId}
         initialSequence={status.sequence}
         focusName={focusName}
+        onMoveToFolder={onMoveToFolder}
         onOpenLink={(target: LinkTarget): void => {
           const action = resolveLinkAction(target.target);
           if (action.kind === 'note-id') {

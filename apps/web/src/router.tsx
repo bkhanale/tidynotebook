@@ -20,8 +20,8 @@ const Shell = lazy(async () => ({
 const NoteView = lazy(async () => ({
   default: (await import('./features/shell.tsx')).NoteView,
 }));
-const WorkspaceView = lazy(async () => ({
-  default: (await import('./features/shell.tsx')).WorkspaceView,
+const NotesHomeView = lazy(async () => ({
+  default: (await import('./features/shell.tsx')).NotesHomeView,
 }));
 const WorkspaceHome = lazy(async () => ({
   default: (await import('./features/workspaces.tsx')).WorkspaceHome,
@@ -41,7 +41,7 @@ function deferred(element: ReactNode): ReactNode {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+        <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
           <p role="status">Loading this screen.</p>
         </main>
       }
@@ -54,13 +54,13 @@ function deferred(element: ReactNode): ReactNode {
 /** Shown for an address that names no route. */
 function NotFoundPage(): ReactNode {
   return (
-    <main className="mx-auto max-w-4xl space-y-4 p-4 sm:p-6">
+    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
       <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
         Page not found
       </h1>
       <p>The address names no page of this application.</p>
       <p>
-        <Link to="/">Back to all notes.</Link>
+        <Link to="/">Back to your notes.</Link>
       </p>
     </main>
   );
@@ -84,7 +84,7 @@ const router = createBrowserRouter([
     path: '/w/:workspaceId',
     element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
     children: [
-      { index: true, element: deferred(<WorkspaceView />) },
+      { index: true, element: deferred(<NotesHomeView />) },
       { path: 'notes/:fileId', element: deferred(<NoteView />) },
       {
         path: 'notes/:fileId/history',
