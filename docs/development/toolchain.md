@@ -733,9 +733,10 @@ resolve during the type check.
 The following local checks passed with Node 26.8.1 and pnpm 12.3.4:
 
 - `pnpm install`, then `pnpm install --frozen-lockfile`.
-- `pnpm --filter @notesapp/markdown test:unit` runs 78 tests. It ran 121 when
+- `pnpm --filter @notesapp/markdown test:unit` runs 77 tests. It ran 121 when
   this task closed; the difference is the resource limit measurements, which
-  are gone with the caps they calibrated.
+  are gone with the caps they calibrated, and the wiki reference tests, which
+  are gone with the syntax.
 - `pnpm typecheck`, `pnpm lint`, `pnpm format:check`, `pnpm test:unit`,
   `pnpm build`.
 
