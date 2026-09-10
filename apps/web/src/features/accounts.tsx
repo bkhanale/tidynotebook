@@ -32,6 +32,7 @@ import {
   signOut as endSession,
   revokeSessionViaClient,
 } from '../pwa/lifecycle.ts';
+import { downloadAll } from './export.ts';
 
 /** Redirects to login when no session exists. */
 export function RequireSession({
@@ -362,6 +363,8 @@ export function AccountSettingsPage(): ReactNode {
   const navigate = useNavigate();
   const [pendingCount, setPendingCount] = useState<number | null>(null);
   const [signOutError, setSignOutError] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const account = session.account;
   const accountId = account?.accountId ?? null;
   const workspaceId =
@@ -498,6 +501,47 @@ export function AccountSettingsPage(): ReactNode {
           />
           Keep older versions on this device
         </label>
+      </section>
+
+      <section
+        className="space-y-3 rounded-xl border border-edge-subtle bg-card p-5 shadow-sm"
+        aria-labelledby="export-heading"
+      >
+        <h2
+          className="m-0 text-base font-semibold text-strong"
+          id="export-heading"
+        >
+          Export
+        </h2>
+        <p className="m-0 text-control text-muted">
+          Download every note as a zip of Markdown files. The files keep their
+          folders and need no application to be read again.
+        </p>
+        {exportError !== '' ? (
+          <p className="m-0 text-control text-danger" role="alert">
+            {exportError}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            disabled={exporting || workspaceId === null}
+            onClick={() => {
+              if (workspaceId === null) return;
+              setExportError('');
+              setExporting(true);
+              void downloadAll(workspaceId)
+                .catch((failure: unknown) => {
+                  setExportError(problemMessage(failure));
+                })
+                .finally(() => {
+                  setExporting(false);
+                });
+            }}
+          >
+            {exporting ? 'Preparing the download' : 'Export all notes'}
+          </Button>
+        </div>
       </section>
 
       <section

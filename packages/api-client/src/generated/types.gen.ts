@@ -2490,6 +2490,58 @@ export type CommitChangesetResponses = {
 
 export type CommitChangesetResponse = CommitChangesetResponses[keyof CommitChangesetResponses];
 
+export type ExportWorkspaceData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/export';
+};
+
+export type ExportWorkspaceErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ExportWorkspaceError = ExportWorkspaceErrors[keyof ExportWorkspaceErrors];
+
+export type ExportWorkspaceResponses = {
+    /**
+     * A zip archive of every live note and its attachments.
+     */
+    200: Blob | File;
+};
+
+export type ExportWorkspaceResponse = ExportWorkspaceResponses[keyof ExportWorkspaceResponses];
+
 export type ListFilesData = {
     body?: never;
     headers?: {
@@ -2940,6 +2992,66 @@ export type GetBacklinksResponses = {
 };
 
 export type GetBacklinksResponse = GetBacklinksResponses[keyof GetBacklinksResponses];
+
+export type ExportNoteData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/export';
+};
+
+export type ExportNoteErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The file identifier was permanently purged. It can never be written again, so a late offline change must be recovered into a new file.
+     */
+    410: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ExportNoteError = ExportNoteErrors[keyof ExportNoteErrors];
+
+export type ExportNoteResponses = {
+    /**
+     * The accepted head of one note as a Markdown file.
+     */
+    200: Blob | File;
+};
+
+export type ExportNoteResponse = ExportNoteResponses[keyof ExportNoteResponses];
 
 export type ListHistoryData = {
     body?: never;

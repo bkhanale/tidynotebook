@@ -1080,6 +1080,63 @@ paths:
           $ref: '#/components/responses/UnprocessableContent'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/export:
+    get:
+      operationId: exportWorkspace
+      summary: Download every live note as a zip of Markdown files.
+      description: >-
+        Streams a zip archive that holds every live note of the workspace as a
+        Markdown file at its stored path, plus an attachments folder with the
+        images that those notes reference. A deleted note is not in the
+        archive. Nothing in the archive needs this application to be read
+        again, so it is also the cheapest disaster recovery.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      responses:
+        '200':
+          $ref: '#/components/responses/WorkspaceArchive'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files/{fileId}/export:
+    get:
+      operationId: exportNote
+      summary: Download one note as a Markdown file.
+      description: >-
+        Returns the accepted head of one note as Markdown, with a content
+        disposition that names the file. A deleted note answers 404, because it
+        holds no place in the file tree any more.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+      responses:
+        '200':
+          $ref: '#/components/responses/NoteMarkdown'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/ServerError'
 components:
   securitySchemes:
     sessionCookie:
@@ -1620,6 +1677,36 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AttachmentUploadResult'
+    NoteMarkdown:
+      description: The accepted head of one note as a Markdown file.
+      headers:
+        content-disposition:
+          description: >-
+            Names the download and asks the client to save it rather than to
+            show it.
+          schema:
+            type: string
+            maxLength: 512
+      content:
+        text/markdown:
+          schema:
+            type: string
+            format: binary
+    WorkspaceArchive:
+      description: A zip archive of every live note and its attachments.
+      headers:
+        content-disposition:
+          description: >-
+            Names the download and asks the client to save it rather than to
+            show it.
+          schema:
+            type: string
+            maxLength: 512
+      content:
+        application/zip:
+          schema:
+            type: string
+            format: binary
     AttachmentBinary:
       description: Binary bytes of the immutable attachment.
       content:

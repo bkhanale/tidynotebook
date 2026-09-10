@@ -11,6 +11,7 @@ import type { WorkspaceAdminStore, WorkspaceStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import { readProperty } from '../values.ts';
 import { createAccountHandlers } from './accounts.ts';
+import { createExportHandlers } from './export.ts';
 import { createFileHandlers, missingWorkspaceStore } from './files.ts';
 import { createWorkspaceHandlers } from './workspaces.ts';
 import type { HandlerMap, HandlerResult } from './register.ts';
@@ -241,6 +242,10 @@ export function createHandlers(
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSearchHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createAttachmentHandlers(
+      dependencies.content ?? missingWorkspaceStore(),
+      dependencies.attachments ?? missingAttachmentStore(),
+    ),
+    ...createExportHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
     ),

@@ -66,6 +66,8 @@ export const mediaTypeHandling: Readonly<Record<string, MediaHandling>> = {
   'image/jpeg': 'binary',
   'image/gif': 'binary',
   'image/webp': 'binary',
+  'text/markdown': 'binary',
+  'application/zip': 'binary',
 };
 
 /**
