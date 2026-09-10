@@ -201,7 +201,7 @@ export function ThemeSettings(): ReactNode {
         className="m-0 text-base font-semibold text-strong"
         id="theme-heading"
       >
-        Theme
+        Appearance
       </h2>
       <p className="m-0 text-control text-muted">
         System follows the device. Light and Dark use the Tokyo Night palette.

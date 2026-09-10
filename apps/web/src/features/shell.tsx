@@ -531,15 +531,14 @@ function ShellFrame({
               size="sm"
               className="md:hidden"
               label={drawerOpen ? 'Close navigation' : 'Open navigation'}
+              title={drawerOpen ? 'Close navigation' : 'Open navigation'}
               icon={<MenuIcon size={18} />}
               ariaControls="notes-sidebar"
               ariaExpanded={drawerOpen}
               onClick={() => {
                 setDrawerOpen((open) => !open);
               }}
-            >
-              Menu
-            </Button>
+            />
 
             <Link
               className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
