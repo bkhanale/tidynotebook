@@ -36,7 +36,7 @@ export const getAccount = <ThrowOnError extends boolean = false>(options?: Optio
 /**
  * Replace the stored settings of the signed in account.
  *
- * Replaces the settings that follow the account to every device. The theme choice selects the Tokyo Night Day palette, the Night palette, or the palette that matches the device preference.
+ * Replaces the settings that follow the account to every device. The theme family selects the palette, and the appearance selects the light variant, the dark variant, or the one that matches the device.
  */
 export const updatePreferences = <ThrowOnError extends boolean = false>(options: Options<UpdatePreferencesData, ThrowOnError>): RequestResult<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError> => (options.client ?? client).put<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError>({
     security: [{

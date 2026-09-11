@@ -12,12 +12,20 @@
  */
 import type { Actor, Role } from '../identity/actor.ts';
 
-/** The three theme choices that an account can store. */
-export type ThemeChoice = 'system' | 'light' | 'dark';
+/** The three appearance choices that an account can store. */
+export type AppearanceChoice = 'system' | 'light' | 'dark';
 
-/** Settings that follow an account to every device. */
+/**
+ * Settings that follow an account to every device.
+ *
+ * `themeFamily` names a palette family of the client theme registry. The
+ * server keeps the identifier as an opaque slug: the registry lives in the
+ * browser package, and a server that knew the palette names would have to be
+ * released again for every new theme.
+ */
 export type Preferences = {
-  readonly theme: ThemeChoice;
+  readonly appearance: AppearanceChoice;
+  readonly themeFamily: string;
 };
 
 /** One workspace as its member sees it. */

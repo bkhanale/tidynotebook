@@ -3,6 +3,12 @@ import { resolve } from 'node:path';
 import { build, defineConfig, type Plugin } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import {
+  defaultThemeFamilyId,
+  defaultThemeFor,
+  themeFamilies,
+  themeProperties,
+} from '@notesapp/ui';
 
 // The JSX transform comes from Vite's built-in esbuild support with the
 // automatic runtime, so no framework plugin is needed for the production
@@ -32,6 +38,121 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 /** The built location of the diagram frame, matching the development path. */
 const framePath = 'src/diagram/frame.html';
+
+/** The placeholder that the theme data replaces inside the shell document. */
+const themePlaceholder = '__NOTESAPP_THEMES__';
+
+/** The served name of the installed application manifest. */
+const manifestPath = 'manifest.webmanifest';
+
+/**
+ * The palette data of the script that runs before the first paint.
+ *
+ * The names are written once, and every theme lists its values in that same
+ * order, so the whole registry stays small inside the document. The script
+ * reads the stored family and appearance and writes the properties, which is
+ * why a reload never shows the wrong palette.
+ */
+export function themeRegistryData(): string {
+  const names = themeProperties(defaultThemeFor('dark')).map(([name]) => name);
+  const families: Record<string, Record<string, unknown>> = {};
+  for (const family of themeFamilies) {
+    const variants: Record<string, unknown> = {};
+    for (const theme of family.variants)
+      variants[theme.appearance] = {
+        id: theme.id,
+        values: themeProperties(theme).map(([, value]) => value),
+      };
+    families[family.id] = variants;
+  }
+  return JSON.stringify({
+    fallback: defaultThemeFamilyId,
+    properties: names,
+    families,
+  });
+}
+
+/**
+ * The installed application manifest.
+ *
+ * The interface colour is the page background of the default dark theme, so
+ * the manifest cannot drift from the registry. A theme change repaints the
+ * `theme-color` element of the live document as well.
+ */
+export function webManifest(): string {
+  const theme = defaultThemeFor('dark');
+  return `${JSON.stringify(
+    {
+      name: 'Notesapp',
+      short_name: 'Notes',
+      description: 'Offline notes with versioned history.',
+      start_url: '/',
+      scope: '/',
+      display: 'standalone',
+      orientation: 'any',
+      background_color: theme.tokens.background,
+      theme_color: theme.tokens.background,
+      icons: [
+        {
+          src: '/icon-192.png',
+          sizes: '192x192',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: '/icon-512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'any',
+        },
+        {
+          src: '/maskable-512.png',
+          sizes: '512x512',
+          type: 'image/png',
+          purpose: 'maskable',
+        },
+      ],
+    },
+    null,
+    2,
+  )}\n`;
+}
+
+/**
+ * Writes the theme registry into the shell document and the manifest.
+ *
+ * Both outputs are generated from `@notesapp/ui`, so the palette lives in
+ * exactly one place: adding a theme changes one data file and nothing here
+ * (audit UI-48).
+ */
+function themeAssets(): Plugin {
+  return {
+    name: 'notesapp-theme-assets',
+    transformIndexHtml: {
+      order: 'pre',
+      handler(html: string): string {
+        return html.replace(themePlaceholder, () => themeRegistryData());
+      },
+    },
+    configureServer(server): void {
+      server.middlewares.use((request, response, next): void => {
+        if (!(request.url ?? '').startsWith(`/${manifestPath}`)) {
+          next();
+          return;
+        }
+        response.setHeader('content-type', 'application/manifest+json');
+        response.end(webManifest());
+      });
+    },
+    generateBundle(): void {
+      this.emitFile({
+        type: 'asset',
+        fileName: manifestPath,
+        source: webManifest(),
+      });
+    },
+  };
+}
 
 /**
  * Emits the diagram frame as one self-contained document.
@@ -121,6 +242,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     tailwindcss(),
+    themeAssets(),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
     VitePWA({
       strategies: 'injectManifest',

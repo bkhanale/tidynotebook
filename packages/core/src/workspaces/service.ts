@@ -15,14 +15,39 @@ import type { Action, Actor, Role } from '../identity/actor.ts';
 import { actionsForRole, authorize } from '../identity/actor.ts';
 import { fail, ok, type Result } from '../files/model.ts';
 import type {
+  AppearanceChoice,
   Preferences,
-  ThemeChoice,
   WorkspaceAdminStore,
   WorkspaceSummary,
 } from './ports.ts';
 
-/** The theme choices, for a transport that has to narrow an unknown value. */
-export const themeChoices: readonly ThemeChoice[] = ['system', 'light', 'dark'];
+/**
+ * The appearance choices, for a transport that narrows an unknown value.
+ */
+export const appearanceChoices: readonly AppearanceChoice[] = [
+  'system',
+  'light',
+  'dark',
+];
+
+/**
+ * The shape a theme family identifier must have.
+ *
+ * The registry of families is a client concern, so the rule here is only the
+ * slug shape and its length. A family the client does not know falls back to
+ * the default one when the page paints.
+ */
+export const themeFamilyPattern = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+
+/** The longest theme family identifier the store accepts. */
+export const themeFamilyMaximumLength = 40;
+
+/** True when a value can be stored as a theme family identifier. */
+export function isThemeFamilyId(value: string): boolean {
+  return (
+    value.length <= themeFamilyMaximumLength && themeFamilyPattern.test(value)
+  );
+}
 
 /**
  * Both permission checks of one workspace action.
@@ -142,7 +167,9 @@ export function updatePreferences(
   preferences: Preferences,
 ): Promise<Result<Preferences>> {
   return store.account(actor, async (tx) => {
-    if (!themeChoices.includes(preferences.theme))
+    if (!appearanceChoices.includes(preferences.appearance))
+      return fail<Preferences>('forbidden');
+    if (!isThemeFamilyId(preferences.themeFamily))
       return fail<Preferences>('forbidden');
     await tx.savePreferences(preferences);
     return ok(preferences);

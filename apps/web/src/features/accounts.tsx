@@ -16,6 +16,7 @@ import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
   Card,
+  CheckIcon,
   ChevronLeftIcon,
   ComputerIcon,
   MoonIcon,
@@ -25,8 +26,10 @@ import {
   StatusRegion,
   SunIcon,
   TextField,
+  themeFamilies,
+  themeOfFamily,
   WorkspaceIcon,
-  type ThemeChoice,
+  type AppearanceChoice,
 } from '@notesapp/ui';
 import {
   problemMessage,
@@ -273,9 +276,9 @@ export function LoginPage(): ReactNode {
   );
 }
 
-/** The three palette choices, with the icon that names each of them. */
-const themeChoices: readonly {
-  readonly value: ThemeChoice;
+/** The three appearance choices, with the icon that names each of them. */
+const appearanceChoices: readonly {
+  readonly value: AppearanceChoice;
   readonly label: string;
   readonly icon: ReactNode;
 }[] = [
@@ -285,11 +288,47 @@ const themeChoices: readonly {
 ];
 
 /**
- * Theme settings: local first, synced without delaying the change.
+ * The four colours that show what one family looks like.
  *
- * The three choices are radio buttons in one group, so the whole set is
- * visible at once, the arrow keys move through it, and the choice in force
- * is readable without opening anything.
+ * The swatch is the page background, the sidebar surface, the accent fill,
+ * and the body text of the variant that the current appearance selects, so
+ * the preview is exactly what the screen becomes on selection.
+ */
+function FamilySwatch({ familyId }: { readonly familyId: string }): ReactNode {
+  const theme = useTheme();
+  const family = themeFamilies.find((entry) => entry.id === familyId);
+  if (family === undefined) return null;
+  const tokens = themeOfFamily(family, theme.resolved).tokens;
+  const colours = [
+    tokens.background,
+    tokens.surface,
+    tokens.accentFill,
+    tokens.text,
+  ];
+  return (
+    <span
+      aria-hidden="true"
+      className="inline-flex overflow-hidden rounded-sm border border-edge"
+    >
+      {colours.map((colour) => (
+        <span
+          className="block h-4 w-3"
+          key={colour}
+          style={{ backgroundColor: colour }}
+        />
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Appearance settings: local first, synced without delaying the change.
+ *
+ * The appearance choices and the theme families are radio buttons in two
+ * groups, so each whole set is visible at once, the arrow keys move through
+ * it, and the choice in force is readable without opening anything. A
+ * selection applies at once, which is why the swatch of every family shows
+ * the variant of the appearance in force.
  */
 export function ThemeSettings(): ReactNode {
   const theme = useTheme();
@@ -300,9 +339,9 @@ export function ThemeSettings(): ReactNode {
         goes to your account in the background.
       </p>
       <fieldset className="m-0 mt-3 border-0 p-0">
-        <legend className="sr-only">Theme</legend>
+        <legend className="sr-only">Appearance</legend>
         <div className="flex flex-wrap gap-2">
-          {themeChoices.map((choice) => {
+          {appearanceChoices.map((choice) => {
             const chosen = theme.choice === choice.value;
             return (
               <label
@@ -332,6 +371,41 @@ export function ThemeSettings(): ReactNode {
           })}
         </div>
       </fieldset>
+      <fieldset className="m-0 mt-4 border-0 p-0">
+        <legend className="mb-2 p-0 text-control text-muted">Theme</legend>
+        <div className="flex flex-wrap gap-2">
+          {themeFamilies.map((family) => {
+            const chosen = theme.familyId === family.id;
+            return (
+              <label
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-control font-medium motion-safe:transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
+                  chosen
+                    ? 'border-accent-fill bg-hover text-strong'
+                    : 'border-edge bg-transparent text-strong hover:bg-hover'
+                }`}
+                key={family.id}
+              >
+                <input
+                  className="sr-only"
+                  type="radio"
+                  name="theme-family"
+                  value={family.id}
+                  checked={chosen}
+                  onChange={(): void => {
+                    theme.setFamily(family.id);
+                  }}
+                />
+                <FamilySwatch familyId={family.id} />
+                <span>{family.name}</span>
+                {chosen ? <CheckIcon size={14} /> : null}
+              </label>
+            );
+          })}
+        </div>
+      </fieldset>
+      {theme.syncError === null ? null : (
+        <p className="m-0 mt-3 text-control text-danger">{theme.syncError}</p>
+      )}
     </Card>
   );
 }

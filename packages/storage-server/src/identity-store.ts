@@ -16,14 +16,14 @@ import { randomUUID } from 'node:crypto';
 import type {
   AccountTransaction,
   Actor,
+  AppearanceChoice,
   Preferences,
   Role,
-  ThemeChoice,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
 } from '@notesapp/core';
-import { OperationalError } from '@notesapp/core';
+import { isThemeFamilyId, OperationalError } from '@notesapp/core';
 import pg from 'pg';
 import { defaultQuotaBytes } from './provision.ts';
 import { WorkspaceUnavailableError } from './workspace-store.ts';
@@ -32,14 +32,17 @@ const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const roles: readonly Role[] = ['owner'];
-const themes: readonly ThemeChoice[] = ['system', 'light', 'dark'];
+
+/** The family a row without a stored choice renders with. */
+const defaultThemeFamily = 'tokyo-night';
+const appearances: readonly AppearanceChoice[] = ['system', 'light', 'dark'];
 
 function isRole(value: string): value is Role {
   return (roles as readonly string[]).includes(value);
 }
 
-function isTheme(value: string): value is ThemeChoice {
-  return (themes as readonly string[]).includes(value);
+function isAppearance(value: string): value is AppearanceChoice {
+  return (appearances as readonly string[]).includes(value);
 }
 
 /** Rejects an identifier that is not a UUID before it reaches SQL. */
@@ -63,9 +66,23 @@ function asRole(value: string): Role {
   return value;
 }
 
-/** Narrows a stored theme string. An unexpected value falls back to system. */
-function asTheme(value: string): ThemeChoice {
-  return isTheme(value) ? value : 'system';
+/**
+ * Narrows a stored appearance string. An unexpected value falls back to
+ * system, so a row written by another release still renders.
+ */
+function asAppearance(value: string): AppearanceChoice {
+  return isAppearance(value) ? value : 'system';
+}
+
+/**
+ * Narrows a stored theme family string.
+ *
+ * The palette registry lives in the browser package, so the store checks the
+ * slug shape only and lets the client fall back when it does not know the
+ * family.
+ */
+function asThemeFamily(value: string): string {
+  return isThemeFamilyId(value) ? value : defaultThemeFamily;
 }
 
 /** An identity store and the calls that a process needs to manage its pool. */
@@ -275,20 +292,31 @@ export function openIdentityStore(
       },
 
       async preferences(): Promise<Preferences> {
-        const rows = await client.query<{ theme: string }>(
-          'select theme from account_preferences where account_id = $1',
+        const rows = await client.query<{
+          theme: string;
+          theme_family: string;
+        }>(
+          `select theme, theme_family from account_preferences
+             where account_id = $1`,
           [accountId],
         );
-        return { theme: asTheme(rows.rows[0]?.theme ?? 'system') };
+        const row = rows.rows[0];
+        return {
+          appearance: asAppearance(row?.theme ?? 'system'),
+          themeFamily: asThemeFamily(row?.theme_family ?? defaultThemeFamily),
+        };
       },
 
       async savePreferences(preferences: Preferences): Promise<void> {
         await client.query(
-          `insert into account_preferences (account_id, theme, updated_at)
-             values ($1, $2, now())
+          `insert into account_preferences
+             (account_id, theme, theme_family, updated_at)
+             values ($1, $2, $3, now())
            on conflict (account_id)
-             do update set theme = excluded.theme, updated_at = now()`,
-          [accountId, preferences.theme],
+             do update set theme = excluded.theme,
+                           theme_family = excluded.theme_family,
+                           updated_at = now()`,
+          [accountId, preferences.appearance, preferences.themeFamily],
         );
       },
 

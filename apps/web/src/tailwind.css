@@ -49,10 +49,12 @@
 }
 
 /*
- * The palette. These names map the runtime Tokyo Night variables that
- * `applyTheme` writes on the document element, so a palette change is one
- * assignment and never a rebuild. The literal fallbacks keep the first paint
- * correct before that script runs.
+ * The palette. These names map the runtime variables that `applyTheme` of
+ * the theme registry writes on the document element, so a theme change is
+ * one assignment and never a rebuild. The literal fallbacks are the default
+ * dark theme and keep the first paint correct before that script runs. No
+ * other colour value belongs in this file; the registry in
+ * `packages/ui/src/themes` owns every palette.
  */
 @theme inline {
   --color-app: var(--notes-bg, #1a1b26);

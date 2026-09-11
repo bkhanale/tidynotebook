@@ -16,13 +16,28 @@ import mermaid from 'mermaid';
 import {
   diagramLimits,
   isDiagramRequest,
+  paletteNames,
   type DiagramRequest,
   type DiagramResponse,
 } from './frame.ts';
 
+/**
+ * Paints the frame with the palette that the request carries.
+ *
+ * The frame holds no colour of its own, so a new theme reaches it with no
+ * change here. Every value was checked as a hex colour before it arrives.
+ */
+function paint(request: DiagramRequest): void {
+  const element = document.documentElement;
+  element.setAttribute('data-theme', request.theme);
+  paletteNames.forEach((name, index) => {
+    element.style.setProperty(name, request.palette[index] ?? '');
+  });
+}
+
 /** Renders one validated request and answers with its height. */
 async function render(request: DiagramRequest): Promise<void> {
-  document.documentElement.setAttribute('data-theme', request.theme);
+  paint(request);
   mermaid.initialize({
     startOnLoad: false,
     securityLevel: 'strict',

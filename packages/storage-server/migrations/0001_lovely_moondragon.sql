@@ -1,0 +1,1 @@
+ALTER TABLE "account_preferences" ADD COLUMN "theme_family" text DEFAULT 'tokyo-night' NOT NULL;

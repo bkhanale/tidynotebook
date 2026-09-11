@@ -8,14 +8,15 @@
  */
 import type { FastifyRequest } from 'fastify';
 import type {
+  AppearanceChoice,
   Preferences,
   Result,
-  ThemeChoice,
   WorkspaceAdminStore,
 } from '@notesapp/core';
 import {
+  appearanceChoices,
+  isThemeFamilyId,
   readPreferences,
-  themeChoices,
   updatePreferences,
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
@@ -60,18 +61,29 @@ export function readParameter(request: FastifyRequest, key: string): string {
   return value;
 }
 
-/** Narrows the validated theme member. */
-function readTheme(body: unknown): ThemeChoice {
-  const value = readString(body, 'theme');
-  const choice = themeChoices.find((entry) => entry === value);
+/** Narrows the validated appearance member. */
+function readAppearance(body: unknown): AppearanceChoice {
+  const value = readString(body, 'appearance');
+  const choice = appearanceChoices.find((entry) => entry === value);
   if (choice === undefined)
-    throw new ForbiddenError('The theme choice is not one of the known ones.');
+    throw new ForbiddenError('The appearance is not one of the known ones.');
   return choice;
+}
+
+/** Narrows the validated theme family member. */
+function readThemeFamily(body: unknown): string {
+  const value = readString(body, 'themeFamily');
+  if (!isThemeFamilyId(value))
+    throw new ForbiddenError('The theme family is not a known identifier.');
+  return value;
 }
 
 /** The public shape of stored settings. */
 function preferencesBody(preferences: Preferences): Record<string, unknown> {
-  return { theme: preferences.theme };
+  return {
+    appearance: preferences.appearance,
+    themeFamily: preferences.themeFamily,
+  };
 }
 
 /** Builds the account and settings handlers. */
@@ -96,7 +108,8 @@ export function createAccountHandlers(store: WorkspaceAdminStore): HandlerMap {
       const resolved = requireActor(request);
       const stored = unwrap(
         await updatePreferences(store, resolved.actor, {
-          theme: readTheme(request.body),
+          appearance: readAppearance(request.body),
+          themeFamily: readThemeFamily(request.body),
         }),
       );
       return {

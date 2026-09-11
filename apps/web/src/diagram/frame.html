@@ -1,36 +1,22 @@
 <!doctype html>
-<html lang="en" data-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="referrer" content="no-referrer" />
     <title>Diagram preview</title>
     <style>
-      /* Tokyo Night palettes for the isolated diagram frame. The frame runs
-         with an opaque origin and reads no parent stylesheet, so the two
-         values per token repeat the design table here. */
+      /* The frame holds no palette. `frame-main.ts` applies the tokens of
+         the theme that the request names, so the page and the frame are
+         always one palette and a new theme needs no change here. Before
+         that message arrives the frame paints nothing, so the page behind
+         it shows through instead of a wrong colour. */
       :root {
         color-scheme: light dark;
       }
-      [data-theme='dark'] {
-        color-scheme: dark;
-        --notes-bg: #1a1b26;
-        --notes-surface: #16161e;
-        --notes-text: #c0caf5;
-        --notes-accent: #7aa2f7;
-        --notes-border: #6b7499;
-      }
-      [data-theme='light'] {
-        color-scheme: light;
-        --notes-bg: #e1e2e7;
-        --notes-surface: #d0d5e3;
-        --notes-text: #3760bf;
-        --notes-accent: #2e7de9;
-        --notes-border: #5a6a8a;
-      }
       body {
-        background: var(--notes-bg);
-        color: var(--notes-text);
+        background: var(--notes-bg, transparent);
+        color: var(--notes-text, inherit);
         font-family:
           system-ui,
           -apple-system,

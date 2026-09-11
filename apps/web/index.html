@@ -14,16 +14,27 @@
     <title>Notesapp</title>
     <script>
       // Apply the saved theme before the first paint so the page never
-      // flashes the wrong palette. The values mirror packages/ui tokens.
+      // flashes the wrong palette. The palette data is written here at
+      // build time from the theme registry of `@notesapp/ui`, so no colour
+      // value is kept in this file.
       try {
-        var stored = localStorage.getItem('notesapp.theme') || 'system';
+        var themes = __NOTESAPP_THEMES__;
+        var appearance = localStorage.getItem('notesapp.theme') || 'system';
+        var family = localStorage.getItem('notesapp.theme-family') || '';
         var dark =
-          stored === 'dark' ||
-          (stored !== 'light' &&
+          appearance === 'dark' ||
+          (appearance !== 'light' &&
             window.matchMedia('(prefers-color-scheme: dark)').matches);
+        var variants = themes.families[family] || themes.families[themes.fallback];
+        var theme = variants[dark ? 'dark' : 'light'] || variants.dark || variants.light;
         var root = document.documentElement;
         root.setAttribute('data-theme', dark ? 'dark' : 'light');
-        root.style.background = dark ? '#1a1b26' : '#e1e2e7';
+        root.setAttribute('data-theme-id', theme.id);
+        for (var index = 0; index < themes.properties.length; index += 1)
+          root.style.setProperty(themes.properties[index], theme.values[index]);
+        root.style.background = theme.values[0];
+        var colour = document.querySelector('meta[name="theme-color"]');
+        if (colour) colour.setAttribute('content', theme.values[0]);
       } catch (error) {
         document.documentElement.setAttribute('data-theme', 'dark');
       }

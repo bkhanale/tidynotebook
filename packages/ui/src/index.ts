@@ -17,35 +17,33 @@ export type {
   ThemeRoot,
   ThemeSource,
   ThemeTokens,
-} from './theme.ts';
+} from './themes/index.ts';
 export {
   appearanceStorageKey,
   applyTheme,
   applyThemeToDocument,
   contrastRatio,
-  parseAppearanceChoice,
-  parseHexColor,
-  relativeLuminance,
-  resolveAppearance,
-  syntaxPropertyName,
-  syntaxPropertyNames,
-  themeFamilyStorageKey,
-  themeProperties,
-  themePropertyName,
-  themePropertyNames,
-  textContrastMinimum,
-  uiContrastMinimum,
-} from './theme.ts';
-export {
   defaultThemeFamilyId,
   defaultThemeFor,
   findTheme,
   findThemeFamily,
+  parseAppearanceChoice,
+  parseHexColor,
   parseThemeFamilyId,
+  relativeLuminance,
+  resolveAppearance,
+  syntaxPropertyName,
+  syntaxPropertyNames,
+  textContrastMinimum,
   themeFamilies,
+  themeFamilyStorageKey,
   themeFor,
   themeOfFamily,
+  themeProperties,
+  themePropertyName,
+  themePropertyNames,
   themes,
+  uiContrastMinimum,
 } from './themes/index.ts';
 export type { ButtonSize, ButtonVariant, SelectOption } from './controls.tsx';
 export {

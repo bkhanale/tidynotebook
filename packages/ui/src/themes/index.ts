@@ -9,8 +9,44 @@
  *
  * `theme.test.ts` walks the whole registry, so a new family is held to the
  * same contrast rules as the families that ship today.
+ *
+ * This module is also the entry point that `@notesapp/ui/themes` publishes:
+ * it re-exports the theme contract, so a consumer that must not load React,
+ * such as the build step and the sandboxed diagram frame, reads the palette
+ * from here.
  */
 import type { Appearance, Theme, ThemeFamily } from '../theme.ts';
+
+export type {
+  Appearance,
+  AppearanceChoice,
+  SyntaxPropertyName,
+  SyntaxTokens,
+  Theme,
+  ThemeFamily,
+  ThemePropertyName,
+  ThemeRoot,
+  ThemeSource,
+  ThemeTokens,
+} from '../theme.ts';
+export {
+  appearanceStorageKey,
+  applyTheme,
+  applyThemeToDocument,
+  contrastRatio,
+  parseAppearanceChoice,
+  parseHexColor,
+  relativeLuminance,
+  resolveAppearance,
+  syntaxPropertyName,
+  syntaxPropertyNames,
+  textContrastMinimum,
+  themeFamilyStorageKey,
+  themeProperties,
+  themePropertyName,
+  themePropertyNames,
+  uiContrastMinimum,
+} from '../theme.ts';
 import { catppuccin } from './catppuccin.ts';
 import { dracula } from './dracula.ts';
 import { github } from './github.ts';

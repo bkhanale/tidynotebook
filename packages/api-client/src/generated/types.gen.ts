@@ -99,6 +99,11 @@ export type Account = {
 };
 
 /**
+ * Appearance choice. The value system follows the device preference between the light and the dark variant of the chosen theme family.
+ */
+export type Appearance = 'system' | 'light' | 'dark';
+
+/**
  * The uploaded temporary attachment object and its verified digest.
  */
 export type AttachmentUploadResult = {
@@ -595,9 +600,13 @@ export type MarkdownText = string;
  */
 export type Preferences = {
     /**
-     * The stored palette choice of the account.
+     * The stored appearance choice of the account.
      */
-    readonly theme: Theme;
+    readonly appearance: Appearance;
+    /**
+     * The stored theme family of the account.
+     */
+    readonly themeFamily: ThemeFamily;
 };
 
 /**
@@ -605,9 +614,13 @@ export type Preferences = {
  */
 export type PreferencesInput = {
     /**
-     * The palette choice to store.
+     * The appearance choice to store.
      */
-    theme: Theme;
+    appearance: Appearance;
+    /**
+     * The theme family to store.
+     */
+    themeFamily: ThemeFamily;
 };
 
 /**
@@ -980,9 +993,9 @@ export type SyncChanges = {
 };
 
 /**
- * Palette choice. The value system follows the device preference between the Tokyo Night Day and Night palettes.
+ * Identifier of a theme family in the client theme registry, for example tokyo-night. An identifier that the client does not know falls back to the default family, so a stored value never stops the page painting.
  */
-export type Theme = 'system' | 'light' | 'dark';
+export type ThemeFamily = string;
 
 /**
  * The identifiers and the new content or path of a file.

@@ -190,8 +190,8 @@ paths:
       summary: Replace the stored settings of the signed in account.
       description: >-
         Replaces the settings that follow the account to every device. The
-        theme choice selects the Tokyo Night Day palette, the Night palette, or
-        the palette that matches the device preference.
+        theme family selects the palette, and the appearance selects the light
+        variant, the dark variant, or the one that matches the device.
       tags:
         - accounts
       security:
@@ -1906,15 +1906,24 @@ components:
       minLength: 36
       maxLength: 36
       pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
-    Theme:
+    Appearance:
       type: string
       description: >-
-        Palette choice. The value system follows the device preference between
-        the Tokyo Night Day and Night palettes.
+        Appearance choice. The value system follows the device preference
+        between the light and the dark variant of the chosen theme family.
       enum:
         - system
         - light
         - dark
+    ThemeFamily:
+      type: string
+      description: >-
+        Identifier of a theme family in the client theme registry, for example
+        tokyo-night. An identifier that the client does not know falls back to
+        the default family, so a stored value never stops the page painting.
+      minLength: 1
+      maxLength: 40
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
     Role:
       type: string
       description: >-
@@ -1928,24 +1937,35 @@ components:
       description: Settings that follow one account to every device.
       additionalProperties: false
       required:
-        - theme
+        - appearance
+        - themeFamily
       properties:
-        theme:
+        appearance:
           allOf:
-            - $ref: '#/components/schemas/Theme'
+            - $ref: '#/components/schemas/Appearance'
           readOnly: true
-          description: The stored palette choice of the account.
+          description: The stored appearance choice of the account.
+        themeFamily:
+          allOf:
+            - $ref: '#/components/schemas/ThemeFamily'
+          readOnly: true
+          description: The stored theme family of the account.
     PreferencesInput:
       type: object
       description: Settings to store for the signed in account.
       additionalProperties: false
       required:
-        - theme
+        - appearance
+        - themeFamily
       properties:
-        theme:
+        appearance:
           allOf:
-            - $ref: '#/components/schemas/Theme'
-          description: The palette choice to store.
+            - $ref: '#/components/schemas/Appearance'
+          description: The appearance choice to store.
+        themeFamily:
+          allOf:
+            - $ref: '#/components/schemas/ThemeFamily'
+          description: The theme family to store.
     Account:
       type: object
       description: The signed in account and its settings.

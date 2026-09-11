@@ -33,13 +33,43 @@ export type DiagramTheme = 'light' | 'dark';
  * The only message the parent sends to the frame.
  *
  * `requestId` matches one render; `source` is the raw Mermaid source without
- * the fence; `theme` selects the Tokyo Night palette inside the frame.
+ * the fence; `theme` is the appearance Mermaid renders with; `palette` holds
+ * the colours of the theme in force, in the order of {@link paletteNames}.
+ *
+ * The palette travels with the request on purpose. The frame has an opaque
+ * origin and reads no stylesheet of the page, so sending the values keeps
+ * one palette for the page and the frame and leaves no colour in the frame
+ * document to drift.
  */
 export type DiagramRequest = {
   readonly requestId: string;
   readonly source: string;
   readonly theme: DiagramTheme;
+  readonly palette: readonly string[];
 };
+
+/** The custom properties the frame paints itself with, in a fixed order. */
+export const paletteNames: readonly string[] = [
+  '--notes-bg',
+  '--notes-surface',
+  '--notes-text',
+  '--notes-accent-text',
+  '--notes-border',
+];
+
+/** True when a value is a six digit hex colour. */
+function isHexColour(value: unknown): value is string {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value);
+}
+
+/** True when a value is the palette of one request. */
+function isPalette(value: unknown): value is readonly string[] {
+  return (
+    Array.isArray(value) &&
+    value.length === paletteNames.length &&
+    value.every(isHexColour)
+  );
+}
 
 /**
  * The only message the frame sends to the parent.
@@ -89,19 +119,22 @@ function readProperty(value: unknown, key: string): unknown {
  * Reports whether an unknown value is a diagram request.
  *
  * Every field is checked: the request ID is a short non empty string, the
- * source is inside the character cap, and the theme is exactly one of the
- * two palettes. Anything else is ignored, so a stray message from another
- * frame cannot start a render.
+ * source is inside the character cap, the theme is exactly one of the two
+ * appearances, and the palette is the expected count of hex colours.
+ * Anything else is ignored, so a stray message from another frame cannot
+ * start a render and no unchecked text reaches a style property.
  */
 export function isDiagramRequest(value: unknown): value is DiagramRequest {
   const requestId = readProperty(value, 'requestId');
   const source = readProperty(value, 'source');
   const theme = readProperty(value, 'theme');
+  const palette = readProperty(value, 'palette');
   return (
     isBoundedString(requestId, 128) &&
     typeof source === 'string' &&
     source.length <= diagramLimits.maxSourceChars &&
-    (theme === 'light' || theme === 'dark')
+    (theme === 'light' || theme === 'dark') &&
+    isPalette(palette)
   );
 }
 
@@ -132,6 +165,18 @@ export function clampDiagramHeight(height: number): number {
   if (height < diagramLimits.minHeightPx) return diagramLimits.minHeightPx;
   if (height > diagramLimits.maxHeightPx) return diagramLimits.maxHeightPx;
   return Math.round(height);
+}
+
+/**
+ * The colours the page renders with right now.
+ *
+ * `applyTheme` writes the whole palette on the document element, so reading
+ * the computed values here keeps the frame on the theme of the page without
+ * every caller passing one down.
+ */
+function activePalette(): readonly string[] {
+  const style = window.getComputedStyle(document.documentElement);
+  return paletteNames.map((name) => style.getPropertyValue(name).trim());
 }
 
 /** Options of one parent side diagram frame. */
@@ -242,6 +287,7 @@ export function createDiagramFrame(options: DiagramFrameOptions): {
     requestId,
     source: options.source,
     theme: options.theme,
+    palette: activePalette(),
   };
   iframe.addEventListener('load', (): void => {
     // The frame runs with an opaque origin (`sandbox` without

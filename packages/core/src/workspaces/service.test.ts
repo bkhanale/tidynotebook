@@ -20,6 +20,7 @@ import {
   deleteWorkspace,
   listWorkspaces,
   sessionGrants,
+  isThemeFamilyId,
   updatePreferences,
   updateWorkspace,
 } from './service.ts';
@@ -109,7 +110,10 @@ function createFakeStore(): FakeStore {
       memberships: () => Promise.resolve(memberships(actor.accountId)),
       preferences: () =>
         Promise.resolve(
-          preferences.get(actor.accountId) ?? { theme: 'system' },
+          preferences.get(actor.accountId) ?? {
+            appearance: 'system',
+            themeFamily: 'tokyo-night',
+          },
         ),
       savePreferences: (value: Preferences) => {
         preferences.set(actor.accountId, value);
@@ -240,17 +244,42 @@ await test('a created workspace has its creator as owner', async () => {
   ]);
 });
 
-await test('a theme choice outside the union is rejected', async () => {
+await test('an appearance outside the union is rejected', async () => {
   const store = createFakeStore();
   const bad = await updatePreferences(store, actorFor(alice), {
-    theme: 'neon' as Preferences['theme'],
+    appearance: 'neon' as Preferences['appearance'],
+    themeFamily: 'nord',
   });
   assert.equal(bad.ok, false);
   const good = await updatePreferences(store, actorFor(alice), {
-    theme: 'dark',
+    appearance: 'dark',
+    themeFamily: 'nord',
   });
   assert.equal(good.ok, true);
-  assert.deepEqual(store.preferences.get(alice), { theme: 'dark' });
+  assert.deepEqual(store.preferences.get(alice), {
+    appearance: 'dark',
+    themeFamily: 'nord',
+  });
+});
+
+await test('a theme family that is not a slug is rejected', async () => {
+  const store = createFakeStore();
+  for (const themeFamily of [
+    '',
+    'Tokyo Night',
+    'tokyo_night',
+    '-nord',
+    'a'.repeat(41),
+  ]) {
+    const result = await updatePreferences(store, actorFor(alice), {
+      appearance: 'dark',
+      themeFamily,
+    });
+    assert.equal(result.ok, false, themeFamily);
+  }
+  assert.equal(store.preferences.get(alice), undefined);
+  assert.ok(isThemeFamilyId('rose-pine'));
+  assert.ok(isThemeFamilyId('one'));
 });
 
 await test('session grants follow the current role', () => {

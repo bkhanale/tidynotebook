@@ -113,19 +113,22 @@ export {
 } from './files/read.ts';
 export type {
   AccountTransaction,
+  AppearanceChoice,
   Preferences,
-  ThemeChoice,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
 } from './workspaces/ports.ts';
 export {
+  appearanceChoices,
   createWorkspace,
   deleteWorkspace,
+  isThemeFamilyId,
   listWorkspaces,
   readPreferences,
   sessionGrants,
-  themeChoices,
+  themeFamilyMaximumLength,
+  themeFamilyPattern,
   updatePreferences,
   updateWorkspace,
 } from './workspaces/service.ts';

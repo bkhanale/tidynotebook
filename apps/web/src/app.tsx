@@ -3,7 +3,7 @@
  *
  * This module wires the maintained pieces together: the generated HTTP
  * client, the IndexedDB local store, the foreground sync engine, and the
- * Tokyo Night theme. Feature screens consume the providers below and call
+ * theme registry. Feature screens consume the providers below and call
  * generated operations directly; there is no second network layer here.
  */
 import {
@@ -22,6 +22,7 @@ import {
   signOut,
   updatePreferences,
   type Account,
+  type Preferences,
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { openLocalStore } from '@notesapp/storage-browser';
@@ -31,12 +32,16 @@ import {
   type SyncNotice,
 } from '@notesapp/sync';
 import {
+  appearanceStorageKey,
   applyThemeToDocument,
-  parseThemeChoice,
-  resolveTheme,
-  themeStorageKey,
-  type ResolvedTheme,
-  type ThemeChoice,
+  parseAppearanceChoice,
+  parseThemeFamilyId,
+  resolveAppearance,
+  themeFamilyStorageKey,
+  themeFor,
+  type Appearance,
+  type AppearanceChoice,
+  type Theme,
 } from '@notesapp/ui';
 import { displayNoteName } from './features/note-name.ts';
 import { problemSentence } from './features/problem-text.ts';
@@ -104,10 +109,11 @@ function readCachedAccount(): Account | null {
     const row: Record<string, unknown> = Object.fromEntries(
       Object.entries(value),
     );
-    const preferences = readProperty(row['preferences'], 'theme');
+    const appearance = readProperty(row['preferences'], 'appearance');
+    const themeFamily = readProperty(row['preferences'], 'themeFamily');
     if (
       typeof row['accountId'] !== 'string' ||
-      !['system', 'light', 'dark'].includes(String(preferences))
+      !['system', 'light', 'dark'].includes(String(appearance))
     )
       return null;
     const email = row['email'];
@@ -121,10 +127,14 @@ function readCachedAccount(): Account | null {
       email: email ?? null,
       name: name ?? null,
       preferences: {
-        theme:
-          preferences === 'light' || preferences === 'dark'
-            ? preferences
+        appearance:
+          appearance === 'light' || appearance === 'dark'
+            ? appearance
             : 'system',
+        themeFamily:
+          typeof themeFamily === 'string' && themeFamily !== ''
+            ? themeFamily
+            : 'tokyo-night',
       },
     };
   } catch {
@@ -384,19 +394,29 @@ function useStoreLoader(origin: string): StoreValue {
   return useMemo(() => ({ origin, store, error }), [origin, store, error]);
 }
 
-/** The theme choice with its resolved palette. */
+/** The appearance choice, the theme family, and the palette in force. */
 export type ThemeValue = {
-  readonly choice: ThemeChoice;
-  readonly resolved: ResolvedTheme;
-  readonly setChoice: (choice: ThemeChoice) => void;
+  readonly choice: AppearanceChoice;
+  readonly resolved: Appearance;
+  /** The identifier of the chosen family, for example `tokyo-night`. */
+  readonly familyId: string;
+  /** The palette that the document renders with right now. */
+  readonly theme: Theme;
+  readonly setChoice: (choice: AppearanceChoice) => void;
+  readonly setFamily: (familyId: string) => void;
   /** Why the choice did not reach the account, when that happened. */
   readonly syncError: string | null;
 };
 
+const startingTheme = themeFor(parseThemeFamilyId(undefined), 'dark');
+
 const ThemeContext = createContext<ThemeValue>({
   choice: 'system',
   resolved: 'dark',
+  familyId: startingTheme.family,
+  theme: startingTheme,
   setChoice: () => {},
+  setFamily: () => {},
   syncError: null,
 });
 
@@ -405,61 +425,115 @@ export function useTheme(): ThemeValue {
   return useContext(ThemeContext);
 }
 
-/** Reads the stored choice without trusting its shape. */
-function readStoredChoice(): ThemeChoice {
+/** Reads one local settings value without trusting its shape. */
+function readSetting(key: string): string | null {
   try {
-    return parseThemeChoice(window.localStorage.getItem(themeStorageKey));
+    return window.localStorage.getItem(key);
   } catch {
-    return 'system';
+    return null;
   }
 }
 
 /**
- * Owns the theme choice.
+ * Owns the appearance choice and the theme family.
  *
- * The choice is stored locally first so the next paint is already correct,
- * then synced to the account in the background without delaying the local
- * change. A failed sync keeps the local choice and reports it; it never
- * rolls the visible theme back.
+ * Both are stored locally first so the next paint is already correct, then
+ * synced to the account in the background without delaying the local change.
+ * A failed sync keeps the local choice and reports it; it never rolls the
+ * visible theme back. A device that has never chosen adopts the settings of
+ * the account, so a second device opens in the palette of the first.
  */
-function useThemeLoader(): ThemeValue {
-  const [choice, setChoiceState] = useState<ThemeChoice>(() =>
-    readStoredChoice(),
+function useThemeLoader(stored: Preferences | null): ThemeValue {
+  const [choice, setChoiceState] = useState<AppearanceChoice>(() =>
+    parseAppearanceChoice(readSetting(appearanceStorageKey)),
+  );
+  const [familyId, setFamilyState] = useState<string>(() =>
+    parseThemeFamilyId(readSetting(themeFamilyStorageKey)),
   );
   const [prefersDark, setPrefersDark] = useState<boolean>(systemPrefersDark);
   const [syncError, setSyncError] = useState<string | null>(null);
-  const resolved = resolveTheme(choice, prefersDark);
+  const resolved = resolveAppearance(choice, prefersDark);
+  const theme = themeFor(familyId, resolved);
 
   useEffect(() => {
     return subscribeToSystemTheme(setPrefersDark);
   }, []);
 
   useEffect(() => {
-    applyThemeToDocument(resolved);
-  }, [resolved]);
+    applyThemeToDocument(theme);
+  }, [theme]);
 
-  const setChoice = useCallback((next: ThemeChoice) => {
-    setChoiceState(next);
-    try {
-      window.localStorage.setItem(themeStorageKey, next);
-    } catch {
-      setSyncError('The theme choice could not be stored on this device.');
-      return;
-    }
-    async function sync(): Promise<void> {
-      const result = await updatePreferences({ body: { theme: next } });
-      if (result.error !== undefined)
-        setSyncError(
-          'The palette is set on this device but not on your account yet.',
-        );
-      else setSyncError(null);
-    }
-    void sync();
-  }, []);
+  // The account settings arrive after the first paint. They apply only when
+  // this device never chose, so a local choice is never overwritten by an
+  // older one from the account.
+  useEffect(() => {
+    if (stored === null) return;
+    if (readSetting(appearanceStorageKey) === null)
+      setChoiceState(parseAppearanceChoice(stored.appearance));
+    if (readSetting(themeFamilyStorageKey) === null)
+      setFamilyState(parseThemeFamilyId(stored.themeFamily));
+  }, [stored]);
+
+  const store = useCallback(
+    (nextChoice: AppearanceChoice, nextFamily: string): boolean => {
+      try {
+        window.localStorage.setItem(appearanceStorageKey, nextChoice);
+        window.localStorage.setItem(themeFamilyStorageKey, nextFamily);
+        return true;
+      } catch {
+        setSyncError('The theme could not be stored on this device.');
+        return false;
+      }
+    },
+    [],
+  );
+
+  const publish = useCallback(
+    (nextChoice: AppearanceChoice, nextFamily: string): void => {
+      if (!store(nextChoice, nextFamily)) return;
+      async function sync(): Promise<void> {
+        const result = await updatePreferences({
+          body: { appearance: nextChoice, themeFamily: nextFamily },
+        });
+        if (result.error !== undefined)
+          setSyncError(
+            'The theme is set on this device but not on your account yet.',
+          );
+        else setSyncError(null);
+      }
+      void sync();
+    },
+    [store],
+  );
+
+  const setChoice = useCallback(
+    (next: AppearanceChoice) => {
+      setChoiceState(next);
+      publish(next, familyId);
+    },
+    [publish, familyId],
+  );
+
+  const setFamily = useCallback(
+    (next: string) => {
+      const known = parseThemeFamilyId(next);
+      setFamilyState(known);
+      publish(choice, known);
+    },
+    [publish, choice],
+  );
 
   return useMemo(
-    () => ({ choice, resolved, setChoice, syncError }),
-    [choice, resolved, setChoice, syncError],
+    () => ({
+      choice,
+      resolved,
+      familyId,
+      theme,
+      setChoice,
+      setFamily,
+      syncError,
+    }),
+    [choice, resolved, familyId, theme, setChoice, setFamily, syncError],
   );
 }
 
@@ -651,7 +725,7 @@ export function AppProviders({
   const storeValue = useStoreLoader(origin);
   const [generation, setGeneration] = useState(0);
   const session = useSessionLoader(generation);
-  const theme = useThemeLoader();
+  const theme = useThemeLoader(session.account?.preferences ?? null);
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
   const workspaceState = useWorkspaceLoader(
     session.status,
@@ -693,15 +767,7 @@ export function AppProviders({
     [workspaceState],
   );
 
-  const themeValue = useMemo<ThemeValue>(
-    () => ({
-      choice: theme.choice,
-      resolved: theme.resolved,
-      setChoice: theme.setChoice,
-      syncError: theme.syncError,
-    }),
-    [theme],
-  );
+  const themeValue = useMemo<ThemeValue>(() => theme, [theme]);
 
   return (
     <ThemeContext.Provider value={themeValue}>

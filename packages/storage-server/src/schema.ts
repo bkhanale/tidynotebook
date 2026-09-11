@@ -764,12 +764,20 @@ export const accountAuditEvents = pgTable(
   ],
 );
 
-/** Settings that follow one account to every device. */
+/**
+ * Settings that follow one account to every device.
+ *
+ * The `theme` column holds the appearance choice: system, light, or dark.
+ * It keeps its first name, so no stored row has to move. `theme_family`
+ * names a palette family of the client theme registry and is an opaque slug
+ * here; the server never holds a colour value.
+ */
 export const accountPreferences = pgTable('account_preferences', {
   accountId: uuid('account_id')
     .primaryKey()
     .references(() => accounts.id),
   theme: text('theme').notNull().default('system'),
+  themeFamily: text('theme_family').notNull().default('tokyo-night'),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
