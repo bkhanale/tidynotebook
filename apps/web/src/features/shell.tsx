@@ -742,8 +742,8 @@ function ShellFrame({
                   variant="ghost"
                   size="sm"
                   className="md:hidden"
-                  label={drawerOpen ? 'Close navigation' : 'Open navigation'}
-                  title={drawerOpen ? 'Close navigation' : 'Open navigation'}
+                  label="Open navigation"
+                  title="Open navigation"
                   icon={<MenuIcon size={18} />}
                   ariaControls="notes-sidebar"
                   ariaExpanded={drawerOpen}
