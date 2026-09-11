@@ -88,7 +88,8 @@ These are carried on purpose. They do not block a release.
 
 Because the CI workflow is off, "green in CI" in
 [the plan](003-v0.1-revamp.md) section 8 is read as "green on the local
-machine".
+machine". `pnpm verify` passes on this change with 821 unit
+tests and 229 integration tests.
 
 The initial JavaScript budget is no longer carried. The initial route measures
 160,298 gzip bytes against the 256,000 byte budget, and
