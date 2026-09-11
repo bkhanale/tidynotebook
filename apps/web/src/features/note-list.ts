@@ -77,6 +77,25 @@ export function notesInFolder(
   return notes.filter((note) => note.path.toLowerCase().startsWith(prefix));
 }
 
+/**
+ * The folders that contain a note path, outermost first.
+ *
+ * A path `Work/Reports/Q1.md` lies in `Work` and in `Work/Reports`, so
+ * opening that note must open both folders. A root note has no folder, so the
+ * result is empty.
+ */
+export function ancestorFolders(path: string): readonly string[] {
+  const segments = path.split('/').slice(0, -1);
+  const folders: string[] = [];
+  let prefix = '';
+  for (const segment of segments) {
+    if (segment === '') continue;
+    prefix = prefix === '' ? segment : `${prefix}/${segment}`;
+    folders.push(prefix);
+  }
+  return folders;
+}
+
 /** One node of the rendered file tree. */
 export type TreeNode =
   | {

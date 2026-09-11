@@ -5,8 +5,8 @@
  * below `md`, then the product mark. Centre: one search affordance that
  * opens the command palette at every width. Right: the save and sync chip,
  * then one overflow menu. The sidebar is 256 px, holds the only primary
- * action of the shell, the notes that changed last, the folder tree, and a
- * quiet footer. Every route below owns exactly one `main` landmark.
+ * action of the shell, the folder tree, and a quiet footer. Every route below
+ * owns exactly one `main` landmark.
  *
  * The one workspace of the account is an implicit container. It stays in
  * the address so a note keeps a stable link, but nothing on screen names
@@ -78,6 +78,7 @@ import {
 import { NewNoteButton, useCreateNote } from './new-note.tsx';
 import { NoteActionsScope, useNoteActions } from './note-actions.tsx';
 import {
+  ancestorFolders,
   buildNoteTree,
   notesInFolder,
   recentNotes,
@@ -87,7 +88,7 @@ import {
 import { drawerClassName } from './drawer.ts';
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import { deleteNotes } from './note-delete.ts';
-import { baseNameOf, displayNoteName } from './note-name.ts';
+import { displayNoteName } from './note-name.ts';
 import { folderOf } from './relative-time.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import { NoteSaveScope, useNoteSave, useOnline } from './save-status.tsx';
@@ -103,9 +104,6 @@ import {
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
 }));
-
-/** How many notes the Recent section holds. */
-const recentLimit = 6;
 
 /** One note row of the tree. */
 function NoteRow({
@@ -125,6 +123,15 @@ function NoteRow({
   readonly onNavigate: () => void;
   readonly onDelete?: (() => void) | undefined;
 }): ReactNode {
+  // The open note scrolls into view when its row mounts or becomes active, so
+  // a note opened from the palette or a link is visible in the tree even when
+  // it was below the fold. `nearest` moves the row the least amount needed.
+  const revealActive = useCallback(
+    (node: HTMLElement | null): void => {
+      if (node !== null && active) node.scrollIntoView({ block: 'nearest' });
+    },
+    [active],
+  );
   const linkClassName = `flex min-h-11 items-center gap-2 rounded-lg px-2 text-control no-underline motion-safe:transition-colors md:min-h-8 ${
     onDelete === undefined
       ? active
@@ -136,6 +143,7 @@ function NoteRow({
   }`;
   const link = (
     <Link
+      ref={revealActive}
       className={linkClassName}
       to={`/w/${workspaceId}/notes/${note.fileId}`}
       onClick={onNavigate}
@@ -372,7 +380,7 @@ function GroupLabel({
   );
 }
 
-/** The sidebar: the new note action, Recent, the folder tree, a footer. */
+/** The sidebar: the new note action, the folder tree, a footer. */
 function Sidebar({
   workspaceId,
   onNavigate,
@@ -411,14 +419,22 @@ function Sidebar({
     session.account?.accountId ?? null,
     workspaceId,
   );
-  const recent = useMemo(
-    () => recentNotes(files.notes, recentLimit),
-    [files.notes],
-  );
   const tree = useMemo(
     () => buildNoteTree(files.notes, files.emptyFolders),
     [files.notes, files.emptyFolders],
   );
+  const openNotePath =
+    fileId === null
+      ? null
+      : (files.notes.find((note) => note.fileId === fileId)?.path ?? null);
+
+  // Open the folders that hold the note, so a note opened from the palette or
+  // a link is shown in the tree. A collapse the person makes later stays,
+  // because this runs only when the open note or its path changes.
+  useEffect(() => {
+    if (openNotePath === null) return;
+    for (const folder of ancestorFolders(openNotePath)) openFolder(folder);
+  }, [openNotePath, openFolder]);
   const trashPath = `/w/${workspaceId}/trash`;
   const navigate = useNavigate();
   const { announce } = useDeleteNotice();
@@ -619,25 +635,6 @@ function Sidebar({
       ) : null}
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        {recent.length > 0 ? (
-          <section aria-labelledby="recent-heading" className="mb-3">
-            <GroupLabel id="recent-heading">Recent</GroupLabel>
-            <ul className="m-0 list-none space-y-0.5 p-0">
-              {recent.map((note) => (
-                <li key={note.fileId}>
-                  <NoteRow
-                    note={note}
-                    basename={baseNameOf(note.path)}
-                    workspaceId={workspaceId}
-                    active={note.fileId === fileId}
-                    onNavigate={onNavigate}
-                  />
-                </li>
-              ))}
-            </ul>
-          </section>
-        ) : null}
-
         <section aria-labelledby="tree-heading">
           <div
             className={`rounded-lg ${drag.over === '' ? 'bg-active ring-2 ring-focus' : ''}`}

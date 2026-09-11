@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  ancestorFolders,
   buildNoteTree,
   mergeNotes,
   notesInFolder,
@@ -175,4 +176,19 @@ await test('notesInFolder preserves the input order', () => {
     notesInFolder(ordered, 'Work').map((entry) => entry.fileId),
     ['second', 'first'],
   );
+});
+
+await test('ancestorFolders lists each folder that holds a nested note', () => {
+  assert.deepEqual(ancestorFolders('Work/Reports/Q1.md'), [
+    'Work',
+    'Work/Reports',
+  ]);
+});
+
+await test('ancestorFolders is empty for a root note', () => {
+  assert.deepEqual(ancestorFolders('Q1.md'), []);
+});
+
+await test('ancestorFolders lists the one folder of a note one level deep', () => {
+  assert.deepEqual(ancestorFolders('Work/Q1.md'), ['Work']);
 });
