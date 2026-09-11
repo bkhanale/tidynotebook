@@ -45,7 +45,9 @@ and needs no record.
 | [0014](0014-browser-tests-are-the-interface-gate.md)   | Browser tests are the interface gate                  |
 | [0015](0015-the-note-surface-is-the-design.md)         | The note surface is the design                        |
 | [0016](0016-themes-are-data-in-one-registry.md)        | A theme is data in one registry                       |
+| [0017](0017-save-feedback-on-the-save-button.md)       | Save feedback lives on the Save button                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
-theme registry described in [Themes](../development/themes.md).
+theme registry described in [Themes](../development/themes.md). Record 0017
+records how the save state reaches the person.
