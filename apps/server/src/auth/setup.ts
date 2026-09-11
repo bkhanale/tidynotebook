@@ -1,10 +1,12 @@
 /** First-run setup for the single-user installation. */
 import type { FastifyReply, FastifyRequest } from 'fastify';
+import type { WorkspaceStore } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
 import type { HandlerMap, HandlerResult } from '../http/register.ts';
 import { ForbiddenError } from '../http/problem.ts';
 import { readProperty } from '../values.ts';
 import type { NotesappAuth } from './better-auth.ts';
+import { seedWelcomeNote } from './welcome-note.ts';
 
 const jsonMediaType = 'application/json';
 
@@ -28,6 +30,7 @@ function text(value: unknown, key: string): string {
 export function createSetupHandlers(
   auth: NotesappAuth,
   identity: IdentityStoreHandle,
+  content: WorkspaceStore,
 ): HandlerMap {
   return {
     getSetupStatus: async (): Promise<HandlerResult> => ({
@@ -72,6 +75,13 @@ export function createSetupHandlers(
         await deleteUnlinkedUser(auth, authUserId);
         throw new ForbiddenError('The single user already exists.');
       }
+
+      // The one welcome note is written here, through the same commit path
+      // that the create operation uses, so it has a revision and reaches every
+      // device. Setup runs only while no account exists, so it is written once.
+      const [membership] = await identity.memberships(accountId);
+      if (membership !== undefined)
+        await seedWelcomeNote(content, accountId, membership.workspaceId);
 
       const cookies = response.headers.getSetCookie();
       if (cookies.length > 0) reply.header('set-cookie', cookies);

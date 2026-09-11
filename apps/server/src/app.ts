@@ -371,7 +371,7 @@ export async function createApp(
         content,
         attachments,
       }),
-      ...createSetupHandlers(auth.auth, identity),
+      ...createSetupHandlers(auth.auth, identity, content),
     },
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],
