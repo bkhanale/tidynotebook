@@ -36,6 +36,10 @@ import {
 // exactOptionalPropertyTypes, the same class of third-party declaration
 // incompatibility that already requires the flag in apps/server.
 
+/** Matches the editor engine packages that load with the note surface. */
+const editorEngine =
+  /[\\/]node_modules[\\/](?:@codemirror|@lezer|@marijn|style-mod|w3c-keyname|crelt)[\\/]/;
+
 /** The built location of the diagram frame, matching the development path. */
 const framePath = 'src/diagram/frame.html';
 
@@ -243,6 +247,16 @@ export default defineConfig(({ command }) => ({
     assetsInlineLimit: 0,
     rollupOptions: {
       input: { main: 'index.html' },
+      output: {
+        // One group holds the whole editor engine. Without it the bundler
+        // spreads CodeMirror over several chunks and puts its own interop
+        // helpers in one of them. Every chunk that needs a helper then names
+        // that chunk, so the login page preloaded the editor and the initial
+        // budget grew by about 140 KB. With the group the helpers stay in a
+        // small chunk of their own and the engine loads with the note
+        // surface, which is the only screen that needs it.
+        advancedChunks: { groups: [{ name: 'editor', test: editorEngine }] },
+      },
     },
   },
   server: {
