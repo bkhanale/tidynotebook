@@ -72,7 +72,7 @@ services:
       - '${NOTESAPP_BIND_HOST:-127.0.0.1}:${NOTESAPP_PORT:-3000}:3000'
     volumes:
       # The storage root must belong to uid 10001, which is the notesapp user
-      # of the image. See docs/operations/self-hosting.md.
+      # of the image. See docs/guide/self-hosting.md.
       - ${NOTESAPP_STORAGE_DIR:-./.storage}:/var/lib/notesapp
     networks:
       - database

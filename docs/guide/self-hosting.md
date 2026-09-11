@@ -1,7 +1,7 @@
 # Self-hosting and recovery
 
 For the shortest path from a clone to the setup screen, read
-[Quick start](../quickstart.md). This document is the production guide.
+[Quick start](./quickstart.md). This document is the production guide.
 
 NotesApp runs as one application service and one PostgreSQL service. The
 application container applies the database migrations and then serves the web

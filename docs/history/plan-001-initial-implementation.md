@@ -9,7 +9,7 @@
 
 **Tech stack:** Use the exact dependency baseline and compatibility exceptions in the design: Node, TypeScript, pnpm, React, Vite, CodeMirror, Fastify, OpenAPI, Hey API, PostgreSQL, Drizzle, Dexie, Better Auth, and the MCP SDK. Verify registry releases at installation; record compatibility evidence before changing a selected version.
 
-**Design:** [001: Initial design](../design/001-initial-design.md). Read both documents before execution.
+**Design:** [001: Initial design](design-001-initial-design.md). Read both documents before execution.
 
 **Status:** Planned and self-reviewed. No implementation tasks have run.
 

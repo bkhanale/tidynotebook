@@ -2,7 +2,7 @@
 
 This is the shortest path from a clone to the setup screen on your own
 machine. It uses the Compose defaults, so every path stays inside the
-checkout. Read [Self-hosting](operations/self-hosting.md) before you store
+checkout. Read [Self-hosting](./self-hosting.md) before you store
 data you care about: a real installation puts the secrets, the database and
 the attachments outside the repository, on encrypted storage, behind an HTTPS
 reverse proxy.

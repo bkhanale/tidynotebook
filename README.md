@@ -5,10 +5,10 @@ is the document: a note is a Markdown file with one `.md` suffix, in a folder
 you choose. Typing writes a draft on your device. Save creates one immutable
 version on your server.
 
-**Status:** working toward v0.1. There is no release tag yet. See
+**Status:** working toward 0.1.0. There is no release tag yet. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and
-[docs/plans/003-v0.1-revamp.md](docs/plans/003-v0.1-revamp.md) for what v0.1
-is.
+[docs/releases/0.1.0.md](docs/releases/0.1.0.md) for what is left before the
+tag.
 
 ## Features
 
@@ -37,9 +37,9 @@ is.
 ## Quick start
 
 The shortest path from a clone to the setup screen is in
-[docs/quickstart.md](docs/quickstart.md). Read
-[docs/operations/self-hosting.md](docs/operations/self-hosting.md) before you
-store data you care about.
+[docs/guide/quickstart.md](docs/guide/quickstart.md). Read
+[docs/guide/self-hosting.md](docs/guide/self-hosting.md) before you store data
+you care about.
 
 ## Requirements
 
@@ -82,7 +82,7 @@ list, the branch workflow and the commit style.
 | `packages/sync`            | Save queue, lease, and synchronization               |
 | `packages/ui`              | Shared interface components, icons, and theme        |
 | `docker`                   | Container entry point and health check               |
-| `docs`                     | Development, operation, and planning documents       |
+| `docs`                     | Guide, development, decision, and release documents  |
 | `tests`                    | Integration and browser tests                        |
 | `tools`                    | Checkers, code generation, and operator scripts      |
 
@@ -98,48 +98,14 @@ pnpm generated:check
 
 ## Documentation
 
-Start here:
+- [docs/guide/](docs/guide/README.md) is for the people who write notes and the
+  people who run a server.
+- [docs/development/](docs/development/architecture.md) is for contributors.
+- [docs/README.md](docs/README.md) states what each documentation directory
+  holds and how to write a document of that kind.
 
-- [Quick start](docs/quickstart.md)
-- [Contributing](CONTRIBUTING.md)
-- [Security policy](SECURITY.md)
-- [Changelog](CHANGELOG.md)
-
-Development:
-
-- [Architecture](docs/development/architecture.md)
-- [Developing a feature](docs/development/feature-workflow.md)
-- [HTTP API access](docs/development/api.md)
-- [Adding an API operation](docs/development/api-contract.md)
-- [Database](docs/development/database.md)
-- [Files, revisions, and atomic changes](docs/development/files-and-revisions.md)
-- [Single-user identity](docs/development/identity.md)
-- [Local drafts and explicit saves](docs/development/local-storage.md)
-- [Themes](docs/development/themes.md)
-- [Toolchain](docs/development/toolchain.md)
-- [Verification](docs/development/verification.md)
-- [Architecture decision records](docs/decisions/README.md)
-- [Remaining work](docs/plans/004-remaining-work.md)
-
-Operations:
-
-- [Self-hosting and recovery](docs/operations/self-hosting.md)
-
-Plans and audits:
-
-- [v0.1 revamp plan](docs/plans/003-v0.1-revamp.md)
-- [Audit: hands-on probe](docs/plans/003-audit/hands-on-probe.md)
-- [Audit: Markdown and editor](docs/plans/003-audit/markdown-editor.md)
-- [Audit: server, sync, and data](docs/plans/003-audit/server-sync-data.md)
-- [Audit: tests, tooling, and docs](docs/plans/003-audit/tests-tooling-docs.md)
-- [Audit: web interface](docs/plans/003-audit/web-ui-ux.md)
-
-Superseded, kept for provenance only:
-
-- [001: Initial design](docs/history/design-001-initial-design.md)
-- [002: Holistic client repair design](docs/history/design-002-holistic-client-repair.md)
-- [001: Initial implementation plan](docs/history/plan-001-initial-implementation.md)
-- [002: Holistic client repair plan](docs/history/plan-002-holistic-client-repair.md)
+[CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md) and
+[CHANGELOG.md](CHANGELOG.md) stay at the root.
 
 ## License
 

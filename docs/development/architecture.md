@@ -127,7 +127,7 @@ The schema is created by one migration in
 migrations with the migration role before the server starts with the
 restricted runtime role, so a container that serves without its migrations
 never reports ready. See [Database](database.md),
-[Identity](identity.md) and [Self-hosting](../operations/self-hosting.md).
+[Identity](identity.md) and [Self-hosting](../guide/self-hosting.md).
 
 The browser holds working state in IndexedDB through Dexie: drafts, local
 versions, the queue, the recovery area and the offline snapshot. Local browser

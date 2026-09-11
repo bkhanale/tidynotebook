@@ -39,7 +39,7 @@ Read this before you decide what is a vulnerability.
 - **Disk encryption is the operator's job.** The product expects encrypted host
   storage for the database, the attachments, temporary files, swap, crash
   output and backups. See
-  [docs/operations/self-hosting.md](docs/operations/self-hosting.md).
+  [docs/guide/self-hosting.md](docs/guide/self-hosting.md).
 - **HTTPS is the operator's job.** The application publishes a plain HTTP
   listener on the loopback address. Put a reverse proxy that terminates HTTPS
   in front of it.

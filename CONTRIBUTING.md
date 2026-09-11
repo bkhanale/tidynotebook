@@ -146,6 +146,18 @@ The gate enforces these. The detail is in
 - Validate at domain boundaries. Do not weaken a server invariant to hide a
   client defect.
 
+## Documentation
+
+[docs/README.md](docs/README.md) is the index of the documentation tree. It
+names the audience of each directory, what belongs in it, the header that a
+document of that kind carries, and the tone. Read it before you write or move
+a document.
+
+The code is the source of truth. A document holds the intent, the decision and
+the pointer to the code by path. It does not copy source, configuration, a
+schema, or a measured number, because a copy goes stale and nothing fails when
+it does.
+
 ## Reporting a security problem
 
 Do not open a public issue. See [SECURITY.md](SECURITY.md).
