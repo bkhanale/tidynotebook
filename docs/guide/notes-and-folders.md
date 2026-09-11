@@ -18,10 +18,11 @@ is kept when you press **Enter** or select something else.
 
 - A name needs no `.md` ending. If you type one it is removed, because every
   note is already a Markdown file.
-- A slash in the name puts the note in a folder. `Work/Notes on the meeting`
-  makes the folder `Work` if it does not exist yet.
-- A backslash, an empty folder step, and a name another note already uses are
-  all refused, with one sentence under the field. The last good name stays.
+- A name holds only the file name. It cannot contain a slash. Use Move to
+  folder to place the note in a folder, or New note in this folder to make a
+  note that starts there.
+- A backslash and a name another note already uses are refused, with one
+  sentence under the field. The last good name stays.
 
 ## Make a folder
 
@@ -29,8 +30,8 @@ Select the folder icon beside **New note**, or **New folder** in the command
 palette. Type the name and select **Make folder**.
 
 A folder is only a path. A new folder writes nothing to the server. It stays
-visible on this device, becomes real as soon as a note lives in it, and
-disappears again when it holds none.
+visible on this device, becomes real as soon as a note lives in it, and stays
+after a note delete.
 
 ## Move and rename
 
@@ -59,8 +60,9 @@ opens the same list and also inserts a normal Markdown link, so the file stays
 readable in any other editor. Follow a link with **Alt + Enter**, or hold
 **Ctrl** or **Cmd** and select it. There is no backlinks panel in this release.
 
-## Remove a note
+## Remove a note or a folder
 
-Open the note menu and select **Delete**, then **Confirm delete**. The note
-moves to Trash and a bar offers **Undo** for a few seconds. See
-[Trash](trash.md). There is no delete action for a folder.
+Open the row menu of a note and select **Delete note**. Open the row menu of a
+folder and select **Delete folder**. The action runs at once. A bar offers
+**Undo** for a few seconds. A folder action moves every note under the folder
+to Trash. See [Trash](trash.md).

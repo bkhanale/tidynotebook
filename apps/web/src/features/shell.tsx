@@ -69,7 +69,6 @@ import {
 import { AttentionLink, useAttentionCount } from './attention-link.tsx';
 import { CommandPalette } from './command-palette.tsx';
 import { useDocumentTitle } from './document-title.ts';
-import { DeleteFolderDialog, DeleteNoteDialog } from './delete-dialogs.tsx';
 import { FilesProvider, useFiles, useOpenFolders } from './files.tsx';
 import {
   MoveNoteDialog,
@@ -88,7 +87,8 @@ import {
 import { drawerClassName } from './drawer.ts';
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import { deleteNotes } from './note-delete.ts';
-import { displayNoteName } from './note-name.ts';
+import { baseNameOf, displayNoteName } from './note-name.ts';
+import { folderOf } from './relative-time.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import { NoteSaveScope, useNoteSave, useOnline } from './save-status.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
@@ -424,20 +424,29 @@ function Sidebar({
   const { announce } = useDeleteNotice();
   const requestSync = useRequestSync();
   const noteActions = useNoteActions();
-  const [deleteNote, setDeleteNote] = useState<{
-    readonly fileId: string;
-    readonly name: string;
-  } | null>(null);
-  const [deleteFolder, setDeleteFolder] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteProblem, setDeleteProblem] = useState<string | null>(null);
+  const keptFoldersRef = useRef<Set<string>>(new Set());
 
   const accountId = session.account?.accountId ?? null;
 
-  /** Moves the note of the open dialog to the trash. */
-  const confirmDeleteNote = (): void => {
-    const target = deleteNote;
-    if (target === null) return;
+  /** Keeps the folder of a deleted note so it stays in the tree. */
+  useEffect(() => {
+    const kept = keptFoldersRef.current;
+    if (kept.size === 0) return;
+    for (const folder of [...kept]) {
+      if (notesInFolder(files.notes, folder).length === 0) {
+        files.addEmptyFolder(folder);
+        kept.delete(folder);
+      }
+    }
+  }, [files.notes, files.addEmptyFolder]);
+
+  /** Moves one note to the trash without a confirmation step. */
+  const deleteNoteNow = (target: NoteSummary): void => {
+    if (deleting) return;
+    const name = displayNoteName(target.path);
+    const folder = folderOf(target.path);
     if (
       noteActions !== null &&
       noteActions.fileId === target.fileId &&
@@ -445,7 +454,7 @@ function Sidebar({
     ) {
       const remove = noteActions.delete;
       setDeleting(true);
-      setDeleteError(null);
+      setDeleteProblem(null);
       void (async (): Promise<void> => {
         let moved = false;
         try {
@@ -455,57 +464,56 @@ function Sidebar({
         }
         if (!moved) {
           setDeleting(false);
-          setDeleteError('The note did not move to Trash. Try again.');
+          setDeleteProblem('The note did not move to Trash. Try again.');
           return;
         }
+        if (folder !== null) keptFoldersRef.current.add(folder);
         announce({
           workspaceId,
-          items: [{ fileId: target.fileId, name: target.name }],
+          items: [{ fileId: target.fileId, name }],
         });
         requestSync();
         setDeleting(false);
-        setDeleteNote(null);
-        setDeleteError(null);
+        setDeleteProblem(null);
         if (fileId === target.fileId) void navigate(`/w/${workspaceId}`);
       })();
       return;
     }
     const activeStore = store.store;
     if (activeStore === null || accountId === null) {
-      setDeleteError(
+      setDeleteProblem(
         'Local storage is unavailable, so the note cannot be deleted.',
       );
       return;
     }
     setDeleting(true);
-    setDeleteError(null);
+    setDeleteProblem(null);
     void (async (): Promise<void> => {
       const outcome = await deleteNotes(activeStore, accountId, workspaceId, [
-        { fileId: target.fileId, name: target.name },
+        { fileId: target.fileId, name },
       ]);
       setDeleting(false);
       if (!outcome.ok) {
-        setDeleteError(outcome.message);
+        setDeleteProblem(outcome.message);
         return;
       }
+      if (folder !== null) keptFoldersRef.current.add(folder);
       announce({
         workspaceId,
-        items: [{ fileId: target.fileId, name: target.name }],
+        items: [{ fileId: target.fileId, name }],
       });
       requestSync();
-      setDeleteNote(null);
+      setDeleteProblem(null);
       if (fileId === target.fileId) void navigate(`/w/${workspaceId}`);
     })();
   };
 
-  /** Moves every note under the open folder to the trash. */
-  const confirmDeleteFolder = (): void => {
-    const folder = deleteFolder;
-    if (folder === null) return;
+  /** Moves every note under one folder to the trash without a confirm step. */
+  const deleteFolderNow = (folder: string): void => {
+    if (deleting) return;
     const targets = notesInFolder(files.notes, folder);
     if (targets.length === 0) {
       files.removeEmptyFolders(folder);
-      setDeleteFolder(null);
       return;
     }
     const items = targets.map((note) => ({
@@ -514,7 +522,7 @@ function Sidebar({
     }));
     const activeStore = store.store;
     if (activeStore === null || accountId === null) {
-      setDeleteError(
+      setDeleteProblem(
         'Local storage is unavailable, so the folder cannot be deleted.',
       );
       return;
@@ -527,7 +535,7 @@ function Sidebar({
       targets.some((note) => note.fileId === fileId);
     const editorDelete = openInFolder ? (noteActions?.delete ?? null) : null;
     setDeleting(true);
-    setDeleteError(null);
+    setDeleteProblem(null);
     void (async (): Promise<void> => {
       let problem: string | null = null;
       let openMoved = false;
@@ -567,12 +575,11 @@ function Sidebar({
       }
       setDeleting(false);
       if (problem !== null) {
-        setDeleteError(problem);
+        setDeleteProblem(problem);
         if (openMoved && fileId !== null) void navigate(`/w/${workspaceId}`);
         return;
       }
-      setDeleteFolder(null);
-      setDeleteError(null);
+      setDeleteProblem(null);
       if (openMoved && fileId !== null) void navigate(`/w/${workspaceId}`);
     })();
   };
@@ -620,7 +627,7 @@ function Sidebar({
                 <li key={note.fileId}>
                   <NoteRow
                     note={note}
-                    basename={note.path.split('/').at(-1) ?? note.path}
+                    basename={baseNameOf(note.path)}
                     workspaceId={workspaceId}
                     active={note.fileId === fileId}
                     onNavigate={onNavigate}
@@ -663,22 +670,18 @@ function Sidebar({
               drag={drag}
               onToggleFolder={toggleFolder}
               onRenameFolder={onRenameFolder}
-              onDeleteFolder={(folder) => {
-                setDeleteError(null);
-                setDeleteFolder(folder);
-              }}
+              onDeleteFolder={deleteFolderNow}
               onNewNoteIn={onNewNoteIn}
-              onDeleteNote={(note) => {
-                setDeleteError(null);
-                setDeleteNote({
-                  fileId: note.fileId,
-                  name: displayNoteName(note.path),
-                });
-              }}
+              onDeleteNote={deleteNoteNow}
               onNavigate={onNavigate}
             />
           )}
         </section>
+        {deleteProblem === null ? null : (
+          <p className="mx-2 my-2 text-control text-danger" role="alert">
+            {deleteProblem}
+          </p>
+        )}
         {drag.problem === null ? null : (
           <p className="mx-2 my-2 text-control text-danger" role="alert">
             {drag.problem}
@@ -713,36 +716,6 @@ function Sidebar({
           </p>
         ) : null}
       </div>
-
-      {deleteNote === null ? null : (
-        <DeleteNoteDialog
-          open
-          name={deleteNote.name}
-          busy={deleting}
-          error={deleteError}
-          onClose={() => {
-            setDeleteNote(null);
-            setDeleteError(null);
-            setDeleting(false);
-          }}
-          onConfirm={confirmDeleteNote}
-        />
-      )}
-      {deleteFolder === null ? null : (
-        <DeleteFolderDialog
-          open
-          folder={deleteFolder}
-          count={notesInFolder(files.notes, deleteFolder).length}
-          busy={deleting}
-          error={deleteError}
-          onClose={() => {
-            setDeleteFolder(null);
-            setDeleteError(null);
-            setDeleting(false);
-          }}
-          onConfirm={confirmDeleteFolder}
-        />
-      )}
     </>
   );
 }
@@ -1229,6 +1202,10 @@ export function NoteView(): ReactNode {
   const store = useLocalStore();
   const files = useFiles();
   const [moveOpen, setMoveOpen] = useState(false);
+  const [movedNote, setMovedNote] = useState<{
+    readonly fileId: string;
+    readonly path: string;
+  } | null>(null);
   const moveFolders = useMemo(
     () =>
       [...new Set([...files.folders, ...files.emptyFolders])].sort(
@@ -1268,6 +1245,7 @@ export function NoteView(): ReactNode {
           workspaceId={workspaceId}
           fileId={fileId}
           onMoveToFolder={() => setMoveOpen(true)}
+          movedPath={movedNote?.fileId === fileId ? movedNote.path : null}
         />
       </Suspense>
       {notePath === null ? null : (
@@ -1281,7 +1259,10 @@ export function NoteView(): ReactNode {
           folders={moveFolders}
           fileId={fileId}
           path={notePath}
-          onMoved={() => setMoveOpen(false)}
+          onMoved={(toPath) => {
+            setMovedNote({ fileId, path: toPath });
+            setMoveOpen(false);
+          }}
         />
       )}
     </main>

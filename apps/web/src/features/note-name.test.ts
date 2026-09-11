@@ -2,12 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   baseNameOf,
+  cleanNoteBaseName,
   cleanNoteName,
   displayNoteName,
   duplicateNameProblem,
   folderOf,
   folderPaths,
   joinNotePath,
+  noteBaseNameProblem,
   noteNameProblem,
   rewriteFolder,
   storageNotePath,
@@ -68,6 +70,54 @@ await test('a valid name and unicode names are accepted', () => {
   assert.equal(noteNameProblem('projects/roadmap'), null);
   assert.equal(noteNameProblem('日本語のノート'), null);
   assert.equal(noteNameProblem('note 🎉'), null);
+});
+
+await test('a file name keeps its slash for the refusal', () => {
+  assert.equal(
+    cleanNoteBaseName('trailing space name '),
+    'trailing space name',
+  );
+  assert.equal(cleanNoteBaseName('plans/roadmap.md'), 'plans/roadmap');
+  assert.equal(cleanNoteBaseName('  spaced  '), 'spaced');
+});
+
+await test('a slash in the file name is refused with one sentence', () => {
+  assert.equal(
+    noteBaseNameProblem('Work/New note'),
+    'A note name cannot contain a slash. Use Move to folder.',
+  );
+  assert.equal(
+    noteBaseNameProblem('/leading'),
+    'A note name cannot contain a slash. Use Move to folder.',
+  );
+  assert.equal(noteBaseNameProblem('roadmap'), null);
+});
+
+await test('each file name refusal has its own message', () => {
+  const messages = [
+    noteBaseNameProblem(''),
+    noteBaseNameProblem('   '),
+    noteBaseNameProblem('a\\b'),
+    noteBaseNameProblem('ab'),
+    noteBaseNameProblem('Work/New note'),
+    noteBaseNameProblem('.'),
+    noteBaseNameProblem('..'),
+    noteBaseNameProblem('x'.repeat(300)),
+  ];
+  for (const message of messages) assert.notEqual(message, null);
+  assert.equal(messages[0], messages[1]);
+  assert.equal(messages[5], messages[6]);
+  const distinct = new Set(messages.slice(1).map((value) => String(value)));
+  assert.equal(distinct.size, 6);
+  for (const message of messages)
+    assert.ok(!String(message).includes('invalid_path'));
+});
+
+await test('a rename keeps the note in its folder', () => {
+  assert.equal(
+    joinNotePath(folderOf('Work/Old.md'), storageNotePath('New')),
+    'Work/New.md',
+  );
 });
 
 await test('a duplicate name is named before the save', () => {

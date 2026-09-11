@@ -55,6 +55,7 @@ import {
 import { useLocalQuery } from '../local-state.ts';
 import { displayNoteName } from './note-name.ts';
 import { folderOf, relativeTime } from './relative-time.ts';
+import { useFiles } from './files.tsx';
 
 /** How long the notice after a deletion stays on screen. */
 export const undoNoticeMs = 8000;
@@ -412,6 +413,7 @@ function TrashList({
 }): ReactNode {
   const navigate = useNavigate();
   const requestSync = useRequestSync();
+  const files = useFiles();
   const [remote, setRemote] = useState<readonly WorkspaceDeletedFileSummary[]>(
     [],
   );
@@ -514,6 +516,7 @@ function TrashList({
       }
       setOutcome(`${displayNoteName(item.path)} is deleted for good.`);
       requestSync();
+      files.reload();
       reload();
     })();
   };

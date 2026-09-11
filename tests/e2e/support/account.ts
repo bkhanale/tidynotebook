@@ -3,7 +3,16 @@ import type { E2EStack } from './stack.ts';
 
 /** Signs in through the same form that a person uses. */
 export async function signIn(page: Page, stack: E2EStack): Promise<void> {
-  await page.goto(`${stack.baseUrl}/login`, { waitUntil: 'commit' });
+  const loginUrl = `${stack.baseUrl}/login`;
+  try {
+    await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
+  } catch {
+    // Firefox can leave the navigation promise pending after the document
+    // has rendered. The form wait below decides whether sign in can go on.
+  }
+  await page
+    .getByLabel('Address')
+    .waitFor({ state: 'visible', timeout: 30_000 });
   await page.getByLabel('Address').fill(stack.email);
   await page.getByLabel('Password', { exact: true }).fill(stack.password);
   await page.getByRole('button', { name: 'Sign in' }).click();

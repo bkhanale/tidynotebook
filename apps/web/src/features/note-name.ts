@@ -76,6 +76,16 @@ export function cleanNoteName(name: string): string {
 }
 
 /**
+ * Removes the spaces that the domain rule refuses from a file name.
+ *
+ * The name field holds only the file name. It never splits on a slash,
+ * so the folder stays where `Move to folder` put it.
+ */
+export function cleanNoteBaseName(name: string): string {
+  return displayNoteName(name).normalize('NFC').trim();
+}
+
+/**
  * States why a note name is refused, with one sentence per cause.
  *
  * Returns `null` when the name is accepted. The caller passes the visible
@@ -100,6 +110,31 @@ export function noteNameProblem(name: string): string | null {
     if (utf8Length(segment) > maxSegmentBytes)
       return `One part of this note name is longer than ${String(maxSegmentBytes)} bytes. Make it shorter.`;
   }
+  if (utf8Length(storageNotePath(cleaned)) > maxPathBytes)
+    return `This note name is longer than ${String(maxPathBytes)} bytes. Make it shorter.`;
+  return null;
+}
+
+/**
+ * States why a file name in the name field is refused.
+ *
+ * The field holds only the file name. A slash belongs to `Move to folder`,
+ * so any slash here is refused and the note stays in its folder.
+ */
+export function noteBaseNameProblem(name: string): string | null {
+  const cleaned = cleanNoteBaseName(name);
+  if (cleaned === '') return 'Type a note name.';
+  if (!cleaned.isWellFormed())
+    return 'This note name has a character that cannot be stored. Remove it.';
+  if (cleaned.includes('\\')) return 'A note name cannot contain a backslash.';
+  if (forbiddenCharacter.test(cleaned))
+    return 'A note name cannot contain a hidden or a control character.';
+  if (cleaned.includes('/'))
+    return 'A note name cannot contain a slash. Use Move to folder.';
+  if (cleaned === '.' || cleaned === '..')
+    return 'A note name cannot be "." or "..".';
+  if (utf8Length(cleaned) > maxSegmentBytes)
+    return `One part of this note name is longer than ${String(maxSegmentBytes)} bytes. Make it shorter.`;
   if (utf8Length(storageNotePath(cleaned)) > maxPathBytes)
     return `This note name is longer than ${String(maxPathBytes)} bytes. Make it shorter.`;
   return null;

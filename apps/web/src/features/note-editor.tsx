@@ -57,9 +57,13 @@ import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader } from './note-header.tsx';
 import { missingNoteNotice, resolveLinkAction } from './note-link.ts';
 import {
-  cleanNoteName,
+  baseNameOf,
+  cleanNoteBaseName,
   displayNoteName,
   duplicateNameProblem,
+  folderOf,
+  joinNotePath,
+  noteBaseNameProblem,
   noteNameProblem,
   storageNotePath,
 } from './note-name.ts';
@@ -208,6 +212,11 @@ export type NoteEditorProps = {
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
   /** Opens the Move to folder dialog that the note screen owns. */
   readonly onMoveToFolder?: (() => void) | undefined;
+  /**
+   * The path that Move to folder wrote. The editor adopts it without a
+   * remount and without replacing its document.
+   */
+  readonly movedPath?: string | null | undefined;
 };
 
 /**
@@ -233,6 +242,7 @@ export function NoteEditor({
   onOpenLink,
   onQueued,
   onMoveToFolder,
+  movedPath,
 }: NoteEditorProps): ReactNode {
   const navigate = useNavigate();
   const noteList = useFiles();
@@ -244,12 +254,13 @@ export function NoteEditor({
   const viewRef = useRef<EditorView | null>(null);
   const saveTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
+  const folderRef = useRef(folderOf(initialPath));
   const pathRef = useRef(initialPath);
   // A name that breaks a rule is never written. The draft, the tree, and
   // the server keep the last valid name until the person fixes the field.
   const validPathRef = useRef(initialPath);
   const sequenceRef = useRef(initialSequence);
-  const [name, setName] = useState(displayNoteName(initialPath));
+  const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
   const [pathError, setPathError] = useState('');
   const [bufferText, setBufferText] = useState(initialText);
   const [draftPending, setDraftPending] = useState(false);
@@ -975,8 +986,10 @@ export function NoteEditor({
           });
         bufferRef.current = head.text;
         setBufferText(head.text);
+        folderRef.current = folderOf(head.path);
         pathRef.current = head.path;
-        setName(displayNoteName(head.path));
+        validPathRef.current = head.path;
+        setName(displayNoteName(baseNameOf(head.path)));
         setAnsweredHead(head.revisionId);
         setStaleNotice(
           'The latest version is open. Your older text waits under Needs attention.',
@@ -993,11 +1006,22 @@ export function NoteEditor({
   /** The one reason the typed name cannot be saved, or `null`. */
   const nameProblemRef = useRef((): string | null => null);
   nameProblemRef.current = (): string | null => {
-    const cleaned = cleanNoteName(displayNoteName(pathRef.current));
-    const problem = noteNameProblem(cleaned);
+    const folder = folderRef.current;
+    const full = pathRef.current;
+    const prefix = folder === '' ? '' : `${folder}/`;
+    const remainder =
+      prefix === ''
+        ? full
+        : full.startsWith(prefix)
+          ? full.slice(prefix.length)
+          : baseNameOf(full);
+    const base = cleanNoteBaseName(displayNoteName(remainder));
+    const problem = noteBaseNameProblem(base);
     if (problem !== null) return problem;
+    const fullProblem = noteNameProblem(joinNotePath(folder, base));
+    if (fullProblem !== null) return fullProblem;
     return duplicateNameProblem(
-      storageNotePath(cleaned),
+      joinNotePath(folderRef.current, storageNotePath(base)),
       noteList.notes,
       fileId,
     );
@@ -1006,7 +1030,8 @@ export function NoteEditor({
   /** Reports the typed name and applies it when every rule holds. */
   const applyName = (nextName: string): void => {
     setName(nextName);
-    pathRef.current = storageNotePath(cleanNoteName(nextName));
+    const cleaned = cleanNoteBaseName(nextName);
+    pathRef.current = joinNotePath(folderRef.current, storageNotePath(cleaned));
     const problem = nameProblemRef.current();
     setPathError(problem ?? '');
     if (problem !== null) return;
@@ -1029,21 +1054,41 @@ export function NoteEditor({
    * when the person presses Enter.
    */
   const commitName = (): void => {
-    const cleaned = cleanNoteName(name);
+    const cleaned = cleanNoteBaseName(name);
     if (cleaned !== name) applyName(cleaned);
     else setPathError(nameProblemRef.current() ?? '');
   };
 
+  // Move to folder writes the new path in the store. The open editor adopts
+  // it here without a remount and without replacing its document, so the
+  // next keystroke cannot overwrite the move.
+  useEffect(() => {
+    if (movedPath === undefined || movedPath === null) return;
+    if (movedPath === pathRef.current) return;
+    folderRef.current = folderOf(movedPath);
+    pathRef.current = movedPath;
+    validPathRef.current = movedPath;
+    setPathError('');
+    setName(displayNoteName(baseNameOf(movedPath)));
+  }, [movedPath]);
+
   /** Copies the open note into a new note beside it. */
   const duplicateNote = (): void => {
     const current = live.current;
-    const base = displayNoteName(validPathRef.current);
+    const base = displayNoteName(baseNameOf(validPathRef.current));
     const taken = new Set(
       noteList.notes.map((entry) => entry.path.toLowerCase()),
     );
     let candidate = `${base} copy`;
     let index = 2;
-    while (taken.has(storageNotePath(candidate).toLowerCase())) {
+    while (
+      taken.has(
+        joinNotePath(
+          folderRef.current,
+          storageNotePath(candidate),
+        ).toLowerCase(),
+      )
+    ) {
       candidate = `${base} copy ${String(index)}`;
       index += 1;
     }
@@ -1055,7 +1100,7 @@ export function NoteEditor({
       fileId: copyId,
       baseRevisionId: null,
       text: bufferRef.current,
-      path: storageNotePath(candidate),
+      path: joinNotePath(folderRef.current, storageNotePath(candidate)),
       deleted: false,
       sequence: 1,
     };
@@ -1342,12 +1387,14 @@ export function NoteEditorLoader({
   workspaceId,
   fileId,
   onMoveToFolder,
+  movedPath,
 }: {
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string;
   readonly onMoveToFolder?: (() => void) | undefined;
+  readonly movedPath?: string | null | undefined;
 }): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1589,6 +1636,7 @@ export function NoteEditorLoader({
         initialSequence={status.sequence}
         focusName={focusName}
         onMoveToFolder={onMoveToFolder}
+        movedPath={movedPath}
         onOpenLink={(target: LinkTarget): void => {
           const action = resolveLinkAction(target.target);
           if (action.kind === 'note-id') {
