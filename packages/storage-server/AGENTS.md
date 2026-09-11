@@ -73,7 +73,6 @@ access rule as well as the result: `row-access.test.ts` is the pattern.
 | File                            | Purpose                                     |
 | ------------------------------- | ------------------------------------------- |
 | `src/index.ts`                  | The one public entry point                  |
-| `src/schema.ts`                 | The Drizzle schema                          |
 | `src/workspace-store.ts`        | `transact`, the workspace lock, the queries |
 | `src/migrate.ts`                | Migration run and `requiredSchemaVersion`   |
 | `migrations/0000_initial.sql`   | The base schema, roles, and policies        |

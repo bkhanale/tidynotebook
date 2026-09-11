@@ -47,10 +47,13 @@ that the boundary checker allows, because it runs in Node during the build.
 
 `node --test` through `pnpm test:unit`. A test file is `*.test.ts` next to
 the module it tests. There is no DOM unit framework, so a test covers a pure
-module only. A test must prove the rule and its refusal path, not the
-rendering. Screen behaviour is proved by a Playwright journey in `tests/e2e`.
+module only, and it must prove the rule and its refusal path. Screen
+behaviour is proved by a Playwright journey in `tests/e2e`.
 
 ## Forbidden here
+
+`tools/check-boundaries.mjs` and `tools/check-design-rules.mjs` fail
+`pnpm lint` on each rule below.
 
 - No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation
   from `@notesapp/api-client`.
@@ -68,9 +71,6 @@ rendering. Screen behaviour is proved by a Playwright journey in `tests/e2e`.
   person reads. A note path keeps its `.md` suffix in storage and never shows
   it in the name field.
 
-`tools/check-design-rules.mjs` and `tools/check-boundaries.mjs` fail
-`pnpm lint` on each of these.
-
 ## Key files
 
 | File                           | Purpose                              |
@@ -79,5 +79,4 @@ rendering. Screen behaviour is proved by a Playwright journey in `tests/e2e`.
 | `src/router.tsx`               | Routes and screen selection          |
 | `src/tailwind.css`             | The only application CSS source      |
 | `src/features/note-editor.tsx` | The editor host and Read mode        |
-| `src/diagram/frame.ts`         | The sandboxed diagram frame contract |
 | `vite.config.ts`               | Build, theme assets, service worker  |
