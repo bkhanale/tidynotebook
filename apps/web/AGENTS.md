@@ -15,14 +15,13 @@ rule and no storage rule of its own.
 - `src/features/` holds one screen or one feature area per file. A `.tsx`
   file renders and wires. Logic that needs a unit test lives in a `.ts` file
   next to it.
-- `src/app.tsx`, `src/router.tsx`, `src/main.tsx` compose the application.
-- `src/pwa/` holds the service worker and install notices. `src/diagram/`
-  holds the sandboxed Mermaid frame.
+- `src/app.tsx`, `src/router.tsx`, and `src/main.tsx` compose the
+  application. `src/pwa/` holds the service worker and install notices, and
+  `src/diagram/` holds the sandboxed Mermaid frame.
 - `src/tailwind.css` is the only application CSS source. It holds Tailwind
   imports, source registration, and the central theme variables only.
-- A domain rule does not live here. It lives in `packages/core`. A Markdown
-  rule lives in `packages/markdown`. A reusable control lives in
-  `packages/ui`.
+- A domain rule lives in `packages/core`, a Markdown rule in
+  `packages/markdown`, and a reusable control in `packages/ui`.
 
 ## Allowed imports
 
@@ -42,7 +41,7 @@ that the boundary checker allows, because it runs in Node during the build.
   functions and `src/features/<name>.test.ts` next to it. `save-state.ts`,
   `note-name.ts`, and `palette-items.ts` are the pattern.
 - **A command palette action.** Add the entry in
-  `src/features/palette-items.ts` and cover it in `palette-items.test.ts`.
+  `src/features/palette-items.ts` and cover it there.
 
 ## Testing conventions here
 
@@ -59,16 +58,15 @@ rendering. Screen behaviour is proved by a Playwright journey in `tests/e2e`.
   JSX attribute.
 - No colour value. Colour comes from the theme registry in
   `packages/ui/src/themes` through the theme tokens.
-- No `text-xs`, no `text-white`, no `bg-black`, no arbitrary Tailwind value
-  such as `w-[32rem]`. Use the named type scale and the standard spacing
-  scale.
-- No `innerHTML` and no `dangerouslySetInnerHTML`, except the one sanitized
+- No `text-xs`, no `text-white`, no `bg-black`, and no arbitrary Tailwind
+  value such as `w-[32rem]`. Use the named scales.
+- No `innerHTML` and no `dangerouslySetInnerHTML`, except the sanitized
   renderer host in `src/features/note-editor.tsx` and the sandboxed frame in
-  `src/diagram/frame-main.ts`. Both are listed in
+  `src/diagram/frame-main.ts`, both listed in
   `tools/design-rules-allow.json`.
-- No identifier, no raw timestamp, no error code, and no engine notice in
-  text that a person reads. A note path keeps its `.md` suffix in storage and
-  never shows it in the name field.
+- No identifier, raw timestamp, error code, or engine notice in text that a
+  person reads. A note path keeps its `.md` suffix in storage and never shows
+  it in the name field.
 
 `tools/check-design-rules.mjs` and `tools/check-boundaries.mjs` fail
 `pnpm lint` on each of these.
@@ -80,7 +78,6 @@ rendering. Screen behaviour is proved by a Playwright journey in `tests/e2e`.
 | `src/app.tsx`                  | Application shell, theme, and stores |
 | `src/router.tsx`               | Routes and screen selection          |
 | `src/tailwind.css`             | The only application CSS source      |
-| `src/features/save-state.ts`   | The save state a screen reports      |
 | `src/features/note-editor.tsx` | The editor host and Read mode        |
 | `src/diagram/frame.ts`         | The sandboxed diagram frame contract |
 | `vite.config.ts`               | Build, theme assets, service worker  |

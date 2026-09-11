@@ -19,8 +19,8 @@ bytes, and provisioning. It implements the ports that `packages/core` owns.
   `src/attachments.ts` own their own areas.
 - `src/migrate.ts` runs the migrations with the migration role and exports
   `requiredSchemaVersion`.
-- No domain rule lives here. A rule lives in `packages/core`. No HTTP and no
-  route lives here either.
+- No domain rule lives here, and no HTTP route. A rule lives in
+  `packages/core`.
 
 ## Allowed imports
 
@@ -65,8 +65,7 @@ access rule as well as the result: `row-access.test.ts` is the pattern.
 - No schema change without a migration file and a raised
   `requiredSchemaVersion`.
 - No edit of a migration that is already applied. Add the next number.
-- No superuser and no `BYPASSRLS` on the migration role, and no `ALTER ROLE`
-  that sets those attributes.
+- No superuser and no `BYPASSRLS` on the migration role.
 - No import from a browser package, and no import of this package by one.
 
 ## Key files
