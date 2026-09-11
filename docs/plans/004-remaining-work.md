@@ -1,82 +1,98 @@
 # Remaining work
 
-The living list of what is not finished. It is ordered by priority, so the
-top row is always the next thing to do.
+The living list of what is not finished. Every section is sorted by impact,
+highest first, and that order is the owner's priority order, not an
+identifier order, so the top row of a section is always the next thing to do
+in it.
 
-Audited against `73957bb` on 2026-09-11. Every row names the audit id from
-[the v0.1 revamp plan](003-v0.1-revamp.md) section 4 and the file that proves
-the state. Update this file in the same change that closes a row.
+Audited against `c91c717` on 2026-09-11. Every row names the audit id from
+[the v0.1 revamp plan](003-v0.1-revamp.md) section 4, or a plain name when the
+audit holds no id, and the file that proves the state. Update this file in the
+same change that closes a row.
 
 Status values: `open`, `partial` (the code changed but the proof or a part is
 missing), `accepted` (a decision was made to carry it).
 
 ## Where v0.1 stands
 
-| Priority | Done        | Partial | Open |
-| -------- | ----------- | ------- | ---- |
-| P0       | 19          | 0       | 0    |
-| P1       | 48          | 11      | 5    |
-| P2       | not audited |         |      |
+Every P0 item of the plan is merged. The table counts the rows of this list.
 
-Every P0 item of the plan is merged. The rows below are P1 and lower.
+| Section                         | Open | Partial | Accepted |
+| ------------------------------- | ---- | ------- | -------- |
+| 1. Before the 0.1.0 tag         | 3    | 0       | 0        |
+| 2. Security and deployment      | 5    | 1       | 0        |
+| 3. Correctness and product gaps | 5    | 1       | 0        |
+| 4. Proof that is missing        | 0    | 3       | 0        |
+| 5. Accepted debt                | 0    | 0       | 4        |
 
 ## 1. Before the 0.1.0 tag
 
 | Id     | Item                                               | Status | Evidence                                                                                                                                                                                                                                                            |
 | ------ | -------------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | BE-27  | Rate limit the setup and the authentication routes | open   | No rate limit plugin or configuration in `apps/server/src/app.ts` or `src/auth/better-auth.ts`, and no such dependency in `apps/server/package.json`                                                                                                                |
-| ENG-12 | Do not ship the source maps in the image           | open   | `apps/web/vite.config.ts:237` sets `sourcemap: 'hidden'`, which only drops the comment. 17 `.map` files reach `apps/web/dist/web/assets/`, the Dockerfile copies that directory, `static-assets.ts:43` gives `.map` a content type, and nothing refuses the request |
+| ENG-12 | Do not ship the source maps in the image           | open   | `apps/web/vite.config.ts:241` sets `sourcemap: 'hidden'`, which only drops the comment. 16 `.map` files reach `apps/web/dist/web/assets/`, the Dockerfile copies that directory, `static-assets.ts:43` gives `.map` a content type, and nothing refuses the request |
+| ENG-01 | Release workflow on a `v*` tag                     | open   | `.github/workflows/` holds `ci.yml` only. No workflow builds or pushes `ghcr.io/bkhanale/notesapp`, and no file in the repository names that image                                                                                                                  |
 
-Both are small, and both are about a deployment that faces the internet.
-Decision record 0013 states that source maps are hidden, so the second row is
-also a gap against a decision that is already accepted.
+The first two are small, and both are about a deployment that faces the
+internet. Decision record 0013 states that source maps are hidden, so the
+second row is also a gap against a decision that is already accepted. The
+third row is the one workflow that is allowed to run on GitHub Actions; see
+section 5.
 
 ## 2. Security and deployment
 
-| Id                  | Item                                              | Status  | Evidence                                                                                                                                                                      |
-| ------------------- | ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| BE-26, BE-31, QA-17 | `Content-Disposition` on an attachment download   | partial | `nosniff` is on every response (`src/http/security-headers.ts:120`), but `src/http/attachments.ts` sets only `content-length` and `etag`. Only `export.ts` sets a disposition |
-| BE-28               | Per route timeout for the attachment upload       | open    | `src/http/attachments.ts` has no route timeout. Only the global `requestTimeout` in `app.ts:148` applies                                                                      |
-| BE-97               | Optional Caddy profile with TLS, and `trustProxy` | open    | No `Caddyfile` and no compose profile. No `trustProxy` anywhere in `apps/server/src` or `docker-compose.yml`                                                                  |
+| Id                  | Item                                              | Status  | Evidence                                                                                                                                                                                 |
+| ------------------- | ------------------------------------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BE-33               | Make the setup compensation safe                  | open    | `apps/server/src/auth/setup.ts:61-74` does not guard the compensation, and `src/auth/actor.ts:320-325` creates an account from a session. Together they are a second path to account two |
+| BE-30               | One list of served origins                        | open    | `checkWriteOrigin` compares against `config.origin` alone (`src/auth/actor.ts:240-246`), while the host allowlist and `trustedOrigins` accept four hosts (`src/app.ts:202-218`)          |
+| BE-32               | Trust only the configured origins                 | open    | `src/auth/better-auth.ts:157-169` invents `http://` and port 3000 for every allowed host, so the shipped defaults trust 17 origins, `http://localhost:3000` among them                   |
+| BE-26, BE-31, QA-17 | `Content-Disposition` on an attachment download   | partial | `nosniff` is on every response (`src/http/security-headers.ts:120`), but `src/http/attachments.ts` sets only `content-length` and `etag`. Only `export.ts` sets a disposition            |
+| BE-28               | Per route timeout for the attachment upload       | open    | `src/http/attachments.ts` has no route timeout. Only the global `requestTimeout` in `app.ts:148` applies                                                                                 |
+| BE-97               | Optional Caddy profile with TLS, and `trustProxy` | open    | No `Caddyfile` and no compose profile. No `trustProxy` anywhere in `apps/server/src` or `docker-compose.yml`                                                                             |
+
+BE-30, BE-32 and BE-33 are P1 rows that the plan deferred. They are pulled
+forward here because each one is a fault that a single user meets on a normal
+deployment.
 
 ## 3. Correctness and product gaps
 
-| Id           | Item                                              | Status  | Evidence                                                                                                                                                                 |
-| ------------ | ------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| BE-09        | Revalidate IndexedDB in bounded chunks, or lazily | open    | `packages/storage-browser/src/migrations.ts:487` calls `.toArray()` on every table. Its own comment says "This reads the whole database"                                 |
-| MD-25, QA-25 | Hide the fence info string in the live preview    | partial | Alignment and per language fences are done. `packages/editor/src/live-preview.ts:437` always shows the info string, and `live-preview.test.ts:264` asserts that it stays |
-| BE-88        | Reduce the action set                             | partial | `Role` is one value (`packages/core/src/identity/actor.ts:17`), but `Action` still has four members: `read`, `write`, `history`, `purge`                                 |
-| ENG-13       | Replace `vite-plugin-pwa` and `workbox-build`     | open    | Both are still in `apps/web/package.json`, and `vite.config.ts:5` still imports `VitePWA`                                                                                |
+| Id                 | Item                                              | Status  | Evidence                                                                                                                                                                                                                                                                                                                                              |
+| ------------------ | ------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| BE-09              | Revalidate IndexedDB in bounded chunks, or lazily | open    | `packages/storage-browser/src/migrations.ts:487` calls `.toArray()` on every table. Its own comment says "This reads the whole database"                                                                                                                                                                                                              |
+| Diff worker chunk  | Keep the editor engine out of the diff worker     | open    | `apps/web/src/features/diff-worker-impl.ts:14` imports `compareLines` from the editor index, so the worker chunk carries the whole engine: `diff-worker-impl-*.js` is about 280 KB gzip. The fix needs a second export entry in `packages/editor/package.json` and a rule change in `tools/check-boundaries.mjs:246`, which refuses every deep import |
+| Binary source file | Give the folder dialog a normal sentinel          | open    | `apps/web/src/features/folders.tsx` holds a NUL byte inside a sentinel string on lines 243, 244, 284, 300 and 309, so git treats the file as binary and shows no diff and no review                                                                                                                                                                   |
+| Welcome note       | Seed the welcome note on both first-account paths | open    | `apps/server/src/auth/setup.ts:84` calls `seedWelcomeNote`. `apps/server/src/cli/bootstrap.ts` creates the account and the workspace and never calls it, so the two first accounts differ                                                                                                                                                             |
+| MD-25, QA-25       | Hide the code fence lines in the live preview     | partial | Alignment and per language fences are done. `packages/editor/src/live-preview.ts:437-455` only marks the fence line and the info string with a class, so both stay visible. Decision D2 of the plan says a code fence hides its fence lines                                                                                                           |
+| ENG-13             | Replace `vite-plugin-pwa` and `workbox-build`     | open    | Both are still in `apps/web/package.json`, and `vite.config.ts:5` still imports `VitePWA`                                                                                                                                                                                                                                                             |
 
 ## 4. Proof that is missing
 
 The code looks right, but no test holds it.
 
-| Id                         | Item                                                                           | Status  | Evidence                                                                                                                                          |
-| -------------------------- | ------------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| MD-07, UI-04, QA-28        | Remove the wiki links and the backlinks                                        | partial | Production code is clean, but `tests/e2e/features.spec.ts:51` still clicks a `Backlinks` button that no longer exists. That spec fails if it runs |
-| UI-13                      | Button accessible names match the visible label                                | partial | No test asserts it                                                                                                                                |
-| UI-14, UI-15               | Danger tokens and sidebar contrast                                             | partial | The tokens exist in `packages/ui/src/theme.ts`, but no automated contrast check covers them                                                       |
-| QA-16, UI-30, UI-31, QA-40 | Phone: no overflow, 44 px targets                                              | partial | `playwright.config.ts` has the `phone-390` project, but no spec asserts a touch target size                                                       |
-| ENG-10, ENG-17, ENG-18     | Browser journeys for history restore, attachment round trip, and trash restore | partial | `tests/e2e/offline.spec.ts` covers the offline reload. No spec covers the other three                                                             |
-| W1 test gaps               | A regression test for each W1 data loss case                                   | partial | `tests/integration/revisions.test.ts:633` and `problem.test.ts` cover part. Not all four cases are enumerated as closed                           |
-| MD-10                      | Per keystroke cost of the live preview                                         | open    | No benchmark and no performance test, so the property cannot be confirmed                                                                         |
-| ENG-05 to ENG-08           | A boundaries guide                                                             | partial | The boundary rules live in `docs/development/architecture.md` and `toolchain.md`. There is no `docs/development/boundaries.md`                    |
+| Id                         | Item                                                                           | Status  | Evidence                                                                                    |
+| -------------------------- | ------------------------------------------------------------------------------ | ------- | ------------------------------------------------------------------------------------------- |
+| ENG-10, ENG-17, ENG-18     | Browser journeys for history restore, attachment round trip, and trash restore | partial | `tests/e2e/offline.spec.ts` covers the offline reload. No spec covers the other three       |
+| QA-16, UI-30, UI-31, QA-40 | Phone: no overflow, 44 px targets                                              | partial | `playwright.config.ts` has the `phone-390` project, but no spec asserts a touch target size |
+| UI-13                      | Button accessible names match the visible label                                | partial | No test asserts it                                                                          |
 
 ## 5. Accepted debt
 
 These are carried on purpose. They do not block a release.
 
-| Id                     | Item                        | Why it is carried                                                                                                                                                           |
-| ---------------------- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| ENG-12                 | Initial JavaScript budget   | 299,385 gzip bytes against a 256,000 budget. The owner judged the real user impact small for a self hosted single user application. Revisit when the editor is next touched |
-| ENG-01                 | The CI matrix on GitHub     | `ci.yml` is `disabled_manually` because no CI budget is allocated. Every check runs on the local machine instead. The plan is to move it to a self hosted runner            |
-| ENG-10, ENG-17, ENG-18 | The thorough browser matrix | The owner wants the browser suite built once the feature surface settles, so it is the last block of work before a wider release, not a gate for 0.1.0                      |
+| Id                     | Item                        | Why it is carried                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| ---------------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| QA-28                  | The browser suite is stale  | The suite names labels and screens that the product no longer has. `grep -rn "Save this note\|Create a new note\|Backlinks\|Personal\|Switch to\|History and checkpoints\|Search note content\|Open note" tests/e2e` finds 33 hits in every spec and in `support/account.ts`, and `first-user.spec.ts` starts from an empty workspace that now holds the welcome note. Browser testing happens at the very end, after a few more features, and it is done holistically, so the suite is rewritten once |
+| ENG-10, ENG-17, ENG-18 | The thorough browser matrix | Same reason. The owner wants the browser suite built once the feature surface settles, so it is the last block of work before a wider release, not a gate for 0.1.0                                                                                                                                                                                                                                                                                                                                    |
+| ENG-01                 | The CI matrix on GitHub     | GitHub CI has no credits, so `ci.yml` stays disabled and every check runs on the owner's machine. The only workflow that is allowed on GitHub Actions is a release workflow that builds the GHCR image on a tag; that row is open in section 1                                                                                                                                                                                                                                                         |
+| ENG-25                 | The toolchain guide split   | `docs/development/toolchain.md` still mixes durable policy with per task evidence, and `docs/development/boundaries.md` does not exist. ENG-05 to ENG-08 are done, and `docs/development/markdown.md` is written. The split of the last guide is deferred by decision until the feature surface settles                                                                                                                                                                                                |
 
 Because the CI workflow is off, "green in CI" in
 [the plan](003-v0.1-revamp.md) section 8 is read as "green on the local
-machine". `pnpm verify` passed on `73957bb` with 821 unit tests and 229
-integration tests.
+machine".
+
+The initial JavaScript budget is no longer carried. The initial route measures
+160,298 gzip bytes against the 256,000 byte budget, and
+`tools/performance/bundle-budget.mjs` passes.
 
 ## 6. Not audited
 
