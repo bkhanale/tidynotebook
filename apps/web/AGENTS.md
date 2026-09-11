@@ -7,7 +7,7 @@ this directory. The recipe for a whole feature is in
 ## Purpose
 
 The React web application: the router, the screens, the service worker, and
-the sandboxed diagram frame. It composes the packages. It holds no domain
+the sandboxed diagram frame. It composes the packages, and it holds no domain
 rule and no storage rule of its own.
 
 ## What lives here and what does not
@@ -40,8 +40,7 @@ that the boundary checker allows, because it runs in Node during the build.
 - **Testable logic for a screen.** Add `src/features/<name>.ts` with pure
   functions and `src/features/<name>.test.ts` next to it. `save-state.ts`,
   `note-name.ts`, and `palette-items.ts` are the pattern.
-- **A command palette action.** Add the entry in
-  `src/features/palette-items.ts` and cover it there.
+- **A command palette action.** Add it in `src/features/palette-items.ts`.
 
 ## Testing conventions here
 
@@ -76,7 +75,6 @@ behaviour is proved by a Playwright journey in `tests/e2e`.
 | File                           | Purpose                              |
 | ------------------------------ | ------------------------------------ |
 | `src/app.tsx`                  | Application shell, theme, and stores |
-| `src/router.tsx`               | Routes and screen selection          |
 | `src/tailwind.css`             | The only application CSS source      |
 | `src/features/note-editor.tsx` | The editor host and Read mode        |
 | `vite.config.ts`               | Build, theme assets, service worker  |
