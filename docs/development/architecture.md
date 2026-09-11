@@ -101,6 +101,9 @@ into files that Redocly bundles, and that a type assertion gives way to a type
 guard or a parser. The move is one epic in
 [the 0.1.0 list](../releases/0.1.0.md), and until it closes the two records
 decide where new code goes.
+[Decision 0020](../decisions/0020-central-logging-through-one-module.md) adds
+`packages/logging`, which owns the shape of every log record and keeps the
+transport in a sink adapter.
 
 ## Data storage
 
