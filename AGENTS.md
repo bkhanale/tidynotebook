@@ -79,3 +79,42 @@ Edit files in `rules/` and run `rules/link.sh`.
   editor rendering changes.
 - Do not weaken assertions, add fixed delays, or skip a failing test to make a
   suite pass.
+
+# Feature workflow
+
+- Before you edit under a directory, read its `AGENTS.md`. Every app, every
+  package, and the `tests` tree has one.
+- Follow `docs/development/feature-workflow.md` for a whole feature. The
+  order is the contract, the domain rule, the storage, the handler, the
+  client, then the verification.
+- Write the operation in `packages/api-contract/openapi.yaml` before any code
+  that uses it, then run `pnpm generate`. Never edit a file under a
+  `src/generated/` directory.
+- A new architectural choice gets a decision record in `docs/decisions`
+  before the code. A choice is architectural when it moves a boundary, adds
+  or removes a package, changes the save model, adds a second parser or
+  renderer, changes the contract emit rules, changes the migration policy, or
+  changes what the verification gate proves.
+- Keep `AGENTS.md` true. A change that moves a boundary, a key file, or a
+  rule updates the `AGENTS.md` of that directory in the same commit.
+
+# User-facing text
+
+- Write every word a person reads in ASD-STE100 Simplified Technical English:
+  one idea per sentence, the active voice, the present tense, and a short
+  approved word.
+- Use sentence case for a label, a heading, a button, and a menu item. Keep a
+  product name and a key name in their own case.
+- Never show an identifier, a path suffix, a digest, a raw timestamp, an
+  error code, a stack, or an engine notice. Show the name, the relative time,
+  and the action that helps.
+- Give one message for one cause. Do not stack a general message and a
+  detailed message for the same failure.
+- A message states what happened and what the person can do next. It does not
+  blame the person and it does not apologize.
+- Handle the plural with a count and a whole phrase, for example `1 note` and
+  `3 notes`. Do not append a bare `(s)`.
+- Name an empty state by what is missing and offer the one action that fills
+  it.
+- Keep one term for one thing across the whole application: Save, Trash,
+  Restore, Delete permanently, History, Read, Write.
