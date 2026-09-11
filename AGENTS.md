@@ -32,6 +32,9 @@ Edit files in `rules/` and run `rules/link.sh`.
   only Tailwind imports, source registration, and central theme variables.
 - Keep color, typography, spacing, radius, and shadow decisions in the central
   Tailwind theme and runtime palette. Do not add arbitrary Tailwind values.
+- Color comes from the theme registry in `packages/ui/src/themes` only. Do not
+  write a color value anywhere else. A new theme is one data file plus one
+  registry entry.
 - Use the named type scale. Body text is 14 px. Control text is 13 px. Use the
   standard Tailwind heading scale. Do not add one-off font sizes.
 - Use the standard Tailwind spacing scale. Do not add one-off pixel or rem

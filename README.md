@@ -114,6 +114,7 @@ Development:
 - [Files, revisions, and atomic changes](docs/development/files-and-revisions.md)
 - [Single-user identity](docs/development/identity.md)
 - [Local drafts and explicit saves](docs/development/local-storage.md)
+- [Themes](docs/development/themes.md)
 - [Toolchain](docs/development/toolchain.md)
 - [Verification](docs/development/verification.md)
 

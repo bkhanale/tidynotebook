@@ -25,8 +25,10 @@
           appearance === 'dark' ||
           (appearance !== 'light' &&
             window.matchMedia('(prefers-color-scheme: dark)').matches);
-        var variants = themes.families[family] || themes.families[themes.fallback];
-        var theme = variants[dark ? 'dark' : 'light'] || variants.dark || variants.light;
+        var variants =
+          themes.families[family] || themes.families[themes.fallback];
+        var theme =
+          variants[dark ? 'dark' : 'light'] || variants.dark || variants.light;
         var root = document.documentElement;
         root.setAttribute('data-theme', dark ? 'dark' : 'light');
         root.setAttribute('data-theme-id', theme.id);
