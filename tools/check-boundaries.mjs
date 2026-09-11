@@ -113,6 +113,20 @@ const clientConfigFiles = new Set(['packages/api-client/src/configure.ts']);
 // split the other large files that this cap must not yet flag.
 const storageBrowserSourcePrefix = 'packages/storage-browser/src/';
 const storageBrowserLineCap = 900;
+// Decision 0018 split packages/storage-server/src/workspace-store.ts, once
+// 1,923 lines, into one repository per context behind the one
+// `openWorkspaceStore` port: the transaction unit of work, the shared error
+// funnel and listing paging, and the notes, history, trash, search, sync, and
+// membership repositories, composed by the directory index. A non-test source
+// file in this directory stays under this ceiling, so the monolith cannot grow
+// back. The cap sits well above the largest module, so an honest addition never
+// trips it; a file that reaches it must become a new repository or a shared
+// helper of the directory. The rule is scoped to this directory, not the whole
+// package, so the split it guards stays independent of the unrelated files of
+// the package, such as the schema and the identity store.
+const workspaceStoreSourcePrefix =
+  'packages/storage-server/src/workspace-store/';
+const workspaceStoreLineCap = 900;
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -442,6 +456,17 @@ for (const file of sources) {
     fail(
       file,
       `A storage-browser source file must stay under ${storageBrowserLineCap} lines (decision 0018). Split it into an area module of packages/storage-browser/src/local-store/.`,
+    );
+  // A workspace-store source file stays small so the split store cannot
+  // collapse back into one file (decision 0018). Tests are exempt.
+  if (
+    !isTest &&
+    path.startsWith(workspaceStoreSourcePrefix) &&
+    contents.split('\n').length > workspaceStoreLineCap
+  )
+    fail(
+      file,
+      `A workspace-store source file must stay under ${workspaceStoreLineCap} lines (decision 0018). Split it into a repository or a shared helper of packages/storage-server/src/workspace-store/.`,
     );
   const parsed = parseSync(file, contents);
   if (parsed.errors.length) {

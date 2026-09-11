@@ -14,13 +14,13 @@ bytes, and provisioning. It implements the ports that `packages/core` owns.
 
 - `src/schema.ts` is the Drizzle schema. `migrations/` holds the applied SQL
   and `migrations/meta/_journal.json` holds their order.
-- `src/workspace-store.ts` implements `WorkspaceStore`. `src/admin.ts`,
-  `src/identity-store.ts`, `src/profiles.ts`, `src/snapshots.ts`, and
-  `src/attachments.ts` own their own areas.
+- `src/workspace-store/` implements `WorkspaceStore`: `transaction.ts` is the
+  unit of work, one repository per context holds the SQL, and `index.ts` is the
+  composition root. `src/admin.ts`, `src/identity-store.ts`, `src/profiles.ts`,
+  `src/snapshots.ts`, and `src/attachments.ts` own their own areas.
 - `src/migrate.ts` runs the migrations with the migration role and exports
   `requiredSchemaVersion`.
-- No domain rule lives here, and no HTTP route. A rule lives in
-  `packages/core`.
+- No domain rule and no HTTP route live here. A rule lives in `packages/core`.
 
 ## Allowed imports
 
@@ -33,8 +33,8 @@ import it.
 
 ## How to add a common thing here
 
-- **A port method.** Add the SQL in `src/workspace-store.ts` inside the
-  transaction builder, and return the shape that the port in
+- **A port method.** Add the SQL in the repository of that context under
+  `src/workspace-store/`, and return the shape that the port in
   `packages/core/src/files/ports.ts` declares.
 - **A schema change.** Edit `src/schema.ts`, run `pnpm db:generate`, review
   the emitted file, and add it as the next number in `migrations/`. Raise
@@ -70,10 +70,11 @@ access rule as well as the result: `row-access.test.ts` is the pattern.
 
 ## Key files
 
-| File                            | Purpose                                     |
-| ------------------------------- | ------------------------------------------- |
-| `src/index.ts`                  | The one public entry point                  |
-| `src/workspace-store.ts`        | `transact`, the workspace lock, the queries |
-| `src/migrate.ts`                | Migration run and `requiredSchemaVersion`   |
-| `migrations/0000_initial.sql`   | The base schema, roles, and policies        |
-| `migrations/meta/_journal.json` | The applied order and the version count     |
+| File                                 | Purpose                                    |
+| ------------------------------------ | ------------------------------------------ |
+| `src/index.ts`                       | The one public entry point                 |
+| `src/workspace-store/index.ts`       | The store and its per-context repositories |
+| `src/workspace-store/transaction.ts` | The transaction unit of work               |
+| `src/migrate.ts`                     | Migration run and `requiredSchemaVersion`  |
+| `migrations/0000_initial.sql`        | The base schema, roles, and policies       |
+| `migrations/meta/_journal.json`      | The applied order and the version count    |

@@ -3,8 +3,8 @@
  *
  * A membership change takes the same advisory workspace lock as a content
  * write, so the two have a defined order. The lock key is the workspace
- * identifier, exactly as in `workspace-store.ts`, so the two pools contend on
- * the same lock.
+ * identifier, exactly as in `workspace-store/transaction.ts`, so the two pools
+ * contend on the same lock.
  *
  * The runtime role holds no right to insert a workspace, an account, or
  * another account's membership row. Those writes go through the reviewed
@@ -26,7 +26,7 @@ import type {
 import { isThemeFamilyId, OperationalError } from '@notesapp/core';
 import pg from 'pg';
 import { defaultQuotaBytes } from './provision.ts';
-import { WorkspaceUnavailableError } from './workspace-store.ts';
+import { WorkspaceUnavailableError } from './workspace-store/index.ts';
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

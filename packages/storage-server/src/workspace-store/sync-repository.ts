@@ -1,0 +1,783 @@
+/**
+ * The sync repository: the changesets, the receipts, the snapshots, and the
+ * incremental change feed of the open workspace.
+ *
+ * It is the changesets and sync slice of the port. It reads a stored receipt,
+ * performs the one atomic write of a validated changeset, captures a snapshot,
+ * reads a snapshot page, and reads the ordered change feed. The write runs
+ * inside the `notesapp_accept` savepoint that the unit of work manages.
+ */
+import { createHash, randomUUID } from 'node:crypto';
+import { Buffer } from 'node:buffer';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
+import type pg from 'pg';
+import {
+  OperationalError,
+  fail,
+  ok,
+  snapshotTtlMs,
+  type AcceptedChangeset,
+  type AcceptedRevision,
+  type Actor,
+  type ChangesetInput,
+  type MutationReceipt,
+  type Result,
+  type RevisionInput,
+  type SnapshotPage,
+  type SnapshotStart,
+  type StartSnapshotInput,
+  type SupersededHead,
+  type SyncChangeFeed,
+  type WorkspaceTransaction,
+} from '@notesapp/core';
+import { parseMarkdown } from '@notesapp/markdown';
+import {
+  attachmentObjects,
+  changesets,
+  contents,
+  files,
+  livePaths,
+  mutationReceipts,
+  revisionParents,
+  revisions,
+  searchIndex,
+  syncChanges,
+  workspaceUsage,
+} from '../schema.ts';
+import {
+  captureSnapshot,
+  readSnapshotPage,
+  readSyncChanges,
+} from '../snapshots.ts';
+import { assertUuid, domainFailure, operational } from './errors.ts';
+import { withAcceptSavepoint } from './transaction.ts';
+import type { RepositoryContext } from './context.ts';
+
+/**
+ * Bytes charged for the metadata of one accepted revision.
+ *
+ * The charge covers the revision row, its parent rows, its incremental sync
+ * record, and its entry in the stored mutation receipt, which repeats the
+ * accepted record so a retry can be answered without a read.
+ */
+const revisionOverheadBytes = 1024n;
+
+/** Bytes charged for one retained mutation receipt. */
+const receiptOverheadBytes = 512n;
+
+/**
+ * Quota headroom that only a control operation may use.
+ *
+ * A changeset that adds no new content is a control operation: a deletion, a
+ * rename, or a restore of content that the workspace already holds. Such an
+ * operation skips the quota check, so a full workspace stays manageable. A
+ * changeset that adds content must fit below the quota minus this reserve, so
+ * the headroom cannot be consumed by new content.
+ */
+const controlReserveBytes = 1n << 20n;
+
+/** The SHA-256 digest of UTF-8 Markdown, in lower case hexadecimal. */
+function markdownDigest(text: string): string {
+  return createHash('sha256').update(text, 'utf8').digest('hex');
+}
+
+/** Reads one accepted revision record out of a stored outcome. */
+function parseAcceptedRevision(value: unknown): AcceptedRevision {
+  const record: Record<string, unknown> =
+    typeof value === 'object' && value !== null
+      ? Object.fromEntries(Object.entries(value))
+      : {};
+  const parents = record.parents;
+  if (
+    typeof record.revisionId === 'string' &&
+    typeof record.fileId === 'string' &&
+    Array.isArray(parents) &&
+    parents.every((entry: unknown) => typeof entry === 'string') &&
+    typeof record.path === 'string' &&
+    typeof record.deleted === 'boolean' &&
+    typeof record.digest === 'string' &&
+    typeof record.size === 'number' &&
+    typeof record.actorAccountId === 'string' &&
+    typeof record.serverTime === 'string' &&
+    (record.message === null || typeof record.message === 'string')
+  ) {
+    return {
+      revisionId: record.revisionId,
+      fileId: record.fileId,
+      parents: [...parents],
+      path: record.path,
+      deleted: record.deleted,
+      digest: record.digest,
+      size: record.size,
+      actorAccountId: record.actorAccountId,
+      serverTime: record.serverTime,
+      message: record.message,
+    };
+  }
+  throw new OperationalError(
+    'unexpected',
+    'notesapp: a stored accepted revision has an unknown shape.',
+  );
+}
+
+/**
+ * Reads the moved heads of a stored outcome.
+ *
+ * A receipt written before this member existed carries none, which reads as an
+ * answer with no superseded head.
+ */
+function parseSuperseded(value: unknown): readonly SupersededHead[] {
+  if (!Array.isArray(value)) return [];
+  const entries: SupersededHead[] = [];
+  for (const entry of value as unknown[]) {
+    if (typeof entry !== 'object' || entry === null) continue;
+    const fileId = readString(entry, 'fileId');
+    const previous = readString(entry, 'previousHeadRevisionId');
+    const accepted = readString(entry, 'acceptedRevisionId');
+    if (fileId === null || previous === null || accepted === null) continue;
+    entries.push({
+      fileId,
+      previousHeadRevisionId: previous,
+      acceptedRevisionId: accepted,
+    });
+  }
+  return entries;
+}
+
+/** One string member of an unknown stored object, or `null`. */
+function readString(value: object, key: string): string | null {
+  if (!(key in value)) return null;
+  const member = (value as Record<string, unknown>)[key];
+  return typeof member === 'string' ? member : null;
+}
+
+/** Reads the stored outcome of a mutation receipt. */
+function parseOutcome<T = AcceptedChangeset>(value: unknown): T {
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    'mutationId' in value &&
+    typeof value.mutationId === 'string' &&
+    'cursor' in value &&
+    typeof value.cursor === 'string' &&
+    'revisionIds' in value &&
+    Array.isArray(value.revisionIds) &&
+    value.revisionIds.every((entry: unknown) => typeof entry === 'string') &&
+    'revisions' in value &&
+    Array.isArray(value.revisions)
+  ) {
+    return {
+      mutationId: value.mutationId,
+      cursor: value.cursor,
+      revisionIds: [...value.revisionIds],
+      revisions: value.revisions.map(parseAcceptedRevision),
+      superseded: parseSuperseded(
+        'superseded' in value ? value.superseded : undefined,
+      ),
+    } as unknown as T;
+  }
+  if (typeof value === 'object' && value !== null && 'mutationId' in value) {
+    return value as unknown as T;
+  }
+  throw new OperationalError(
+    'unexpected',
+    'notesapp: a stored mutation outcome has an unknown shape.',
+  );
+}
+
+/** The last submitted revision of each file, which becomes its new head. */
+function tips(input: ChangesetInput): ReadonlyMap<string, RevisionInput> {
+  const result = new Map<string, RevisionInput>();
+  for (const revision of input.revisions) result.set(revision.fileId, revision);
+  return result;
+}
+
+/** Parses an informational client timestamp. */
+function clientTime(revision: RevisionInput): Date {
+  const parsed = new Date(revision.clientTime);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: a client timestamp is not a valid instant.',
+    );
+  }
+  return parsed;
+}
+
+/**
+ * The name of a note as a person sees it: the last path segment, without the
+ * one `.md` suffix that storage always keeps.
+ */
+function noteTitle(path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return name.endsWith('.md') ? name.slice(0, -'.md'.length) : name;
+}
+
+/**
+ * Replaces the search rows of every accepted head in this write.
+ *
+ * This runs after the file heads and paths move, inside the same transaction.
+ * A reader can therefore observe either the old head with its old index row or
+ * the new head with its new one, but never a mixed state.
+ *
+ * Every accepted note goes through the Markdown parser first. A note that is
+ * larger or deeper than the shared package allows leaves this call as a
+ * `MarkdownLimitError`, which the caller turns into a domain failure with a
+ * message for the author. The server therefore never accepts a note that no
+ * reading surface can render.
+ */
+async function updateAcceptedIndexes(
+  db: NodePgDatabase,
+  workspaceId: string,
+  acceptedHeads: ReadonlyMap<string, RevisionInput>,
+): Promise<void> {
+  const fileIds = [...acceptedHeads.keys()];
+  if (fileIds.length === 0) return;
+  await db
+    .delete(searchIndex)
+    .where(
+      and(
+        eq(searchIndex.workspaceId, workspaceId),
+        inArray(searchIndex.fileId, fileIds),
+      ),
+    );
+
+  const searchable = [...acceptedHeads.values()].filter(
+    (tip) => !tip.deleted && tip.content.kind === 'markdown',
+  );
+  if (searchable.length === 0) return;
+
+  await db.insert(searchIndex).values(
+    searchable.map((tip) => {
+      const text = tip.content.kind === 'markdown' ? tip.content.text : '';
+      parseMarkdown(text);
+      return {
+        workspaceId,
+        fileId: tip.fileId,
+        revisionId: tip.id,
+        path: tip.path,
+        title: noteTitle(tip.path),
+        body: text,
+      };
+    }),
+  );
+}
+
+/** Builds the sync slice of the port over one open transaction. */
+export function syncRepository(
+  context: RepositoryContext,
+): Pick<
+  WorkspaceTransaction,
+  'receipt' | 'accept' | 'startSnapshot' | 'snapshotPage' | 'syncChanges'
+> {
+  const { client, db, actor, workspaceId } = context;
+  return {
+    async receipt<T = AcceptedChangeset>(
+      mutationId: string,
+      accountId: string,
+    ): Promise<MutationReceipt<T> | null> {
+      assertUuid(mutationId, 'the mutation');
+      assertUuid(accountId, 'the account');
+      const rows = await db
+        .select({
+          digest: mutationReceipts.requestDigest,
+          outcome: mutationReceipts.outcome,
+        })
+        .from(mutationReceipts)
+        .where(
+          and(
+            eq(mutationReceipts.workspaceId, workspaceId),
+            eq(mutationReceipts.actorAccountId, accountId),
+            eq(mutationReceipts.mutationId, mutationId),
+          ),
+        );
+      const row = rows[0];
+      if (row === undefined) return null;
+      return { digest: row.digest, outcome: parseOutcome<T>(row.outcome) };
+    },
+
+    async accept(
+      writer: Actor,
+      input: ChangesetInput,
+      digest: string,
+      superseded: readonly SupersededHead[] = [],
+    ): Promise<Result<AcceptedChangeset>> {
+      if (input.workspaceId !== workspaceId) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the changeset belongs to another workspace.',
+        );
+      }
+      if (writer.accountId !== actor.accountId) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the writing actor differs from the transaction actor.',
+        );
+      }
+      if (input.revisions.length === 0) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: a changeset must carry at least one revision.',
+        );
+      }
+      const fileIds = [
+        ...new Set(input.revisions.map((revision) => revision.fileId)),
+      ].sort();
+      return withAcceptSavepoint(
+        client,
+        () =>
+          writeChangeset(
+            client,
+            db,
+            writer,
+            workspaceId,
+            input,
+            digest,
+            fileIds,
+            superseded,
+          ),
+        (error) => domainFailure(error, fileIds),
+      );
+    },
+
+    async startSnapshot(input: StartSnapshotInput): Promise<SnapshotStart> {
+      if (!Number.isInteger(input.pageSize) || input.pageSize < 1) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the snapshot page size is outside the served range.',
+        );
+      }
+      try {
+        return await captureSnapshot(client, {
+          workspaceId,
+          accountId: actor.accountId,
+          pageSize: input.pageSize,
+          now: new Date(),
+          ttlMs: snapshotTtlMs,
+        });
+      } catch (error) {
+        throw operational(error);
+      }
+    },
+
+    async snapshotPage(
+      token: string,
+      position: number,
+      limit: number,
+    ): Promise<SnapshotPage | null> {
+      if (
+        !Number.isInteger(position) ||
+        position < 0 ||
+        !Number.isInteger(limit) ||
+        limit < 1
+      ) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the snapshot page range is outside the served range.',
+        );
+      }
+      try {
+        return await readSnapshotPage(client, {
+          workspaceId,
+          token,
+          position,
+          limit,
+          now: new Date(),
+        });
+      } catch (error) {
+        throw operational(error);
+      }
+    },
+
+    async syncChanges(
+      afterCursor: string,
+      limit: number,
+    ): Promise<SyncChangeFeed> {
+      if (!/^[0-9]{1,32}$/.test(afterCursor)) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the sync cursor is not a decimal string.',
+        );
+      }
+      if (!Number.isInteger(limit) || limit < 1) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: the sync limit is outside the served range.',
+        );
+      }
+      try {
+        return await readSyncChanges(client, {
+          workspaceId,
+          afterCursor,
+          limit,
+        });
+      } catch (error) {
+        throw operational(error);
+      }
+    },
+  };
+}
+
+/** Performs the atomic write of one validated changeset. */
+async function writeChangeset(
+  client: pg.PoolClient,
+  db: NodePgDatabase,
+  actor: Actor,
+  workspaceId: string,
+  input: ChangesetInput,
+  digest: string,
+  fileIds: readonly string[],
+  superseded: readonly SupersededHead[],
+): Promise<Result<AcceptedChangeset>> {
+  assertUuid(input.mutationId, 'the mutation');
+  for (const revision of input.revisions) {
+    assertUuid(revision.id, 'a revision');
+    assertUuid(revision.fileId, 'a file');
+    for (const parent of revision.parents) assertUuid(parent, 'a parent');
+  }
+  const heads = tips(input);
+
+  // Lock every affected file in identifier order, so two changesets that share
+  // files cannot deadlock.
+  const locked = await db
+    .select({ id: files.id })
+    .from(files)
+    .where(
+      and(eq(files.workspaceId, workspaceId), inArray(files.id, [...fileIds])),
+    )
+    .orderBy(files.id)
+    .for('update');
+  const known = new Set(locked.map((row) => row.id));
+
+  const missing = fileIds.filter((fileId) => !known.has(fileId));
+  if (missing.length > 0) {
+    await db
+      .insert(files)
+      .values(
+        missing.map((fileId) => {
+          const tip = heads.get(fileId);
+          if (tip === undefined) {
+            throw new OperationalError(
+              'unexpected',
+              'notesapp: a locked file has no submitted revision.',
+            );
+          }
+          return {
+            workspaceId,
+            id: fileId,
+            path: tip.path,
+            kind: tip.content.kind === 'markdown' ? 'note' : 'attachment',
+          } as const;
+        }),
+      )
+      .onConflictDoNothing();
+  }
+
+  // Attachment content refers to a finalized object of the same workspace.
+  const objectIds = [
+    ...new Set(
+      input.revisions.flatMap((revision) =>
+        revision.content.kind === 'attachment'
+          ? [revision.content.objectId]
+          : [],
+      ),
+    ),
+  ];
+  const objects = new Map<string, { size: bigint; digest: string }>();
+  if (objectIds.length > 0) {
+    for (const objectId of objectIds) assertUuid(objectId, 'an attachment');
+    const rows = await db
+      .select({
+        id: attachmentObjects.id,
+        size: attachmentObjects.size,
+        digest: attachmentObjects.digest,
+        state: attachmentObjects.state,
+      })
+      .from(attachmentObjects)
+      .where(
+        and(
+          eq(attachmentObjects.workspaceId, workspaceId),
+          inArray(attachmentObjects.id, objectIds),
+        ),
+      );
+    for (const row of rows) {
+      if (row.state === 'finalized') {
+        objects.set(row.id, { size: row.size, digest: row.digest });
+      }
+    }
+    const unusable = input.revisions.filter(
+      (revision) =>
+        revision.content.kind === 'attachment' &&
+        !objects.has(revision.content.objectId),
+    );
+    if (unusable.length > 0) {
+      return fail(
+        'invalid_graph',
+        unusable.map((revision) => revision.fileId),
+      );
+    }
+  }
+
+  // The declared digest must match the submitted bytes. A wrong digest would
+  // attach the revision to content that the client never sent, because content
+  // is addressed by digest and deduplicated.
+  const mismatched = input.revisions.filter((revision) => {
+    const content = revision.content;
+    if (content.kind === 'markdown') {
+      return markdownDigest(content.text) !== content.digest.toLowerCase();
+    }
+    return objects.get(content.objectId)?.digest !== content.digest;
+  });
+  if (mismatched.length > 0) {
+    return fail(
+      'invalid_content',
+      mismatched.map((revision) => revision.fileId),
+    );
+  }
+
+  // Immutable content, deduplicated inside this workspace only.
+  const contentRows = new Map<
+    string,
+    {
+      workspaceId: string;
+      digest: string;
+      kind: 'markdown' | 'attachment';
+      size: bigint;
+      markdown: string | null;
+      objectId: string | null;
+    }
+  >();
+  for (const revision of input.revisions) {
+    const content = revision.content;
+    if (contentRows.has(content.digest)) continue;
+    contentRows.set(content.digest, {
+      workspaceId,
+      digest: content.digest,
+      kind: content.kind,
+      size:
+        content.kind === 'markdown'
+          ? BigInt(Buffer.byteLength(content.text, 'utf8'))
+          : (objects.get(content.objectId)?.size ?? 0n),
+      markdown: content.kind === 'markdown' ? content.text : null,
+      objectId: content.kind === 'attachment' ? content.objectId : null,
+    });
+  }
+  const stored = await db
+    .insert(contents)
+    .values([...contentRows.values()])
+    .onConflictDoNothing()
+    .returning({ size: contents.size });
+  const contentBytes = stored.reduce((total, row) => total + row.size, 0n);
+
+  // Retained metadata and receipts count toward the workspace quota.
+  const addedBytes =
+    contentBytes +
+    BigInt(input.revisions.length) * revisionOverheadBytes +
+    receiptOverheadBytes;
+  const usageRows = await db
+    .select({
+      bytesUsed: workspaceUsage.bytesUsed,
+      quotaBytes: workspaceUsage.quotaBytes,
+    })
+    .from(workspaceUsage)
+    .where(eq(workspaceUsage.workspaceId, workspaceId));
+  const usage = usageRows[0];
+  if (usage === undefined) {
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: the workspace has no usage record.',
+    );
+  }
+  // Only a changeset that deletes every file it touches and adds no content
+  // byte may use the control reserve. A deletion that carried new content
+  // would otherwise reach the reserved capacity through a disguised write, and
+  // the reserve exists so that a full workspace can still be managed by
+  // operations that add nothing. Reusing a stored digest is not enough on its
+  // own either: the revision rows and the receipt still grow the retained
+  // bytes, so a changeset that keeps a file alive must fit under the reserve
+  // line like any other write.
+  const control =
+    contentBytes === 0n &&
+    input.revisions.every((revision) => revision.deleted);
+  const limit = control
+    ? usage.quotaBytes
+    : usage.quotaBytes - controlReserveBytes;
+  if (usage.bytesUsed + addedBytes > limit) {
+    return fail('quota', fileIds);
+  }
+  // The runtime role holds no UPDATE right on the usage or the cursor record,
+  // so both changes go through a membership checked function of the schema
+  // owner. A member can therefore not raise its own quota or reset the commit
+  // order.
+  await client.query('select notesapp_add_usage($1, $2::bigint)', [
+    workspaceId,
+    addedBytes.toString(),
+  ]);
+  const allocated = await client.query<{ cursor: string }>(
+    'select notesapp_next_cursor($1) as cursor',
+    [workspaceId],
+  );
+  const allocatedCursor = allocated.rows[0]?.cursor;
+  if (allocatedCursor === undefined) {
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: the workspace cursor was not allocated.',
+    );
+  }
+  const cursor = BigInt(allocatedCursor);
+
+  const changesetId = randomUUID();
+  await db.insert(changesets).values({
+    workspaceId,
+    id: changesetId,
+    mutationId: input.mutationId,
+    actorAccountId: actor.accountId,
+    deviceId: input.deviceId,
+    requestDigest: digest,
+    cursor,
+  });
+
+  // The acceptance time is assigned by the database, so it is read back here:
+  // the answer to a write is built from the accepted rows, never from a later
+  // read that would need the read permission the writer may not hold.
+  const written = await db
+    .insert(revisions)
+    .values(
+      input.revisions.map((revision) => ({
+        workspaceId,
+        id: revision.id,
+        fileId: revision.fileId,
+        contentDigest: revision.content.digest,
+        path: revision.path,
+        deleted: revision.deleted,
+        changesetId,
+        actorAccountId: actor.accountId,
+        clientTime: clientTime(revision),
+        message: revision.message,
+        restoredFrom: revision.restoredFrom,
+      })),
+    )
+    .returning({ id: revisions.id, serverTime: revisions.serverTime });
+  const serverTimes = new Map(
+    written.map((row) => [row.id, row.serverTime.toISOString()]),
+  );
+
+  const parentRows = input.revisions.flatMap((revision) =>
+    revision.parents.map((parent, ordinal) => ({
+      workspaceId,
+      childId: revision.id,
+      parentId: parent,
+      ordinal,
+    })),
+  );
+  if (parentRows.length > 0) {
+    await db.insert(revisionParents).values(parentRows);
+  }
+
+  // Advance every head in one statement, so a large folder change stays one
+  // round trip.
+  const headValues = sql.join(
+    [...heads.values()].map(
+      (tip) =>
+        sql`(${tip.fileId}::uuid, ${tip.id}::uuid, ${tip.path}::text, ${tip.deleted}::boolean)`,
+    ),
+    sql`, `,
+  );
+  await db.execute(sql`
+    update ${files} as f
+    set head_revision_id = v.head_revision_id,
+        path = v.path,
+        deleted = v.deleted,
+        updated_at = now()
+    from (values ${headValues}) as v(file_id, head_revision_id, path, deleted)
+    where f.workspace_id = ${workspaceId}::uuid and f.id = v.file_id
+  `);
+
+  // Accepted paths. A deleted file releases its path; a live file claims it.
+  // The unique constraint is deferred, so two files can swap paths here.
+  const removed = [...heads.values()].filter((tip) => tip.deleted);
+  if (removed.length > 0) {
+    await db.delete(livePaths).where(
+      and(
+        eq(livePaths.workspaceId, workspaceId),
+        inArray(
+          livePaths.fileId,
+          removed.map((tip) => tip.fileId),
+        ),
+      ),
+    );
+  }
+  const claimed = [...heads.values()].filter((tip) => !tip.deleted);
+  if (claimed.length > 0) {
+    await db
+      .insert(livePaths)
+      .values(
+        claimed.map((tip) => ({
+          workspaceId,
+          fileId: tip.fileId,
+          path: tip.path,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [livePaths.workspaceId, livePaths.fileId],
+        set: { path: sql`excluded.path` },
+      });
+  }
+
+  await updateAcceptedIndexes(db, workspaceId, heads);
+
+  await db.insert(syncChanges).values(
+    [...heads.values()].map((tip) => ({
+      workspaceId,
+      cursor,
+      entityKind: 'file' as const,
+      entityId: tip.fileId,
+      revisionId: tip.id,
+      deleted: tip.deleted,
+    })),
+  );
+
+  const outcome: AcceptedChangeset = {
+    mutationId: input.mutationId,
+    revisionIds: input.revisions.map((revision) => revision.id),
+    cursor: cursor.toString(),
+    revisions: input.revisions.map((revision) => {
+      const serverTime = serverTimes.get(revision.id);
+      if (serverTime === undefined) {
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: an accepted revision was not written back.',
+        );
+      }
+      return {
+        revisionId: revision.id,
+        fileId: revision.fileId,
+        parents: [...revision.parents],
+        path: revision.path,
+        deleted: revision.deleted,
+        digest: revision.content.digest,
+        size: Number(contentRows.get(revision.content.digest)?.size ?? 0n),
+        actorAccountId: actor.accountId,
+        serverTime,
+        message: revision.message,
+      };
+    }),
+    // The receipt stores the moved heads with the outcome, so a retry after a
+    // lost answer reports the same superseded heads instead of none.
+    superseded: superseded.map((entry) => ({ ...entry })),
+  };
+  await db.insert(mutationReceipts).values({
+    workspaceId,
+    actorAccountId: actor.accountId,
+    mutationId: input.mutationId,
+    requestDigest: digest,
+    outcome,
+  });
+
+  // Force the deferred checks now, so a path conflict is an expected outcome
+  // of this call rather than a failure at commit time.
+  await client.query('set constraints all immediate');
+  await client.query('set constraints all deferred');
+  return ok(outcome);
+}

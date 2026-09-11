@@ -12,7 +12,7 @@ export {
   WorkspaceUnavailableError,
   type WorkspaceStoreHandle,
   type WorkspaceStoreOptions,
-} from './workspace-store.ts';
+} from './workspace-store/index.ts';
 export { markdownLimitCode } from './markdown-limits.ts';
 export {
   openAttachmentStore,

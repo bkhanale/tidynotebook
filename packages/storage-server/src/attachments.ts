@@ -20,7 +20,7 @@ import type {
 } from '@notesapp/core';
 import { OperationalError } from '@notesapp/core';
 import { attachmentObjects } from './schema.ts';
-import { WorkspaceUnavailableError } from './workspace-store.ts';
+import { WorkspaceUnavailableError } from './workspace-store/index.ts';
 
 export type AttachmentStore = {
   /** Saves metadata for an uploaded temporary attachment object. */

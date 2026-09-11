@@ -2,8 +2,9 @@
  * Snapshot capture, snapshot paging, incremental sync reads, and retention.
  *
  * The functions here run inside the workspace transaction that
- * `workspace-store.ts` opens, under the workspace advisory lock. The capture
- * runs under repeatable read (set by `transact`), so the captured file
+ * `workspace-store/transaction.ts` opens, under the workspace advisory lock.
+ * The capture runs under repeatable read (set by `runTransaction`), so the
+ * captured file
  * metadata and its high-water cursor come from one stable view. Page reads run
  * in their own short transactions: no transaction stays open across network
  * pages.
