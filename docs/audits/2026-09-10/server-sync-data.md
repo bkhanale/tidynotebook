@@ -1,5 +1,7 @@
 # NotesApp backend audit: server, sync, and data
 
+Audited on 2026-09-10 against commit `40eebba`.
+
 Read-only audit. No file in the repository was changed. Scope: everything below
 the user interface. `packages/core`, `packages/sync`, `packages/storage-browser`,
 `packages/storage-server`, `apps/server`, `apps/mcp-stdio`,

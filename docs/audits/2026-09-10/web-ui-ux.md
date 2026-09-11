@@ -1,5 +1,7 @@
 # Web UI and UX audit
 
+Audited on 2026-09-10 against commit `40eebba`.
+
 Scope: `apps/web/src` (app, router, shell, features, local state, platform, pwa),
 `packages/ui`, `apps/web/src/tailwind.css`, `apps/web/index.html`,
 `apps/web/vite.config.ts`, and `tests/e2e`. The CodeMirror internals and the

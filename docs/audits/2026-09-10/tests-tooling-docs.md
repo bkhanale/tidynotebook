@@ -1,5 +1,7 @@
 # Engineering health audit: tests, tooling, build, CI, dependencies, docs, hygiene
 
+Audited on 2026-09-10 against commit `40eebba`.
+
 Repository: `/home/bkhanale/workspace/bkhanale/notesapp`
 Branch `main` at `40eebba`, working tree clean, one commit ahead of `origin/main`.
 Date of audit: 2026-09-10. Read-only. No build or test suite was run.
@@ -379,7 +381,7 @@ document set, roughly 45 percent of `docs/`.
 Replace the single `verify` job with four jobs. Total wall time should drop
 because the three heavy jobs run in parallel.
 
-```yaml
+```text
 on:
   push:
     branches: [main]

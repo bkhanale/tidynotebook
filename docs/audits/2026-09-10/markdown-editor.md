@@ -1,5 +1,7 @@
 # Audit: Markdown authoring and rendering
 
+Audited on 2026-09-10 against commit `40eebba`.
+
 Scope: `packages/markdown`, `packages/editor`, `apps/web/src/features/note-editor.tsx`,
 `apps/web/src/diagram`, and the tests of those areas. Read only audit.
 

@@ -1,0 +1,224 @@
+import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+import {
+  fenceLanguages,
+  placementFailure,
+  relativeLinks,
+} from './check-docs.mjs';
+
+// The fixtures below are disposable trees under the system temporary
+// directory. They are never committed as application code.
+const checker = fileURLToPath(new URL('./check-docs.mjs', import.meta.url));
+
+/** A complete tree that satisfies every rule. */
+const baseline = {
+  'README.md': '# Project\n\nSee [the documents](docs/README.md).\n',
+  'CONTRIBUTING.md':
+    '# Contributing\n\nRead [docs/README.md](docs/README.md).\n',
+  'docs/README.md': '# Documentation\n\nThe index.\n',
+  'docs/guide/README.md':
+    '# Guide\n\nThis page is for anyone who uses the product.\n',
+  'docs/guide/quickstart.md':
+    '# Quick start\n\nThis page is for the person who runs a server.\n\n' +
+    '```sh\ndocker compose up -d\n```\n',
+  'docs/development/architecture.md':
+    '# Architecture\n\nThe shape of the system. See [the guide](../guide/README.md).\n',
+  'docs/decisions/README.md': '# Decision records\n\nThe index.\n',
+  'docs/decisions/0001-a-choice.md':
+    '# 0001. A choice\n\n- Status: Accepted\n- Date: 2026-01-01\n\n' +
+    '## Context\n\nFacts.\n\n## Decision\n\nThe choice.\n\n## Consequences\n\nThe cost.\n',
+  'docs/releases/0.1.0.md': '# Release 0.1.0\n\nStatus: open.\n\nThe list.\n',
+  'docs/audits/2026-01-01/report.md':
+    '# Audit\n\nAudited on 2026-01-01 against commit `abc1234`.\n\nFindings.\n',
+  'docs/plans/001-a-plan.md': '# A plan\n\nStatus: running.\n',
+  'docs/history/old.md':
+    '> Superseded by `docs/README.md`. It describes an earlier product.\n' +
+    '> It is kept for provenance only. Do not use it as a reference.\n\n' +
+    '```ts\nconst copied = true;\n```\n',
+};
+
+/**
+ * Runs the checker over the baseline tree with the given changes. A value of
+ * the empty string removes the file.
+ *
+ * @param {Record<string, string>} overrides
+ * @returns {{ status: number; output: string }}
+ */
+function check(overrides) {
+  const directory = mkdtempSync(join(tmpdir(), 'notesapp-docs-'));
+  try {
+    for (const [name, content] of Object.entries({
+      ...baseline,
+      ...overrides,
+    })) {
+      if (content === '') continue;
+      const file = join(directory, name);
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, content);
+    }
+    const result = spawnSync(process.execPath, [checker, '--root', directory], {
+      encoding: 'utf8',
+    });
+    return {
+      status: result.status ?? 1,
+      output: `${result.stdout ?? ''}${result.stderr ?? ''}`,
+    };
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
+await test('a complete tree passes', () => {
+  const result = check({});
+  assert.equal(result.status, 0, result.output);
+  assert.match(result.output, /known directories/);
+});
+
+await test('the placement rule names every known directory', () => {
+  assert.equal(placementFailure('README.md'), null);
+  assert.equal(placementFailure('guide/offline.md'), null);
+  assert.equal(placementFailure('audits/2026-01-01/report.md'), null);
+  assert.match(
+    String(placementFailure('notes/stray.md')),
+    /not a documentation directory/,
+  );
+  assert.match(
+    String(placementFailure('stray.md')),
+    /Only README\.md belongs there/,
+  );
+  assert.match(
+    String(placementFailure('guide/writing/notes.md')),
+    /holds no subdirectory/,
+  );
+  assert.match(
+    String(placementFailure('audits/september/report.md')),
+    /Name the directory YYYY-MM-DD/,
+  );
+});
+
+await test('a document outside a known directory fails', () => {
+  const result = check({ 'docs/notes/stray.md': '# Stray\n' });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /docs\/notes\/stray\.md/);
+});
+
+await test('the fence reader reports the language of every block', () => {
+  const languages = fenceLanguages(
+    '```sh\na\n```\n\ntext\n\n~~~ts\nb\n~~~\n\n```\nc\n```\n',
+  ).map((fence) => fence.language);
+  assert.deepEqual(languages, ['sh', 'ts', '']);
+});
+
+await test('a code block that is not a shell command fails', () => {
+  const result = check({
+    'docs/development/architecture.md':
+      '# Architecture\n\n```ts\nconst copied = true;\n```\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /a "ts" block/);
+});
+
+await test('a frozen history document may hold any code block', () => {
+  const result = check({});
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('a decision record without a template heading fails', () => {
+  const result = check({
+    'docs/decisions/0001-a-choice.md':
+      '# 0001. A choice\n\n- Status: Accepted\n- Date: 2026-01-01\n\n' +
+      '## Context\n\nFacts.\n\n## Decision\n\nThe choice.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /"## Consequences" is missing/);
+});
+
+await test('a decision record without a status line fails', () => {
+  const result = check({
+    'docs/decisions/0001-a-choice.md':
+      '# 0001. A choice\n\n- Date: 2026-01-01\n\n' +
+      '## Context\n\nFacts.\n\n## Decision\n\nThe choice.\n\n## Consequences\n\nThe cost.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no "- Status:" line/);
+});
+
+await test('an audit without a date or a commit fails', () => {
+  const result = check({
+    'docs/audits/2026-01-01/report.md': '# Audit\n\nFindings.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no date in the first 10 lines/);
+  assert.match(result.output, /no commit in the first 10 lines/);
+});
+
+await test('an audit that names them late fails', () => {
+  const filler = Array.from({ length: 12 }, () => 'Text.').join('\n');
+  const result = check({
+    'docs/audits/2026-01-01/report.md': `# Audit\n\n${filler}\n\nCommit \`abc1234\` on 2026-01-01.\n`,
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no date in the first 10 lines/);
+});
+
+await test('a release without a status line fails', () => {
+  const result = check({
+    'docs/releases/0.1.0.md': '# Release 0.1.0\n\nThe list.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no "Status:" line/);
+});
+
+await test('a guide page without the audience sentence fails', () => {
+  const result = check({
+    'docs/guide/quickstart.md': '# Quick start\n\nRun the command.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no "This page is for \.\.\." sentence/);
+});
+
+await test('a document without a title line fails', () => {
+  const result = check({
+    'docs/development/architecture.md': 'Architecture\n===\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /not a "# " title/);
+});
+
+await test('the link reader skips absolute links, anchors and code', () => {
+  assert.deepEqual(
+    relativeLinks(
+      '[a](./one.md) [b](https://example.com/x) [c](#here) [d](../two.md#part)\n' +
+        '`[e](./three.md)`\n\n```text\n[f](./four.md)\n```\n',
+    ),
+    ['./one.md', '../two.md'],
+  );
+});
+
+await test('a relative link to a missing file fails', () => {
+  const result = check({
+    'docs/development/architecture.md':
+      '# Architecture\n\nSee [the gone page](./gone.md).\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /"\.\/gone\.md" resolves to no file/);
+});
+
+await test('a broken link in a root file fails', () => {
+  const result = check({
+    'README.md': '# Project\n\nSee [the documents](docs/gone.md).\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /README\.md: the link "docs\/gone\.md"/);
+});
+
+await test('a missing root file fails', () => {
+  const result = check({ 'CONTRIBUTING.md': '' });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /CONTRIBUTING\.md: missing/);
+});

@@ -47,9 +47,9 @@ happens next. A shell command the host runs.
 **Does not belong:** an internal rule, a package name, a file path, a planned
 feature, or an operation that the product does not have today.
 
-**Header:** the title line, then one sentence that states who the page is for,
-for example "This page is for the person who writes notes." A guide page with
-no such sentence fails the check.
+**Header:** the title line, then one sentence that starts with "This page is
+for" and names the reader, for example "This page is for the person who writes
+notes." A guide page with no such sentence fails the check.
 
 ## development/
 

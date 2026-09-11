@@ -1,5 +1,7 @@
 # NotesApp hands-on probe, v0.1 launch review
 
+Audited on 2026-09-10 against commit `40eebba`.
+
 Commit 40eebba, branch main. Production build (`pnpm build`) served by the real
 Fastify app against a disposable PostgreSQL database (project `notesapp-test`,
 port 55432). Chromium 1.63.0 through Playwright, 1440x900 desktop and 390x844

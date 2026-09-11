@@ -48,15 +48,15 @@ Reports go to `playwright-report` and `test-results/playwright`.
 
 ## Useful commands
 
-| Command                 | Result                                                |
-| ----------------------- | ----------------------------------------------------- |
-| `pnpm build`            | Builds all packages, the server, and the web app      |
-| `pnpm typecheck`        | Checks all TypeScript projects                        |
-| `pnpm lint`             | Checks versions, source rules, boundaries, and guides |
-| `pnpm format`           | Applies Prettier formatting                           |
-| `pnpm test:unit`        | Runs unit tests                                       |
-| `pnpm test:integration` | Runs the PostgreSQL and IndexedDB integration tests   |
-| `pnpm generate`         | Regenerates the API client from the contract          |
+| Command                 | Result                                                           |
+| ----------------------- | ---------------------------------------------------------------- |
+| `pnpm build`            | Builds all packages, the server, and the web app                 |
+| `pnpm typecheck`        | Checks all TypeScript projects                                   |
+| `pnpm lint`             | Checks versions, source rules, boundaries, guides, and documents |
+| `pnpm format`           | Applies Prettier formatting                                      |
+| `pnpm test:unit`        | Runs unit tests                                                  |
+| `pnpm test:integration` | Runs the PostgreSQL and IndexedDB integration tests              |
+| `pnpm generate`         | Regenerates the API client from the contract                     |
 
 Select a subset with a name, for example
 `pnpm test:integration -- browser-storage`.
