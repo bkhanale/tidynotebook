@@ -33,6 +33,13 @@ const frameHtml =
   '<style>body{margin:0}</style></head><body></body></html>';
 // Large enough that the build step compresses it.
 const scriptBody = `export const shell = ${JSON.stringify('x'.repeat(4096))};\n`;
+// A source map that names a private source path. If it ever reached a caller,
+// the path would leak, so the body is a witness that no map is served.
+const sourceMapBody = JSON.stringify({
+  version: 3,
+  sources: ['../src/secret-source.ts'],
+  mappings: 'AAAA',
+});
 
 /** Writes a build directory that looks like the emitted one. */
 async function writeBuild(): Promise<string> {
@@ -49,6 +56,13 @@ async function writeBuild(): Promise<string> {
   await writeFile(
     join(directory, 'service-worker.js'),
     'self.addEventListener;',
+    'utf8',
+  );
+  // The build writes a hidden source map next to each chunk. It reaches the
+  // image, so the server must refuse to serve it.
+  await writeFile(
+    join(directory, 'assets/main-AbCdEfGh.js.map'),
+    sourceMapBody,
     'utf8',
   );
   // The precompressed neighbours that `tools/precompress-assets.mjs` writes.
@@ -229,6 +243,26 @@ await test('a hashed asset is served compressed, immutable and measured', async 
     assert.equal(revalidated.statusCode, 304);
     assert.equal(revalidated.body, '');
     assert.equal(revalidated.headers['etag'], raw.headers['etag']);
+  } finally {
+    await server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+await test('a source map is never served, even when it is in the build', async () => {
+  const directory = await writeBuild();
+  const server = await startTestServer({ webDist: directory });
+  try {
+    const answer = await server.app.inject({
+      method: 'GET',
+      url: '/assets/main-AbCdEfGh.js.map',
+    });
+    // The map file exists on disk, but the server refuses it and does not fall
+    // back to the application shell.
+    assert.equal(answer.statusCode, 404);
+    assert.notEqual(answer.headers['content-type'], 'text/html; charset=utf-8');
+    assert.equal(answer.body.includes('secret-source.ts'), false);
+    assert.equal(answer.body.includes('mappings'), false);
   } finally {
     await server.close();
     await rm(directory, { recursive: true, force: true });

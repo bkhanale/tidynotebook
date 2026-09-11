@@ -236,7 +236,13 @@ export function createAppWithHandlers(
           // A malformed path is not a web asset. The normal not-found problem
           // response below handles it without exposing a filesystem detail.
         }
-        if (decodedPath !== null) {
+        // Decision 0013: source maps are not served. A `.map` request is never
+        // a web asset and never falls back to the application shell, so the
+        // built image serves no source map even though the build writes one.
+        const isSourceMap =
+          rawPath.toLowerCase().endsWith('.map') ||
+          (decodedPath !== null && decodedPath.toLowerCase().endsWith('.map'));
+        if (!isSourceMap && decodedPath !== null) {
           const targetPath = resolve(webDist, '.' + decodedPath);
           if (
             targetPath.startsWith(`${webDist}/`) &&
@@ -249,7 +255,7 @@ export function createAppWithHandlers(
           }
         }
         const indexPath = resolve(webDist, 'index.html');
-        if (statFile(indexPath) !== null) {
+        if (!isSourceMap && statFile(indexPath) !== null) {
           return sendStaticFile(request, reply, {
             filePath: indexPath,
             relativePath: 'index.html',

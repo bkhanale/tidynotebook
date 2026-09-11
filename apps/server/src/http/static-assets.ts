@@ -40,7 +40,7 @@ export function mimeTypeFor(filePath: string): string {
   if (filePath.endsWith('.ico')) return 'image/x-icon';
   if (filePath.endsWith('.woff')) return 'font/woff';
   if (filePath.endsWith('.woff2')) return 'font/woff2';
-  if (filePath.endsWith('.map')) return 'application/json; charset=utf-8';
+  // Source maps are not served (decision 0013), so no `.map` type is mapped.
   return 'application/octet-stream';
 }
 
