@@ -16,10 +16,15 @@ export type RequestLogRecord = {
   readonly errorCode?: string;
 };
 
-/** Redacts the query string of a URL, which can carry a search term. */
+const passwordResetTokenPath = /^(\/api\/auth\/reset-password\/)[^/]+/;
+
+/** Redacts secret path segments and the query string of a URL. */
 export function redactUrl(rawUrl: string): string {
   const [pathPart] = rawUrl.split('?');
-  const path = pathPart ?? rawUrl;
+  const path = (pathPart ?? rawUrl).replace(
+    passwordResetTokenPath,
+    '$1[redacted]',
+  );
   // The query string goes completely, so a search term never reaches a log.
   if (rawUrl.includes('?')) {
     return `${path}?[redacted]`;

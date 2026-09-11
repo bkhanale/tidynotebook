@@ -351,6 +351,40 @@ await test('the token provider reaches the server and stays out of the log', asy
 
 await logged.close();
 
+// A password reset token is part of a browser navigation path. Both the
+// Fastify request serializer and the content-free request record see it.
+const resetAudit = new LogRecorder();
+const resetLogged = await startTestServer({
+  environment: { NOTESAPP_LOG_LEVEL: 'info' },
+  logStream: resetAudit,
+});
+
+await test('every log record redacts the password reset token', async () => {
+  const token = 'live-password-reset-token';
+  const redacted = '/api/auth/reset-password/[redacted]?[redacted]';
+  const response = await resetLogged.app.inject({
+    method: 'GET',
+    url: `/api/auth/reset-password/${token}?callbackURL=/notes`,
+    headers: { host: '127.0.0.1' },
+  });
+  assert.equal(response.statusCode, 503);
+  assert.equal(resetAudit.lines.join('\n').includes(token), false);
+
+  const urls = resetAudit.records().flatMap((record) => {
+    const request = readProperty(record, 'req');
+    return [readProperty(record, 'url'), readProperty(request, 'url')].filter(
+      (value): value is string => typeof value === 'string',
+    );
+  });
+  assert.equal(urls.length >= 2, true, resetAudit.lines.join('\n'));
+  assert.equal(
+    urls.every((url) => url === redacted),
+    true,
+  );
+});
+
+await resetLogged.close();
+
 /**
  * Every answer that a handler can produce outside the contract.
  *
