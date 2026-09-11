@@ -64,6 +64,7 @@ import {
   storageNotePath,
 } from './note-name.ts';
 import { OutlinePanel } from './outline.tsx';
+import { resolveSaveButton } from './save-state.ts';
 import { useDeleteNotice } from './trash.tsx';
 import { createDiagramFrame } from '../diagram/frame.ts';
 import {
@@ -770,12 +771,16 @@ export function NoteEditor({
   // copy again when storage fails. Both cases block an unsafe reload. A
   // queued save is durable on this device, so it never blocks one.
   useBlockUnsafeReload(draftPending || storageError !== null);
+  const hasUnsavedEdits =
+    draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false);
+  const saveButton = resolveSaveButton({
+    state: saveState,
+    hasUnsavedEdits,
+  });
   usePublishNoteSave({
     state: saveState,
-    hasUnsavedEdits:
-      draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false),
+    hasUnsavedEdits,
     lastSavedAt,
-    bufferText,
   });
   useRegisterNoteActions({ fileId, toggleReadMode: toggleMode });
 
@@ -1063,6 +1068,7 @@ export function NoteEditor({
         nameInputRef={nameInputRef}
         onNameChange={applyName}
         onNameCommit={commitName}
+        saveButton={saveButton}
         onSave={() => {
           void (async (): Promise<void> => {
             if (saveTimerRef.current !== null) {

@@ -83,17 +83,11 @@ import {
 import { drawerClassName } from './drawer.ts';
 import { displayNoteName } from './note-name.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
-import {
-  NoteSaveScope,
-  SaveStateChip,
-  useNoteSave,
-  useOnline,
-} from './save-status.tsx';
+import { NoteSaveScope, useNoteSave, useOnline } from './save-status.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncStateMessage } from './sync-state.ts';
 import { RequireCurrentWorkspace } from './workspaces.tsx';
 import { DeleteNoticeBar, DeleteNoticeProvider } from './trash.tsx';
-import { copyText } from '../platform.ts';
 
 const NoteEditorLoader = lazy(async () => ({
   default: (await import('./note-editor.tsx')).NoteEditorLoader,
@@ -669,10 +663,6 @@ function ShellFrame({
                 </button>
 
                 <div className="flex shrink-0 items-center gap-1">
-                  <SaveStateChip
-                    workspaceId={workspaceId}
-                    onCopyBuffer={copyText}
-                  />
                   <Menu
                     label="More actions"
                     icon={<MoreIcon size={18} />}

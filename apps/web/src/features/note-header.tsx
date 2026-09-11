@@ -5,6 +5,10 @@
  * Next to it sit the save action, the slot where the editor puts its Write
  * and Read toggle, and one overflow menu. The row is sticky, so the name
  * and the actions stay reachable while a long note scrolls.
+ *
+ * The Save button is the one place that reports the save state. It offers
+ * the action while text waits for a version, reports the run, and then
+ * states the result, so nothing else on the screen has to.
  */
 import { useRef, type ReactNode } from 'react';
 import {
@@ -19,6 +23,11 @@ import {
   type MenuItem,
 } from '@notesapp/ui';
 import { noteTitleClassName } from './note-header-layout.ts';
+import {
+  buttonEnabled,
+  buttonLabel,
+  type SaveButtonState,
+} from './save-state.ts';
 
 /** What the overflow menu of the note screen can do. */
 export type NoteMenuHandlers = {
@@ -40,6 +49,7 @@ export function NoteHeader({
   onNameChange,
   onNameCommit,
   onSave,
+  saveButton,
   nameInputRef,
   readToggle,
   confirmingDelete,
@@ -53,6 +63,8 @@ export function NoteHeader({
   /** Runs when the field loses focus or the person presses Enter. */
   readonly onNameCommit: () => void;
   readonly onSave: () => void;
+  /** What the Save button reports about the open note. */
+  readonly saveButton: SaveButtonState;
   readonly nameInputRef?: React.Ref<HTMLInputElement> | undefined;
   /** Where the editor puts its Write and Read toggle. */
   readonly readToggle?: ReactNode | undefined;
@@ -122,7 +134,7 @@ export function NoteHeader({
             onNameCommit();
           }}
         />
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
           {readToggle}
           {confirmingDelete ? (
             <>
@@ -141,14 +153,24 @@ export function NoteHeader({
           ) : (
             <>
               <Button
-                variant="primary"
+                variant={saveButton === 'save' ? 'primary' : 'secondary'}
                 size="sm"
-                icon={<CheckIcon size={14} />}
-                title="Save (Cmd or Ctrl + S)"
+                icon={
+                  saveButton === 'saving' ? undefined : <CheckIcon size={14} />
+                }
+                title={
+                  buttonEnabled(saveButton)
+                    ? 'Save (Cmd or Ctrl + S)'
+                    : buttonLabel(saveButton)
+                }
+                disabled={!buttonEnabled(saveButton)}
                 onClick={onSave}
               >
-                Save
+                {buttonLabel(saveButton)}
               </Button>
+              <span className="sr-only" role="status" aria-live="polite">
+                {buttonLabel(saveButton)}
+              </span>
               <Menu
                 label="More actions for this note"
                 icon={<MoreIcon size={16} />}

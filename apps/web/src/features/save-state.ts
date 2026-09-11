@@ -1,13 +1,12 @@
 /**
- * The save state of one note and the state of the header chip.
+ * The save state of one note and the state of its Save button.
  *
  * `resolveSaveState` reads durable facts about one file only.
- * `resolveChipState` joins that with the state of sync, the parked saves,
- * and the connection, so the header shows one state at every width and
- * every screen agrees with it.
+ * `resolveSaveButton` turns those facts into the one state the Save button
+ * of the note header shows, so the person reads the result of a save on the
+ * control they pressed.
  */
 import type { LocalStorageErrorKind, QueueState } from '@notesapp/sync';
-import type { SyncState } from './sync-state.ts';
 
 export type SaveState =
   | 'saving-local'
@@ -50,64 +49,37 @@ export type NoteSaveFacts = {
   readonly hasUnsavedEdits: boolean;
 };
 
-/** The one state the header chip shows. */
-export type ChipState =
-  | { readonly kind: 'unsaved' }
-  | { readonly kind: 'saving' }
-  | { readonly kind: 'saved-local' }
-  | { readonly kind: 'saved' }
-  | { readonly kind: 'offline' }
-  | { readonly kind: 'attention'; readonly count: number };
-
-/** Everything the chip reads. */
-export type ChipInput = {
-  /** The open note, or `null` on a screen without one. */
-  readonly note: NoteSaveFacts | null;
-  readonly sync: SyncState;
-  /** How many saves wait in the Needs attention list. */
-  readonly attentionCount: number;
-  readonly online: boolean;
-};
+/** The one state the Save button of the note header shows. */
+export type SaveButtonState = 'save' | 'saving' | 'saved-local' | 'saved';
 
 /**
- * Selects the one state of the header chip.
+ * Selects the state of the Save button from the facts of the open note.
  *
- * A problem always wins, because it is the only state that asks the person
- * to act. After that the state of the open note wins over the state of the
- * area, because the person is looking at that note.
+ * Typed text that no version holds yet always wins, so the button offers
+ * the action while a draft write is still in flight. A failed save also
+ * leaves the button ready, because the person has to try again. Everything
+ * else reports the result: the save is running, the version waits on this
+ * device, or the server holds it.
  */
-export function resolveChipState(input: ChipInput): ChipState {
-  const failed =
-    input.note?.state === 'save-failed' || input.note?.state === 'storage-full';
-  if (failed)
-    return { kind: 'attention', count: Math.max(input.attentionCount, 1) };
-  if (input.attentionCount > 0)
-    return { kind: 'attention', count: input.attentionCount };
-  if (input.sync.kind === 'signed-out' || input.sync.kind === 'stopped')
-    return { kind: 'attention', count: input.attentionCount };
-  const offline = !input.online || input.sync.kind === 'waiting';
-  if (input.note === null)
-    return offline ? { kind: 'offline' } : { kind: 'saved' };
-  if (input.note.state === 'saving-local') return { kind: 'saving' };
-  if (input.note.hasUnsavedEdits) return { kind: 'unsaved' };
-  if (input.note.state === 'syncing') return { kind: 'saving' };
-  if (offline) return { kind: 'saved-local' };
-  if (input.note.state === 'saved-server') return { kind: 'saved' };
-  return { kind: 'saved-local' };
+export function resolveSaveButton(note: NoteSaveFacts): SaveButtonState {
+  if (note.state === 'save-failed' || note.state === 'storage-full')
+    return 'save';
+  if (note.hasUnsavedEdits) return 'save';
+  if (note.state === 'saving-local' || note.state === 'syncing')
+    return 'saving';
+  if (note.state === 'saved-server') return 'saved';
+  return 'saved-local';
 }
 
-/** The short label of one chip state. */
-export function chipLabel(state: ChipState): string {
-  if (state.kind === 'unsaved') return 'Unsaved changes';
-  if (state.kind === 'saving') return 'Saving';
-  if (state.kind === 'saved-local') return 'Saved on this device';
-  if (state.kind === 'saved') return 'Saved';
-  if (state.kind === 'offline') return 'Offline';
-  if (state.count > 0) return `Needs attention (${String(state.count)})`;
-  return 'Needs attention';
+/** The label of one Save button state. */
+export function buttonLabel(state: SaveButtonState): string {
+  if (state === 'save') return 'Save';
+  if (state === 'saving') return 'Saving';
+  if (state === 'saved-local') return 'Saved on this device';
+  return 'Saved';
 }
 
-/** Whether the chip reports something the person has to answer. */
-export function chipIsProblem(state: ChipState): boolean {
-  return state.kind === 'attention';
+/** Whether the Save button accepts a press in this state. */
+export function buttonEnabled(state: SaveButtonState): boolean {
+  return state === 'save';
 }
