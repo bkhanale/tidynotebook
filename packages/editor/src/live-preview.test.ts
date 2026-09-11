@@ -15,6 +15,7 @@ import { noteMarkdown } from './language.ts';
 import {
   buildPreview,
   headingLevel,
+  previewNeedsRebuild,
   tableAlignments,
   type PreviewNode,
 } from './live-preview.ts';
@@ -414,4 +415,93 @@ await test('a reference link keeps its brackets and is styled', () => {
   assert.ok(has(found, 'mark', 'cm-np-link'));
   assert.ok(has(found, 'line', 'cm-np-link-definition'));
   assert.equal(visibleText(doc), doc);
+});
+
+/**
+ * Types one string into an empty document, one character at a time.
+ *
+ * Each step dispatches one transaction and puts the cursor after the typed
+ * character, which is what a person typing produces. The callback sees
+ * every intermediate state, so a decoration that appears for one keystroke
+ * and disappears again cannot hide from the assertion.
+ */
+function typeInto(text: string, onStep: (state: EditorState) => void): void {
+  let state = EditorState.create({ doc: '', extensions: [noteMarkdown()] });
+  for (const character of text) {
+    const at = state.doc.length;
+    state = state.update({
+      changes: { from: at, insert: character },
+      selection: { anchor: at + 1 },
+    }).state;
+    for (
+      let attempt = 0;
+      attempt < 200 && syntaxTree(state).length < state.doc.length;
+      attempt += 1
+    ) {
+      ensureSyntaxTree(state, state.doc.length, 5000);
+      state = state.update({}).state;
+    }
+    onStep(state);
+  }
+}
+
+/** The heading line classes of one state, as `from:class` entries. */
+function headingLines(state: EditorState): readonly string[] {
+  const built = buildPreview(
+    state,
+    [{ from: 0, to: state.doc.length }],
+    state.selection.main,
+  );
+  const found: string[] = [];
+  built.decorations.between(0, state.doc.length, (from, to, value) => {
+    const spec = value.spec as { class?: string };
+    if (from !== to) return;
+    if (spec.class === undefined) return;
+    if (!spec.class.split(' ').includes('cm-np-heading')) return;
+    found.push(`${String(from)}:${spec.class}`);
+  });
+  return found;
+}
+
+await test('typing a second paragraph never resizes the first one', () => {
+  // Regression: while the person typed the next line the paragraph above
+  // took heading size for one keystroke and returned to paragraph size
+  // later. A list and a thematic break both start with the character that
+  // ends a setext heading, so both walks pass over that state.
+  for (const typed of [
+    'Hello\nWorld\n',
+    'Hello\n- item\n',
+    'Hello\n\n---\n',
+    'Hello\n= two\n',
+  ])
+    typeInto(typed, (state) => {
+      assert.deepEqual(
+        headingLines(state),
+        [],
+        `${JSON.stringify(state.doc.toString())} got a heading line`,
+      );
+    });
+});
+
+await test('a setext heading keeps its size while the text line is edited', () => {
+  // The underline is the marker line of the construct, so only a cursor on
+  // the underline shows the construct as source.
+  const doc = 'Title\n=====\n';
+  assert.ok(has(describe(doc, { from: 2, to: 2 }), 'line', 'cm-np-h1'));
+  assert.ok(!has(describe(doc, { from: 8, to: 8 }), 'line', 'cm-np-h1'));
+  assert.ok(has(describe(doc), 'line', 'cm-np-h1'));
+});
+
+await test('the preview rebuilds when the parser produced more tree', () => {
+  const quiet = {
+    docChanged: false,
+    selectionSet: false,
+    viewportChanged: false,
+    treeChanged: false,
+  };
+  assert.equal(previewNeedsRebuild(quiet), false);
+  assert.equal(previewNeedsRebuild({ ...quiet, treeChanged: true }), true);
+  assert.equal(previewNeedsRebuild({ ...quiet, docChanged: true }), true);
+  assert.equal(previewNeedsRebuild({ ...quiet, selectionSet: true }), true);
+  assert.equal(previewNeedsRebuild({ ...quiet, viewportChanged: true }), true);
 });

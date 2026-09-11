@@ -341,13 +341,22 @@ export function buildPreview(
     const name = node.name;
     const level = headingLevel(name);
     if (level > 0) {
-      const markerLine = name.startsWith('ATX')
-        ? doc.lineAt(node.from)
-        : doc.lineAt(node.to);
-      const contentTo = name.startsWith('ATX')
-        ? node.to
-        : doc.lineAt(markerLine.from - 1).to;
-      lineClass(node.from, contentTo, `cm-np-heading cm-np-h${String(level)}`);
+      const atx = name.startsWith('ATX');
+      const markerLine = atx ? doc.lineAt(node.from) : doc.lineAt(node.to);
+      const contentTo = atx ? node.to : doc.lineAt(markerLine.from - 1).to;
+      // A setext underline decides the size of the line above it, so it is
+      // the marker line of the construct. While the selection sits on that
+      // line the construct shows its source: the underline stays visible and
+      // the text above keeps paragraph size. Without this rule a single `-`
+      // or `=` typed under a paragraph, which is what a list or a break
+      // starts with, resizes the paragraph until the next character arrives.
+      const revealed = !atx && touchesLines(markerLine.from, markerLine.to);
+      if (!revealed)
+        lineClass(
+          node.from,
+          contentTo,
+          `cm-np-heading cm-np-h${String(level)}`,
+        );
       structure.push({
         kind: 'heading',
         level,
@@ -735,13 +744,41 @@ export function previewStructureOf(doc: string): readonly PreviewNode[] {
   }).structure;
 }
 
+/** What one view update tells the preview about the need to rebuild. */
+export type PreviewRebuildSignal = {
+  readonly docChanged: boolean;
+  readonly selectionSet: boolean;
+  readonly viewportChanged: boolean;
+  /** The parser produced more tree than the previous state held. */
+  readonly treeChanged: boolean;
+};
+
+/**
+ * Whether the decorations must be built again after one view update.
+ *
+ * The parser works in slices, so a long note reaches the view with a tree
+ * that stops before the end of the document. The rest of the tree arrives
+ * in a transaction that changes neither the document, the selection, nor
+ * the viewport. Without the tree signal the preview would keep the
+ * decorations of the partial tree until the next keystroke, which is what
+ * makes a wrong construct look like it repairs itself later.
+ */
+export function previewNeedsRebuild(signal: PreviewRebuildSignal): boolean {
+  return (
+    signal.docChanged ||
+    signal.selectionSet ||
+    signal.viewportChanged ||
+    signal.treeChanged
+  );
+}
+
 /**
  * The live preview extension.
  *
- * Decorations are rebuilt when the document, the selection, or the viewport
- * changes, and only for the visible ranges. Nothing here dispatches a
- * document change, so undo history, IME composition, and the selection
- * survive every rebuild.
+ * Decorations are rebuilt when the document, the selection, the viewport, or
+ * the syntax tree changes, and only for the visible ranges. Nothing here
+ * dispatches a document change, so undo history, IME composition, and the
+ * selection survive every rebuild.
  */
 export function livePreview(): Extension {
   return ViewPlugin.fromClass(
@@ -757,12 +794,14 @@ export function livePreview(): Extension {
       }
 
       update(update: ViewUpdate): void {
-        if (
-          !update.docChanged &&
-          !update.selectionSet &&
-          !update.viewportChanged
-        )
-          return;
+        const rebuild = previewNeedsRebuild({
+          docChanged: update.docChanged,
+          selectionSet: update.selectionSet,
+          viewportChanged: update.viewportChanged,
+          treeChanged:
+            syntaxTree(update.startState) !== syntaxTree(update.state),
+        });
+        if (!rebuild) return;
         this.decorations = buildPreview(
           update.view.state,
           update.view.visibleRanges,
