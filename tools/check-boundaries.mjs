@@ -127,6 +127,20 @@ const storageBrowserLineCap = 900;
 const workspaceStoreSourcePrefix =
   'packages/storage-server/src/workspace-store/';
 const workspaceStoreLineCap = 900;
+// Decision 0018 splits the largest apps/web feature files. This step split the
+// shell layout from its two route views (notes-home.tsx and note-view.tsx) and
+// split the editor into the host (note-editor.tsx), the attachment URL owner
+// (note-editor-attachments.ts), and the Read mode renderer (note-read-mode.tsx).
+// A non-test feature source file stays under this ceiling, so a split file
+// cannot collapse back into a monolith. A file that reaches the cap must move a
+// concern into a sibling module or a per-feature directory.
+// NOTE: the cap is modest on purpose. It sits above note-editor.tsx, the editor
+// host that stays the largest feature file after this split, so an honest
+// addition never trips it while the file that reaches it must be split. Later
+// steps of the same epic move features into features/<feature>/ directories,
+// which this prefix already covers.
+const featuresSourcePrefix = 'apps/web/src/features/';
+const featuresLineCap = 1600;
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -467,6 +481,17 @@ for (const file of sources) {
     fail(
       file,
       `A workspace-store source file must stay under ${workspaceStoreLineCap} lines (decision 0018). Split it into a repository or a shared helper of packages/storage-server/src/workspace-store/.`,
+    );
+  // An apps/web feature source file stays small so a split feature cannot
+  // collapse back into one file (decision 0018). Tests are exempt.
+  if (
+    !isTest &&
+    path.startsWith(featuresSourcePrefix) &&
+    contents.split('\n').length > featuresLineCap
+  )
+    fail(
+      file,
+      `An apps/web feature source file must stay under ${featuresLineCap} lines (decision 0018). Move a concern into a sibling module or a per-feature directory of ${featuresSourcePrefix}.`,
     );
   const parsed = parseSync(file, contents);
   if (parsed.errors.length) {

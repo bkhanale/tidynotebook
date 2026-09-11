@@ -61,19 +61,20 @@ behaviour is proved by a Playwright journey in `tests/e2e`.
   `packages/ui/src/themes` through the theme tokens.
 - No `text-xs`, no `text-white`, no `bg-black`, and no arbitrary Tailwind
   value such as `w-[32rem]`. Use the named scales.
-- No `innerHTML` and no `dangerouslySetInnerHTML`, except the sanitized
-  renderer host in `src/features/note-editor.tsx` and the sandboxed frame in
-  `src/diagram/frame-main.ts`, both listed in
-  `tools/design-rules-allow.json`.
+- No `innerHTML` and no `dangerouslySetInnerHTML`, except the Read mode host
+  `src/features/note-read-mode.tsx` and the sandboxed `src/diagram/frame-main.ts`,
+  both listed in `tools/design-rules-allow.json`.
 - No identifier, raw timestamp, error code, or engine notice in text that a
   person reads. A note path keeps its `.md` suffix in storage and never shows
   it in the name field.
 
 ## Key files
 
-| File                           | Purpose                              |
-| ------------------------------ | ------------------------------------ |
-| `src/app.tsx`                  | Application shell, theme, and stores |
-| `src/tailwind.css`             | The only application CSS source      |
-| `src/features/note-editor.tsx` | The editor host and Read mode        |
-| `vite.config.ts`               | Build, theme assets, service worker  |
+| File                              | Purpose                              |
+| --------------------------------- | ------------------------------------ |
+| `src/app.tsx`                     | Application shell, theme, and stores |
+| `src/tailwind.css`                | The only application CSS source      |
+| `src/features/shell.tsx`          | The layout frame, sidebar, and tree  |
+| `src/features/note-editor.tsx`    | The editor host and one editor view  |
+| `src/features/note-read-mode.tsx` | The Read mode renderer host          |
+| `vite.config.ts`                  | Build, theme assets, service worker  |

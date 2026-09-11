@@ -48,10 +48,15 @@ import {
 import type { RenderMarkdownOptions } from '@notesapp/markdown';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../app.tsx';
-import { createAttachmentLoader } from './attachment-content.ts';
 import { activeNoteChanged, setActiveNoteView } from './active-note.ts';
 import { downloadNote } from './export.ts';
 import { useFiles } from './files.tsx';
+import {
+  maxPastedBytes,
+  sanitizeAttachmentName,
+  useAttachmentUrls,
+} from './note-editor-attachments.ts';
+import { ReadMode, diagramFramePath } from './note-read-mode.tsx';
 import { useRegisterNoteActions } from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader } from './note-header.tsx';
@@ -106,43 +111,6 @@ function recordTiming(name: string, startedAt: number): void {
   }
 }
 
-/**
- * The built diagram frame document.
- *
- * A plain path string on purpose: this names a static Vite entry, not an
- * application API route, so it stays a literal instead of constructed URL.
- */
-const diagramFramePath = '/src/diagram/frame.html';
-
-/** Attachment revision references in stored Markdown. */
-const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
-
-/** Largest pasted file the editor uploads directly, matching the server cap. */
-const maxPastedBytes = 20 * 1024 * 1024;
-
-/** The revision IDs referenced by one Markdown source, without duplicates. */
-function extractAttachmentIds(text: string): string[] {
-  const found: string[] = [];
-  attachmentReferencePattern.lastIndex = 0;
-  for (;;) {
-    const match = attachmentReferencePattern.exec(text);
-    if (match === null) return found;
-    const id = match[1] ?? '';
-    if (id !== '' && !found.includes(id)) found.push(id);
-  }
-}
-
-/** Makes a pasted file name safe for an attachment path segment. */
-function sanitizeAttachmentName(name: string): string {
-  const cleaned = name
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-  return cleaned === '' || cleaned === '.' || cleaned === '..'
-    ? 'pasted-image'
-    : cleaned;
-}
-
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
 
@@ -154,41 +122,6 @@ type AttachState =
   | { readonly kind: 'idle' }
   | { readonly kind: 'uploading'; readonly name: string }
   | { readonly kind: 'failed'; readonly message: string };
-
-/**
- * Typography of the rendered note.
- *
- * Read mode shows the same document as the editor, so it uses the same
- * measure, the same font, and the same semantic colour tokens. The rendered
- * HTML comes from the shared renderer, so its elements are reached with
- * Tailwind element variants instead of a style sheet.
- */
-const readTypography = [
-  'px-4 py-6 font-sans text-note text-strong',
-  '[&>*]:mx-auto [&>*]:max-w-note',
-  '[&_h1]:py-note-block [&_h1]:text-note-h1 [&_h1]:font-note-heading-strong [&_h1]:text-strong',
-  '[&_h2]:py-note-block [&_h2]:text-note-h2 [&_h2]:font-note-heading-strong [&_h2]:text-strong',
-  '[&_h3]:py-note-block [&_h3]:text-note-h3 [&_h3]:font-note-heading-strong [&_h3]:text-strong',
-  '[&_h4]:py-note-block [&_h4]:text-note-h4 [&_h4]:font-note-heading [&_h4]:text-strong',
-  '[&_h5]:py-note-block [&_h5]:text-note-h5 [&_h5]:font-note-heading [&_h5]:text-strong',
-  '[&_h6]:py-note-block [&_h6]:text-note-h6 [&_h6]:font-note-heading [&_h6]:text-strong',
-  '[&_p]:py-note-line [&_li]:py-note-line',
-  '[&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-6 [&_ol]:pl-6',
-  '[&_a]:text-accent [&_a]:underline',
-  '[&_code]:rounded-sm [&_code]:bg-hover [&_code]:px-1 [&_code]:py-0.5',
-  '[&_code]:font-mono [&_code]:text-note-mono',
-  '[&_pre]:my-note-block [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-hover',
-  '[&_pre]:p-3 [&_pre]:font-mono [&_pre_code]:bg-transparent [&_pre_code]:p-0',
-  '[&_blockquote]:border-l-4 [&_blockquote]:border-edge',
-  '[&_blockquote]:pl-4 [&_blockquote]:text-muted [&_del]:text-muted',
-  '[&_hr]:my-note-block [&_hr]:border-edge',
-  '[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse',
-  '[&_th]:border [&_th]:border-edge-subtle [&_th]:px-2 [&_th]:py-1',
-  '[&_td]:border [&_td]:border-edge-subtle [&_td]:px-2 [&_td]:py-1',
-  '[&_th]:text-strong [&_img]:my-note-block [&_img]:max-w-full [&_img]:rounded-md',
-  '[&_input]:m-0 [&_input]:mr-1 [&_input]:size-4',
-  '[&_input]:cursor-pointer [&_input]:align-text-bottom [&_input]:accent-accent-fill',
-].join(' ');
 
 /** Props of the editing surface. `initialText` is read once at mount. */
 export type NoteEditorProps = {
@@ -274,20 +207,17 @@ export function NoteEditor({
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [pasteNotice, setPasteNotice] = useState('');
   const [mode, setMode] = useState<NoteMode>('write');
-  const [readError, setReadError] = useState('');
   const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
-  const readRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastFilesRef = useRef<readonly File[]>([]);
   const renderMarkdownRef = useRef<
     | ((source: string, options?: RenderMarkdownOptions) => Promise<string>)
     | null
   >(null);
-  const [attachmentUrls, setAttachmentUrls] = useState<
-    ReadonlyMap<string, string>
-  >(new Map());
-  const attachmentUrlsRef = useRef<ReadonlyMap<string, string>>(new Map());
-  attachmentUrlsRef.current = attachmentUrls;
+  const { attachmentUrls, attachmentUrlsRef } = useAttachmentUrls(
+    workspaceId,
+    bufferText,
+  );
   const [mathReady, setMathReady] = useState(false);
   // The bar closes for the accepted head the person answered for. A later
   // accepted head is a new question, so the bar opens again by itself.
@@ -310,13 +240,6 @@ export function NoteEditor({
   const mathRenderRef = useRef<
     ((source: string, display: boolean) => string) | null
   >(null);
-  const ownedUrlsRef = useRef<
-    Map<string, { url: string; dispose: () => void }>
-  >(new Map());
-  const loader = useMemo(
-    () => createAttachmentLoader(workspaceId),
-    [workspaceId],
-  );
 
   useEffect(() => {
     if (!focusName) return;
@@ -508,64 +431,6 @@ export function NoteEditor({
     };
   }, []);
 
-  // Attachment widgets use authenticated object URLs. URLs are revoked when
-  // their references leave the note and when the editor closes.
-  useEffect(() => {
-    const wanted = extractAttachmentIds(bufferText);
-    const owned = ownedUrlsRef.current;
-    for (const [id, entry] of owned) {
-      if (!wanted.includes(id)) {
-        entry.dispose();
-        owned.delete(id);
-      }
-    }
-    if (wanted.every((id) => owned.has(id))) {
-      setAttachmentUrls((current) =>
-        sameUrls(current, owned)
-          ? current
-          : new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
-      );
-      return;
-    }
-    let cancelled = false;
-    const controller = new AbortController();
-    void (async (): Promise<void> => {
-      for (const id of wanted) {
-        if (cancelled || owned.has(id)) continue;
-        try {
-          const loaded = await loader.loadAttachment(id, controller.signal);
-          if (cancelled) {
-            loaded.dispose();
-            continue;
-          }
-          owned.set(id, { url: loaded.url, dispose: loaded.dispose });
-        } catch {
-          // A missing attachment stays as editable source in its widget.
-        }
-      }
-      if (!cancelled)
-        setAttachmentUrls((current) =>
-          sameUrls(current, owned)
-            ? current
-            : new Map(
-                [...owned].map(([id, entry]) => [id, entry.url] as const),
-              ),
-        );
-    })();
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
-  }, [loader, bufferText]);
-
-  useEffect(
-    () => () => {
-      for (const entry of ownedUrlsRef.current.values()) entry.dispose();
-      ownedUrlsRef.current.clear();
-    },
-    [],
-  );
-
   // The resolvers keep their identity between keystrokes. They are rebuilt
   // only when math arrives, when the palette changes, or when the set of
   // resolved attachment URLs really changed, because a new object here
@@ -685,49 +550,6 @@ export function NoteEditor({
       unsubscribe();
     };
   }, [store, accountId, workspaceId, workingCopyId]);
-
-  // Read mode renders the current buffer with the shared renderer. The
-  // editor stays mounted and keeps its document, so the switch back is free.
-  useEffect(() => {
-    if (mode !== 'read') return;
-    const host = readRef.current;
-    const render = renderMarkdownRef.current;
-    if (host === null || render === null) return;
-    let cancelled = false;
-    const disposers: Array<() => void> = [];
-    void (async (): Promise<void> => {
-      try {
-        const html = await render(bufferText, {
-          attachmentHref: (revisionId: string): string =>
-            attachmentUrls.get(revisionId) ?? '',
-        });
-        if (cancelled) return;
-        host.innerHTML = html;
-        setReadError('');
-        // Mermaid keeps its isolated frame here too, so Read mode never runs
-        // a diagram library inside the application origin.
-        for (const block of host.querySelectorAll('pre[data-diagram]')) {
-          const frame = createDiagramFrame({
-            source: block.textContent ?? '',
-            theme: themeRef.current,
-            framePath: diagramFramePath,
-          });
-          disposers.push(frame.dispose);
-          block.replaceWith(frame.element);
-        }
-      } catch {
-        if (cancelled) return;
-        host.textContent = '';
-        setReadError(
-          'This note is too large or too deeply nested to show as text. Switch to Write to read the source.',
-        );
-      }
-    })();
-    return () => {
-      cancelled = true;
-      for (const dispose of disposers) dispose();
-    };
-  }, [mode, bufferText, attachmentUrls, mathReady, resolved]);
 
   // Save and the Read switch are window level, so they work while focus sits
   // in the note name field. CodeMirror marks the event handled first, so the
@@ -1306,18 +1128,12 @@ export function NoteEditor({
               }}
             />
             {mode === 'read' ? (
-              <div className="min-h-0 flex-1 overflow-auto">
-                <div
-                  ref={readRef}
-                  data-note-view="read"
-                  className={readTypography}
-                />
-                {readError === '' ? null : (
-                  <p className="px-4 text-control text-danger" role="alert">
-                    {readError}
-                  </p>
-                )}
-              </div>
+              <ReadMode
+                text={bufferText}
+                attachmentUrls={attachmentUrls}
+                theme={resolved}
+                renderMarkdown={mathReady ? renderMarkdownRef.current : null}
+              />
             ) : null}
           </div>
           <aside
@@ -1343,17 +1159,6 @@ export function NoteEditor({
       <NoteFooter text={bufferText} lastSavedAt={lastSavedAt} />
     </div>
   );
-}
-
-/** Whether the resolved attachment URLs are already the ones we hold. */
-function sameUrls(
-  current: ReadonlyMap<string, string>,
-  owned: ReadonlyMap<string, { url: string }>,
-): boolean {
-  if (current.size !== owned.size) return false;
-  for (const [id, entry] of owned)
-    if (current.get(id) !== entry.url) return false;
-  return true;
 }
 
 /** The loading states of one note before its editor mounts. */

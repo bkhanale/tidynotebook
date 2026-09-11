@@ -19,10 +19,10 @@ const Shell = lazy(async () => ({
   default: (await import('./features/shell.tsx')).Shell,
 }));
 const NoteView = lazy(async () => ({
-  default: (await import('./features/shell.tsx')).NoteView,
+  default: (await import('./features/note-view.tsx')).NoteView,
 }));
 const NotesHomeView = lazy(async () => ({
-  default: (await import('./features/shell.tsx')).NotesHomeView,
+  default: (await import('./features/notes-home.tsx')).NotesHomeView,
 }));
 const WorkspaceHome = lazy(async () => ({
   default: (await import('./features/workspaces.tsx')).WorkspaceHome,

@@ -7,7 +7,7 @@
       "reason": "The theme swatch paints four token values that it reads from the theme registry at run time, one set per family. A utility class names a value at build time, so it cannot express a colour that the registry chooses."
     },
     {
-      "file": "apps/web/src/features/note-editor.tsx",
+      "file": "apps/web/src/features/note-read-mode.tsx",
       "rule": "inner-html",
       "reason": "The one sanitized renderer host of Read mode. The markup comes from renderMarkdown in packages/markdown, which sanitizes with the policy in policy.ts. Decision record 0003."
     },
