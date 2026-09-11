@@ -14,3 +14,7 @@
   attachments and diagram rendering through typed resolvers.
 - Validate at domain boundaries. Do not weaken a server invariant to hide a
   client defect.
+- Put new code where decision record 0018 says. It states the directory
+  structure of the server, `core`, the stores, and the web application.
+- Do not write a type assertion. Only `as const` is allowed. Reach a type
+  through a type guard or a parser that fails loudly (decision record 0019).

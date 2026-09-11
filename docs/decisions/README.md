@@ -21,7 +21,8 @@ and needs no record.
 
 1. Copy [0000-template.md](0000-template.md) to `NNNN-short-title.md` with
    the next free number.
-2. Fill in Context, Decision, and Consequences. Keep the file under 40 lines.
+2. Fill in Context, Decision, and Consequences. Keep the file under 40 lines,
+   or under 60 when the record states a structure that a reader has to follow.
 3. Set `Status: Accepted` and the date.
 4. Add the row to the index below.
 
@@ -46,8 +47,12 @@ and needs no record.
 | [0015](0015-the-note-surface-is-the-design.md)         | The note surface is the design                        |
 | [0016](0016-themes-are-data-in-one-registry.md)        | A theme is data in one registry                       |
 | [0017](0017-save-feedback-on-the-save-button.md)       | Save feedback lives on the Save button                |
+| [0018](0018-directory-structure-by-layer.md)           | The directory structure follows ports and adapters    |
+| [0019](0019-contract-validation-and-shared-types.md)   | One contract, generated types, and no type assertions |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
 theme registry described in [Themes](../development/themes.md). Record 0017
-records how the save state reaches the person.
+records how the save state reaches the person. Records 0018 and 0019 record the
+target structure and the type rules that the
+[architecture review](../audits/2026-09-11/architecture-review.md) asked for.

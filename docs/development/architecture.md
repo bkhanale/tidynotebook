@@ -86,6 +86,22 @@ policy are in [Toolchain](toolchain.md).
   repository-root `tests` tree, because no command discovers it anywhere else.
   Production source cannot import a test file.
 
+## Target structure
+
+The structure inside an application and a package is decided, and it is not yet
+what the tree holds.
+[Decision 0018](../decisions/0018-directory-structure-by-layer.md) states the
+ports and adapters layout that new code follows: cross-cutting plugins and
+resource routes in the server, one directory per context in `core`, one
+repository per context behind the transaction object, and one folder per
+feature on the web side.
+[Decision 0019](../decisions/0019-contract-validation-and-shared-types.md)
+states that the contract stays the one shared schema, that its source splits
+into files that Redocly bundles, and that a type assertion gives way to a type
+guard or a parser. The move is one epic in
+[the 0.1.0 list](../releases/0.1.0.md), and until it closes the two records
+decide where new code goes.
+
 ## Data storage
 
 PostgreSQL holds the accepted state: files, the revision graph, attachment
