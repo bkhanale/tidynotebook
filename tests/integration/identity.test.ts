@@ -10,6 +10,7 @@ import {
   createOwner,
   getAccount,
   getSetupStatus,
+  listFiles,
   listWorkspaces,
   signInWithPassword,
 } from '@notesapp/api-client';
@@ -127,6 +128,30 @@ await test('the owner session has one personal workspace', async () => {
   const workspaces = await listWorkspaces({ headers });
   assert.equal(workspaces.data?.workspaces.length, 1);
   assert.equal(workspaces.data?.workspaces[0]?.role, 'owner');
+});
+
+await test('setup leaves exactly one note, the welcome note', async () => {
+  // The starter note used to be a local draft that the empty state offered,
+  // so it had no version and it could be made again. It is now written once,
+  // during setup, through the commit path the create operation uses.
+  const headers = { origin: 'http://127.0.0.1', cookie: ownerCookie };
+  const workspaces = await listWorkspaces({ headers });
+  const workspaceId = workspaces.data?.workspaces[0]?.workspaceId;
+  assert.ok(typeof workspaceId === 'string');
+  const files = await listFiles({ headers, path: { workspaceId } });
+  assert.equal(files.error, undefined, JSON.stringify(files.error));
+  assert.deepEqual(
+    files.data?.files.map((file) => file.path),
+    ['Welcome to Notesapp.md'],
+  );
+  const welcome = files.data?.files[0];
+  assert.equal(welcome?.kind, 'note');
+  // It is a normal note: it carries a version, so History and every other
+  // device can reach it.
+  assert.ok(
+    typeof welcome?.headRevisionId === 'string' &&
+      welcome.headRevisionId.length > 0,
+  );
 });
 
 await test('the owner can sign in again with the selected password', async () => {
