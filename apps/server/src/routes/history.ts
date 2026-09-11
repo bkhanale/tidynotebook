@@ -15,8 +15,8 @@ import {
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
-import { DomainProblemError } from './problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { DomainProblemError } from '../plugins/problem.ts';
 import {
   acceptedBody,
   header,

@@ -22,13 +22,13 @@ import {
   migrationProbe,
   storageProbe,
   type ReadinessProbe,
-} from './http/handlers.ts';
+} from './routes/handlers.ts';
 import type {
   HandlerMap,
   IdentityResolver,
   ProtocolAdapter,
-} from './http/register.ts';
-import { registerOperations } from './http/register.ts';
+} from './plugins/register.ts';
+import { registerOperations } from './plugins/register.ts';
 import type { AuthLogRecord } from './auth/better-auth.ts';
 import {
   createAuth,
@@ -47,9 +47,9 @@ import {
   classifyError,
   createProblem,
   problemMediaType,
-} from './http/problem.ts';
-import { baseSecurityHeaders } from './http/security-headers.ts';
-import { sendStaticFile, statFile } from './http/static-assets.ts';
+} from './plugins/problem.ts';
+import { baseSecurityHeaders } from './plugins/security-headers.ts';
+import { sendStaticFile, statFile } from './plugins/static-assets.ts';
 import { attachRequestLogging, redactUrl } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
@@ -68,8 +68,8 @@ export function requestId(supplied: unknown): string {
     : randomUUID();
 }
 
-import { hostName } from './http/host.ts';
-export { hostName } from './http/host.ts';
+import { hostName } from './plugins/host.ts';
+export { hostName } from './plugins/host.ts';
 
 function instanceOf(request: FastifyRequest): string {
   return request.url.split('?')[0] ?? request.url;

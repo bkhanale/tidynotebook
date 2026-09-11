@@ -141,7 +141,7 @@ await test('a body over the configured limit is rejected', async () => {
   // The configured limit is 1024 bytes. No operation accepts a request body
   // yet, so the boundary rejects the body before the limit can apply. The
   // status that a body over the limit produces is unit tested in
-  // `apps/server/src/http/problem.test.ts`, and an operation that accepts a
+  // `apps/server/src/plugins/problem.test.ts`, and an operation that accepts a
   // body must declare 413 and 415 or generation fails.
   const response = await server.app.inject({
     method: 'GET',

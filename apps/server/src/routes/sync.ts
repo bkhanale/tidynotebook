@@ -12,8 +12,11 @@ import type { Result, WorkspaceStore } from '@notesapp/core';
 import { getChanges, getSnapshotPage, startSnapshot } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
-import { DomainProblemError, RequestContractError } from './problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import {
+  DomainProblemError,
+  RequestContractError,
+} from '../plugins/problem.ts';
 import { readOptionalText, readText } from './files.ts';
 
 const jsonMediaType = 'application/json';

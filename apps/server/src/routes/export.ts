@@ -25,8 +25,8 @@ import { extractAttachmentRefs } from '@notesapp/markdown';
 import type { AttachmentStore } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { readText } from './files.ts';
-import { DomainProblemError, NotFoundError } from './problem.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
+import { DomainProblemError, NotFoundError } from '../plugins/problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { zipArchive, type ZipEntry } from './zip.ts';
 
 /** Media type of one exported note. */

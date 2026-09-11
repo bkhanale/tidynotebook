@@ -13,12 +13,12 @@ import type { FastifyRequest } from 'fastify';
 import type { Actor } from '@notesapp/core';
 import { sessionGrants, verifyActor } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
-import type { IdentityResolver } from '../http/register.ts';
+import type { IdentityResolver } from '../plugins/register.ts';
 import {
   ForbiddenError,
   OriginRequiredError,
   UnauthenticatedError,
-} from '../http/problem.ts';
+} from '../plugins/problem.ts';
 import { toRequestHeaders, type NotesappAuth } from './better-auth.ts';
 
 /** A verified actor and what the session knows about it. */

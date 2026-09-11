@@ -32,9 +32,9 @@ import {
   authVerification,
 } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
-import type { ProblemCode } from '../http/problem.ts';
-import { createProblem, problemMediaType } from '../http/problem.ts';
-import type { ProtocolAdapter, ProtocolResult } from '../http/register.ts';
+import type { ProblemCode } from '../plugins/problem.ts';
+import { createProblem, problemMediaType } from '../plugins/problem.ts';
+import type { ProtocolAdapter, ProtocolResult } from '../plugins/register.ts';
 import type { MailTransport } from './mail.ts';
 
 /** Base path of every Better Auth route. */

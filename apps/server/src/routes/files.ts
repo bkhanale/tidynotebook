@@ -44,13 +44,13 @@ import {
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
-import { noContent } from './register.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { noContent } from '../plugins/register.ts';
 import {
   DomainProblemError,
   PreconditionRequiredError,
   RequestContractError,
-} from './problem.ts';
+} from '../plugins/problem.ts';
 
 /** Media type of every answer in this module. */
 const jsonMediaType = 'application/json';

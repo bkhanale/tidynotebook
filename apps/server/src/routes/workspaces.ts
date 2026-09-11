@@ -16,8 +16,8 @@ import {
 import { WorkspaceUnavailableError } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { readParameter, readString, unwrap } from './accounts.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
-import { NotFoundError } from './problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { NotFoundError } from '../plugins/problem.ts';
 
 const jsonMediaType = 'application/json';
 

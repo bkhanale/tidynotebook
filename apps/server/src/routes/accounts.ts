@@ -21,8 +21,8 @@ import {
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
-import { ForbiddenError, NotFoundError } from './problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { ForbiddenError, NotFoundError } from '../plugins/problem.ts';
 
 /** Media type of every answer in this module. */
 const jsonMediaType = 'application/json';

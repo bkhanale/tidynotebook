@@ -14,8 +14,8 @@ import { createAccountHandlers } from './accounts.ts';
 import { createExportHandlers } from './export.ts';
 import { createFileHandlers, missingWorkspaceStore } from './files.ts';
 import { createWorkspaceHandlers } from './workspaces.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
-import { createProblem, problemMediaType } from './problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { createProblem, problemMediaType } from '../plugins/problem.ts';
 
 import {
   requiredSchemaVersion,

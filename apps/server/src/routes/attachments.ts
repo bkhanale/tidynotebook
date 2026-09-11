@@ -36,8 +36,8 @@ import {
   PreconditionRequiredError,
   RequestContractError,
   UnsupportedMediaTypeError,
-} from './problem.ts';
-import type { HandlerMap, HandlerResult } from './register.ts';
+} from '../plugins/problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 
 const maxAttachmentBytes = 20 * 1024 * 1024;
 

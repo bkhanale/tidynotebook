@@ -9,7 +9,7 @@
  * stays a byte comparison.
  *
  * Every operation here carries `x-notesapp-protocol: better-auth`. The runtime
- * operation index keeps that marker, and `apps/server/src/http/register.ts`
+ * operation index keeps that marker, and `apps/server/src/plugins/register.ts`
  * uses it twice: such an operation is not part of the one-handler-per-operation
  * check, and its route is served by the Better Auth handler through the exact
  * path list of that adapter instead of by a contract handler.

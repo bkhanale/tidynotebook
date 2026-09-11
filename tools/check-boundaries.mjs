@@ -229,10 +229,26 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     // Handwritten relative imports carry an explicit `.ts` extension, so the
     // resolved path decides whether the target is a test file.
     const target = resolve(file, '..', specifier);
-    if (!isTest && isTestPath(relative(directory, target).split(sep).join('/')))
+    const targetPath = relative(directory, target).split(sep).join('/');
+    if (!isTest && isTestPath(targetPath))
       fail(file, `Production source cannot import test file ${specifier}.`);
     if (owner(target) !== item)
       fail(file, 'Relative or absolute imports cannot leave a package.');
+    // Decision 0018 removed apps/server/src/http/. A cross-cutting Fastify
+    // concern lives in apps/server/src/plugins/ and a resource controller lives
+    // in apps/server/src/routes/. An import that still points at the old
+    // directory must fail here rather than surface later as a type error.
+    // NOTE: a routes/ file may not import a store, but the checker does not
+    // forbid one routes/ file from importing another. handlers.ts is the
+    // aggregator that composes every resource controller, and export, history,
+    // search, sync, attachments, and workspaces reuse helpers from files.ts and
+    // accounts.ts. A blanket routes-to-routes ban would flag all of these true
+    // edges, so this rule stays scoped to the removed http/ path.
+    if (/^apps\/server\/src\/http(?:\/|$)/.test(targetPath))
+      fail(
+        file,
+        'apps/server/src/http is removed. Import from plugins/ or routes/ (decision 0018).',
+      );
     return;
   }
   if (!isTest && isTestSpecifier(specifier))

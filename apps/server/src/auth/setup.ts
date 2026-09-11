@@ -2,8 +2,8 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { WorkspaceStore } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
-import type { HandlerMap, HandlerResult } from '../http/register.ts';
-import { ForbiddenError } from '../http/problem.ts';
+import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { ForbiddenError } from '../plugins/problem.ts';
 import { readProperty } from '../values.ts';
 import type { NotesappAuth } from './better-auth.ts';
 import { seedWelcomeNote } from './welcome-note.ts';

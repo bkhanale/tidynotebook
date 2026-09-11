@@ -16,7 +16,7 @@ export type {
   HandlerDependencies,
   ReadinessCheck,
   ReadinessProbe,
-} from './http/handlers.ts';
+} from './routes/handlers.ts';
 export {
   configurationProbe,
   createHandlers,
@@ -24,7 +24,7 @@ export {
   evaluateReadiness,
   migrationProbe,
   storageProbe,
-} from './http/handlers.ts';
+} from './routes/handlers.ts';
 export {
   attachRequestLogging,
   redactUrl,
@@ -35,7 +35,7 @@ export type {
   IdentityResolver,
   ProtocolAdapter,
   ProtocolResult,
-} from './http/register.ts';
+} from './plugins/register.ts';
 export type {
   IdentityAdapter,
   IdentityDependencies,
@@ -60,7 +60,7 @@ export {
   createAuthPool,
   createAuthProtocol,
 } from './auth/better-auth.ts';
-export type { Problem, ProblemCode } from './http/problem.ts';
+export type { Problem, ProblemCode } from './plugins/problem.ts';
 export {
   createProblem,
   DomainProblemError,
@@ -70,17 +70,17 @@ export {
   PreconditionRequiredError,
   problemMediaType,
   UnauthenticatedError,
-} from './http/problem.ts';
+} from './plugins/problem.ts';
 export {
   createFileHandlers,
   missingWorkspaceStore,
   parseTag,
   revisionTag,
-} from './http/files.ts';
+} from './routes/files.ts';
 export type { MailMessage, MailTransport } from './auth/mail.ts';
 export { createMailTransport } from './auth/mail.ts';
 export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
-export { createSearchHandlers } from './http/search.ts';
+export { createSearchHandlers } from './routes/search.ts';

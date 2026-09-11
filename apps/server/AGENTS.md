@@ -11,12 +11,13 @@ and the authentication routes on one origin. It holds no domain rule.
 
 ## What lives here and what does not
 
-- `src/http/register.ts` registers every route from the contract and
-  validates the request and the response at the boundary.
-- `src/http/handlers.ts` returns one handler per operation id. The body of a
-  handler lives in the file of its area: `files.ts`, `history.ts`,
-  `search.ts`, `sync.ts`, `accounts.ts`, `attachments.ts`, `export.ts`,
-  `workspaces.ts`.
+- `src/plugins/` holds one cross-cutting Fastify concern per file and no
+  business resource: `register.ts` (contract routes and boundary validation),
+  `problem.ts` (RFC 9457 body), `security-headers.ts`, `static-assets.ts`, `host.ts`.
+- `src/routes/` holds one controller file per resource. `handlers.ts` returns
+  one handler per operation id, and the body of a handler lives in its area
+  file: `files.ts`, `history.ts`, `search.ts`, `sync.ts`, `accounts.ts`,
+  `attachments.ts`, `export.ts`, `workspaces.ts`, `zip.ts`.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, mail, and
   the first user setup. `src/jobs/` holds background work. `src/cli/` holds
   the operator commands.
@@ -35,12 +36,12 @@ packages such as `fastify`, `pg`, and `sharp`.
 
 - **A handler for a new operation.** Write the operation in
   `packages/api-contract/openapi.yaml` and run `pnpm generate` first. Add the
-  function in the area file under `src/http/`, then return it from
-  `createHandlers` in `src/http/handlers.ts`. A missing handler and an
+  function in the area file under `src/routes/`, then return it from
+  `createHandlers` in `src/routes/handlers.ts`. A missing handler and an
   unknown handler both stop startup.
 - **A background job.** Add `src/jobs/<name>.ts` and start it from
   `src/app.ts`. A job takes the store as an argument, so a test can drive it.
-- **A readiness check.** Add the probe in `src/http/handlers.ts` next to
+- **A readiness check.** Add the probe in `src/routes/handlers.ts` next to
   `databaseProbe`, `migrationProbe`, `storageProbe`, and
   `configurationProbe`, and add it to `evaluateReadiness`.
 
@@ -68,12 +69,12 @@ express, such as a forged Host header, uses `app.inject()`.
 
 ## Key files
 
-| File                           | Purpose                                        |
-| ------------------------------ | ---------------------------------------------- |
-| `src/app.ts`                   | Builds the Fastify application                 |
-| `src/http/register.ts`         | Contract driven routes and boundary checks     |
-| `src/http/handlers.ts`         | One handler per operation id, readiness probes |
-| `src/http/security-headers.ts` | Content security policy and frame rules        |
-| `src/http/static-assets.ts`    | Precompressed assets, caching, `ETag`          |
-| `src/auth/actor.ts`            | Turns a session into a verified actor          |
-| `src/config.ts`                | Environment reading and refusal messages       |
+| File                              | Purpose                                        |
+| --------------------------------- | ---------------------------------------------- |
+| `src/app.ts`                      | Builds the Fastify application                 |
+| `src/plugins/register.ts`         | Contract driven routes and boundary checks     |
+| `src/plugins/security-headers.ts` | Content security policy and frame rules        |
+| `src/plugins/static-assets.ts`    | Precompressed assets, caching, `ETag`          |
+| `src/routes/handlers.ts`          | One handler per operation id, readiness probes |
+| `src/auth/actor.ts`               | Turns a session into a verified actor          |
+| `src/config.ts`                   | Environment reading and refusal messages       |
