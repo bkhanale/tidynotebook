@@ -1,35 +1,52 @@
 /**
  * Public entry point of the notesapp UI package.
  *
- * It owns the Tokyo Night tokens, theme choice helpers, layout primitives,
+ * It owns the theme registry, appearance helpers, layout primitives,
  * accessible controls, and lightweight SVG icons. It runs in the browser and
  * imports nothing but React, so it stays out of storage, sync, and network
  * decisions.
  */
 export type {
-  ResolvedTheme,
-  ThemeChoice,
+  Appearance,
+  AppearanceChoice,
+  SyntaxPropertyName,
+  SyntaxTokens,
+  Theme,
+  ThemeFamily,
   ThemePropertyName,
   ThemeRoot,
+  ThemeSource,
   ThemeTokens,
 } from './theme.ts';
 export {
+  appearanceStorageKey,
   applyTheme,
   applyThemeToDocument,
   contrastRatio,
-  dayTokens,
-  nightTokens,
+  parseAppearanceChoice,
   parseHexColor,
-  parseThemeChoice,
   relativeLuminance,
-  resolveTheme,
+  resolveAppearance,
+  syntaxPropertyName,
+  syntaxPropertyNames,
+  themeFamilyStorageKey,
+  themeProperties,
   themePropertyName,
   themePropertyNames,
-  themeStorageKey,
-  themeTokens,
   textContrastMinimum,
   uiContrastMinimum,
 } from './theme.ts';
+export {
+  defaultThemeFamilyId,
+  defaultThemeFor,
+  findTheme,
+  findThemeFamily,
+  parseThemeFamilyId,
+  themeFamilies,
+  themeFor,
+  themeOfFamily,
+  themes,
+} from './themes/index.ts';
 export type { ButtonSize, ButtonVariant, SelectOption } from './controls.tsx';
 export {
   Badge,

@@ -1,13 +1,15 @@
 /**
- * Tokyo Night theme resolution, tokens, and contrast helpers.
+ * The theme contract: token names, the theme record, and contrast helpers.
  *
- * The palette values below are copied from the upstream Tokyo Night Night and
- * Day palettes; see `THIRD_PARTY_LICENSES.md`. The semantic `*Text` variants
- * are derived within the palette.
+ * A theme is data. This module owns the shape of that data and the rules
+ * every theme must meet; the palettes themselves live one per family in
+ * `src/themes/`. Nothing outside that folder holds a colour value, so a new
+ * theme is one new data file and one line in the registry index.
  *
- * Contrast rules that `theme.test.ts` enforces per surface:
+ * Contrast rules that `theme.test.ts` enforces per surface, for every theme
+ * in the registry:
  *
- * - `text` is the body color of the main background and the card surface
+ * - `text` is the body colour of the main background and the card surface
  *   only. On the sidebar surface, and on the hover and active states, a
  *   container sets `textStrong` or `textMuted`, which pass on all five
  *   surfaces. No screen lets `text` inherit onto a sidebar row.
@@ -19,56 +21,61 @@
  *   control.
  * - A control fill carries its own label token: `accentOnFill` on
  *   `accentFill`, and `onDanger` on `dangerFill`.
+ * - Every syntax colour meets 4.5 to 1 on the page background and on the
+ *   code block fill, which is the hover surface.
  *
- * This module is the runtime palette source. `applyTheme` writes the values
- * as custom properties for the central Tailwind theme.
+ * `applyTheme` writes the values as custom properties for the central
+ * Tailwind theme and for the typed CodeMirror adapter.
  */
 
-/** The stored palette choice of an account. Matches the API `Theme` type. */
-export type ThemeChoice = 'system' | 'light' | 'dark';
+/** The stored appearance choice of an account. Matches the API type. */
+export type AppearanceChoice = 'system' | 'light' | 'dark';
 
-/** The palette that is actually rendered. */
-export type ResolvedTheme = 'light' | 'dark';
+/** The appearance that is actually rendered. */
+export type Appearance = 'light' | 'dark';
 
-/** The local settings key of the theme choice. The inline page script reads it. */
-export const themeStorageKey = 'notesapp.theme';
+/** The local settings key of the appearance choice. */
+export const appearanceStorageKey = 'notesapp.theme';
+
+/** The local settings key of the theme family. */
+export const themeFamilyStorageKey = 'notesapp.theme-family';
 
 /**
- * Selects the palette for a stored choice and the device preference.
+ * Selects the appearance for a stored choice and the device preference.
  *
  * `system` follows the device: dark when `prefersDark` is true, light
  * otherwise. An explicit choice always wins over the device preference.
  */
-export function resolveTheme(
-  choice: ThemeChoice,
+export function resolveAppearance(
+  choice: AppearanceChoice,
   prefersDark: boolean,
-): ResolvedTheme {
+): Appearance {
   if (choice === 'light') return 'light';
   if (choice === 'dark') return 'dark';
   return prefersDark ? 'dark' : 'light';
 }
 
 /**
- * Reads a theme choice from an untrusted stored value.
+ * Reads an appearance choice from an untrusted stored value.
  *
  * Anything that is not one of the three known choices falls back to
  * `system`, so a corrupt setting cannot break rendering.
  */
-export function parseThemeChoice(value: unknown): ThemeChoice {
+export function parseAppearanceChoice(value: unknown): AppearanceChoice {
   if (value === 'light' || value === 'dark' || value === 'system') return value;
   return 'system';
 }
 
 /**
- * Every color that the application shell needs, for one palette.
+ * Every colour that the application shell needs, for one theme.
  *
- * `text` is the body color of the main background and the card surface.
+ * `text` is the body colour of the main background and the card surface.
  * `textStrong` and `textMuted` pass on every surface, so a sidebar row, a
  * hover state, and an active state always use one of those two. `accentText`,
- * `successText`, and `dangerText` are the derived variants for small text.
- * `accentFill` and `dangerFill` are control fills whose labels use
- * `accentOnFill` and `onDanger`. `scrim` is the fill behind a dialog; a page
- * applies it with an opacity utility.
+ * `successText`, and `dangerText` are the small text variants. `accentFill`
+ * and `dangerFill` are control fills whose labels use `accentOnFill` and
+ * `onDanger`. `scrim` is the fill behind a dialog; a page applies it with an
+ * opacity utility.
  */
 export type ThemeTokens = {
   readonly background: string;
@@ -92,56 +99,59 @@ export type ThemeTokens = {
   readonly scrim: string;
 };
 
-/** Tokyo Night Night with accessible semantic variants. */
-export const nightTokens: ThemeTokens = {
-  background: '#1a1b26',
-  surface: '#16161e',
-  surfaceCard: '#1f2335',
-  surfaceHover: '#24283b',
-  surfaceActive: '#292e42',
-  text: '#c0caf5',
-  textStrong: '#e8ecff',
-  textMuted: '#9099bd',
-  accentText: '#7aa2f7',
-  accentFill: '#7aa2f7',
-  accentOnFill: '#0c0c14',
-  successText: '#9ece6a',
-  dangerText: '#f7768e',
-  dangerFill: '#f7768e',
-  onDanger: '#0c0c14',
-  border: '#737ca3',
-  borderSubtle: '#303349',
-  focus: '#7aa2f7',
-  scrim: '#0c0c14',
+/**
+ * The colours of code inside a fenced block.
+ *
+ * The live preview styles Markdown itself, so this group covers only the
+ * highlighted code of a fence. The editor adapter reads these through their
+ * custom properties, which is why a theme change needs no editor rebuild.
+ */
+export type SyntaxTokens = {
+  readonly keyword: string;
+  readonly string: string;
+  readonly comment: string;
+  readonly number: string;
+  readonly tag: string;
+  readonly attribute: string;
+  readonly heading: string;
+  readonly link: string;
+  readonly punctuation: string;
 };
 
-/** Tokyo Night Day with accessible semantic variants. */
-export const dayTokens: ThemeTokens = {
-  background: '#e1e2e7',
-  surface: '#d0d5e3',
-  surfaceCard: '#f2f4f8',
-  surfaceHover: '#d8dce8',
-  surfaceActive: '#c8cfde',
-  text: '#3760bf',
-  textStrong: '#2f3d67',
-  textMuted: '#4a4e69',
-  accentText: '#1c46c0',
-  accentFill: '#1f4fd8',
-  accentOnFill: '#ffffff',
-  successText: '#3f5e2a',
-  dangerText: '#a8154a',
-  dangerFill: '#a8154a',
-  onDanger: '#ffffff',
-  border: '#5a6a8a',
-  borderSubtle: '#b9c0d0',
-  focus: '#1f4fd8',
-  scrim: '#2f3d67',
+/** Where a palette comes from, for the attribution file and the settings. */
+export type ThemeSource = {
+  /** The upstream project name. */
+  readonly project: string;
+  /** The upstream address of the published palette. */
+  readonly url: string;
+  /** The upstream licence, for example `MIT`. */
+  readonly licence: string;
 };
 
-/** Both palettes by resolved theme. */
-export const themeTokens: Record<ResolvedTheme, ThemeTokens> = {
-  light: dayTokens,
-  dark: nightTokens,
+/** One rendered palette: a light or a dark variant of one family. */
+export type Theme = {
+  /** Stable identifier, for example `tokyo-night-day`. */
+  readonly id: string;
+  /** The family this variant belongs to, for example `tokyo-night`. */
+  readonly family: string;
+  /** The name a person reads, for example `Tokyo Night Day`. */
+  readonly name: string;
+  /** Which device preference this variant answers. */
+  readonly appearance: Appearance;
+  readonly source: ThemeSource;
+  readonly tokens: ThemeTokens;
+  readonly syntax: SyntaxTokens;
+};
+
+/** One named family with its light and dark variants. */
+export type ThemeFamily = {
+  /** Stable identifier, for example `tokyo-night`. */
+  readonly id: string;
+  /** The name a person reads, for example `Tokyo Night`. */
+  readonly name: string;
+  readonly source: ThemeSource;
+  /** One or two variants. A family with one variant uses it for both. */
+  readonly variants: readonly Theme[];
 };
 
 /** Minimum WCAG contrast for normal text. */
@@ -151,10 +161,10 @@ export const textContrastMinimum = 4.5;
 export const uiContrastMinimum = 3;
 
 /**
- * Parses a six digit hex color such as `#1a1b26`.
+ * Parses a six digit hex colour such as `#1a1b26`.
  *
  * Returns the red, green, and blue channels on a 0 to 1 scale, or `null`
- * when the input is not a six digit hex color.
+ * when the input is not a six digit hex colour.
  */
 export function parseHexColor(
   hex: string,
@@ -173,9 +183,9 @@ function linearize(channel: number): number {
 }
 
 /**
- * Computes the WCAG relative luminance of a hex color.
+ * Computes the WCAG relative luminance of a hex colour.
  *
- * Returns `NaN` when the input is not a six digit hex color.
+ * Returns `NaN` when the input is not a six digit hex colour.
  */
 export function relativeLuminance(hex: string): number {
   const channels = parseHexColor(hex);
@@ -189,9 +199,9 @@ export function relativeLuminance(hex: string): number {
 }
 
 /**
- * Computes the WCAG contrast ratio of two hex colors, from 1 to 21.
+ * Computes the WCAG contrast ratio of two hex colours, from 1 to 21.
  *
- * Returns `NaN` when either input is not a six digit hex color.
+ * Returns `NaN` when either input is not a six digit hex colour.
  */
 export function contrastRatio(first: string, second: string): number {
   const firstLuminance = relativeLuminance(first);
@@ -202,7 +212,7 @@ export function contrastRatio(first: string, second: string): number {
   return (upper + 0.05) / (lower + 0.05);
 }
 
-/** The custom property names that `applyTheme` writes, in a fixed order. */
+/** The token names that `applyTheme` writes, in a fixed order. */
 export const themePropertyNames = [
   'background',
   'surface',
@@ -225,8 +235,24 @@ export const themePropertyNames = [
   'scrim',
 ] as const;
 
-/** One of the property names of {@link themePropertyNames}. */
+/** One of the token names of {@link themePropertyNames}. */
 export type ThemePropertyName = (typeof themePropertyNames)[number];
+
+/** The syntax token names that `applyTheme` writes, in a fixed order. */
+export const syntaxPropertyNames = [
+  'keyword',
+  'string',
+  'comment',
+  'number',
+  'tag',
+  'attribute',
+  'heading',
+  'link',
+  'punctuation',
+] as const;
+
+/** One of the syntax token names of {@link syntaxPropertyNames}. */
+export type SyntaxPropertyName = (typeof syntaxPropertyNames)[number];
 
 /**
  * Maps token names to stylesheet custom property names.
@@ -255,6 +281,27 @@ export function themePropertyName(name: ThemePropertyName): string {
   return '--notes-focus';
 }
 
+/**
+ * Maps syntax token names to stylesheet custom property names.
+ *
+ * For example `keyword` becomes `--notes-syntax-keyword`.
+ */
+export function syntaxPropertyName(name: SyntaxPropertyName): string {
+  return `--notes-syntax-${name}`;
+}
+
+/** Every custom property of one theme, as name and value pairs. */
+export function themeProperties(
+  theme: Theme,
+): readonly (readonly [string, string])[] {
+  const pairs: (readonly [string, string])[] = [];
+  for (const name of themePropertyNames)
+    pairs.push([themePropertyName(name), theme.tokens[name]]);
+  for (const name of syntaxPropertyNames)
+    pairs.push([syntaxPropertyName(name), theme.syntax[name]]);
+  return pairs;
+}
+
 /** The smallest surface that `applyTheme` can write to, for tests. */
 export type ThemeRoot = {
   setAttribute(name: string, value: string): void;
@@ -262,27 +309,28 @@ export type ThemeRoot = {
 };
 
 /**
- * Applies one palette to a root surface.
+ * Applies one theme to a root surface.
  *
- * Sets the `data-theme` attribute and writes every token as a custom
- * property, so the central Tailwind theme receives the active palette.
+ * Sets the `data-theme` attribute to the appearance, names the theme in
+ * `data-theme-id`, and writes every token as a custom property, so the
+ * central Tailwind theme and the editor adapter receive the active palette.
  */
-export function applyTheme(root: ThemeRoot, theme: ResolvedTheme): void {
-  root.setAttribute('data-theme', theme);
-  const tokens = themeTokens[theme];
-  for (const name of themePropertyNames) {
-    root.setProperty(themePropertyName(name), tokens[name]);
-  }
+export function applyTheme(root: ThemeRoot, theme: Theme): void {
+  root.setAttribute('data-theme', theme.appearance);
+  root.setAttribute('data-theme-id', theme.id);
+  for (const [property, value] of themeProperties(theme))
+    root.setProperty(property, value);
 }
 
 /**
- * Applies one palette to the page document.
+ * Applies one theme to the page document.
  *
  * Call this from the application entry point after the inline page script
  * already set the initial theme, so React state and the document stay in
- * sync without a visible flash.
+ * sync without a visible flash. The browser interface colour follows the
+ * page background, so an installed window keeps one palette.
  */
-export function applyThemeToDocument(theme: ResolvedTheme): void {
+export function applyThemeToDocument(theme: Theme): void {
   const element = document.documentElement;
   applyTheme(
     {
@@ -295,4 +343,6 @@ export function applyThemeToDocument(theme: ResolvedTheme): void {
     },
     theme,
   );
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta !== null) meta.setAttribute('content', theme.tokens.background);
 }
