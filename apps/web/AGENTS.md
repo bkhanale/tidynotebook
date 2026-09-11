@@ -56,8 +56,7 @@ behaviour is proved by a Playwright journey in `tests/e2e`.
 
 - No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation
   from `@notesapp/api-client`.
-- No handwritten CSS, no CSS module, no component style sheet, no `style=`
-  JSX attribute.
+- No handwritten CSS, CSS module, style sheet, or `style=` attribute.
 - No colour value. Colour comes from the theme registry in
   `packages/ui/src/themes` through the theme tokens.
 - No `text-xs`, no `text-white`, no `bg-black`, and no arbitrary Tailwind
