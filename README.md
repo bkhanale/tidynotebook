@@ -119,6 +119,7 @@ Development:
 - [Toolchain](docs/development/toolchain.md)
 - [Verification](docs/development/verification.md)
 - [Architecture decision records](docs/decisions/README.md)
+- [Remaining work](docs/plans/004-remaining-work.md)
 
 Operations:
 
