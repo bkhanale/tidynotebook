@@ -1,7 +1,11 @@
-> Superseded by `docs/plans/003-v0.1-revamp.md`. It describes an earlier product.
-> It is kept for provenance only. Do not use it as a reference.
-
 # 001: Initial Implementation Plan
+
+Status: superseded by [docs/plans/003-v0.1-revamp.md](./003-v0.1-revamp.md)
+
+## Decisions
+
+Superseded before a decision record existed. See
+[docs/decisions](../decisions/README.md).
 
 **Goal:** Build notesapp with local offline editing, immutable file history, one-pane Markdown live preview, and full web, API, and MCP access.
 
@@ -9,7 +13,7 @@
 
 **Tech stack:** Use the exact dependency baseline and compatibility exceptions in the design: Node, TypeScript, pnpm, React, Vite, CodeMirror, Fastify, OpenAPI, Hey API, PostgreSQL, Drizzle, Dexie, Better Auth, and the MCP SDK. Verify registry releases at installation; record compatibility evidence before changing a selected version.
 
-**Design:** [001: Initial design](design-001-initial-design.md). Read both documents before execution.
+**Design:** [001: Initial design](../design/001-initial-design.md). Read both documents before execution.
 
 **Status:** Planned and self-reviewed. No implementation tasks have run.
 

@@ -6,8 +6,8 @@ through `commitChangeset` in `packages/core/src/files/commit.ts`. There is
 therefore one place that decides whether a change is accepted, and one
 transaction order.
 
-The product uses one linear history for the single user. A document in
-`docs/history/` can describe an earlier collaboration behaviour that is gone.
+The product uses one linear history for the single user. A superseded document
+can describe an earlier collaboration behaviour that is gone.
 
 ## The model
 

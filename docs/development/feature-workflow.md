@@ -5,6 +5,10 @@ merge. Each step names the directory that owns it, and each of those
 directories has an `AGENTS.md` with its own rules. **Read the `AGENTS.md` of a
 directory before you edit under it.**
 
+This page covers one feature. Work that is larger than one feature starts
+earlier, with a design, then the decision records, then a plan. See
+[the lifecycle of a large task](../README.md).
+
 An architectural choice needs a decision record first. See
 [the decision records](../decisions/README.md).
 

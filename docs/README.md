@@ -12,7 +12,8 @@ fails when the code moves away from it.
 
 The one exception is a shell command that the reader runs. A quick start and a
 backup procedure need the command, so a fenced `sh` block is allowed. A fenced
-block with any other language is refused outside `history/`.
+block with any other language is refused, except in a file whose status line
+says that it is superseded. That content is frozen, so no check holds it.
 
 `tools/check-docs.mjs` runs inside `pnpm lint` and holds the rules on this
 page.
@@ -26,8 +27,15 @@ page.
 - Say what a thing is and why it is that way. Do not narrate the task that
   made it.
 
-Every file starts with one `#` title line, except a file in `history/`, which
-starts with its superseded note.
+Every file starts with one `#` title line.
+
+A file in `plans/`, `design/` or `releases/` carries a status line directly
+under the title:
+
+    Status: active | complete | superseded by <relative link>
+
+A superseded file stays where it is, with its kind. Nobody edits it again,
+except its status line.
 
 ## Files at the repository root
 
@@ -35,6 +43,27 @@ starts with its superseded note.
 - `CLAUDE.md` imports `AGENTS.md` for Claude Code and holds nothing else.
 - `.claude/skills/` links to `.agents/skills/`, so one skill file serves every
   agent harness.
+
+## Lifecycle of a large task
+
+1. A design in `design/` explores the problem, the options, and the trade-offs.
+   It names the questions that somebody must decide.
+2. The design concludes in one or more records in `decisions/`. The design
+   links each record that it produced, and each record links its design.
+3. A plan in `plans/` turns those records into ordered work. It links the
+   design and the records.
+4. The rows of the plan go into the release list in `releases/` that ships
+   them.
+5. When the plan completes, the status of the plan becomes `complete` and the
+   status of the design becomes `complete` or `superseded by <link>`.
+
+A small task skips the design, and it can skip the plan. No task skips the
+decision record when it makes an architectural choice.
+
+Each stage has its own audience. A design is for a person: it argues in prose
+that a reviewer reads end to end. A decision record and a plan are for an
+agent: they are terse, structured, and full of pointers, because an agent
+loads them many times.
 
 ## guide/
 
@@ -76,6 +105,23 @@ owns.
 
 Keep a page under 150 lines. A page that grows past that is two pages.
 
+## design/
+
+**Audience:** a person who reviews the problem before the work starts.
+
+**Purpose:** one long exploration of one problem. It states the problem, the
+options, and the cost of each option. A design that concludes produces one or
+more decision records.
+
+**Belongs:** the problem, the options, the trade-offs, and the open questions.
+Prose and a diagram belong here, because a reviewer reads the page once, end
+to end, and argues with it.
+
+**Does not belong:** a task list, and a choice that no record holds.
+
+**Header:** the title line, then the status line. A `## Decisions` heading
+links every record that the design produced.
+
 ## decisions/
 
 **Audience:** contributors and agents.
@@ -92,6 +138,9 @@ date, and the `Context`, `Decision` and `Consequences` headings are required.
 `decisions/README.md` holds the index and the rule for when a choice needs a
 record.
 
+**Tone:** structured and minimal. An agent reads a record many times, so give
+it paths, record numbers and release rows, not a story.
+
 ## releases/
 
 **Audience:** the owner and the contributors of one release.
@@ -104,7 +153,7 @@ evidence that proves the state of each row.
 
 **Does not belong:** a second list of the same work anywhere else.
 
-**Header:** the title line, then a status line that starts with `Status:`.
+**Header:** the title line, then the status line.
 
 ## audits/
 
@@ -124,24 +173,18 @@ inside the first ten lines.
 
 ## plans/
 
-**Audience:** contributors.
+**Audience:** an agent that does the work.
 
-**Purpose:** a plan that is still running. A plan leaves this directory when
-its work ships.
+**Purpose:** the ordered work that follows from the decision records of one
+design. A plan stays here after it ships, with the status `complete`.
 
-**Header:** the title line, then the status and the pointer to the live list in
-`releases/`.
+**Belongs:** the items, in order, with the record and the release row that each
+item answers.
 
-## history/
+**Does not belong:** the argument that chose the approach. That is the design.
 
-**Audience:** nobody. It is provenance.
+**Header:** the title line, then the status line, then the pointer to the live
+list in `releases/`. A `## Decisions` heading links into `decisions/`.
 
-A document moves here when it no longer describes the product, and a newer
-document replaced it. Move the file with `git mv`, keep the content, and add
-two lines at the top:
-
-    > Superseded by `docs/<new path>`. It describes an earlier product.
-    > It is kept for provenance only. Do not use it as a reference.
-
-Nothing links to a history file as an answer. The language and the fenced
-block rules are relaxed here, because the content is frozen.
+**Tone:** structured and minimal, like a decision record. An agent reads a plan
+many times.

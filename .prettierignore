@@ -8,5 +8,5 @@ pnpm-lock.yaml
 packages/api-client/src/generated/
 packages/api-contract/src/generated/
 # Approved input documents retain their existing formatting.
-docs/history/design-001-initial-design.md
-docs/history/plan-001-initial-implementation.md
+docs/design/001-initial-design.md
+docs/plans/001-initial-implementation.md

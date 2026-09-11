@@ -8,11 +8,14 @@
  * 1. Every `.md` file under `docs/` sits in a known directory, so a reader and
  *    an agent can tell the kind of a document from its path alone.
  * 2. The code is the source of truth. A fenced block whose language is not a
- *    shell the reader runs is a copy of code, so it is refused. `history/`
- *    holds frozen documents and is exempt from every content rule.
+ *    shell the reader runs is a copy of code, so it is refused. A document
+ *    whose status line says that it is superseded is frozen, so only that one
+ *    rule steps back for it.
  * 3. Each kind carries its required header: the ADR template for a decision, a
- *    date and a commit for an audit, a status line for a release, and the
- *    "who this is for" sentence for a guide page.
+ *    date and a commit for an audit, a status line for a plan, a design and a
+ *    release, and the "who this is for" sentence for a guide page. A design
+ *    and a plan also carry the "Decisions" heading that joins the two kinds,
+ *    and a plan links into `decisions/` from it.
  * 4. Every relative link resolves, so a move cannot leave a dead pointer.
  *
  * A separate root permits a disposable negative check without real documents,
@@ -26,12 +29,15 @@ import { root } from './workspace.mjs';
 export const documentKinds = [
   'guide',
   'development',
+  'design',
   'decisions',
   'releases',
   'audits',
   'plans',
-  'history',
 ];
+
+/** The kinds whose files carry a status line under the title. */
+export const statusKinds = ['plans', 'design', 'releases'];
 
 /** The fenced block languages that a reader runs, plus plain text. */
 export const allowedFenceLanguages = [
@@ -49,6 +55,9 @@ export const decisionHeadings = [
   '## Decision',
   '## Consequences',
 ];
+
+/** The heading under which a design and a plan name their decision records. */
+export const decisionsHeading = 'Decisions';
 
 /** The sentence that opens every public guide page. */
 export const guideAudiencePrefix = 'This page is for';
@@ -156,6 +165,37 @@ export function relativeLinks(text) {
 }
 
 /**
+ * Reads the status line of a document, or `null` when it has none.
+ *
+ * @param {string} text
+ * @returns {string | null}
+ */
+export function statusLine(text) {
+  const match = /^Status: *(\S.*)$/m.exec(text);
+  return match === null ? null : /** @type {string} */ (match[1]).trim();
+}
+
+/**
+ * Answers whether a document is frozen, because a newer one replaced it.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function isSuperseded(text) {
+  return /^superseded by \S/i.test(statusLine(text) ?? '');
+}
+
+/**
+ * Answers whether a document holds the heading that names its decisions.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+export function hasDecisionsHeading(text) {
+  return new RegExp(`^#{1,6} .*\\b${decisionsHeading}\\b`, 'im').test(text);
+}
+
+/**
  * Checks the header that the kind of a document requires.
  *
  * @param {string} kind
@@ -167,7 +207,7 @@ export function headerFailures(kind, name, text) {
   /** @type {string[]} */
   const failures = [];
   const lines = text.split('\n');
-  if (kind !== 'history' && !(lines[0] ?? '').startsWith('# '))
+  if (!(lines[0] ?? '').startsWith('# '))
     failures.push('the first line is not a "# " title.');
   const opening = lines.slice(0, auditHeaderLines).join('\n');
   if (kind === 'guide' && !text.includes(guideAudiencePrefix))
@@ -191,8 +231,21 @@ export function headerFailures(kind, name, text) {
         `no commit in the first ${auditHeaderLines} lines. An audit names what it read.`,
       );
   }
-  if (kind === 'releases' && !/^Status: \S/m.test(text))
-    failures.push('no "Status:" line.');
+  if (statusKinds.includes(kind) && statusLine(text) === null)
+    failures.push(
+      'no "Status:" line. A plan, a design and a release state whether they are active, complete, or superseded.',
+    );
+  if ((kind === 'design' || kind === 'plans') && !hasDecisionsHeading(text))
+    failures.push(
+      `no "${decisionsHeading}" heading. A design and a plan name the decision records that they produced.`,
+    );
+  if (
+    kind === 'plans' &&
+    !relativeLinks(text).some((target) => target.includes('decisions/'))
+  )
+    failures.push(
+      'no link into decisions/. A plan turns decision records into ordered work.',
+    );
   return failures;
 }
 
@@ -223,9 +276,11 @@ export async function main(directory) {
     const name = /** @type {string} */ (parts.at(-1));
     const text = await readFile(join(directory, path), 'utf8');
     linked.push({ path, text });
-    if (kind === 'history') continue;
     for (const failure of headerFailures(kind, name, text))
       failures.push(`${path}: ${failure}`);
+    // A superseded document is frozen, so nobody can take a copy of code out
+    // of it. Every other rule still holds.
+    if (isSuperseded(text)) continue;
     for (const fence of fenceLanguages(text))
       if (!allowedFenceLanguages.includes(fence.language))
         failures.push(

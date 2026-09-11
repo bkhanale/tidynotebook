@@ -1,7 +1,11 @@
-> Superseded by `docs/plans/003-v0.1-revamp.md`. It describes an earlier product.
-> It is kept for provenance only. Do not use it as a reference.
-
 # Holistic Client Repair Implementation Plan
+
+Status: superseded by [docs/plans/003-v0.1-revamp.md](./003-v0.1-revamp.md)
+
+## Decisions
+
+Superseded before a decision record existed. See
+[docs/decisions](../decisions/README.md).
 
 **Goal:** Make every existing web journey durable, prompt, responsive, and easy to understand, with accurate save and conflict state.
 **Architecture:** Keep IndexedDB as the browser working state and PostgreSQL as accepted shared state. Add committed local change events, per-file save snapshots, and an interruptible sync worker, then make React render those durable facts. Rebuild the shell around the editor and verify the complete behavior with real browsers.

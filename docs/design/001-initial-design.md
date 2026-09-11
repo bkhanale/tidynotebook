@@ -1,7 +1,11 @@
-> Superseded by `docs/plans/003-v0.1-revamp.md`. It describes an earlier product.
-> It is kept for provenance only. Do not use it as a reference.
-
 # 001: Initial design
+
+Status: superseded by [docs/plans/003-v0.1-revamp.md](../plans/003-v0.1-revamp.md)
+
+## Decisions
+
+Superseded before a decision record existed. See
+[docs/decisions](../decisions/README.md).
 
 Date: 2026-09-05
 

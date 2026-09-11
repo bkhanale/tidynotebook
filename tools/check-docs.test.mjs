@@ -7,6 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   fenceLanguages,
+  isSuperseded,
   placementFailure,
   relativeLinks,
 } from './check-docs.mjs';
@@ -32,13 +33,18 @@ const baseline = {
   'docs/decisions/0001-a-choice.md':
     '# 0001. A choice\n\n- Status: Accepted\n- Date: 2026-01-01\n\n' +
     '## Context\n\nFacts.\n\n## Decision\n\nThe choice.\n\n## Consequences\n\nThe cost.\n',
-  'docs/releases/0.1.0.md': '# Release 0.1.0\n\nStatus: open.\n\nThe list.\n',
+  'docs/releases/0.1.0.md': '# Release 0.1.0\n\nStatus: active\n\nThe list.\n',
   'docs/audits/2026-01-01/report.md':
     '# Audit\n\nAudited on 2026-01-01 against commit `abc1234`.\n\nFindings.\n',
-  'docs/plans/001-a-plan.md': '# A plan\n\nStatus: running.\n',
-  'docs/history/old.md':
-    '> Superseded by `docs/README.md`. It describes an earlier product.\n' +
-    '> It is kept for provenance only. Do not use it as a reference.\n\n' +
+  'docs/design/001-a-design.md':
+    '# A design\n\nStatus: active\n\n## Decisions\n\n' +
+    'See [0001](../decisions/0001-a-choice.md).\n',
+  'docs/plans/001-a-plan.md':
+    '# A plan\n\nStatus: active\n\n## Decisions\n\n' +
+    'See [0001](../decisions/0001-a-choice.md).\n',
+  'docs/plans/002-an-old-plan.md':
+    '# An old plan\n\nStatus: superseded by [the plan](./001-a-plan.md)\n\n' +
+    '## Decisions\n\nSee [the index](../decisions/README.md).\n\n' +
     '```ts\nconst copied = true;\n```\n',
 };
 
@@ -123,9 +129,54 @@ await test('a code block that is not a shell command fails', () => {
   assert.match(result.output, /a "ts" block/);
 });
 
-await test('a frozen history document may hold any code block', () => {
+await test('a superseded document may hold any code block', () => {
+  assert.equal(
+    isSuperseded('# A\n\nStatus: superseded by [x](./x.md)\n'),
+    true,
+  );
+  assert.equal(isSuperseded('# A\n\nStatus: active\n'), false);
   const result = check({});
   assert.equal(result.status, 0, result.output);
+});
+
+await test('an active document with the same code block fails', () => {
+  const result = check({
+    'docs/plans/002-an-old-plan.md':
+      '# An old plan\n\nStatus: active\n\n' +
+      '## Decisions\n\nSee [the index](../decisions/README.md).\n\n' +
+      '```ts\nconst copied = true;\n```\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /a "ts" block/);
+});
+
+await test('a plan, a design or a release without a status line fails', () => {
+  for (const [file, text] of [
+    ['docs/plans/001-a-plan.md', '# A plan\n\n## Decisions\n\nNone.\n'],
+    ['docs/design/001-a-design.md', '# A design\n\n## Decisions\n\nNone.\n'],
+    ['docs/releases/0.1.0.md', '# Release 0.1.0\n\nThe list.\n'],
+  ]) {
+    const result = check({ [String(file)]: String(text) });
+    assert.equal(result.status, 1);
+    assert.match(result.output, /no "Status:" line/);
+  }
+});
+
+await test('a design without a Decisions heading fails', () => {
+  const result = check({
+    'docs/design/001-a-design.md': '# A design\n\nStatus: active\n\nProse.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no "Decisions" heading/);
+});
+
+await test('a plan whose Decisions heading links no record fails', () => {
+  const result = check({
+    'docs/plans/001-a-plan.md':
+      '# A plan\n\nStatus: active\n\n## Decisions\n\nNone yet.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /no link into decisions\//);
 });
 
 await test('a decision record without a template heading fails', () => {
@@ -164,14 +215,6 @@ await test('an audit that names them late fails', () => {
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /no date in the first 10 lines/);
-});
-
-await test('a release without a status line fails', () => {
-  const result = check({
-    'docs/releases/0.1.0.md': '# Release 0.1.0\n\nThe list.\n',
-  });
-  assert.equal(result.status, 1);
-  assert.match(result.output, /no "Status:" line/);
 });
 
 await test('a guide page without the audience sentence fails', () => {
