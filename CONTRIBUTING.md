@@ -5,6 +5,16 @@ landing path. Read [AGENTS.md](AGENTS.md) for the full rule set and
 [docs/development/architecture.md](docs/development/architecture.md) for the
 current picture of the system.
 
+## Before you start
+
+Run `node tools/agent-context.mjs <paths you will touch>` before your first
+edit. It prints the reading list for those paths: the rules, the documents,
+the `AGENTS.md` of each directory, and the key files that the guide names.
+Read every file that it lists, then restate the task against them. The
+`starting-work` skill drives the same steps in Claude Code and in Codex. The
+skill is `.agents/skills/starting-work/SKILL.md`, and
+`.claude/skills/starting-work` links to it.
+
 ## Requirements
 
 | Tool           | Version                                 |

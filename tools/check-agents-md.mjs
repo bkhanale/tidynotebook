@@ -11,12 +11,18 @@
  * 2. Every directory that owns code has its own `AGENTS.md`, because an agent
  *    reads the guide of a directory before it edits under it. A guide stays
  *    short enough to read in full, so it is capped at 80 lines.
+ * 3. The reading list of `tools/agent-context.mjs` runs for every guide, so a
+ *    guide cannot point at a file that moved away.
+ * 4. Each harness reads the context through its own entry: `CLAUDE.md` holds
+ *    the import of the root guide and nothing else, and the start skill has
+ *    one file under `.agents/` that `.claude/` links to.
  *
  * A separate root permits a disposable negative check without application
  * fixtures, in the same shape as `tools/check-boundaries.mjs`.
  */
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, realpath } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { missingFiles, readingList } from './agent-context.mjs';
 import { root } from './workspace.mjs';
 
 /** Every directory that must carry its own guide. */
@@ -38,6 +44,45 @@ export const guidedDirectories = [
 
 /** How many lines one directory guide may hold. */
 export const maximumGuideLines = 80;
+
+/** The one content that the Claude Code entry file may hold. */
+export const claudeEntry =
+  '@AGENTS.md\n\nAGENTS.md is the source of every rule.\n';
+
+/** The start skill, and the link that the second harness reads. */
+export const skillFile = '.agents/skills/starting-work/SKILL.md';
+export const skillLink = '.claude/skills/starting-work/SKILL.md';
+
+/**
+ * Checks the skill frontmatter against the Agent Skills rules.
+ *
+ * @param {string} text
+ * @returns {string[]}
+ */
+export function skillFailures(text) {
+  const block = /^---\n([\s\S]*?)\n---\n/.exec(text);
+  if (block === null) return [`${skillFile}: no frontmatter block.`];
+  const front = block[1] ?? '';
+  const name = (/^name:[ \t]*(.*)$/m.exec(front)?.[1] ?? '').trim();
+  const description = (
+    /^description:[ \t]*(.*)$/m.exec(front)?.[1] ?? ''
+  ).trim();
+  /** @type {string[]} */
+  const failures = [];
+  if (!/^[a-z0-9-]{1,64}$/.test(name))
+    failures.push(
+      `${skillFile}: the name must be lower case letters, numbers and hyphens, up to 64 characters.`,
+    );
+  if (/anthropic|claude/.test(name))
+    failures.push(`${skillFile}: the name must not hold a reserved word.`);
+  if (description.length === 0 || description.length > 1024)
+    failures.push(
+      `${skillFile}: the description must state what the skill does and when to use it, in up to 1024 characters.`,
+    );
+  if (/\bI \b|you can/.test(description))
+    failures.push(`${skillFile}: write the description in the third person.`);
+  return failures;
+}
 
 /**
  * Builds the root guide from the rule files, exactly as `rules/link.sh` does.
@@ -101,6 +146,32 @@ export async function main(directory) {
         'AGENTS.md: does not match the rules directory. Run rules/link.sh.',
       );
   }
+  const entry = await readFile(join(directory, 'CLAUDE.md'), 'utf8').catch(
+    () => null,
+  );
+  if (entry === null)
+    failures.push('CLAUDE.md: missing. It imports the root guide.');
+  else if (entry !== claudeEntry)
+    failures.push('CLAUDE.md: it holds only the import and the one sentence.');
+  const skill = await readFile(join(directory, skillFile), 'utf8').catch(
+    () => null,
+  );
+  if (skill === null) failures.push(`${skillFile}: missing.`);
+  else failures.push(...skillFailures(skill));
+  const [target, linked] = await Promise.all([
+    realpath(join(directory, skillFile)).catch(() => null),
+    realpath(join(directory, skillLink)).catch(() => null),
+  ]);
+  if (target === null || linked !== target)
+    failures.push(`${skillLink}: it must link to ${skillFile}.`);
+  /** @type {Set<string>} */
+  const stale = new Set();
+  for (const guided of guidedDirectories) {
+    const entries = await readingList(directory, [join(directory, guided)]);
+    for (const file of await missingFiles(directory, entries)) stale.add(file);
+  }
+  for (const file of stale)
+    failures.push(`${file}: a reading list points here, but the file is gone.`);
   for (const guided of guidedDirectories) {
     const text = await readFile(
       join(directory, guided, 'AGENTS.md'),
@@ -122,7 +193,7 @@ export async function main(directory) {
     return 1;
   }
   console.log(
-    `Agent guides: the root guide matches ${rules.length} rule files, and ${guidedDirectories.length} directory guides are present.`,
+    `Agent guides: the root guide matches ${rules.length} rule files, ${guidedDirectories.length} directory guides are present with a complete reading list, and both harness entries resolve.`,
   );
   return 0;
 }

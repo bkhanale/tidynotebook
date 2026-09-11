@@ -29,6 +29,13 @@ page.
 Every file starts with one `#` title line, except a file in `history/`, which
 starts with its superseded note.
 
+## Files at the repository root
+
+- `AGENTS.md` holds every rule. `rules/link.sh` writes it from `rules/`.
+- `CLAUDE.md` imports `AGENTS.md` for Claude Code and holds nothing else.
+- `.claude/skills/` links to `.agents/skills/`, so one skill file serves every
+  agent harness.
+
 ## guide/
 
 **Audience:** the person who writes notes, and the person who runs a server.

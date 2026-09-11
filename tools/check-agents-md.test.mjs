@@ -1,14 +1,23 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { coreReadingList } from './agent-context.mjs';
 import {
+  claudeEntry,
   composeRootGuide,
   guidedDirectories,
   maximumGuideLines,
+  skillFile,
 } from './check-agents-md.mjs';
 
 // The fixtures below are disposable trees under the system temporary
@@ -30,11 +39,21 @@ function guide(lines = 3) {
   return `${body.slice(0, lines).join('\n')}\n`;
 }
 
+/** A skill file that holds valid frontmatter. */
+const skill = `---
+name: starting-work
+description: Loads the repository context and lists every file to read. Use it before the first edit of a change.
+---
+
+# Starting work
+`;
+
 /**
  * @param {Record<string, string>} overrides
+ * @param {{ link?: boolean }} [options]
  * @returns {{ status: number; output: string }}
  */
-function check(overrides) {
+function check(overrides, options = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'notesapp-guides-'));
   try {
     const rules = [
@@ -44,6 +63,10 @@ function check(overrides) {
     /** @type {Record<string, string>} */
     const files = { 'AGENTS.md': composeRootGuide(rules) };
     for (const rule of rules) files[`rules/${rule.name}`] = rule.text;
+    for (const [file] of coreReadingList)
+      if (!(file in files)) files[file] = '# Fixture\n';
+    files['CLAUDE.md'] = claudeEntry;
+    files[skillFile] = skill;
     for (const guided of guidedDirectories)
       files[`${guided}/AGENTS.md`] = guide();
     for (const [name, content] of Object.entries({ ...files, ...overrides })) {
@@ -51,6 +74,13 @@ function check(overrides) {
       const file = join(directory, name);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, content);
+    }
+    if (options.link !== false) {
+      mkdirSync(join(directory, '.claude/skills'), { recursive: true });
+      symlinkSync(
+        '../../.agents/skills/starting-work',
+        join(directory, '.claude/skills/starting-work'),
+      );
     }
     const result = spawnSync(process.execPath, [checker, '--root', directory], {
       encoding: 'utf8',
@@ -101,4 +131,49 @@ await test('a directory guide over the line budget fails', () => {
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /packages\/ui\/AGENTS\.md: 81 lines/);
+});
+
+await test('a guide that points at a file that is gone fails', () => {
+  const result = check({
+    'packages/core/AGENTS.md':
+      '# packages/core\n\n## Key files\n\n' +
+      '| File | Purpose |\n| ---- | ------- |\n' +
+      '| `src/gone.ts` | A file that moved |\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /packages\/core\/src\/gone\.ts/);
+});
+
+await test('a missing harness entry file fails', () => {
+  const result = check({ 'CLAUDE.md': '' });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /CLAUDE\.md: missing/);
+});
+
+await test('an entry file with more than the import fails', () => {
+  const result = check({ 'CLAUDE.md': `${claudeEntry}\nMore text.\n` });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /only the import/);
+});
+
+await test('a skill name outside the allowed shape fails', () => {
+  const result = check({
+    [skillFile]: skill.replace('name: starting-work', 'name: Starting_Work'),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /lower case letters/);
+});
+
+await test('a skill description in the first person fails', () => {
+  const result = check({
+    [skillFile]: skill.replace('Loads', 'I load'),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /third person/);
+});
+
+await test('a skill that the second harness cannot reach fails', () => {
+  const result = check({}, { link: false });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /must link to/);
 });
