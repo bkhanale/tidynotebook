@@ -25,6 +25,7 @@ import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import { useLocalQuery } from '../local-state.ts';
 import {
   pruneEmptyFolders,
+  removeEmptyFolders as removeEmptyFoldersPure,
   rewriteEmptyFolders,
   withEmptyFolder,
 } from './empty-folders.ts';
@@ -49,6 +50,8 @@ export type FilesValue = {
   readonly addEmptyFolder: (folder: string) => void;
   /** Follows a folder rename or move with the remembered empty folders. */
   readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
+  /** Forgets a folder and everything below it after a folder left the tree. */
+  readonly removeEmptyFolders: (folder: string) => void;
   /** Reads the server list again, for example after a restore. */
   readonly reload: () => void;
 };
@@ -60,6 +63,7 @@ const FilesContext = createContext<FilesValue>({
   emptyFolders: [],
   addEmptyFolder: () => {},
   moveEmptyFolders: () => {},
+  removeEmptyFolders: () => {},
   reload: () => {},
 });
 
@@ -167,6 +171,7 @@ export function FilesProvider({
       emptyFolders: empty.emptyFolders,
       addEmptyFolder: empty.addEmptyFolder,
       moveEmptyFolders: empty.moveEmptyFolders,
+      removeEmptyFolders: empty.removeEmptyFolders,
       reload,
     }),
     [notes, loading, empty, reload],
@@ -288,6 +293,7 @@ function useEmptyFolders(
   readonly emptyFolders: readonly string[];
   readonly addEmptyFolder: (folder: string) => void;
   readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
+  readonly removeEmptyFolders: (folder: string) => void;
 } {
   const [remembered, setRemembered] = useState<readonly string[]>(() =>
     readEmptyFolders(workspaceId),
@@ -345,5 +351,21 @@ function useEmptyFolders(
     [remember],
   );
 
-  return { emptyFolders, addEmptyFolder, moveEmptyFolders };
+  const removeEmptyFolders = useCallback(
+    (folder: string): void => {
+      setRemembered((current) => {
+        const next = removeEmptyFoldersPure(current, folder);
+        remember(next);
+        return next;
+      });
+    },
+    [remember],
+  );
+
+  return {
+    emptyFolders,
+    addEmptyFolder,
+    moveEmptyFolders,
+    removeEmptyFolders,
+  };
 }

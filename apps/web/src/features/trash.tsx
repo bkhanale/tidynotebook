@@ -21,6 +21,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -194,18 +195,23 @@ export async function restoreNote(
   }
 }
 
-/** The note that the last deletion removed, while its notice is on screen. */
-export type DeleteNotice = {
-  readonly workspaceId: string;
+/** One note that the last deletion removed. */
+export type DeleteNoticeItem = {
   readonly fileId: string;
   /** The name of the note, without its storage suffix. */
   readonly name: string;
 };
 
+/** The notes that the last deletion removed, while its notice is on screen. */
+export type DeleteNotice = {
+  readonly workspaceId: string;
+  readonly items: readonly DeleteNoticeItem[];
+};
+
 /** What the notice after a deletion offers to the screens below. */
 type DeleteNoticeValue = {
   readonly notice: DeleteNotice | null;
-  /** Announces that one note went to the trash. */
+  /** Announces that notes went to the trash. */
   readonly announce: (notice: DeleteNotice) => void;
   /** Takes the notice off the screen. */
   readonly dismiss: () => void;
@@ -263,10 +269,12 @@ export function DeleteNoticeBar(): ReactNode {
   const requestSync = useRequestSync();
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+  const restoredRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     if (notice === null) return;
     setFailure(null);
+    restoredRef.current.clear();
     const timer = window.setTimeout(dismiss, undoNoticeMs);
     return () => {
       window.clearTimeout(timer);
@@ -274,24 +282,47 @@ export function DeleteNoticeBar(): ReactNode {
   }, [notice, dismiss]);
 
   if (notice === null) return null;
+  const count = notice.items.length;
+  const only = count === 1 ? notice.items[0] : undefined;
+  const message =
+    only === undefined
+      ? `${String(count)} notes moved to Trash.`
+      : `${only.name} moved to Trash.`;
+  const undoLabel =
+    only === undefined
+      ? `Undo the deletion of ${String(count)} notes`
+      : `Undo the deletion of ${only.name}`;
   const undo = (): void => {
     if (busy) return;
     setBusy(true);
     setFailure(null);
     void (async (): Promise<void> => {
-      const outcome = await restoreNote(
-        notice.workspaceId,
-        notice.fileId,
-        store.store?.deviceId ?? 'web-device',
-      );
-      setBusy(false);
-      if (!outcome.ok) {
-        setFailure(outcome.message);
-        return;
+      for (const item of notice.items) {
+        if (restoredRef.current.has(item.fileId)) continue;
+        const outcome = await restoreNote(
+          notice.workspaceId,
+          item.fileId,
+          store.store?.deviceId ?? 'web-device',
+        );
+        if (!outcome.ok) {
+          setBusy(false);
+          if (restoredRef.current.size > 0)
+            setFailure(
+              `${String(restoredRef.current.size)} of ${String(count)} notes are back. Try Undo again for the rest.`,
+            );
+          else setFailure(outcome.message);
+          return;
+        }
+        restoredRef.current.add(item.fileId);
       }
+      setBusy(false);
       requestSync();
       dismiss();
-      void navigate(`/w/${notice.workspaceId}/notes/${notice.fileId}`);
+      if (only === undefined) {
+        void navigate(`/w/${notice.workspaceId}`);
+        return;
+      }
+      void navigate(`/w/${notice.workspaceId}/notes/${only.fileId}`);
     })();
   };
 
@@ -302,15 +333,13 @@ export function DeleteNoticeBar(): ReactNode {
         role="status"
         aria-live="polite"
       >
-        <p className="m-0 min-w-0 text-control text-strong">
-          {notice.name} moved to Trash.
-        </p>
+        <p className="m-0 min-w-0 text-control text-strong">{message}</p>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
             disabled={busy}
-            label={`Undo the deletion of ${notice.name}`}
+            label={undoLabel}
             onClick={undo}
           >
             {busy ? 'Undoing' : 'Undo'}

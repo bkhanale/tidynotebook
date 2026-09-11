@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   buildNoteTree,
   mergeNotes,
+  notesInFolder,
   recentNotes,
   type NoteSummary,
 } from './note-list.ts';
@@ -103,4 +104,75 @@ await test('a folder with no note still reaches the tree', () => {
   assert.ok(inner?.kind === 'folder');
   assert.equal(inner.fullPath, 'ideas/later');
   assert.deepEqual(inner.children, []);
+});
+
+const until = '2026-01-01T00:00:00Z';
+
+const inFolders = [
+  note('direct', 'Work/Note.md', until),
+  note('nested', 'Work/Plans/2026.md', until),
+  note('sibling', 'Personal/Ideas.md', until),
+  note('top', 'Loose.md', until),
+  note('prefix', 'Workshop/Note.md', until),
+  note('outside', 'Workspace/Note.md', until),
+];
+
+await test('notesInFolder includes a note directly in the folder', () => {
+  assert.deepEqual(
+    notesInFolder(inFolders, 'Work').map((entry) => entry.fileId),
+    ['direct', 'nested'],
+  );
+});
+
+await test('notesInFolder includes notes in nested folders', () => {
+  assert.ok(
+    notesInFolder(inFolders, 'Work/Plans').some(
+      (entry) => entry.fileId === 'nested',
+    ),
+  );
+});
+
+await test('notesInFolder excludes a sibling folder', () => {
+  assert.ok(
+    !notesInFolder(inFolders, 'Work').some(
+      (entry) => entry.fileId === 'sibling',
+    ),
+  );
+});
+
+await test('notesInFolder excludes a top-level note', () => {
+  assert.ok(
+    !notesInFolder(inFolders, 'Work').some((entry) => entry.fileId === 'top'),
+  );
+});
+
+await test('notesInFolder excludes Workshop when the folder is Work', () => {
+  assert.ok(
+    !notesInFolder(inFolders, 'Work').some(
+      (entry) => entry.fileId === 'prefix',
+    ),
+  );
+  assert.ok(
+    !notesInFolder(inFolders, 'Work').some(
+      (entry) => entry.fileId === 'outside',
+    ),
+  );
+});
+
+await test('notesInFolder matches a folder without case', () => {
+  assert.deepEqual(
+    notesInFolder(inFolders, 'work').map((entry) => entry.fileId),
+    ['direct', 'nested'],
+  );
+});
+
+await test('notesInFolder preserves the input order', () => {
+  const ordered = [
+    note('second', 'Work/Second.md', until),
+    note('first', 'Work/First.md', until),
+  ];
+  assert.deepEqual(
+    notesInFolder(ordered, 'Work').map((entry) => entry.fileId),
+    ['second', 'first'],
+  );
 });

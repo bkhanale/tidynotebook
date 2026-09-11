@@ -46,6 +46,27 @@ export function withEmptyFolder(
 }
 
 /**
+ * The set after a folder and everything below it left the tree.
+ *
+ * A sibling with a shared prefix stays, because the match includes the
+ * separator: removing `Work` keeps `Workshop`.
+ */
+export function removeEmptyFolders(
+  remembered: readonly string[],
+  folder: string,
+): readonly string[] {
+  if (folder === '') return remembered;
+  const prefix = `${folder.toLowerCase()}/`;
+  return tidy(
+    remembered.filter(
+      (one) =>
+        one.toLowerCase() !== folder.toLowerCase() &&
+        !one.toLowerCase().startsWith(prefix),
+    ),
+  );
+}
+
+/**
  * The set after a folder moved or was renamed.
  *
  * The folder itself and every remembered folder inside it follow the move, so

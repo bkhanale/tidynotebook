@@ -407,25 +407,26 @@ export function NoteEditor({
   };
 
   /** Creates one immutable checkpoint from the current buffer. */
-  const checkpointInFlightRef = useRef<Promise<void> | null>(null);
-  const checkpointNow = useRef((_deleted?: boolean): Promise<void> =>
-    Promise.resolve(),
+  const checkpointInFlightRef = useRef<Promise<boolean> | null>(null);
+  const checkpointNow = useRef((_deleted?: boolean): Promise<boolean> =>
+    Promise.resolve(true),
   );
-  checkpointNow.current = (deleted = false): Promise<void> => {
+  checkpointNow.current = (deleted = false): Promise<boolean> => {
+    if (!deleted && isDeletedRef.current) return Promise.resolve(false);
     const isDeleting = deleted || isDeletedRef.current;
     if (!isDeleting) {
       const error = nameProblemRef.current();
       setPathError(error ?? '');
-      if (error !== null) return Promise.resolve();
+      if (error !== null) return Promise.resolve(false);
     }
     const existing = checkpointInFlightRef.current;
     if (existing !== null)
       return isDeleting
         ? existing.then(() => checkpointNow.current(true))
         : existing;
-    const run = (async (): Promise<void> => {
+    const run = (async (): Promise<boolean> => {
       const saved = await saveDraftNow.current(isDeleting);
-      if (!saved) return;
+      if (!saved) return false;
       const current = live.current;
       try {
         const entry = await current.store.checkpoint(
@@ -440,10 +441,12 @@ export function NoteEditor({
         callbacks.current.onQueued?.(entry);
         setStorageError(null);
         await refreshQueue.current();
+        return true;
       } catch (failure: unknown) {
         setStorageError(
           isLocalStorageError(failure) ? failure.kind : 'aborted',
         );
+        return false;
       }
     })();
     checkpointInFlightRef.current = run;
@@ -762,6 +765,41 @@ export function NoteEditor({
     setMode((current) => (current === 'write' ? 'read' : 'write'));
   }, []);
 
+  /**
+   * Deletes the open note through the editor.
+   *
+   * The sidebar calls this for the open note, so the delete runs with the
+   * editor buffer instead of behind its back. It writes the tombstone only
+   * and reports whether the checkpoint ran. The caller announces the undo
+   * notice and leaves for the note list.
+   */
+  const deleteInFlightRef = useRef<Promise<boolean> | null>(null);
+  const deleteOpenNote = useCallback((): Promise<boolean> => {
+    const existing = deleteInFlightRef.current;
+    if (existing !== null) return existing;
+    isDeletedRef.current = true;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    const run = (async (): Promise<boolean> => {
+      sequenceRef.current += 1;
+      let moved = false;
+      try {
+        moved = await checkpointNow.current(true);
+      } catch {
+        moved = false;
+      }
+      if (!moved) isDeletedRef.current = false;
+      return moved;
+    })();
+    deleteInFlightRef.current = run;
+    void run.finally(() => {
+      if (deleteInFlightRef.current === run) deleteInFlightRef.current = null;
+    });
+    return run;
+  }, []);
+
   const saveState: SaveState = resolveSaveState({
     draftWritePending: draftPending,
     queueState: saveSnapshot?.queueState ?? null,
@@ -785,7 +823,11 @@ export function NoteEditor({
     hasUnsavedEdits,
     lastSavedAt,
   });
-  useRegisterNoteActions({ fileId, toggleReadMode: toggleMode });
+  useRegisterNoteActions({
+    fileId,
+    toggleReadMode: toggleMode,
+    delete: deleteOpenNote,
+  });
 
   /** Inserts Markdown at the current cursor through an editor transaction. */
   const insertAtCursor = (text: string): void => {
@@ -1036,26 +1078,17 @@ export function NoteEditor({
       return;
     }
     setConfirmingDelete(false);
-    isDeletedRef.current = true;
-    if (saveTimerRef.current !== null) {
-      window.clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
     const deletedName = displayNoteName(validPathRef.current);
     void (async (): Promise<void> => {
-      sequenceRef.current += 1;
-      try {
-        await checkpointNow.current(true);
-        // The note is in the trash now, so the person leaves for the note
-        // list and the notice there offers one step back.
-        announceDeleted({ workspaceId, fileId, name: deletedName });
-        void navigate(`/w/${workspaceId}`);
-      } catch (failure: unknown) {
-        isDeletedRef.current = false;
-        setStorageError(
-          isLocalStorageError(failure) ? failure.kind : 'aborted',
-        );
-      }
+      const moved = await deleteOpenNote();
+      if (!moved) return;
+      // The note is in the trash now, so the person leaves for the note
+      // list and the notice there offers one step back.
+      announceDeleted({
+        workspaceId,
+        items: [{ fileId, name: deletedName }],
+      });
+      void navigate(`/w/${workspaceId}`);
     })();
   };
 

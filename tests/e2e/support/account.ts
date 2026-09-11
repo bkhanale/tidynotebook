@@ -3,7 +3,7 @@ import type { E2EStack } from './stack.ts';
 
 /** Signs in through the same form that a person uses. */
 export async function signIn(page: Page, stack: E2EStack): Promise<void> {
-  await page.goto(`${stack.baseUrl}/login`);
+  await page.goto(`${stack.baseUrl}/login`, { waitUntil: 'commit' });
   await page.getByLabel('Address').fill(stack.email);
   await page.getByLabel('Password', { exact: true }).fill(stack.password);
   await page.getByRole('button', { name: 'Sign in' }).click();

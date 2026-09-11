@@ -61,6 +61,22 @@ export function recentNotes(
     .slice(0, limit);
 }
 
+/**
+ * Every note whose path lies in the folder or in a folder below it.
+ *
+ * The prefix match is case-insensitive and includes the separator, so `Work`
+ * matches `Work/Note.md` and never matches `Workshop/Note.md`. The input
+ * order is kept.
+ */
+export function notesInFolder(
+  notes: readonly NoteSummary[],
+  folder: string,
+): readonly NoteSummary[] {
+  if (folder === '') return notes;
+  const prefix = `${folder.toLowerCase()}/`;
+  return notes.filter((note) => note.path.toLowerCase().startsWith(prefix));
+}
+
 /** One node of the rendered file tree. */
 export type TreeNode =
   | {

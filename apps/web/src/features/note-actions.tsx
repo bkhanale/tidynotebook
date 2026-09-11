@@ -22,6 +22,8 @@ export type NoteScreenActions = {
   readonly fileId: string;
   /** Switches between Write and Read, when the screen offers both. */
   readonly toggleReadMode: (() => void) | null;
+  /** Deletes the open note through the editor, when the screen offers it. */
+  readonly delete: (() => Promise<boolean>) | null;
 };
 
 type NoteActionsChannel = {
@@ -60,11 +62,11 @@ export function useNoteActions(): NoteScreenActions | null {
 /** Registers the actions of the open note screen while it is mounted. */
 export function useRegisterNoteActions(actions: NoteScreenActions): void {
   const { register } = useContext(NoteActionsContext);
-  const { fileId, toggleReadMode } = actions;
+  const { fileId, toggleReadMode, delete: deleteNote } = actions;
   useEffect(() => {
-    register({ fileId, toggleReadMode });
+    register({ fileId, toggleReadMode, delete: deleteNote });
     return () => {
       register(null);
     };
-  }, [register, fileId, toggleReadMode]);
+  }, [register, fileId, toggleReadMode, deleteNote]);
 }
