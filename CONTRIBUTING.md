@@ -52,7 +52,7 @@ Reports go to `playwright-report` and `test-results/playwright`.
 | ----------------------- | ----------------------------------------------------- |
 | `pnpm build`            | Builds all packages, the server, and the web app      |
 | `pnpm typecheck`        | Checks all TypeScript projects                        |
-| `pnpm lint`             | Checks versions, source rules, and package boundaries |
+| `pnpm lint`             | Checks versions, source rules, boundaries, and guides |
 | `pnpm format`           | Applies Prettier formatting                           |
 | `pnpm test:unit`        | Runs unit tests                                       |
 | `pnpm test:integration` | Runs the PostgreSQL and IndexedDB integration tests   |
@@ -60,6 +60,22 @@ Reports go to `playwright-report` and `test-results/playwright`.
 
 Select a subset with a name, for example
 `pnpm test:integration -- browser-storage`.
+
+## Developing a feature
+
+[docs/development/feature-workflow.md](docs/development/feature-workflow.md)
+is the recipe for one whole feature: the contract first, then the domain
+rule, the storage and its migration, the handler, the client, and the
+verification. It holds the "where does this go" table and the definition of
+done.
+
+Each app, each package, and the `tests` tree has its own `AGENTS.md` with the
+rules of that directory: what lives there, which imports are allowed, how to
+add a common thing, how to test it, and what is forbidden. **Read the
+`AGENTS.md` of a directory before you edit under it.**
+
+[docs/decisions](docs/decisions/README.md) holds the architecture decision
+records. A new architectural choice gets a record before the code.
 
 ## Workflow
 

@@ -210,7 +210,7 @@ the emitted file also ran under `node --test`.
 | Command                             | Behavior                                                                      |
 | ----------------------------------- | ----------------------------------------------------------------------------- |
 | `pnpm typecheck`                    | Check tool scripts with TS 7, package type checks, then the integration tree. |
-| `pnpm lint`                         | Check pins and runtime, type-aware Oxlint, and source boundaries.             |
+| `pnpm lint`                         | Check pins and runtime, type-aware Oxlint, boundaries, guides, design rules.  |
 | `pnpm format:check`                 | Check maintained source and configuration formatting.                         |
 | `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.                     |
 | `pnpm test:integration -- contract` | Build the packages, then run the named service integration test.              |
@@ -379,6 +379,23 @@ discovers this test with the other root tool tests.
 
 Formatting excludes generated output, local progress notes, and the two approved
 design/plan input documents. Their existing formatting is not changed by this task.
+
+### Agent guides and design rules
+
+`tools/check-agents-md.mjs` proves that the root `AGENTS.md` still matches the
+files in `rules/`, which `rules/link.sh` joins into it, and that every app,
+every package, and the `tests` tree carries its own `AGENTS.md` of at most 80
+lines.
+
+`tools/check-design-rules.mjs` parses every `.ts` and `.tsx` under
+`apps/web/src` and `packages/ui/src`, except test files, and refuses a `style`
+JSX attribute, `dangerouslySetInnerHTML`, an `innerHTML` assignment, a colour
+value outside `packages/ui/src/themes/`, a Tailwind arbitrary value,
+`text-xs`, `text-white`, and `bg-black`, plus a `.md` suffix or a UUID inside
+text that a person reads. `tools/design-rules-allow.json` holds the accepted
+exceptions, each with the reason it cannot hold. Both checks accept
+`--root <directory>` for disposable verification inputs, in the same shape as
+the boundary checker, and both have a root tool test.
 
 ## Server, contract and client packages
 

@@ -108,6 +108,7 @@ Start here:
 Development:
 
 - [Architecture](docs/development/architecture.md)
+- [Developing a feature](docs/development/feature-workflow.md)
 - [HTTP API access](docs/development/api.md)
 - [Adding an API operation](docs/development/api-contract.md)
 - [Database](docs/development/database.md)
@@ -117,6 +118,7 @@ Development:
 - [Themes](docs/development/themes.md)
 - [Toolchain](docs/development/toolchain.md)
 - [Verification](docs/development/verification.md)
+- [Architecture decision records](docs/decisions/README.md)
 
 Operations:
 
