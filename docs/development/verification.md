@@ -1,141 +1,98 @@
 # Verification
 
-This document lists the checks, the commands that run them and the budgets
-they enforce. It records no measured value. A measurement belongs in the
-report that the command writes, not in prose, because prose does not fail when
-the code changes.
+This page states what each check proves and where its result is written. It
+records no measured value and no test count. A measurement belongs in the
+report that the command writes, because prose does not fail when the code
+changes.
 
-## Automated gate
+## The gate
 
-The root `pnpm verify` command runs these checks in order:
+`pnpm verify` runs the contract lint, the generated file comparison, the strict
+type check, the lint set, the format check, the unit tests, the integration
+tests against a disposable PostgreSQL, and every production build. It must pass
+before a change is ready.
 
-1. OpenAPI contract lint.
-2. Generated file comparison.
-3. Strict TypeScript compilation.
-4. Exact version checks, type-aware lint, and package boundaries.
-5. Formatting.
-6. Unit tests.
-7. Integration tests against disposable PostgreSQL.
-8. All production builds.
+Start the disposable database once with `tools/test-database/ensure-postgres.sh`.
+It is safe to run again and safe to run while another checkout uses the same
+service.
 
-CI installs the pinned pnpm version, uses the frozen lockfile, starts the
-disposable PostgreSQL service, runs the complete gate, enforces both
-performance commands, and always removes the disposable volume. The workflow
-pins official actions to full commit identifiers.
+Select a subset by name while you work, for example
+`pnpm test:integration -- browser-storage`. Every supplied selector must exist,
+so a typo fails rather than running nothing. A suite with no test prints an
+explicit message; it never claims that tests passed.
 
-## End-to-end browser gate
+Unit test discovery covers `.ts` and `.mjs` test files only, because Node
+cannot strip JSX. A React component is therefore proved by a unit test over the
+pure functions behind it and by the browser gate, never by a component test
+runner.
 
-The browser gate starts the production web build and the real Fastify server
-against a unique PostgreSQL database and storage directory for each worker. It
-creates the session through the visible login form. The tests use the real
-IndexedDB store, generated API client, and sync engine.
+## The browser gate
 
-Ensure that the test database is ready before the gate:
+`pnpm test:e2e` is the gate for the user interface. See
+[decision 0014](../decisions/0014-browser-tests-are-the-interface-gate.md).
 
-```sh
-tools/test-database/ensure-postgres.sh
-```
+The gate starts the production web build and the real server against a unique
+database and storage directory for each worker, and it creates the session
+through the visible login form. The tests use the real IndexedDB store, the
+generated client, and the sync engine, so nothing is stubbed below the
+interface.
 
-Install the supported browser runtimes and their host packages once:
+`playwright.config.ts` defines the projects: the desktop browsers plus emulated
+phone and tablet viewports. An emulated viewport verifies responsive layout and
+touch settings. **It is not evidence from a physical device.**
+
+Install the browser runtimes and their host packages once:
 
 ```sh
 pnpm exec playwright install
 pnpm exec playwright install-deps
 ```
 
-Run the complete matrix with:
-
-```sh
-pnpm test:e2e
-```
-
-Use `pnpm test:e2e:headed` for an interactive Chromium run. Failed and retried
-runs put traces, screenshots, and videos in `test-results/playwright`. The
-HTML report is in `playwright-report` and the machine readable result is
-`test-results/playwright/results.json`. CI publishes both as artefacts. Read
-the count of checks from that report.
-
-The projects are defined in `playwright.config.ts`. They cover desktop
-Chromium, Firefox and WebKit, plus emulated phone and tablet viewports. An
-emulated viewport verifies responsive layout and touch settings. It is not
-evidence from a physical device.
-
-The critical journeys include first-user setup, login styles, responsive
-overflow, drawer focus, create, save, reload, rename, delete, trash restore,
-offline reload, reconnect sync, version history and restore, search, and
-outline. The capability test removes `crypto.randomUUID` and `crypto.subtle`
-before application startup to match the reduced API surface of a plain HTTP
-local-network origin.
+Failed and retried runs write traces, screenshots, and videos, and the machine
+readable result sits next to the HTML report under `test-results/`. Read the
+count of checks from that report, not from a document.
 
 ## What each area proves
 
-| Area                            | Evidence                                                                                                                                          |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Package imports                 | `tools/check-boundaries.mjs` checks cycles, deep imports, browser to server imports, and application HTTP calls outside generated output.         |
-| Request and response validation | `contract.test.ts` checks operation coverage, media types, closed write bodies, invalid input, response shape, cancellation, and identity hooks.  |
-| Row access                      | Identity, row access, revision, and history integration tests check the database row policies.                                                    |
-| Replay order                    | Revision, attachment, history, and sync tests check receipt replay before current preconditions and retain one immutable request digest.          |
-| Immutable history               | Core graph checks and storage constraints reject changed revision identities and invalid parents. History tests check restore and purge behavior. |
-| Multi-file atomicity            | Storage, revision, history, and sync tests force failed changesets and check that no partial state remains.                                       |
-| Local draft preservation        | Browser storage and offline lifecycle tests check transaction rollback, quota failure, later drafts after acknowledgment, and recovery copies.    |
-| Stale draft and stale delete    | Browser storage and sync tests check that a draft over an older head is reported and that a stale delete does not remove newer text.              |
-| Cleanup and purge races         | Attachment and history tests check reference locks, cleanup retries, purge blockers, side-record removal, quota release, and late writes.         |
+| Area                            | Evidence                                                                            |
+| ------------------------------- | ----------------------------------------------------------------------------------- |
+| Package imports                 | `tools/check-boundaries.mjs` and its fixture test.                                  |
+| Request and response validation | `tests/integration/contract.test.ts`, including the operation coverage mapping.     |
+| Row access                      | The identity, row access, revision, and history integration tests.                  |
+| Replay order                    | The revision, attachment, history, and sync tests over receipts and preconditions.  |
+| Immutable history               | The core graph tests and the storage constraints, plus restore and purge behaviour. |
+| Multi-file atomicity            | Forced failed changesets in the storage, revision, history, and sync tests.         |
+| Local draft preservation        | The browser storage and offline lifecycle tests over rollback, quota, and recovery. |
+| Stale draft and stale delete    | The browser storage and sync tests.                                                 |
+| Cleanup and purge races         | The attachment and history tests over reference locks, retries, and late writes.    |
+| One Markdown grammar            | `tests/integration/markdown-equivalence.test.ts` over the shared corpus.            |
+| Documents                       | `tools/check-docs.mjs` over the rules in [the document index](../README.md).        |
 
-## Service performance
+## Performance
 
-Command: `pnpm perf:service`.
+Two commands hold a budget, and each prints its measurement and fails when the
+budget is exceeded. The budgets live in the scripts, so they cannot go stale
+here.
 
-The command builds the server, starts a disposable PostgreSQL, and measures
-the save and search paths in a container with a two CPU limit and a 4 GiB
-memory limit. The corpus is generated, and no note content is printed.
+- `pnpm perf:service` builds the server, starts a disposable PostgreSQL, and
+  measures the save and the search path in a container with a fixed CPU and
+  memory limit. The corpus is generated, and no note content is printed. Save
+  load uses one workspace per active user, because accepted changes in one
+  workspace have a required total order. Search load uses one shared workspace.
+- `pnpm perf:bundle` builds the production web application and measures the
+  compressed JavaScript that the first route actually loads, excluding the
+  deferred editor and rich rendering chunks.
 
-| Operation           | Budget           |
-| ------------------- | ---------------- |
-| Save service time   | p95 below 200 ms |
-| Search service time | p95 below 300 ms |
-
-Save load uses one workspace for each active user, because accepted changes in
-one workspace have a required total order. Search load uses one shared
-workspace with all notes. The command fails when a budget is exceeded and
-prints the measured percentile.
-
-## Web bundle
-
-Command: `pnpm perf:bundle`.
-
-The budget script builds the production web application, reads only JavaScript
-referenced by the built `index.html` script and module preload tags, compresses
-each file with gzip level 9, and excludes deferred editor and rich rendering
-chunks. Deployable assets use `apps/web/dist/web`; TypeScript package output
-uses `apps/web/dist`. Vite cleans the deployable directory on every build, so
-old hashed assets cannot collect in the service worker precache.
-
-| Check                    | Budget              |
-| ------------------------ | ------------------- |
-| Initial JavaScript, gzip | below 256,000 bytes |
-
-The command prints the measured size and fails when the budget is exceeded.
-
-## Local interaction checks
-
-The Node module and IndexedDB adapter checks enforce the local code budgets.
-They do not include browser paint, real storage durability, device scheduling,
-or IME behavior.
-
-| Check                                                   | Budget       |
-| ------------------------------------------------------- | ------------ |
-| Editor typing transaction and changed-line preview scan | below 50 ms  |
-| Local draft save with fake IndexedDB                    | below 150 ms |
-| Cached note read with fake IndexedDB                    | below 150 ms |
-
-The web client also records bounded User Timing measures named
-`notesapp.typing-handler`, `notesapp.local-draft-save`, and
-`notesapp.cached-note-open`. Live preview scans visible full lines only. Rich
-widgets keep oversized content as editable source.
+The local interaction checks bound the typing transaction, the local draft
+save, and a cached note read, using the Node adapters. They do not include
+browser paint, real storage durability, device scheduling, or input method
+behaviour. The web client also records bounded user timing measures with the
+same names, so a browser profile can be compared with them.
 
 ## Evidence limits
 
-The automated matrix is not physical-device evidence. A release assessment
-must still sample the supported physical devices, persistent storage behavior,
-accessibility tools, security controls, and restore procedure in its target
-environment.
+The automated matrix is not physical-device evidence. A release assessment must
+still sample the supported physical devices, persistent storage behaviour,
+accessibility tools, security controls, and the restore procedure in the target
+environment. The restore test is the one that a backup depends on: see
+[Backup and restore](../guide/backup-and-restore.md).

@@ -1,797 +1,119 @@
 # Toolchain
 
-This document records the pinned versions, the compatibility evidence behind
-each pin, and the durable rules that `pnpm lint` enforces. Each version was
-checked against the npm registry and the official release notes before it was
-installed. Recheck a version before you change it and record the evidence
-here.
-
-## Runtime and package manager
-
-Use Node 26.8.1 and pnpm 12.3.4. `.node-version`, `engines`, and `packageManager`
-record the pins. The Node Linux x64 archive was checked against its official
-SHA-256 manifest. The pnpm native package was checked against registry integrity.
-This session keeps both runtimes in ignored `.tooling/` paths. No global runtime
-or Git configuration was changed.
-
-```sh
-export PATH="$PWD/.tooling/bin:$PATH"
-node --version
-pnpm --version
-pnpm install --frozen-lockfile
-```
-
-The local executable paths are `.tooling/bin/node` and `.tooling/bin/pnpm`. A new
-checkout can use an existing installation of the exact versions. The ignored
-local downloads are not part of the build contract.
-
-The [Node release index](https://nodejs.org/dist/index.json) lists 26.8.1 as Current.
-The [pnpm installation guide](https://pnpm.io/installation) describes pnpm 12 as a
-native executable and uses the `latest-12` channel. Its npm installer needs Node
-22.13 or later, while registry engines say `>=18.*`. Node 26.8.1 meets both.
-[Node checksums](https://nodejs.org/dist/v26.8.1/SHASUMS256.txt).
-
-## Checked package versions
-
-Every version below exists as a stable registry release. The link is the exact
-metadata checked. Packages outside the root quality tools are checked, not yet
-installed as application dependencies. Recheck their metadata immediately before
-the task that installs them. Registry availability does not prove runtime behavior.
-
-| Package                                                                                 | Version  | Status          |
-| --------------------------------------------------------------------------------------- | -------- | --------------- |
-| [react](https://registry.npmjs.org/react/19.2.8)                                        | 19.2.8   | Later task      |
-| [react-dom](https://registry.npmjs.org/react-dom/19.2.8)                                | 19.2.8   | Later task      |
-| [vite](https://registry.npmjs.org/vite/8.2.2)                                           | 8.2.2    | Later task      |
-| [react-router](https://registry.npmjs.org/react-router/8.3.1)                           | 8.3.1    | Later task      |
-| [tailwindcss](https://registry.npmjs.org/tailwindcss/4.3.3)                             | 4.3.3    | Later task      |
-| [@base-ui/react](https://registry.npmjs.org/@base-ui/react/1.8.0)                       | 1.8.0    | Later task      |
-| [@codemirror/state](https://registry.npmjs.org/@codemirror/state/6.7.4)                 | 6.7.4    | Later task      |
-| [@codemirror/view](https://registry.npmjs.org/@codemirror/view/6.43.11)                 | 6.43.11  | Later task      |
-| [@codemirror/commands](https://registry.npmjs.org/@codemirror/commands/6.11.0)          | 6.11.0   | Later task      |
-| [@codemirror/language](https://registry.npmjs.org/@codemirror/language/6.12.4)          | 6.12.4   | Later task      |
-| [@codemirror/lang-markdown](https://registry.npmjs.org/@codemirror/lang-markdown/6.5.2) | 6.5.2    | Later task      |
-| [unified](https://registry.npmjs.org/unified/11.0.5)                                    | 11.0.5   | Later task      |
-| [remark-parse](https://registry.npmjs.org/remark-parse/11.0.0)                          | 11.0.0   | Later task      |
-| [remark-gfm](https://registry.npmjs.org/remark-gfm/4.0.1)                               | 4.0.1    | Later task      |
-| [remark-math](https://registry.npmjs.org/remark-math/6.0.0)                             | 6.0.0    | Later task      |
-| [remark-rehype](https://registry.npmjs.org/remark-rehype/11.1.2)                        | 11.1.2   | Later task      |
-| [rehype-sanitize](https://registry.npmjs.org/rehype-sanitize/6.0.0)                     | 6.0.0    | Later task      |
-| [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)                  | 10.0.1   | Later task      |
-| [katex](https://registry.npmjs.org/katex/0.18.5)                                        | 0.18.5   | Later task      |
-| [mermaid](https://registry.npmjs.org/mermaid/11.17.2)                                   | 11.17.2  | Later task      |
-| [fastify](https://registry.npmjs.org/fastify/5.12.3)                                    | 5.12.3   | Installed       |
-| [@redocly/cli](https://registry.npmjs.org/@redocly/cli/2.51.2)                          | 2.51.2   | Installed       |
-| [ajv](https://registry.npmjs.org/ajv/8.20.0)                                            | 8.20.0   | Installed       |
-| [ajv-formats](https://registry.npmjs.org/ajv-formats/3.0.1)                             | 3.0.1    | Installed       |
-| [drizzle-orm](https://registry.npmjs.org/drizzle-orm/0.45.2)                            | 0.45.2   | Installed       |
-| [drizzle-kit](https://registry.npmjs.org/drizzle-kit/0.31.10)                           | 0.31.10  | Installed       |
-| [pg](https://registry.npmjs.org/pg/8.23.0)                                              | 8.23.0   | Installed       |
-| [dexie](https://registry.npmjs.org/dexie/4.4.5)                                         | 4.4.5    | Later task      |
-| [vite-plugin-pwa](https://registry.npmjs.org/vite-plugin-pwa/1.3.0)                     | 1.3.0    | Later task      |
-| [workbox-build](https://registry.npmjs.org/workbox-build/7.4.1)                         | 7.4.1    | Later task      |
-| [typescript](https://registry.npmjs.org/typescript/7.0.2)                               | 7.0.2    | Root tool       |
-| [typescript](https://registry.npmjs.org/typescript/6.0.3)                               | 6.0.3    | SDK generator   |
-| [pnpm](https://registry.npmjs.org/pnpm/12.3.4)                                          | 12.3.4   | Package manager |
-| [oxlint](https://registry.npmjs.org/oxlint/1.81.0)                                      | 1.81.0   | Root tool       |
-| [oxlint-tsgolint](https://registry.npmjs.org/oxlint-tsgolint/7.0.2001)                  | 7.0.2001 | Root tool       |
-| [prettier](https://registry.npmjs.org/prettier/3.9.6)                                   | 3.9.6    | Root tool       |
-| [@hey-api/openapi-ts](https://registry.npmjs.org/@hey-api/openapi-ts/0.99.0)            | 0.99.0   | Installed       |
-| [better-auth](https://registry.npmjs.org/better-auth/1.7.2)                             | 1.7.2    | Installed       |
-| [@better-auth/core](https://registry.npmjs.org/@better-auth/core/1.7.2)                 | 1.7.2    | Installed       |
-| [@better-auth/utils](https://registry.npmjs.org/@better-auth/utils/0.4.2)               | 0.4.2    | Installed       |
-| [@better-fetch/fetch](https://registry.npmjs.org/@better-fetch/fetch/1.3.1)             | 1.3.1    | Installed       |
-| [better-call](https://registry.npmjs.org/better-call/1.4.0)                             | 1.4.0    | Installed       |
-| [nodemailer](https://registry.npmjs.org/nodemailer/10.0.0)                              | 10.0.0   | Installed       |
-| [@types/node](https://registry.npmjs.org/@types/node/26.4.1)                            | 26.4.1   | Root tool       |
-| [oxc-parser](https://registry.npmjs.org/oxc-parser/0.148.0)                             | 0.148.0  | Root tool       |
-
-`@types/node` 26.4.1 matches the runtime major. `oxc-parser` 0.148.0 is an
-additional development dependency. The boundary checker uses its TypeScript AST
-to inspect imports and transport calls. This avoids dependence on the removed
-TypeScript 7 JavaScript compiler API. It requires Node `^20.19.0 || >=22.12.0`.
-
-## Compatibility evidence
-
-- TypeScript 7.0.2 compiles the tooling with `strict`,
-  `noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes`. Its CLI works.
-  Its default export reports the version, but `factory` and `createProgram` are
-  undefined. It does not expose the legacy JavaScript compiler API. The
-  [TypeScript 7 release notes](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)
-  describe the native compiler transition.
-- SDK code generation must own an exact TypeScript 6.0.3 dependency in
-  `tools/sdk-codegen`. The [6.0.3 metadata](https://registry.npmjs.org/typescript/6.0.3)
-  requires Node `>=14.17`. Hey API 0.99.0 requires Node `>=22.18.0` and declares
-  TypeScript peers `>=5.5.3 || >=6.0.0 || 6.0.1-rc`. That broad peer range does
-  not prove compiler API support in TypeScript 7. An isolated local probe ran
-  the generator with the TS 6 compiler API and produced a health-operation SDK.
-  [Hey API release](https://github.com/hey-api/hey-api/releases/tag/@hey-api%2Fopenapi-ts@0.99.0).
-- The probe exposed a real limitation: default generated fetch transport fails
-  strict TS 7 checks with `exactOptionalPropertyTypes`. Reported fields include
-  `serializedBody`, `allowReserved`, `path`, `map`, and SSE request/event fields.
-  The generation process resolves this and the full generated output check
-  passes. Application strict settings remain enabled. No handwritten SDK or
-  transport is added.
-- Better Auth 1.7.2 directly requires `@better-auth/utils` 0.4.2. Retain that
-  nested version; do not override it to a newer major.
-- Rechecked on 2026-09-06 and installed in `apps/server`. Strict peer
-  installation refuses a missing peer, so Better Auth also needs
-  `@better-auth/core` 1.7.2, `@better-auth/utils` 0.4.2,
-  `@better-fetch/fetch` 1.3.1, and `better-call` 1.4.0 as direct dependencies.
-  All four are the exact versions that Better Auth 1.7.2 already resolves, so
-  no second copy is installed.
-- Better Auth 1.7.2 declares optional peers `drizzle-orm` `^0.45.2` and
-  `drizzle-kit` `>=0.31.4`, which the selected versions satisfy. Its Drizzle
-  adapter reads a field through the property name of the table object, so the
-  identity tables in `packages/storage-server/src/schema.ts` use the Better
-  Auth field names as properties and snake case column names.
-- The generic OAuth plugin of 1.7.2 registers a configured provider as a social
-  provider, so an OpenID Connect sign-in uses `/api/auth/sign-in/social` and
-  `/api/auth/callback/:id` rather than separate OAuth 2.0 endpoints. Discovery
-  runs when the auth context is first used, so an unreachable provider fails
-  the first sign-in and not process startup.
-- `nodemailer` 10.0.0 is the SMTP transport of local password recovery. It is
-  an implementation dependency of a design feature, not new product scope. It
-  ships its own type declarations and requires Node `>=20.0.0`. The design
-  names SMTP recovery but no package, so this pin is recorded here.
-  [nodemailer metadata](https://registry.npmjs.org/nodemailer/10.0.0).
-- `fastify` 5.12.3 is also a root development dependency, because
-  `tests/integration/support/identity-provider.ts` runs a small OpenID Connect
-  provider in process. It is the same pinned version that `apps/server` uses.
-  The root already carries `pg` for the same reason.
-- React DOM 19.2.8 requires React `^19.2.8`. Router 8.3.1 requires React and
-  React DOM `>=19.2.7` and Node `>=22.22.0`. The selected versions meet these
-  ranges. Base UI accepts React 19. Optional date and type peers are recorded
-  upstream and must be installed only when needed.
-- Vite 8.2.2 requires Node `^20.19.0 || >=22.12.0`. PWA plugin 1.3.0 accepts
-  Vite 8 and Workbox `^7.4.1`. Its assets generator peer is optional.
-- Ajv formats 3.0.1 accepts Ajv `^8.0.0`. Redocly 2.51.2 accepts Node 26. Use
-  Ajv's explicit 2020-12 entry point for the contract, as described in
-  [Ajv dialect support](https://ajv.js.org/json-schema.html).
-- Drizzle ORM 0.45.2 accepts pg `>=8`; pg 8.23.0 requires Node `>=16`.
-  Better Auth accepts the selected Drizzle ORM and Kit versions.
-- Oxlint 1.81.0 requires Node `^20.19.0 || >=22.12.0` and the selected
-  oxlint-tsgolint version `>=7.0.2001`. Its vite-plus peer is optional.
-  [Oxlint release](https://github.com/oxc-project/oxc/releases/tag/oxlint_v1.81.0).
-- PostgreSQL 18.6 is recorded in its
-  [official release notes](https://www.postgresql.org/docs/release/18.6/).
-  Docker and Compose are reference deployment versions in the design, not
-  installed by this task. The host currently has Docker 26.1.5 and Compose
-  2.26.1. Their application checks belong to the storage and deployment tasks.
-
-## Workspace conventions
-
-`pnpm-workspace.yaml` discovers `apps/*`, `packages/*`, and
-`tools/sdk-codegen`. Installation uses exact versions, strict engines and peers,
-no automatic peer installation, and explicit `workspace:*` links. There are no
-major-version overrides. The lockfile records the installed root tool graph.
-
-Each new package must have its assigned `@notesapp/` name, `package.json`,
-`tsconfig.json`, `src/index.ts`, and `typecheck`, `build`, and `test:unit` scripts.
-Expose only `exports["."]`. Do not expose internal paths. Configure runtime
-exports for the package build. Package test scripts call
-`node ../../tools/run-tests.mjs unit`; the runner uses the current package.
-
-Application packages extend `tsconfig.base.json` and use root TypeScript 7.
-Browser packages add DOM libraries and bundler resolution where required.
-Server packages add Node types. Code generation extends the same strict base
-but invokes its own TypeScript 6 executable. The root tooling context is
-`tsconfig.json`, with strict JavaScript checks for `tools/*.mjs`. The root file
-keeps that name because type-aware lint resolves the nearest `tsconfig.json` for
-each file; every package supplies its own. The recursive root commands run each
-package's own compiler/build script.
-
-### Import extensions
-
-Handwritten relative imports carry an explicit `.ts` extension, for example
-`import { normalizePath } from './path.ts'`. Node's type stripping runs an
-adjacent `*.test.ts` file directly and does not map `./path.js` to `./path.ts`,
-so a `.js` specifier fails at run time. `tsconfig.base.json` therefore sets
-`allowImportingTsExtensions` and `rewriteRelativeImportExtensions`. The first
-accepts the specifier. The second rewrites it to `./path.js` on emit, so a
-package that emits, such as the server or the API client, still builds with
-`tsc`. An emitting package must set an explicit `rootDir`, otherwise `tsc`
-reports TS5011. It must also exclude `**/*.test.ts` in its build configuration,
-so adjacent test files are not emitted into `dist`. The type check
-configuration still covers those files.
-
-This applies to handwritten source only. Generated output keeps the extension
-that its generator writes. Bare package specifiers are unchanged: a package is
-always imported by its public name, never by a file path.
-
-A local probe under `.tooling/compat/ts-extensions/` proved this on 2026-09-05
-with Node 26.8.1 and TypeScript 7.0.2. An `index.test.ts` file that imports
-`./index.ts` passed under `node --test`, type-checked with a `tsconfig.json`
-extending `tsconfig.base.json`, emitted `./index.js` in the compiled output, and
-the emitted file also ran under `node --test`.
-
-## Commands and boundaries
-
-| Command                             | Behavior                                                                      |
-| ----------------------------------- | ----------------------------------------------------------------------------- |
-| `pnpm typecheck`                    | Check tool scripts with TS 7, package type checks, then the integration tree. |
-| `pnpm lint`                         | Check pins and runtime, type-aware Oxlint, boundaries, guides, design rules.  |
-| `pnpm format:check`                 | Check maintained source and configuration formatting.                         |
-| `pnpm test:unit`                    | Run adjacent package tests and root tool tests with Node.                     |
-| `pnpm test:integration -- contract` | Build the packages, then run the named service integration test.              |
-| `pnpm build`                        | Check tools, then run package builds in dependency order.                     |
-| `pnpm contract:lint`                | Check `openapi.yaml` with the strict Redocly rules.                           |
-| `pnpm generate`                     | Bundle the contract, write the validators, and write the SDK.                 |
-| `pnpm generated:check`              | Generate into a temporary directory and compare bytes.                        |
-
-Unit test discovery covers `*.test.ts` and `*.test.mjs` only. It does not
-discover `*.test.tsx`, because Node cannot strip JSX. Until the authorized E2E
-stage, React component behavior is verified by unit tests over the pure
-functions behind a component and by manual inspection, not by a component test
-runner. Integration discovery covers the repository-root `tests/integration`
-tree.
-
-Test selectors match a basename without `.test.ts` or an exact repository-relative
-path. Every supplied selector must exist. A missing selector exits 1. Test
-failures and process failures exit nonzero. An unfiltered suite with no tests
-prints an explicit message; it does not claim that tests passed.
-
-The boundary checker rejects package cycles, disallowed dependency directions,
-deep imports, relative imports outside a package, undeclared imports, browser
-imports of Node modules and server dependencies, and handwritten application
-HTTP transports.
-
-Oxlint runs with `--type-aware --deny-warnings`. It checks import cycles within
-source modules, forbids `any` and non-null assertions, and adds the type-aware
-rules `typescript/no-floating-promises`, `typescript/no-misused-promises`,
-`typescript/await-thenable`, and `typescript/no-unsafe-assignment`. Type-aware
-rules need type information, so a file must be covered by the nearest
-`tsconfig.json`. One override, listed by the two exact generated paths, turns
-off `typescript/no-explicit-any`, `typescript/no-non-null-assertion`,
-`typescript/no-unsafe-assignment`, `typescript/no-redundant-type-constituents`,
-`typescript/no-misused-spread`, and `typescript/no-floating-promises` for
-generated output, which cannot satisfy them. The spread rule was added when the
-first operation with a request body landed: the generated call spreads
-`options.headers`, whose declared type includes an array form. Generated output is otherwise linted like every other file. A later task
-that generates new output may need to extend that exact list; it must not widen
-the glob.
-
-### Browser-safe packages
-
-These packages must run in a browser: `web`, `api-client`, `core`,
-`storage-browser`, `sync`, `markdown`, `editor`, and `ui`. Core is part of this
-set because the design requires core to hold domain rules for both runtimes.
-
-A browser-safe package must not import a Node built-in module. This covers the
-`node:` prefix and the bare built-in names, for example `node:fs`, `fs`,
-`fs/promises`, `path`, and `crypto`. It must not import a Node-only package
-either: `pg`, `fastify`, `fastify-plugin`, `drizzle-orm`, `drizzle-kit`,
-`better-auth`, `sharp`, `dotenv`, and every `@fastify/` or `@better-auth/`
-package. It must not import the server-only workspace packages
-`@notesapp/server` and `@notesapp/storage-server`.
-
-The same rule applies to the package manifest. A browser-safe package cannot
-list such a package in `dependencies`, `optionalDependencies`, or
-`peerDependencies`. Test helpers stay in `devDependencies`, which the browser
-build does not use.
-
-The rule is transitive. The checker records the first Node-only or server-only
-use of every workspace package, then walks the workspace import graph from each
-browser-safe package. A browser-safe package fails when it reaches such a use
-through other workspace packages, and the report names the chain. For example,
-`web` fails when `sync` imports `core` and `core` imports `node:fs`.
-
-### Test files
-
-A recognized test file is a file whose name ends in `.test.ts`, `.test.tsx`, or
-`.test.mjs`, or any file in the repository-root `tests/` tree. A `tests/`
-directory inside a package is not itself an exception; a file there is a test
-file only when its name matches.
-
-A test file must also sit where a command runs it: a package `src` tree, the
-repository-root `tests` tree, or directly in `tools` for a root tool test. The
-checker rejects a test file anywhere else, because no command discovers it and
-it would silently never run. A recognized test file may import `node:test`,
-`node:test/reporters`, `node:assert`, and `node:assert/strict`, also inside a
-browser-safe package. Other Node modules stay forbidden there. Test helper
-packages belong in `devDependencies`; the browser dependency rule ignores that
-group.
-
-A production file must not import a test file. Relative specifiers carry an
-explicit `.ts` extension, so the checker resolves the specifier and applies the
-same recognizer to the resolved path. Test files do not contribute to
-the transitive Node reach above, because they are not part of a browser build.
-Every other rule, including package cycles, deep imports, browser-to-server
-imports, and handwritten HTTP calls, stays active for test files.
-
-### Inspected import forms
-
-The checker parses JavaScript and TypeScript with the oxc parser and inspects
-every import form it produces:
-
-| Form                                           | Handling                               |
-| ---------------------------------------------- | -------------------------------------- |
-| `import x from 'module'`                       | Checked.                               |
-| `export ... from 'module'` and `export * from` | Checked.                               |
-| `import('module')` with a string literal       | Checked.                               |
-| `import('module')` with any other expression   | Rejected as a computed dynamic import. |
-| `type T = import('module').X`                  | Checked.                               |
-| `import x = require('module')`                 | Checked, including a type-only form.   |
-| `require('module')` with a string literal      | Checked.                               |
-| `require(name)` with any other expression      | Rejected as a computed module path.    |
-
-Each rejected form names the file and the reason.
-
-### Transport rules and exact exemptions
-
-The transport names are `fetch`, `XMLHttpRequest`, `WebSocket`, and
-`EventSource`. Handwritten application traffic means any of the following:
-
-- A call or `new` expression on a bare transport name, such as `fetch('/x')` or
-  `new WebSocket('/x')`.
-- A call or `new` expression through a plain property, such as
-  `globalThis.fetch('/x')`, `window.fetch('/x')`, `self.fetch('/x')`, or
-  `new globalThis.WebSocket('/x')`.
-- A reference to a bare transport name in value position, such as
-  `const send = fetch`, which would otherwise hide a call behind an alias.
-- A destructured transport, such as `const { fetch: send } = globalThis` or
-  `const { fetch: send } = deps`. The pattern key is the reference, so a rename
-  does not hide it.
-- Computed access to a transport name, such as `globalThis['fetch']` or
-  `Reflect.get(globalThis, 'fetch')` with a string literal.
-- An import of a direct HTTP library such as `axios`, `undici`, or
-  `@hey-api/client-fetch`.
-
-A transport name that is not a value reference is accepted: a plain property key
-in an object literal such as `{ fetch: 1 }` or `{ fetch: value }`, a member
-property such as the `fetch` in `globalThis.fetch` when it is not called, any
-type position such as `typeof globalThis.fetch` or `{ fetch?: typeof fetch }`,
-and an import or export name.
-
-Do not name a parameter, variable, or other binding after a transport. The
-declaration itself is accepted, but every later use of that name is a value
-reference and is rejected. Choose another name.
-
-A computed access that hides the name behind a variable or an expression, for
-example `globalThis[key]` or `Reflect.get(globalThis, key)`, cannot be proved by
-a static rule. Code review must check semantic wrappers and computed endpoints.
-
-The generated client owns the fetch transport, so the transport rules and the
-HTTP library rule are skipped for the two generated paths,
-`packages/api-client/src/generated/` and `packages/api-contract/src/generated/`.
-Every other rule still applies there, including package direction, deep imports,
-and undeclared dependencies.
-
-Protocol exceptions use exact adapter files:
-`apps/server/src/auth/better-auth.ts`. A protocol adapter also states an exact list of
-the routes it serves, and startup fails when a contract operation that names
-that protocol is not in the list. See `docs/development/api-contract.md`. PWA asset handling uses only
-`apps/web/src/pwa/service-worker.ts`; literal application API paths are rejected
-there. `packages/api-client/src/configure.ts` is the handwritten client
-configuration named in the plan. It may set a base URL and pass a transport
-implementation to the generated client, so a transport reference, computed
-transport access, and URL construction are accepted in that one file. It must
-not call `fetch` itself, so the call and `new` rules stay active for it.
-
-Package direction, browser dependencies, and deep-import checks still apply to
-every exception.
-
-The checker accepts `--root <directory>` for disposable verification inputs.
-`tools/check-boundaries.test.mjs` uses that option. It writes fixture workspaces
-into a temporary system directory, runs the checker against them, and removes
-them again. No fixture is committed as application code. `pnpm test:unit`
-discovers this test with the other root tool tests.
-
-Formatting excludes generated output, local progress notes, and the two approved
-design/plan input documents. Their existing formatting is not changed by this task.
-
-### Agent guides and design rules
-
-`tools/check-agents-md.mjs` proves that the root `AGENTS.md` still matches the
-files in `rules/`, which `rules/link.sh` joins into it, and that every app,
-every package, and the `tests` tree carries its own `AGENTS.md` of at most 80
-lines.
-
-`tools/check-design-rules.mjs` parses every `.ts` and `.tsx` under
-`apps/web/src` and `packages/ui/src`, except test files, and refuses a `style`
-JSX attribute, `dangerouslySetInnerHTML`, an `innerHTML` assignment, a colour
-value outside `packages/ui/src/themes/`, a Tailwind arbitrary value,
-`text-xs`, `text-white`, and `bg-black`, plus a `.md` suffix or a UUID inside
-text that a person reads. `tools/design-rules-allow.json` holds the accepted
-exceptions, each with the reason it cannot hold. Both checks accept
-`--root <directory>` for disposable verification inputs, in the same shape as
-the boundary checker, and both have a root tool test.
-
-## Server, contract and client packages
-
-Every version below was rechecked against the npm registry on 2026-09-05,
-immediately before the install that added it. `pnpm install --frozen-lockfile`
-passes with the committed lockfile.
-
-| Package               | Version | Workspace                                      |
-| --------------------- | ------- | ---------------------------------------------- |
-| `fastify`             | 5.12.3  | `apps/server` dependency                       |
-| `ajv`                 | 8.20.0  | `packages/api-contract` dependency             |
-| `ajv-formats`         | 3.0.1   | `packages/api-contract` dependency             |
-| `@hey-api/openapi-ts` | 0.99.0  | `tools/sdk-codegen` development dependency     |
-| `@redocly/cli`        | 2.51.2  | `tools/sdk-codegen` development dependency     |
-| `typescript`          | 6.0.3   | `tools/sdk-codegen` development dependency     |
-| `typescript`          | 7.0.2   | every other new package development dependency |
-| `@types/node`         | 26.4.1  | `apps/server` and `tools/sdk-codegen`          |
-
-`packages/api-client` has no runtime dependency. The Hey API fetch plugin
-bundles its transport into the generated output, so the client package does not
-install `@hey-api/client-fetch`.
-
-TypeScript 6.0.3 exists only inside `tools/sdk-codegen`. Its package scripts run
-that compiler, so the recursive root `typecheck` never checks the generator with
-TypeScript 7. `tools/check-versions.mjs` already fails a manifest that pins a
-different TypeScript version in either place.
-
-### Compiler settings of the server and contract packages
-
-- Each new package has `tsconfig.json` for type checking and
-  `tsconfig.build.json` for declaration output. The build configuration is
-  `composite`, sets an explicit `rootDir`, and excludes `**/*.test.ts`. A
-  consumer uses `references` to that build configuration, so it reads emitted
-  declarations rather than another package's sources.
-- `packages/api-client` sets `exactOptionalPropertyTypes: false` in both of its
-  configurations, as the design requires. Every consumer keeps
-  `exactOptionalPropertyTypes: true`.
-  `tools/exact-optional/fixture.ts` and `tools/check-exact-optional.test.mjs`
-  prove that: the fixture assigns `undefined` to an optional member of the
-  generated `GetReadinessData` query type, and the test fails when that no
-  longer reports TS2375 or TS2379. `pnpm test:unit` runs it.
-- Only `apps/server`, `tests/integration`, and `tools/sdk-codegen` set
-  `skipLibCheck: true`. The server and the integration tree need it because
-  Fastify pulls in `pino` and then `thread-stream` 4.2.0, whose
-  `index.d.ts` line 96 reports
-  `TS2694: Namespace '"worker_threads"' has no exported member 'TransferListItem'`
-  against `@types/node` 26.4.1. The generator workspace needs it because the
-  Hey API 0.99.0 declarations do not compile under TypeScript 6.0.3.
-  `packages/api-contract` and `packages/api-client` check their library
-  declarations in full.
-- `packages/api-contract` reaches the Ajv formats plugin through
-  `ajvFormats.default(...)`. Ajv formats ships CommonJS, so Node binds a default
-  import to `module.exports` and the plugin function is its `default` member.
-- `tests/integration/tsconfig.json` covers the integration tree, so type-aware
-  Oxlint finds a configuration for those files. The root `typecheck` script runs
-  it after the package type checks.
-- The root `test:integration` script builds every package first, because the
-  integration tests import workspace packages through their published `dist`
-  entry points.
-- The root `test:unit` script builds only `@notesapp/api-contract`,
-  `@notesapp/api-client`, and `@notesapp/core`. Those are the packages that an
-  adjacent unit test reaches through `dist`: `apps/server/src/config.test.ts`
-  and its neighbours import `@notesapp/api-contract`. An adjacent test in
-  another package must not import a workspace package through `dist` unless
-  that package is added to this filter list in the same change, otherwise
-  `pnpm test:unit` fails on a missing build output.
-- Error classes avoid TypeScript parameter properties. Node's type stripping
-  runs an adjacent `*.test.ts` file directly and rejects that syntax.
-
-### Generated output
-
-`pnpm generate` runs three steps in a fixed order: Redocly bundles and
-dereferences `packages/api-contract/openapi.yaml`, the operation index and its
-Ajv validators are written to `packages/api-contract/src/generated/`, and Hey
-API writes the SDK to `packages/api-client/src/generated/`. `pnpm
-generated:check` runs the same code into a temporary directory and compares
-every produced file byte for byte, so it needs no Git history.
-
-The generator sets `output.module.extension` to `.js` and does not set
-`output.tsConfigPath`. Ajv standalone code output was not used: it emits
-JavaScript, and both generated modules must compile and emit through the
-package's TypeScript declaration build. Ajv compiles each schema once when
-`packages/api-contract/src/generated/validators.ts` is first imported.
-
-The `.oxlintrc.json` override for the two generated globs now also turns off
-`typescript/no-redundant-type-constituents` and
-`typescript/no-floating-promises`. The generated fetch transport trips both. The
-globs were not widened.
-
-`tools/check-boundaries.mjs` now applies the transport call and reference rules
-to the repository-root `tests/` tree as well. A test is application code: it
-calls a generated operation, or the framework's in-process `app.inject()`
-utility for a request that no operation can express. Nothing in that tree is
-exempt.
-
-## The core package
-
-`packages/core` holds the shared domain rules. It has no runtime dependency, so
-nothing new was installed for the browser. Its only development dependencies are
-`typescript` 7.0.2 and `@types/node` 26.4.1, both rechecked against the registry
-on 2026-09-05 and already used elsewhere in this workspace.
-
-A browser-safe package that keeps adjacent tests follows this pattern:
-
-- `tsconfig.json` sets `types: ["node"]`, because the type check covers the
-  adjacent `*.test.ts` files and those files import `node:test` and
-  `node:assert/strict`.
-- `tsconfig.build.json` excludes `src/**/*.test.ts` and keeps the empty `types`
-  list of `tsconfig.base.json`. An adjacent test is therefore never emitted into
-  `dist`, and production sources compile without any Node global, so a
-  browser-only rule cannot reach `process` or `Buffer` unnoticed. The boundary
-  checker already rejects a `node:` import there.
-- `@types/node` stays in `devDependencies`. The browser build does not read that
-  group, and the boundary checker allows a test helper only in that group.
-
-`packages/core` does not set `skipLibCheck`. It has no third-party runtime
-declarations to skip, so the strict base setting stays in force.
-
-`tools/actor-brand/` holds a second compile-time proof, built on the pattern of
-`tools/exact-optional/`. `fixture.ts` assigns a plain object to `Actor` and
-passes it to `authorize`. `tools/check-actor-brand.test.mjs` builds
-`packages/core`, compiles the fixture, and fails when the two expected errors
-about the missing verified actor marker disappear. The fixture reads the
-package through its emitted declarations. TypeScript 7 removed `baseUrl`, so
-its `paths` entry is written relative to the configuration file.
-
-## The Markdown package
-
-`packages/markdown` holds the shared Markdown parser, reference extraction, and
-safe renderer. It is a browser-safe package, so every runtime dependency below
-is browser-safe too and nothing in it reads a file or opens a connection.
-
-The versions were rechecked against the registry on 2026-09-06 with
-`npm view <package> dist-tags.latest`. Each one is the newest stable release of
-its major line, so nothing moved past the design baseline and no prerelease was
-used.
-
-| Package                                                                       | Version | Purpose                                                           |
-| ----------------------------------------------------------------------------- | ------- | ----------------------------------------------------------------- |
-| [unified](https://registry.npmjs.org/unified/11.0.5)                          | 11.0.5  | Processor that holds the parse, transform, and serialize stages.  |
-| [remark-parse](https://registry.npmjs.org/remark-parse/11.0.0)                | 11.0.0  | CommonMark parsing with source positions.                         |
-| [remark-gfm](https://registry.npmjs.org/remark-gfm/4.0.1)                     | 4.0.1   | Tables, task list items, strikethrough, autolinks, and footnotes. |
-| [remark-math](https://registry.npmjs.org/remark-math/6.0.0)                   | 6.0.0   | Inline and display math nodes.                                    |
-| [remark-rehype](https://registry.npmjs.org/remark-rehype/11.1.2)              | 11.1.2  | Markdown tree to HTML tree, with raw HTML dropped.                |
-| [rehype-sanitize](https://registry.npmjs.org/rehype-sanitize/6.0.0)           | 6.0.0   | Element, attribute, and scheme allow list.                        |
-| [rehype-stringify](https://registry.npmjs.org/rehype-stringify/10.0.1)        | 10.0.1  | HTML serialization with text escaping.                            |
-| [unist-util-visit](https://registry.npmjs.org/unist-util-visit/5.1.0)         | 5.1.0   | Tree walking for extraction and the URL pass.                     |
-| [mdast-util-to-string](https://registry.npmjs.org/mdast-util-to-string/4.0.0) | 4.0.0   | Plain text of a link label.                                       |
-| [@types/mdast](https://registry.npmjs.org/@types/mdast/4.0.4)                 | 4.0.4   | Declares the `mdast` module, including the public `Root` type.    |
-| [@types/hast](https://registry.npmjs.org/@types/hast/3.0.5)                   | 3.0.5   | Declares the `hast` module used by the renderer stage.            |
-
-GFM covers footnotes, so no separate footnote extension is installed. No front
-matter extension is installed either: the design requires front matter to stay
-document content.
-
-The two declaration packages are runtime dependencies and not development
-dependencies, because the public API returns an mdast `Root`. A consumer of the
-emitted declarations needs that module to resolve.
-
-### Compiler settings of the Markdown package
-
-`packages/markdown` sets `lib: ["ES2024", "DOM"]` in both its type check and its
-build configuration. The `vfile` declarations that unified depends on reference
-the WHATWG `URL` global, which the base `ES2024` library does not declare. The
-alternative was `skipLibCheck: true`, which would have stopped checking every
-third-party declaration in the package. Adding the browser library keeps
-`skipLibCheck: false` in force and matches the runtime: this package runs in the
-browser. Production sources still list no `types`, so no Node global is
-reachable.
-
-The package keeps the core package pattern otherwise: `types: ["node"]` for the type
-check only, `src/**/*.test.ts` excluded from the build, and `@types/node` in
-`devDependencies`.
-
-### Declaration packages and the boundary checker
-
-`tools/check-boundaries.mjs` now accepts `@types/<name>` in a manifest as the
-declaration of an import of `<name>`. TypeScript resolves `import type { Root }
-from 'mdast'` through `@types/mdast`, so the module has a declared owner even
-though no dependency is literally named `mdast`. Without this rule a package
-could only satisfy the checker by adding a fake dependency.
-
-The rule covers a type-only import and nothing else: `import type`,
-`export type`, and a type position `import('module')`. Those load nothing at
-run time. A value import of the same name still needs the runtime package, so
-`import lodash from 'lodash'` fails when only `@types/lodash` is declared, and
-a mixed import such as `import { type A, B }` is treated as a value import.
-Four fixtures in `tools/check-boundaries.test.mjs` cover both outcomes. Every
-other rule is unchanged, and an import with no declaration package at all is
-still rejected.
-
-### The shared corpus
-
-The corpus lives in `packages/markdown/test-data/content.ts` and exports the
-document as a string, rather than in a `content.md` file. Two repository rules
-force this. A browser-safe package may import only `node:test` and
-`node:assert` in a test, so a test cannot read a file from disk. Prettier also
-formats every `.md` file, and the corpus holds deliberately malformed Markdown
-that formatting would repair. A template literal in a TypeScript file is left
-exactly as written, so the byte offsets that the range tests assert stay stable.
-
-### Bounded Markdown parsing
-
-NotesApp is one self hosted deployment with one author, and that author is the
-only person who can put text in front of the parser. `packages/markdown` states
-two limits, and they guard against an accident rather than against an attack:
-
-| Limit                               | Value | Reason code     |
-| ----------------------------------- | ----- | --------------- |
-| Document size                       | 1 MiB | `input-size`    |
-| Nesting levels written by an author | 100   | `nesting-depth` |
-
-The size is measured in UTF-8 bytes, so a note of two-byte characters reaches
-the cap at half as many characters.
-
-Nesting is checked twice. Before the parse, one pass reads the prefix of each
-line and counts the block quote markers, the list markers, and the four-column
-indentation levels it holds. This pass exists because nesting is the one shape
-that can stop the parser rather than slow it down: a line of one million `>`
-characters never finished parsing, and the prefix scan refuses it after one
-hundred comparisons. After the parse, the tree is measured again, because
-inline constructs such as repeated emphasis nest without a line prefix.
-
-Both counts are in levels an author wrote: the `list` wrapper above each list
-item does not count, and the leaf block with its text is subtracted, so 100
-nested block quotes and 100 nested list items are both accepted and 101 of
-either is refused.
-
-There is no wall-clock timeout and no parse cost score. A timeout would bound
-one render on one machine and would make the outcome depend on the load of that
-machine, so the same note could render for one reader and fail for another. An
-earlier version of this package carried thirteen limits and a cost pre-scan; it
-was 780 source lines of defence against an attacker who does not exist in this
-product, and it was removed.
-
-Every entry point parses through `parseMarkdown`, so `renderMarkdown`,
-`extractLinks`, and `extractAttachmentRefs` are all bounded by both checks. A
-refused document throws `MarkdownLimitError`; it is never truncated, because a
-half note looks like data loss.
-
-The message on that error is technical, so it never reaches an author.
-`packages/storage-server/src/markdown-limits.ts` maps the error to a domain
-failure code, `note_too_large` or `note_too_deep`, and the HTTP boundary
-answers 422 with the problem code `unrenderable_note` and the sentence "This
-note is too large to render." or "This note nests too deeply to render." The
-boundary maps the raw error the same way, so no path can answer 500 for a note
-that the parser refuses.
-
-### Byte order marks and reported ranges
-
-The parser removes a leading U+FEFF before it assigns offsets, so a tree offset
-is relative to the text after the mark. `extractLinks` and
-`extractAttachmentRefs` add its length back, so every reported range addresses
-the string the caller passed in and `source.slice(from, to)` returns the
-reported text. `parseMarkdown` returns the tree as the parser built it.
-
-### Restricted globals in shared packages
-
-`.oxlintrc.json` adds a `no-restricted-globals` override for
-`packages/core/src/**` and `packages/markdown/src/**`, excluding `*.test.ts`.
-The restricted names are `document`, `window`, `navigator`, `location`,
-`localStorage`, `sessionStorage`, `fetch`, `process`, `Buffer`, and `require`.
-A package that both runtimes share must not reach for a DOM global or a Node
-global, and the boundary checker sees imports only. This matters more since
-`packages/markdown` loads the `DOM` type library, which makes those names
-resolve during the type check.
-
-## Database packages
-
-Every version below was rechecked against the npm registry on 2026-09-06,
-immediately before the install that added it.
-
-| Package       | Version | Workspace                                          |
-| ------------- | ------- | -------------------------------------------------- |
-| `drizzle-orm` | 0.45.2  | `packages/storage-server` dependency               |
-| `pg`          | 8.23.0  | `packages/storage-server` dependency               |
-| `drizzle-kit` | 0.31.10 | `packages/storage-server` development dependency   |
-| `@types/pg`   | 8.23.1  | `packages/storage-server` development dependency   |
-| `pg`          | 8.23.0  | root development dependency, for integration tests |
-| `@types/pg`   | 8.23.1  | root development dependency, for integration tests |
-| PostgreSQL    | 18.6    | `compose.test.yaml`, pinned by image digest        |
-
-`drizzle-orm` 0.45.2 and `pg` 8.23.0 are the newest stable releases.
-`drizzle-kit` 0.31.10 is the newest stable release of its line. Drizzle also
-publishes 1.0.0 release candidates; the dependency policy forbids a prerelease,
-so the 0.x lines stay. `@types/pg` 8.23.1 is the newest stable release, one
-patch above the design's note, so that patch is pinned. `drizzle-orm` declares
-`pg` and `@types/pg` as optional peers, and both are satisfied inside the
-package that installs them.
-
-`pg` and `@types/pg` are also root development dependencies, because the row
-access tests must issue direct statements. Table rights, row level security,
-and immutability triggers are database guarantees that no application call
-exposes. The boundary checker still forbids a handwritten transport there; a
-database driver is not an HTTP transport.
-
-The root also gains `@notesapp/core` and `@notesapp/storage-server` as
-development dependencies, so the repository-root `tests/integration` tree can
-import their public entry points, as it already does for the server and the
-generated client.
-
-`packages/storage-server` sets `skipLibCheck: true` in both of its compiler
-configurations. The published Drizzle declarations do not compile under
-TypeScript 7 with the strict base settings: they report errors inside the Gel,
-MySQL, and SingleStore dialect files, which this package never loads.
-Application sources are still checked in full, and the package keeps `strict`,
-`noUncheckedIndexedAccess`, and `exactOptionalPropertyTypes`.
-
-`packages/storage-server/tsconfig.json` also includes `drizzle.config.ts`, so
-type-aware lint finds a compiler configuration for that file. The build
-configuration keeps `rootDir: "src"` and excludes it.
-
-`pnpm-workspace.yaml` gained `allowBuilds: { esbuild: false }`. pnpm 12 refuses
-an install that has unreviewed build scripts. `drizzle-kit` depends on
-`esbuild`, whose install script was checked and is not needed: `drizzle-kit
-generate` runs correctly with the script disabled, because the platform binary
-arrives through esbuild's optional dependencies.
-
-### Database commands
-
-| Command                            | Behavior                                                      |
-| ---------------------------------- | ------------------------------------------------------------- |
-| `pnpm db:generate`                 | Writes the next Drizzle schema migration. No database needed. |
-| `pnpm db:migrate --profile test`   | Migrates the Compose test database.                           |
-| `pnpm db:migrate --profile deploy` | Migrates the operator database from protected files.          |
-
-The migration command requires an explicit profile and refuses a database whose
-name does not match the profile. `docs/development/database.md` records the
-schema, the roles, the row access design, the deferrable accepted path, the
-immutability triggers, the test database procedure, and the migration
-procedure.
-
-Node runs `packages/storage-server/src/migrate.ts` directly through its type
-stripping, so the migration command needs no build step. The file guards its
-command entry point with `import.meta.main`, so importing it starts nothing.
-
-### The test service role model
-
-`compose.test.yaml` uses the image superuser for initialization only.
-`tools/test-database/init.sql` runs once in `/docker-entrypoint-initdb.d` and
-creates the migration role `notesapp_migrate` with `LOGIN`, `CREATEROLE`,
-`CREATEDB`, `NOSUPERUSER`, and `NOBYPASSRLS`, plus the database `notesapp_test`
-that it owns. Every check therefore runs under the production role model. A
-superuser migration role would bypass row level security, and FORCE row level
-security would prove nothing.
-
-## Sync and browser storage packages
-
-`packages/sync` holds the local persistence port and the pure checkpoint rules.
-`packages/storage-browser` implements that port with IndexedDB. Both are
-browser-safe packages, so the boundary checker forbids a Node module, a
-server-only workspace package, and a handwritten HTTP transport in either.
-
-Every version below was rechecked against the npm registry on 2026-09-06 with
-`npm view <package> dist-tags`, immediately before the install that added it.
-
-| Package                                                           | Version | Workspace                                   |
-| ----------------------------------------------------------------- | ------- | ------------------------------------------- |
-| [dexie](https://registry.npmjs.org/dexie/4.4.5)                   | 4.4.5   | `packages/storage-browser` dependency       |
-| [fake-indexeddb](https://registry.npmjs.org/fake-indexeddb/6.2.5) | 6.2.5   | root development dependency, for Node tests |
-
-`dexie` 4.4.5 is the newest stable release and matches the design baseline. Its
-other published tags are a 3.x maintenance line and a pull request preview, and
-the dependency policy forbids both. `fake-indexeddb` 6.2.5 is the newest stable
-release and matches the plan's recorded version. It declares no peer
-dependency, so strict peer installation is unaffected.
-
-The root also gains `@notesapp/sync` and `@notesapp/storage-browser` as
-development dependencies, so the repository-root `tests/integration` tree can
-import their public entry points, as it already does for core and server
-storage.
-
-### Importing Dexie
-
-`packages/storage-browser` imports the **named** export:
-
-```ts
-import { Dexie, type DexieOptions, type Table } from 'dexie';
-```
-
-The package's default export describes a CommonJS module, so under
-`module: NodeNext` without `esModuleInterop` a default import is typed as the
-module namespace and `new Dexie(...)` does not compile. The named `Dexie` is a
-merged declaration: the constructor value, the database type, and the namespace
-that carries `minKey` and `maxKey`. One import therefore covers every use, and
-`esModuleInterop` stays off.
-
-### Compiler settings of the sync and browser storage packages
-
-Both packages set `lib: ["ES2024", "DOM"]` in their type check and build
-configurations. The port declares a `Blob` for attachment content and the
-storage package uses `IDBFactory` and `IDBKeyRange` in its injected options.
-These are browser types, and both packages run in the browser, so adding the
-library keeps `skipLibCheck: false` in force. Production sources still list no
-`types`, so no Node global is reachable.
-
-Otherwise both keep the core package pattern: `types: ["node"]` for the type check
-only, `src/**/*.test.ts` excluded from the build, `@types/node` in
-`devDependencies`, and project references to the packages they depend on.
+This document owns the dependency policy, the compiler policy, and the checks
+that `pnpm lint` runs. It records no version number and no measured result.
+The manifests hold the versions, and `tools/check-versions.mjs` fails the gate
+when a manifest and the installed tree disagree.
+
+## Versions
+
+Node and pnpm are pinned in `.node-version`, and in `engines` and
+`packageManager` in the root `package.json`. Every dependency is pinned to an
+exact version, in the manifest of the package that uses it.
+
+- Check a version against the registry and the release notes before you change
+  it. Registry availability does not prove runtime behaviour.
+- A prerelease is refused. A release candidate line stays unused while a stable
+  line exists.
+- `pnpm install` uses exact versions, strict engines, strict peers, no
+  automatic peer installation, and explicit `workspace:*` links. There is no
+  major version override.
+- pnpm refuses an unreviewed build script. `pnpm-workspace.yaml` lists the
+  ones that were read and decided.
+
+A version change is one commit over the manifest and the lockfile. The
+evidence belongs in that commit body, not here.
+
+## Packages
+
+`pnpm-workspace.yaml` names the workspace globs. Each package carries its
+`@notesapp/` name, a `package.json`, a `tsconfig.json`, a `src/index.ts`, and
+`typecheck`, `build`, and `test:unit` scripts.
+
+A package exposes only `exports["."]`. It publishes no internal path, so a
+consumer cannot reach past the public entry and a boundary stays provable.
+
+Each app, each package, and the `tests` tree carries its own `AGENTS.md` with
+the rules of that directory. Read it before you edit under it.
+
+## Compiler settings
+
+`tsconfig.base.json` holds the strict settings that every package inherits.
+Each package then has two configurations: `tsconfig.json` for the type check,
+which covers the adjacent `*.test.ts` files, and `tsconfig.build.json` for the
+declaration emit, which excludes them. A consumer uses `references` to the
+build configuration, so it reads emitted declarations and not another
+package's sources.
+
+Three settings need a reason before they are changed.
+
+- **`skipLibCheck`.** It stays off. A package turns it on only when a
+  third-party declaration does not compile under the strict base, and the
+  reason belongs in a comment next to the setting. Application sources are
+  still checked in full.
+- **`exactOptionalPropertyTypes`.** It stays on everywhere except inside
+  `packages/api-client`, whose generated vendor transport does not compile with
+  it. `tools/check-exact-optional.test.mjs` fails when a consumer stops
+  enforcing it.
+- **`lib`.** A browser package that needs a browser type adds the `DOM`
+  library rather than turning off `skipLibCheck`.
+
+A handwritten relative import carries an explicit `.ts` extension. Node's type
+stripping runs an adjacent test file directly and does not map `./path.js` to
+`./path.ts`, so a `.js` specifier fails at run time. The base configuration
+accepts the specifier and rewrites it on emit. An emitting package sets an
+explicit `rootDir` and excludes `**/*.test.ts` from its build. Generated output
+keeps the extension its generator writes.
+
+An error class avoids a TypeScript parameter property for the same reason.
+
+## The checks
+
+`pnpm lint` runs these in order. Each takes `--root <directory>` and has a root
+tool test that builds a disposable fixture tree.
+
+| Check                          | Proves                                                             |
+| ------------------------------ | ------------------------------------------------------------------ |
+| `tools/check-versions.mjs`     | The installed runtime matches the pins in the manifests.           |
+| `oxlint --type-aware`          | The source rules, with type information, and no warning survives.  |
+| `tools/check-boundaries.mjs`   | The package graph, the browser rule, and the transport rule.       |
+| `tools/check-agents-md.mjs`    | The root guide matches `rules/`, and each directory has its guide. |
+| `tools/check-docs.mjs`         | The documentation rules of `docs/README.md`.                       |
+| `tools/check-design-rules.mjs` | The styling and user-facing text rules of the interface code.      |
+
+`tools/check-boundaries.mjs` holds the rules that
+[Architecture](architecture.md) states. It parses every source file rather than
+matching text, so an import cannot hide behind an alias, a destructuring, or a
+computed member access. A module path it cannot resolve statically is refused
+rather than ignored.
+
+Two rules need care when you read a failure.
+
+- **Do not name a binding after a transport.** `fetch`, `XMLHttpRequest`,
+  `WebSocket`, and `EventSource` are refused in value position, so a variable
+  with one of those names fails at its first use. Choose another name. A type
+  position and a plain object key are accepted.
+- **A declaration package satisfies a type-only import.** `@types/<name>` in
+  the manifest declares an `import type` of `<name>`. A value import of the
+  same name still needs the runtime package.
+
+Every exemption is an exact file path or an exact generated directory, never a
+glob that a later task can widen. An exemption turns off one rule and leaves
+the others in force. Add a fixture to the checker's test in the same change
+that adds an exemption.
+
+`.oxlintrc.json` also refuses a DOM global and a Node global inside the
+packages that both runtimes share. The boundary checker sees imports only, so a
+package that loads the `DOM` type library could otherwise reach `document` or
+`process` with no import at all.
+
+## Generation
+
+`pnpm generate` rewrites the contract index and the typed client.
+`pnpm generated:check` runs the same code into a temporary directory and
+compares the bytes, so it needs no Git history. Never edit a file under a
+`src/generated/` directory. See [Adding an API operation](api-contract.md).
+
+`tools/sdk-codegen` owns its own TypeScript version, because the generator
+reads a compiler API that the root version does not expose. Its package
+scripts run that compiler, so the recursive root type check never uses it.
