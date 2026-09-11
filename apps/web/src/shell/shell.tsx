@@ -61,34 +61,47 @@ import {
   useTheme,
   useWorkspaceSync,
 } from '../app.tsx';
-import { AttentionLink, useAttentionCount } from './attention-link.tsx';
+import {
+  AttentionLink,
+  useAttentionCount,
+} from '../features/attention/attention-link.tsx';
 import { CommandPalette } from './command-palette.tsx';
 import { FilesProvider, useFiles, useOpenFolders } from './files.tsx';
-import { NewFolderDialog, RenameFolderDialog } from './folders.tsx';
-import { NewNoteButton, useCreateNote } from './new-note.tsx';
-import { NoteActionsScope, useNoteActions } from './note-actions.tsx';
+import {
+  NewFolderDialog,
+  RenameFolderDialog,
+} from '../features/folders/folders.tsx';
+import { NewNoteButton, useCreateNote } from '../features/notes/new-note.tsx';
+import {
+  NoteActionsScope,
+  useNoteActions,
+} from '../features/editor/note-actions.tsx';
 import {
   ancestorFolders,
   buildNoteTree,
   notesInFolder,
   type NoteSummary,
   type TreeNode,
-} from './note-list.ts';
+} from '../lib/note-list.ts';
 import { drawerClassName } from './drawer.ts';
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
-import { deleteNotes } from './note-delete.ts';
-import { displayNoteName } from './note-name.ts';
-import { folderOf } from './relative-time.ts';
+import { deleteNotes } from '../features/editor/note-delete.ts';
+import { displayNoteName } from '../lib/note-name.ts';
+import { folderOf } from '../lib/relative-time.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
-import { NoteSaveScope, useNoteSave, useOnline } from './save-status.tsx';
+import {
+  NoteSaveScope,
+  useNoteSave,
+  useOnline,
+} from '../features/editor/save-status.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
-import { syncStateMessage } from './sync-state.ts';
+import { syncStateMessage } from '../lib/sync-state.ts';
 import { RequireCurrentWorkspace } from './workspaces.tsx';
 import {
   DeleteNoticeBar,
   DeleteNoticeProvider,
   useDeleteNotice,
-} from './trash.tsx';
+} from '../features/trash/trash.tsx';
 
 /** One note row of the tree. */
 function NoteRow({

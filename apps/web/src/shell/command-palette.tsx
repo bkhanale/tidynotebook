@@ -19,7 +19,7 @@ import { useNavigate } from 'react-router';
 import { searchFiles as searchRemote } from '@notesapp/api-client';
 import { searchLocal, type LocalStore } from '@notesapp/sync';
 import { Dialog, SearchIcon } from '@notesapp/ui';
-import { displayNoteName } from './note-name.ts';
+import { displayNoteName } from '../lib/note-name.ts';
 import {
   mergeHits,
   rankActions,
@@ -28,7 +28,7 @@ import {
   type PaletteAction,
   type PaletteHit,
   type PaletteNote,
-} from './palette-items.ts';
+} from '../lib/palette-items.ts';
 
 /** How many notes the list can hold at once. */
 const noteLimit = 12;

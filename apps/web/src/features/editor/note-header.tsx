@@ -22,12 +22,12 @@ import {
   TrashIcon,
   type MenuItem,
 } from '@notesapp/ui';
-import { noteTitleClassName } from './note-header-layout.ts';
+import { noteTitleClassName } from '../../lib/note-header-layout.ts';
 import {
   buttonEnabled,
   buttonLabel,
   type SaveButtonState,
-} from './save-state.ts';
+} from '../../lib/save-state.ts';
 
 /** What the overflow menu of the note screen can do. */
 export type NoteMenuHandlers = {

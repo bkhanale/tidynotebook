@@ -28,9 +28,9 @@ import {
   removeEmptyFolders as removeEmptyFoldersPure,
   rewriteEmptyFolders,
   withEmptyFolder,
-} from './empty-folders.ts';
-import { mergeNotes, type NoteSummary } from './note-list.ts';
-import { folderPaths } from './note-name.ts';
+} from '../lib/empty-folders.ts';
+import { mergeNotes, type NoteSummary } from '../lib/note-list.ts';
+import { folderPaths } from '../lib/note-name.ts';
 
 /** What every screen reads about the notes of the open area. */
 export type FilesValue = {

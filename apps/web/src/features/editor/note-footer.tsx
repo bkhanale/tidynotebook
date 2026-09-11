@@ -6,7 +6,7 @@
  * buffer of the open editor, so they are right while the person types.
  */
 import type { ReactNode } from 'react';
-import { relativeTime } from './relative-time.ts';
+import { relativeTime } from '../../lib/relative-time.ts';
 
 /** Counts the words of a Markdown buffer. */
 export function wordCount(text: string): number {

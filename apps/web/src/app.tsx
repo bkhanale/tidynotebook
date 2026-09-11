@@ -43,15 +43,15 @@ import {
   type AppearanceChoice,
   type Theme,
 } from '@notesapp/ui';
-import { displayNoteName } from './features/note-name.ts';
-import { problemSentence } from './features/problem-text.ts';
+import { displayNoteName } from './lib/note-name.ts';
+import { problemSentence } from './lib/problem-text.ts';
 import {
   startingSyncState,
   syncStateFileId,
   syncStateOfNotice,
   syncStateOfQueue,
   type SyncState,
-} from './features/sync-state.ts';
+} from './lib/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */

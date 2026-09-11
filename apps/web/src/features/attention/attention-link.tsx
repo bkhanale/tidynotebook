@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { LocalStore, RecoveryRecord } from '@notesapp/sync';
-import { parkedSaves, type ParkedSave } from './parked-saves.ts';
+import { parkedSaves, type ParkedSave } from '../../lib/parked-saves.ts';
 
 /** The heading and the link text of the screen. */
 export const attentionTitle = 'Needs attention';

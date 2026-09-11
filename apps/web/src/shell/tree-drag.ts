@@ -16,9 +16,9 @@ import {
   type DragEvent as ReactDragEvent,
 } from 'react';
 import type { LocalStore } from '@notesapp/sync';
-import { planDrop, type DragItem } from './folder-moves.ts';
-import { applyMoves } from './folders.tsx';
-import type { NoteSummary } from './note-list.ts';
+import { planDrop, type DragItem } from '../lib/folder-moves.ts';
+import { applyMoves } from '../features/folders/folders.tsx';
+import type { NoteSummary } from '../lib/note-list.ts';
 
 /** The media type of one dragged row. It stays inside this application. */
 const dragMediaType = 'application/x-notesapp-tree';

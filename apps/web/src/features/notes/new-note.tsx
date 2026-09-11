@@ -11,8 +11,8 @@ import { useNavigate } from 'react-router';
 import { generateUUID } from '@notesapp/core';
 import { isLocalStorageError, type LocalStore } from '@notesapp/sync';
 import { Button, PlusIcon } from '@notesapp/ui';
-import { freeNotePath, newNoteDraft } from './new-note-draft.ts';
-import { displayNoteName } from './note-name.ts';
+import { freeNotePath, newNoteDraft } from '../../lib/new-note-draft.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
 
 /** Creates one empty note and opens it. */
 export function useCreateNote(

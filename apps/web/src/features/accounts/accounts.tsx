@@ -37,12 +37,12 @@ import {
   useSession,
   useTheme,
   useWorkspace,
-} from '../app.tsx';
+} from '../../app.tsx';
 import {
   signOut as endSession,
   revokeSessionViaClient,
-} from '../pwa/lifecycle.ts';
-import { downloadAll } from './export.ts';
+} from '../../pwa/lifecycle.ts';
+import { downloadAll } from '../export/export.ts';
 
 /** Redirects to login when no session exists. */
 export function RequireSession({

@@ -9,14 +9,14 @@
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
 import { Page, PageHeader, StatusRegion } from '@notesapp/ui';
-import { useLocalStore, useSession } from '../app.tsx';
-import { useFiles } from './files.tsx';
-import { MoveNoteDialog } from './folders.tsx';
-import { useDocumentTitle } from './document-title.ts';
-import { displayNoteName } from './note-name.ts';
+import { useLocalStore, useSession } from '../../app.tsx';
+import { useFiles } from '../../shell/files.tsx';
+import { MoveNoteDialog } from '../folders/folders.tsx';
+import { useDocumentTitle } from '../../shell/document-title.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
 
 const NoteEditorLoader = lazy(async () => ({
-  default: (await import('./note-editor.tsx')).NoteEditorLoader,
+  default: (await import('../editor/note-editor.tsx')).NoteEditorLoader,
 }));
 
 /** One note: unknown, purged, empty, and readable states stay distinct. */

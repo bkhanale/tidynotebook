@@ -127,20 +127,31 @@ const storageBrowserLineCap = 900;
 const workspaceStoreSourcePrefix =
   'packages/storage-server/src/workspace-store/';
 const workspaceStoreLineCap = 900;
-// Decision 0018 splits the largest apps/web feature files. This step split the
-// shell layout from its two route views (notes-home.tsx and note-view.tsx) and
-// split the editor into the host (note-editor.tsx), the attachment URL owner
-// (note-editor-attachments.ts), and the Read mode renderer (note-read-mode.tsx).
-// A non-test feature source file stays under this ceiling, so a split file
-// cannot collapse back into a monolith. A file that reaches the cap must move a
-// concern into a sibling module or a per-feature directory.
+// Decision 0018 splits the largest apps/web feature files and gives each
+// feature its own directory. The web source now reads as shell/ (the app
+// frame), lib/ (pure helpers with no React), and features/<feature>/ (one
+// directory per feature, each with its components, hooks, and the pure logic
+// tested next to it). This cap holds every file under features/<feature>/: a
+// non-test feature source file stays under the ceiling, so a split file cannot
+// collapse back into a monolith. A file that reaches the cap must move a
+// concern into a sibling module or a new per-feature directory.
 // NOTE: the cap is modest on purpose. It sits above note-editor.tsx, the editor
-// host that stays the largest feature file after this split, so an honest
-// addition never trips it while the file that reaches it must be split. Later
-// steps of the same epic move features into features/<feature>/ directories,
-// which this prefix already covers.
+// host that stays the largest feature file, so an honest addition never trips
+// it while the file that reaches it must be split. The prefix matches the
+// per-feature directories, because a nested path still starts with it.
 const featuresSourcePrefix = 'apps/web/src/features/';
 const featuresLineCap = 1600;
+// Decision 0018 keeps apps/web/src/lib/ pure: a helper there holds no React and
+// reaches no screen. A lib file that imports react, react-dom, or a relative
+// path into shell/ or features/ would turn the frame edge around, so the check
+// forbids it. The rule stays inside lib/, because shell/ and features/ may
+// import lib/ freely. A stricter cross-feature ban (one feature may reach
+// another only through app/ or lib/) is not added here: shell/ composes every
+// feature and several features still share helpers by direct import, so that
+// ban would flag true edges today. It waits until those edges move behind lib/.
+const webLibPrefix = 'apps/web/src/lib/';
+const webReactPackages = new Set(['react', 'react-dom']);
+const webScreenPrefixes = ['apps/web/src/shell/', 'apps/web/src/features/'];
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -264,6 +275,13 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
   const name = String(item.manifest.name);
   const key = short(name);
   const dependency = packageName(specifier);
+  const filePath = relative(directory, file).split(sep).join('/');
+  // Decision 0018 keeps apps/web/src/lib/ pure. React never enters it.
+  if (filePath.startsWith(webLibPrefix) && webReactPackages.has(dependency))
+    fail(
+      file,
+      'A file in apps/web/src/lib/ is pure. It cannot import React (decision 0018).',
+    );
   if (specifier.startsWith('.') || isAbsolute(specifier)) {
     // Handwritten relative imports carry an explicit `.ts` extension, so the
     // resolved path decides whether the target is a test file.
@@ -273,6 +291,15 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
       fail(file, `Production source cannot import test file ${specifier}.`);
     if (owner(target) !== item)
       fail(file, 'Relative or absolute imports cannot leave a package.');
+    // A lib helper is pure, so it never reaches back into a screen.
+    if (
+      filePath.startsWith(webLibPrefix) &&
+      webScreenPrefixes.some((prefix) => targetPath.startsWith(prefix))
+    )
+      fail(
+        file,
+        'A file in apps/web/src/lib/ is pure. It cannot import a shell/ or features/ module (decision 0018).',
+      );
     // Decision 0018 removed apps/server/src/http/. A cross-cutting Fastify
     // concern lives in apps/server/src/plugins/ and a resource controller lives
     // in apps/server/src/routes/. An import that still points at the old

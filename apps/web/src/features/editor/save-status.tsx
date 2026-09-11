@@ -17,9 +17,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { NoteSaveFacts } from './save-state.ts';
-export { resolveSaveState } from './save-state.ts';
-export type { SaveState, SaveStateInput } from './save-state.ts';
+import type { NoteSaveFacts } from '../../lib/save-state.ts';
+export { resolveSaveState } from '../../lib/save-state.ts';
+export type { SaveState, SaveStateInput } from '../../lib/save-state.ts';
 
 /** What the open note tells the header about itself. */
 export type NoteSaveReport = NoteSaveFacts & {

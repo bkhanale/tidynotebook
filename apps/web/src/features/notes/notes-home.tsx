@@ -14,10 +14,10 @@ import {
   PageHeader,
   StatusRegion,
 } from '@notesapp/ui';
-import { useDocumentTitle } from './document-title.ts';
-import { useFiles } from './files.tsx';
-import { recentNotes } from './note-list.ts';
-import { displayNoteName } from './note-name.ts';
+import { useDocumentTitle } from '../../shell/document-title.ts';
+import { useFiles } from '../../shell/files.tsx';
+import { recentNotes } from '../../lib/note-list.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
 
 /** The note list of the open area. */
 export function NotesHomeView(): ReactNode {

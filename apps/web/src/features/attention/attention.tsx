@@ -34,14 +34,14 @@ import {
   CopyIcon,
 } from '@notesapp/ui';
 import { attentionTitle, useParkedSaves } from './attention-link.tsx';
-import { useLocalStore, useSession } from '../app.tsx';
-import { copyText } from '../platform.ts';
-import { storageNotePath } from './note-name.ts';
+import { useLocalStore, useSession } from '../../app.tsx';
+import { copyText } from '../../platform.ts';
+import { storageNotePath } from '../../lib/note-name.ts';
 import {
   parkedSaveTime,
   recoveredNoteName,
   type ParkedSave,
-} from './parked-saves.ts';
+} from '../../lib/parked-saves.ts';
 
 /** One row of the list with its four actions. */
 function ParkedSaveRow({

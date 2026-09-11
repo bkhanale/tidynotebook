@@ -47,10 +47,10 @@ import {
 } from '@notesapp/editor';
 import type { RenderMarkdownOptions } from '@notesapp/markdown';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
-import { problemMessage, useTheme } from '../app.tsx';
+import { problemMessage, useTheme } from '../../app.tsx';
 import { activeNoteChanged, setActiveNoteView } from './active-note.ts';
-import { downloadNote } from './export.ts';
-import { useFiles } from './files.tsx';
+import { downloadNote } from '../export/export.ts';
+import { useFiles } from '../../shell/files.tsx';
 import {
   maxPastedBytes,
   sanitizeAttachmentName,
@@ -60,7 +60,7 @@ import { ReadMode, diagramFramePath } from './note-read-mode.tsx';
 import { useRegisterNoteActions } from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader } from './note-header.tsx';
-import { missingNoteNotice, resolveLinkAction } from './note-link.ts';
+import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
 import {
   baseNameOf,
   cleanNoteBaseName,
@@ -71,11 +71,11 @@ import {
   noteBaseNameProblem,
   noteNameProblem,
   storageNotePath,
-} from './note-name.ts';
+} from '../../lib/note-name.ts';
 import { OutlinePanel } from './outline.tsx';
-import { resolveSaveButton } from './save-state.ts';
-import { useDeleteNotice } from './trash.tsx';
-import { createDiagramFrame } from '../diagram/frame.ts';
+import { resolveSaveButton } from '../../lib/save-state.ts';
+import { useDeleteNotice } from '../trash/trash.tsx';
+import { createDiagramFrame } from '../../diagram/frame.ts';
 import {
   resolveSaveState,
   useBlockUnsafeReload,
@@ -420,7 +420,7 @@ export function NoteEditor({
   // or undo history.
   useEffect(() => {
     let cancelled = false;
-    void import('./markdown.ts').then((module) => {
+    void import('../../lib/markdown.ts').then((module) => {
       if (cancelled) return;
       mathRenderRef.current = module.renderMath;
       renderMarkdownRef.current = module.renderMarkdown;

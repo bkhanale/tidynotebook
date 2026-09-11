@@ -8,15 +8,15 @@ See [decision 0007](../decisions/0007-keep-the-save-model.md).
 
 ## Where the code is
 
-| File                                          | Responsibility                       |
-| --------------------------------------------- | ------------------------------------ |
-| `packages/sync/src/local-port.ts`             | Local record shapes and storage port |
-| `packages/sync/src/checkpoints.ts`            | The explicit version rule            |
-| `packages/sync/src/engine.ts`                 | Queue push and server pull           |
-| `packages/storage-browser/src/database.ts`    | Dexie schema and row shapes          |
-| `packages/storage-browser/src/migrations.ts`  | Validation and schema migration      |
-| `packages/storage-browser/src/local-store.ts` | IndexedDB transactions               |
-| `apps/web/src/features/save-state.ts`         | The state the person is shown        |
+| File                                         | Responsibility                       |
+| -------------------------------------------- | ------------------------------------ |
+| `packages/sync/src/local-port.ts`            | Local record shapes and storage port |
+| `packages/sync/src/checkpoints.ts`           | The explicit version rule            |
+| `packages/sync/src/engine.ts`                | Queue push and server pull           |
+| `packages/storage-browser/src/database.ts`   | Dexie schema and row shapes          |
+| `packages/storage-browser/src/migrations.ts` | Validation and schema migration      |
+| `packages/storage-browser/src/local-store/`  | IndexedDB transactions               |
+| `apps/web/src/lib/save-state.ts`             | The state the person is shown        |
 
 ## The rule
 

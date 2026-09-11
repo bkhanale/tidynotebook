@@ -53,19 +53,19 @@ import {
   PageHeader,
   StatusRegion,
 } from '@notesapp/ui';
-import { problemMessage, useLocalStore, useSession } from '../app.tsx';
+import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import {
   loadAttachmentBinary,
   type LoadedAttachment,
-} from './attachment-content.ts';
-import { displayNoteName } from './note-name.ts';
+} from '../../lib/attachment-content.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
 import {
   requestDiff,
   requestDiffSeries,
   type DiffPair,
 } from './diff-worker.ts';
-import { rowChangeOf, rowChangeText } from './history-rows.ts';
-import { relativeTime } from './relative-time.ts';
+import { rowChangeOf, rowChangeText } from '../../lib/history-rows.ts';
+import { relativeTime } from '../../lib/relative-time.ts';
 
 /** How many history entries one page requests. */
 const historyPageSize = 50;

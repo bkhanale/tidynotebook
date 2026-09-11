@@ -15,7 +15,7 @@ import {
   useState,
   type MutableRefObject,
 } from 'react';
-import { createAttachmentLoader } from './attachment-content.ts';
+import { createAttachmentLoader } from '../../lib/attachment-content.ts';
 
 /** Attachment revision references in stored Markdown. */
 const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;

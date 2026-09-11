@@ -51,11 +51,11 @@ import {
   useLocalStore,
   useRequestSync,
   useSession,
-} from '../app.tsx';
-import { useLocalQuery } from '../local-state.ts';
-import { displayNoteName } from './note-name.ts';
-import { folderOf, relativeTime } from './relative-time.ts';
-import { useFiles } from './files.tsx';
+} from '../../app.tsx';
+import { useLocalQuery } from '../../local-state.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
+import { folderOf, relativeTime } from '../../lib/relative-time.ts';
+import { useFiles } from '../../shell/files.tsx';
 
 /** How long the notice after a deletion stays on screen. */
 export const undoNoticeMs = 8000;

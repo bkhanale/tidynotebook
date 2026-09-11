@@ -12,7 +12,7 @@ import {
   type Draft,
   type LocalStore,
 } from '@notesapp/sync';
-import { displayNoteName } from './note-name.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
 
 /** One note that the sidebar asks to move to the trash. */
 export type DeleteTarget = { readonly fileId: string; readonly name: string };

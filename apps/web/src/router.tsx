@@ -13,28 +13,28 @@ import {
   AccountSettingsPage,
   LoginPage,
   RequireSession,
-} from './features/accounts.tsx';
-import { useDocumentTitle } from './features/document-title.ts';
+} from './features/accounts/accounts.tsx';
+import { useDocumentTitle } from './shell/document-title.ts';
 const Shell = lazy(async () => ({
-  default: (await import('./features/shell.tsx')).Shell,
+  default: (await import('./shell/shell.tsx')).Shell,
 }));
 const NoteView = lazy(async () => ({
-  default: (await import('./features/note-view.tsx')).NoteView,
+  default: (await import('./features/notes/note-view.tsx')).NoteView,
 }));
 const NotesHomeView = lazy(async () => ({
-  default: (await import('./features/notes-home.tsx')).NotesHomeView,
+  default: (await import('./features/notes/notes-home.tsx')).NotesHomeView,
 }));
 const WorkspaceHome = lazy(async () => ({
-  default: (await import('./features/workspaces.tsx')).WorkspaceHome,
+  default: (await import('./shell/workspaces.tsx')).WorkspaceHome,
 }));
 const HistoryView = lazy(async () => ({
-  default: (await import('./features/history.tsx')).HistoryView,
+  default: (await import('./features/history/history.tsx')).HistoryView,
 }));
 const TrashView = lazy(async () => ({
-  default: (await import('./features/trash.tsx')).TrashView,
+  default: (await import('./features/trash/trash.tsx')).TrashView,
 }));
 const AttentionRoute = lazy(async () => ({
-  default: (await import('./features/attention.tsx')).AttentionRoute,
+  default: (await import('./features/attention/attention.tsx')).AttentionRoute,
 }));
 
 /** Holds a route while its deferred module loads. */

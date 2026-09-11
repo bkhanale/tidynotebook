@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { RenderMarkdownOptions } from '@notesapp/markdown';
-import { createDiagramFrame, type DiagramTheme } from '../diagram/frame.ts';
+import { createDiagramFrame, type DiagramTheme } from '../../diagram/frame.ts';
 
 /**
  * The built diagram frame document.
