@@ -69,6 +69,23 @@ async function buildCss(): Promise<string> {
 
 const css = await buildCss();
 
+await test('no shipped document holds a colour value of its own', async () => {
+  // The theme registry of `@notesapp/ui` is the only place a colour value
+  // may live (audit UI-48). The shell document takes its palette from the
+  // build step, and the diagram frame receives one in its render request.
+  for (const name of [
+    'apps/web/index.html',
+    'apps/web/src/diagram/frame.html',
+  ]) {
+    const source = await readFile(resolve(root, name), 'utf8');
+    const found = source.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
+    assert.deepEqual(found, [], `${name} holds a colour value`);
+  }
+  const html = await readFile(resolve(root, 'apps/web/index.html'), 'utf8');
+  assert.match(html, /__NOTESAPP_THEMES__/);
+  assert.match(html, /__NOTESAPP_THEME_COLOUR__/);
+});
+
 await test('the built stylesheet declares every variable the editor reads', () => {
   const missing = editorThemeVariables.filter(
     (name) => !new RegExp(`${name}\\s*:`).test(css),

@@ -4,13 +4,12 @@
  * The theme registry of `@notesapp/ui` is the only place a colour value may
  * live (audit UI-48). The shell document, the installed manifest, and the
  * editor all derive from it, and each of those paths used to hold its own
- * copy of the palette. These tests fail as soon as one of them holds a
- * colour again or stops covering the whole registry.
+ * copy of the palette. These tests fail as soon as one of them stops
+ * covering the whole registry. The companion check that no document holds a
+ * colour value of its own lives in `tests/integration/theme-variables.test.ts`,
+ * which may read the repository files.
  */
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { syntaxTokenNames } from '@notesapp/editor';
 import {
@@ -23,16 +22,16 @@ import {
 } from '@notesapp/ui';
 import { themeRegistryData, webManifest } from '../vite.config.ts';
 
-const web = resolve(fileURLToPath(import.meta.url), '../..');
-
 /** The registry data as the inline script of the shell receives it. */
+type InlineVariant = {
+  readonly id: string;
+  readonly values: readonly string[];
+};
+
 type InlineThemes = {
   readonly fallback: string;
   readonly properties: readonly string[];
-  readonly families: Record<
-    string,
-    Record<string, { readonly id: string; readonly values: readonly string[] }>
-  >;
+  readonly families: Record<string, Record<string, InlineVariant>>;
 };
 
 const inline = JSON.parse(themeRegistryData()) as InlineThemes;
@@ -52,7 +51,7 @@ await test('the inline script carries every theme of the registry', () => {
     const variants = inline.families[family.id];
     assert.ok(variants !== undefined, family.id);
     for (const theme of family.variants) {
-      const variant = variants[theme.appearance];
+      const variant: InlineVariant | undefined = variants[theme.appearance];
       assert.ok(variant !== undefined, theme.id);
       assert.equal(variant.id, theme.id);
       assert.equal(variant.values.length, inline.properties.length);
@@ -61,25 +60,6 @@ await test('the inline script carries every theme of the registry', () => {
     }
   }
   assert.equal(counted, themes.length);
-});
-
-await test('the shell document holds no colour of its own', () => {
-  const noColour = async (name: string): Promise<void> => {
-    const source = await readFile(resolve(web, name), 'utf8');
-    const found = source.match(/#[0-9a-fA-F]{6}\b/g) ?? [];
-    assert.deepEqual(found, [], `${name} holds a colour value`);
-  };
-  return Promise.all([
-    noColour('index.html'),
-    noColour('src/diagram/frame.html'),
-  ]);
-});
-
-await test('the shell document takes its palette from the build', () => {
-  return readFile(resolve(web, 'index.html'), 'utf8').then((html) => {
-    assert.ok(html.includes('__NOTESAPP_THEMES__'));
-    assert.ok(html.includes('__NOTESAPP_THEME_COLOUR__'));
-  });
 });
 
 await test('the manifest takes its interface colour from the registry', () => {
