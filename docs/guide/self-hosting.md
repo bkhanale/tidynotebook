@@ -1,7 +1,12 @@
-# Self-hosting and recovery
+# Self-hosting
+
+This page is for the person who runs the server. It is the production
+installation guide.
 
 For the shortest path from a clone to the setup screen, read
-[Quick start](./quickstart.md). This document is the production guide.
+[Quick start](quickstart.md). When the installation runs, read
+[Backup and restore](backup-and-restore.md), [Upgrade](upgrade.md), and the
+[Security model](security-model.md).
 
 NotesApp runs as one application service and one PostgreSQL service. The
 application container applies the database migrations and then serves the web
@@ -29,7 +34,11 @@ a permanent deployment and for full offline installation behavior.
 
 ## Host requirements
 
-Install Docker Engine, Docker Compose, GnuPG, PostgreSQL client tools, and `lsblk`. The reference versions are Docker Engine 29.8.0, Compose 5.5.1, PostgreSQL 18.6, Node.js 26.8.1, and pnpm 12.3.4. A newer compatible host tool can work, but record the version in the installation record.
+Install Docker Engine, Docker Compose, GnuPG, the PostgreSQL client tools, and
+`lsblk`. The versions this installation was built against are in
+`docker-compose.yml`, `.node-version`, and the root `package.json`. A newer
+compatible host tool can work. Record the version you used in your own
+installation record.
 
 Use encrypted host storage before you create the data directories. The
 encryption boundary must include:
@@ -149,108 +158,6 @@ The deployment answers the host of its origin only, so the container health
 check sends that host name. A request that names another host is refused with
 status 400 and the code `host_not_allowed`.
 
-## Encrypted backups
-
-Use separate encrypted storage for backups. Create these mode `0600` files outside the backup destination:
-
-- A database URL file for the migration role.
-- A backup passphrase file with at least 32 bytes of strong random data.
-- A stable installation ID file that contains one UUID.
-
-Keep the passphrase and installation ID in an external key store and in the recovery runbook. The backup contains only a hash of the installation ID. A backup from a different installation is rejected.
-
-Run a backup from the repository:
-
-```bash
-./tools/ops/backup.sh \
-  --storage-root /srv/notesapp/storage \
-  --backup-root /mnt/separate-backups/notesapp \
-  --database-url-file /etc/notesapp/backup-database-url \
-  --key-file /etc/notesapp/backup-key \
-  --installation-id-file /etc/notesapp/installation-id \
-  --postgres-container notesapp-postgres-1
-```
-
-The storage root is the host directory named by `NOTESAPP_STORAGE_DIR`. Omit
-`--postgres-container` when compatible `pg_dump` and `psql` commands can reach
-the database directly. The database URL does not appear in the host command
-arguments.
-
-The command performs these steps:
-
-1. Query the referenced finalized attachment set.
-2. Dump PostgreSQL.
-3. Copy each referenced attachment and verify its database digest and size.
-4. Create a manifest with database and object digests.
-5. Encrypt the archive with GnuPG AES-256 symmetric encryption.
-6. Decrypt and verify the completed archive.
-7. Keep one backup for each of the newest seven UTC days and one backup for each of the newest four ISO weeks.
-
-### Backup consistency
-
-The database part is consistent on its own, because `pg_dump` reads one
-transaction snapshot. The attachment files are content addressed by their
-digest, so a file that the dump references is never rewritten in place. A save
-that lands during the backup is therefore either fully in the archive or fully
-absent from it.
-
-For an archive that is also consistent across the two parts, stop the
-application first and start it again after the backup:
-
-```bash
-docker compose stop app
-./tools/ops/backup.sh ...
-docker compose start app
-```
-
-Schedule at least one backup each day. Copy the encrypted archives to storage that is separate from the application host. Do not copy the backup key with the archives.
-
-Check the age of the newest archive in the backup directory:
-
-```bash
-ls -t /mnt/separate-backups/notesapp/backup-*.tar.gpg | head -1
-find /mnt/separate-backups/notesapp -name 'backup-*.tar.gpg' -mtime -1 | head -1
-```
-
-The second command prints nothing when no archive is newer than one day. Alert
-on that empty result.
-
-Verify an archive without a restore:
-
-```bash
-./tools/ops/verify-backup.sh \
-  --backup-file /mnt/separate-backups/notesapp/backup-20260906-120000Z.tar.gpg \
-  --key-file /etc/notesapp/backup-key \
-  --installation-id-file /etc/notesapp/installation-id
-```
-
-## Restore
-
-Stop the application with `docker compose stop app`. Create a new empty database and an empty attachment directory. Use the same installation ID and the correct backup key.
-
-```bash
-./tools/ops/restore.sh \
-  --backup-file /mnt/separate-backups/notesapp/backup-20260906-120000Z.tar.gpg \
-  --storage-root /srv/notesapp-restored/storage \
-  --database-url-file /etc/notesapp/restore-database-url \
-  --key-file /etc/notesapp/backup-key \
-  --installation-id-file /etc/notesapp/installation-id \
-  --postgres-container notesapp-postgres-1
-```
-
-Restore refuses a nonempty storage target or a database that contains a workspace. It verifies the encrypted archive before it changes the target. After restore, it checks every database-referenced attachment against the restored byte digest and size.
-
-Give the restored storage directory to uid 10001 before you start the
-application:
-
-```bash
-sudo chown -R 10001:10001 /srv/notesapp-restored/storage
-```
-
-Start the application only after the restore command succeeds. Check `/ready`, open representative notes and attachments, and run a new backup. Test restoration regularly on a separate empty installation. A backup is not accepted recovery evidence until this test passes.
-
-If a volume key or backup key is unavailable, stop. Do not create a replacement key and claim that it can recover old data.
-
 ## Logs
 
 Structured request logs contain the request ID, method, redacted URL, status, and duration. They do not contain headers, cookies, credentials, request bodies, note text, search text, or query values.
@@ -261,13 +168,3 @@ one file and the number of files that are kept.
 
 This release serves no metrics route. Watch the readiness result, the container
 log, and the age of the newest backup archive.
-
-## Upgrade and rollback
-
-Back up and verify the current installation before an upgrade. Build the new
-image and wait for readiness. Migrations move forward. If a migration fails,
-the container exits and repeats the attempt, and the application stays unready.
-Restore the verified pre-upgrade database and attachment set into an empty
-target before you start the prior application build.
-
-Do not copy a database without its referenced attachments. Do not copy attachments without the matching database snapshot.

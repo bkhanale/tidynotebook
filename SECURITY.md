@@ -28,24 +28,9 @@ support branch.
 
 ## Trust model
 
-Read this before you decide what is a vulnerability.
-
-- **The server operator can read every note.** Notes are stored so that the
-  server can index and search them. There is no end-to-end encryption. The
-  operator, and anyone with database or disk access, can read the content. In
-  a personal installation the operator and the user are the same person.
-- **There is one user.** The setup screen creates that account and then closes.
-  There is no second account, no sharing, no invitation, and no public page.
-- **Disk encryption is the operator's job.** The product expects encrypted host
-  storage for the database, the attachments, temporary files, swap, crash
-  output and backups. See
-  [docs/guide/self-hosting.md](docs/guide/self-hosting.md).
-- **HTTPS is the operator's job.** The application publishes a plain HTTP
-  listener on the loopback address. Put a reverse proxy that terminates HTTPS
-  in front of it.
-- **The origin is required.** `NOTESAPP_ORIGIN` has no default. Cookies and
-  absolute URLs belong to that origin, and a request that names another host is
-  refused.
+Read [the security model](docs/guide/security-model.md) before you decide what
+is a vulnerability. In short: the server operator can read every note, there is
+one user, and disk encryption and HTTPS are the operator's job.
 
 ## In scope
 
