@@ -37,15 +37,24 @@
 
   --text-note: 1rem;
   --text-note--line-height: 1.65;
-  --note-measure: 42rem;
-  --note-gap: 0.55rem;
-  --note-mono-size: 0.9em;
-  --note-h1: 2em;
-  --note-h2: 1.6em;
-  --note-h3: 1.35em;
-  --note-h4: 1.18em;
-  --note-h5: 1.05em;
-  --note-h6: 1em;
+  --container-note: 42rem;
+  --spacing-note-line: var(--spacing);
+  --spacing-note-block: calc(var(--spacing) * 2);
+  --text-note-mono: 0.9em;
+  --text-note-h1: 2em;
+  --text-note-h1--line-height: 1.25;
+  --text-note-h2: 1.6em;
+  --text-note-h2--line-height: 1.25;
+  --text-note-h3: 1.35em;
+  --text-note-h3--line-height: 1.25;
+  --text-note-h4: 1.18em;
+  --text-note-h4--line-height: 1.25;
+  --text-note-h5: 1.05em;
+  --text-note-h5--line-height: 1.25;
+  --text-note-h6: 1em;
+  --text-note-h6--line-height: 1.25;
+  --font-weight-note-heading-strong: 700;
+  --font-weight-note-heading: 600;
 }
 
 /*

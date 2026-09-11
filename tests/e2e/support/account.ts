@@ -5,7 +5,7 @@ import type { E2EStack } from './stack.ts';
 export async function signIn(page: Page, stack: E2EStack): Promise<void> {
   await page.goto(`${stack.baseUrl}/login`);
   await page.getByLabel('Address').fill(stack.email);
-  await page.getByLabel('Password').fill(stack.password);
+  await page.getByLabel('Password', { exact: true }).fill(stack.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await page.waitForURL(/\/w\/[0-9a-f-]+$/);
 }
@@ -19,13 +19,22 @@ export async function openPersonalWorkspace(page: Page): Promise<string> {
   return match[1];
 }
 
-/** Creates a note through the visible action in the main workspace content. */
+/** Creates a note through the visible action in the workspace sidebar. */
 export async function createNewNote(page: Page): Promise<void> {
-  await page
-    .locator('#notes-content')
-    .getByRole('button', { name: 'Create a new note' })
-    .first()
-    .click();
+  const candidates = page.getByRole('button', {
+    name: 'New note',
+    exact: true,
+  });
+  // A narrow viewport keeps the sidebar in a closed drawer, so the action
+  // stays hidden until the drawer opens. A wide viewport shows no drawer.
+  const drawer = page.getByRole('button', { name: 'Open navigation' });
+  try {
+    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
+    await drawer.click();
+  } catch {
+    // No drawer on this viewport. The sidebar action is already placed.
+  }
+  await candidates.first().click();
   await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
 }
 

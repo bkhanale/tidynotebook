@@ -38,35 +38,47 @@ export const editorThemeVariables: readonly string[] = [
   '--text-control',
   '--text-note',
   '--text-note--line-height',
-  '--note-measure',
-  '--note-gap',
-  '--note-mono-size',
-  '--note-h1',
-  '--note-h2',
-  '--note-h3',
-  '--note-h4',
-  '--note-h5',
-  '--note-h6',
+  '--container-note',
+  '--spacing-note-line',
+  '--spacing-note-block',
+  '--text-note-mono',
+  '--text-note-h1',
+  '--text-note-h1--line-height',
+  '--text-note-h2',
+  '--text-note-h2--line-height',
+  '--text-note-h3',
+  '--text-note-h3--line-height',
+  '--text-note-h4',
+  '--text-note-h4--line-height',
+  '--text-note-h5',
+  '--text-note-h5--line-height',
+  '--text-note-h6',
+  '--text-note-h6--line-height',
+  '--font-weight-note-heading-strong',
+  '--font-weight-note-heading',
 ];
 
 /** The heading ramp, level by level. */
-const headingSizes = [
-  'var(--note-h1)',
-  'var(--note-h2)',
-  'var(--note-h3)',
-  'var(--note-h4)',
-  'var(--note-h5)',
-  'var(--note-h6)',
+const headings: ReadonlyArray<readonly [string, string]> = [
+  ['var(--text-note-h1)', 'var(--text-note-h1--line-height)'],
+  ['var(--text-note-h2)', 'var(--text-note-h2--line-height)'],
+  ['var(--text-note-h3)', 'var(--text-note-h3--line-height)'],
+  ['var(--text-note-h4)', 'var(--text-note-h4--line-height)'],
+  ['var(--text-note-h5)', 'var(--text-note-h5--line-height)'],
+  ['var(--text-note-h6)', 'var(--text-note-h6--line-height)'],
 ];
 
 /** The heading rules, one per level. */
 function headingRules(): Record<string, Record<string, string>> {
   const rules: Record<string, Record<string, string>> = {};
-  headingSizes.forEach((size, index) => {
+  headings.forEach(([size, lineHeight], index) => {
     rules[`.cm-np-h${String(index + 1)}`] = {
       fontSize: size,
-      lineHeight: '1.25',
-      fontWeight: index < 3 ? '700' : '600',
+      lineHeight,
+      fontWeight:
+        index < 3
+          ? 'var(--font-weight-note-heading-strong)'
+          : 'var(--font-weight-note-heading)',
       color: 'var(--notes-text-strong)',
     };
   });
@@ -136,10 +148,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       paddingBlock: 'calc(var(--spacing) * 6)',
     },
     '.cm-line': {
-      maxWidth: 'var(--note-measure)',
+      maxWidth: 'var(--container-note)',
       marginInline: 'auto',
       paddingInline: '0',
-      paddingBlock: 'calc(var(--note-gap) / 2)',
+      paddingBlock: 'var(--spacing-note-line)',
     },
     '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--notes-focus)' },
     '&.cm-focused': { outline: 'none' },
@@ -154,7 +166,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       },
 
     ...headingRules(),
-    '.cm-np-heading': { paddingBlock: 'var(--note-gap)' },
+    '.cm-np-heading': { paddingBlock: 'var(--spacing-note-block)' },
 
     '.cm-np-bold': { fontWeight: '700', color: 'var(--notes-text-strong)' },
     '.cm-np-italic': { fontStyle: 'italic' },
@@ -166,15 +178,15 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
 
     '.cm-np-code': {
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--note-mono-size)',
+      fontSize: 'var(--text-note-mono)',
       backgroundColor: 'var(--notes-surface-hover)',
       borderRadius: 'var(--radius-sm)',
       paddingInline: 'calc(var(--spacing) * 1)',
-      paddingBlock: 'calc(var(--spacing) * 0.25)',
+      paddingBlock: 'calc(var(--spacing) * 0.5)',
     },
     '.cm-np-code-block-line': {
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--note-mono-size)',
+      fontSize: 'var(--text-note-mono)',
       backgroundColor: 'var(--notes-surface-hover)',
       paddingInline: 'calc(var(--spacing) * 3)',
     },
@@ -242,10 +254,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-link-definition': {
       color: 'var(--notes-text-muted)',
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--note-mono-size)',
+      fontSize: 'var(--text-note-mono)',
     },
 
-    '.cm-np-rule-line': { paddingBlock: 'var(--note-gap)' },
+    '.cm-np-rule-line': { paddingBlock: 'var(--spacing-note-block)' },
     '.cm-np-rule': {
       display: 'inline-block',
       width: '100%',
@@ -255,7 +267,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
 
     '.cm-np-table-line': {
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--note-mono-size)',
+      fontSize: 'var(--text-note-mono)',
       paddingBlock: '0',
     },
     '.cm-np-table-head': {
@@ -278,15 +290,15 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     },
     '.cm-np-html': {
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--note-mono-size)',
+      fontSize: 'var(--text-note-mono)',
       color: 'var(--notes-text-muted)',
     },
 
     '.cm-np-widget-block': {
       display: 'block',
-      maxWidth: 'var(--note-measure)',
+      maxWidth: 'var(--container-note)',
       marginInline: 'auto',
-      marginBlock: 'var(--note-gap)',
+      marginBlock: 'var(--spacing-note-block)',
     },
     '.cm-np-widget-inline': { display: 'inline' },
     '.cm-np-widget-image': {
@@ -300,7 +312,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-widget-error': { color: 'var(--notes-danger-text)' },
     '.cm-np-widget-source': {
       fontFamily: 'var(--font-mono)',
-      fontSize: 'var(--note-mono-size)',
+      fontSize: 'var(--text-note-mono)',
       whiteSpace: 'pre-wrap',
     },
     '.cm-np-widget-action': {
@@ -318,7 +330,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-math-display': {
       display: 'block',
       textAlign: 'center',
-      paddingBlock: 'var(--note-gap)',
+      paddingBlock: 'var(--spacing-note-block)',
       borderRadius: 'var(--radius-lg)',
     },
     '.cm-np-math-inline': { display: 'inline' },
