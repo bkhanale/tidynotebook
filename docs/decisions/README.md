@@ -50,6 +50,7 @@ and needs no record.
 | [0018](0018-directory-structure-by-layer.md)           | The directory structure follows ports and adapters    |
 | [0019](0019-contract-validation-and-shared-types.md)   | One contract, generated types, and no type assertions |
 | [0020](0020-central-logging-through-one-module.md)     | Central logging through one module                    |
+| [0021](0021-portable-markdown-at-rest.md)              | Portable Markdown at rest                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -58,4 +59,6 @@ records how the save state reaches the person. Records 0018 and 0019 record the
 target structure and the type rules that the
 [architecture review](../audits/2026-09-11/architecture-review.md) asked for.
 Record 0020 records the one way to write a log record, and it follows
-[design 003](../design/003-central-logging.md).
+[design 003](../design/003-central-logging.md). Record 0021 records the
+portable form of the stored note text, and it follows
+[design 004](../design/004-portable-markdown-at-rest.md).
