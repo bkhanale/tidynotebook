@@ -92,3 +92,15 @@ await test('the tree puts folders before notes at every level', () => {
   assert.equal(plans.children[0]?.kind, 'folder');
   assert.equal(plans.children[1]?.kind, 'note');
 });
+
+await test('a folder with no note still reaches the tree', () => {
+  const tree = buildNoteTree([], ['ideas/later']);
+  assert.equal(tree.length, 1);
+  const outer = tree[0];
+  assert.ok(outer?.kind === 'folder');
+  assert.equal(outer.fullPath, 'ideas');
+  const inner = outer.children[0];
+  assert.ok(inner?.kind === 'folder');
+  assert.equal(inner.fullPath, 'ideas/later');
+  assert.deepEqual(inner.children, []);
+});

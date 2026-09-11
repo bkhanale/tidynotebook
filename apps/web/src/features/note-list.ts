@@ -75,9 +75,17 @@ export type TreeNode =
       readonly children: readonly TreeNode[];
     };
 
-/** Groups flat note paths into a folder tree, folders before notes. */
+/**
+ * Groups flat note paths into a folder tree, folders before notes.
+ *
+ * `emptyFolders` names the folders that a person made and that hold no note
+ * yet. A folder is only a part of a note path, so nothing on the server
+ * describes such a folder; this device remembers it and the tree shows it
+ * with no children.
+ */
 export function buildNoteTree(
   notes: readonly NoteSummary[],
+  emptyFolders: readonly string[] = [],
 ): readonly TreeNode[] {
   type MutableFolder = {
     readonly folders: Map<string, MutableFolder>;
@@ -87,12 +95,11 @@ export function buildNoteTree(
     }>;
   };
   const root: MutableFolder = { folders: new Map(), notes: [] };
-  const ordered = [...notes].sort((a, b) => (a.path < b.path ? -1 : 1));
-  for (const note of ordered) {
-    const segments = note.path.split('/');
+  /** Walks to the folder of a path, making every missing level on the way. */
+  const reach = (segments: readonly string[]): MutableFolder => {
     let current = root;
-    for (let index = 0; index < segments.length - 1; index += 1) {
-      const segment = segments[index] ?? '';
+    for (const segment of segments) {
+      if (segment === '') continue;
       let next = current.folders.get(segment);
       if (next === undefined) {
         next = { folders: new Map(), notes: [] };
@@ -100,8 +107,15 @@ export function buildNoteTree(
       }
       current = next;
     }
-    current.notes.push({ note, basename: segments.at(-1) ?? note.path });
+    return current;
+  };
+  const ordered = [...notes].sort((a, b) => (a.path < b.path ? -1 : 1));
+  for (const note of ordered) {
+    const segments = note.path.split('/');
+    const folder = reach(segments.slice(0, -1));
+    folder.notes.push({ note, basename: segments.at(-1) ?? note.path });
   }
+  for (const folder of emptyFolders) reach(folder.split('/'));
   const render = (
     folder: MutableFolder,
     prefix: string,

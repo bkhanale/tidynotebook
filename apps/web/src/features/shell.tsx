@@ -43,10 +43,12 @@ import {
   MenuIcon,
   MoonIcon,
   MoreIcon,
+  CloseIcon,
   Notice,
   Page,
   PageHeader,
   PencilIcon,
+  PlusIcon,
   SearchIcon,
   SettingsIcon,
   StatusRegion,
@@ -72,7 +74,7 @@ import {
   NewFolderDialog,
   RenameFolderDialog,
 } from './folders.tsx';
-import { NewNoteButton, useCreateNote, useStarterNote } from './new-note.tsx';
+import { NewNoteButton, useCreateNote } from './new-note.tsx';
 import { NoteActionsScope, useNoteActions } from './note-actions.tsx';
 import {
   buildNoteTree,
@@ -81,6 +83,7 @@ import {
   type TreeNode,
 } from './note-list.ts';
 import { drawerClassName } from './drawer.ts';
+import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import { displayNoteName } from './note-name.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import { NoteSaveScope, useNoteSave, useOnline } from './save-status.tsx';
@@ -102,12 +105,14 @@ function NoteRow({
   basename,
   workspaceId,
   active,
+  drag,
   onNavigate,
 }: {
   readonly note: NoteSummary;
   readonly basename: string;
   readonly workspaceId: string;
   readonly active: boolean;
+  readonly drag?: TreeDrag | undefined;
   readonly onNavigate: () => void;
 }): ReactNode {
   return (
@@ -116,6 +121,15 @@ function NoteRow({
       to={`/w/${workspaceId}/notes/${note.fileId}`}
       onClick={onNavigate}
       aria-current={active ? 'page' : undefined}
+      draggable={drag !== undefined}
+      onDragStart={(event) => {
+        drag?.begin(event, {
+          kind: 'note',
+          fileId: note.fileId,
+          path: note.path,
+        });
+      }}
+      onDragEnd={() => drag?.end()}
     >
       <span className="inline-flex shrink-0 items-center" aria-hidden="true">
         <FileTextIcon size={14} />
@@ -135,22 +149,33 @@ function NoteRow({
   );
 }
 
-/** Renders the tree nodes as interactive collapsible lists. */
+/**
+ * Renders the tree nodes as interactive collapsible lists.
+ *
+ * A row is a drag source and a folder row is a drop target. The handlers stay
+ * thin: every rule of a drop lives in `folder-moves.ts` and the state of the
+ * gesture lives in `tree-drag.ts`. The same moves are reachable without a
+ * pointer through Move to folder and Rename folder.
+ */
 function TreeView({
   nodes,
   workspaceId,
   activeFileId,
   openFolders,
+  drag,
   onToggleFolder,
   onRenameFolder,
+  onNewNoteIn,
   onNavigate,
 }: {
   readonly nodes: readonly TreeNode[];
   readonly workspaceId: string;
   readonly activeFileId: string | null;
   readonly openFolders: ReadonlySet<string>;
+  readonly drag: TreeDrag;
   readonly onToggleFolder: (path: string) => void;
   readonly onRenameFolder: (path: string) => void;
+  readonly onNewNoteIn: (path: string) => void;
   readonly onNavigate: () => void;
 }): ReactNode {
   return (
@@ -164,20 +189,42 @@ function TreeView({
                 basename={node.basename}
                 workspaceId={workspaceId}
                 active={node.note.fileId === activeFileId}
+                drag={drag}
                 onNavigate={onNavigate}
               />
             </li>
           );
 
         const isOpen = openFolders.has(node.fullPath);
+        const isTarget = drag.over === node.fullPath;
         return (
           <li key={`folder:${node.fullPath}`}>
-            <div className="flex items-center gap-1">
+            <div
+              className={`flex items-center gap-1 rounded-lg ${isTarget ? 'bg-active ring-2 ring-focus' : ''}`}
+              onDragOver={(event) => {
+                if (!drag.accepts(node.fullPath)) return;
+                event.preventDefault();
+                event.dataTransfer.dropEffect = 'move';
+                drag.hover(node.fullPath);
+              }}
+              onDragLeave={() => {
+                if (isTarget) drag.hover(null);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                drag.drop(node.fullPath);
+              }}
+            >
               <button
                 type="button"
                 className="flex min-h-11 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 text-left text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
                 onClick={() => onToggleFolder(node.fullPath)}
                 aria-expanded={isOpen}
+                draggable
+                onDragStart={(event) => {
+                  drag.begin(event, { kind: 'folder', folder: node.fullPath });
+                }}
+                onDragEnd={() => drag.end()}
               >
                 <span
                   className="inline-flex shrink-0 items-center"
@@ -207,6 +254,12 @@ function TreeView({
                 triggerClassName="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8"
                 items={[
                   {
+                    id: 'new-note',
+                    label: 'New note in this folder',
+                    icon: <PlusIcon size={14} />,
+                    onSelect: () => onNewNoteIn(node.fullPath),
+                  },
+                  {
                     id: 'rename',
                     label: 'Rename folder',
                     icon: <PencilIcon size={14} />,
@@ -216,17 +269,25 @@ function TreeView({
               />
             </div>
             {isOpen ? (
-              <div className="ml-3 border-l border-edge-subtle pl-1">
-                <TreeView
-                  nodes={node.children}
-                  workspaceId={workspaceId}
-                  activeFileId={activeFileId}
-                  openFolders={openFolders}
-                  onToggleFolder={onToggleFolder}
-                  onRenameFolder={onRenameFolder}
-                  onNavigate={onNavigate}
-                />
-              </div>
+              node.children.length === 0 ? (
+                <p className="my-1 ml-3 border-l border-edge-subtle py-1 pl-3 text-control text-muted">
+                  This folder is empty.
+                </p>
+              ) : (
+                <div className="ml-3 border-l border-edge-subtle pl-1">
+                  <TreeView
+                    nodes={node.children}
+                    workspaceId={workspaceId}
+                    activeFileId={activeFileId}
+                    openFolders={openFolders}
+                    drag={drag}
+                    onToggleFolder={onToggleFolder}
+                    onRenameFolder={onRenameFolder}
+                    onNewNoteIn={onNewNoteIn}
+                    onNavigate={onNavigate}
+                  />
+                </div>
+              )
             ) : null}
           </li>
         );
@@ -262,11 +323,15 @@ function Sidebar({
   onNavigate,
   onNewFolder,
   onRenameFolder,
+  onNewNoteIn,
+  onClose,
 }: {
   readonly workspaceId: string;
   readonly onNavigate: () => void;
   readonly onNewFolder: () => void;
   readonly onRenameFolder: (folder: string) => void;
+  readonly onNewNoteIn: (folder: string) => void;
+  readonly onClose: () => void;
 }): ReactNode {
   const params = useParams();
   const location = useLocation();
@@ -276,7 +341,16 @@ function Sidebar({
   const sync = useSyncState();
   const files = useFiles();
   const online = useOnline();
-  const { openFolders, toggleFolder } = useOpenFolders(workspaceId);
+  const { openFolders, toggleFolder, openFolder } = useOpenFolders(workspaceId);
+  const drag = useTreeDrag({
+    store: store.store,
+    accountId: session.account?.accountId ?? null,
+    workspaceId,
+    notes: files.notes,
+    emptyFolders: files.emptyFolders,
+    moveEmptyFolders: files.moveEmptyFolders,
+    openFolder,
+  });
   const attentionCount = useAttentionCount(
     store.store,
     session.account?.accountId ?? null,
@@ -286,11 +360,26 @@ function Sidebar({
     () => recentNotes(files.notes, recentLimit),
     [files.notes],
   );
-  const tree = useMemo(() => buildNoteTree(files.notes), [files.notes]);
+  const tree = useMemo(
+    () => buildNoteTree(files.notes, files.emptyFolders),
+    [files.notes, files.emptyFolders],
+  );
   const trashPath = `/w/${workspaceId}/trash`;
 
   return (
     <>
+      <div className="flex h-header shrink-0 items-center justify-between gap-2 border-b border-edge-subtle px-2 md:hidden">
+        <span className="text-ui font-semibold text-strong">Notes</span>
+        <Button
+          variant="ghost"
+          size="sm"
+          label="Close navigation"
+          title="Close navigation"
+          icon={<CloseIcon size={18} />}
+          onClick={onClose}
+        />
+      </div>
+
       {session.account !== null ? (
         <div className="flex items-center gap-1 px-2 py-2">
           <NewNoteButton
@@ -332,10 +421,27 @@ function Sidebar({
         ) : null}
 
         <section aria-labelledby="tree-heading">
-          <GroupLabel id="tree-heading">All notes</GroupLabel>
+          <div
+            className={`rounded-lg ${drag.over === '' ? 'bg-active ring-2 ring-focus' : ''}`}
+            onDragOver={(event) => {
+              if (!drag.accepts('')) return;
+              event.preventDefault();
+              event.dataTransfer.dropEffect = 'move';
+              drag.hover('');
+            }}
+            onDragLeave={() => {
+              if (drag.over === '') drag.hover(null);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              drag.drop('');
+            }}
+          >
+            <GroupLabel id="tree-heading">All notes</GroupLabel>
+          </div>
           {files.loading ? (
             <StatusRegion message="Loading your notes." />
-          ) : files.notes.length === 0 ? (
+          ) : tree.length === 0 ? (
             <p className="my-1 px-2 text-control text-muted">No notes yet.</p>
           ) : (
             <TreeView
@@ -343,12 +449,19 @@ function Sidebar({
               workspaceId={workspaceId}
               activeFileId={fileId}
               openFolders={openFolders}
+              drag={drag}
               onToggleFolder={toggleFolder}
               onRenameFolder={onRenameFolder}
+              onNewNoteIn={onNewNoteIn}
               onNavigate={onNavigate}
             />
           )}
         </section>
+        {drag.problem === null ? null : (
+          <p className="mx-2 my-2 text-control text-danger" role="alert">
+            {drag.problem}
+          </p>
+        )}
       </div>
 
       <div className="border-t border-edge-subtle p-2">
@@ -421,6 +534,15 @@ function ShellFrame({
   const persistence = usePersistentStorage(useSavedOnce());
   const newNote = useCreateNote(store.store, accountId, workspaceId);
   const noteActions = useNoteActions();
+  // Every folder the tree can show: the ones the note paths imply and the
+  // ones that hold no note yet.
+  const allFolders = useMemo(
+    () =>
+      [...new Set([...files.folders, ...files.emptyFolders])].sort(
+        (left, right) => (left < right ? -1 : 1),
+      ),
+    [files.folders, files.emptyFolders],
+  );
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -537,7 +659,7 @@ function ShellFrame({
         id: 'new-note',
         label: 'New note',
         keywords: 'create add',
-        run: newNote.create,
+        run: () => newNote.create(),
       },
       {
         id: 'new-folder',
@@ -694,6 +816,8 @@ function ShellFrame({
                   onNavigate={() => setDrawerOpen(false)}
                   onNewFolder={() => setNewFolderOpen(true)}
                   onRenameFolder={(folder) => setRenameFolder(folder)}
+                  onNewNoteIn={(folder) => newNote.create(folder)}
+                  onClose={() => setDrawerOpen(false)}
                 />
               </aside>
 
@@ -742,21 +866,12 @@ function ShellFrame({
                 open={shortcutsOpen}
                 onClose={() => setShortcutsOpen(false)}
               />
-              {session.account === null ? null : (
-                <NewFolderDialog
-                  open={newFolderOpen}
-                  onClose={() => setNewFolderOpen(false)}
-                  store={store.store}
-                  accountId={session.account.accountId}
-                  workspaceId={workspaceId}
-                  notes={files.notes}
-                  onCreated={(fileId) => {
-                    void navigate(`/w/${workspaceId}/notes/${fileId}`, {
-                      state: { focusNoteName: true },
-                    });
-                  }}
-                />
-              )}
+              <NewFolderDialog
+                open={newFolderOpen}
+                onClose={() => setNewFolderOpen(false)}
+                folders={allFolders}
+                onCreated={(folder) => files.addEmptyFolder(folder)}
+              />
               {session.account === null || renameFolder === null ? null : (
                 <RenameFolderDialog
                   open
@@ -765,8 +880,12 @@ function ShellFrame({
                   accountId={session.account.accountId}
                   workspaceId={workspaceId}
                   notes={files.notes}
+                  folders={allFolders}
                   folder={renameFolder}
-                  onRenamed={() => setRenameFolder(null)}
+                  onRenamed={(toFolder) => {
+                    files.moveEmptyFolders(renameFolder, toFolder);
+                    setRenameFolder(null);
+                  }}
                 />
               )}
             </div>
@@ -792,14 +911,7 @@ export function NotesHomeView(): ReactNode {
   const params = useParams();
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : '';
-  const session = useSession();
-  const store = useLocalStore();
   const files = useFiles();
-  const { createStarterNote, error: starterError } = useStarterNote(
-    store.store,
-    session.account?.accountId ?? null,
-    workspaceId,
-  );
   useDocumentTitle('All notes');
 
   const ordered = useMemo(() => recentNotes(files.notes, 200), [files.notes]);
@@ -813,23 +925,11 @@ export function NotesHomeView(): ReactNode {
       {files.loading ? (
         <StatusRegion message="Loading your notes." />
       ) : ordered.length === 0 ? (
-        <>
-          <EmptyState
-            icon={<FileTextIcon size={32} />}
-            title="No notes yet."
-            description="Start with a short note that shows what the editor can do, or make an empty one from the sidebar."
-            action={
-              <Button variant="primary" onClick={createStarterNote}>
-                Add a starter note
-              </Button>
-            }
-          />
-          {starterError === null ? null : (
-            <p className="mt-3 text-control text-danger" role="alert">
-              {starterError}
-            </p>
-          )}
-        </>
+        <EmptyState
+          icon={<FileTextIcon size={32} />}
+          title="No notes yet."
+          description="Select New note in the sidebar, or press Cmd or Ctrl and K and select New note."
+        />
       ) : (
         <ul className="m-0 list-none p-0">
           {ordered.map((note) => (
@@ -877,6 +977,13 @@ export function NoteView(): ReactNode {
   const store = useLocalStore();
   const files = useFiles();
   const [moveOpen, setMoveOpen] = useState(false);
+  const moveFolders = useMemo(
+    () =>
+      [...new Set([...files.folders, ...files.emptyFolders])].sort(
+        (left, right) => (left < right ? -1 : 1),
+      ),
+    [files.folders, files.emptyFolders],
+  );
   const notePath =
     files.notes.find((note) => note.fileId === fileId)?.path ?? null;
   useDocumentTitle(notePath === null ? null : displayNoteName(notePath));
@@ -919,7 +1026,7 @@ export function NoteView(): ReactNode {
           accountId={accountId}
           workspaceId={workspaceId}
           notes={files.notes}
-          folders={files.folders}
+          folders={moveFolders}
           fileId={fileId}
           path={notePath}
           onMoved={() => setMoveOpen(false)}

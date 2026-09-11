@@ -23,6 +23,11 @@ import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
 import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import { useLocalQuery } from '../local-state.ts';
+import {
+  pruneEmptyFolders,
+  rewriteEmptyFolders,
+  withEmptyFolder,
+} from './empty-folders.ts';
 import { mergeNotes, type NoteSummary } from './note-list.ts';
 import { folderPaths } from './note-name.ts';
 
@@ -32,6 +37,18 @@ export type FilesValue = {
   readonly loading: boolean;
   /** Every folder that the note paths imply, sorted by path. */
   readonly folders: readonly string[];
+  /**
+   * Folders that a person made and that hold no note yet.
+   *
+   * A folder is only a part of a note path, so the server cannot describe an
+   * empty one. This device remembers it until a note is made or moved into
+   * it, and no placeholder note is created.
+   */
+  readonly emptyFolders: readonly string[];
+  /** Remembers one more empty folder on this device. */
+  readonly addEmptyFolder: (folder: string) => void;
+  /** Follows a folder rename or move with the remembered empty folders. */
+  readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
   /** Reads the server list again, for example after a restore. */
   readonly reload: () => void;
 };
@@ -40,6 +57,9 @@ const FilesContext = createContext<FilesValue>({
   notes: [],
   loading: true,
   folders: [],
+  emptyFolders: [],
+  addEmptyFolder: () => {},
+  moveEmptyFolders: () => {},
   reload: () => {},
 });
 
@@ -134,14 +154,22 @@ export function FilesProvider({
     setGeneration((current) => current + 1);
   }, []);
 
+  const empty = useEmptyFolders(
+    workspaceId,
+    useMemo(() => notes.map((note) => note.path), [notes]),
+  );
+
   const value = useMemo<FilesValue>(
     () => ({
       notes,
       loading,
       folders: folderPaths(notes.map((note) => note.path)),
+      emptyFolders: empty.emptyFolders,
+      addEmptyFolder: empty.addEmptyFolder,
+      moveEmptyFolders: empty.moveEmptyFolders,
       reload,
     }),
-    [notes, loading, reload],
+    [notes, loading, empty, reload],
   );
 
   return (
@@ -226,4 +254,96 @@ export function useOpenFolders(workspaceId: string): {
   );
 
   return { openFolders, toggleFolder, openFolder };
+}
+
+const emptyFoldersKey = 'notesapp.empty-folders:';
+
+/** Reads the remembered empty folders, without trusting the stored shape. */
+function readEmptyFolders(workspaceId: string): readonly string[] {
+  try {
+    const stored = window.localStorage.getItem(
+      `${emptyFoldersKey}${workspaceId}`,
+    );
+    if (stored === null) return [];
+    const value: unknown = JSON.parse(stored);
+    if (!Array.isArray(value)) return [];
+    return value.filter((entry) => typeof entry === 'string');
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Keeps the folders that hold no note across refreshes and reloads.
+ *
+ * The set lives next to the open folders of the tree, because both are
+ * choices of this person on this device. A folder leaves the set as soon as
+ * a note lives in it: the note paths then describe the folder and the server
+ * carries it to every other device.
+ */
+function useEmptyFolders(
+  workspaceId: string,
+  notePaths: readonly string[],
+): {
+  readonly emptyFolders: readonly string[];
+  readonly addEmptyFolder: (folder: string) => void;
+  readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
+} {
+  const [remembered, setRemembered] = useState<readonly string[]>(() =>
+    readEmptyFolders(workspaceId),
+  );
+
+  useEffect(() => {
+    setRemembered(readEmptyFolders(workspaceId));
+  }, [workspaceId]);
+
+  /** Stores the set so a reload keeps the shape of the tree. */
+  const remember = useCallback(
+    (next: readonly string[]): void => {
+      try {
+        window.localStorage.setItem(
+          `${emptyFoldersKey}${workspaceId}`,
+          JSON.stringify(next),
+        );
+      } catch {
+        // The tree still works when browser preference storage fails.
+      }
+    },
+    [workspaceId],
+  );
+
+  const emptyFolders = useMemo(
+    () => pruneEmptyFolders(remembered, notePaths),
+    [remembered, notePaths],
+  );
+
+  useEffect(() => {
+    if (emptyFolders.length === remembered.length) return;
+    setRemembered(emptyFolders);
+    remember(emptyFolders);
+  }, [emptyFolders, remembered, remember]);
+
+  const addEmptyFolder = useCallback(
+    (folder: string): void => {
+      setRemembered((current) => {
+        const next = withEmptyFolder(current, folder);
+        remember(next);
+        return next;
+      });
+    },
+    [remember],
+  );
+
+  const moveEmptyFolders = useCallback(
+    (fromFolder: string, toFolder: string): void => {
+      setRemembered((current) => {
+        const next = rewriteEmptyFolders(current, fromFolder, toFolder);
+        remember(next);
+        return next;
+      });
+    },
+    [remember],
+  );
+
+  return { emptyFolders, addEmptyFolder, moveEmptyFolders };
 }
