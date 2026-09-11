@@ -55,6 +55,7 @@ export {
   codeLanguages,
   noteMarkdown,
   noteMarkdownExtensions,
+  syntaxTokenNames,
 } from './language.ts';
 export { mathMarkdownExtension } from './math-syntax.ts';
 export type { OutlineHeading } from './outline.ts';

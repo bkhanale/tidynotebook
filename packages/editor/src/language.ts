@@ -71,45 +71,81 @@ export const codeLanguages: readonly LanguageDescription[] = [
 ];
 
 /**
- * The colors of code inside a fence.
+ * The colours of code inside a fence.
  *
  * Only code tags appear here. Markdown's own tags (heading, emphasis, link)
  * are left out on purpose: the live preview decorations style those, and two
- * sources of truth for one appearance is what this rebuild removes. Every
- * color is a central theme variable, so both palettes follow the same rule.
+ * sources of truth for one appearance is what this rebuild removes.
+ *
+ * Every colour is one syntax variable of the active theme, which the theme
+ * registry writes on the document element. A theme switch therefore repaints
+ * the code of an open note without reconfiguring the editor.
+ *
+ * `syntaxTokenNames` is the same list of names that the `syntax` group of a
+ * theme declares in `@notesapp/ui`. A unit test of this package asserts the
+ * two lists agree, so a theme cannot publish a colour the editor never reads.
  */
+export const syntaxTokenNames = [
+  'keyword',
+  'string',
+  'comment',
+  'number',
+  'tag',
+  'attribute',
+  'heading',
+  'link',
+  'punctuation',
+] as const;
+
+function syntaxColour(name: (typeof syntaxTokenNames)[number]): string {
+  return `var(--notes-syntax-${name})`;
+}
+
 const codeHighlightStyle = HighlightStyle.define([
-  { tag: tags.keyword, color: 'var(--notes-accent-text)' },
   {
-    tag: [tags.controlKeyword, tags.moduleKeyword, tags.definitionKeyword],
-    color: 'var(--notes-accent-text)',
+    tag: [
+      tags.keyword,
+      tags.controlKeyword,
+      tags.moduleKeyword,
+      tags.definitionKeyword,
+      tags.operatorKeyword,
+    ],
+    color: syntaxColour('keyword'),
   },
   {
-    tag: [tags.comment, tags.lineComment, tags.blockComment],
-    color: 'var(--notes-text-muted)',
+    tag: [tags.string, tags.special(tags.string), tags.regexp],
+    color: syntaxColour('string'),
+  },
+  {
+    tag: [tags.comment, tags.lineComment, tags.blockComment, tags.meta],
+    color: syntaxColour('comment'),
     fontStyle: 'italic',
   },
   {
-    tag: [tags.string, tags.special(tags.string)],
-    color: 'var(--notes-success-text)',
+    tag: [tags.number, tags.bool, tags.null, tags.atom],
+    color: syntaxColour('number'),
   },
   {
-    tag: [tags.number, tags.bool, tags.null],
-    color: 'var(--notes-danger-text)',
+    tag: [tags.tagName, tags.typeName, tags.className, tags.namespace],
+    color: syntaxColour('tag'),
   },
   {
-    tag: [tags.function(tags.variableName), tags.function(tags.propertyName)],
-    color: 'var(--notes-accent)',
+    tag: [
+      tags.attributeName,
+      tags.propertyName,
+      tags.function(tags.variableName),
+      tags.function(tags.propertyName),
+    ],
+    color: syntaxColour('attribute'),
   },
   {
-    tag: [tags.typeName, tags.className, tags.namespace],
-    color: 'var(--notes-text-strong)',
+    tag: [tags.heading, tags.strong],
+    color: syntaxColour('heading'),
   },
-  { tag: [tags.propertyName, tags.attributeName], color: 'var(--notes-text)' },
-  { tag: [tags.tagName], color: 'var(--notes-accent-text)' },
+  { tag: [tags.link, tags.url], color: syntaxColour('link') },
   {
-    tag: [tags.operator, tags.punctuation, tags.separator],
-    color: 'var(--notes-text-muted)',
+    tag: [tags.operator, tags.punctuation, tags.separator, tags.bracket],
+    color: syntaxColour('punctuation'),
   },
   { tag: tags.invalid, color: 'var(--notes-danger-text)' },
 ]);

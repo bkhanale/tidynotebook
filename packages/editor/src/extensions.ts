@@ -95,10 +95,12 @@ export const panelTheme: Extension = EditorView.theme({
     fontSize: 'var(--text-ui)',
   },
   '.cm-searchMatch': {
-    backgroundColor: 'color-mix(in srgb, var(--notes-accent) 28%, transparent)',
+    backgroundColor:
+      'color-mix(in srgb, var(--notes-accent-fill) 28%, transparent)',
   },
   '.cm-searchMatch.cm-searchMatch-selected': {
-    backgroundColor: 'color-mix(in srgb, var(--notes-accent) 55%, transparent)',
+    backgroundColor:
+      'color-mix(in srgb, var(--notes-accent-fill) 55%, transparent)',
   },
   '.cm-tooltip.cm-tooltip-autocomplete': {
     backgroundColor: 'var(--notes-surface-card)',
