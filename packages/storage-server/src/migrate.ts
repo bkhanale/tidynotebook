@@ -41,7 +41,7 @@ export const authRole = 'notesapp_auth';
  * `migrations/meta/_journal.json`. The readiness probe compares its answer
  * with this constant, so one value describes the required set.
  */
-export const requiredSchemaVersion = 1;
+export const requiredSchemaVersion = 2;
 
 /** The reviewed migration directory of this package. */
 export function migrationsFolder(): string {

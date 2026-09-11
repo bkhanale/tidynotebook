@@ -372,8 +372,9 @@ constraint, or a stored function, so those statements are written by hand.
 
 `notesapp_schema_version()` returns the number of entries in the journal, and
 `requiredSchemaVersion` in `packages/storage-server/src/migrate.ts` is the
-value that the readiness probe compares it with. Both are `1`. A new migration
-raises both by the same amount.
+value that the readiness probe compares it with. Both are `2`. A new migration
+raises both by the same amount: the migration replaces the function with the
+new number, and the constant follows it.
 
 ### Adding a migration
 

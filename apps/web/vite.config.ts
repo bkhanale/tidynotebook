@@ -42,6 +42,9 @@ const framePath = 'src/diagram/frame.html';
 /** The placeholder that the theme data replaces inside the shell document. */
 const themePlaceholder = '__NOTESAPP_THEMES__';
 
+/** The placeholder of the first browser interface colour of the shell. */
+const themeColourPlaceholder = '__NOTESAPP_THEME_COLOUR__';
+
 /** The served name of the installed application manifest. */
 const manifestPath = 'manifest.webmanifest';
 
@@ -131,7 +134,12 @@ function themeAssets(): Plugin {
     transformIndexHtml: {
       order: 'pre',
       handler(html: string): string {
-        return html.replace(themePlaceholder, () => themeRegistryData());
+        return html
+          .replace(themePlaceholder, () => themeRegistryData())
+          .replace(
+            themeColourPlaceholder,
+            () => defaultThemeFor('dark').tokens.background,
+          );
       },
     },
     configureServer(server): void {

@@ -10,11 +10,14 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import test from 'node:test';
 import { inspect } from 'node:util';
 import type { AcceptedChangeset, Result } from '@notesapp/core';
 import { isOperationalError } from '@notesapp/core';
 import {
+  migrationsFolder,
   openWorkspaceStore,
   runMigrations,
   runtimeRole,
@@ -544,6 +547,16 @@ await test('quota: accepts a control operation on a full workspace', async () =>
   assert.equal(await countRows('live_paths', workspaceId), 0);
 });
 
+/** The migrations the repository holds, as the Drizzle journal lists them. */
+async function reviewedMigrationCount(): Promise<number> {
+  const journal: unknown = JSON.parse(
+    await readFile(join(migrationsFolder(), 'meta', '_journal.json'), 'utf8'),
+  );
+  const entries = (journal as { entries?: unknown }).entries;
+  assert.ok(Array.isArray(entries), 'the migration journal lists its entries');
+  return entries.length;
+}
+
 await test('migrations: applies to an empty database and is a no operation the second time', async () => {
   const fresh = await createDisposableDatabase();
   try {
@@ -557,12 +570,13 @@ await test('migrations: applies to an empty database and is a no operation the s
       const before = await session.query<{ total: number }>(
         'select count(*)::int as total from drizzle.__drizzle_migrations',
       );
-      // The schema is one reviewed migration. An exact count is what catches
-      // a journal that no longer agrees with the applied set.
+      // Every reviewed migration is recorded exactly once. The count comes
+      // from the journal, so this catches a journal that no longer agrees
+      // with the applied set without naming a number that ages.
       assert.equal(
         before[0]?.total,
-        1,
-        'the reviewed migration must be recorded exactly once',
+        await reviewedMigrationCount(),
+        'every reviewed migration must be recorded exactly once',
       );
       const version = await session.query<{ version: number }>(
         'select public.notesapp_schema_version() as version',
