@@ -102,6 +102,17 @@ const buildFiles = new Set(['apps/web/vite.config.ts']);
 // implementation and a base URL to the generated client. It must not call fetch
 // itself, so the call rule below stays active for it.
 const clientConfigFiles = new Set(['packages/api-client/src/configure.ts']);
+// Decision 0018 split packages/storage-browser/src/local-store.ts, once 2,609
+// lines, into one area module per concern behind the one `openLocalStore`
+// port: drafts, versions, queue and receipts, recovery, preferences, the
+// cached-file reads, and the snapshot. A non-test source file in this package
+// stays under this ceiling, so the monolith cannot grow back. The cap sits
+// well above the largest area module, so an honest addition never trips it;
+// a file that reaches it must become a new area module of src/local-store/.
+// The rule is scoped to storage-browser, because later steps of the same epic
+// split the other large files that this cap must not yet flag.
+const storageBrowserSourcePrefix = 'packages/storage-browser/src/';
+const storageBrowserLineCap = 900;
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -420,7 +431,19 @@ for (const file of sources) {
       file,
       'Test files must live under a package src tree or the root tests tree.',
     );
-  const parsed = parseSync(file, await readFile(file, 'utf8'));
+  const contents = await readFile(file, 'utf8');
+  // A storage-browser source file stays small so the split local store cannot
+  // collapse back into one file (decision 0018). Tests are exempt.
+  if (
+    !isTest &&
+    path.startsWith(storageBrowserSourcePrefix) &&
+    contents.split('\n').length > storageBrowserLineCap
+  )
+    fail(
+      file,
+      `A storage-browser source file must stay under ${storageBrowserLineCap} lines (decision 0018). Split it into an area module of packages/storage-browser/src/local-store/.`,
+    );
+  const parsed = parseSync(file, contents);
   if (parsed.errors.length) {
     fail(file, 'Source must parse before boundary validation.');
     continue;

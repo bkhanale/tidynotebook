@@ -12,15 +12,26 @@ area, preferences, and the offline snapshot.
 
 ## What lives here and what does not
 
-- `src/database.ts` declares the row shapes, the table names, and
-  `schemaVersions`.
-- `src/migrations.ts` holds the record upgrades, `ensureSchema`, and the
-  blocked upgrade instructions. `currentSchemaVersion` is the highest entry
-  in `schemaVersions`.
-- `src/local-store.ts` implements the port with Dexie transactions.
+- `src/database.ts` and `src/migrations.ts` hold the schema and the record
+  upgrades. `src/local-store/` implements the port, split by area (0018, below).
 - No rule about what a save means lives here. That rule lives in
   `packages/sync` or in `packages/core`. Nothing else in the repository opens
   a browser database.
+
+## The `local-store/` module layout
+
+`openLocalStore` in `index.ts` opens the database, owns the invalidation
+channel, and composes these area modules behind the one port, each a factory
+over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
+
+- `shared.ts`: the context type and the cross-area row helpers.
+- `drafts.ts`: save, read, rebase, drop a draft; read a cached note.
+- `versions.ts`: checkpoint a save and list local history.
+- `queue.ts`: the save queue, the receipts, the local conflicts.
+- `recovery.ts`: the recovery area and the private-data reset.
+- `preferences.ts`: pins, the sign-out marker, the sync lease.
+- `files.ts`: the reads over the cached mirror of server state.
+- `snapshot.ts`: stage, store, activate a snapshot; apply remote changes.
 
 ## Allowed imports
 
@@ -35,8 +46,9 @@ only package, or a server only package.
   `src/database.ts`, add the entry to `schemaVersions`, and add the record
   upgrade in `src/migrations.ts`.
 - **A port method.** Add it to `LocalStore` in
-  `packages/sync/src/local-port.ts` first, then implement it in
-  `src/local-store.ts` inside one Dexie transaction.
+  `packages/sync/src/local-port.ts` first, then implement it in the area
+  module of `src/local-store/` that owns it and spread its slice from
+  `src/local-store/index.ts`. Every write stays in one Dexie transaction.
 - **A refusal.** Throw `LocalStorageError` with a `LocalStorageErrorKind`, so
   the application can tell the person what happened without an engine notice.
 
@@ -53,17 +65,16 @@ migration test must prove the upgrade from the earlier stored shape.
 - No network call and no import of `@notesapp/api-client`.
 - No write outside a Dexie transaction. A save writes the local version and
   the queue entry in one transaction.
-- No schema change without a new entry in `schemaVersions` and its record
-  upgrade.
+- No schema change without a new `schemaVersions` entry and its upgrade.
 - No silent data loss on a blocked or a newer schema. Refuse with
   `LocalStorageError` and report it.
 - No treatment of a draft as a server version. A draft is recovery data.
 
 ## Key files
 
-| File                 | Purpose                                   |
-| -------------------- | ----------------------------------------- |
-| `src/index.ts`       | The one public entry point                |
-| `src/database.ts`    | Row shapes, table names, `schemaVersions` |
-| `src/migrations.ts`  | Record upgrades and `ensureSchema`        |
-| `src/local-store.ts` | The `LocalStore` implementation           |
+| File                       | Purpose                                   |
+| -------------------------- | ----------------------------------------- |
+| `src/index.ts`             | The one public entry point                |
+| `src/database.ts`          | Row shapes, table names, `schemaVersions` |
+| `src/migrations.ts`        | Record upgrades and `ensureSchema`        |
+| `src/local-store/index.ts` | The composition root and `openLocalStore` |

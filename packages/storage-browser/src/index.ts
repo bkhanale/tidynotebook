@@ -54,5 +54,5 @@ export {
   validateSnapshot,
   validateSnapshotItem,
 } from './migrations.ts';
-export type { LocalStoreOptions } from './local-store.ts';
-export { openLocalStore } from './local-store.ts';
+export type { LocalStoreOptions } from './local-store/index.ts';
+export { openLocalStore } from './local-store/index.ts';
