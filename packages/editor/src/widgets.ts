@@ -28,7 +28,8 @@
  *
  * A decoration that replaces a line break, and every block decoration, has
  * to come from a state field rather than from a view plugin, which is why
- * the setext heading underline is hidden here as well.
+ * the setext heading underline and the code fence lines are hidden here as
+ * well.
  */
 import { syntaxTree } from '@codemirror/language';
 import {
@@ -530,6 +531,15 @@ export function buildRichWidgets(
     items.push(hide.range(underline.from, underline.to));
     atomicItems.push(hide.range(underline.from, underline.to));
   }
+  for (const fence of findCodeFences(state)) {
+    if (touches(fence.blockFrom, fence.blockTo)) continue;
+    for (const line of fence.hides) {
+      if (line.to <= line.from) continue;
+      const hide = Decoration.replace({});
+      items.push(hide.range(line.from, line.to));
+      atomicItems.push(hide.range(line.from, line.to));
+    }
+  }
   return {
     decorations: Decoration.set(items, true),
     atomic: RangeSet.of(atomicItems, true),
@@ -569,6 +579,70 @@ function findSetextUnderlines(state: EditorState): readonly {
         headingFrom: node.from,
         headingTo: node.to,
       });
+      return false;
+    },
+  });
+  return found;
+}
+
+/**
+ * The fence lines of a fenced code block, with the block range that reveals
+ * them.
+ *
+ * A fenced code block hides its opening and its closing fence line, so the
+ * reader sees the highlighted code alone and not the ` ``` ` lines (decision
+ * 0002). Each hidden range covers one fence line and the one line break that
+ * joins it to the code, so the line collapses. The block shows its fences
+ * again while the selection touches it, so the source stays editable. A
+ * mermaid fence is a diagram widget, so it is left out here.
+ */
+function findCodeFences(state: EditorState): readonly {
+  hides: readonly { from: number; to: number }[];
+  blockFrom: number;
+  blockTo: number;
+}[] {
+  const doc = state.doc;
+  const found: {
+    hides: { from: number; to: number }[];
+    blockFrom: number;
+    blockTo: number;
+  }[] = [];
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (node.name !== 'FencedCode') return true;
+      const fence = node.node;
+      const info = fence.getChild('CodeInfo');
+      const language =
+        info === null
+          ? ''
+          : doc.sliceString(info.from, info.to).trim().toLowerCase();
+      if (language === 'mermaid') return false;
+      const marks = fence.getChildren('CodeMark');
+      const open = marks[0] ?? null;
+      if (open === null) return false;
+      const openLine = doc.lineAt(open.from);
+      const close = marks.length > 1 ? (marks[marks.length - 1] ?? null) : null;
+      const closeLine = close === null ? null : doc.lineAt(close.from);
+      const hides: { from: number; to: number }[] = [];
+      if (closeLine === null || closeLine.number > openLine.number + 1) {
+        // The opening line and the line break after it, so the first code
+        // line moves up into its place.
+        hides.push({
+          from: openLine.from,
+          to: Math.min(doc.length, openLine.to + 1),
+        });
+        if (closeLine !== null)
+          // The closing line and the line break before it.
+          hides.push({ from: closeLine.from - 1, to: closeLine.to });
+      } else if (closeLine.number === openLine.number + 1) {
+        // An empty block holds no code between its fences, so one range hides
+        // both lines and cannot overlap.
+        hides.push({ from: openLine.from, to: closeLine.to });
+      }
+      // A single line fence keeps its open and close on one line, so it is
+      // left as source rather than hiding the code with the fences.
+      if (hides.length > 0)
+        found.push({ hides, blockFrom: node.from, blockTo: node.to });
       return false;
     },
   });

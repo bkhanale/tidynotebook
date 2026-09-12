@@ -649,5 +649,4 @@ export const shortcuts: readonly EditorShortcut[] = [
   },
   { keys: 'Cmd or Ctrl + Enter', description: 'Toggle the task box' },
   { keys: 'Alt + Enter', description: 'Open the link at the cursor' },
-  { keys: 'Cmd or Ctrl + Shift + P', description: 'Switch Write and Read' },
 ];

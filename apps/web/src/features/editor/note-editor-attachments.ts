@@ -1,8 +1,8 @@
 /**
  * Attachment object URL ownership for the note editor.
  *
- * Attachment widgets and Read mode reference authenticated attachment bytes
- * through short-lived object URLs. This module owns the lifecycle of those
+ * Attachment widgets reference authenticated attachment bytes through
+ * short-lived object URLs. This module owns the lifecycle of those
  * URLs: it loads one per referenced revision, holds it while the reference
  * stays in the buffer, and revokes it when the reference leaves the note or
  * when the editor closes. The editor host in `note-editor.tsx` reads the

@@ -913,16 +913,6 @@ function ShellFrame({
               },
             },
           ]),
-      ...(noteActions?.toggleReadMode == null
-        ? []
-        : [
-            {
-              id: 'read-mode',
-              label: 'Toggle Read mode',
-              keywords: 'write preview render',
-              run: noteActions.toggleReadMode,
-            },
-          ]),
       {
         id: 'trash',
         label: 'Go to Trash',

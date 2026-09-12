@@ -163,6 +163,51 @@ await test('a setext underline is hidden together with the break above it', () =
   assert.equal(count, 0);
 });
 
+await test('a fenced code block hides its opening and closing fence lines', () => {
+  const doc = '```js\nconst a = 1;\n```\n\ntail\n';
+  const away = buildRichWidgets(stateOf(doc, doc.indexOf('tail')), {});
+  const hidden: Array<[number, number]> = [];
+  away.decorations.between(0, doc.length, (from, to) => {
+    hidden.push([from, to]);
+  });
+  // The opening line with its trailing break, and the closing line with the
+  // break before it.
+  assert.deepEqual(hidden, [
+    [0, 6],
+    [18, 22],
+  ]);
+  // The code stays between the hidden fences.
+  assert.equal(doc.slice(6, 18), 'const a = 1;');
+  // A cursor inside the block brings the fences back.
+  const inside = buildRichWidgets(stateOf(doc, 8), {});
+  let count = 0;
+  inside.decorations.between(0, doc.length, () => {
+    count += 1;
+  });
+  assert.equal(count, 0);
+});
+
+await test('a mermaid fence renders as a diagram and keeps no fence-line hide', () => {
+  const doc = '```mermaid\ngraph TD;\n```\n\ntail\n';
+  const away = buildRichWidgets(stateOf(doc, doc.indexOf('tail')), {});
+  let count = 0;
+  away.decorations.between(0, doc.length, () => {
+    count += 1;
+  });
+  // Only the diagram widget, and no separate fence-line hides.
+  assert.equal(count, 1);
+});
+
+await test('an unclosed fence hides only its opening line', () => {
+  const doc = 'intro\n\n```js\nconst x = 1;\n';
+  const away = buildRichWidgets(stateOf(doc, 0), {});
+  const hidden: Array<[number, number]> = [];
+  away.decorations.between(0, doc.length, (from, to) => {
+    hidden.push([from, to]);
+  });
+  assert.deepEqual(hidden, [[7, 13]]);
+});
+
 await test('the attachment reader accepts only the attachment path', () => {
   assert.equal(attachmentIdOf('/attachments/abc'), 'abc');
   assert.equal(attachmentIdOf('https://example.com/attachments/abc'), null);

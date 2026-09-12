@@ -7,11 +7,6 @@
       "reason": "The theme swatch paints four token values that it reads from the theme registry at run time, one set per family. A utility class names a value at build time, so it cannot express a colour that the registry chooses."
     },
     {
-      "file": "apps/web/src/features/editor/note-read-mode.tsx",
-      "rule": "inner-html",
-      "reason": "The one sanitized renderer host of Read mode. The markup comes from renderMarkdown in packages/markdown, which sanitizes with the policy in policy.ts. Decision record 0003."
-    },
-    {
       "file": "apps/web/src/diagram/frame-main.ts",
       "rule": "inner-html",
       "reason": "The sandboxed diagram frame writes the SVG that the isolated Mermaid renderer produced. The frame runs on a sandboxed origin, so the markup never reaches the application origin. Decision record 0013."

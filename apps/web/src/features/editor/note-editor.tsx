@@ -45,7 +45,6 @@ import {
   type LinkTarget,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
-import type { RenderMarkdownOptions } from '@notesapp/markdown';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../../app.tsx';
 import { activeNoteChanged, setActiveNoteView } from './active-note.ts';
@@ -56,7 +55,6 @@ import {
   sanitizeAttachmentName,
   useAttachmentUrls,
 } from './note-editor-attachments.ts';
-import { ReadMode, diagramFramePath } from './note-read-mode.tsx';
 import { useRegisterNoteActions } from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader } from './note-header.tsx';
@@ -86,6 +84,14 @@ import {
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
 
+/**
+ * The built diagram frame document.
+ *
+ * A plain path string on purpose: this names a static Vite entry, not an
+ * application API route, so it stays a literal instead of a constructed URL.
+ */
+const diagramFramePath = '/src/diagram/frame.html';
+
 /** The accepted head that a stale draft of this device does not contain. */
 export type StaleHead = {
   readonly revisionId: string | null;
@@ -113,9 +119,6 @@ function recordTiming(name: string, startedAt: number): void {
 
 /** Safety refresh when browser invalidation messages are unavailable. */
 const saveStateFallbackMs = 30_000;
-
-/** The two surfaces of one note: the source editor and the rendered text. */
-type NoteMode = 'write' | 'read';
 
 /** What one attachment upload is doing right now. */
 type AttachState =
@@ -206,14 +209,9 @@ export function NoteEditor({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [pasteNotice, setPasteNotice] = useState('');
-  const [mode, setMode] = useState<NoteMode>('write');
   const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastFilesRef = useRef<readonly File[]>([]);
-  const renderMarkdownRef = useRef<
-    | ((source: string, options?: RenderMarkdownOptions) => Promise<string>)
-    | null
-  >(null);
   const { attachmentUrls, attachmentUrlsRef } = useAttachmentUrls(
     workspaceId,
     bufferText,
@@ -423,7 +421,6 @@ export function NoteEditor({
     void import('../../lib/markdown.ts').then((module) => {
       if (cancelled) return;
       mathRenderRef.current = module.renderMath;
-      renderMarkdownRef.current = module.renderMarkdown;
       setMathReady(true);
     });
     return () => {
@@ -551,9 +548,9 @@ export function NoteEditor({
     };
   }, [store, accountId, workspaceId, workingCopyId]);
 
-  // Save and the Read switch are window level, so they work while focus sits
-  // in the note name field. CodeMirror marks the event handled first, so the
-  // editor binding never fires twice.
+  // Save is window level, so it works while focus sits in the note name
+  // field. CodeMirror marks the event handled first, so the editor binding
+  // never fires twice.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented) return;
@@ -566,36 +563,12 @@ export function NoteEditor({
           saveTimerRef.current = null;
         }
         void checkpointNow.current();
-        return;
-      }
-      if (event.shiftKey && event.key.toLowerCase() === 'p') {
-        event.preventDefault();
-        setMode((current) => (current === 'write' ? 'read' : 'write'));
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, []);
-
-  // The editor measures itself again when it becomes visible, so the
-  // scroller keeps the right height after a switch back to Write. The first
-  // render is not a switch, so it never takes focus from the name field.
-  const previousModeRef = useRef<NoteMode>(mode);
-  useEffect(() => {
-    const changed = previousModeRef.current !== mode;
-    previousModeRef.current = mode;
-    if (!changed || mode !== 'write') return;
-    const view = viewRef.current;
-    if (view === null) return;
-    view.requestMeasure();
-    view.focus();
-  }, [mode]);
-
-  /** Switches Write and Read, for the header toggle and the palette. */
-  const toggleMode = useCallback((): void => {
-    setMode((current) => (current === 'write' ? 'read' : 'write'));
   }, []);
 
   /**
@@ -658,7 +631,6 @@ export function NoteEditor({
   });
   useRegisterNoteActions({
     fileId,
-    toggleReadMode: toggleMode,
     delete: deleteOpenNote,
   });
 
@@ -981,40 +953,6 @@ export function NoteEditor({
             await checkpointNow.current();
           })();
         }}
-        readToggle={
-          <div className="inline-flex rounded-lg border border-edge p-0.5">
-            <button
-              type="button"
-              aria-pressed={mode === 'write'}
-              title="Write (Cmd or Ctrl + Shift + P)"
-              className={`min-h-11 cursor-pointer rounded-md border-0 px-3 text-control font-medium motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8 ${
-                mode === 'write'
-                  ? 'bg-accent-fill text-on-accent'
-                  : 'bg-transparent text-strong hover:bg-hover'
-              }`}
-              onClick={() => {
-                setMode('write');
-              }}
-            >
-              Write
-            </button>
-            <button
-              type="button"
-              aria-pressed={mode === 'read'}
-              title="Read (Cmd or Ctrl + Shift + P)"
-              className={`min-h-11 cursor-pointer rounded-md border-0 px-3 text-control font-medium motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8 ${
-                mode === 'read'
-                  ? 'bg-accent-fill text-on-accent'
-                  : 'bg-transparent text-strong hover:bg-hover'
-              }`}
-              onClick={() => {
-                setMode('read');
-              }}
-            >
-              Read
-            </button>
-          </div>
-        }
         confirmingDelete={confirmingDelete}
         onCancelDelete={() => setConfirmingDelete(false)}
         handlers={{
@@ -1111,7 +1049,7 @@ export function NoteEditor({
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div
               ref={containerRef}
-              className={`min-h-0 flex-1 overflow-hidden ${mode === 'read' ? 'hidden' : ''}`}
+              className="min-h-0 flex-1 overflow-hidden"
               onPaste={(event): void => {
                 const dropped = Array.from(event.clipboardData?.files ?? []);
                 if (dropped.some((file) => file.type.startsWith('image/'))) {
@@ -1127,14 +1065,6 @@ export function NoteEditor({
                 }
               }}
             />
-            {mode === 'read' ? (
-              <ReadMode
-                text={bufferText}
-                attachmentUrls={attachmentUrls}
-                theme={resolved}
-                renderMarkdown={mathReady ? renderMarkdownRef.current : null}
-              />
-            ) : null}
           </div>
           <aside
             className="hidden w-56 shrink-0 overflow-y-auto lg:block"

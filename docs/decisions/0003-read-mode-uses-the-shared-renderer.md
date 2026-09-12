@@ -1,6 +1,6 @@
 # 0003. Read mode is the second consumer of the renderer
 
-- Status: Accepted
+- Status: Superseded by [0022](0022-the-live-preview-is-the-one-note-surface.md)
 - Date: 2026-09-10
 
 ## Context

@@ -28,29 +28,30 @@ and needs no record.
 
 ## Index
 
-| Record                                                 | Decision                                              |
-| ------------------------------------------------------ | ----------------------------------------------------- |
-| [0001](0001-one-markdown-grammar.md)                   | One Markdown grammar                                  |
-| [0002](0002-widgets-only-where-text-cannot-express.md) | Widgets only where text cannot express the result     |
-| [0003](0003-read-mode-uses-the-shared-renderer.md)     | Read mode is the second consumer of the renderer      |
-| [0004](0004-standard-links-between-notes.md)           | Standard links between notes, no wiki syntax in v0.1  |
-| [0005](0005-workspace-is-an-implicit-container.md)     | Workspace becomes an implicit container               |
-| [0006](0006-trash-replaces-purge.md)                   | Trash replaces the purge screen                       |
-| [0007](0007-keep-the-save-model.md)                    | Keep the save model and close its gaps                |
-| [0008](0008-remove-the-remote-integration-surface.md)  | Remove the remote integration surface for v0.1        |
-| [0009](0009-export-first-import-later.md)              | Export first, import later                            |
-| [0010](0010-one-command-palette.md)                    | One command palette                                   |
-| [0011](0011-contract-emit-and-one-migration.md)        | Shared contract definitions and one initial migration |
-| [0012](0012-package-layout-stays-for-v0-1.md)          | The package layout stays for v0.1                     |
-| [0013](0013-delivery-and-headers-belong-to-the-app.md) | Delivery and headers belong to the application        |
-| [0014](0014-browser-tests-are-the-interface-gate.md)   | Browser tests are the interface gate                  |
-| [0015](0015-the-note-surface-is-the-design.md)         | The note surface is the design                        |
-| [0016](0016-themes-are-data-in-one-registry.md)        | A theme is data in one registry                       |
-| [0017](0017-save-feedback-on-the-save-button.md)       | Save feedback lives on the Save button                |
-| [0018](0018-directory-structure-by-layer.md)           | The directory structure follows ports and adapters    |
-| [0019](0019-contract-validation-and-shared-types.md)   | One contract, generated types, and no type assertions |
-| [0020](0020-central-logging-through-one-module.md)     | Central logging through one module                    |
-| [0021](0021-portable-markdown-at-rest.md)              | Portable Markdown at rest                             |
+| Record                                                   | Decision                                              |
+| -------------------------------------------------------- | ----------------------------------------------------- |
+| [0001](0001-one-markdown-grammar.md)                     | One Markdown grammar                                  |
+| [0002](0002-widgets-only-where-text-cannot-express.md)   | Widgets only where text cannot express the result     |
+| [0003](0003-read-mode-uses-the-shared-renderer.md)       | Read mode is the second consumer of the renderer      |
+| [0004](0004-standard-links-between-notes.md)             | Standard links between notes, no wiki syntax in v0.1  |
+| [0005](0005-workspace-is-an-implicit-container.md)       | Workspace becomes an implicit container               |
+| [0006](0006-trash-replaces-purge.md)                     | Trash replaces the purge screen                       |
+| [0007](0007-keep-the-save-model.md)                      | Keep the save model and close its gaps                |
+| [0008](0008-remove-the-remote-integration-surface.md)    | Remove the remote integration surface for v0.1        |
+| [0009](0009-export-first-import-later.md)                | Export first, import later                            |
+| [0010](0010-one-command-palette.md)                      | One command palette                                   |
+| [0011](0011-contract-emit-and-one-migration.md)          | Shared contract definitions and one initial migration |
+| [0012](0012-package-layout-stays-for-v0-1.md)            | The package layout stays for v0.1                     |
+| [0013](0013-delivery-and-headers-belong-to-the-app.md)   | Delivery and headers belong to the application        |
+| [0014](0014-browser-tests-are-the-interface-gate.md)     | Browser tests are the interface gate                  |
+| [0015](0015-the-note-surface-is-the-design.md)           | The note surface is the design                        |
+| [0016](0016-themes-are-data-in-one-registry.md)          | A theme is data in one registry                       |
+| [0017](0017-save-feedback-on-the-save-button.md)         | Save feedback lives on the Save button                |
+| [0018](0018-directory-structure-by-layer.md)             | The directory structure follows ports and adapters    |
+| [0019](0019-contract-validation-and-shared-types.md)     | One contract, generated types, and no type assertions |
+| [0020](0020-central-logging-through-one-module.md)       | Central logging through one module                    |
+| [0021](0021-portable-markdown-at-rest.md)                | Portable Markdown at rest                             |
+| [0022](0022-the-live-preview-is-the-one-note-surface.md) | The live preview is the one note surface              |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -61,4 +62,6 @@ target structure and the type rules that the
 Record 0020 records the one way to write a log record, and it follows
 [design 003](../design/003-central-logging.md). Record 0021 records the
 portable form of the stored note text, and it follows
-[design 004](../design/004-portable-markdown-at-rest.md).
+[design 004](../design/004-portable-markdown-at-rest.md). Record 0022 makes the
+live preview the one note surface and supersedes record 0003, and it follows
+[design 005](../design/005-the-one-markdown-surface.md).

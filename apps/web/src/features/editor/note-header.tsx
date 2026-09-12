@@ -2,9 +2,8 @@
  * The header row of the note screen.
  *
  * The note name is the largest type on the screen and is edited in place.
- * Next to it sit the save action, the slot where the editor puts its Write
- * and Read toggle, and one overflow menu. The row is sticky, so the name
- * and the actions stay reachable while a long note scrolls.
+ * Next to it sit the save action and one overflow menu. The row is sticky, so
+ * the name and the actions stay reachable while a long note scrolls.
  *
  * The Save button is the one place that reports the save state. It offers
  * the action while text waits for a version, reports the run, and then
@@ -51,7 +50,6 @@ export function NoteHeader({
   onSave,
   saveButton,
   nameInputRef,
-  readToggle,
   confirmingDelete,
   onCancelDelete,
   handlers,
@@ -66,8 +64,6 @@ export function NoteHeader({
   /** What the Save button reports about the open note. */
   readonly saveButton: SaveButtonState;
   readonly nameInputRef?: React.Ref<HTMLInputElement> | undefined;
-  /** Where the editor puts its Write and Read toggle. */
-  readonly readToggle?: ReactNode | undefined;
   readonly confirmingDelete: boolean;
   readonly onCancelDelete: () => void;
   readonly handlers: NoteMenuHandlers;
@@ -135,7 +131,6 @@ export function NoteHeader({
           }}
         />
         <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
-          {readToggle}
           {confirmingDelete ? (
             <>
               <Button
