@@ -777,7 +777,7 @@ export const accountPreferences = pgTable('account_preferences', {
     .primaryKey()
     .references(() => accounts.id),
   theme: text('theme').notNull().default('system'),
-  themeFamily: text('theme_family').notNull().default('tokyo-night'),
+  themeFamily: text('theme_family').notNull().default('ink'),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

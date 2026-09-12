@@ -14,11 +14,23 @@
  * list of plain parts, so the marked words are real elements and no markup
  * from a note is ever put into the page.
  */
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { useNavigate } from 'react-router';
 import { searchFiles as searchRemote } from '@notesapp/api-client';
 import { searchLocal, type LocalStore } from '@notesapp/sync';
-import { Dialog, SearchIcon } from '@notesapp/ui';
+import {
+  ChevronRightIcon,
+  Dialog,
+  FileTextIcon,
+  SearchIcon,
+} from '@notesapp/ui';
 import { displayNoteName } from '../lib/note-name.ts';
 import {
   mergeHits,
@@ -176,6 +188,10 @@ export function CommandPalette({
   };
 
   const activeId = rows[selected]?.id;
+  // The first row of each kind carries a quiet section label, so notes and
+  // actions read as two groups without leaving the one listbox.
+  const firstNote = rows.findIndex((row) => row.kind === 'note');
+  const firstAction = rows.findIndex((row) => row.kind === 'action');
 
   return (
     <Dialog
@@ -241,44 +257,73 @@ export function CommandPalette({
         aria-label="Results"
       >
         {rows.map((row, index) => (
-          <li
-            key={row.id}
-            id={row.id}
-            role="option"
-            aria-selected={index === selected}
-            className={`flex min-h-11 cursor-pointer flex-col justify-center rounded-lg px-3 py-2 ${index === selected ? 'bg-active text-strong' : 'text-ink hover:bg-hover'}`}
-            onMouseEnter={() => setSelected(index)}
-            onMouseDown={(event): void => {
-              event.preventDefault();
-              run(row);
-            }}
-          >
-            {row.kind === 'note' ? (
-              <>
-                <span className="truncate text-ui font-medium">
-                  {displayNoteName(row.match.path)}
-                </span>
-                {row.match.excerpt === null ? null : (
-                  <span className="truncate text-control text-muted">
-                    {row.match.excerpt.map((part, at) =>
-                      part.marked ? (
-                        <mark
-                          key={at}
-                          className="bg-transparent font-semibold text-accent"
-                        >
-                          {part.text}
-                        </mark>
-                      ) : (
-                        <span key={at}>{part.text}</span>
-                      ),
-                    )}
-                  </span>
+          <Fragment key={row.id}>
+            {index === firstNote ? (
+              <li
+                role="presentation"
+                className="px-3 pb-1 pt-2 text-control font-semibold uppercase tracking-wide text-muted first:pt-1"
+              >
+                Notes
+              </li>
+            ) : null}
+            {index === firstAction ? (
+              <li
+                role="presentation"
+                className="px-3 pb-1 pt-2 text-control font-semibold uppercase tracking-wide text-muted first:pt-1"
+              >
+                Actions
+              </li>
+            ) : null}
+            <li
+              id={row.id}
+              role="option"
+              aria-selected={index === selected}
+              className={`flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 py-2 ${index === selected ? 'bg-active text-strong' : 'text-ink hover:bg-hover'}`}
+              onMouseEnter={() => setSelected(index)}
+              onMouseDown={(event): void => {
+                event.preventDefault();
+                run(row);
+              }}
+            >
+              <span
+                className="inline-flex shrink-0 items-center text-muted"
+                aria-hidden="true"
+              >
+                {row.kind === 'note' ? (
+                  <FileTextIcon size={16} />
+                ) : (
+                  <ChevronRightIcon size={16} />
                 )}
-              </>
-            ) : (
-              <span className="truncate text-ui">{row.action.label}</span>
-            )}
-          </li>
+              </span>
+              {row.kind === 'note' ? (
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-ui font-medium">
+                    {displayNoteName(row.match.path)}
+                  </span>
+                  {row.match.excerpt === null ? null : (
+                    <span className="truncate text-control text-muted">
+                      {row.match.excerpt.map((part, at) =>
+                        part.marked ? (
+                          <mark
+                            key={at}
+                            className="bg-transparent font-semibold text-accent"
+                          >
+                            {part.text}
+                          </mark>
+                        ) : (
+                          <span key={at}>{part.text}</span>
+                        ),
+                      )}
+                    </span>
+                  )}
+                </span>
+              ) : (
+                <span className="min-w-0 flex-1 truncate text-ui">
+                  {row.action.label}
+                </span>
+              )}
+            </li>
+          </Fragment>
         ))}
       </ul>
       {rows.length === 0 ? (

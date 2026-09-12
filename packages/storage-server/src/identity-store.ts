@@ -34,7 +34,7 @@ const uuidPattern =
 const roles: readonly Role[] = ['owner'];
 
 /** The family a row without a stored choice renders with. */
-const defaultThemeFamily = 'tokyo-night';
+const defaultThemeFamily = 'ink';
 const appearances: readonly AppearanceChoice[] = ['system', 'light', 'dark'];
 
 function isRole(value: string): value is Role {

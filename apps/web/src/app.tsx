@@ -34,6 +34,7 @@ import {
 import {
   appearanceStorageKey,
   applyThemeToDocument,
+  defaultThemeFamilyId,
   parseAppearanceChoice,
   parseThemeFamilyId,
   resolveAppearance,
@@ -134,7 +135,7 @@ function readCachedAccount(): Account | null {
         themeFamily:
           typeof themeFamily === 'string' && themeFamily !== ''
             ? themeFamily
-            : 'tokyo-night',
+            : defaultThemeFamilyId,
       },
     };
   } catch {

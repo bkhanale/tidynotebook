@@ -500,6 +500,9 @@ await test('account settings belong to one account', async () => {
       [invited.ownerId],
     );
     assert.equal(settings.length, 1);
+    // The row was inserted without a theme family, so it carries the column
+    // default. Ink is the signature default of this application.
+    assert.equal(settings[0]?.['theme_family'], 'ink');
   } finally {
     await own.close();
   }
