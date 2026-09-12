@@ -1,13 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
-  buttonEnabled,
-  buttonLabel,
-  resolveSaveButton,
   resolveSaveState,
-  type SaveButtonState,
+  resolveSaveStatus,
+  statusLabel,
   type SaveState,
   type SaveStateInput,
+  type SaveStatus,
 } from './save-state.ts';
 
 const accepted: SaveStateInput = {
@@ -55,45 +54,32 @@ await test('save state follows only the current file durable lifecycle', () => {
   );
 });
 
-/** The button state of one open note. */
-const button = (state: SaveState, hasUnsavedEdits = false): SaveButtonState =>
-  resolveSaveButton({ state, hasUnsavedEdits });
+/** The save status of one open note. */
+const status = (state: SaveState, hasUnsavedEdits = false): SaveStatus =>
+  resolveSaveStatus({ state, hasUnsavedEdits });
 
-await test('typed text that no version holds keeps the action offered', () => {
-  assert.equal(button('saved-local', true), 'save');
-  assert.equal(button('saving-local', true), 'save');
-  assert.equal(button('saved-server', true), 'save');
+await test('typed text that no version holds reads as saving', () => {
+  assert.equal(status('saved-local', true), 'saving');
+  assert.equal(status('saving-local', true), 'saving');
+  assert.equal(status('saved-server', true), 'saving');
 });
 
-await test('a run of the save reports itself', () => {
-  assert.equal(button('saving-local'), 'saving');
-  assert.equal(button('syncing'), 'saving');
+await test('a save that has not settled reads as saving', () => {
+  assert.equal(status('saving-local'), 'saving');
+  assert.equal(status('syncing'), 'saving');
+  assert.equal(status('save-failed'), 'saving');
+  assert.equal(status('storage-full'), 'saving');
 });
 
-await test('the button states the result of the last save', () => {
-  assert.equal(button('saved-server'), 'saved');
-  assert.equal(button('saved-local'), 'saved-local');
+await test('a note that holds every edit as a version reads as saved', () => {
+  assert.equal(status('saved-server'), 'saved');
+  assert.equal(status('saved-local'), 'saved');
 });
 
-await test('a failed save leaves the button ready for another try', () => {
-  assert.equal(button('save-failed'), 'save');
-  assert.equal(button('storage-full'), 'save');
-  assert.equal(button('save-failed', true), 'save');
-});
-
-await test('every button state has one label and one enabled rule', () => {
-  const states: readonly SaveButtonState[] = [
-    'save',
-    'saving',
-    'saved-local',
-    'saved',
-  ];
+await test('each save status has one label', () => {
+  const statuses: readonly SaveStatus[] = ['saving', 'saved'];
   assert.deepEqual(
-    states.map((state) => buttonLabel(state)),
-    ['Save', 'Saving', 'Saved on this device', 'Saved'],
-  );
-  assert.deepEqual(
-    states.map((state) => buttonEnabled(state)),
-    [true, false, false, false],
+    statuses.map((one) => statusLabel(one)),
+    ['Saving', 'Saved'],
   );
 });

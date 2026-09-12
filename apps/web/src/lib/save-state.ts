@@ -49,37 +49,28 @@ export type NoteSaveFacts = {
   readonly hasUnsavedEdits: boolean;
 };
 
-/** The one state the Save button of the note header shows. */
-export type SaveButtonState = 'save' | 'saving' | 'saved-local' | 'saved';
+/** The one save status the note screen shows: it saves, or it is saved. */
+export type SaveStatus = 'saving' | 'saved';
 
 /**
- * Selects the state of the Save button from the facts of the open note.
+ * Selects the save status from the facts of the open note.
  *
- * Typed text that no version holds yet always wins, so the button offers
- * the action while a draft write is still in flight. A failed save also
- * leaves the button ready, because the person has to try again. Everything
- * else reports the result: the save is running, the version waits on this
- * device, or the server holds it.
+ * The note saves itself, so the person reads one of two words. It is `saving`
+ * while typed text is not yet a version, while a version write runs, and while
+ * a save has not settled. It is `saved` once the note holds every edit as a
+ * version. The device and the server are not told apart, because a person does
+ * not act on that difference.
  */
-export function resolveSaveButton(note: NoteSaveFacts): SaveButtonState {
-  if (note.state === 'save-failed' || note.state === 'storage-full')
-    return 'save';
-  if (note.hasUnsavedEdits) return 'save';
+export function resolveSaveStatus(note: NoteSaveFacts): SaveStatus {
+  if (note.hasUnsavedEdits) return 'saving';
   if (note.state === 'saving-local' || note.state === 'syncing')
     return 'saving';
-  if (note.state === 'saved-server') return 'saved';
-  return 'saved-local';
+  if (note.state === 'save-failed' || note.state === 'storage-full')
+    return 'saving';
+  return 'saved';
 }
 
-/** The label of one Save button state. */
-export function buttonLabel(state: SaveButtonState): string {
-  if (state === 'save') return 'Save';
-  if (state === 'saving') return 'Saving';
-  if (state === 'saved-local') return 'Saved on this device';
-  return 'Saved';
-}
-
-/** Whether the Save button accepts a press in this state. */
-export function buttonEnabled(state: SaveButtonState): boolean {
-  return state === 'save';
+/** The label of one save status. */
+export function statusLabel(status: SaveStatus): string {
+  return status === 'saving' ? 'Saving' : 'Saved';
 }

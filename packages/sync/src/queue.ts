@@ -582,6 +582,18 @@ async function submitSingle(
   if (action === 'paused') return 'paused';
   if (action === 'access-lost') return 'access-lost';
   if (action === 'leave') return 'done';
+  // A purged file is gone on the server for good. Its queued mutation can never
+  // apply, and keeping the mutation, or its text as a recovery copy, would put
+  // a permanently deleted note in front of the person again. Forget every local
+  // trace of the file instead of parking it.
+  if (outcome.problem.code === 'purged') {
+    await local.forgetPurgedFiles(
+      accountId,
+      workspaceId,
+      refusedFiles(entry, outcome.problem),
+    );
+    return 'done';
+  }
   // A refused precondition is not a permanent failure. The workspace refuses
   // it only where a rebase would remove content, so the client reads the
   // accepted state and decides per case. One recovery per entry per run: a

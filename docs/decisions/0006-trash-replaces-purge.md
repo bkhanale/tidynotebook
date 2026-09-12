@@ -1,6 +1,6 @@
 # 0006. Trash replaces the purge screen
 
-- Status: Accepted
+- Status: Superseded by [0023](0023-one-auto-expiring-trash.md)
 - Date: 2026-09-10
 
 ## Context

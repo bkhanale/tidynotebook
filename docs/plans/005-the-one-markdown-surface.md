@@ -1,18 +1,18 @@
-# Plan 004: The one Markdown surface
+# Plan 005: The one Markdown surface
 
 Status: active
 
 > The live prioritized list is [docs/releases/0.1.0.md](../releases/0.1.0.md).
 > This plan stays until 0.1.0 ships, as the record of the ordered work.
 
-This plan turns [design 005](../design/005-the-one-markdown-surface.md) and
-[decision 0022](../decisions/0022-the-live-preview-is-the-one-note-surface.md)
+This plan turns [design 006](../design/006-the-one-markdown-surface.md) and
+[decision 0025](../decisions/0025-the-live-preview-is-the-one-note-surface.md)
 into ordered work. The order is the contract: remove the second surface, close
 the live preview gaps, then prove the one surface.
 
 ## Decisions
 
-- [0022. The live preview is the one note surface](../decisions/0022-the-live-preview-is-the-one-note-surface.md)
+- [0025. The live preview is the one note surface](../decisions/0025-the-live-preview-is-the-one-note-surface.md)
 - Kept: [0002. Widgets only where text cannot express](../decisions/0002-widgets-only-where-text-cannot-express.md)
 - Superseded: [0003. Read mode is the second consumer of the renderer](../decisions/0003-read-mode-uses-the-shared-renderer.md)
 

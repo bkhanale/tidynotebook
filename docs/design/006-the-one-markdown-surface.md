@@ -1,4 +1,4 @@
-# 005: The one Markdown surface
+# 006: The one Markdown surface
 
 Status: active
 
@@ -145,4 +145,4 @@ not in Read mode. The corpus and a browser journey hold this.
 
 ## Decisions
 
-- [0022. The live preview is the one note surface](../decisions/0022-the-live-preview-is-the-one-note-surface.md)
+- [0025. The live preview is the one note surface](../decisions/0025-the-live-preview-is-the-one-note-surface.md)

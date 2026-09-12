@@ -8,8 +8,20 @@
  * one area needs, so no area repeats a partition query or a row mapping.
  */
 import type { Draft, LocalChange } from '@notesapp/sync';
-import type { DraftRow, FileRow, LocalDatabase, Tables } from '../database.ts';
-import { validateContent, validateDraft } from '../migrations.ts';
+import {
+  partitionRange,
+  type DraftRow,
+  type FileRow,
+  type LocalDatabase,
+  type Tables,
+} from '../database.ts';
+import {
+  validateCheckpoint,
+  validateContent,
+  validateDraft,
+  validateQueueRow,
+  validateRecovery,
+} from '../migrations.ts';
 
 /**
  * The state every area module shares.
@@ -133,6 +145,83 @@ export const bodyOfDigest = async (
   ]);
   if (stored === undefined) return null;
   return validateContent(stored).text;
+};
+
+/**
+ * Removes every local trace of one file.
+ *
+ * A permanently deleted file leaves no row on the server, so a client that
+ * still holds any record of it would keep the note in the tree or revive it on
+ * the next re-send, snapshot, or read. This deletes the accepted row, the
+ * drafts, the checkpoints, the queued mutations, and the recovery copies of the
+ * file. It never deletes a content body, because content is addressed by digest
+ * and one body can back several files. The caller opens the transaction and
+ * must cover the accepted files, the drafts, the checkpoints, the queue, and
+ * the recovery tables.
+ */
+export const forgetFileRows = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+  fileId: string,
+): Promise<void> => {
+  const { serverOrigin, tables } = ctx;
+  await tables.acceptedFiles.delete([
+    serverOrigin,
+    accountId,
+    workspaceId,
+    fileId,
+  ]);
+  for (const draft of await draftsOfFile(ctx, accountId, workspaceId, fileId))
+    await tables.drafts.delete([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      draft.workingCopyId,
+    ]);
+  const checkpoints: unknown[] = await tables.checkpoints
+    .where('[serverOrigin+accountId+workspaceId+fileId]')
+    .equals([serverOrigin, accountId, workspaceId, fileId])
+    .toArray();
+  for (const row of checkpoints) {
+    const checkpoint = validateCheckpoint(row);
+    await tables.checkpoints.delete([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      checkpoint.revisionId,
+    ]);
+  }
+  const range = partitionRange(serverOrigin, accountId, workspaceId);
+  const queued: unknown[] = await tables.queue
+    .where('[serverOrigin+accountId+workspaceId+sequence]')
+    .between(range.lower, range.upper, true, true)
+    .toArray();
+  for (const row of queued) {
+    const entry = validateQueueRow(row);
+    if (!entry.input.revisions.some((revision) => revision.fileId === fileId))
+      continue;
+    await tables.queue.delete([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      entry.mutationId,
+    ]);
+  }
+  const recovered: unknown[] = await tables.recovery
+    .where('[serverOrigin+accountId+workspaceId+createdAt]')
+    .between(range.lower, range.upper, true, true)
+    .toArray();
+  for (const row of recovered) {
+    const record = validateRecovery(row);
+    if (record.fileId !== fileId) continue;
+    await tables.recovery.delete([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      record.recoveryId,
+    ]);
+  }
 };
 
 /** Whether a stored row belongs to one account of this origin. */

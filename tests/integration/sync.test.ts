@@ -552,7 +552,7 @@ await test('later local edits during acknowledgment join one atomic commit', asy
   }
 });
 
-await test('a late offline write after a purge keeps its local work', async () => {
+await test('a late offline write after a purge is forgotten', async () => {
   const file = await newFile('notes/doomed.md', '# Doomed\n');
   const purged = await purgeFiles({
     headers: browser(ownerCookie),
@@ -579,29 +579,30 @@ await test('a late offline write after a purge keeps its local work', async () =
     const run = startEngine(store, ownerCookie, 'engine-purge');
     try {
       await waitFor(
-        async () =>
-          (await queuedOf(store)).every(
-            (entry) => entry.state === 'conflict',
-          ) && (await queuedOf(store)).length === 1,
-        'the purged write is preserved as a conflict',
+        async () => (await queuedOf(store)).length === 0,
+        'the purged write is forgotten',
       );
     } finally {
       await stopEngine(run);
     }
+    // A purged file is gone for good, so its late local work is dropped rather
+    // than parked in front of the person. No conflict, no recovery, no notice.
     assert.ok(
-      run.notices.some(
-        (notice) => notice.kind === 'preserved' && notice.code === 'purged',
-      ),
-      'the purge must be announced without dropping the entry',
+      !run.notices.some((notice) => notice.kind === 'preserved'),
+      'a purged write is not preserved',
     );
-
     const kept = await store.listCheckpoints(
       ownerAccountId,
       workspaceId,
       file.fileId,
     );
-    assert.equal(kept.length, 1);
-    assert.equal(kept[0]?.digest, await contentDigest('# Doomed edit\n'));
+    assert.equal(kept.length, 0);
+    assert.deepEqual(await store.recover(ownerAccountId, workspaceId), []);
+    const files = await store.listLocalFiles(ownerAccountId, workspaceId);
+    assert.ok(
+      !files.some((summary) => summary.fileId === file.fileId),
+      'the purged note is gone from the local file list',
+    );
 
     const gone = await getFile({
       headers: browser(ownerCookie),

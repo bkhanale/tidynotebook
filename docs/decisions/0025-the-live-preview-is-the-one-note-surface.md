@@ -1,4 +1,4 @@
-# 0022. The live preview is the one note surface
+# 0025. The live preview is the one note surface
 
 - Status: Accepted
 - Date: 2026-09-12
@@ -13,7 +13,7 @@ reader needs. Decision 0003 built Read mode to give `renderMarkdown` a user, so
 the renderer would not drift from the editor. The equivalence gate
 `tests/integration/markdown-equivalence.test.ts` now holds the two paths equal,
 so that job no longer needs a surface a person sees. See
-[design 005](../design/005-the-one-markdown-surface.md).
+[design 006](../design/006-the-one-markdown-surface.md).
 
 ## Decision
 

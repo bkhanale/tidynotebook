@@ -15,6 +15,7 @@ import {
 } from '@notesapp/sync';
 import {
   guard,
+  partitionRange,
   type DraftRow,
   type FileRow,
   type SnapshotItemRow,
@@ -23,7 +24,7 @@ import {
   validateAcceptedFile,
   validateContent,
   validateCursor,
-  validateDraft,
+  validateQueueRow,
   validateSnapshot,
   validateSnapshotItem,
 } from '../migrations.ts';
@@ -31,7 +32,7 @@ import {
   bodyOfDigest,
   byteLength,
   draftsOfFile,
-  matchesPartition,
+  forgetFileRows,
   type HeadState,
   type LocalStoreContext,
 } from './shared.ts';
@@ -43,6 +44,7 @@ type SnapshotSlice = Pick<
   | 'activateSnapshot'
   | 'readCursor'
   | 'applyRemoteChanges'
+  | 'forgetPurgedFiles'
 >;
 
 export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
@@ -112,43 +114,24 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
   };
 
   /**
-   * Forgets the cached metadata and working copies of one permanently deleted
-   * file.
+   * Forgets every local trace of one permanently deleted file.
    *
-   * The listing of the server can only say which files exist, so a cache
-   * entry that the server dropped stays until something removes it. A purge
-   * marker in the ordered change feed is that signal. The working copy goes
-   * with the metadata, because a draft carries the path and the deletion state
-   * of the file and would otherwise keep the note in the file tree.
+   * The listing of the server can only say which files exist, so a cache entry
+   * that the server dropped stays until something removes it. A purge marker in
+   * the ordered change feed, and a full snapshot that leaves the file out, are
+   * the two signals. The forget covers the accepted row, the drafts, the
+   * checkpoints, the queued mutations, and the recovery copies, so no read,
+   * re-send, or later snapshot can revive the note.
    *
    * The call runs inside the transaction of its caller, which must cover the
-   * accepted files and the drafts.
+   * accepted files, the drafts, the checkpoints, the queue, and the recovery
+   * tables.
    */
-  const forgetFile = async (
+  const forgetFile = (
     accountId: string,
     workspaceId: string,
     fileId: string,
-  ): Promise<void> => {
-    await tables.acceptedFiles.delete([
-      serverOrigin,
-      accountId,
-      workspaceId,
-      fileId,
-    ]);
-    for (const row of await tables.drafts.toArray()) {
-      const parsed = validateDraft(row);
-      if (
-        matchesPartition(ctx, parsed, accountId, workspaceId) &&
-        parsed.fileId === fileId
-      )
-        await tables.drafts.delete([
-          parsed.serverOrigin,
-          parsed.accountId,
-          parsed.workspaceId,
-          parsed.workingCopyId,
-        ]);
-    }
-  };
+  ): Promise<void> => forgetFileRows(ctx, accountId, workspaceId, fileId);
 
   return {
     stageSnapshot(
@@ -235,6 +218,9 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.acceptedFiles,
             tables.cursors,
             tables.drafts,
+            tables.queue,
+            tables.checkpoints,
+            tables.recovery,
           ],
           async () => {
             const plans: unknown[] = await tables.stagedSnapshots.toArray();
@@ -347,6 +333,30 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                 });
               }
             }
+            // A full snapshot is the whole server state at its cursor. Any
+            // file this device still holds that the snapshot leaves out was
+            // removed on the server, so it is forgotten. A file with queued
+            // local work is kept: it is either an unsent new note that the
+            // server has not seen yet, or a change on its way up.
+            const range = partitionRange(serverOrigin, accountId, workspaceId);
+            const queuedFiles = new Set<string>();
+            for (const row of await tables.queue
+              .where('[serverOrigin+accountId+workspaceId+sequence]')
+              .between(range.lower, range.upper, true, true)
+              .toArray())
+              for (const revision of validateQueueRow(row).input.revisions)
+                queuedFiles.add(revision.fileId);
+            const forgotten: string[] = [];
+            for (const row of await tables.acceptedFiles
+              .where('[serverOrigin+accountId+workspaceId+fileId]')
+              .between(range.lower, range.upper, true, true)
+              .toArray()) {
+              const file = validateAcceptedFile(row);
+              if (byFile.has(file.fileId) || queuedFiles.has(file.fileId))
+                continue;
+              await forgetFile(accountId, workspaceId, file.fileId);
+              forgotten.push(file.fileId);
+            }
             await tables.cursors.put({
               serverOrigin,
               accountId,
@@ -358,7 +368,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             return {
               accountId,
               workspaceId,
-              fileIds: [...byFile.keys()],
+              fileIds: [...byFile.keys(), ...forgotten],
             };
           },
         ),
@@ -406,6 +416,9 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.acceptedFiles,
             tables.drafts,
             tables.cursors,
+            tables.queue,
+            tables.checkpoints,
+            tables.recovery,
           ],
           async () => {
             for (const change of changes) {
@@ -536,6 +549,32 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
           kind: fileId === null ? 'cursor' : 'file',
         });
       }
+    },
+
+    async forgetPurgedFiles(
+      accountId: string,
+      workspaceId: string,
+      fileIds: readonly string[],
+    ): Promise<void> {
+      if (fileIds.length === 0) return;
+      await guard('forgetting purged files', () =>
+        db.transaction(
+          'rw',
+          [
+            tables.acceptedFiles,
+            tables.drafts,
+            tables.checkpoints,
+            tables.queue,
+            tables.recovery,
+          ],
+          async () => {
+            for (const fileId of fileIds)
+              await forgetFile(accountId, workspaceId, fileId);
+          },
+        ),
+      );
+      for (const fileId of fileIds)
+        publish({ accountId, workspaceId, fileId, kind: 'file' });
     },
   };
 }

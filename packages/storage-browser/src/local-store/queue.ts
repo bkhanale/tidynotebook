@@ -24,7 +24,7 @@ import {
   validateCheckpoint,
   validateQueueRow,
 } from '../migrations.ts';
-import { type LocalStoreContext } from './shared.ts';
+import { draftsOfFile, type LocalStoreContext } from './shared.ts';
 
 type QueueSlice = Pick<
   LocalStore,
@@ -259,6 +259,7 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
             tables.checkpoints,
             tables.acceptedFiles,
             tables.receipts,
+            tables.drafts,
           ],
           async () => {
             const entry = await queueEntryOf(accountId, result.mutationId);
@@ -336,6 +337,26 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
                   file?.localHeadRevisionId ?? checkpoint.revisionId,
                 updatedAt: nowIso(),
               });
+
+              // A tombstone that the server accepted needs no draft. A leftover
+              // deleted draft would shadow a later restore of the same file, so
+              // it goes once this checkpoint is the local head and no later
+              // local work depends on it.
+              if (checkpoint.deleted && later === null)
+                for (const draft of await draftsOfFile(
+                  ctx,
+                  accountId,
+                  workspaceId,
+                  fileId,
+                )) {
+                  if (!draft.deleted) continue;
+                  await tables.drafts.delete([
+                    serverOrigin,
+                    accountId,
+                    workspaceId,
+                    draft.workingCopyId,
+                  ]);
+                }
 
               // The first later mutation of this file can be a child that was
               // queued while this request was in flight. Its body is still

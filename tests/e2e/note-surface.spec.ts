@@ -24,7 +24,8 @@ test('one surface reads and writes the note in place', async ({
   );
   // Move the caret to the top, so no construct shows its source.
   await page.locator('.cm-content').press('Control+Home');
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  // The note saves itself; a version follows the typing pause and reaches the
+  // server, so there is no Save button to press.
   await waitForServerSave(page);
 
   // The one surface renders every construct in place.

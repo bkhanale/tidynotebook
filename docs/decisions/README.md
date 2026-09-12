@@ -51,7 +51,10 @@ and needs no record.
 | [0019](0019-contract-validation-and-shared-types.md)     | One contract, generated types, and no type assertions |
 | [0020](0020-central-logging-through-one-module.md)       | Central logging through one module                    |
 | [0021](0021-portable-markdown-at-rest.md)                | Portable Markdown at rest                             |
-| [0022](0022-the-live-preview-is-the-one-note-surface.md) | The live preview is the one note surface              |
+| [0022](0022-autosave-and-automatic-versions.md)          | Autosave and automatic versions                       |
+| [0023](0023-one-auto-expiring-trash.md)                  | One auto-expiring Trash                               |
+| [0024](0024-remove-conflict-and-recovery-surfaces.md)    | Remove the conflict and recovery surfaces             |
+| [0025](0025-the-live-preview-is-the-one-note-surface.md) | The live preview is the one note surface              |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -62,6 +65,9 @@ target structure and the type rules that the
 Record 0020 records the one way to write a log record, and it follows
 [design 003](../design/003-central-logging.md). Record 0021 records the
 portable form of the stored note text, and it follows
-[design 004](../design/004-portable-markdown-at-rest.md). Record 0022 makes the
-live preview the one note surface and supersedes record 0003, and it follows
-[design 005](../design/005-the-one-markdown-surface.md).
+[design 004](../design/004-portable-markdown-at-rest.md). Records 0022 to 0024
+record [design 005](../design/005-streamline-save-and-delete.md), the
+streamlined save and delete workflow. Record 0022 supersedes 0007 and 0017, and
+record 0023 supersedes 0006. Record 0025 makes the live preview the one note
+surface and supersedes record 0003, and it follows
+[design 006](../design/006-the-one-markdown-surface.md).

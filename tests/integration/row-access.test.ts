@@ -495,14 +495,14 @@ await test('account settings belong to one account', async () => {
   }
   const own = await openSession(database.runtimeUrl, invited.ownerId);
   try {
-    const settings = await own.query(
+    const settings = await own.query<{ theme_family: string }>(
       'select * from account_preferences where account_id = $1',
       [invited.ownerId],
     );
     assert.equal(settings.length, 1);
     // The row was inserted without a theme family, so it carries the column
     // default. Ink is the signature default of this application.
-    assert.equal(settings[0]?.['theme_family'], 'ink');
+    assert.equal(settings[0]?.theme_family, 'ink');
   } finally {
     await own.close();
   }
