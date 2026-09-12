@@ -518,6 +518,16 @@ await test('a discarded deletion leaves the note in its accepted state', async (
   assert.equal(row?.deleted, false);
   assert.equal(row?.localHeadRevisionId, acceptedHead);
   assert.equal(row?.acceptedHeadRevisionId, acceptedHead);
+  // The tombstone draft that recorded the refused deletion is gone, so it
+  // cannot shadow the note that stays live.
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
+  const drafts = await withRawDatabase(backend, (tables) =>
+    tables.drafts
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .equals([origin, account, workspace, file])
+      .toArray(),
+  );
+  assert.deepEqual(drafts, []);
   await store.close();
 });
 

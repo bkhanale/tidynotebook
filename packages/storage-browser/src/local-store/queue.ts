@@ -139,7 +139,12 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
       await guard('discarding a queued mutation', () =>
         db.transaction(
           'rw',
-          [tables.queue, tables.checkpoints, tables.acceptedFiles],
+          [
+            tables.queue,
+            tables.checkpoints,
+            tables.acceptedFiles,
+            tables.drafts,
+          ],
           async () => {
             const entry = await queueEntryOf(accountId, mutationId);
             if (entry === null) return;
@@ -185,6 +190,25 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
                   updatedAt: nowIso(),
                 });
               }
+              // A refused deletion keeps the note live, because it was changed
+              // on another device. The tombstone draft that recorded the
+              // deletion is stale now, and a leftover would shadow the live
+              // note, so it goes with the deletion it recorded.
+              if (wasDeletion)
+                for (const draft of await draftsOfFile(
+                  ctx,
+                  accountId,
+                  workspaceId,
+                  fileId,
+                )) {
+                  if (!draft.deleted) continue;
+                  await tables.drafts.delete([
+                    serverOrigin,
+                    accountId,
+                    workspaceId,
+                    draft.workingCopyId,
+                  ]);
+                }
               changes.push({
                 accountId,
                 workspaceId,
