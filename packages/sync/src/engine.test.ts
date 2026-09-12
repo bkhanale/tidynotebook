@@ -62,6 +62,7 @@ class FakeStore implements LocalStore {
   order: string[] = [];
   acks: AcceptedChangeset[] = [];
   discarded: string[] = [];
+  forgotten: string[] = [];
   acceptedHeads = new Map<string, string | null>();
   cursors = new Map<string, string>();
   staged = new Map<string, Staged>();
@@ -443,6 +444,25 @@ class FakeStore implements LocalStore {
   ): Promise<void> {
     this.applied.push({ changes, nextCursor });
     this.cursors.set(this.key(account, workspace), nextCursor);
+    return Promise.resolve();
+  }
+
+  forgetPurgedFiles(
+    _account: string,
+    _workspace: string,
+    fileIds: readonly string[],
+  ): Promise<void> {
+    for (const fileId of fileIds) {
+      this.forgotten.push(fileId);
+      for (const [id, entry] of this.entries)
+        if (
+          entry.input.revisions.some((revision) => revision.fileId === fileId)
+        ) {
+          this.entries.delete(id);
+          this.order = this.order.filter((queued) => queued !== id);
+        }
+      this.recovery = this.recovery.filter((entry) => entry.fileId !== fileId);
+    }
     return Promise.resolve();
   }
 
@@ -831,7 +851,6 @@ await test('a refusal code this release does not know is parked too', async () =
 await test('permanent file failures are preserved', async () => {
   for (const problem of [
     { status: 409, code: 'path_conflict', fileIds: ['file-a'] as string[] },
-    { status: 410, code: 'purged', fileIds: ['file-a'] as string[] },
   ]) {
     const store = new FakeStore();
     store.enqueue(
@@ -864,6 +883,36 @@ await test('permanent file failures are preserved', async () => {
       },
     ]);
   }
+});
+
+await test('a purged file is forgotten, not preserved', async () => {
+  // The file was permanently deleted, so its queued save can never apply.
+  // Parking it, or keeping its text, would put a deleted note in front of the
+  // person again, so the local trace is forgotten instead.
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  const ops = stubOperations({
+    commit: () =>
+      Promise.resolve({
+        ok: false as const,
+        problem: { status: 410, code: 'purged', fileIds: ['file-a'] },
+      }),
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+    noPull,
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(store.queued(), null);
+  assert.deepEqual(store.forgotten, ['file-a']);
+  assert.equal(store.recovery.length, 0);
+  assert.deepEqual(notices, []);
 });
 
 await test('an invalid graph is preserved after exactly one attempt', async () => {

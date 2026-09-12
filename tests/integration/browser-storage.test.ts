@@ -1507,3 +1507,158 @@ await test('a queued save of this device never reads as a stale draft', async ()
   assert.equal(cached?.acceptedRevisionId, acceptedRevision);
   await store.close();
 });
+
+await test('forgetting a purged file removes every local trace of it', async () => {
+  const backend = createBackend('forget-purged');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  // The file exists on the device: an accepted head, a queued edit, and a
+  // recovery copy parked for it. A purge must take all three.
+  const draft = draftOf(account, workspace, file, 'copy-a', '# One\n');
+  await store.saveDraft(draft);
+  const created = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(created, account, '1'));
+  const edited = { ...draft, text: '# Two\n', sequence: 2 };
+  await store.saveDraft(edited);
+  const queued = await store.checkpoint(edited, null);
+  assert.ok(queued !== null);
+  await parkRefusedSave(store, account, queued, 'purged');
+
+  await store.forgetPurgedFiles(account, workspace, [file]);
+
+  assert.deepEqual(await store.listLocalFiles(account, workspace), []);
+  assert.deepEqual(await store.listAcceptedFiles(account, workspace), []);
+  assert.deepEqual(await store.pending(account, workspace), []);
+  assert.deepEqual(await store.recover(account, workspace), []);
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
+  await withRawDatabase(backend, async (tables) => {
+    const checkpoints = await tables.checkpoints
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .equals([origin, account, workspace, file])
+      .toArray();
+    assert.deepEqual(checkpoints, []);
+  });
+  await store.close();
+});
+
+await test('a purge marker forgets the queue and recovery, not only the file row', async () => {
+  const backend = createBackend('purge-marker-forget');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const draft = draftOf(account, workspace, file, 'copy-a', 'purge me\n');
+  await store.saveDraft(draft);
+  const created = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(created, account, '1'));
+  // A queued edit and a parked recovery copy are still on the device when the
+  // purge marker arrives. A re-send of the edit, or the recovery copy, would
+  // bring the note back, so the marker must clear both.
+  const edited = { ...draft, text: 'edit\n', sequence: 2 };
+  await store.saveDraft(edited);
+  const queued = await store.checkpoint(edited, null);
+  assert.ok(queued !== null);
+  await parkRefusedSave(store, account, queued, 'save_refused');
+
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [{ file: null, purgedFileId: file }],
+    '2',
+  );
+
+  assert.deepEqual(await store.listLocalFiles(account, workspace), []);
+  assert.deepEqual(await store.pending(account, workspace), []);
+  assert.deepEqual(await store.recover(account, workspace), []);
+  await store.close();
+});
+
+await test('a fresh snapshot forgets a purged note but keeps unsent local work', async () => {
+  const backend = createBackend('snapshot-forget');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const purged = randomUUID();
+  const local = randomUUID();
+  const kept = randomUUID();
+
+  // One note is accepted and then purged on the server. One note is a local
+  // draft this device has not sent. The snapshot below contains neither, plus
+  // one note the server does hold.
+  const purgedDraft = draftOf(account, workspace, purged, 'copy-p', 'gone\n');
+  await store.saveDraft(purgedDraft);
+  const acceptedPurged = await store.checkpoint(purgedDraft, null);
+  await store.acknowledge(account, acceptanceOf(acceptedPurged, account, '1'));
+  const localDraft = draftOf(account, workspace, local, 'copy-l', 'mine\n', {
+    path: 'notes/mine.md',
+  });
+  await store.saveDraft(localDraft);
+  const localEntry = await store.checkpoint(localDraft, null);
+  assert.ok(localEntry !== null);
+
+  const text = '# Kept\n';
+  const digest = await contentDigest(text);
+  await store.stageSnapshot(account, workspace, 'token', ['rev-kept'], '9');
+  await store.storeSnapshotRevision(account, workspace, {
+    token: 'token',
+    revisionId: 'rev-kept',
+    fileId: kept,
+    path: 'notes/kept.md',
+    kind: 'note',
+    deleted: false,
+    digest,
+    text,
+  });
+  await store.activateSnapshot('token');
+
+  const files = (await store.listLocalFiles(account, workspace)).map(
+    (file) => file.fileId,
+  );
+  assert.ok(files.includes(kept), 'the snapshot note is present');
+  assert.ok(files.includes(local), 'the unsent local note is kept');
+  assert.ok(!files.includes(purged), 'the purged note is forgotten');
+  const stillQueued = (await store.pending(account, workspace)).some((entry) =>
+    entry.input.revisions.some((revision) => revision.fileId === local),
+  );
+  assert.ok(stillQueued, 'the unsent local mutation is kept');
+  await store.close();
+});
+
+await test('acknowledging a tombstone removes the leftover deletion draft', async () => {
+  const backend = createBackend('ack-tombstone-draft');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  const draft = draftOf(account, workspace, file, 'copy-a', '# Body\n');
+  await store.saveDraft(draft);
+  const created = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(created, account, '1'));
+  const removal = { ...draft, deleted: true, text: '', sequence: 2 };
+  await store.saveDraft(removal);
+  const removed = await store.checkpoint(removal, null);
+  await store.acknowledge(account, acceptanceOf(removed, account, '2'));
+
+  // The deletion draft is redundant once the server accepts the tombstone,
+  // and a leftover would shadow a later restore of the same file.
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
+  await withRawDatabase(backend, async (tables) => {
+    const drafts = await tables.drafts
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .equals([origin, account, workspace, file])
+      .toArray();
+    assert.deepEqual(drafts, []);
+  });
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map(
+      (file) => file.deleted,
+    ),
+    [true],
+  );
+  await store.close();
+});

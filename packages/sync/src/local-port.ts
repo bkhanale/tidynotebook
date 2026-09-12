@@ -848,6 +848,21 @@ export type LocalStore = {
     nextCursor: string,
   ): Promise<void>;
 
+  /**
+   * Forgets every local trace of files that the server purged.
+   *
+   * A permanently deleted file leaves no row on the server, so a client that
+   * still holds its accepted metadata, its drafts, its checkpoints, its queued
+   * mutations, or its recovery copies would keep the note in the tree or revive
+   * it on the next re-send. This removes all of them for the named files in one
+   * transaction. Content bodies stay, because one body can back several files.
+   */
+  forgetPurgedFiles(
+    accountId: string,
+    workspaceId: string,
+    fileIds: readonly string[],
+  ): Promise<void>;
+
   /** Closes the database connection. A schema upgrade needs every tab to. */
   close(): Promise<void>;
 };
