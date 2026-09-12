@@ -115,8 +115,39 @@ class FakeStore implements LocalStore {
     return Promise.resolve(draft);
   }
 
-  checkpoint(): Promise<QueueEntry | null> {
-    throw new Error('FakeStore.checkpoint is never used');
+  checkpoint(draft: Draft, message: string | null): Promise<QueueEntry | null> {
+    const entry: QueueEntry = {
+      accountId: draft.accountId,
+      input: {
+        workspaceId: draft.workspaceId,
+        mutationId: `checkpoint-${draft.workingCopyId}`,
+        deviceId: this.deviceId,
+        expectedHeads: { [draft.fileId]: draft.baseRevisionId },
+        revisions: [
+          {
+            id: `revision-${draft.workingCopyId}`,
+            fileId: draft.fileId,
+            parents:
+              draft.baseRevisionId === null ? [] : [draft.baseRevisionId],
+            path: draft.path,
+            deleted: draft.deleted,
+            content: {
+              kind: 'markdown',
+              digest: `digest-${draft.workingCopyId}`,
+              text: draft.text,
+            },
+            clientTime: new Date(this.nowMs).toISOString(),
+            message,
+            restoredFrom: null,
+          },
+        ],
+      },
+      state: 'pending',
+      digest: null,
+      errorCode: null,
+    };
+    this.enqueue(entry);
+    return Promise.resolve(entry);
   }
 
   rebaseDraft(
@@ -263,7 +294,18 @@ class FakeStore implements LocalStore {
   }
 
   listLocalFiles(): Promise<readonly LocalFileSummary[]> {
-    return Promise.resolve([]);
+    return Promise.resolve(
+      [...this.drafts.values()].map((draft) => ({
+        fileId: draft.fileId,
+        path: draft.path,
+        kind: 'note' as const,
+        deleted: draft.deleted,
+        updatedAt: new Date(this.nowMs).toISOString(),
+        acceptedHeadRevisionId: null,
+        localHeadRevisionId: null,
+        localOnly: true,
+      })),
+    );
   }
 
   readFileSaveSnapshot(
@@ -740,7 +782,7 @@ await test('two offline edits of one file commit as one atomic changeset', async
   assert.deepEqual((await store.pending(accountId, workspaceId)).length, 0);
 });
 
-await test('a refused update of a live file is parked as deleted remotely', async () => {
+await test('an edit to a remotely deleted note is kept as a recovered note', async () => {
   const store = new FakeStore();
   store.enqueue(queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'));
   const notices: SyncNotice[] = [];
@@ -765,11 +807,21 @@ await test('a refused update of a live file is parked as deleted remotely', asyn
   // file that already had a head means the head is now a tombstone.
   assert.equal(pulls, 1);
   assert.equal(store.acks.length, 0);
+  // The refused edit is kept as a new note, not parked in a second inbox. The
+  // original entry is dropped, and a fresh save carries the text under a
+  // "(recovered)" name beside the note it came from.
+  assert.equal(store.discarded.includes('mutation-2'), true);
   const kept = store.queued();
   assert.ok(kept !== null);
-  assert.equal(kept.state, 'conflict');
-  assert.equal(kept.errorCode, 'deleted_remotely');
-  assert.equal(kept.input.mutationId, 'mutation-2');
+  const revision = kept.input.revisions[0];
+  assert.equal(revision?.deleted, false);
+  assert.equal(
+    revision?.content.kind === 'markdown' ? revision.content.text : null,
+    '# B\n',
+  );
+  assert.equal(revision?.path, 'notes/file-a (recovered).md');
+  // Nothing is parked in the recovery area for this case any more.
+  assert.equal(store.recovery.length, 0);
   assert.deepEqual(notices, [
     {
       kind: 'preserved',
@@ -778,12 +830,6 @@ await test('a refused update of a live file is parked as deleted remotely', asyn
       fileIds: ['file-a'],
     },
   ]);
-  // The text is also kept where the Needs attention list reads it, so the
-  // person can place it again instead of losing it with the tombstone.
-  assert.equal(store.recovery.length, 1);
-  assert.equal(store.recovery[0]?.text, '# B\n');
-  assert.equal(store.recovery[0]?.reason, 'save_refused');
-  assert.equal(store.recovery[0]?.code, 'deleted_remotely');
 });
 
 await test('a preserved save writes its text into the recovery area', async () => {

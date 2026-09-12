@@ -1,6 +1,6 @@
 # 0023. One auto-expiring Trash
 
-- Status: Accepted
+- Status: Superseded by [0026](0026-slim-the-save-and-delete-surfaces.md)
 - Date: 2026-09-12
 
 ## Context

@@ -21,7 +21,8 @@
  * the engine builds it from the generated client. Unit tests inject stubs.
  */
 import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
-import type { LocalStore, QueueEntry } from './local-port.ts';
+import { generateUUID } from '@notesapp/core';
+import type { Draft, LocalStore, QueueEntry } from './local-port.ts';
 
 /** A stable service failure: HTTP status, application code, and file IDs. */
 export type Problem = {
@@ -307,6 +308,56 @@ function refusedFiles(entry: QueueEntry, problem: Problem): readonly string[] {
 }
 
 /**
+ * A free path for a recovered note, beside the note it came from.
+ *
+ * The path keeps the folder and the `.md` suffix and adds `(recovered)` to the
+ * name. When that name is taken, a number is added, so the recovered note never
+ * lands on a live note.
+ */
+function recoveredNotePath(path: string, taken: ReadonlySet<string>): string {
+  const suffix = path.endsWith('.md') ? '.md' : '';
+  const stem = path.slice(0, path.length - suffix.length);
+  for (let attempt = 1; attempt < 100; attempt += 1) {
+    const label = attempt === 1 ? ' (recovered)' : ` (recovered ${attempt})`;
+    const candidate = `${stem}${label}${suffix}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  return `${stem} (recovered)${suffix}`;
+}
+
+/**
+ * Keeps the text of a refused save as a new note.
+ *
+ * A save is refused for good when the note it edits was deleted on another
+ * device. The edit is the later write, so it is kept as a separate note rather
+ * than lost or parked in a second inbox. The new note is a normal local save,
+ * so the engine sends it like any other.
+ */
+async function keepAsRecoveredNote(
+  local: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  path: string,
+  text: string,
+): Promise<void> {
+  const files = await local.listLocalFiles(accountId, workspaceId);
+  const taken = new Set(files.map((file) => file.path));
+  const draft: Draft = {
+    accountId,
+    workspaceId,
+    workingCopyId: generateUUID(),
+    fileId: generateUUID(),
+    baseRevisionId: null,
+    text,
+    path: recoveredNotePath(path, taken),
+    deleted: false,
+    sequence: 1,
+  };
+  await local.saveDraft(draft);
+  await local.checkpoint(draft, null);
+}
+
+/**
  * Recovers one queued mutation that the server refused with a stale head.
  *
  * The accepted state is read again first, because a refused precondition
@@ -358,7 +409,22 @@ async function recoverStaleHead(
     (fileId) => (entry.input.expectedHeads[fileId] ?? null) !== null,
   );
   if (updated !== undefined) {
-    await parkRefusedSave(local, accountId, entry, 'deleted_remotely');
+    // The note was deleted on another device, so this edit cannot apply to it.
+    // The edit is the later write, so it is kept as a new note rather than
+    // parked in a second inbox. A markdown revision carries the text; any other
+    // kind holds none to keep.
+    const revision = entry.input.revisions.find(
+      (candidate) => candidate.fileId === updated,
+    );
+    if (revision !== undefined && revision.content.kind === 'markdown')
+      await keepAsRecoveredNote(
+        local,
+        accountId,
+        workspaceId,
+        revision.path,
+        revision.content.text,
+      );
+    await local.discardQueueEntry(accountId, entry.input.mutationId);
     ctx.announce({
       kind: 'preserved',
       mutationId: entry.input.mutationId,

@@ -9,12 +9,17 @@ ordered work. Each item names its record and its release row.
 ## Decisions
 
 - [0022. Autosave and automatic versions](../decisions/0022-autosave-and-automatic-versions.md)
-- [0023. One auto-expiring Trash](../decisions/0023-one-auto-expiring-trash.md)
-- [0024. Remove the conflict and recovery surfaces](../decisions/0024-remove-conflict-and-recovery-surfaces.md)
+- [0026. Slim the save and delete surfaces, do not remove them](../decisions/0026-slim-the-save-and-delete-surfaces.md)
 
-The order is A, then B, then C. A makes last-writer-wins safe, so B depends on
-it. C is independent of A and B and can run beside them. Each item keeps
-`pnpm verify` green and updates the nested `AGENTS.md` it changes.
+Record 0026 supersedes the earlier 0023 and 0024. The build showed that
+removing the recovery, or Needs attention, surface loses a person's text on a
+resource refusal, and that an auto-expiring Trash is irreversible deletion. So
+the plan keeps the safety net and slims the surfaces instead: autosave and
+automatic versions, a delete a concurrent edit refuses keeps the note live, an
+edit to a remotely deleted note is kept as a `(recovered)` note, the stale-draft
+bar is removed and the local draft is auto-kept, and the copy is unified. Trash
+keeps the manual Delete permanently. Each item keeps `pnpm verify` green and
+updates the nested `AGENTS.md` it changes.
 
 ## Epic A. Autosave and automatic versions (0022)
 
