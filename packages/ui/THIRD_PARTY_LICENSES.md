@@ -1,9 +1,11 @@
 # Third party licenses of `@notesapp/ui`
 
-Every theme in `src/themes/` copies colour values from the published palette
-of an upstream project. The copyright and the license of those values belong
-to the upstream author. This file names the project, the license, and the
-address of each palette, and it records which values notesapp derives.
+Every borrowed theme in `src/themes/` copies colour values from the published
+palette of an upstream project. The copyright and the license of those values
+belong to the upstream author. This file names the project, the license, and
+the address of each palette, and it records which values notesapp derives. Ink
+is the one exception: it is the signature family of this application, so it
+carries no upstream author and its values are original.
 
 ## How a palette becomes a theme
 
@@ -25,6 +27,14 @@ palette is made for a text editor and this application paints five surfaces:
 
 `src/theme.test.ts` checks all of this for every theme in the registry, so a
 theme that fails a rule cannot ship.
+
+## Ink
+
+- Signature family of this application. No upstream palette.
+- License: MIT ([this repository](https://github.com/bkhanale/notesapp))
+- Original: every value of both variants. The warm graphite dark and the warm
+  paper light carry one brass accent, and every token meets the contrast rules
+  in `src/theme.ts` that `src/theme.test.ts` proves.
 
 ## Tokyo Night
 

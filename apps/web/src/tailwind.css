@@ -61,28 +61,28 @@
  * The palette. These names map the runtime variables that `applyTheme` of
  * the theme registry writes on the document element, so a theme change is
  * one assignment and never a rebuild. The literal fallbacks are the default
- * dark theme and keep the first paint correct before that script runs. No
- * other colour value belongs in this file; the registry in
+ * dark theme, the Ink family, and keep the first paint correct before that
+ * script runs. No other colour value belongs in this file; the registry in
  * `packages/ui/src/themes` owns every palette.
  */
 @theme inline {
-  --color-app: var(--notes-bg, #1a1b26);
-  --color-surface: var(--notes-surface, #16161e);
-  --color-card: var(--notes-surface-card, #1f2335);
-  --color-hover: var(--notes-surface-hover, #24283b);
-  --color-active: var(--notes-surface-active, #292e42);
-  --color-ink: var(--notes-text, #c0caf5);
-  --color-strong: var(--notes-text-strong, #e8ecff);
-  --color-muted: var(--notes-text-muted, #9099bd);
-  --color-accent: var(--notes-accent-text, #7aa2f7);
-  --color-accent-fill: var(--notes-accent-fill, #7aa2f7);
-  --color-on-accent: var(--notes-accent-on-fill, #0c0c14);
-  --color-success: var(--notes-success-text, #9ece6a);
-  --color-danger: var(--notes-danger-text, #f7768e);
-  --color-danger-fill: var(--notes-danger-fill, #f7768e);
-  --color-on-danger: var(--notes-on-danger, #0c0c14);
-  --color-edge: var(--notes-border, #737ca3);
-  --color-edge-subtle: var(--notes-border-subtle, #303349);
-  --color-focus: var(--notes-focus, #7aa2f7);
-  --color-scrim: var(--notes-scrim, #0c0c14);
+  --color-app: var(--notes-bg, #1a1922);
+  --color-surface: var(--notes-surface, #141319);
+  --color-card: var(--notes-surface-card, #232230);
+  --color-hover: var(--notes-surface-hover, #2a2836);
+  --color-active: var(--notes-surface-active, #322f40);
+  --color-ink: var(--notes-text, #d3cfdb);
+  --color-strong: var(--notes-text-strong, #f4f1f8);
+  --color-muted: var(--notes-text-muted, #b0aabf);
+  --color-accent: var(--notes-accent-text, #e0b653);
+  --color-accent-fill: var(--notes-accent-fill, #e0b653);
+  --color-on-accent: var(--notes-accent-on-fill, #201a0a);
+  --color-success: var(--notes-success-text, #94c46b);
+  --color-danger: var(--notes-danger-text, #f58ba0);
+  --color-danger-fill: var(--notes-danger-fill, #f58ba0);
+  --color-on-danger: var(--notes-on-danger, #1a0c10);
+  --color-edge: var(--notes-border, #857f98);
+  --color-edge-subtle: var(--notes-border-subtle, #2c2a38);
+  --color-focus: var(--notes-focus, #e0b653);
+  --color-scrim: var(--notes-scrim, #0b0a0f);
 }

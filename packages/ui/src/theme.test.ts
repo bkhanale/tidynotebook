@@ -279,8 +279,8 @@ await test('an unknown family falls back to the default one', () => {
   assert.equal(parseThemeFamilyId('nord'), 'nord');
   assert.equal(findThemeFamily('neon'), null);
   assert.equal(findTheme('neon'), null);
-  assert.equal(defaultThemeFor('dark').id, 'tokyo-night-night');
-  assert.equal(defaultThemeFor('light').id, 'tokyo-night-day');
+  assert.equal(defaultThemeFor('dark').id, 'ink');
+  assert.equal(defaultThemeFor('light').id, 'ink-light');
 });
 
 await test('themePropertyName maps every token to one property', () => {

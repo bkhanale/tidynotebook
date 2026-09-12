@@ -51,6 +51,7 @@ import { catppuccin } from './catppuccin.ts';
 import { dracula } from './dracula.ts';
 import { github } from './github.ts';
 import { gruvbox } from './gruvbox.ts';
+import { ink } from './ink.ts';
 import { nord } from './nord.ts';
 import { one } from './one.ts';
 import { rosePine } from './rose-pine.ts';
@@ -59,6 +60,7 @@ import { tokyoNight } from './tokyo-night.ts';
 
 /** Every family, in the order the settings screen offers them. */
 export const themeFamilies: readonly ThemeFamily[] = [
+  ink,
   tokyoNight,
   catppuccin,
   dracula,
@@ -76,7 +78,7 @@ export const themes: readonly Theme[] = themeFamilies.flatMap(
 );
 
 /** The family a new installation starts with. */
-export const defaultThemeFamilyId = 'tokyo-night';
+export const defaultThemeFamilyId = 'ink';
 
 /** The family of one identifier, or `null` when nothing matches. */
 export function findThemeFamily(id: string): ThemeFamily | null {
