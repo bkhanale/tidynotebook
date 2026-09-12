@@ -17,7 +17,7 @@ import {
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { useFiles } from '../../shell/files.tsx';
 import { recentNotes } from '../../lib/note-list.ts';
-import { displayNoteName } from '../../lib/note-name.ts';
+import { noteRowMeta } from '../../lib/note-row.ts';
 
 /** The note list of the open area. */
 export function NotesHomeView(): ReactNode {
@@ -28,6 +28,7 @@ export function NotesHomeView(): ReactNode {
   useDocumentTitle('All notes');
 
   const ordered = useMemo(() => recentNotes(files.notes, 200), [files.notes]);
+  const now = Date.now();
 
   return (
     <Page width="wide">
@@ -41,39 +42,41 @@ export function NotesHomeView(): ReactNode {
         <EmptyState
           icon={<FileTextIcon size={32} />}
           title="No notes yet."
-          description="Select New note in the sidebar, or press Cmd or Ctrl and K and select New note."
+          description="Select New note in the sidebar to start writing."
         />
       ) : (
         <ul className="m-0 list-none p-0">
-          {ordered.map((note) => (
-            <li key={note.fileId}>
-              <Link
-                to={`/w/${workspaceId}/notes/${note.fileId}`}
-                className="flex min-h-11 items-center gap-3 border-b border-edge-subtle px-2 py-2 text-ink no-underline motion-safe:transition-colors hover:bg-hover"
-              >
-                <span
-                  className="inline-flex shrink-0 items-center text-muted"
-                  aria-hidden="true"
+          {ordered.map((note) => {
+            const meta = noteRowMeta(note.path, note.updatedAt, now);
+            return (
+              <li key={note.fileId}>
+                <Link
+                  to={`/w/${workspaceId}/notes/${note.fileId}`}
+                  className="flex min-h-11 items-center gap-3 rounded-lg border-b border-edge-subtle px-2 py-2 text-ink no-underline motion-safe:transition-colors hover:bg-hover"
                 >
-                  <FileTextIcon size={16} />
-                </span>
-                <span className="min-w-0 flex-1 truncate text-ui font-medium text-strong">
-                  {displayNoteName(note.path.split('/').at(-1) ?? note.path)}
-                </span>
-                {note.path.includes('/') ? (
-                  <span className="hidden shrink-0 text-control text-muted sm:inline">
-                    {note.path.slice(0, note.path.lastIndexOf('/'))}
+                  <span
+                    className="inline-flex shrink-0 items-center text-muted"
+                    aria-hidden="true"
+                  >
+                    <FileTextIcon size={16} />
                   </span>
-                ) : null}
-                <span className="shrink-0 text-control text-muted">
-                  {new Date(note.updatedAt).toLocaleDateString(undefined, {
-                    month: 'short',
-                    day: 'numeric',
-                  })}
-                </span>
-              </Link>
-            </li>
-          ))}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-ui font-medium text-strong">
+                      {meta.name}
+                    </span>
+                    {meta.folder === null ? null : (
+                      <span className="truncate text-control text-muted">
+                        {meta.folder}
+                      </span>
+                    )}
+                  </span>
+                  <span className="shrink-0 text-control text-muted">
+                    {meta.when}
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Page>

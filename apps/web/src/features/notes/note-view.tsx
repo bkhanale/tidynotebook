@@ -49,8 +49,8 @@ export function NoteView(): ReactNode {
       <Page>
         <PageHeader title="Note not found" />
         <p className="m-0">
-          The address names no note. It may be removed, or the address may be
-          wrong. This is not an empty note.
+          This address does not match a note. The note may be deleted, or the
+          link may be wrong.
         </p>
       </Page>
     );
