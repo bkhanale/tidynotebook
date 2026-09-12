@@ -1,9 +1,9 @@
 # Plan 005: The one Markdown surface
 
-Status: active
+Status: complete
 
 > The live prioritized list is [docs/releases/0.1.0.md](../releases/0.1.0.md).
-> This plan stays until 0.1.0 ships, as the record of the ordered work.
+> This plan stays as the record of the ordered work that shipped.
 
 This plan turns [design 006](../design/006-the-one-markdown-surface.md) and
 [decision 0025](../decisions/0025-the-live-preview-is-the-one-note-surface.md)
@@ -44,10 +44,12 @@ the live preview gaps, then prove the one surface.
    heading, the code, the task, and the table. Add a `widgets.test.ts` case for
    the hidden fence lines and their reveal. The equivalence gate
    `tests/integration/markdown-equivalence.test.ts` stays the structural guard.
-6. **Polish inside decision 0002 (follow-on rows).** Tighten the block styling
-   of a quote, a table, and a code block, and the heading rhythm, in
-   `packages/editor/src/editor-theme.ts` and
-   `apps/web/src/tailwind.css`. Every value stays a central theme variable.
+6. **Polish inside decision 0002.** The heading rhythm in
+   `packages/editor/src/editor-theme.ts` now gives a heading more space above
+   than below, from the central spacing scale. Every value stays a central
+   theme variable. Deeper aesthetic tuning of a quote, a table, and a code
+   block is optional and needs a live visual session, so it is not part of
+   this plan.
 
 ## Verification
 

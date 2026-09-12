@@ -166,7 +166,13 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       },
 
     ...headingRules(),
-    '.cm-np-heading': { paddingBlock: 'var(--spacing-note-block)' },
+    // A heading needs more space above than below, so it separates from the
+    // block before it and groups with the text it introduces. This is the
+    // one shared heading rhythm; the ramp above sets only size and weight.
+    '.cm-np-heading': {
+      paddingTop: 'calc(var(--spacing) * 5)',
+      paddingBottom: 'calc(var(--spacing) * 1)',
+    },
 
     '.cm-np-bold': { fontWeight: '700', color: 'var(--notes-text-strong)' },
     '.cm-np-italic': { fontStyle: 'italic' },

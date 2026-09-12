@@ -1,6 +1,6 @@
 # 006: The one Markdown surface
 
-Status: active
+Status: complete
 
 This design states why the note screen has two readers of one note today, and
 how it becomes one live surface that a person both reads and writes.
