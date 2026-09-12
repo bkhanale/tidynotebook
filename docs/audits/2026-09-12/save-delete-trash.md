@@ -236,16 +236,16 @@ person the sync internals.
 
 | Id  | Finding                                                | Kind        | Impact |
 | --- | ------------------------------------------------------ | ----------- | ------ |
-| F1  | A permanently deleted note comes back as a kept save    | Correctness | P0     |
-| F2  | A stale head refusal un-deletes a queued deletion       | Correctness | P1     |
-| F3  | A purge does not forget the whole local trace           | Correctness | P1     |
-| F4  | A fresh snapshot never forgets a purged note            | Correctness | P0     |
-| F5  | A tombstone draft is never cleaned up                   | Correctness | P1     |
-| F6  | Save reports four states, two are sync internals        | Product     | P1     |
-| F7  | The save state is reported in three places              | Product     | P1     |
-| F8  | Delete has three interaction patterns                   | Product     | P1     |
-| F9  | One operation and one concept carry two words each      | Product     | P1     |
-| F10 | Needs attention is a second inbox for refused saves     | Product     | P1     |
-| F11 | The note route has five error screens                   | Product     | P2     |
-| F12 | The editor shows conflict resolution                    | Product     | P2     |
-| F13 | Several surfaces narrate the sync queue and the device  | Product     | P2     |
+| F1  | A permanently deleted note comes back as a kept save   | Correctness | P0     |
+| F2  | A stale head refusal un-deletes a queued deletion      | Correctness | P1     |
+| F3  | A purge does not forget the whole local trace          | Correctness | P1     |
+| F4  | A fresh snapshot never forgets a purged note           | Correctness | P0     |
+| F5  | A tombstone draft is never cleaned up                  | Correctness | P1     |
+| F6  | Save reports four states, two are sync internals       | Product     | P1     |
+| F7  | The save state is reported in three places             | Product     | P1     |
+| F8  | Delete has three interaction patterns                  | Product     | P1     |
+| F9  | One operation and one concept carry two words each     | Product     | P1     |
+| F10 | Needs attention is a second inbox for refused saves    | Product     | P1     |
+| F11 | The note route has five error screens                  | Product     | P2     |
+| F12 | The editor shows conflict resolution                   | Product     | P2     |
+| F13 | Several surfaces narrate the sync queue and the device | Product     | P2     |

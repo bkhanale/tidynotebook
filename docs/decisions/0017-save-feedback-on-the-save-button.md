@@ -1,6 +1,6 @@
 # 0017. Save feedback lives on the Save button
 
-- Status: Accepted
+- Status: Superseded by [0022](0022-autosave-and-automatic-versions.md)
 - Date: 2026-09-11
 
 ## Context

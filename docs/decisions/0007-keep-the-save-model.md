@@ -1,6 +1,6 @@
 # 0007. Keep the save model and close its gaps
 
-- Status: Accepted
+- Status: Superseded by [0022](0022-autosave-and-automatic-versions.md)
 - Date: 2026-09-10
 
 ## Context
