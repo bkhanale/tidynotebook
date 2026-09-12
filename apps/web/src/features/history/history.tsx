@@ -554,14 +554,14 @@ function HistoryDetail({
       <HistoryNotice
         workspaceId={workspaceId}
         title="This note has no history here"
-        description="The note is not in this workspace. It may have been deleted for good."
+        description="The note is not in this workspace. It may have been deleted permanently."
       />
     );
   if (head.status === 'purged')
     return (
       <HistoryNotice
         workspaceId={workspaceId}
-        title="This note is deleted for good"
+        title="This note is deleted permanently"
         description="Its versions on the server are gone. Work that never left this device is still in Needs attention."
       />
     );
