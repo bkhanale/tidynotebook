@@ -73,7 +73,7 @@ import {
   storageNotePath,
 } from '../../lib/note-name.ts';
 import { OutlinePanel } from './outline.tsx';
-import { resolveSaveButton } from '../../lib/save-state.ts';
+import { resolveSaveStatus } from '../../lib/save-state.ts';
 import { useDeleteNotice } from '../trash/trash.tsx';
 import { createDiagramFrame } from '../../diagram/frame.ts';
 import {
@@ -85,6 +85,16 @@ import {
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
+
+/**
+ * A version is created automatically this long after typing stops.
+ *
+ * The delay coalesces a burst of edits into one version, so a pause, not each
+ * keystroke, marks a restore point. A blur, a hidden tab, and leaving the note
+ * flush a version at once, and the store drops a version whose content already
+ * matches the head, so an extra flush costs nothing.
+ */
+const versionPauseMs = 2500;
 
 /** The accepted head that a stale draft of this device does not contain. */
 export type StaleHead = {
@@ -186,6 +196,7 @@ export function NoteEditor({
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const versionTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
   const folderRef = useRef(folderOf(initialPath));
   const pathRef = useRef(initialPath);
@@ -391,6 +402,21 @@ export function NoteEditor({
     return run;
   };
 
+  /** Cancels the pending timers and creates a version now, best effort. */
+  const flushVersion = useRef((): void => {});
+  flushVersion.current = (): void => {
+    if (isDeletedRef.current) return;
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (versionTimerRef.current !== null) {
+      window.clearTimeout(versionTimerRef.current);
+      versionTimerRef.current = null;
+    }
+    void checkpointNow.current();
+  };
+
   useEffect(() => {
     void refreshQueue.current();
     const unsubscribe = live.current.store.subscribe((change) => {
@@ -483,6 +509,14 @@ export function NoteEditor({
           saveTimerRef.current = null;
           void saveDraftNow.current();
         }, draftSaveDelayMs);
+        // A pause in typing creates a version. The timer resets on every
+        // keystroke, so a burst becomes one version, not one per key.
+        if (versionTimerRef.current !== null)
+          window.clearTimeout(versionTimerRef.current);
+        versionTimerRef.current = window.setTimeout(() => {
+          versionTimerRef.current = null;
+          void checkpointNow.current();
+        }, versionPauseMs);
         recordTiming('notesapp.typing-handler', startedAt);
       },
       {
@@ -551,9 +585,10 @@ export function NoteEditor({
     };
   }, [store, accountId, workspaceId, workingCopyId]);
 
-  // Save and the Read switch are window level, so they work while focus sits
-  // in the note name field. CodeMirror marks the event handled first, so the
-  // editor binding never fires twice.
+  // The note saves itself, so Cmd or Ctrl + S is only an accelerator that
+  // creates a version at once. The Read switch is window level too, so both
+  // work while focus sits in the note name field. CodeMirror marks the event
+  // handled first, so the editor binding never fires twice.
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.defaultPrevented) return;
@@ -561,11 +596,7 @@ export function NoteEditor({
       if (!modifier) return;
       if (!event.shiftKey && event.key.toLowerCase() === 's') {
         event.preventDefault();
-        if (saveTimerRef.current !== null) {
-          window.clearTimeout(saveTimerRef.current);
-          saveTimerRef.current = null;
-        }
-        void checkpointNow.current();
+        flushVersion.current();
         return;
       }
       if (event.shiftKey && event.key.toLowerCase() === 'p') {
@@ -576,6 +607,21 @@ export function NoteEditor({
     window.addEventListener('keydown', onKeyDown);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
+    };
+  }, []);
+
+  // A version is a restore point, so leaving the note flushes one. A hidden
+  // tab (a switch or a close) flushes at once, and the cleanup flushes when
+  // the screen unmounts, which is how one note gives way to another. Typing
+  // that only pauses flushes through the version timer instead.
+  useEffect(() => {
+    const onVisibility = (): void => {
+      if (document.visibilityState === 'hidden') flushVersion.current();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      flushVersion.current();
     };
   }, []);
 
@@ -615,6 +661,10 @@ export function NoteEditor({
       window.clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
     }
+    if (versionTimerRef.current !== null) {
+      window.clearTimeout(versionTimerRef.current);
+      versionTimerRef.current = null;
+    }
     const run = (async (): Promise<boolean> => {
       sequenceRef.current += 1;
       let moved = false;
@@ -647,7 +697,7 @@ export function NoteEditor({
   useBlockUnsafeReload(draftPending || storageError !== null);
   const hasUnsavedEdits =
     draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false);
-  const saveButton = resolveSaveButton({
+  const saveStatus = resolveSaveStatus({
     state: saveState,
     hasUnsavedEdits,
   });
@@ -971,16 +1021,7 @@ export function NoteEditor({
         nameInputRef={nameInputRef}
         onNameChange={applyName}
         onNameCommit={commitName}
-        saveButton={saveButton}
-        onSave={() => {
-          void (async (): Promise<void> => {
-            if (saveTimerRef.current !== null) {
-              window.clearTimeout(saveTimerRef.current);
-              saveTimerRef.current = null;
-            }
-            await checkpointNow.current();
-          })();
-        }}
+        saveStatus={saveStatus}
         readToggle={
           <div className="inline-flex rounded-lg border border-edge p-0.5">
             <button
@@ -1156,7 +1197,7 @@ export function NoteEditor({
         </div>
       </div>
 
-      <NoteFooter text={bufferText} lastSavedAt={lastSavedAt} />
+      <NoteFooter text={bufferText} />
     </div>
   );
 }

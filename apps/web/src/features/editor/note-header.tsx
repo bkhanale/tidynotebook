@@ -2,13 +2,12 @@
  * The header row of the note screen.
  *
  * The note name is the largest type on the screen and is edited in place.
- * Next to it sit the save action, the slot where the editor puts its Write
+ * Next to it sit the save status, the slot where the editor puts its Write
  * and Read toggle, and one overflow menu. The row is sticky, so the name
  * and the actions stay reachable while a long note scrolls.
  *
- * The Save button is the one place that reports the save state. It offers
- * the action while text waits for a version, reports the run, and then
- * states the result, so nothing else on the screen has to.
+ * The note saves itself, so there is no Save button. One quiet status reads
+ * `Saving` or `Saved`, so the person knows the work is kept without acting.
  */
 import { useRef, type ReactNode } from 'react';
 import {
@@ -23,11 +22,7 @@ import {
   type MenuItem,
 } from '@notesapp/ui';
 import { noteTitleClassName } from '../../lib/note-header-layout.ts';
-import {
-  buttonEnabled,
-  buttonLabel,
-  type SaveButtonState,
-} from '../../lib/save-state.ts';
+import { statusLabel, type SaveStatus } from '../../lib/save-state.ts';
 
 /** What the overflow menu of the note screen can do. */
 export type NoteMenuHandlers = {
@@ -48,8 +43,7 @@ export function NoteHeader({
   nameError,
   onNameChange,
   onNameCommit,
-  onSave,
-  saveButton,
+  saveStatus,
   nameInputRef,
   readToggle,
   confirmingDelete,
@@ -62,9 +56,8 @@ export function NoteHeader({
   readonly onNameChange: (name: string) => void;
   /** Runs when the field loses focus or the person presses Enter. */
   readonly onNameCommit: () => void;
-  readonly onSave: () => void;
-  /** What the Save button reports about the open note. */
-  readonly saveButton: SaveButtonState;
+  /** What the quiet status reports about the open note. */
+  readonly saveStatus: SaveStatus;
   readonly nameInputRef?: React.Ref<HTMLInputElement> | undefined;
   /** Where the editor puts its Write and Read toggle. */
   readonly readToggle?: ReactNode | undefined;
@@ -152,24 +145,13 @@ export function NoteHeader({
             </>
           ) : (
             <>
-              <Button
-                variant={saveButton === 'save' ? 'primary' : 'secondary'}
-                size="sm"
-                icon={
-                  saveButton === 'saving' ? undefined : <CheckIcon size={14} />
-                }
-                title={
-                  buttonEnabled(saveButton)
-                    ? 'Save (Cmd or Ctrl + S)'
-                    : buttonLabel(saveButton)
-                }
-                disabled={!buttonEnabled(saveButton)}
-                onClick={onSave}
+              <span
+                className="inline-flex items-center gap-1 px-2 text-control text-muted"
+                role="status"
+                aria-live="polite"
               >
-                {buttonLabel(saveButton)}
-              </Button>
-              <span className="sr-only" role="status" aria-live="polite">
-                {buttonLabel(saveButton)}
+                {saveStatus === 'saved' ? <CheckIcon size={14} /> : null}
+                {statusLabel(saveStatus)}
               </span>
               <Menu
                 label="More actions for this note"
