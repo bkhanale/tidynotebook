@@ -514,7 +514,7 @@ function TrashList({
         setFailure(problemMessage(purged.error));
         return;
       }
-      setOutcome(`${displayNoteName(item.path)} is deleted for good.`);
+      setOutcome(`${displayNoteName(item.path)} is deleted permanently.`);
       requestSync();
       files.reload();
       reload();
@@ -587,7 +587,7 @@ function TrashList({
                             size="sm"
                             disabled={busy}
                             icon={<TrashIcon size={14} />}
-                            label={`Confirm that ${name} is deleted for good`}
+                            label={`Confirm that ${name} is deleted permanently`}
                             onClick={() => deleteForever(item)}
                           >
                             Confirm

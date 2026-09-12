@@ -185,7 +185,7 @@ function NoteRow({
         items={[
           {
             id: 'delete-note',
-            label: 'Delete note',
+            label: 'Delete',
             icon: <TrashIcon size={14} />,
             danger: true,
             onSelect: onDelete,

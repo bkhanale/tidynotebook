@@ -104,7 +104,7 @@ test('Delete from a note row moves the note to Trash', async ({
   await tree
     .getByRole('button', { name: `Actions for the note ${name}` })
     .click();
-  await page.getByRole('menuitem', { name: 'Delete note' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
 
   await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
@@ -226,7 +226,7 @@ test('Delete the last note in a folder keeps the folder', async ({
   await tree
     .getByRole('button', { name: `Actions for the note ${name}` })
     .click();
-  await page.getByRole('menuitem', { name: 'Delete note' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
 
   await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
@@ -251,7 +251,7 @@ test('Delete the last note in a folder keeps the folder', async ({
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
 });
 
-test('A note deleted for good leaves the sidebar and the trash', async ({
+test('A note deleted permanently leaves the sidebar and the trash', async ({
   checkedPage: page,
   stack,
 }) => {
@@ -272,7 +272,7 @@ test('A note deleted for good leaves the sidebar and the trash', async ({
   await tree
     .getByRole('button', { name: `Actions for the note ${name}` })
     .click();
-  await page.getByRole('menuitem', { name: 'Delete note' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
   await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
 
   await openNavigation(page);
@@ -282,7 +282,7 @@ test('A note deleted for good leaves the sidebar and the trash', async ({
   await purgeRow.getByRole('button', { name: 'Delete permanently' }).click();
   await purgeRow.getByRole('button', { name: 'Confirm' }).click();
 
-  await expect(page.getByText(`${name} is deleted for good.`)).toBeVisible();
+  await expect(page.getByText(`${name} is deleted permanently.`)).toBeVisible();
   const main = page.locator('main');
   await expect(main.locator('li').filter({ hasText: name })).toHaveCount(0);
   await expect(tree.getByRole('link', { name })).toHaveCount(0);

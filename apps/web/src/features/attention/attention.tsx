@@ -18,7 +18,7 @@
 import { useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { generateUUID } from '@notesapp/core';
-import { isLocalStorageError, type Draft } from '@notesapp/sync';
+import { type Draft } from '@notesapp/sync';
 import {
   AlertCircleIcon,
   Button,
@@ -189,11 +189,9 @@ export function AttentionRoute(): ReactNode {
   const activeWorkspace = workspaceId;
 
   /** Reports one local write failure without losing the kept text. */
-  const reportFailure = (action: string, thrown: unknown): void => {
+  const reportFailure = (action: string): void => {
     setFailure(
-      isLocalStorageError(thrown)
-        ? `${action} did not work on this device (${thrown.kind}). The text is still kept.`
-        : `${action} did not work on this device. The text is still kept.`,
+      `${action} did not work on this device. The text is still kept.`,
     );
   };
 
@@ -256,8 +254,8 @@ export function AttentionRoute(): ReactNode {
         setFailure(null);
         setNotice(`The save of ${save.name} is queued again.`);
         reload();
-      } catch (thrown: unknown) {
-        reportFailure('The retry', thrown);
+      } catch {
+        reportFailure('The retry');
       }
     })();
   };
@@ -283,8 +281,8 @@ export function AttentionRoute(): ReactNode {
         setFailure(null);
         setNotice(`The text is kept as the note ${name}.`);
         reload();
-      } catch (thrown: unknown) {
-        reportFailure('The new note', thrown);
+      } catch {
+        reportFailure('The new note');
       }
     })();
   };
@@ -301,8 +299,8 @@ export function AttentionRoute(): ReactNode {
         setFailure(null);
         setNotice(`The kept text of ${save.name} is discarded.`);
         reload();
-      } catch (thrown: unknown) {
-        reportFailure('The discard', thrown);
+      } catch {
+        reportFailure('The discard');
       }
     })();
   };
