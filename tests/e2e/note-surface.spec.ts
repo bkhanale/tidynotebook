@@ -22,8 +22,10 @@ test('one surface reads and writes the note in place', async ({
     page,
     '# Heading\n\nBody with `code`.\n\n- [ ] Task\n\n```js\nconst answer = 42;\n```\n',
   );
-  // Move the caret to the top, so no construct shows its source.
+  // Move the caret onto an empty line, away from every construct, so each
+  // one renders instead of showing its source.
   await page.locator('.cm-content').press('Control+Home');
+  await page.locator('.cm-content').press('ArrowDown');
   // The note saves itself; a version follows the typing pause and reaches the
   // server, so there is no Save button to press.
   await waitForServerSave(page);

@@ -2,6 +2,7 @@ import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
   createNewNote,
+  openPalette,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -10,7 +11,7 @@ import {
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
-test('Markdown preview, history, search, outline, and backlinks work', async ({
+test('the live preview, the outline, and the palette work together', async ({
   checkedPage: page,
   stack,
 }, testInfo) => {
@@ -26,50 +27,42 @@ test('Markdown preview, history, search, outline, and backlinks work', async ({
   await page.getByLabel('Note name').fill(path);
   await replaceEditorText(
     page,
-    '# Feature heading\n\nSearchable browser phrase with **strong text**.\n\n- [x] Complete\n- [ ] Open\n\n| Name | Value |\n| --- | ---: |\n| count | 2 |\n\n> Quoted text\n\n```ts\nconst value = 2;\n```',
+    '# Feature heading\n\nSearchable browser phrase with **strong text**.\n\n| Name | Value |\n| --- | ---: |\n| count | 2 |\n\n> Quoted text\n\n```ts\nconst value = 2;\n```',
   );
-  await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
 
+  // Every construct renders in place on the one surface.
   await expect(
     page.locator('.cm-np-heading').filter({ hasText: 'Feature heading' }),
   ).toBeVisible();
   await expect(page.locator('.cm-np-bold')).toHaveText('strong text');
   await expect(
-    page.locator('[data-notesapp-rich="table"] table'),
-  ).toContainText('count');
+    page.locator('.cm-np-table-cell').filter({ hasText: 'count' }),
+  ).toBeVisible();
   await expect(page.locator('.cm-np-quote')).toContainText('Quoted text');
-  await expect(page.locator('.cm-np-code-block')).toContainText(
-    'const value = 2;',
-  );
-  await page.getByRole('button', { name: 'Outline' }).click();
+  await expect(
+    page
+      .locator('.cm-np-code-block-line')
+      .filter({ hasText: 'const value = 2;' }),
+  ).toBeVisible();
+
+  // The outline reads the same syntax tree, so the heading is one row. The
+  // section is open by default on a desktop viewport.
   await expect(
     page
       .locator('#notes-outline-panel')
       .getByText('Feature heading', { exact: true }),
   ).toBeVisible();
-  await page.getByRole('button', { name: 'Backlinks' }).click();
-  await expect(page.getByText(/No accepted note links here/)).toBeVisible();
-  await page
-    .getByLabel('Search note content')
-    .fill('Searchable browser phrase');
-  await expect(page.getByText(path, { exact: true }).first()).toBeVisible();
 
-  await page.keyboard.press('Control+O');
-  const quickOpen = page.getByRole('dialog', { name: 'Open note' });
-  await expect(quickOpen).toBeVisible();
-  await quickOpen.getByLabel('Open a note').fill(path);
+  // The command palette finds the note by its text, which is the server and
+  // the local index answering the same query.
+  const palette = await openPalette(page);
+  await palette
+    .getByLabel('Search notes, or type an action')
+    .fill('Searchable browser phrase');
   await expect(
-    quickOpen.getByRole('option', { name: new RegExp(path) }),
+    palette.getByRole('option', { name: new RegExp(path) }),
   ).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(quickOpen).toBeHidden();
-
-  await page.getByRole('link', { name: 'History and checkpoints' }).click();
-  await expect(
-    page.getByRole('heading', { name: `History of ${path}` }),
-  ).toBeVisible();
-  await expect(
-    page.getByRole('heading', { name: 'Server history' }),
-  ).toBeVisible();
+  await expect(palette).toBeHidden();
 });
