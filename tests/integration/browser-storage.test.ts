@@ -147,7 +147,12 @@ function acceptanceOf(
  */
 function createFailingFactory(
   base: IDBFactory,
-  failure: () => { store: string; method: string; error: Error } | null,
+  failure: () => {
+    store: string;
+    method: string;
+    error: Error;
+    reject?: (args: readonly unknown[]) => boolean;
+  } | null,
 ): IDBFactory {
   const bind = (target: object, property: string | symbol): unknown => {
     const value: unknown = Reflect.get(target, property, target);
@@ -162,8 +167,12 @@ function createFailingFactory(
           chosen.store === target.name &&
           chosen.method === property
         )
-          return () => {
-            throw chosen.error;
+          return (...args: readonly unknown[]): unknown => {
+            if (chosen.reject === undefined || chosen.reject(args))
+              throw chosen.error;
+            const method: unknown = Reflect.get(target, property, target);
+            if (typeof method !== 'function') return method;
+            return Reflect.apply(method, target, args);
           };
         return bind(target, property);
       },
@@ -765,6 +774,62 @@ await test('an interrupted migration is completed on the next open', async () =>
   assert.equal((await second.pending(account, workspace)).length, 1);
   assert.deepEqual(await second.readDraft(account, workspace, 'copy-a'), draft);
   await second.close();
+});
+
+/** The requested row count of an IndexedDB getAll call. */
+function getAllCount(args: readonly unknown[]): number | null {
+  const count = args[1];
+  if (typeof count === 'number') return count;
+  const options = args[0];
+  if (typeof options !== 'object' || options === null) return null;
+  const optionCount: unknown = Reflect.get(options, 'count');
+  return typeof optionCount === 'number' ? optionCount : null;
+}
+
+await test('migration repair validates records in bounded batches', async () => {
+  const backend = createBackend('cursor-migration');
+  const first = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  for (let index = 0; index < 120; index += 1)
+    await first.saveDraft(
+      draftOf(
+        account,
+        workspace,
+        randomUUID(),
+        `copy-${String(index)}`,
+        `kept ${String(index)}\n`,
+      ),
+    );
+  await first.close();
+
+  await withRawDatabase(backend, async (tables) => {
+    const meta = await tables.meta.get(metaKey);
+    assert.ok(meta !== undefined);
+    await tables.meta.put({ ...meta, migrationState: 'in-progress' });
+  });
+
+  let migrationIsRunning = true;
+  const noWholeDraftRead = createFailingFactory(backend.factory, () =>
+    migrationIsRunning
+      ? {
+          store: 'drafts',
+          method: 'getAll',
+          error: new Error('migration read an unbounded drafts batch'),
+          reject: (args) => {
+            const count = getAllCount(args);
+            return count === null || count > 100;
+          },
+        }
+      : null,
+  );
+  const repaired = await openLocalStore(
+    origin,
+    backend.options({ indexedDB: noWholeDraftRead }),
+  );
+  migrationIsRunning = false;
+  assert.equal((await repaired.listLocalFiles(account, workspace)).length, 120);
+  await repaired.close();
 });
 
 await test('a database this application cannot read is refused', async () => {

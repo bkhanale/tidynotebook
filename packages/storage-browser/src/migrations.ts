@@ -14,6 +14,7 @@
  */
 import { LocalStorageError, type QueueState } from '@notesapp/sync';
 import type { ChangesetInput, ContentRef, RevisionInput } from '@notesapp/core';
+import type { Table } from 'dexie';
 import {
   metaKey,
   schemaVersions,
@@ -478,29 +479,48 @@ export const migrationSteps: readonly {
   },
 ];
 
+/** The most records held for validation at one time. */
+const validationBatchSize = 100;
+
+/** Reads and validates one table without holding all of its rows. */
+async function validateTable<Row, Key>(
+  table: Table<Row, Key>,
+  validate: (value: unknown) => unknown,
+): Promise<void> {
+  let offset = 0;
+  for (;;) {
+    const rows = await table
+      .toCollection()
+      .offset(offset)
+      .limit(validationBatchSize)
+      .toArray();
+    for (const row of rows) validate(row);
+    if (rows.length < validationBatchSize) return;
+    offset += rows.length;
+  }
+}
+
 /**
  * Reads and validates every record of every partitioned table.
  *
- * This reads the whole database, which is why it runs only when a migration is
- * pending. It is the check that an interrupted change left every record in a
- * shape this application can read.
+ * Each table is read in fixed-size batches. No table becomes one in-memory
+ * array, so repair cost grows with the record count but its memory use stays
+ * bounded. This runs only when a migration is pending. It checks that an
+ * interrupted change left every record in a shape this application can read.
  */
 async function revalidate(tables: Tables): Promise<void> {
-  for (const row of await tables.drafts.toArray()) validateDraft(row);
-  for (const row of await tables.checkpoints.toArray()) validateCheckpoint(row);
-  for (const row of await tables.contents.toArray()) validateContent(row);
-  for (const row of await tables.acceptedFiles.toArray())
-    validateAcceptedFile(row);
-  for (const row of await tables.queue.toArray()) validateQueueRow(row);
-  for (const row of await tables.receipts.toArray()) validateReceipt(row);
-  for (const row of await tables.stagedSnapshots.toArray())
-    validateSnapshot(row);
-  for (const row of await tables.snapshotItems.toArray())
-    validateSnapshotItem(row);
-  for (const row of await tables.leases.toArray()) validateLease(row);
-  for (const row of await tables.cursors.toArray()) validateCursor(row);
-  for (const row of await tables.preferences.toArray()) validatePreference(row);
-  for (const row of await tables.recovery.toArray()) validateRecovery(row);
+  await validateTable(tables.drafts, validateDraft);
+  await validateTable(tables.checkpoints, validateCheckpoint);
+  await validateTable(tables.contents, validateContent);
+  await validateTable(tables.acceptedFiles, validateAcceptedFile);
+  await validateTable(tables.queue, validateQueueRow);
+  await validateTable(tables.receipts, validateReceipt);
+  await validateTable(tables.stagedSnapshots, validateSnapshot);
+  await validateTable(tables.snapshotItems, validateSnapshotItem);
+  await validateTable(tables.leases, validateLease);
+  await validateTable(tables.cursors, validateCursor);
+  await validateTable(tables.preferences, validatePreference);
+  await validateTable(tables.recovery, validateRecovery);
 }
 
 /**
