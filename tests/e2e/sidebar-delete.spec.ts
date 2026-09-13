@@ -4,6 +4,7 @@ import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
   createNewNote,
   folderDisclosure,
+  openNavigation,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -23,25 +24,6 @@ async function waitForSynced(page: Page): Promise<void> {
   await expect(
     page.getByText('Everything is saved to the server.'),
   ).toBeAttached();
-}
-
-/**
- * Opens the navigation drawer on a narrow viewport.
- *
- * A wide viewport shows no drawer, so this does nothing there. It uses the
- * same shape as `createNewNote`: it waits briefly for the drawer toggle and
- * continues when the toggle never appears. Never call it while a dialog is
- * open, because the dialog covers the toggle.
- */
-async function openNavigation(page: Page): Promise<void> {
-  const drawer = page.getByRole('button', { name: 'Open navigation' });
-  try {
-    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
-    const expanded = await drawer.getAttribute('aria-expanded');
-    if (expanded !== 'true') await drawer.click();
-  } catch {
-    // No drawer on this viewport. The sidebar is already placed.
-  }
 }
 
 /**
@@ -111,6 +93,9 @@ test('Delete from a note row moves the note to Trash', async ({
   await page.getByRole('menuitem', { name: 'Delete' }).click();
 
   await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Restore', exact: true }),
+  ).toBeVisible();
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
 
   await waitForSynced(page);
@@ -149,7 +134,7 @@ test('Delete folder moves every note in it to Trash', async ({
   await page.getByRole('menuitem', { name: 'Delete folder' }).click();
 
   await expect(page.getByText('2 notes moved to Trash.')).toBeVisible();
-  await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await page.getByRole('button', { name: 'Restore', exact: true }).click();
   await openNavigation(page);
   // The restore recreates the folder, so open it again to see its notes.
   await expandFolder(folderToggle);

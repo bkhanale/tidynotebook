@@ -67,7 +67,7 @@ function ParkedSaveRow({
           {save.name}
         </p>
         <p className="m-0 text-control text-muted">
-          {save.reason} Kept on this device{' '}
+          {save.reason} The text stays on this device{' '}
           {parkedSaveTime(save.createdAt, now)}.
         </p>
       </div>
@@ -190,9 +190,7 @@ export function AttentionRoute(): ReactNode {
 
   /** Reports one local write failure without losing the kept text. */
   const reportFailure = (action: string): void => {
-    setFailure(
-      `${action} did not work on this device. The text is still kept.`,
-    );
+    setFailure(`${action} did not work. Try again. The text stays here.`);
   };
 
   /** Writes one text as a checkpoint on top of the accepted head it names. */
@@ -309,7 +307,7 @@ export function AttentionRoute(): ReactNode {
     <Page>
       <PageHeader
         title={attentionTitle}
-        description="These texts never became server versions, so they wait here. Retry one to save it again on the newest version of its note, or keep it as a new note."
+        description="Notesapp keeps text here when it cannot complete a save. Retry the save, or create a new note from its text."
         actions={
           <Link
             className={buttonClassName({ variant: 'secondary', size: 'sm' })}
@@ -327,10 +325,10 @@ export function AttentionRoute(): ReactNode {
           <EmptyState
             icon={<AlertCircleIcon size={24} />}
             title="No save needs attention"
-            description="Every save on this device reached the server."
+            description="There is no kept text for you to review."
           />
         ) : (
-          <Card title="Kept saves" titleId="attention-heading">
+          <Card title="Text to review" titleId="attention-heading">
             <ul className="m-0 list-none p-0">
               {saves.map((save) => (
                 <ParkedSaveRow

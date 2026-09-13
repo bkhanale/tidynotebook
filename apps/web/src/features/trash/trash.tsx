@@ -257,7 +257,7 @@ export function useDeleteNotice(): DeleteNoticeValue {
 }
 
 /**
- * The notice that one note went to the trash, with one chance to undo it.
+ * The notice that one note went to the trash, with one chance to restore it.
  *
  * The region announces itself, and the button is an ordinary button in the
  * document order, so the offer is there for a reader and for the keyboard. It
@@ -289,11 +289,11 @@ export function DeleteNoticeBar(): ReactNode {
     only === undefined
       ? `${String(count)} notes moved to Trash.`
       : `${only.name} moved to Trash.`;
-  const undoLabel =
+  const restoreLabel =
     only === undefined
-      ? `Undo the deletion of ${String(count)} notes`
-      : `Undo the deletion of ${only.name}`;
-  const undo = (): void => {
+      ? `Restore ${String(count)} deleted notes`
+      : `Restore ${only.name}`;
+  const restore = (): void => {
     if (busy) return;
     setBusy(true);
     setFailure(null);
@@ -309,7 +309,7 @@ export function DeleteNoticeBar(): ReactNode {
           setBusy(false);
           if (restoredRef.current.size > 0)
             setFailure(
-              `${String(restoredRef.current.size)} of ${String(count)} notes are back. Try Undo again for the rest.`,
+              `${String(restoredRef.current.size)} of ${String(count)} notes are back. Try Restore again for the other notes.`,
             );
           else setFailure(outcome.message);
           return;
@@ -340,10 +340,10 @@ export function DeleteNoticeBar(): ReactNode {
             variant="secondary"
             size="sm"
             disabled={busy}
-            label={undoLabel}
-            onClick={undo}
+            title={restoreLabel}
+            onClick={restore}
           >
-            {busy ? 'Undoing' : 'Undo'}
+            {busy ? 'Restoring' : 'Restore'}
           </Button>
           <Button
             variant="ghost"

@@ -1,7 +1,7 @@
-import type { Page } from '@playwright/test';
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  openNavigation,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -9,18 +9,6 @@ import {
 } from './support/account.ts';
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
-
-/** Opens the navigation drawer when the current viewport uses one. */
-async function openNavigation(page: Page): Promise<void> {
-  const drawer = page.getByRole('button', { name: 'Open navigation' });
-  try {
-    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
-    if ((await drawer.getAttribute('aria-expanded')) !== 'true')
-      await drawer.click();
-  } catch {
-    // The sidebar is already visible on a wide viewport.
-  }
-}
 
 test('the selected folder receives a child folder and a saved note', async ({
   checkedPage: page,

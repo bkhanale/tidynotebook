@@ -5,28 +5,13 @@ import {
   closeNavigation,
   createNewNote,
   folderDisclosure,
+  openNavigation,
   replaceEditorText,
   signIn,
   waitForServerSave,
 } from './support/account.ts';
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
-
-/**
- * Opens the navigation drawer on a narrow viewport.
- *
- * A wide viewport shows no drawer, so this does nothing there.
- */
-async function openNavigation(page: Page): Promise<void> {
-  const drawer = page.getByRole('button', { name: 'Open navigation' });
-  try {
-    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
-    const expanded = await drawer.getAttribute('aria-expanded');
-    if (expanded !== 'true') await drawer.click();
-  } catch {
-    // No drawer on this viewport. The sidebar is already placed.
-  }
-}
 
 /** Makes a folder through the real dialog. */
 async function createFolder(page: Page, folder: string): Promise<void> {

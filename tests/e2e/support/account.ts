@@ -1,6 +1,15 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import type { E2EStack } from './stack.ts';
 
+/** The Tailwind medium breakpoint that changes the sidebar to a drawer. */
+const navigationBreakpoint = 768;
+
+/** Whether this configured viewport uses the navigation drawer. */
+function hasNavigationDrawer(page: Page): boolean {
+  const viewport = page.viewportSize();
+  return viewport !== null && viewport.width < navigationBreakpoint;
+}
+
 /** Opens the sign-in page and waits until its form can take input. */
 async function openSignInForm(page: Page, loginUrl: string): Promise<void> {
   try {
@@ -55,12 +64,11 @@ export async function createNewNote(page: Page): Promise<void> {
   });
   // A narrow viewport keeps the sidebar in a closed drawer, so the action
   // stays hidden until the drawer opens. A wide viewport shows no drawer.
-  const drawer = page.getByRole('button', { name: 'Open navigation' });
-  try {
-    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
-    await drawer.click();
-  } catch {
-    // No drawer on this viewport. The sidebar action is already placed.
+  if (hasNavigationDrawer(page)) {
+    const drawer = page.getByRole('button', { name: 'Open navigation' });
+    await expect(drawer).toBeVisible();
+    if ((await drawer.getAttribute('aria-expanded')) !== 'true')
+      await drawer.click();
   }
   await candidates.first().click();
   await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
@@ -78,6 +86,13 @@ export async function replaceEditorText(
   await editor.click();
   await editor.press('Control+A');
   await editor.fill(text);
+  // Observe this edit before a caller waits for its server result. Without
+  // this edge, a fast assertion can read the saved state of the prior edit.
+  await expect
+    .poll(() =>
+      page.locator('[data-save-state]').getAttribute('data-save-state'),
+    )
+    .not.toBe('saved-server');
 }
 
 /** Waits for the active file status, not the workspace sync announcement. */
@@ -122,25 +137,18 @@ export async function runNoteAction(page: Page, label: string): Promise<void> {
 
 /** Opens the navigation drawer on a narrow viewport. */
 export async function openNavigation(page: Page): Promise<void> {
+  if (!hasNavigationDrawer(page)) return;
   const drawer = page.getByRole('button', { name: 'Open navigation' });
-  try {
-    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
-    if ((await drawer.getAttribute('aria-expanded')) !== 'true')
-      await drawer.click();
-  } catch {
-    // No drawer on this viewport. The sidebar is already placed.
-  }
+  await expect(drawer).toBeVisible();
+  if ((await drawer.getAttribute('aria-expanded')) !== 'true')
+    await drawer.click();
 }
 
 /** Closes the navigation drawer when one is open. */
 export async function closeNavigation(page: Page): Promise<void> {
+  if (!hasNavigationDrawer(page)) return;
   const close = page.getByRole('button', { name: 'Close navigation' });
-  try {
-    await close.waitFor({ state: 'visible', timeout: 2_000 });
-    await close.click();
-  } catch {
-    // No drawer on this viewport. The sidebar never covers the header.
-  }
+  if (await close.isVisible()) await close.click();
 }
 
 /**

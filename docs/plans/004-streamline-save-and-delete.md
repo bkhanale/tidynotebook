@@ -1,6 +1,6 @@
 # Plan 004. Streamline save and delete
 
-Status: active
+Status: complete
 
 The live list is the
 [GitHub project board](https://github.com/users/bkhanale/projects/2). This plan

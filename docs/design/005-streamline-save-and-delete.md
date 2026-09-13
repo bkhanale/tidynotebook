@@ -1,6 +1,6 @@
 # Streamline save and delete
 
-Status: active
+Status: complete
 
 This design studies the save, delete, and trash workflow and states how to make
 it simple for a Markdown notes application. It follows the audit of

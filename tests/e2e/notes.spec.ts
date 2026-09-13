@@ -59,6 +59,9 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   await closeNavigation(page);
   await runNoteAction(page, 'Delete this note');
   await expect(page.getByText(`${renamed} moved to Trash.`)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Restore', exact: true }),
+  ).toBeVisible();
   await openNavigation(page);
   await expect(page.getByRole('link', { name: renamed })).toHaveCount(0);
 });

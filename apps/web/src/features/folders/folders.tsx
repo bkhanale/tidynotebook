@@ -9,7 +9,7 @@
  * folder that this device remembers until a note is made or moved into it,
  * so making a folder never makes a note.
  */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { generateUUID } from '@notesapp/core';
 import {
   isLocalStorageError,
@@ -87,6 +87,7 @@ function NameField({
   value,
   error,
   onChange,
+  onEnter,
 }: {
   readonly id: string;
   readonly label: string;
@@ -94,6 +95,7 @@ function NameField({
   readonly value: string;
   readonly error: string | null;
   readonly onChange: (value: string) => void;
+  readonly onEnter?: (() => void) | undefined;
 }): ReactNode {
   return (
     <div>
@@ -112,6 +114,11 @@ function NameField({
         aria-invalid={error !== null}
         aria-describedby={error === null ? `${id}-help` : `${id}-error`}
         onChange={(event): void => onChange(event.target.value)}
+        onKeyDown={(event): void => {
+          if (event.key !== 'Enter' || onEnter === undefined) return;
+          event.preventDefault();
+          onEnter();
+        }}
       />
       {help === undefined ? null : (
         <p className="mb-0 mt-1 text-control text-muted" id={`${id}-help`}>
@@ -155,15 +162,17 @@ export function NewFolderDialog({
 }): ReactNode {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const nameRef = useRef('');
 
   useEffect(() => {
     if (!open) return;
+    nameRef.current = '';
     setName('');
     setError(null);
   }, [open]);
 
   const create = (): void => {
-    const child = cleanNoteBaseName(name);
+    const child = cleanNoteBaseName(nameRef.current);
     if (child.includes('/')) {
       setError('A folder name cannot contain a slash.');
       return;
@@ -208,7 +217,9 @@ export function NewFolderDialog({
             help="The folder starts empty. Use New note in this folder to fill it."
             value={name}
             error={error}
+            onEnter={create}
             onChange={(value) => {
+              nameRef.current = value;
               setName(value);
               setError(null);
             }}
