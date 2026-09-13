@@ -72,3 +72,24 @@ test('one surface reads and writes the note in place', async ({
   ).toHaveCount(0);
   await expect(page.locator('[data-note-view="read"]')).toHaveCount(0);
 });
+
+test('the note name and note text share one left edge', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await replaceEditorText(page, 'Left edge');
+
+  const title = page.getByLabel('Note name');
+  const line = page.locator('.cm-line').first();
+  const titleEdge = await title.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    return box.left + Number.parseFloat(getComputedStyle(element).paddingLeft);
+  });
+  const lineEdge = await line.evaluate(
+    (element) => element.getBoundingClientRect().left,
+  );
+  expect(Math.abs(titleEdge - lineEdge)).toBeLessThanOrEqual(1);
+});

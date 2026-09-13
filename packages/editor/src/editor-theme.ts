@@ -144,12 +144,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-content': {
       caretColor: 'var(--notes-focus)',
       width: '100%',
-      paddingInline: 'calc(var(--spacing) * 4)',
+      paddingInline: 'calc(var(--spacing) * 2)',
       paddingBlock: 'calc(var(--spacing) * 6)',
     },
     '.cm-line': {
       maxWidth: 'var(--container-note)',
-      marginInline: 'auto',
+      marginInline: '0',
       paddingInline: '0',
       paddingBlock: 'var(--spacing-note-line)',
     },
@@ -303,7 +303,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-widget-block': {
       display: 'block',
       maxWidth: 'var(--container-note)',
-      marginInline: 'auto',
+      marginInline: '0',
       marginBlock: 'var(--spacing-note-block)',
     },
     '.cm-np-widget-inline': { display: 'inline' },

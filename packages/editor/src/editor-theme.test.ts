@@ -38,10 +38,11 @@ await test('the reading measure sits on the line and not on the content', () => 
   // outside the editable element, and a click in that strip places no caret.
   assert.equal(rule('.cm-content').maxWidth, undefined);
   assert.equal(rule('.cm-content').marginInline, undefined);
+  assert.equal(rule('.cm-content').paddingInline, 'calc(var(--spacing) * 2)');
   assert.equal(rule('.cm-line').maxWidth, 'var(--container-note)');
-  assert.equal(rule('.cm-line').marginInline, 'auto');
+  assert.equal(rule('.cm-line').marginInline, '0');
   assert.equal(rule('.cm-np-widget-block').maxWidth, 'var(--container-note)');
-  assert.equal(rule('.cm-np-widget-block').marginInline, 'auto');
+  assert.equal(rule('.cm-np-widget-block').marginInline, '0');
 });
 
 await test('every heading level keeps the shared line edge', () => {
