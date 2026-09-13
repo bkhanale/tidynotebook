@@ -82,9 +82,13 @@ import {
   usePublishNoteSave,
   type SaveState,
 } from './save-status.tsx';
+import { createDocumentWorkQueue } from './document-work.ts';
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
+
+/** Delay before work that reads the complete document. */
+const documentWorkDelayMs = 200;
 
 /**
  * The built diagram frame document.
@@ -225,6 +229,19 @@ export function NoteEditor({
   const mathRenderRef = useRef<
     ((source: string, display: boolean) => string) | null
   >(null);
+  const documentWork = useMemo(
+    () =>
+      createDocumentWorkQueue({
+        delayMs: documentWorkDelayMs,
+        defer: (run, delayMs) => window.setTimeout(run, delayMs),
+        cancel: (token) => window.clearTimeout(token),
+        run: (text) => {
+          setBufferText(text);
+          activeNoteChanged();
+        },
+      }),
+    [],
+  );
 
   useEffect(() => {
     if (!focusName) return;
@@ -412,8 +429,9 @@ export function NoteEditor({
         window.clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
+      documentWork.cancel();
     };
-  }, [workingCopyId]);
+  }, [workingCopyId, documentWork]);
 
   // KaTeX and its stylesheet load after the first paint. The rich
   // compartment refreshes without changing the editor document, selection,
@@ -472,8 +490,7 @@ export function NoteEditor({
       (text) => {
         const startedAt = performance.now();
         bufferRef.current = text;
-        setBufferText(text);
-        activeNoteChanged();
+        documentWork.schedule(text);
         sequenceRef.current += 1;
         setDraftPending(true);
         if (saveTimerRef.current !== null)
@@ -518,7 +535,7 @@ export function NoteEditor({
       setActiveNoteView(null);
       view.destroy();
     };
-  }, [workingCopyId]);
+  }, [workingCopyId, documentWork]);
 
   // Theme changes reconfigure one compartment, keeping document, undo,
   // selection, and composition exactly where they are.
