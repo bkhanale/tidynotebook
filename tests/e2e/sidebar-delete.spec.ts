@@ -3,6 +3,7 @@ import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
   createNewNote,
+  folderDisclosure,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -137,10 +138,7 @@ test('Delete folder moves every note in it to Trash', async ({
   await createNoteInFolder(page, folder, 'Note two', '# Two');
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
-  const folderToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const folderToggle = folderDisclosure(page, folder);
   await openNavigation(page);
   await expandFolder(folderToggle);
   await expect(tree.getByRole('link', { name: 'Note one' })).toBeVisible();
@@ -218,10 +216,7 @@ test('Delete the last note in a folder keeps the folder', async ({
   await createNoteInFolder(page, folder, name, '# Solo');
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
-  const folderToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const folderToggle = folderDisclosure(page, folder);
   await openNavigation(page);
   await expandFolder(folderToggle);
   await expect(tree.getByRole('link', { name })).toBeVisible();
@@ -243,10 +238,7 @@ test('Delete the last note in a folder keeps the folder', async ({
   await page.reload();
   await waitForSynced(page);
   await openNavigation(page);
-  const reloadedToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const reloadedToggle = folderDisclosure(page, folder);
   await expect(reloadedToggle).toBeVisible();
   await expect(
     page.getByRole('button', { name: `Actions for the folder ${folder}` }),
@@ -314,10 +306,7 @@ test('A rename keeps a note in its folder', async ({
   await waitForServerSave(page);
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
-  const folderToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const folderToggle = folderDisclosure(page, folder);
   await openNavigation(page);
   const expanded = await folderToggle.getAttribute('aria-expanded');
   if (expanded !== 'true') await folderToggle.click();
@@ -329,10 +318,7 @@ test('A rename keeps a note in its folder', async ({
   await page.reload();
   await waitForSynced(page);
   await openNavigation(page);
-  const reloadedToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const reloadedToggle = folderDisclosure(page, folder);
   const reloadedExpanded = await reloadedToggle.getAttribute('aria-expanded');
   if (reloadedExpanded !== 'true') await reloadedToggle.click();
   await expect(reloadedToggle).toHaveAttribute('aria-expanded', 'true');
@@ -359,10 +345,7 @@ test('A slash in the name is refused and the note stays put', async ({
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
   await openNavigation(page);
-  const folderToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const folderToggle = folderDisclosure(page, folder);
   const expanded = await folderToggle.getAttribute('aria-expanded');
   if (expanded !== 'true') await folderToggle.click();
   await expect(tree.getByRole('link', { name })).toBeVisible();
@@ -373,10 +356,7 @@ test('A slash in the name is refused and the note stays put', async ({
   await page.reload();
   await expect(page.getByLabel('Note name')).toHaveValue(name);
   await openNavigation(page);
-  const reloadedToggle = page.getByRole('button', {
-    name: folder,
-    exact: true,
-  });
+  const reloadedToggle = folderDisclosure(page, folder);
   const reloadedExpanded = await reloadedToggle.getAttribute('aria-expanded');
   if (reloadedExpanded !== 'true') await reloadedToggle.click();
   await expect(tree.getByRole('link', { name })).toBeVisible();

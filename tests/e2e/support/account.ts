@@ -142,3 +142,16 @@ export async function closeNavigation(page: Page): Promise<void> {
     // No drawer on this viewport. The sidebar never covers the header.
   }
 }
+
+/**
+ * The control that expands or collapses one folder row.
+ *
+ * The folder name is a separate selection button, so the disclosure is the
+ * icon control that carries `Expand folder` or `Collapse folder`.
+ */
+export function folderDisclosure(page: Page, folder: string): Locator {
+  const escaped = folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return page.getByRole('button', {
+    name: new RegExp(`(?:Expand|Collapse) folder ${escaped}`),
+  });
+}

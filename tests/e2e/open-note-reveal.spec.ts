@@ -4,6 +4,7 @@ import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
   closeNavigation,
   createNewNote,
+  folderDisclosure,
   replaceEditorText,
   signIn,
   waitForServerSave,
@@ -72,10 +73,7 @@ test('opening a note expands its folder and scrolls its row into view', async ({
   // Move the open note away from Report, then collapse its folder by hand.
   await createNewNote(page);
   await openNavigation(page);
-  const folderToggle = page.getByRole('button', {
-    name: 'Projects',
-    exact: true,
-  });
+  const folderToggle = folderDisclosure(page, 'Projects');
   await expect(folderToggle).toHaveAttribute('aria-expanded', 'true');
   await folderToggle.click();
   await expect(folderToggle).toHaveAttribute('aria-expanded', 'false');
