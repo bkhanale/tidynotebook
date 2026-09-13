@@ -720,10 +720,18 @@ export function Shell(): ReactNode {
   const params = useParams();
   const workspaceId =
     typeof params.workspaceId === 'string' ? params.workspaceId : '';
+  // NoteSaveScope and NoteActionsScope wrap the frame, not sit inside it, so
+  // the frame reads what the open note screen registers. The screen mounts in
+  // the Outlet below the frame and writes into these scopes; the frame reads
+  // them to build the command palette and to time the persistence prompt.
   return (
     <RequireCurrentWorkspace workspaceId={workspaceId}>
       <FilesProvider workspaceId={workspaceId}>
-        <ShellFrame workspaceId={workspaceId} />
+        <NoteSaveScope>
+          <NoteActionsScope>
+            <ShellFrame workspaceId={workspaceId} />
+          </NoteActionsScope>
+        </NoteSaveScope>
       </FilesProvider>
     </RequireCurrentWorkspace>
   );
@@ -918,7 +926,7 @@ function ShellFrame({
                   {
                     id: 'move-note',
                     label: 'Move this note to a folder',
-                    keywords: 'folder organize',
+                    keywords: 'move folder organize relocate',
                     run: noteActions.moveToFolder,
                   },
                 ]),
@@ -928,7 +936,8 @@ function ShellFrame({
                   {
                     id: 'attach-image',
                     label: 'Attach an image to this note',
-                    keywords: 'picture upload photo',
+                    keywords:
+                      'insert add embed image picture photo upload file',
                     run: noteActions.attachImage,
                   },
                 ]),
@@ -938,7 +947,7 @@ function ShellFrame({
                   {
                     id: 'export-note',
                     label: 'Export this note as Markdown',
-                    keywords: 'download file save',
+                    keywords: 'export download save file markdown',
                     run: noteActions.exportMarkdown,
                   },
                 ]),
@@ -948,7 +957,7 @@ function ShellFrame({
                   {
                     id: 'duplicate-note',
                     label: 'Duplicate this note',
-                    keywords: 'copy',
+                    keywords: 'duplicate copy clone',
                     run: noteActions.duplicate,
                   },
                 ]),
@@ -958,7 +967,7 @@ function ShellFrame({
                   {
                     id: 'delete-note',
                     label: 'Delete this note',
-                    keywords: 'trash remove',
+                    keywords: 'delete trash remove',
                     run: noteActions.deleteAndLeave,
                   },
                 ]),
@@ -986,171 +995,165 @@ function ShellFrame({
   return (
     <SyncProvider value={sync}>
       <DeleteNoticeProvider>
-        <NoteSaveScope>
-          <NoteActionsScope>
-            <div className="flex h-dvh flex-col bg-app text-ink">
-              <a
-                className="fixed left-2 top-2 z-50 -translate-y-20 rounded-lg bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
-                href="#notes-content"
+        <div className="flex h-dvh flex-col bg-app text-ink">
+          <a
+            className="fixed left-2 top-2 z-50 -translate-y-20 rounded-lg bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
+            href="#notes-content"
+          >
+            Skip to content
+          </a>
+
+          <header className="z-30 flex h-header shrink-0 items-center gap-2 border-b border-edge-subtle bg-card px-2 sm:px-3">
+            <Button
+              buttonRef={menuButtonRef}
+              variant="ghost"
+              size="sm"
+              className="md:hidden"
+              label="Open navigation"
+              title="Open navigation"
+              icon={<MenuIcon size={18} />}
+              ariaControls="notes-sidebar"
+              ariaExpanded={drawerOpen}
+              onClick={() => {
+                setDrawerOpen((open) => !open);
+              }}
+            />
+
+            <Link
+              className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
+              to="/"
+            >
+              <span
+                className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
+                aria-hidden="true"
               >
-                Skip to content
-              </a>
+                <WorkspaceIcon size={16} />
+              </span>
+              <span className="hidden sm:inline">Notesapp</span>
+            </Link>
 
-              <header className="z-30 flex h-header shrink-0 items-center gap-2 border-b border-edge-subtle bg-card px-2 sm:px-3">
-                <Button
-                  buttonRef={menuButtonRef}
-                  variant="ghost"
-                  size="sm"
-                  className="md:hidden"
-                  label="Open navigation"
-                  title="Open navigation"
-                  icon={<MenuIcon size={18} />}
-                  ariaControls="notes-sidebar"
-                  ariaExpanded={drawerOpen}
-                  onClick={() => {
-                    setDrawerOpen((open) => !open);
-                  }}
-                />
+            <button
+              type="button"
+              className="mx-auto flex min-h-11 w-full max-w-md min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-edge bg-app px-3 text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8"
+              onClick={() => setPaletteOpen(true)}
+            >
+              <span
+                className="inline-flex shrink-0 items-center"
+                aria-hidden="true"
+              >
+                <SearchIcon size={15} />
+              </span>
+              <span className="min-w-0 flex-1 truncate text-left">
+                Search notes
+              </span>
+              <kbd className="hidden shrink-0 rounded border border-edge bg-hover px-1.5 text-control text-muted sm:inline">
+                Ctrl K
+              </kbd>
+            </button>
 
-                <Link
-                  className="flex shrink-0 items-center gap-2 text-ui font-semibold text-strong no-underline"
-                  to="/"
-                >
-                  <span
-                    className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
-                    aria-hidden="true"
-                  >
-                    <WorkspaceIcon size={16} />
-                  </span>
-                  <span className="hidden sm:inline">Notesapp</span>
-                </Link>
-
-                <button
-                  type="button"
-                  className="mx-auto flex min-h-11 w-full max-w-md min-w-0 cursor-pointer items-center gap-2 rounded-lg border border-edge bg-app px-3 text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8"
-                  onClick={() => setPaletteOpen(true)}
-                >
-                  <span
-                    className="inline-flex shrink-0 items-center"
-                    aria-hidden="true"
-                  >
-                    <SearchIcon size={15} />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-left">
-                    Search notes
-                  </span>
-                  <kbd className="hidden shrink-0 rounded border border-edge bg-hover px-1.5 text-control text-muted sm:inline">
-                    Ctrl K
-                  </kbd>
-                </button>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  <Menu
-                    label="More actions"
-                    icon={<MoreIcon size={18} />}
-                    items={menuItems}
-                  />
-                </div>
-              </header>
-
-              <div
-                className={
-                  drawerOpen
-                    ? 'fixed inset-0 z-30 bg-scrim/70 md:hidden'
-                    : 'hidden'
-                }
-                role="presentation"
-                onClick={() => setDrawerOpen(false)}
+            <div className="flex shrink-0 items-center gap-1">
+              <Menu
+                label="More actions"
+                icon={<MoreIcon size={18} />}
+                items={menuItems}
               />
+            </div>
+          </header>
 
-              <aside
-                ref={sidebarRef}
-                id="notes-sidebar"
-                className={drawerClassName(drawerOpen)}
-                aria-label="Notes navigation"
-                aria-modal={drawerOpen ? true : undefined}
-                role={drawerOpen ? 'dialog' : undefined}
-              >
-                <Sidebar
-                  workspaceId={workspaceId}
-                  onNavigate={() => setDrawerOpen(false)}
-                  onNewFolder={() => setNewFolderOpen(true)}
-                  onRenameFolder={(folder) => setRenameFolder(folder)}
-                  onNewNoteIn={(folder) => newNote.create(folder)}
-                  onClose={() => setDrawerOpen(false)}
-                />
-              </aside>
+          <div
+            className={
+              drawerOpen ? 'fixed inset-0 z-30 bg-scrim/70 md:hidden' : 'hidden'
+            }
+            role="presentation"
+            onClick={() => setDrawerOpen(false)}
+          />
 
-              <div
-                id="notes-content"
-                className="min-h-0 flex-1 overflow-y-auto md:pl-64"
-              >
-                <div className="mx-auto w-full max-w-3xl px-4 pt-4 empty:hidden sm:px-6">
-                  <UpdateNotice
-                    store={store.store}
-                    onFlushDrafts={() => Promise.resolve()}
-                  />
-                  {session.error === null ? null : (
-                    <Notice tone="info" message={session.error} />
-                  )}
-                  {theme.syncError === null ? null : (
-                    <Notice tone="info" message={theme.syncError} />
-                  )}
-                  {persistence.denial === null ? null : (
-                    <Notice tone="problem" message={persistence.denial}>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={persistence.dismiss}
-                      >
-                        Understood
-                      </Button>
-                    </Notice>
-                  )}
-                </div>
-                <Outlet />
-              </div>
+          <aside
+            ref={sidebarRef}
+            id="notes-sidebar"
+            className={drawerClassName(drawerOpen)}
+            aria-label="Notes navigation"
+            aria-modal={drawerOpen ? true : undefined}
+            role={drawerOpen ? 'dialog' : undefined}
+          >
+            <Sidebar
+              workspaceId={workspaceId}
+              onNavigate={() => setDrawerOpen(false)}
+              onNewFolder={() => setNewFolderOpen(true)}
+              onRenameFolder={(folder) => setRenameFolder(folder)}
+              onNewNoteIn={(folder) => newNote.create(folder)}
+              onClose={() => setDrawerOpen(false)}
+            />
+          </aside>
 
-              <DeleteNoticeBar />
-
-              <CommandPalette
-                open={paletteOpen}
-                onOpenChange={setPaletteOpen}
-                workspaceId={workspaceId}
-                notes={files.notes}
+          <div
+            id="notes-content"
+            className="min-h-0 flex-1 overflow-y-auto md:pl-64"
+          >
+            <div className="mx-auto w-full max-w-3xl px-4 pt-4 empty:hidden sm:px-6">
+              <UpdateNotice
                 store={store.store}
-                accountId={accountId}
-                actions={paletteActions}
+                onFlushDrafts={() => Promise.resolve()}
               />
-              <ShortcutsDialog
-                open={shortcutsOpen}
-                onClose={() => setShortcutsOpen(false)}
-              />
-              <NewFolderDialog
-                open={newFolderOpen}
-                onClose={() => setNewFolderOpen(false)}
-                folders={allFolders}
-                onCreated={(folder) => files.addEmptyFolder(folder)}
-              />
-              {session.account === null || renameFolder === null ? null : (
-                <RenameFolderDialog
-                  open
-                  onClose={() => setRenameFolder(null)}
-                  store={store.store}
-                  accountId={session.account.accountId}
-                  workspaceId={workspaceId}
-                  notes={files.notes}
-                  folders={allFolders}
-                  folder={renameFolder}
-                  onRenamed={(toFolder) => {
-                    files.moveEmptyFolders(renameFolder, toFolder);
-                    setRenameFolder(null);
-                  }}
-                />
+              {session.error === null ? null : (
+                <Notice tone="info" message={session.error} />
+              )}
+              {theme.syncError === null ? null : (
+                <Notice tone="info" message={theme.syncError} />
+              )}
+              {persistence.denial === null ? null : (
+                <Notice tone="problem" message={persistence.denial}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={persistence.dismiss}
+                  >
+                    Understood
+                  </Button>
+                </Notice>
               )}
             </div>
-          </NoteActionsScope>
-        </NoteSaveScope>
+            <Outlet />
+          </div>
+
+          <DeleteNoticeBar />
+
+          <CommandPalette
+            open={paletteOpen}
+            onOpenChange={setPaletteOpen}
+            workspaceId={workspaceId}
+            notes={files.notes}
+            store={store.store}
+            accountId={accountId}
+            actions={paletteActions}
+          />
+          <ShortcutsDialog
+            open={shortcutsOpen}
+            onClose={() => setShortcutsOpen(false)}
+          />
+          <NewFolderDialog
+            open={newFolderOpen}
+            onClose={() => setNewFolderOpen(false)}
+            folders={allFolders}
+            onCreated={(folder) => files.addEmptyFolder(folder)}
+          />
+          {session.account === null || renameFolder === null ? null : (
+            <RenameFolderDialog
+              open
+              onClose={() => setRenameFolder(null)}
+              store={store.store}
+              accountId={session.account.accountId}
+              workspaceId={workspaceId}
+              notes={files.notes}
+              folders={allFolders}
+              folder={renameFolder}
+              onRenamed={(toFolder) => {
+                files.moveEmptyFolders(renameFolder, toFolder);
+                setRenameFolder(null);
+              }}
+            />
+          )}
+        </div>
       </DeleteNoticeProvider>
     </SyncProvider>
   );
