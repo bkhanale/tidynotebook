@@ -1,12 +1,11 @@
 /**
  * The layout of the note header row.
  *
- * The note name is the largest type on the screen and the row also carries
- * the save action, the Write and Read toggle, and one overflow menu. The rule
- * lives here so a unit test can hold it: on a phone the name takes a line of
- * its own and the actions wrap under it. A name that shares the line with the
- * actions is cut after a few letters, and the most important text on the
- * screen becomes unreadable.
+ * The note name is the largest type on the screen and the header carries it
+ * alone: the note saves itself and every note action lives in the command
+ * palette. The rule lives here so a unit test can hold it: the name takes the
+ * full width of the header at every size, so the most important text on the
+ * screen is never cut.
  */
 
 /**
@@ -19,5 +18,5 @@
  * never moves when a state changes.
  */
 export function noteTitleClassName(): string {
-  return 'min-w-0 grow basis-full border-0 border-b-2 border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none motion-safe:transition-colors hover:border-edge-subtle focus:border-focus sm:basis-0';
+  return 'block w-full min-w-0 border-0 border-b-2 border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none motion-safe:transition-colors hover:border-edge-subtle focus:border-focus';
 }

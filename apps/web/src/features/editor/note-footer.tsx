@@ -3,7 +3,7 @@
  *
  * It states how long the note is, from the buffer of the open editor, so the
  * count is right while the person types. The note saves itself, so the footer
- * carries no save readout; the header states `Saving` or `Saved`.
+ * carries no save readout; the sidebar footer states the sync progress.
  */
 import type { ReactNode } from 'react';
 

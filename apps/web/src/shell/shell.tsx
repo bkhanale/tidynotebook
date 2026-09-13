@@ -912,6 +912,56 @@ function ShellFrame({
                 );
               },
             },
+            ...(noteActions.moveToFolder === null
+              ? []
+              : [
+                  {
+                    id: 'move-note',
+                    label: 'Move this note to a folder',
+                    keywords: 'folder organize',
+                    run: noteActions.moveToFolder,
+                  },
+                ]),
+            ...(noteActions.attachImage === null
+              ? []
+              : [
+                  {
+                    id: 'attach-image',
+                    label: 'Attach an image to this note',
+                    keywords: 'picture upload photo',
+                    run: noteActions.attachImage,
+                  },
+                ]),
+            ...(noteActions.exportMarkdown === null
+              ? []
+              : [
+                  {
+                    id: 'export-note',
+                    label: 'Export this note as Markdown',
+                    keywords: 'download file save',
+                    run: noteActions.exportMarkdown,
+                  },
+                ]),
+            ...(noteActions.duplicate === null
+              ? []
+              : [
+                  {
+                    id: 'duplicate-note',
+                    label: 'Duplicate this note',
+                    keywords: 'copy',
+                    run: noteActions.duplicate,
+                  },
+                ]),
+            ...(noteActions.deleteAndLeave === null
+              ? []
+              : [
+                  {
+                    id: 'delete-note',
+                    label: 'Delete this note',
+                    keywords: 'trash remove',
+                    run: noteActions.deleteAndLeave,
+                  },
+                ]),
           ]),
       {
         id: 'trash',

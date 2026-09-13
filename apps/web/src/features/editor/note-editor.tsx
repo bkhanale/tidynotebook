@@ -55,7 +55,10 @@ import {
   sanitizeAttachmentName,
   useAttachmentUrls,
 } from './note-editor-attachments.ts';
-import { useRegisterNoteActions } from './note-actions.tsx';
+import {
+  useRegisterNoteActions,
+  type NoteScreenActions,
+} from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader } from './note-header.tsx';
 import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
@@ -71,7 +74,6 @@ import {
   storageNotePath,
 } from '../../lib/note-name.ts';
 import { OutlinePanel } from './outline.tsx';
-import { resolveSaveStatus } from '../../lib/save-state.ts';
 import { useDeleteNotice } from '../trash/trash.tsx';
 import { createDiagramFrame } from '../../diagram/frame.ts';
 import {
@@ -199,7 +201,6 @@ export function NoteEditor({
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [storageError, setStorageError] =
     useState<LocalStorageErrorKind | null>(null);
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [pasteNotice, setPasteNotice] = useState('');
   const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
@@ -645,18 +646,10 @@ export function NoteEditor({
   useBlockUnsafeReload(draftPending || storageError !== null);
   const hasUnsavedEdits =
     draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false);
-  const saveStatus = resolveSaveStatus({
-    state: saveState,
-    hasUnsavedEdits,
-  });
   usePublishNoteSave({
     state: saveState,
     hasUnsavedEdits,
     lastSavedAt,
-  });
-  useRegisterNoteActions({
-    fileId,
-    delete: deleteOpenNote,
   });
 
   /** Inserts Markdown at the current cursor through an editor transaction. */
@@ -811,7 +804,7 @@ export function NoteEditor({
   }, [movedPath]);
 
   /** Copies the open note into a new note beside it. */
-  const duplicateNote = (): void => {
+  const duplicateNote = useCallback((): void => {
     const current = live.current;
     const base = displayNoteName(baseNameOf(validPathRef.current));
     const taken = new Set(
@@ -853,14 +846,10 @@ export function NoteEditor({
       }
       void navigate(`/w/${current.workspaceId}/notes/${copyId}`);
     })();
-  };
+  }, [noteList.notes, navigate]);
 
-  const handleDelete = (): void => {
-    if (!confirmingDelete) {
-      setConfirmingDelete(true);
-      return;
-    }
-    setConfirmingDelete(false);
+  /** Deletes the open note, tells the person, and leaves for the note list. */
+  const deleteNoteAndLeave = useCallback((): void => {
     const deletedName = displayNoteName(validPathRef.current);
     void (async (): Promise<void> => {
       const moved = await deleteOpenNote();
@@ -873,7 +862,53 @@ export function NoteEditor({
       });
       void navigate(`/w/${workspaceId}`);
     })();
-  };
+  }, [deleteOpenNote, announceDeleted, workspaceId, fileId, navigate]);
+
+  /** Opens the Move to folder dialog that the note screen owns. */
+  const moveNoteToFolder = useCallback((): void => {
+    onMoveToFolder?.();
+  }, [onMoveToFolder]);
+
+  /** Opens the image chooser of the editor. */
+  const attachImage = useCallback((): void => {
+    fileInputRef.current?.click();
+  }, []);
+
+  /** Saves the open note as one Markdown file on this device. */
+  const exportMarkdown = useCallback((): void => {
+    void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
+      setPasteNotice(
+        failure instanceof Error
+          ? failure.message
+          : 'The note could not be saved as a file.',
+      );
+    });
+  }, [workspaceId, fileId]);
+
+  // One stable object holds every action of the open note. It does not change
+  // between keystrokes, so the shell registers it once and offers each action
+  // in the command palette.
+  const noteScreenActions = useMemo<NoteScreenActions>(
+    () => ({
+      fileId,
+      delete: deleteOpenNote,
+      deleteAndLeave: deleteNoteAndLeave,
+      moveToFolder: moveNoteToFolder,
+      duplicate: duplicateNote,
+      attachImage,
+      exportMarkdown,
+    }),
+    [
+      fileId,
+      deleteOpenNote,
+      deleteNoteAndLeave,
+      moveNoteToFolder,
+      duplicateNote,
+      attachImage,
+      exportMarkdown,
+    ],
+  );
+  useRegisterNoteActions(noteScreenActions);
 
   return (
     <div
@@ -887,29 +922,6 @@ export function NoteEditor({
         nameInputRef={nameInputRef}
         onNameChange={applyName}
         onNameCommit={commitName}
-        saveStatus={saveStatus}
-        confirmingDelete={confirmingDelete}
-        onCancelDelete={() => setConfirmingDelete(false)}
-        handlers={{
-          onHistory: () => {
-            void navigate(`/w/${workspaceId}/notes/${fileId}/history`);
-          },
-          onMoveToFolder: () => onMoveToFolder?.(),
-          onDuplicate: duplicateNote,
-          onDelete: handleDelete,
-          onAttachImage: () => {
-            fileInputRef.current?.click();
-          },
-          onExport: () => {
-            void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
-              setPasteNotice(
-                failure instanceof Error
-                  ? failure.message
-                  : 'The note could not be saved as a file.',
-              );
-            });
-          },
-        }}
       />
 
       <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">

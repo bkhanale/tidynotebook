@@ -22,6 +22,16 @@ export type NoteScreenActions = {
   readonly fileId: string;
   /** Deletes the open note through the editor, when the screen offers it. */
   readonly delete: (() => Promise<boolean>) | null;
+  /** Deletes the open note, tells the person, and leaves for the note list. */
+  readonly deleteAndLeave: (() => void) | null;
+  /** Opens the Move to folder dialog of the open note. */
+  readonly moveToFolder: (() => void) | null;
+  /** Copies the open note into a new note beside it. */
+  readonly duplicate: (() => void) | null;
+  /** Opens the image chooser of the open editor. */
+  readonly attachImage: (() => void) | null;
+  /** Saves the open note as one Markdown file on this device. */
+  readonly exportMarkdown: (() => void) | null;
 };
 
 type NoteActionsChannel = {
@@ -57,14 +67,19 @@ export function useNoteActions(): NoteScreenActions | null {
   return useContext(NoteActionsContext).actions;
 }
 
-/** Registers the actions of the open note screen while it is mounted. */
+/**
+ * Registers the actions of the open note screen while it is mounted.
+ *
+ * The note screen passes one stable object, so a keystroke that only changes
+ * the buffer does not re-register. The shell reads the object and offers each
+ * action in the command palette.
+ */
 export function useRegisterNoteActions(actions: NoteScreenActions): void {
   const { register } = useContext(NoteActionsContext);
-  const { fileId, delete: deleteNote } = actions;
   useEffect(() => {
-    register({ fileId, delete: deleteNote });
+    register(actions);
     return () => {
       register(null);
     };
-  }, [register, fileId, deleteNote]);
+  }, [register, actions]);
 }

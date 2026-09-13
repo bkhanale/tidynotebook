@@ -1,10 +1,10 @@
 /**
- * The save state of one note and the state of its Save button.
+ * The save state of one note.
  *
- * `resolveSaveState` reads durable facts about one file only.
- * `resolveSaveButton` turns those facts into the one state the Save button
- * of the note header shows, so the person reads the result of a save on the
- * control they pressed.
+ * `resolveSaveState` reads durable facts about one file only. The note saves
+ * itself, so no control shows this state; the shell reads it for the facts it
+ * needs about the open note, and the sidebar footer states the sync progress
+ * of the whole notes area.
  */
 import type { LocalStorageErrorKind, QueueState } from '@notesapp/sync';
 
@@ -42,35 +42,9 @@ export function resolveSaveState(input: SaveStateInput): SaveState {
   return 'saved-local';
 }
 
-/** What the note screen publishes to the header about the open note. */
+/** What the note screen publishes to the shell about the open note. */
 export type NoteSaveFacts = {
   readonly state: SaveState;
   /** Text is typed but no version was created from it yet. */
   readonly hasUnsavedEdits: boolean;
 };
-
-/** The one save status the note screen shows: it saves, or it is saved. */
-export type SaveStatus = 'saving' | 'saved';
-
-/**
- * Selects the save status from the facts of the open note.
- *
- * The note saves itself, so the person reads one of two words. It is `saving`
- * while typed text is not yet a version, while a version write runs, and while
- * a save has not settled. It is `saved` once the note holds every edit as a
- * version. The device and the server are not told apart, because a person does
- * not act on that difference.
- */
-export function resolveSaveStatus(note: NoteSaveFacts): SaveStatus {
-  if (note.hasUnsavedEdits) return 'saving';
-  if (note.state === 'saving-local' || note.state === 'syncing')
-    return 'saving';
-  if (note.state === 'save-failed' || note.state === 'storage-full')
-    return 'saving';
-  return 'saved';
-}
-
-/** The label of one save status. */
-export function statusLabel(status: SaveStatus): string {
-  return status === 'saving' ? 'Saving' : 'Saved';
-}
