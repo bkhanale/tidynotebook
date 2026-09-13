@@ -238,9 +238,10 @@ await test('startSnapshot captures files with immutable revision identifiers', a
   assert.equal(responseOf(started.response).status, 200);
   snapshotToken = started.data?.token ?? '';
   snapshotCursor = started.data?.cursor ?? '';
+  const expectedItems = captured.size + 1;
   assert.match(snapshotToken, /^[A-Za-z0-9_-]{43}$/);
   assert.match(snapshotCursor, /^[0-9]+$/);
-  assert.equal(started.data?.itemCount, 3);
+  assert.equal(started.data?.itemCount, expectedItems);
   assert.equal(started.data?.pageSize, 100);
 
   const firstPage = await getSnapshotPage({
@@ -252,7 +253,7 @@ await test('startSnapshot captures files with immutable revision identifiers', a
   assert.equal(firstPage.data?.items.length, 2);
   assert.equal(firstPage.data?.nextPosition, 2);
   assert.equal(firstPage.data?.cursor, snapshotCursor);
-  assert.equal(firstPage.data?.totalItems, 3);
+  assert.equal(firstPage.data?.totalItems, expectedItems);
 
   const secondPage = await getSnapshotPage({
     headers: browser(ownerCookie),
@@ -260,7 +261,7 @@ await test('startSnapshot captures files with immutable revision identifiers', a
     query: { position: 2 },
   });
   assert.equal(secondPage.error, undefined, JSON.stringify(secondPage.error));
-  assert.equal(secondPage.data?.items.length, 1);
+  assert.equal(secondPage.data?.items.length, 2);
   assert.equal(secondPage.data?.nextPosition, null);
   assert.equal(secondPage.data?.position, 2);
 });

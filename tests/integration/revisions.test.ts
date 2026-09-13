@@ -481,7 +481,10 @@ await test('a listing sorts by path and refuses a cursor of the other sort', asy
   });
   assert.equal(byPath.error, undefined);
   const paths = (byPath.data?.files ?? []).map((file) => file.path);
-  assert.deepEqual(paths, [...paths].sort());
+  assert.deepEqual(
+    paths,
+    [...paths].sort((left, right) => left.localeCompare(right)),
+  );
 
   const firstPage = await listFiles({
     headers: browser(cookie),

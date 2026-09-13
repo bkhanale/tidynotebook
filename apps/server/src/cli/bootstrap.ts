@@ -9,9 +9,13 @@
  * travels in a command argument and it is never written to standard output.
  */
 import process from 'node:process';
-import { openIdentityStore } from '@notesapp/storage-server';
+import {
+  openIdentityStore,
+  openWorkspaceStore,
+} from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import { createAuth } from '../auth/better-auth.ts';
+import { seedWelcomeNote } from '../auth/welcome-note.ts';
 import { loadProtectedEnvironment, loadServerConfig } from '../config.ts';
 import { readArgument, readSecret } from './prompt.ts';
 import { readProperty } from '../values.ts';
@@ -52,6 +56,7 @@ export async function bootstrapOwner(
       `notesapp: the password must have at least ${String(minimumPasswordLength)} characters.`,
     );
   const identity = openIdentityStore(input.config.databaseUrl, { poolSize: 2 });
+  const content = openWorkspaceStore(input.config.databaseUrl, { poolSize: 2 });
   // Sign-up stays disabled in the running server. This command builds its own
   // instance with sign-up permitted, so the one-time path is here and nowhere
   // else.
@@ -80,9 +85,13 @@ export async function bootstrapOwner(
     });
     if (accountId === null)
       throw new Error('notesapp: the single user already exists.');
+    const [membership] = await identity.memberships(accountId);
+    if (membership !== undefined)
+      await seedWelcomeNote(content, accountId, membership.workspaceId);
     return { authUserId, accountId, email: input.email };
   } finally {
     await auth.close();
+    await content.close();
     await identity.close();
   }
 }

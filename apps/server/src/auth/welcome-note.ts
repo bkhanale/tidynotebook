@@ -44,18 +44,17 @@ const greeting = 'hello';
 
 > A quote reads like this.
 
-| Column | Meaning     |
-| ------ | ----------- |
-| Save   | One version |
-| Draft  | This device |
+| Action | Result            |
+| ------ | ----------------- |
+| Type   | Keeps a draft     |
+| Pause  | Creates a version |
 
 ## How saving works
 
-Typing writes a draft on this device. **Save** makes one version on the
-server, and History lists every version. The state chip in the header always
-says where your work is.
+Typing writes a draft on this device. A short pause creates a version on the
+server. History lists each version.
 
-Press Cmd or Ctrl and K to search your notes or to run an action.
+Press Cmd or Ctrl and P to search your notes or to run an action.
 `;
 
 /**
