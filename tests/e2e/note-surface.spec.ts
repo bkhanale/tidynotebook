@@ -44,7 +44,7 @@ test('one surface reads and writes the note in place', async ({
   await page.getByLabel('Note name').fill('One surface');
   await replaceEditorText(
     page,
-    '# Heading\n\nBody with `code`.\n\n- [ ] Task\n\n```js\nconst answer = 42;\n```\n',
+    '# Heading\n\nBody with `code`.\n\n- [ ] Task\n\n| Name | Count |\n| :--- | ----: |\n| Alpha | 2 |\n\n```js\nconst answer = 42;\n```\n',
   );
   // Move the caret onto an empty line, away from every construct, so each
   // one renders instead of showing its source.
@@ -58,7 +58,12 @@ test('one surface reads and writes the note in place', async ({
   await expect(page.locator('.cm-np-h1')).toHaveText('Heading');
   await expect(page.locator('.cm-np-code')).toHaveText('code');
   await expect(page.locator('.cm-np-task')).toBeVisible();
+  await expect(page.locator('.cm-np-table-head').first()).toContainText('Name');
+  await expect(page.locator('.cm-np-align-right').last()).toContainText('2');
   await expect(page.locator('.cm-np-code-block-line').first()).toBeVisible();
+
+  // A table renders with column alignment but stays editable Markdown text.
+  await expect(page.locator('.cm-content')).toContainText('| Alpha | 2 |');
 
   // The code fence lines hide while the caret sits away from the block, so the
   // ``` markers are gone from the surface but the code stays.
