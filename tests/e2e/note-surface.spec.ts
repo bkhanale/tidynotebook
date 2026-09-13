@@ -93,3 +93,31 @@ test('the note name and note text share one left edge', async ({
   );
   expect(Math.abs(titleEdge - lineEdge)).toBeLessThanOrEqual(1);
 });
+
+test('the active line stays clear inside a code block', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await replaceEditorText(page, '```js\nfirst\nsecond\n```');
+
+  const codeLine = page
+    .locator('.cm-np-code-block-line')
+    .filter({ hasText: 'first' });
+  await codeLine.click();
+  await expect(codeLine).toHaveClass(/cm-activeLine/);
+  const style = await codeLine.evaluate((element) => {
+    const computed = getComputedStyle(element);
+    return {
+      outlineStyle: computed.outlineStyle,
+      outlineWidth: computed.outlineWidth,
+      outlineColor: computed.outlineColor,
+      backgroundColor: computed.backgroundColor,
+    };
+  });
+  expect(style.outlineStyle).toBe('solid');
+  expect(style.outlineWidth).not.toBe('0px');
+  expect(style.outlineColor).not.toBe(style.backgroundColor);
+});

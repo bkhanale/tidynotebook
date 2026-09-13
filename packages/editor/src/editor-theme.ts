@@ -196,6 +196,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       backgroundColor: 'var(--notes-surface-hover)',
       paddingInline: 'calc(var(--spacing) * 3)',
     },
+    '.cm-activeLine.cm-np-code-block-line': {
+      outline: '1px solid var(--notes-focus)',
+      outlineOffset: '-1px',
+    },
     '.cm-np-code-info': {
       fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-control)',

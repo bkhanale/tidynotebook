@@ -59,3 +59,9 @@ await test('every heading level keeps the shared line edge', () => {
 await test('the note body reads in the strong text color', () => {
   assert.equal(rule('&').color, 'var(--notes-text-strong)');
 });
+
+await test('the active code line has a focus outline', () => {
+  const activeCodeLine = rule('.cm-activeLine.cm-np-code-block-line');
+  assert.equal(activeCodeLine.outline, '1px solid var(--notes-focus)');
+  assert.equal(activeCodeLine.outlineOffset, '-1px');
+});
