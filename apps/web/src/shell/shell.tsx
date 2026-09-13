@@ -626,7 +626,7 @@ function Sidebar({
             size="sm"
             label="New folder"
             title="New folder"
-            icon={<FolderPlusIcon size={16} />}
+            icon={<FolderPlusIcon size={18} />}
             onClick={onNewFolder}
           />
         </div>
