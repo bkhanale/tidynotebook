@@ -6,9 +6,9 @@ you choose. Typing writes a draft on your device. Save creates one immutable
 version on your server.
 
 **Status:** working toward 0.1.0. There is no release tag yet. See
-[CHANGELOG.md](CHANGELOG.md) for what changed and
-[docs/releases/0.1.0.md](docs/releases/0.1.0.md) for what is left before the
-tag.
+[CHANGELOG.md](CHANGELOG.md) for what changed and the
+[GitHub project board](https://github.com/users/bkhanale/projects/2) for what is
+left before the tag.
 
 ## Features
 
@@ -82,7 +82,7 @@ list, the branch workflow and the commit style.
 | `packages/sync`            | Save queue, lease, and synchronization               |
 | `packages/ui`              | Shared interface components, icons, and theme        |
 | `docker`                   | Container entry point and health check               |
-| `docs`                     | Guide, development, decision, and release documents  |
+| `docs`                     | Guide, development, decision, and audit documents    |
 | `tests`                    | Integration and browser tests                        |
 | `tools`                    | Checkers, code generation, and operator scripts      |
 

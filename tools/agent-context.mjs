@@ -19,7 +19,7 @@ export const coreReadingList = [
   ['docs/README.md', 'Where a document belongs.'],
   ['docs/development/feature-workflow.md', 'The order of one whole feature.'],
   ['docs/decisions/README.md', 'The decisions and when one is needed.'],
-  ['docs/releases/0.1.0.md', 'The one prioritized list of open work.'],
+  ['docs/development/tracking.md', 'Where the work is tracked.'],
 ];
 
 /** @param {string} file @returns {Promise<boolean>} */

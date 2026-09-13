@@ -143,10 +143,10 @@ Edit files in `rules/` and run `rules/link.sh`.
   fenced language fails `pnpm lint`, except in a document whose status line
   says that it is superseded.
 - Every `.md` file under `docs/` sits in `guide`, `development`, `design`,
-  `decisions`, `releases`, `audits`, or `plans`.
-- A file in `docs/plans/`, `docs/design/` or `docs/releases/` carries
-  `Status: active`, `Status: complete`, or
-  `Status: superseded by <relative link>` directly under its title.
+  `decisions`, `audits`, or `plans`.
+- A file in `docs/plans/` or `docs/design/` carries `Status: active`,
+  `Status: complete`, or `Status: superseded by <relative link>` directly under
+  its title.
 - `docs/guide/` is public and flat. Each page starts with the title line and
   one sentence that states who the page is for.
 - `docs/development/` holds the intent, the invariants, and the pointers of one
@@ -154,8 +154,9 @@ Edit files in `rules/` and run `rules/link.sh`.
   restating the decision.
 - A new architectural choice gets a record in `docs/decisions/` from the
   template, before the code.
-- `docs/releases/<version>.md` is the one prioritized list for that release and
-  carries a `Status:` line. Do not start a second list.
+- The [GitHub project board](https://github.com/users/bkhanale/projects/2) is
+  the one prioritized list of open work. See `docs/development/tracking.md`. The
+  repository holds no release list.
 - An audit in `docs/audits/<date>/` names its date and its commit and is never
   edited after it lands.
 - A document that no longer describes the product stays with its kind. Set its
@@ -171,7 +172,9 @@ A large task runs through five stages:
 3. A plan in `docs/plans/` turns those records into ordered work, and links the
    design and the records. Write it terse, structured, and full of pointers,
    for an agent that loads it many times.
-4. The rows of the plan go into the release list in `docs/releases/`.
+4. The rows of the plan become issues on the
+   [GitHub project board](https://github.com/users/bkhanale/projects/2), one row
+   per issue, each with a milestone, a priority label, and an area label.
 5. When the plan completes, its status becomes `complete`, and the status of
    the design becomes `complete` or superseded.
 

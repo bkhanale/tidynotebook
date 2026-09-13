@@ -54,6 +54,7 @@ keeps its pure logic in a tested `.ts` file next to the component.
 
 `tools/check-boundaries.mjs` grows these rules and becomes the gate, so a
 misplaced file fails `pnpm lint`. Reaching the structure is one migration epic
-before 0.1.0 and one row in [the 0.1.0 list](../releases/0.1.0.md). Each step
+before 0.1.0 and one row on the
+[GitHub project board](https://github.com/users/bkhanale/projects/2). Each step
 updates the nested `AGENTS.md` of the directory it moves and the checker in the
 same change. Until the epic closes, this record decides where new code goes.

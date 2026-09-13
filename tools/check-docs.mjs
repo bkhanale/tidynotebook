@@ -12,10 +12,10 @@
  *    whose status line says that it is superseded is frozen, so only that one
  *    rule steps back for it.
  * 3. Each kind carries its required header: the ADR template for a decision, a
- *    date and a commit for an audit, a status line for a plan, a design and a
- *    release, and the "who this is for" sentence for a guide page. A design
- *    and a plan also carry the "Decisions" heading that joins the two kinds,
- *    and a plan links into `decisions/` from it.
+ *    date and a commit for an audit, a status line for a plan and a design, and
+ *    the "who this is for" sentence for a guide page. A design and a plan also
+ *    carry the "Decisions" heading that joins the two kinds, and a plan links
+ *    into `decisions/` from it.
  * 4. Every relative link resolves, so a move cannot leave a dead pointer.
  *
  * A separate root permits a disposable negative check without real documents,
@@ -31,13 +31,12 @@ export const documentKinds = [
   'development',
   'design',
   'decisions',
-  'releases',
   'audits',
   'plans',
 ];
 
 /** The kinds whose files carry a status line under the title. */
-export const statusKinds = ['plans', 'design', 'releases'];
+export const statusKinds = ['plans', 'design'];
 
 /** The fenced block languages that a reader runs, plus plain text. */
 export const allowedFenceLanguages = [
@@ -233,7 +232,7 @@ export function headerFailures(kind, name, text) {
   }
   if (statusKinds.includes(kind) && statusLine(text) === null)
     failures.push(
-      'no "Status:" line. A plan, a design and a release state whether they are active, complete, or superseded.',
+      'no "Status:" line. A plan and a design state whether they are active, complete, or superseded.',
     );
   if ((kind === 'design' || kind === 'plans') && !hasDecisionsHeading(text))
     failures.push(

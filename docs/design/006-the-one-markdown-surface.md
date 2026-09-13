@@ -38,7 +38,9 @@ sees.
 Three faults make the live surface feel unfinished, not the split alone. A
 fenced code block still shows its ` ``` ` lines and its info string, against
 the promise in decision 0002 that a code fence hides its fence lines; this is
-the open row MD-25, QA-25 in the release list. The block styling of a quote, a
+the open row MD-25, QA-25 on the
+[GitHub project board](https://github.com/users/bkhanale/projects/2). The block
+styling of a quote, a
 table, and a code block is plain. The heading rhythm and the reading measure
 are correct but were tuned for a surface a person leaves, not for the one
 surface a person stays on.

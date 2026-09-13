@@ -29,8 +29,7 @@ page.
 
 Every file starts with one `#` title line.
 
-A file in `plans/`, `design/` or `releases/` carries a status line directly
-under the title:
+A file in `plans/` or `design/` carries a status line directly under the title:
 
     Status: active | complete | superseded by <relative link>
 
@@ -52,8 +51,10 @@ except its status line.
    links each record that it produced, and each record links its design.
 3. A plan in `plans/` turns those records into ordered work. It links the
    design and the records.
-4. The rows of the plan go into the release list in `releases/` that ships
-   them.
+4. The rows of the plan become issues on the
+   [GitHub project board](https://github.com/users/bkhanale/projects/2), one row
+   per issue, each with a milestone, a priority label, and an area label. See
+   [development/tracking.md](development/tracking.md).
 5. When the plan completes, the status of the plan becomes `complete` and the
    status of the design becomes `complete` or `superseded by <link>`.
 
@@ -141,20 +142,6 @@ record.
 **Tone:** structured and minimal. An agent reads a record many times, so give
 it paths, record numbers and release rows, not a story.
 
-## releases/
-
-**Audience:** the owner and the contributors of one release.
-
-**Purpose:** the single prioritized list for that release. One file per
-release, named after its version.
-
-**Belongs:** what is not finished, in the owner's priority order, with the
-evidence that proves the state of each row.
-
-**Does not belong:** a second list of the same work anywhere else.
-
-**Header:** the title line, then the status line.
-
 ## audits/
 
 **Audience:** the owner.
@@ -166,7 +153,9 @@ One directory per audit date, `audits/YYYY-MM-DD/`.
 
 **Belongs:** findings with their file and line evidence.
 
-**Does not belong:** a fix. A finding becomes a row in `releases/`.
+**Does not belong:** a fix. A finding becomes an issue on the
+[GitHub project board](https://github.com/users/bkhanale/projects/2). See
+[development/tracking.md](development/tracking.md).
 
 **Header:** the title line, then a date and the commit that was read, both
 inside the first ten lines.
@@ -183,8 +172,9 @@ item answers.
 
 **Does not belong:** the argument that chose the approach. That is the design.
 
-**Header:** the title line, then the status line, then the pointer to the live
-list in `releases/`. A `## Decisions` heading links into `decisions/`.
+**Header:** the title line, then the status line, then the pointer to the
+[GitHub project board](https://github.com/users/bkhanale/projects/2). A
+`## Decisions` heading links into `decisions/`.
 
 **Tone:** structured and minimal, like a decision record. An agent reads a plan
 many times.

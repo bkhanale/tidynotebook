@@ -56,6 +56,7 @@ and needs no record.
 | [0024](0024-remove-conflict-and-recovery-surfaces.md)    | Remove the conflict and recovery surfaces             |
 | [0025](0025-the-live-preview-is-the-one-note-surface.md) | The live preview is the one note surface              |
 | [0026](0026-slim-the-save-and-delete-surfaces.md)        | Slim the save and delete surfaces, do not remove them |
+| [0027](0027-track-work-on-the-github-board.md)           | Track work on the GitHub board                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -72,4 +73,6 @@ streamlined save and delete workflow. Record 0022 supersedes 0007 and 0017, and
 record 0023 supersedes 0006. Record 0026 keeps the safety net and slims the save
 and delete surfaces instead of removing them, and it supersedes records 0023 and 0024. Record 0025 makes the live preview the one note surface and supersedes
 record 0003, and it follows
-[design 006](../design/006-the-one-markdown-surface.md).
+[design 006](../design/006-the-one-markdown-surface.md). Record 0027 moves the
+work list to the GitHub board and removes `docs/releases/`, and it is described
+in [work tracking](../development/tracking.md).

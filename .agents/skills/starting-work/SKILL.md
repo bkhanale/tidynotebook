@@ -1,6 +1,6 @@
 ---
 name: starting-work
-description: Loads the repository context before any change. It runs tools/agent-context.mjs for the paths that the change touches, reads every guide, decision record and release row that the script lists, and restates the task against them. Use it before the first edit in this repository, at the start of a feature, a fix, a refactor, or a review.
+description: Loads the repository context before any change. It runs tools/agent-context.mjs for the paths that the change touches, reads every guide, decision record and tracking page that the script lists, and restates the task against them. Use it before the first edit in this repository, at the start of a feature, a fix, a refactor, or a review.
 ---
 
 # Starting work
@@ -20,7 +20,7 @@ Write five lines, one for each point:
 1. What changes, in one sentence.
 2. Which directory guides apply, by path.
 3. Which decision records apply, by path.
-4. Which release list row the change closes.
+4. Which board row the change closes.
 5. How the change is verified.
 
 ## Feedback loop

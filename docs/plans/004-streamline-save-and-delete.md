@@ -2,9 +2,10 @@
 
 Status: active
 
-The live list is [the 0.2.0 release](../releases/0.2.0.md). This plan turns
-[design 005](../design/005-streamline-save-and-delete.md) and its records into
-ordered work. Each item names its record and its release row.
+The live list is the
+[GitHub project board](https://github.com/users/bkhanale/projects/2). This plan
+turns [design 005](../design/005-streamline-save-and-delete.md) and its records
+into ordered work. Each item names its record and its board row.
 
 ## Decisions
 

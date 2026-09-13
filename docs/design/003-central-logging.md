@@ -25,7 +25,8 @@ rule about what a browser record may hold.
 Privacy rests on the same habit. `redactUrl` in `apps/server/src/request-log.ts`
 removes the query string and keeps the path, so the password reset token, which
 `apps/server/src/auth/better-auth.ts` serves inside the path, reaches the log at
-`info`. That is the first row of [the 0.1.0 list](../releases/0.1.0.md). The
+`info`. That is the first row on the
+[GitHub project board](https://github.com/users/bkhanale/projects/2). The
 redaction is correct for a search term and silent about a path secret, because
 no rule says which fields a record may hold.
 

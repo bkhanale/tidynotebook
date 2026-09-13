@@ -33,7 +33,6 @@ const baseline = {
   'docs/decisions/0001-a-choice.md':
     '# 0001. A choice\n\n- Status: Accepted\n- Date: 2026-01-01\n\n' +
     '## Context\n\nFacts.\n\n## Decision\n\nThe choice.\n\n## Consequences\n\nThe cost.\n',
-  'docs/releases/0.1.0.md': '# Release 0.1.0\n\nStatus: active\n\nThe list.\n',
   'docs/audits/2026-01-01/report.md':
     '# Audit\n\nAudited on 2026-01-01 against commit `abc1234`.\n\nFindings.\n',
   'docs/design/001-a-design.md':
@@ -150,11 +149,10 @@ await test('an active document with the same code block fails', () => {
   assert.match(result.output, /a "ts" block/);
 });
 
-await test('a plan, a design or a release without a status line fails', () => {
+await test('a plan or a design without a status line fails', () => {
   for (const [file, text] of [
     ['docs/plans/001-a-plan.md', '# A plan\n\n## Decisions\n\nNone.\n'],
     ['docs/design/001-a-design.md', '# A design\n\n## Decisions\n\nNone.\n'],
-    ['docs/releases/0.1.0.md', '# Release 0.1.0\n\nThe list.\n'],
   ]) {
     const result = check({ [String(file)]: String(text) });
     assert.equal(result.status, 1);

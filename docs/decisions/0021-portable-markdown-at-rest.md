@@ -44,6 +44,7 @@ the one home of an image.
 A migration step rewrites the 0.1.0 content from `/attachments/<id>` and
 `/notes/<id>` to relative paths, and reports each reference that resolves to nothing.
 
-The rows are in [the 0.2.0 list](../releases/0.2.0.md), and the accepted debt
-row of [the 0.1.0 list](../releases/0.1.0.md) names the content that the
-migration rewrites. A rename now costs a write per inbound link.
+The rows are on the
+[GitHub project board](https://github.com/users/bkhanale/projects/2), and the
+accepted debt row on the board names the content that the migration rewrites. A
+rename now costs a write per inbound link.

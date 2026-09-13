@@ -2,7 +2,7 @@
 
 Status: complete
 
-> The live prioritized list is [docs/releases/0.1.0.md](../releases/0.1.0.md).
+> The live prioritized list is the [GitHub project board](https://github.com/users/bkhanale/projects/2).
 > This plan stays as the record of the ordered work that shipped.
 
 This plan turns [design 006](../design/006-the-one-markdown-surface.md) and

@@ -40,7 +40,8 @@ The repository gains one package, and every existing `request.log` and
 `app.log` call becomes a catalogued event. A new log line is one catalogue
 entry plus one `emit`, so the pattern repeats.
 
-The reset token row in [the 0.1.0 list](../releases/0.1.0.md) is a redaction of
+The reset token row on the
+[GitHub project board](https://github.com/users/bkhanale/projects/2) is a redaction of
 a secret path segment. That redaction lands inside the server adapter, or ahead
 of it in `apps/server/src/request-log.ts`, because the P0 does not wait for the
 package.
