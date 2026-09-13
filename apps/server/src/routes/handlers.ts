@@ -91,10 +91,10 @@ function readDetailLevel(query: unknown): 'summary' | 'full' {
 }
 
 /**
- * The only requirement this release can check.
+ * The configuration probe.
  *
- * No database and no attachment storage exists yet, so nothing else is
- * checked. The tasks that add them add their own probes.
+ * The database probe, the migration probe, and the storage probe live next to
+ * it, and `src/app.ts` wires them into the probe list at startup.
  */
 export function configurationProbe(config: ServerConfig): ReadinessProbe {
   return () =>
