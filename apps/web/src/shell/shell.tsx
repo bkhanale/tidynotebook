@@ -605,6 +605,7 @@ function Sidebar({
         <Button
           variant="ghost"
           size="sm"
+          className="size-11"
           label="Close navigation"
           title="Close navigation"
           icon={<CloseIcon size={18} />}
@@ -624,6 +625,7 @@ function Sidebar({
           <Button
             variant="ghost"
             size="sm"
+            className="size-11 shrink-0"
             label="New folder"
             title="New folder"
             icon={<FolderPlusIcon size={16} />}
@@ -1008,7 +1010,7 @@ function ShellFrame({
               buttonRef={menuButtonRef}
               variant="ghost"
               size="sm"
-              className="md:hidden"
+              className="size-11 shrink-0 md:hidden"
               label="Open navigation"
               title="Open navigation"
               icon={<MenuIcon size={18} />}
