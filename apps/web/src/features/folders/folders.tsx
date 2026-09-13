@@ -195,27 +195,34 @@ export function NewFolderDialog({
       titleId="new-folder-title"
       width="small"
     >
-      <DialogBody>
-        <NameField
-          id="new-folder-name"
-          label="Folder name"
-          help="The folder starts empty. Use New note in this folder to fill it."
-          value={name}
-          error={error}
-          onChange={(value) => {
-            setName(value);
-            setError(null);
-          }}
-        />
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={create}>
-          Make folder
-        </Button>
-      </DialogFooter>
+      <form
+        onSubmit={(event): void => {
+          event.preventDefault();
+          create();
+        }}
+      >
+        <DialogBody>
+          <NameField
+            id="new-folder-name"
+            label="Folder name"
+            help="The folder starts empty. Use New note in this folder to fill it."
+            value={name}
+            error={error}
+            onChange={(value) => {
+              setName(value);
+              setError(null);
+            }}
+          />
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="secondary" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit">
+            Make folder
+          </Button>
+        </DialogFooter>
+      </form>
     </Dialog>
   );
 }

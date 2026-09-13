@@ -85,6 +85,7 @@ export function Dialog({
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         event.preventDefault();
+        event.stopImmediatePropagation();
         onClose();
         return;
       }
@@ -105,7 +106,9 @@ export function Dialog({
         first.focus();
       }
     };
-    window.addEventListener('keydown', onKeyDown);
+    // Capture phase: the open dialog owns Escape before any other window
+    // handler, such as the drawer behind it, can act on the same press.
+    window.addEventListener('keydown', onKeyDown, true);
     return () => {
       window.removeEventListener('keydown', onKeyDown);
       releaseInert();
