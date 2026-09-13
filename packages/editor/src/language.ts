@@ -81,9 +81,13 @@ export const codeLanguages: readonly LanguageDescription[] = [
  * registry writes on the document element. A theme switch therefore repaints
  * the code of an open note without reconfiguring the editor.
  *
- * `syntaxTokenNames` is the same list of names that the `syntax` group of a
- * theme declares in `@notesapp/ui`. A unit test of this package asserts the
- * two lists agree, so a theme cannot publish a colour the editor never reads.
+ * `syntaxTokenNames` is the shared contract of colour names between this
+ * package and the `syntax` group of a theme in `@notesapp/ui`. A unit test
+ * asserts the two lists agree, so the editor and the registry name the same
+ * colours. `heading` and `link` stay in the contract because every theme still
+ * declares them, but the code style below no longer reads them: a Markdown
+ * heading and a Markdown link take their colour from the note typography in
+ * the live preview, not from the code palette.
  */
 export const syntaxTokenNames = [
   'keyword',
@@ -101,7 +105,18 @@ function syntaxColour(name: (typeof syntaxTokenNames)[number]): string {
   return `var(--notes-syntax-${name})`;
 }
 
-const codeHighlightStyle = HighlightStyle.define([
+/**
+ * The highlight specs for code inside a fence.
+ *
+ * A Markdown tag never appears here. A heading, strong text, emphasis, and a
+ * link are Markdown constructs, and the live preview decorations in
+ * `./live-preview.ts` style those from the note typography (`--notes-text-*`
+ * and `--notes-accent-*`). If this style also carried `tags.heading`,
+ * `tags.strong`, or `tags.link`, it would repaint the Markdown heading, the
+ * bold run, and the link with the code palette, so the note text would take a
+ * code colour. Exported so a unit test can hold that rule.
+ */
+export const codeHighlightSpecs = [
   {
     tag: [
       tags.keyword,
@@ -139,16 +154,13 @@ const codeHighlightStyle = HighlightStyle.define([
     color: syntaxColour('attribute'),
   },
   {
-    tag: [tags.heading, tags.strong],
-    color: syntaxColour('heading'),
-  },
-  { tag: [tags.link, tags.url], color: syntaxColour('link') },
-  {
     tag: [tags.operator, tags.punctuation, tags.separator, tags.bracket],
     color: syntaxColour('punctuation'),
   },
   { tag: tags.invalid, color: 'var(--notes-danger-text)' },
-]);
+] as const;
+
+const codeHighlightStyle = HighlightStyle.define([...codeHighlightSpecs]);
 
 /**
  * The Markdown language support of the note editor.
