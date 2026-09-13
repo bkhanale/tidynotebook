@@ -109,6 +109,11 @@ state, Trash, Restore, Delete, History, Read, and Write.
 - [0022. Autosave and automatic versions](../decisions/0022-autosave-and-automatic-versions.md)
 - [0023. One auto-expiring Trash](../decisions/0023-one-auto-expiring-trash.md)
 - [0024. Remove the conflict and recovery surfaces](../decisions/0024-remove-conflict-and-recovery-surfaces.md)
+- [0026. Slim the save and delete surfaces, do not remove them](../decisions/0026-slim-the-save-and-delete-surfaces.md)
+
+The build of 0023 and 0024 found that removing the recovery surface loses text
+on a resource refusal, and that an auto-expiring Trash is irreversible. Record
+0026 supersedes both: it keeps the safety net and slims the surfaces instead.
 
 The ordered work is in [plan 004](../plans/004-streamline-save-and-delete.md),
 and the rows are in [the 0.2.0 list](../releases/0.2.0.md).

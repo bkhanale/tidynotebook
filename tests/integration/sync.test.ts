@@ -739,6 +739,89 @@ await test('an expired lease is taken over and a held lease keeps a follower wai
   }
 });
 
+await test('an edit to a remotely deleted note becomes a recovered note', async () => {
+  const file = await newFile('notes/keep.md', '# Base\n');
+  const storeA = await openStore('recover-a', 'device-a');
+  const storeB = await openStore('recover-b', 'device-b');
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-recover-a-pull');
+    await syncPull(storeB, ownerCookie, 'engine-recover-b-pull');
+
+    // Device A edits the note offline; device B deletes it offline.
+    await checkpointText(
+      storeA,
+      draftOf(
+        ownerAccountId,
+        'working-a',
+        file.fileId,
+        file.revisionId,
+        '# My edit\n',
+        'notes/keep.md',
+        1,
+      ),
+    );
+    const removal: Draft = {
+      ...draftOf(
+        ownerAccountId,
+        'working-b',
+        file.fileId,
+        file.revisionId,
+        '',
+        'notes/keep.md',
+        1,
+      ),
+      deleted: true,
+    };
+    await storeB.saveDraft(removal);
+    assert.ok((await storeB.checkpoint(removal, null)) !== null);
+
+    // Device B deletes first, so the note is a tombstone. Device A's edit can
+    // no longer apply to it.
+    const runB = startEngine(storeB, ownerCookie, 'engine-recover-b');
+    try {
+      await waitFor(
+        async () => (await queuedOf(storeB)).length === 0,
+        'device B drains its delete',
+      );
+    } finally {
+      await stopEngine(runB);
+    }
+    const runA = startEngine(storeA, ownerCookie, 'engine-recover-a');
+    try {
+      await waitFor(
+        async () => (await queuedOf(storeA)).length === 0,
+        'device A drains its edit and the recovered note',
+      );
+    } finally {
+      await stopEngine(runA);
+    }
+
+    // The original note stays deleted, so it is not live. The edit is kept as
+    // a new note, so no text is lost and nothing waits in a second inbox.
+    const original = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.notEqual(original.error, undefined);
+    assert.equal(problemCode(original.error), 'not_found');
+    assert.deepEqual(await storeA.recover(ownerAccountId, workspaceId), []);
+    const files = await storeA.listLocalFiles(ownerAccountId, workspaceId);
+    const recovered = files.find(
+      (summary) => summary.path === 'notes/keep (recovered).md',
+    );
+    assert.ok(recovered !== undefined, 'a recovered note is created');
+    const cached = await storeA.readCachedNote(
+      ownerAccountId,
+      workspaceId,
+      recovered.fileId,
+    );
+    assert.equal(cached?.text, '# My edit\n');
+  } finally {
+    await storeA.close();
+    await storeB.close();
+  }
+});
+
 // Teardown
 await server.close();
 await auth.close();

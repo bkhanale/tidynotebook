@@ -102,17 +102,6 @@ const diagramFramePath = '/src/diagram/frame.html';
  */
 const versionPauseMs = 2500;
 
-/** The accepted head that a stale draft of this device does not contain. */
-export type StaleHead = {
-  readonly revisionId: string | null;
-  readonly path: string;
-  readonly text: string;
-};
-
-/** The bar copy, named so the screen and its tests state it once. */
-export const staleDraftNotice =
-  'This device has unsaved text from an older version of this note.';
-
 /** Records a bounded browser timing entry without affecting the operation. */
 function recordTiming(name: string, startedAt: number): void {
   try {
@@ -145,12 +134,6 @@ export type NoteEditorProps = {
   readonly baseRevisionId: string | null;
   readonly initialText: string;
   readonly initialPath: string;
-  /**
-   * The accepted head this device did not see, when the opened text is a
-   * draft written over an older version. The editor then asks the person to
-   * choose instead of showing stale text as if it were current.
-   */
-  readonly staleHead?: StaleHead | undefined;
   readonly initialWorkingCopyId?: string | undefined;
   readonly initialSequence?: number | undefined;
   readonly focusName?: boolean | undefined;
@@ -181,7 +164,6 @@ export function NoteEditor({
   baseRevisionId,
   initialText,
   initialPath,
-  staleHead,
   initialWorkingCopyId,
   initialSequence = 0,
   focusName = false,
@@ -228,16 +210,9 @@ export function NoteEditor({
     bufferText,
   );
   const [mathReady, setMathReady] = useState(false);
-  // The bar closes for the accepted head the person answered for. A later
-  // accepted head is a new question, so the bar opens again by itself.
-  const [answeredHead, setAnsweredHead] = useState<string | null | undefined>(
-    undefined,
-  );
-  const [staleNotice, setStaleNotice] = useState('');
-  const staleOpen =
-    staleHead !== undefined && answeredHead !== staleHead.revisionId;
-  // The base only moves when the person keeps a stale draft or takes the
-  // accepted head. Until then the opened base is the one the loader read.
+  // The base moves to each new checkpoint, so the next save names the parent
+  // the server just accepted. Until the first save it is the one the loader
+  // read.
   const [baseOverride, setBaseOverride] = useState<string | null | undefined>(
     undefined,
   );
@@ -766,87 +741,6 @@ export function NoteEditor({
     })();
   };
 
-  /**
-   * Keeps the draft of this device and moves its base to the accepted head.
-   *
-   * The text does not change. Only the parent that the next checkpoint names
-   * moves, so the following Save reaches the server instead of naming a head
-   * the server replaced.
-   */
-  const keepStaleDraft = (): void => {
-    const current = live.current;
-    void (async (): Promise<void> => {
-      try {
-        await current.store.rebaseDraft(
-          current.accountId,
-          current.workspaceId,
-          current.workingCopyId,
-        );
-        setBaseOverride(staleHead?.revisionId ?? null);
-        setAnsweredHead(staleHead?.revisionId ?? null);
-        setStaleNotice('Your text is kept. Save sends it to the server.');
-        setStorageError(null);
-      } catch (failure: unknown) {
-        setStorageError(
-          isLocalStorageError(failure) ? failure.kind : 'aborted',
-        );
-      }
-    })();
-  };
-
-  /**
-   * Takes the accepted head and keeps the draft text as a kept copy.
-   *
-   * The old text goes to the account-bound recovery area first, so the choice
-   * is reversible, and only then does the document change. Replacing the
-   * document is a user action here, never a render or a theme change.
-   */
-  const useAcceptedHead = (): void => {
-    const head = staleHead;
-    if (head === undefined) return;
-    const current = live.current;
-    void (async (): Promise<void> => {
-      try {
-        await current.store.addRecovery(
-          current.accountId,
-          current.workspaceId,
-          {
-            fileId: current.fileId,
-            path: pathRef.current,
-            text: bufferRef.current,
-            reason: 'stale_draft',
-          },
-        );
-        await current.store.rebaseDraft(
-          current.accountId,
-          current.workspaceId,
-          current.workingCopyId,
-        );
-        setBaseOverride(head.revisionId);
-        const view = viewRef.current;
-        if (view !== null)
-          view.dispatch({
-            changes: { from: 0, to: view.state.doc.length, insert: head.text },
-          });
-        bufferRef.current = head.text;
-        setBufferText(head.text);
-        folderRef.current = folderOf(head.path);
-        pathRef.current = head.path;
-        validPathRef.current = head.path;
-        setName(displayNoteName(baseNameOf(head.path)));
-        setAnsweredHead(head.revisionId);
-        setStaleNotice(
-          'The latest version is open. Your older text waits under Needs attention.',
-        );
-        setStorageError(null);
-      } catch (failure: unknown) {
-        setStorageError(
-          isLocalStorageError(failure) ? failure.kind : 'aborted',
-        );
-      }
-    })();
-  };
-
   /** The one reason the typed name cannot be saved, or `null`. */
   const nameProblemRef = useRef((): string | null => null);
   nameProblemRef.current = (): string | null => {
@@ -1019,33 +913,6 @@ export function NoteEditor({
       />
 
       <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
-        {staleOpen && staleHead !== undefined ? (
-          <section
-            className="mt-4 rounded-lg border border-edge bg-card p-3"
-            aria-labelledby={`notes-stale-${fileId}`}
-          >
-            <p
-              className="m-0 text-ui font-medium text-strong"
-              id={`notes-stale-${fileId}`}
-              role="alert"
-            >
-              {staleDraftNotice}
-            </p>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <Button variant="primary" size="sm" onClick={keepStaleDraft}>
-                Keep my text
-              </Button>
-              <Button variant="secondary" size="sm" onClick={useAcceptedHead}>
-                Use the latest version
-              </Button>
-            </div>
-          </section>
-        ) : null}
-        {staleNotice === '' ? null : (
-          <div className="mt-4">
-            <Notice tone="info" message={staleNotice} />
-          </div>
-        )}
         {pasteNotice === '' ? null : (
           <div className="mt-4">
             <Notice tone="problem" message={pasteNotice} />
@@ -1146,8 +1013,6 @@ type LoaderStatus =
       readonly headRevisionId: string | null;
       readonly workingCopyId?: string | undefined;
       readonly sequence: number;
-      /** Set when the opened text is a draft over an older accepted head. */
-      readonly staleHead?: StaleHead | undefined;
     };
 
 /**
@@ -1213,14 +1078,6 @@ export function NoteEditorLoader({
               headRevisionId: cached.baseRevisionId,
               workingCopyId: cached.workingCopyId,
               sequence: cached.sequence,
-              staleHead:
-                cached.stale && cached.acceptedText !== null
-                  ? {
-                      revisionId: cached.acceptedRevisionId,
-                      path: cached.acceptedPath ?? cached.path,
-                      text: cached.acceptedText,
-                    }
-                  : undefined,
             });
             return;
           }
@@ -1258,9 +1115,9 @@ export function NoteEditorLoader({
     };
   }, [store, accountId, workspaceId, fileId, reloadToken]);
 
-  // A newer accepted head can arrive while the note is open. Only the stale
-  // head of the mounted status changes: the editor keeps its instance, its
-  // document, its undo history, and its selection.
+  // A restore can reach this device while the note screen shows it as deleted.
+  // The loader then reads the note again. The open editor keeps its instance,
+  // its document, its undo history, and its selection.
   useEffect(() => {
     if (store === null) return;
     const activeStore = store;
@@ -1275,24 +1132,8 @@ export function NoteEditorLoader({
         if (cancelled || cached === null) return;
         // The note was in the trash and is not any more, so a restore
         // reached this device. The loader reads it again.
-        if (!cached.deleted && statusKind.current === 'deleted') {
+        if (!cached.deleted && statusKind.current === 'deleted')
           setReloadToken((token) => token + 1);
-          return;
-        }
-        const next: StaleHead | undefined =
-          cached.stale && cached.acceptedText !== null
-            ? {
-                revisionId: cached.acceptedRevisionId,
-                path: cached.acceptedPath ?? cached.path,
-                text: cached.acceptedText,
-              }
-            : undefined;
-        setStatus((current) =>
-          current.kind !== 'ready' ||
-          current.staleHead?.revisionId === next?.revisionId
-            ? current
-            : { ...current, staleHead: next },
-        );
       } catch {
         // The open note keeps its buffer. A failed recheck changes nothing.
       }
@@ -1407,7 +1248,6 @@ export function NoteEditorLoader({
         baseRevisionId={status.headRevisionId}
         initialText={status.text}
         initialPath={status.path}
-        staleHead={status.staleHead}
         initialWorkingCopyId={status.workingCopyId}
         initialSequence={status.sequence}
         focusName={focusName}
