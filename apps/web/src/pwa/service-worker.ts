@@ -102,13 +102,66 @@ function isCacheableAsset(request: Request, origin: string): boolean {
 
 /** Stores every injected precache entry in the versioned asset cache. */
 async function precacheShell(): Promise<void> {
-  const cache = await self.caches.open(appCacheName);
+  let cache: Cache;
+  try {
+    cache = await self.caches.open(appCacheName);
+  } catch {
+    // Storage can be refused or full. The worker still serves the network,
+    // so a missing precache must not fail the install.
+    return;
+  }
   await Promise.all(
     self.__WB_MANIFEST.map(async (entry) => {
-      const response = await fetch(entry.url);
-      if (response.ok) await cache.put(entry.url, response.clone());
+      try {
+        const response = await fetch(entry.url);
+        if (response.ok) await cache.put(entry.url, response.clone());
+      } catch {
+        // One asset that does not load must not stop the whole precache.
+      }
     }),
   );
+}
+
+/**
+ * Serves one request for a static asset from the application cache.
+ *
+ * The cache is an optimisation. A refused or full storage, or a failed
+ * write, falls back to the network, because an asset request must never fail
+ * only because the cache could not be read.
+ */
+async function serveAsset(request: Request): Promise<Response> {
+  let cache: Cache | null = null;
+  try {
+    cache = await self.caches.open(appCacheName);
+    const hit = await cache.match(request);
+    if (hit !== undefined) return hit;
+  } catch {
+    cache = null;
+  }
+  const network = await fetch(request);
+  if (cache !== null && network.ok) {
+    try {
+      await cache.put(request, network.clone());
+    } catch {
+      // A failed write leaves the answer unchanged.
+    }
+  }
+  return network;
+}
+
+/**
+ * Serves one request from the pinned cache, or `undefined` when it misses.
+ *
+ * A pin is explicit bytes the main thread named. A cache that cannot be read
+ * answers a miss, so the request travels to the network instead of failing.
+ */
+async function servePinned(request: Request): Promise<Response | undefined> {
+  try {
+    const pinned = await self.caches.open(pinnedCacheName);
+    return await pinned.match(request);
+  } catch {
+    return undefined;
+  }
 }
 
 /** Serves one fetch without ever storing a private response. */
@@ -122,22 +175,19 @@ async function handleFetch(event: FetchEvent): Promise<Response> {
       const network = await fetch(request);
       return network;
     } catch {
-      const cache = await self.caches.open(appCacheName);
-      const shell = await cache.match('/index.html');
-      if (shell !== undefined) return shell;
+      try {
+        const cache = await self.caches.open(appCacheName);
+        const shell = await cache.match('/index.html');
+        if (shell !== undefined) return shell;
+      } catch {
+        // Storage is unavailable, so there is no cached shell to serve.
+      }
       throw new Error('The application shell is not cached yet.');
     }
   }
-  if (isCacheableAsset(request, self.location.origin)) {
-    const cache = await self.caches.open(appCacheName);
-    const hit = await cache.match(request);
-    if (hit !== undefined) return hit;
-    const network = await fetch(request);
-    if (network.ok) await cache.put(request, network.clone());
-    return network;
-  }
-  const pinned = await self.caches.open(pinnedCacheName);
-  const pinnedHit = await pinned.match(request);
+  if (isCacheableAsset(request, self.location.origin))
+    return serveAsset(request);
+  const pinnedHit = await servePinned(request);
   if (pinnedHit !== undefined) return pinnedHit;
   return fetch(request);
 }
@@ -149,13 +199,17 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async (): Promise<void> => {
-      const names = await self.caches.keys();
-      await Promise.all(
-        names.map(async (name) => {
-          if (name !== appCacheName && name !== pinnedCacheName)
-            await self.caches.delete(name);
-        }),
-      );
+      try {
+        const names = await self.caches.keys();
+        await Promise.all(
+          names.map(async (name) => {
+            if (name !== appCacheName && name !== pinnedCacheName)
+              await self.caches.delete(name);
+          }),
+        );
+      } catch {
+        // Cleanup is best effort. The worker still takes over the clients.
+      }
       await self.clients.claim();
     })(),
   );
