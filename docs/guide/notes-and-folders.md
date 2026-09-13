@@ -5,11 +5,12 @@ name, move, find, and remove a note.
 
 ## Make a note
 
-Select **New note** in the sidebar, or **New note in this folder** in a folder
-menu, or **New note** in the command palette. The note opens at once with a
+Select **All notes** or a folder name to choose where a new note goes. Then
+select **New note** in the sidebar or in the command palette. You can also use
+**New note in this folder** in a folder menu. The note opens at once with a
 name such as `New note`, and the name is selected so you can type over it. A
-new note is empty, and until you select Save it lives on your device only,
-where the sidebar marks it **Local**.
+new note is empty, and until you select Save it lives on your device only. The
+sidebar marks it **Local**.
 
 ## Name a note
 
@@ -26,8 +27,10 @@ is kept when you press **Enter** or select something else.
 
 ## Make a folder
 
-Select the folder icon beside **New note**, or **New folder** in the command
-palette. Type the name and select **Make folder**.
+Select **All notes** or a folder name to choose the parent. Then select the
+folder icon beside **New note**, or **New folder** in the command palette. Type
+one child name and select **Make folder**. Select the chevron beside a folder
+to expand or collapse it.
 
 A folder is only a path. A new folder writes nothing to the server. It stays
 visible on this device, becomes real as soon as a note lives in it, and stays
@@ -46,7 +49,7 @@ itself. The reason appears as one line in the sidebar.
 
 ## Find a note
 
-Select **Search notes** in the header, or press **Ctrl + K**. Type a few words.
+Select **Search notes** in the header, or press **Ctrl + P**. Type a few words.
 Notes whose name matches come first, then notes whose text matches, with a
 short excerpt around the match. An empty box lists the notes you changed most
 recently.

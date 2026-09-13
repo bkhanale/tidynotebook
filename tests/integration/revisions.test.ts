@@ -253,6 +253,26 @@ await test('a created file is readable with a strong entity tag', async () => {
   assert.equal(raw.includes('changesetId'), false);
 });
 
+await test('a deeply nested note path stays durable', async () => {
+  const path = 'work/plans/next/outline.md';
+  const file = await newFile(path, '# Nested note\n');
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(read.error, undefined);
+  assert.equal(read.data?.path, path);
+  assert.equal(read.data?.head?.text, '# Nested note\n');
+
+  const listed = await listFiles({
+    headers: browser(cookie),
+    path: { workspaceId },
+    query: { limit: 500, sort: 'path' },
+  });
+  assert.equal(listed.error, undefined);
+  assert.ok(listed.data?.files.some((entry) => entry.path === path));
+});
+
 await test('a conditional read of an unchanged file answers 304', async () => {
   const file = await newFile('notes/cached.md');
   const cached = await getFile({

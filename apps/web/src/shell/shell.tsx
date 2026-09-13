@@ -87,6 +87,10 @@ import { drawerClassName } from './drawer.ts';
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { displayNoteName } from '../lib/note-name.ts';
+import {
+  knownFolderPaths,
+  selectedFolderOrRoot,
+} from '../lib/folder-selection.ts';
 import { folderOf } from '../lib/relative-time.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import {
@@ -208,9 +212,11 @@ function TreeView({
   nodes,
   workspaceId,
   activeFileId,
+  selectedFolder,
   openFolders,
   drag,
   onToggleFolder,
+  onSelectFolder,
   onRenameFolder,
   onDeleteFolder,
   onNewNoteIn,
@@ -220,9 +226,11 @@ function TreeView({
   readonly nodes: readonly TreeNode[];
   readonly workspaceId: string;
   readonly activeFileId: string | null;
+  readonly selectedFolder: string;
   readonly openFolders: ReadonlySet<string>;
   readonly drag: TreeDrag;
   readonly onToggleFolder: (path: string) => void;
+  readonly onSelectFolder: (path: string) => void;
   readonly onRenameFolder: (path: string) => void;
   readonly onDeleteFolder: (folder: string) => void;
   readonly onNewNoteIn: (path: string) => void;
@@ -249,10 +257,11 @@ function TreeView({
 
         const isOpen = openFolders.has(node.fullPath);
         const isTarget = drag.over === node.fullPath;
+        const isSelected = selectedFolder === node.fullPath;
         return (
           <li key={`folder:${node.fullPath}`}>
             <div
-              className={`flex items-center gap-1 rounded-lg ${isTarget ? 'bg-active ring-2 ring-focus' : ''}`}
+              className={`flex items-center gap-1 rounded-lg ${isSelected ? 'bg-active' : ''} ${isTarget ? 'ring-2 ring-focus' : ''}`}
               onDragOver={(event) => {
                 if (!drag.accepts(node.fullPath)) return;
                 event.preventDefault();
@@ -269,8 +278,25 @@ function TreeView({
             >
               <button
                 type="button"
-                className="flex min-h-11 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-2 text-left text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
+                className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8"
                 onClick={() => onToggleFolder(node.fullPath)}
+                aria-expanded={isOpen}
+                aria-label={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
+                title={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
+              >
+                <span className="inline-flex" aria-hidden="true">
+                  {isOpen ? (
+                    <ChevronDownIcon size={14} />
+                  ) : (
+                    <ChevronRightIcon size={14} />
+                  )}
+                </span>
+              </button>
+              <button
+                type="button"
+                className={`flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 text-left text-control motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${isSelected ? 'text-strong' : 'text-muted'}`}
+                onClick={() => onSelectFolder(node.fullPath)}
+                aria-pressed={isSelected}
                 aria-expanded={isOpen}
                 draggable
                 onDragStart={(event) => {
@@ -278,16 +304,6 @@ function TreeView({
                 }}
                 onDragEnd={() => drag.end()}
               >
-                <span
-                  className="inline-flex shrink-0 items-center"
-                  aria-hidden="true"
-                >
-                  {isOpen ? (
-                    <ChevronDownIcon size={14} />
-                  ) : (
-                    <ChevronRightIcon size={14} />
-                  )}
-                </span>
                 <span
                   className="inline-flex shrink-0 items-center"
                   aria-hidden="true"
@@ -338,9 +354,11 @@ function TreeView({
                     nodes={node.children}
                     workspaceId={workspaceId}
                     activeFileId={activeFileId}
+                    selectedFolder={selectedFolder}
                     openFolders={openFolders}
                     drag={drag}
                     onToggleFolder={onToggleFolder}
+                    onSelectFolder={onSelectFolder}
                     onRenameFolder={onRenameFolder}
                     onDeleteFolder={onDeleteFolder}
                     onNewNoteIn={onNewNoteIn}
@@ -381,6 +399,8 @@ function GroupLabel({
 /** The sidebar: the new note action, the folder tree, a footer. */
 function Sidebar({
   workspaceId,
+  selectedFolder,
+  onSelectFolder,
   onNavigate,
   onNewFolder,
   onRenameFolder,
@@ -388,6 +408,8 @@ function Sidebar({
   onClose,
 }: {
   readonly workspaceId: string;
+  readonly selectedFolder: string;
+  readonly onSelectFolder: (folder: string) => void;
   readonly onNavigate: () => void;
   readonly onNewFolder: () => void;
   readonly onRenameFolder: (folder: string) => void;
@@ -618,6 +640,7 @@ function Sidebar({
             store={store.store}
             accountId={session.account.accountId}
             workspaceId={workspaceId}
+            folder={selectedFolder}
             variant="primary"
             className="min-w-0 flex-1"
           />
@@ -634,8 +657,9 @@ function Sidebar({
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         <section aria-labelledby="tree-heading">
+          <GroupLabel id="tree-heading">Folders</GroupLabel>
           <div
-            className={`rounded-lg ${drag.over === '' ? 'bg-active ring-2 ring-focus' : ''}`}
+            className={`rounded-lg ${selectedFolder === '' ? 'bg-active' : ''} ${drag.over === '' ? 'ring-2 ring-focus' : ''}`}
             onDragOver={(event) => {
               if (!drag.accepts('')) return;
               event.preventDefault();
@@ -650,7 +674,14 @@ function Sidebar({
               drag.drop('');
             }}
           >
-            <GroupLabel id="tree-heading">All notes</GroupLabel>
+            <button
+              type="button"
+              className={`flex min-h-11 w-full cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 text-left text-control motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${selectedFolder === '' ? 'text-strong' : 'text-muted'}`}
+              aria-pressed={selectedFolder === ''}
+              onClick={() => onSelectFolder('')}
+            >
+              All notes
+            </button>
           </div>
           {files.loading ? (
             <StatusRegion message="Loading your notes." />
@@ -661,9 +692,14 @@ function Sidebar({
               nodes={tree}
               workspaceId={workspaceId}
               activeFileId={fileId}
+              selectedFolder={selectedFolder}
               openFolders={openFolders}
               drag={drag}
               onToggleFolder={toggleFolder}
+              onSelectFolder={(folder) => {
+                openFolder(folder);
+                onSelectFolder(folder);
+              }}
               onRenameFolder={onRenameFolder}
               onDeleteFolder={deleteFolderNow}
               onNewNoteIn={onNewNoteIn}
@@ -750,6 +786,7 @@ function ShellFrame({
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [renameFolder, setRenameFolder] = useState<string | null>(null);
+  const [selectedFolder, setSelectedFolder] = useState('');
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const drawerWasOpenRef = useRef(false);
@@ -766,11 +803,16 @@ function ShellFrame({
   // ones that hold no note yet.
   const allFolders = useMemo(
     () =>
-      [...new Set([...files.folders, ...files.emptyFolders])].sort(
-        (left, right) => (left < right ? -1 : 1),
+      knownFolderPaths(
+        files.notes.map((note) => note.path),
+        files.emptyFolders,
       ),
-    [files.folders, files.emptyFolders],
+    [files.notes, files.emptyFolders],
   );
+
+  useEffect(() => {
+    setSelectedFolder((selected) => selectedFolderOrRoot(selected, allFolders));
+  }, [allFolders]);
 
   useEffect(() => {
     setDrawerOpen(false);
@@ -887,7 +929,7 @@ function ShellFrame({
         id: 'new-note',
         label: 'New note',
         keywords: 'create add',
-        run: () => newNote.create(),
+        run: () => newNote.create(selectedFolder),
       },
       {
         id: 'new-folder',
@@ -989,7 +1031,14 @@ function ShellFrame({
         },
       },
     ],
-    [cycleTheme, navigate, newNote.create, noteActions, workspaceId],
+    [
+      cycleTheme,
+      navigate,
+      newNote.create,
+      noteActions,
+      selectedFolder,
+      workspaceId,
+    ],
   );
 
   return (
@@ -1078,6 +1127,8 @@ function ShellFrame({
           >
             <Sidebar
               workspaceId={workspaceId}
+              selectedFolder={selectedFolder}
+              onSelectFolder={setSelectedFolder}
               onNavigate={() => setDrawerOpen(false)}
               onNewFolder={() => setNewFolderOpen(true)}
               onRenameFolder={(folder) => setRenameFolder(folder)}
@@ -1135,7 +1186,11 @@ function ShellFrame({
             open={newFolderOpen}
             onClose={() => setNewFolderOpen(false)}
             folders={allFolders}
-            onCreated={(folder) => files.addEmptyFolder(folder)}
+            parent={selectedFolder}
+            onCreated={(folder) => {
+              files.addEmptyFolder(folder);
+              setSelectedFolder(folder);
+            }}
           />
           {session.account === null || renameFolder === null ? null : (
             <RenameFolderDialog

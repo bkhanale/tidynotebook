@@ -71,11 +71,12 @@ export function useCreateNote(
   return { create, error };
 }
 
-/** The button that creates a new note at the root and opens it. */
+/** The button that creates a new note in the selected folder and opens it. */
 export function NewNoteButton({
   store,
   accountId,
   workspaceId,
+  folder,
   disabled,
   variant = 'primary',
   size = 'md',
@@ -85,6 +86,7 @@ export function NewNoteButton({
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
+  readonly folder?: string | undefined;
   readonly disabled?: boolean | undefined;
   readonly variant?:
     'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle' | undefined;
@@ -102,7 +104,7 @@ export function NewNoteButton({
         size={size}
         icon={<PlusIcon size={size === 'sm' ? 14 : 16} />}
         disabled={disabled ?? store === null}
-        onClick={() => create()}
+        onClick={() => create(folder)}
       >
         {children ?? 'New note'}
       </Button>

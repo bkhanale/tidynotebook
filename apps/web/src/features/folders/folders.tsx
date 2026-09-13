@@ -23,13 +23,16 @@ import {
   type PathMove,
 } from '../../lib/folder-moves.ts';
 import type { NoteSummary } from '../../lib/note-list.ts';
+import { childFolderPath } from '../../lib/folder-selection.ts';
 import {
   baseNameOf,
+  cleanNoteBaseName,
   cleanNoteName,
   displayNoteName,
   folderOf,
   joinNotePath,
   noteNameProblem,
+  noteBaseNameProblem,
   rewriteFolder,
 } from '../../lib/note-name.ts';
 
@@ -139,12 +142,15 @@ export function NewFolderDialog({
   open,
   onClose,
   folders,
+  parent,
   onCreated,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
   /** Every folder that already exists, so a repeated name is refused. */
   readonly folders: readonly string[];
+  /** The selected folder, or an empty string for the root. */
+  readonly parent: string;
   readonly onCreated: (folder: string) => void;
 }): ReactNode {
   const [name, setName] = useState('');
@@ -157,10 +163,20 @@ export function NewFolderDialog({
   }, [open]);
 
   const create = (): void => {
-    const folder = cleanNoteName(name);
-    const problem = noteNameProblem(folder);
+    const child = cleanNoteBaseName(name);
+    if (child.includes('/')) {
+      setError('A folder name cannot contain a slash.');
+      return;
+    }
+    const problem = noteBaseNameProblem(child);
     if (problem !== null) {
-      setError(problem);
+      setError(problem.replaceAll('note name', 'folder name'));
+      return;
+    }
+    const folder = childFolderPath(parent, child);
+    const pathProblem = noteNameProblem(folder);
+    if (pathProblem !== null) {
+      setError(pathProblem.replaceAll('note name', 'folder name'));
       return;
     }
     if (folders.some((one) => one.toLowerCase() === folder.toLowerCase())) {
