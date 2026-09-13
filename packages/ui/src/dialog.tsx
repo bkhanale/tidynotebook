@@ -110,7 +110,7 @@ export function Dialog({
     // handler, such as the drawer behind it, can act on the same press.
     window.addEventListener('keydown', onKeyDown, true);
     return () => {
-      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keydown', onKeyDown, true);
       releaseInert();
       document.body.style.overflow = previousOverflow;
       openerRef.current?.focus();
