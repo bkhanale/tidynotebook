@@ -8,7 +8,8 @@ test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 /**
  * Opens the navigation drawer on a narrow viewport.
  *
- * A wide viewport shows no drawer, so this does nothing there.
+ * A wide viewport shows no drawer, so this does nothing there. Never call it
+ * while a dialog is open, because the dialog covers the drawer toggle.
  */
 async function openNavigation(page: Page): Promise<void> {
   const drawer = page.getByRole('button', { name: 'Open navigation' });
