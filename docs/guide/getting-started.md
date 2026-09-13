@@ -53,6 +53,6 @@ See [Saving and history](saving-and-history.md).
 ## Where to go next
 
 - Organize your notes with [Notes and folders](notes-and-folders.md).
-- Press **Ctrl + K** or **Cmd + K** to open the command palette, which searches
+- Press **Ctrl + P** or **Cmd + P** to open the command palette, which searches
   your notes and runs the common actions.
 - Choose a theme in [Appearance and shortcuts](appearance-and-shortcuts.md).

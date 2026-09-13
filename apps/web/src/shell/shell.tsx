@@ -779,7 +779,7 @@ function ShellFrame({
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       const key = event.key.toLowerCase();
-      if ((event.metaKey || event.ctrlKey) && (key === 'k' || key === 'o')) {
+      if ((event.metaKey || event.ctrlKey) && (key === 'p' || key === 'o')) {
         event.preventDefault();
         setPaletteOpen(true);
       }
@@ -1047,7 +1047,7 @@ function ShellFrame({
                 Search notes
               </span>
               <kbd className="hidden shrink-0 rounded border border-edge bg-hover px-1.5 text-control text-muted sm:inline">
-                Ctrl K
+                Ctrl P
               </kbd>
             </button>
 

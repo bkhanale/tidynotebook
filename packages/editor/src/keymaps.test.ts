@@ -283,3 +283,23 @@ await test('every documented shortcut has a binding or a window handler', () => 
     assert.notEqual(row.description, '');
   }
 });
+
+await test('the link and command palette use separate shortcuts', () => {
+  assert.deepEqual(
+    shortcuts.filter(
+      (shortcut) =>
+        shortcut.keys === 'Cmd or Ctrl + K' ||
+        shortcut.keys === 'Cmd or Ctrl + P',
+    ),
+    [
+      {
+        keys: 'Cmd or Ctrl + K',
+        description: 'Insert a link in the note',
+      },
+      {
+        keys: 'Cmd or Ctrl + P',
+        description: 'Open the command palette',
+      },
+    ],
+  );
+});

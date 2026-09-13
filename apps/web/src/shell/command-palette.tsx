@@ -1,7 +1,7 @@
 /**
  * The one command palette of the application.
  *
- * `Cmd or Ctrl + K` opens it, and `Cmd or Ctrl + O` stays as an alias for
+ * `Cmd or Ctrl + P` opens it, and `Cmd or Ctrl + O` stays as an alias for
  * the people who learned it. There is no second search surface: the header
  * affordance opens this same dialog at every width, so a phone can search.
  *

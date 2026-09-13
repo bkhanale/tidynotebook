@@ -627,8 +627,9 @@ export const shortcuts: readonly EditorShortcut[] = [
   { keys: 'Cmd or Ctrl + S', description: 'Save the note' },
   {
     keys: 'Cmd or Ctrl + K',
-    description: 'Insert a link in the note, or open the command palette',
+    description: 'Insert a link in the note',
   },
+  { keys: 'Cmd or Ctrl + P', description: 'Open the command palette' },
   { keys: 'Cmd or Ctrl + O', description: 'Open a note by name' },
   { keys: 'Cmd or Ctrl + F', description: 'Find in this note' },
   { keys: 'Cmd or Ctrl + H', description: 'Find and replace in this note' },

@@ -10,6 +10,30 @@ import {
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
+test('the palette and link commands use separate keys', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await replaceEditorText(page, 'Link text');
+
+  const palette = page.getByRole('dialog', {
+    name: 'Search notes and run actions',
+  });
+  await page.locator('.cm-content').press('Control+P');
+  await expect(palette).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(palette).toBeHidden();
+
+  const editor = page.locator('.cm-content');
+  await editor.press('Control+A');
+  await editor.press('Control+K');
+  await expect(editor).toContainText('[Link text]()');
+  await expect(palette).toBeHidden();
+});
+
 test('one surface reads and writes the note in place', async ({
   checkedPage: page,
   stack,

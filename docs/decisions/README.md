@@ -57,6 +57,7 @@ and needs no record.
 | [0025](0025-the-live-preview-is-the-one-note-surface.md) | The live preview is the one note surface              |
 | [0026](0026-slim-the-save-and-delete-surfaces.md)        | Slim the save and delete surfaces, do not remove them |
 | [0027](0027-track-work-on-the-github-board.md)           | Track work on the GitHub board                        |
+| [0028](0028-command-palette-uses-p.md)                   | The command palette uses P                            |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -75,4 +76,6 @@ and delete surfaces instead of removing them, and it supersedes records 0023 and
 record 0003, and it follows
 [design 006](../design/006-the-one-markdown-surface.md). Record 0027 moves the
 work list to the GitHub board and removes `docs/releases/`, and it is described
-in [work tracking](../development/tracking.md).
+in [work tracking](../development/tracking.md). Record 0028 replaces the
+shortcut choice of record 0010, so the link command and the command palette
+have separate keys.

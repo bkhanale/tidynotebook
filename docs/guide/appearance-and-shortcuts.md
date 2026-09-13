@@ -37,8 +37,9 @@ same table the application binds its keys from, so it is always current.
 
 Three keys are worth knowing before you open it.
 
-- **Ctrl + K** or **Cmd + K** opens the command palette, which searches your
+- **Ctrl + P** or **Cmd + P** opens the command palette, which searches your
   notes and runs the common actions.
+- **Ctrl + K** or **Cmd + K** inserts a link in the note.
 - **Ctrl + S** or **Cmd + S** saves.
 - **Ctrl + F** or **Cmd + F** finds text inside the note you have open.
 
