@@ -283,6 +283,11 @@ await test('the service worker is revalidated on every load', async () => {
       answer.headers['content-type'],
       'application/javascript; charset=utf-8',
     );
+    // The browser enforces this policy on the worker, so the worker must be
+    // allowed to reach its own origin during its precache install.
+    const policy = String(answer.headers['content-security-policy']);
+    assert.match(policy, /default-src 'self'/);
+    assert.match(policy, /connect-src 'self'/);
   } finally {
     await server.close();
     await rm(directory, { recursive: true, force: true });

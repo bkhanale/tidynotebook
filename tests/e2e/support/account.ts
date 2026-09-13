@@ -1,18 +1,37 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 import type { E2EStack } from './stack.ts';
 
-/** Signs in through the same form that a person uses. */
-export async function signIn(page: Page, stack: E2EStack): Promise<void> {
-  const loginUrl = `${stack.baseUrl}/login`;
+/** Opens the sign-in page and waits until its form can take input. */
+async function openSignInForm(page: Page, loginUrl: string): Promise<void> {
   try {
     await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
   } catch {
     // Firefox can leave the navigation promise pending after the document
     // has rendered. The form wait below decides whether sign in can go on.
   }
+  try {
+    await page
+      .getByLabel('Address')
+      .waitFor({ state: 'visible', timeout: 15_000 });
+    return;
+  } catch {
+    // The first document installs the service worker, and the worker then
+    // claims the page. Firefox can hold the navigation open while that
+    // happens. One reload reaches a page that the worker already controls.
+  }
+  try {
+    await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
+  } catch {
+    // The same pending navigation is harmless; the form wait is the decider.
+  }
   await page
     .getByLabel('Address')
     .waitFor({ state: 'visible', timeout: 30_000 });
+}
+
+/** Signs in through the same form that a person uses. */
+export async function signIn(page: Page, stack: E2EStack): Promise<void> {
+  await openSignInForm(page, `${stack.baseUrl}/login`);
   await page.getByLabel('Address').fill(stack.email);
   await page.getByLabel('Password', { exact: true }).fill(stack.password);
   await page.getByRole('button', { name: 'Sign in' }).click();
@@ -45,6 +64,9 @@ export async function createNewNote(page: Page): Promise<void> {
   }
   await candidates.first().click();
   await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
+  // The new note focuses and selects its name, so a later fill lands on the
+  // new note and never on the field of the note that was open before.
+  await expect(page.getByLabel('Note name')).toBeFocused();
 }
 
 /** Replaces the CodeMirror source with normal browser input. */
@@ -74,4 +96,49 @@ export async function waitForLocalWrite(page: Page): Promise<void> {
       page.locator('[data-save-state]').getAttribute('data-save-state'),
     )
     .toBe('saved-local');
+}
+
+/** Opens the command palette from the header affordance. */
+export async function openPalette(page: Page): Promise<Locator> {
+  await page.getByRole('button', { name: /Search notes/ }).click();
+  const palette = page.getByRole('dialog', {
+    name: 'Search notes and run actions',
+  });
+  await expect(palette).toBeVisible();
+  return palette;
+}
+
+/**
+ * Runs one command palette action by its exact label.
+ *
+ * The palette is the only surface that carries a note action now, so a
+ * journey reaches Save, Delete, History, and Attach through it.
+ */
+export async function runNoteAction(page: Page, label: string): Promise<void> {
+  const palette = await openPalette(page);
+  await palette.getByLabel('Search notes, or type an action').fill(label);
+  await palette.getByRole('option', { name: label, exact: true }).click();
+}
+
+/** Opens the navigation drawer on a narrow viewport. */
+export async function openNavigation(page: Page): Promise<void> {
+  const drawer = page.getByRole('button', { name: 'Open navigation' });
+  try {
+    await drawer.waitFor({ state: 'visible', timeout: 2_000 });
+    if ((await drawer.getAttribute('aria-expanded')) !== 'true')
+      await drawer.click();
+  } catch {
+    // No drawer on this viewport. The sidebar is already placed.
+  }
+}
+
+/** Closes the navigation drawer when one is open. */
+export async function closeNavigation(page: Page): Promise<void> {
+  const close = page.getByRole('button', { name: 'Close navigation' });
+  try {
+    await close.waitFor({ state: 'visible', timeout: 2_000 });
+    await close.click();
+  } catch {
+    // No drawer on this viewport. The sidebar never covers the header.
+  }
 }

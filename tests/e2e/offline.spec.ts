@@ -26,7 +26,6 @@ test('an offline edit survives reload and syncs after reconnect', async ({
   await createNewNote(page);
   await page.getByLabel('Note name').fill(`offline-${Date.now().toString()}`);
   await replaceEditorText(page, '# Online base');
-  await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
   await page.evaluate(async () => navigator.serviceWorker.ready);
   // WebKit needs one controlled navigation after a new service worker is
@@ -51,7 +50,9 @@ test('an offline edit survives reload and syncs after reconnect', async ({
   await expect(page.locator('.cm-content')).toContainText('Still here.');
 
   if (testInfo.project.name !== 'webkit') await context.setOffline(false);
-  await page.getByRole('button', { name: 'Save this note' }).click();
+  // The reload loaded the offline draft, which is not a version yet, so make
+  // one on purpose and let the sync engine send it now that transport is back.
+  await page.keyboard.press('Control+S');
   await waitForServerSave(page);
   await page.reload();
   await expect(page.locator('.cm-content')).toContainText('Still here.');

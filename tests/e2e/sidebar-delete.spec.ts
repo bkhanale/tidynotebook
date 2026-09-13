@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
@@ -6,7 +6,6 @@ import {
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
-  waitForLocalWrite,
   waitForServerSave,
 } from './support/account.ts';
 
@@ -63,6 +62,13 @@ async function createFolder(page: Page, folder: string): Promise<void> {
   ).toBeVisible();
 }
 
+/** Expands one folder row when it is not already open. */
+async function expandFolder(toggle: Locator): Promise<void> {
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true')
+    await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+}
+
 /** Makes one note inside a folder through the folder row menu. */
 async function createNoteInFolder(
   page: Page,
@@ -75,11 +81,11 @@ async function createNoteInFolder(
     .getByRole('button', { name: `Actions for the folder ${folder}` })
     .click();
   await page.getByRole('menuitem', { name: 'New note in this folder' }).click();
-  await expect(page.getByLabel('Note name')).toHaveValue('New note');
-  await page.getByLabel('Note name').fill(noteName);
+  await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
+  const nameInput = page.getByLabel('Note name');
+  await expect(nameInput).toBeFocused();
+  await nameInput.fill(noteName);
   await replaceEditorText(page, body);
-  await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await waitForServerSave(page);
 }
 
@@ -92,11 +98,8 @@ test('Delete from a note row moves the note to Trash', async ({
   await createNewNote(page);
 
   const name = `row-delete-${Date.now().toString()}`;
-  await expect(page.getByLabel('Note name')).toHaveValue('New note');
   await page.getByLabel('Note name').fill(name);
   await replaceEditorText(page, '# Row delete');
-  await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await waitForServerSave(page);
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
@@ -139,8 +142,7 @@ test('Delete folder moves every note in it to Trash', async ({
     exact: true,
   });
   await openNavigation(page);
-  await folderToggle.click();
-  await expect(folderToggle).toHaveAttribute('aria-expanded', 'true');
+  await expandFolder(folderToggle);
   await expect(tree.getByRole('link', { name: 'Note one' })).toBeVisible();
   await expect(tree.getByRole('link', { name: 'Note two' })).toBeVisible();
   await page
@@ -151,6 +153,8 @@ test('Delete folder moves every note in it to Trash', async ({
   await expect(page.getByText('2 notes moved to Trash.')).toBeVisible();
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
   await openNavigation(page);
+  // The restore recreates the folder, so open it again to see its notes.
+  await expandFolder(folderToggle);
   await expect(tree.getByRole('link', { name: 'Note one' })).toBeVisible();
   await expect(tree.getByRole('link', { name: 'Note two' })).toBeVisible();
 
@@ -219,8 +223,7 @@ test('Delete the last note in a folder keeps the folder', async ({
     exact: true,
   });
   await openNavigation(page);
-  await folderToggle.click();
-  await expect(folderToggle).toHaveAttribute('aria-expanded', 'true');
+  await expandFolder(folderToggle);
   await expect(tree.getByRole('link', { name })).toBeVisible();
 
   await tree
@@ -260,11 +263,8 @@ test('A note deleted permanently leaves the sidebar and the trash', async ({
   await createNewNote(page);
 
   const name = `purge-note-${Date.now().toString()}`;
-  await expect(page.getByLabel('Note name')).toHaveValue('New note');
   await page.getByLabel('Note name').fill(name);
   await replaceEditorText(page, '# Purge me');
-  await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await waitForServerSave(page);
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
@@ -309,8 +309,8 @@ test('A rename keeps a note in its folder', async ({
   await createNoteInFolder(page, folder, 'Original in folder', '# Stay');
 
   await page.getByLabel('Note name').fill(renamed);
-  await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  // A rename is a draft until a version is created, so make one on purpose.
+  await page.keyboard.press('Control+S');
   await waitForServerSave(page);
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');

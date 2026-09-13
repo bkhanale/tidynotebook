@@ -1,11 +1,13 @@
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  closeNavigation,
   createNewNote,
+  openNavigation,
   openPersonalWorkspace,
   replaceEditorText,
+  runNoteAction,
   signIn,
-  waitForLocalWrite,
   waitForServerSave,
 } from './support/account.ts';
 
@@ -25,19 +27,20 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   await expect(page.getByLabel('Note name')).toBeFocused();
   await page.getByLabel('Note name').fill(path);
   await replaceEditorText(page, content);
-  await waitForLocalWrite(page);
-  await expect(page.getByText('Saved on this device')).toHaveCount(0);
 
+  // The note saves itself. One version follows the typing pause and reaches
+  // the server, so the journey waits for that write instead of pressing a
+  // Save button.
   const startedAt = Date.now();
   const saveResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
       response.url().includes('/changesets'),
   );
-  await page.getByRole('button', { name: 'Save this note' }).click();
   expect((await saveResponse).ok()).toBe(true);
   await waitForServerSave(page);
-  expect(Date.now() - startedAt).toBeLessThan(10_000);
+  expect(Date.now() - startedAt).toBeLessThan(15_000);
+  await openNavigation(page);
   await expect(page.getByRole('link', { name: path }).first()).toBeVisible();
 
   await page.reload();
@@ -47,15 +50,16 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   await expect(page.getByLabel('Note name')).toHaveValue(path);
 
   await page.getByLabel('Note name').fill(renamed);
-  await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save this note' }).click();
+  // A rename is a draft until a version is created, so make one on purpose.
+  await page.keyboard.press('Control+S');
   await waitForServerSave(page);
+  await openNavigation(page);
   await expect(page.getByRole('link', { name: renamed }).first()).toBeVisible();
 
-  await page.getByRole('button', { name: 'Delete this note' }).click();
-  await page
-    .getByRole('button', { name: 'Confirm deletion of this note' })
-    .click();
+  await closeNavigation(page);
+  await runNoteAction(page, 'Delete this note');
+  await expect(page.getByText(`${renamed} moved to Trash.`)).toBeVisible();
+  await openNavigation(page);
   await expect(page.getByRole('link', { name: renamed })).toHaveCount(0);
 });
 
@@ -96,11 +100,11 @@ test('a save made during the first sync keeps its parent', async ({
     const path = `ordered-${Date.now().toString()}`;
     await page.getByLabel('Note name').fill(path);
     await replaceEditorText(page, '# First checkpoint');
-    await page.getByRole('button', { name: 'Save this note' }).click();
+    await page.locator('.cm-content').press('Control+S');
     await firstRequestStarted;
 
     await replaceEditorText(page, '# Second checkpoint');
-    await page.getByRole('button', { name: 'Save this note' }).click();
+    await page.locator('.cm-content').press('Control+S');
     releaseFirstRequest();
 
     await waitForServerSave(page);
@@ -110,10 +114,8 @@ test('a save made during the first sync keeps its parent', async ({
       'Second checkpoint',
     );
 
-    await page.getByRole('button', { name: 'Delete this note' }).click();
-    await page
-      .getByRole('button', { name: 'Confirm deletion of this note' })
-      .click();
+    await runNoteAction(page, 'Delete this note');
+    await expect(page.getByText(`${path} moved to Trash.`)).toBeVisible();
     await expect(page.getByRole('link', { name: path })).toHaveCount(0);
   } finally {
     releaseFirstRequest();

@@ -2,10 +2,10 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  closeNavigation,
   createNewNote,
   replaceEditorText,
   signIn,
-  waitForLocalWrite,
   waitForServerSave,
 } from './support/account.ts';
 
@@ -53,11 +53,11 @@ async function createNoteInFolder(
     .getByRole('button', { name: `Actions for the folder ${folder}` })
     .click();
   await page.getByRole('menuitem', { name: 'New note in this folder' }).click();
-  await expect(page.getByLabel('Note name')).toHaveValue('New note');
-  await page.getByLabel('Note name').fill(noteName);
+  await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
+  const nameInput = page.getByLabel('Note name');
+  await expect(nameInput).toBeFocused();
+  await nameInput.fill(noteName);
   await replaceEditorText(page, body);
-  await waitForLocalWrite(page);
-  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await waitForServerSave(page);
 }
 
@@ -83,7 +83,9 @@ test('opening a note expands its folder and scrolls its row into view', async ({
   await expect(reportRow).toBeHidden();
 
   // Open Report from the command palette. The folder must expand on its own
-  // and the row must be shown and in view.
+  // and the row must be shown and in view. Close the drawer first, because on
+  // a narrow viewport it covers the header affordance.
+  await closeNavigation(page);
   await page.getByRole('button', { name: /Search notes/ }).click();
   const palette = page.getByRole('dialog', {
     name: 'Search notes and run actions',

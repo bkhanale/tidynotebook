@@ -12,8 +12,9 @@
  *   * A precompressed neighbour is served when the caller accepts its
  *     encoding. The build writes `.br` and `.gz` next to each compressible
  *     file, so nothing is compressed per request.
- *   * A document gets the content policy of its kind. Everything else keeps
- *     the base policy of `security-headers.ts`.
+ *   * A document gets the content policy of its kind, and the installed
+ *     application worker gets a policy that lets it reach its own origin.
+ *     Everything else keeps the base policy of `security-headers.ts`.
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, readFileSync, statSync } from 'node:fs';
@@ -24,6 +25,7 @@ import {
   appShellContentPolicy,
   framedDocumentContentPolicy,
   inlineScriptHashes,
+  serviceWorkerContentPolicy,
 } from './security-headers.ts';
 
 /** MIME content type mapping for web assets. */
@@ -223,6 +225,8 @@ export function sendStaticFile(
       'content-security-policy',
       documentContentPolicy(target.filePath, target.relativePath, identity),
     );
+  if (basename(target.filePath) === 'service-worker.js')
+    reply.header('content-security-policy', serviceWorkerContentPolicy);
   if (
     target.relativePath !== 'index.html' &&
     contentType.startsWith('text/html')

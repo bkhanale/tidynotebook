@@ -4,6 +4,7 @@ import {
   createNewNote,
   openPersonalWorkspace,
   replaceEditorText,
+  runNoteAction,
   signIn,
   waitForServerSave,
 } from './support/account.ts';
@@ -55,14 +56,16 @@ test('workspace fits the viewport and the mobile drawer manages focus', async ({
   }));
   expect(overflow.scroll).toBeLessThanOrEqual(overflow.client);
 
+  // The theme is a command now, and one press moves the appearance.
   const initialTheme = await page.locator('html').getAttribute('data-theme');
-  await page.getByRole('button', { name: /Switch to/ }).click();
+  await runNoteAction(page, 'Toggle theme');
+  await runNoteAction(page, 'Toggle theme');
   await expect(page.locator('html')).not.toHaveAttribute(
     'data-theme',
     initialTheme ?? '',
   );
 
-  const menu = page.getByRole('button', { name: /navigation/ });
+  const menu = page.getByRole('button', { name: 'Open navigation' });
   if (await menu.isVisible()) {
     await menu.click();
     const drawer = page.getByRole('dialog', { name: 'Notes navigation' });
@@ -71,30 +74,19 @@ test('workspace fits the viewport and the mobile drawer manages focus', async ({
     await expect(
       page.locator('#notes-sidebar a, #notes-sidebar button').first(),
     ).toBeFocused();
-    await drawer.getByRole('button', { name: /Personal/ }).click();
-    await expect(
-      drawer.getByRole('menuitem', { name: 'Create new workspace' }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
     await page.keyboard.press('Escape');
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await expect(menu).toBeFocused();
   } else {
-    const switcher = page.getByRole('button', { name: /Personal/ });
-    await switcher.click();
-    await expect(
-      page.getByRole('menuitem', { name: 'Create new workspace' }),
-    ).toBeVisible();
-    await page.keyboard.press('Escape');
-    await expect(page.getByLabel('Notes navigation')).toBeVisible();
+    await expect(page.locator('#notes-sidebar')).toBeVisible();
   }
 
   if (testInfo.project.name === 'phone-390') {
     await expect(
-      page.getByRole('button', { name: 'Create a new note' }).first(),
+      page.getByRole('button', { name: 'Open navigation' }),
     ).toBeInViewport();
     await expect(
-      page.getByRole('button', { name: /Switch to/ }),
+      page.getByRole('button', { name: /Search notes/ }),
     ).toBeInViewport();
   }
 });
@@ -125,7 +117,6 @@ test('plain HTTP browser capabilities do not block note saves', async ({
     .getByLabel('Note name')
     .fill(`plain-http-${Date.now().toString()}`);
   await replaceEditorText(page, '# Plain HTTP\n\nThe note stays durable.');
-  await page.getByRole('button', { name: 'Save this note' }).click();
   await waitForServerSave(page);
   await page.reload();
   await expect(page.locator('.cm-content')).toContainText(

@@ -8,7 +8,7 @@ import {
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
-test('the first account opens a Personal workspace and saves its first note', async ({
+test('the first account opens the notes area and saves its first note', async ({
   checkedPage: page,
   browserName,
 }, testInfo) => {
@@ -24,14 +24,18 @@ test('the first account opens a Personal workspace and saves its first note', as
       page.getByRole('heading', { name: 'Create your account' }),
     ).toBeVisible();
     await page.getByLabel('Address').fill('first-user@e2e.notes.invalid');
-    await page.getByLabel('Password').fill('first-user-password');
+    await page
+      .getByLabel('Password', { exact: true })
+      .fill('first-user-password');
+    await page
+      .getByLabel('Password again', { exact: true })
+      .fill('first-user-password');
     await page.getByRole('button', { name: 'Create account' }).click();
 
     await page.waitForURL(/\/w\/[0-9a-f-]+$/);
     await expect(
-      page.getByRole('heading', { name: 'Personal', level: 1 }),
+      page.getByRole('heading', { name: 'All notes', level: 1 }),
     ).toBeVisible();
-    await expect(page.getByRole('button', { name: /Personal/ })).toBeVisible();
 
     await createNewNote(page);
     const name = page.getByLabel('Note name');
@@ -49,16 +53,9 @@ test('the first account opens a Personal workspace and saves its first note', as
     ).toBeVisible();
     await expect(page.locator('.cm-np-bold')).toHaveText('rendered');
     await expect(
-      page.locator('[data-notesapp-rich="table"] table'),
-    ).toContainText('valid');
+      page.locator('.cm-np-table-cell').filter({ hasText: 'valid' }),
+    ).toBeVisible();
 
-    const response = page.waitForResponse(
-      (candidate) =>
-        candidate.request().method() === 'POST' &&
-        candidate.url().includes('/changesets'),
-    );
-    await page.getByRole('button', { name: 'Save this note' }).click();
-    expect((await response).status()).toBe(200);
     await waitForServerSave(page);
 
     await page.reload();
