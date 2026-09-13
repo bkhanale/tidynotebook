@@ -7,6 +7,7 @@ import {
   dataContentPolicy,
   framedDocumentContentPolicy,
   inlineScriptHashes,
+  serviceWorkerContentPolicy,
 } from './security-headers.ts';
 
 /** The headers of one origin as a lookup. */
@@ -64,6 +65,14 @@ await test('the framed document policy allows its own inline script only', () =>
   // The shell must be able to frame it, and nothing else may.
   assert.match(framedDocumentContentPolicy, /frame-ancestors 'self'/);
   assert.match(framedDocumentContentPolicy, /connect-src 'none'/);
+});
+
+await test('the worker policy lets the worker reach its own origin', () => {
+  // The browser enforces this policy on the service worker. The base policy
+  // permits nothing, which would fail every precache fetch.
+  assert.match(serviceWorkerContentPolicy, /default-src 'self'/);
+  assert.match(serviceWorkerContentPolicy, /connect-src 'self'/);
+  assert.doesNotMatch(serviceWorkerContentPolicy, /default-src 'none'/);
 });
 
 await test('an inline script is hashed and an external one is not', () => {

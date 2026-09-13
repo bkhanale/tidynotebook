@@ -88,6 +88,22 @@ export const framedDocumentContentPolicy = [
 ].join('; ');
 
 /**
+ * Content policy of the installed application worker script.
+ *
+ * A browser enforces the content policy of the service worker script response
+ * on the worker itself. The worker reads its precache manifest, then serves
+ * navigations, assets and pinned bytes from its own origin, so it must reach
+ * that origin. The base policy permits nothing and would fail its install.
+ */
+export const serviceWorkerContentPolicy = [
+  "default-src 'self'",
+  "connect-src 'self'",
+  "base-uri 'none'",
+  "form-action 'none'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+/**
  * Capabilities that the application never uses.
  *
  * The list is short on purpose: it names the device and payment capabilities
