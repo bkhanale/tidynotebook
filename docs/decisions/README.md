@@ -28,37 +28,39 @@ and needs no record.
 
 ## Index
 
-| Record                                                   | Decision                                              |
-| -------------------------------------------------------- | ----------------------------------------------------- |
-| [0001](0001-one-markdown-grammar.md)                     | One Markdown grammar                                  |
-| [0002](0002-widgets-only-where-text-cannot-express.md)   | Widgets only where text cannot express the result     |
-| [0003](0003-read-mode-uses-the-shared-renderer.md)       | Read mode is the second consumer of the renderer      |
-| [0004](0004-standard-links-between-notes.md)             | Standard links between notes, no wiki syntax in v0.1  |
-| [0005](0005-workspace-is-an-implicit-container.md)       | Workspace becomes an implicit container               |
-| [0006](0006-trash-replaces-purge.md)                     | Trash replaces the purge screen                       |
-| [0007](0007-keep-the-save-model.md)                      | Keep the save model and close its gaps                |
-| [0008](0008-remove-the-remote-integration-surface.md)    | Remove the remote integration surface for v0.1        |
-| [0009](0009-export-first-import-later.md)                | Export first, import later                            |
-| [0010](0010-one-command-palette.md)                      | One command palette                                   |
-| [0011](0011-contract-emit-and-one-migration.md)          | Shared contract definitions and one initial migration |
-| [0012](0012-package-layout-stays-for-v0-1.md)            | The package layout stays for v0.1                     |
-| [0013](0013-delivery-and-headers-belong-to-the-app.md)   | Delivery and headers belong to the application        |
-| [0014](0014-browser-tests-are-the-interface-gate.md)     | Browser tests are the interface gate                  |
-| [0015](0015-the-note-surface-is-the-design.md)           | The note surface is the design                        |
-| [0016](0016-themes-are-data-in-one-registry.md)          | A theme is data in one registry                       |
-| [0017](0017-save-feedback-on-the-save-button.md)         | Save feedback lives on the Save button                |
-| [0018](0018-directory-structure-by-layer.md)             | The directory structure follows ports and adapters    |
-| [0019](0019-contract-validation-and-shared-types.md)     | One contract, generated types, and no type assertions |
-| [0020](0020-central-logging-through-one-module.md)       | Central logging through one module                    |
-| [0021](0021-portable-markdown-at-rest.md)                | Portable Markdown at rest                             |
-| [0022](0022-autosave-and-automatic-versions.md)          | Autosave and automatic versions                       |
-| [0023](0023-one-auto-expiring-trash.md)                  | One auto-expiring Trash                               |
-| [0024](0024-remove-conflict-and-recovery-surfaces.md)    | Remove the conflict and recovery surfaces             |
-| [0025](0025-the-live-preview-is-the-one-note-surface.md) | The live preview is the one note surface              |
-| [0026](0026-slim-the-save-and-delete-surfaces.md)        | Slim the save and delete surfaces, do not remove them |
-| [0027](0027-track-work-on-the-github-board.md)           | Track work on the GitHub board                        |
-| [0028](0028-command-palette-uses-p.md)                   | The command palette uses P                            |
-| [0029](0029-selected-folder-is-the-create-parent.md)     | The selected folder is the create parent              |
+| Record                                                         | Decision                                                  |
+| -------------------------------------------------------------- | --------------------------------------------------------- |
+| [0001](0001-one-markdown-grammar.md)                           | One Markdown grammar                                      |
+| [0002](0002-widgets-only-where-text-cannot-express.md)         | Widgets only where text cannot express the result         |
+| [0003](0003-read-mode-uses-the-shared-renderer.md)             | Read mode is the second consumer of the renderer          |
+| [0004](0004-standard-links-between-notes.md)                   | Standard links between notes, no wiki syntax in v0.1      |
+| [0005](0005-workspace-is-an-implicit-container.md)             | Workspace becomes an implicit container                   |
+| [0006](0006-trash-replaces-purge.md)                           | Trash replaces the purge screen                           |
+| [0007](0007-keep-the-save-model.md)                            | Keep the save model and close its gaps                    |
+| [0008](0008-remove-the-remote-integration-surface.md)          | Remove the remote integration surface for v0.1            |
+| [0009](0009-export-first-import-later.md)                      | Export first, import later                                |
+| [0010](0010-one-command-palette.md)                            | One command palette                                       |
+| [0011](0011-contract-emit-and-one-migration.md)                | Shared contract definitions and one initial migration     |
+| [0012](0012-package-layout-stays-for-v0-1.md)                  | The package layout stays for v0.1                         |
+| [0013](0013-delivery-and-headers-belong-to-the-app.md)         | Delivery and headers belong to the application            |
+| [0014](0014-browser-tests-are-the-interface-gate.md)           | Browser tests are the interface gate                      |
+| [0015](0015-the-note-surface-is-the-design.md)                 | The note surface is the design                            |
+| [0016](0016-themes-are-data-in-one-registry.md)                | A theme is data in one registry                           |
+| [0017](0017-save-feedback-on-the-save-button.md)               | Save feedback lives on the Save button                    |
+| [0018](0018-directory-structure-by-layer.md)                   | The directory structure follows ports and adapters        |
+| [0019](0019-contract-validation-and-shared-types.md)           | One contract, generated types, and no type assertions     |
+| [0020](0020-central-logging-through-one-module.md)             | Central logging through one module                        |
+| [0021](0021-portable-markdown-at-rest.md)                      | Portable Markdown at rest                                 |
+| [0022](0022-autosave-and-automatic-versions.md)                | Autosave and automatic versions                           |
+| [0023](0023-one-auto-expiring-trash.md)                        | One auto-expiring Trash                                   |
+| [0024](0024-remove-conflict-and-recovery-surfaces.md)          | Remove the conflict and recovery surfaces                 |
+| [0025](0025-the-live-preview-is-the-one-note-surface.md)       | The live preview is the one note surface                  |
+| [0026](0026-slim-the-save-and-delete-surfaces.md)              | Slim the save and delete surfaces, do not remove them     |
+| [0027](0027-track-work-on-the-github-board.md)                 | Track work on the GitHub board                            |
+| [0028](0028-command-palette-uses-p.md)                         | The command palette uses P                                |
+| [0029](0029-selected-folder-is-the-create-parent.md)           | The selected folder is the create parent                  |
+| [0030](0030-published-links-are-hashed-tokens-over-a-scope.md) | A published link is a hashed token over a read-only scope |
+| [0031](0031-the-reader-path-is-a-closed-read-only-boundary.md) | The reader path is a closed read-only boundary            |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -81,4 +83,11 @@ in [work tracking](../development/tracking.md). Record 0028 replaces the
 shortcut choice of record 0010, so the link command and the command palette
 have separate keys. Record 0029 makes the temporary selected folder the parent
 for each create action, and it follows
-[design 007](../design/007-nested-folder-creation.md).
+[design 007](../design/007-nested-folder-creation.md). Records 0030 and 0031
+open the first path that serves a person with no account, and they follow
+[design 008](../design/008-published-read-only-links.md). Record 0030 states
+what a published link is: an opaque token that is hashed at rest, a scope of one
+note or one folder, an optional password through the hasher of the account path,
+an optional expiry, and immediate revocation. Record 0031 states how the server
+serves that link without an actor, and it gives the sanitized renderer that
+record 0025 kept its first production reader.
