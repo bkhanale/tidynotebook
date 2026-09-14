@@ -25,6 +25,8 @@ import { createAttachmentHandlers } from './attachments.ts';
 import { createHistoryHandlers } from './history.ts';
 import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
+import { createImportHandlers } from './import.ts';
+import { createBacklinkHandlers } from './backlinks.ts';
 
 /**
  * A store that is not there yet.
@@ -241,11 +243,16 @@ export function createHandlers(
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSearchHandlers(dependencies.content ?? missingWorkspaceStore()),
+    ...createBacklinkHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createAttachmentHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
     ),
     ...createExportHandlers(
+      dependencies.content ?? missingWorkspaceStore(),
+      dependencies.attachments ?? missingAttachmentStore(),
+    ),
+    ...createImportHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
     ),

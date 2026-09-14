@@ -20,6 +20,16 @@ export type { MarkdownLimitReason } from './limits.ts';
 export { markdownLimits, MarkdownLimitError } from './limits.ts';
 export type { ContentUrl } from './policy.ts';
 export { classifyUrl, isIdentifier } from './policy.ts';
+export type {
+  LegacyReferenceMap,
+  PortableMigration,
+  ReferenceRewrite,
+} from './rewrite.ts';
+export {
+  migrateLegacyReferences,
+  portableRelativePath,
+  rewriteRelativeReferences,
+} from './rewrite.ts';
 export type { DisplayMathFence, InlineMathDelimiter } from './math-syntax.ts';
 export {
   closingDisplayMathFence,

@@ -284,6 +284,22 @@ export type AuthUser = {
 };
 
 /**
+ * One live note that links to the requested file path.
+ */
+export type Backlink = {
+    readonly fileId: Uuid;
+    readonly path: FilePath;
+    readonly revisionId: Uuid;
+};
+
+/**
+ * Live notes that link to one current file path.
+ */
+export type BacklinkList = {
+    readonly backlinks: Array<Backlink>;
+};
+
+/**
  * A reference that blocks permanent deletion.
  */
 export type BlockingReference = {
@@ -588,6 +604,24 @@ export type HistoryRevisionItem = {
     restoredFrom: Uuid | null;
     text: string | null;
     objectId: Uuid | null;
+};
+
+/**
+ * Multipart form upload payload that contains one zip archive.
+ */
+export type ImportWorkspaceInput = {
+    /**
+     * Portable workspace zip archive.
+     */
+    file: Blob | File;
+};
+
+/**
+ * Counts of files imported without reference translation.
+ */
+export type ImportWorkspaceResult = {
+    notes: number;
+    attachments: number;
 };
 
 /**
@@ -1430,6 +1464,11 @@ export type Changeset = ChangesetInput;
 export type UploadAttachment = UploadAttachmentInput;
 
 /**
+ * Multipart form upload that contains one portable zip archive.
+ */
+export type ImportWorkspace = ImportWorkspaceInput;
+
+/**
  * Payload to finalize an attachment and create an immutable revision.
  */
 export type FinalizeAttachment = FinalizeAttachmentInput;
@@ -1844,6 +1883,10 @@ export type GetHealthErrors = {
      */
     400: ProblemDetails;
     /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
@@ -1965,6 +2008,10 @@ export type CreateOwnerErrors = {
      * The request media type is not supported.
      */
     415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
@@ -2931,6 +2978,62 @@ export type UpdateFileResponses = {
 
 export type UpdateFileResponse = UpdateFileResponses[keyof UpdateFileResponses];
 
+export type ListBacklinksData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/files/{fileId}/backlinks';
+};
+
+export type ListBacklinksErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListBacklinksError = ListBacklinksErrors[keyof ListBacklinksErrors];
+
+export type ListBacklinksResponses = {
+    /**
+     * Live notes that link to one file path.
+     */
+    200: BacklinkList;
+};
+
+export type ListBacklinksResponse = ListBacklinksResponses[keyof ListBacklinksResponses];
+
 export type ExportNoteData = {
     body?: never;
     headers?: {
@@ -3142,6 +3245,77 @@ export type RestoreRevisionResponses = {
 };
 
 export type RestoreRevisionResponse = RestoreRevisionResponses[keyof RestoreRevisionResponses];
+
+export type ImportWorkspaceData = {
+    /**
+     * Multipart form upload that contains one portable zip archive.
+     */
+    body: ImportWorkspace;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/import';
+};
+
+export type ImportWorkspaceErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ImportWorkspaceError = ImportWorkspaceErrors[keyof ImportWorkspaceErrors];
+
+export type ImportWorkspaceResponses = {
+    /**
+     * Counts of the files read from one portable archive.
+     */
+    200: ImportWorkspaceResult;
+};
+
+export type ImportWorkspaceResponse = ImportWorkspaceResponses[keyof ImportWorkspaceResponses];
 
 export type PurgeFilesData = {
     /**

@@ -27,6 +27,7 @@ import {
   uploadAttachment,
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
+import { classifyUrl, portableRelativePath } from '@notesapp/markdown';
 import {
   isLocalStorageError,
   saveCheckpointMessage,
@@ -83,6 +84,7 @@ import {
   type SaveState,
 } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
+import { Backlinks } from './backlinks.tsx';
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
@@ -230,12 +232,16 @@ function NoteEditorBody({
   const [storageError, setStorageError] =
     useState<LocalStorageErrorKind | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
+  const [backlinksOpen, setBacklinksOpen] = useState(true);
   const [pasteNotice, setPasteNotice] = useState('');
   const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastFilesRef = useRef<readonly File[]>([]);
   const { attachmentUrls, attachmentUrlsRef } = useAttachmentUrls(
+    store,
+    accountId,
     workspaceId,
+    validPathRef.current,
     bufferText,
   );
   const [mathReady, setMathReady] = useState(false);
@@ -485,8 +491,16 @@ function NoteEditorBody({
             if (render === null) throw new Error('Math is still loading.');
             return render(source, display);
           },
-      resolveAttachment: (revisionId: string): string | null =>
-        attachmentUrlsRef.current.get(revisionId) ?? null,
+      resolveAttachment: (destination: string): string | null => {
+        const target = classifyUrl(destination, validPathRef.current);
+        const key =
+          target.kind === 'attachment'
+            ? target.id
+            : target.kind === 'relative'
+              ? target.path
+              : null;
+        return key === null ? null : (attachmentUrlsRef.current.get(key) ?? null);
+      },
       createDiagram: (source: string): HTMLElement =>
         createDiagramFrame({
           source,
@@ -707,7 +721,7 @@ function NoteEditorBody({
    *
    * Each file is read locally first, uploaded through the generated
    * operation, finalized as an immutable attachment revision, and embedded
-   * as `/attachments/<revisionId>`. No external URL is ever fetched through
+   * as a relative path. No external URL is ever fetched through
    * the server: importing an external image means the user supplies its bytes
    * here. A failure keeps the buffer and reports a notice.
    */
@@ -763,7 +777,10 @@ function NoteEditorBody({
             setPasteNotice(message);
             continue;
           }
-          insertAtCursor(`![${safeName}](/attachments/${revisionId})`);
+          const attachmentPath = `attachments/${fileId}-${safeName}`;
+          insertAtCursor(
+            `![${safeName}](${portableRelativePath(validPathRef.current, attachmentPath)})`,
+          );
           setAttachState({ kind: 'idle' });
           setPasteNotice('');
         } catch {
@@ -1043,6 +1060,14 @@ function NoteEditorBody({
                 text={bufferText}
               />
             </CollapsibleSection>
+            <CollapsibleSection
+              id="notes-backlinks"
+              title="Links to this note"
+              open={backlinksOpen}
+              onToggle={setBacklinksOpen}
+            >
+              <Backlinks workspaceId={workspaceId} fileId={fileId} />
+            </CollapsibleSection>
           </aside>
         </div>
       </div>
@@ -1307,7 +1332,7 @@ export function NoteEditorLoader({
         onMoveToFolder={onMoveToFolder}
         movedPath={movedPath}
         onOpenLink={(target: LinkTarget): void => {
-          const action = resolveLinkAction(target.target);
+          const action = resolveLinkAction(target.target, status.path);
           if (action.kind === 'note-id') {
             setLinkNotice('');
             void navigate(`/w/${workspaceId}/notes/${action.fileId}`);
@@ -1318,9 +1343,8 @@ export function NoteEditorLoader({
             window.open(action.url, '_blank', 'noopener,noreferrer');
             return;
           }
-          if (action.kind === 'note-name') {
+          if (action.kind === 'note-path') {
             void (async (): Promise<void> => {
-              const wanted = storageNotePath(action.name).toLowerCase();
               const files = await activeStore.listLocalFiles(
                 accountId,
                 workspaceId,
@@ -1329,7 +1353,7 @@ export function NoteEditorLoader({
                 (file) =>
                   file.kind === 'note' &&
                   !file.deleted &&
-                  file.path.toLowerCase() === wanted,
+                  file.path === action.path,
               );
               if (found === undefined) {
                 setLinkNotice(missingNoteNotice);

@@ -14,14 +14,8 @@
 import { Buffer } from 'node:buffer';
 import type { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
-import type {
-  AttachmentMediaType,
-  FilePage,
-  Result,
-  WorkspaceStore,
-} from '@notesapp/core';
+import type { FilePage, Result, WorkspaceStore } from '@notesapp/core';
 import { listFiles, readFile, readRevision } from '@notesapp/core';
-import { extractAttachmentRefs } from '@notesapp/markdown';
 import type { AttachmentStore } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { readText } from './files.ts';
@@ -37,17 +31,6 @@ const archiveMediaType = 'application/zip';
 
 /** How many files one page of the export listing reads. */
 const exportPageSize = 200;
-
-/** The folder inside the archive that holds the referenced images. */
-const attachmentFolder = 'attachments';
-
-/** The file name suffix of each accepted image media type. */
-const imageSuffix: Readonly<Record<AttachmentMediaType, string>> = {
-  'image/png': '.png',
-  'image/jpeg': '.jpg',
-  'image/gif': '.gif',
-  'image/webp': '.webp',
-};
 
 /** Returns the value of a domain result, or answers with its failure. */
 function unwrap<T>(result: Result<T>): T {
@@ -89,17 +72,14 @@ export function createExportHandlers(
   /**
    * Every entry of one workspace archive, in one pass over the listing.
    *
-   * The notes come first, in path order, so the archive reads like the folder
-   * tree. Each note is inspected for the images it references while its text
-   * is at hand, and those images follow the notes under one folder. An image
-   * that a purge removed is left out rather than failing the whole export.
+   * Every live file keeps its stored path and bytes. The archive is therefore
+   * a copy of the portable tree and does not translate Markdown references.
    */
   async function* archiveEntries(
     request: FastifyRequest,
     workspaceId: string,
   ): AsyncGenerator<ZipEntry> {
     const actor = requireActor(request).actor;
-    const referenced = new Set<string>();
     let cursor: string | null = null;
     for (;;) {
       const page: FilePage = unwrap(
@@ -110,7 +90,21 @@ export function createExportHandlers(
         }),
       );
       for (const file of page.files) {
-        if (file.kind !== 'note' || file.headRevisionId === null) continue;
+        if (file.headRevisionId === null) continue;
+        if (file.kind === 'attachment') {
+          const found = await attachments.readAttachmentRevision(
+            actor,
+            workspaceId,
+            file.headRevisionId,
+          );
+          if (found !== null)
+            yield {
+              path: file.path,
+              bytes: await readAll(found.stream),
+              modified: new Date(file.updatedAt),
+            };
+          continue;
+        }
         const head = unwrap(
           await readRevision(store, actor, workspaceId, file.headRevisionId),
         );
@@ -120,24 +114,9 @@ export function createExportHandlers(
           bytes: Buffer.from(text, 'utf8'),
           modified: new Date(file.updatedAt),
         };
-        for (const reference of extractAttachmentRefs(text))
-          referenced.add(reference.revisionId);
       }
       if (page.nextCursor === null) break;
       cursor = page.nextCursor;
-    }
-    for (const revisionId of referenced) {
-      const found = await attachments.readAttachmentRevision(
-        actor,
-        workspaceId,
-        revisionId,
-      );
-      if (found === null) continue;
-      yield {
-        path: `${attachmentFolder}/${revisionId}${imageSuffix[found.mediaType]}`,
-        bytes: await readAll(found.stream),
-        modified: new Date(),
-      };
     }
   }
 

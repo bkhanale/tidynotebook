@@ -5,16 +5,7 @@
  * record. The URL passes through a redaction step first.
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-
-/** Content-free request log entry. */
-export type RequestLogRecord = {
-  readonly requestId: string;
-  readonly method: string;
-  readonly url: string;
-  readonly statusCode: number;
-  readonly durationMs: number;
-  readonly errorCode?: string;
-};
+import { createServerLogger } from './logging.ts';
 
 const passwordResetTokenPath = /^(\/api\/auth\/reset-password\/)[^/]+/;
 
@@ -34,6 +25,7 @@ export function redactUrl(rawUrl: string): string {
 
 /** Attaches the content-free request log hooks to the Fastify application. */
 export function attachRequestLogging(app: FastifyInstance): void {
+  const logger = createServerLogger(app.log);
   app.addHook(
     'onRequest',
     async (request: FastifyRequest & { startTime?: bigint }) => {
@@ -51,16 +43,12 @@ export function attachRequestLogging(app: FastifyInstance): void {
         ? Number(process.hrtime.bigint() - request.startTime) / 1_000_000
         : 0;
 
-      if (app.log && typeof app.log.info === 'function') {
-        app.log.info({
-          type: 'request',
-          requestId: request.id,
-          method: request.method,
-          url: redactUrl(request.url),
-          statusCode: reply.statusCode,
-          durationMs: Math.round(durationMs * 100) / 100,
-        });
-      }
+      logger.bind({ requestId: request.id }).emit('http.request.completed', {
+        method: request.method,
+        url: redactUrl(request.url),
+        statusCode: reply.statusCode,
+        durationMs: Math.round(durationMs * 100) / 100,
+      });
     },
   );
 }

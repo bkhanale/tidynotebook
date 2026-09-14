@@ -184,6 +184,19 @@ await test('rejects a server-only dependency reached by a browser package', () =
   );
 });
 
+await test('rejects a Pino import outside the server logging adapter', () => {
+  rejected(
+    check(
+      workspace({
+        'apps/server/package.json': manifest('server', { pino: '10.1.0' }),
+        'apps/server/src/app.ts':
+          "import pino from 'pino';\nexport const logger = pino();\n",
+      }),
+    ),
+    'Pino belongs in the shared logging package or the server sink adapter.',
+  );
+});
+
 await test('rejects a forbidden core dependency in any group', () => {
   rejected(
     check(

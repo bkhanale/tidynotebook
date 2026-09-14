@@ -36,13 +36,18 @@ export type NoteLink = {
   readonly range: SourceRange;
   readonly label: string;
   readonly targetId: string | null;
+  /** The resolved portable target, or `null` for a legacy or invalid link. */
+  readonly targetPath: string | null;
   readonly source: string;
 };
 
 /** One immutable attachment reference from this note. */
 export type AttachmentRef = {
   readonly range: SourceRange;
-  readonly revisionId: string;
+  /** A legacy immutable revision identifier, or `null` for a portable path. */
+  readonly revisionId: string | null;
+  /** The resolved portable target, or `null` for a legacy reference. */
+  readonly targetPath: string | null;
   readonly source: string;
 };
 
@@ -80,23 +85,32 @@ function byPosition(
  * It does not hold external links or attachment references: those never point
  * at a note. References are returned in source order.
  */
-export function extractLinks(source: string): readonly NoteLink[] {
+export function extractLinks(
+  source: string,
+  sourcePath = '',
+): readonly NoteLink[] {
   const tree = parseMarkdown(source);
   const shift = markLength(source);
   const links: NoteLink[] = [];
   visit(tree, (node) => {
     if (node.type !== 'link' && node.type !== 'definition') return;
     const url = node.url.trim();
-    if (!url.toLowerCase().startsWith('/notes/')) return;
+    const target = classifyUrl(url, sourcePath);
+    if (
+      target.kind !== 'note' &&
+      (target.kind !== 'relative' || !target.path.endsWith('.md')) &&
+      !url.toLowerCase().startsWith('/notes/')
+    )
+      return;
     const range = rangeOf(node, shift);
     if (range === null) return;
-    const target = classifyUrl(url);
     const label =
       node.type === 'link' ? toString(node) : (node.label ?? node.identifier);
     links.push({
       range,
       label,
       targetId: target.kind === 'note' ? target.id : null,
+      targetPath: target.kind === 'relative' ? target.path : null,
       source: source.slice(range.from, range.to),
     });
   });
@@ -114,6 +128,7 @@ export function extractLinks(source: string): readonly NoteLink[] {
  */
 export function extractAttachmentRefs(
   source: string,
+  sourcePath = '',
 ): readonly AttachmentRef[] {
   const tree = parseMarkdown(source);
   const shift = markLength(source);
@@ -125,13 +140,19 @@ export function extractAttachmentRefs(
       node.type !== 'definition'
     )
       return;
-    const target = classifyUrl(node.url);
-    if (target.kind !== 'attachment' || !isIdentifier(target.id)) return;
+    const target = classifyUrl(node.url, sourcePath);
+    if (
+      target.kind !== 'attachment' &&
+      (target.kind !== 'relative' || !target.path.startsWith('attachments/'))
+    )
+      return;
+    if (target.kind === 'attachment' && !isIdentifier(target.id)) return;
     const range = rangeOf(node, shift);
     if (range === null) return;
     refs.push({
       range,
-      revisionId: target.id,
+      revisionId: target.kind === 'attachment' ? target.id : null,
+      targetPath: target.kind === 'relative' ? target.path : null,
       source: source.slice(range.from, range.to),
     });
   });

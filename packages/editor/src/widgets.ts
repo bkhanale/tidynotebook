@@ -104,7 +104,16 @@ export function shouldPreserveAsSource(widget: RichWidget): boolean {
 
 /** The attachment revision identifier of a destination, or null. */
 export function attachmentIdOf(destination: string): string | null {
-  return /^\/attachments\/([^/?#]+)$/.exec(destination)?.[1] ?? null;
+  const legacy = /^\/attachments\/([^/?#]+)$/.exec(destination)?.[1];
+  if (legacy !== undefined) return legacy;
+  if (
+    destination === '' ||
+    destination.startsWith('/') ||
+    destination.startsWith('#') ||
+    /^[A-Za-z][A-Za-z0-9+.-]*:/.test(destination)
+  )
+    return null;
+  return destination;
 }
 
 /** Callbacks the web composition injects into the widget extension. */
@@ -116,11 +125,11 @@ export type RichWidgetResolvers = {
   readonly renderMath?:
     ((source: string, display: boolean) => string) | undefined;
   /**
-   * Resolves an attachment revision ID to a local object URL, or null when
+   * Resolves an attachment destination to a local object URL, or null when
    * the bytes are not ready. Never fetches an external URL.
    */
   readonly resolveAttachment?:
-    ((revisionId: string) => string | null) | undefined;
+    ((destination: string) => string | null) | undefined;
   /**
    * Creates the diagram element for one Mermaid source, for example an
    * isolated frame. May throw; a throw shows editable source.
@@ -297,7 +306,9 @@ export function widgetView(
   if (widget.kind === 'image') {
     const id = attachmentIdOf(widget.destination);
     const url =
-      id === null ? null : (resolvers.resolveAttachment?.(id) ?? null);
+      id === null
+        ? null
+        : (resolvers.resolveAttachment?.(widget.destination) ?? null);
     if (url === null) return source('The attachment is not ready yet.');
     return { kind: 'image', url, alt: widget.content, external: false };
   }

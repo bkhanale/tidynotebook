@@ -67,6 +67,11 @@ export type ServerConfig = {
     readonly headerBytes: number;
     readonly requestTimeoutMs: number;
   };
+  /** Attempt limit for the public setup and authentication routes. */
+  readonly rateLimit: {
+    readonly windowSeconds: number;
+    readonly max: number;
+  };
   /**
    * Mail transport of local password recovery, or `null`.
    *
@@ -115,6 +120,8 @@ const optionalVariables = [
   'NOTESAPP_SMTP_URL',
   'NOTESAPP_MAIL_FROM',
   'NOTESAPP_SESSION_MAX_AGE_S',
+  'NOTESAPP_RATE_LIMIT_WINDOW_S',
+  'NOTESAPP_RATE_LIMIT_MAX',
 ] as const;
 
 const protectedFiles = {
@@ -221,6 +228,8 @@ const configSchema: SchemaObject = {
     },
     NOTESAPP_MAIL_FROM: { type: 'string', minLength: 3, maxLength: 320 },
     NOTESAPP_SESSION_MAX_AGE_S: positiveInteger,
+    NOTESAPP_RATE_LIMIT_WINDOW_S: positiveInteger,
+    NOTESAPP_RATE_LIMIT_MAX: positiveInteger,
   },
 };
 
@@ -275,6 +284,16 @@ export function loadServerConfig(
       bodyBytes: Number(raw.NOTESAPP_MAX_BODY_BYTES),
       headerBytes: Number(raw.NOTESAPP_MAX_HEADER_BYTES),
       requestTimeoutMs: Number(raw.NOTESAPP_REQUEST_TIMEOUT_MS),
+    },
+    rateLimit: {
+      windowSeconds:
+        raw.NOTESAPP_RATE_LIMIT_WINDOW_S === undefined
+          ? 60
+          : Number(raw.NOTESAPP_RATE_LIMIT_WINDOW_S),
+      max:
+        raw.NOTESAPP_RATE_LIMIT_MAX === undefined
+          ? 100
+          : Number(raw.NOTESAPP_RATE_LIMIT_MAX),
     },
     mail,
     sessionMaxAgeSeconds:

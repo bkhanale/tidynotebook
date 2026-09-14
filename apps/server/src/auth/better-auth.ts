@@ -140,6 +140,14 @@ function buildAuth(
     basePath: authBasePath,
     secret: config.authSecret,
     telemetry: { enabled: false },
+    // This policy is explicit in every environment. It does not use the
+    // protocol library default, which changes with NODE_ENV.
+    rateLimit: {
+      enabled: true,
+      window: config.rateLimit.windowSeconds,
+      max: config.rateLimit.max,
+      storage: 'memory',
+    },
     database: drizzleAdapter(database, {
       provider: 'pg',
       transaction: true,

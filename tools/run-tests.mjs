@@ -4,8 +4,8 @@ import { filesIn, root, workspaces } from './workspace.mjs';
 
 const [kind, ...args] = process.argv.slice(2);
 if (kind !== 'unit' && kind !== 'integration') {
-  console.error(
-    'Usage: node tools/run-tests.mjs <unit|integration> [test-name ...]',
+  process.stderr.write(
+    'Usage: node tools/run-tests.mjs <unit|integration> [test-name ...]\n',
   );
   process.exit(1);
 }
@@ -21,7 +21,9 @@ if (kind === 'integration') {
       ? packages
       : packages.filter((item) => item.path === cwd);
   if (cwd !== resolve(root) && selected.length === 0) {
-    console.error('Run unit tests from the root or a workspace package.');
+    process.stderr.write(
+      'Run unit tests from the root or a workspace package.\n',
+    );
     process.exit(1);
   }
   candidates = (
@@ -43,7 +45,7 @@ const matches = (file, name) =>
   relative(root, file).split(sep).join('/') === name;
 for (const name of names) {
   if (!candidates.some((file) => matches(file, name))) {
-    console.error(`No ${kind} test matches: ${name}`);
+    process.stderr.write(`No ${kind} test matches: ${name}\n`);
     process.exit(1);
   }
 }
@@ -67,7 +69,7 @@ const coverageArgs =
         '--test-coverage-exclude=tests/**',
       ];
 if (selected.length === 0) {
-  console.log(`No ${kind} tests exist yet.`);
+  process.stdout.write(`No ${kind} tests exist yet.\n`);
 } else {
   const result = spawnSync(
     process.execPath,
@@ -77,6 +79,6 @@ if (selected.length === 0) {
       stdio: 'inherit',
     },
   );
-  if (result.error) console.error(result.error.message);
+  if (result.error) process.stderr.write(`${result.error.message}\n`);
   process.exitCode = result.status ?? 1;
 }

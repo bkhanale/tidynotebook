@@ -11,6 +11,7 @@ import { existsSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
@@ -53,6 +54,7 @@ import { sendStaticFile, statFile } from './plugins/static-assets.ts';
 import { attachRequestLogging, redactUrl } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
+import { createServerLogger, errorName } from './logging.ts';
 
 /**
  * Accepted shape of a caller supplied correlation id. It matches the contract
@@ -105,7 +107,7 @@ export type AppOptions = {
 };
 
 /** Builds the application with an explicit handler map. */
-export function createAppWithHandlers(
+export async function createAppWithHandlers(
   config: ServerConfig,
   options: AppOptions,
 ): Promise<FastifyInstance> {
@@ -150,7 +152,11 @@ export function createAppWithHandlers(
     // rather than per route.
     http: { maxHeaderSize: config.limits.headerBytes },
     genReqId: (request) => requestId(request.headers['x-request-id']),
+    disableRequestLogging: true,
   });
+
+  await app.register(rateLimit, { global: false });
+  const logger = createServerLogger(app.log);
 
   attachRequestLogging(app);
 
@@ -289,10 +295,10 @@ export function createAppWithHandlers(
     // Every answer that classifies as an unexpected server error is logged
     // with the failure itself, under the request id that the caller received.
     if (code === 'internal_error')
-      request.log.error(
-        { err: error, operationId: id ?? null },
-        'The service failed to complete the request.',
-      );
+      logger.bind({ requestId: request.id }).emit('http.request.failed', {
+        operationId: id ?? null,
+        errorName: errorName(error),
+      });
     await reply
       .status(status)
       .header('content-type', `${problemMediaType}; charset=utf-8`)
@@ -321,8 +327,9 @@ export function createAppWithHandlers(
     options.handlers,
     options.identity,
     options.protocols ?? [],
+    config.rateLimit,
   );
-  return Promise.resolve(app);
+  return app;
 }
 
 /**
@@ -387,6 +394,7 @@ export async function createApp(
       : {}),
     ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
   });
+  const logger = createServerLogger(app.log);
   const cleanupSync = createSyncCleanup(content);
   const cleanupAttachments = createAttachmentCleanup(attachments);
   let cleanupRunning = false;
@@ -394,10 +402,16 @@ export async function createApp(
     if (cleanupRunning) return;
     cleanupRunning = true;
     try {
-      await cleanupSync();
-      await cleanupAttachments();
-    } catch {
-      app.log.error({ source: 'cleanup' }, 'A cleanup job failed.');
+      try {
+        await cleanupSync();
+      } catch {
+        logger.emit('maintenance.failed', { job: 'sync' });
+      }
+      try {
+        await cleanupAttachments();
+      } catch {
+        logger.emit('maintenance.failed', { job: 'attachments' });
+      }
     } finally {
       cleanupRunning = false;
     }
@@ -405,13 +419,13 @@ export async function createApp(
   const cleanupTimer = setInterval(() => void runCleanup(), 60 * 60 * 1000);
   cleanupTimer.unref();
   sink.write = (record): void => {
-    const where = { source: 'better-auth' };
-    // The level is chosen explicitly rather than by index, so the logger keeps
-    // its own receiver.
-    if (record.level === 'error') app.log.error(where, record.message);
-    else if (record.level === 'warn') app.log.warn(where, record.message);
-    else if (record.level === 'info') app.log.info(where, record.message);
-    else app.log.debug(where, record.message);
+    if (record.level === 'error')
+      logger.emit('auth.failed', { source: 'better-auth' });
+    else if (record.level === 'warn')
+      logger.emit('auth.warning', { source: 'better-auth' });
+    else if (record.level === 'info')
+      logger.emit('auth.info', { source: 'better-auth' });
+    else logger.emit('auth.debug', { source: 'better-auth' });
   };
   app.addHook('onClose', async () => {
     clearInterval(cleanupTimer);

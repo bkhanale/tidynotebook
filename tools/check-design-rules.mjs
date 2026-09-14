@@ -269,18 +269,20 @@ export async function main(directory) {
     }
   }
   if (failures.length > 0) {
-    console.error('Design rule check failed:');
-    for (const failure of failures)
-      console.error(
-        `  ${failure.path}:${failure.line}: ${failure.rule}: ${failure.message}`,
-      );
-    console.error(
-      'Add the exception with its reason to tools/design-rules-allow.json only when the rule cannot hold.',
+    process.stderr.write(
+      [
+        'Design rule check failed:',
+        ...failures.map(
+          (failure) =>
+            `  ${failure.path}:${failure.line}: ${failure.rule}: ${failure.message}`,
+        ),
+        'Add the exception with its reason to tools/design-rules-allow.json only when the rule cannot hold.',
+      ].join('\n') + '\n',
     );
     return 1;
   }
-  console.log(
-    `Design rules: ${files.length} files checked, ${allowed.length} accepted exceptions.`,
+  process.stdout.write(
+    `Design rules: ${files.length} files checked, ${allowed.length} accepted exceptions.\n`,
   );
   return 0;
 }
@@ -290,8 +292,8 @@ export async function main(directory) {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.length && (args.length !== 2 || args[0] !== '--root')) {
-    console.error(
-      'Usage: node tools/check-design-rules.mjs [--root <directory>]',
+    process.stderr.write(
+      'Usage: node tools/check-design-rules.mjs [--root <directory>]\n',
     );
     process.exit(1);
   }

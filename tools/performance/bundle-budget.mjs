@@ -47,5 +47,5 @@ const report = {
   budgetBytes,
   status: gzipBytes <= budgetBytes ? 'pass' : 'fail',
 };
-console.log(JSON.stringify(report, null, 2));
+process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
 if (report.status === 'fail') process.exitCode = 1;

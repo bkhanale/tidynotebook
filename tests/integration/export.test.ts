@@ -23,11 +23,13 @@ import { crc32 } from 'node:zlib';
 import {
   configureClient,
   createFile,
+  createWorkspace,
   deleteFile,
   exportNote,
   exportWorkspace,
   finalizeAttachment,
   getAccount,
+  importWorkspace,
   listWorkspaces,
   signInWithPassword,
   updateFile,
@@ -255,7 +257,7 @@ await test('the archive holds every live note and the images they use', async ()
     body: {
       fileId: randomUUID(),
       revisionId: attachmentRevisionId,
-      path: 'assets/shot.png',
+      path: 'attachments/shot.png',
       digest: uploaded.data.digest,
       mutationId: randomUUID(),
       deviceId: 'integration-device',
@@ -263,7 +265,7 @@ await test('the archive holds every live note and the images they use', async ()
   });
   assert.equal(responseOf(finalized.response).status, 200);
 
-  const illustrated = `# With an image\n\n![shot](/attachments/${attachmentRevisionId})\n`;
+  const illustrated = '# With an image\n\n![shot](../attachments/shot.png)\n';
   await newNote('folder/illustrated.md', illustrated);
   const plain = '# Plain note\n\nNothing special.\n';
   await newNote('plain.md', plain);
@@ -290,9 +292,8 @@ await test('the archive holds every live note and the images they use', async ()
     /^attachment; filename="notes\.zip"/,
   );
 
-  const entries = readArchive(
-    Buffer.from(await (answer.data as Blob).arrayBuffer()),
-  );
+  const archive = Buffer.from(await (answer.data as Blob).arrayBuffer());
+  const entries = readArchive(archive);
   const paths = [...entries.keys()];
   assert.ok(paths.includes('folder/illustrated.md'), paths.join(', '));
   assert.ok(paths.includes('plain.md'), paths.join(', '));
@@ -305,11 +306,34 @@ await test('the archive holds every live note and the images they use', async ()
   assert.equal(paths.includes('folder/doomed.md'), false);
   assert.equal(paths.includes('plans/gone.md'), false);
   // The referenced image travels with its exact bytes.
-  const image = entries.get(`attachments/${attachmentRevisionId}.png`);
+  const image = entries.get('attachments/shot.png');
   assert.ok(image !== undefined, paths.join(', '));
   assert.equal(Buffer.compare(image, pngBytes), 0);
-  // The attachment file itself is not repeated at its own path.
-  assert.equal(paths.includes('assets/shot.png'), false);
+
+  const createdWorkspace = await createWorkspace({
+    headers: browser(cookie),
+    body: { name: 'Imported workspace' },
+  });
+  const importedWorkspaceId = createdWorkspace.data?.workspaceId ?? '';
+  assert.match(importedWorkspaceId, /^[0-9a-f-]{36}$/);
+  const imported = await importWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: importedWorkspaceId },
+    body: {
+      file: new File([archive], 'notes.zip', { type: 'application/zip' }),
+    },
+  });
+  assert.deepEqual(imported.data, { notes: 2, attachments: 1 });
+  const roundTrip = await exportWorkspace({
+    headers: browser(cookie),
+    path: { workspaceId: importedWorkspaceId },
+  });
+  const roundTripEntries = readArchive(
+    Buffer.from(await (roundTrip.data as Blob).arrayBuffer()),
+  );
+  assert.deepEqual([...roundTripEntries.keys()], [...entries.keys()]);
+  for (const [path, bytes] of entries)
+    assert.equal(Buffer.compare(roundTripEntries.get(path) ?? Buffer.alloc(0), bytes), 0);
 });
 
 await test('the archive follows a rename and a later edit', async () => {

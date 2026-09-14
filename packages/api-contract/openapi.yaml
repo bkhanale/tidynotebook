@@ -57,6 +57,8 @@ paths:
           $ref: '#/components/responses/Health'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/ready:
@@ -159,6 +161,8 @@ paths:
           $ref: '#/components/responses/PayloadTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/account:
@@ -1081,6 +1085,42 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/import:
+    post:
+      operationId: importWorkspace
+      summary: Import a portable workspace zip archive.
+      description: >-
+        Reads Markdown files and image files at their archive paths. The
+        operation does not rewrite a Markdown reference. Every imported path
+        must be free in the workspace.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+      requestBody:
+        $ref: '#/components/requestBodies/ImportWorkspace'
+      responses:
+        '200':
+          $ref: '#/components/responses/WorkspaceImported'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/UnprocessableContent'
+        '500':
+          $ref: '#/components/responses/ServerError'
   /api/workspaces/{workspaceId}/files/{fileId}/export:
     get:
       operationId: exportNote
@@ -1108,6 +1148,32 @@ paths:
           $ref: '#/components/responses/NotFound'
         '410':
           $ref: '#/components/responses/Gone'
+        '500':
+          $ref: '#/components/responses/ServerError'
+  /api/workspaces/{workspaceId}/files/{fileId}/backlinks:
+    get:
+      operationId: listBacklinks
+      summary: List notes that link to one live file.
+      description: >-
+        Reads the accepted path-based link index. Each result names the live
+        note and revision that contains at least one link to this file.
+      tags:
+        - files
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+        - $ref: '#/components/parameters/WorkspaceId'
+        - $ref: '#/components/parameters/FileId'
+      responses:
+        '200':
+          $ref: '#/components/responses/BacklinkList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
 components:
@@ -1417,6 +1483,13 @@ components:
         multipart/form-data:
           schema:
             $ref: '#/components/schemas/UploadAttachmentInput'
+    ImportWorkspace:
+      description: Multipart form upload that contains one portable zip archive.
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            $ref: '#/components/schemas/ImportWorkspaceInput'
     FinalizeAttachment:
       description: Payload to finalize an attachment and create an immutable revision.
       required: true
@@ -1516,6 +1589,12 @@ components:
             $ref: '#/components/schemas/ProblemDetails'
     UnsupportedMediaType:
       description: The request media type is not supported.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ProblemDetails'
+    RateLimited:
+      description: Too many attempts were made in a short time.
       content:
         application/problem+json:
           schema:
@@ -1620,6 +1699,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/SearchResults'
+    BacklinkList:
+      description: Live notes that link to one file path.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/BacklinkList'
     FileChange:
       description: The accepted revision and the outcome of its changeset.
       content:
@@ -1674,6 +1759,12 @@ components:
           schema:
             type: string
             format: binary
+    WorkspaceImported:
+      description: Counts of the files read from one portable archive.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ImportWorkspaceResult'
     AttachmentBinary:
       description: Binary bytes of the immutable attachment.
       content:
@@ -2334,6 +2425,40 @@ components:
           maxItems: 100
           items:
             $ref: '#/components/schemas/SearchHit'
+    Backlink:
+      type: object
+      description: One live note that links to the requested file path.
+      additionalProperties: false
+      required:
+        - fileId
+        - path
+        - revisionId
+      properties:
+        fileId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+        path:
+          allOf:
+            - $ref: '#/components/schemas/FilePath'
+          readOnly: true
+        revisionId:
+          allOf:
+            - $ref: '#/components/schemas/Uuid'
+          readOnly: true
+    BacklinkList:
+      type: object
+      description: Live notes that link to one current file path.
+      additionalProperties: false
+      required:
+        - backlinks
+      properties:
+        backlinks:
+          type: array
+          readOnly: true
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/Backlink'
     WorkspaceFile:
       type: object
       description: One live file and the content of its accepted head.
@@ -2936,6 +3061,31 @@ components:
           type: string
           format: binary
           description: Binary bytes of the image attachment.
+    ImportWorkspaceInput:
+      type: object
+      description: Multipart form upload payload that contains one zip archive.
+      additionalProperties: false
+      required:
+        - file
+      properties:
+        file:
+          type: string
+          format: binary
+          description: Portable workspace zip archive.
+    ImportWorkspaceResult:
+      type: object
+      description: Counts of files imported without reference translation.
+      additionalProperties: false
+      required:
+        - notes
+        - attachments
+      properties:
+        notes:
+          type: integer
+          minimum: 0
+        attachments:
+          type: integer
+          minimum: 0
     AttachmentUploadResult:
       type: object
       description: The uploaded temporary attachment object and its verified digest.

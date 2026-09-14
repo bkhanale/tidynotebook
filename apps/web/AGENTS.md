@@ -76,3 +76,4 @@ behaviour is proved by a Playwright journey in `tests/e2e`.
 | `src/shell/shell.tsx`                 | The layout frame and the tree   |
 | `src/features/editor/note-editor.tsx` | The editor host and editor view |
 | `vite.config.ts`                      | Build, theme assets, worker     |
+| `src/logging.ts`                      | Browser sink for log events     |

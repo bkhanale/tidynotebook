@@ -133,5 +133,7 @@ async function generateFrom(
 
 if (process.argv[1] !== undefined && import.meta.filename === process.argv[1]) {
   await generateInto(repositoryRoot);
-  console.log('Generated the contract index, its validators, and the SDK.');
+  process.stdout.write(
+    'Generated the contract index, its validators, and the SDK.\n',
+  );
 }

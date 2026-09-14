@@ -196,10 +196,10 @@ export async function main(directory) {
       );
   }
   if (failures.length) {
-    console.error(failures.join('\n'));
+    process.stderr.write(`${failures.join('\n')}\n`);
     return 1;
   }
-  console.log(`Version policy passed for ${count} manifest(s).`);
+  process.stdout.write(`Version policy passed for ${count} manifest(s).\n`);
   return 0;
 }
 
@@ -208,7 +208,9 @@ export async function main(directory) {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.length && (args.length !== 2 || args[0] !== '--root')) {
-    console.error('Usage: node tools/check-versions.mjs [--root <directory>]');
+    process.stderr.write(
+      'Usage: node tools/check-versions.mjs [--root <directory>]\n',
+    );
     process.exit(1);
   }
   process.exit(await main(resolve(args[1] ?? root)));

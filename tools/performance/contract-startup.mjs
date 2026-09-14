@@ -61,10 +61,10 @@ for (let run = 0; run < samples; run += 1) {
   resident.push(Number(measured.rssBytes));
 }
 
-console.log(
+process.stdout.write(
   [
     `samples: ${String(samples)}`,
     `load: ${median(times).toFixed(1)} ms (median)`,
     `rss: ${(median(resident) / 1024 / 1024).toFixed(1)} MB (median)`,
-  ].join('\n'),
+  ].join('\n') + '\n',
 );

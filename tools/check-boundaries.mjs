@@ -7,7 +7,9 @@ import { filesIn, record, root, workspaces } from './workspace.mjs';
 // A separate root permits disposable negative checks without application fixtures.
 const args = process.argv.slice(2);
 if (args.length && (args.length !== 2 || args[0] !== '--root')) {
-  console.error('Usage: node tools/check-boundaries.mjs [--root <directory>]');
+  process.stderr.write(
+    'Usage: node tools/check-boundaries.mjs [--root <directory>]\n',
+  );
   process.exit(1);
 }
 const directory = resolve(args[1] ?? root);
@@ -22,8 +24,9 @@ const allowed = {
     'markdown',
     'editor',
     'ui',
+    'logging',
   ],
-  server: ['api-contract', 'core', 'storage-server', 'markdown'],
+  server: ['api-contract', 'core', 'storage-server', 'markdown', 'logging'],
   'api-contract': [],
   'api-client': [],
   core: [],
@@ -34,6 +37,7 @@ const allowed = {
   'storage-browser': ['core', 'sync'],
   sync: ['core', 'api-client'],
   markdown: ['core'],
+  logging: [],
   editor: ['core', 'markdown', 'ui'],
   ui: [],
   'sdk-codegen': ['api-contract'],
@@ -49,6 +53,7 @@ const browser = new Set([
   'markdown',
   'editor',
   'ui',
+  'logging',
 ]);
 const serverOnly = new Set(['server', 'storage-server']);
 // Recognized test files may use these modules. Production files may not.
@@ -330,6 +335,15 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     if (!allowed[key]?.includes(short(dependency)))
       fail(file, `Forbidden import ${dependency}.`);
   }
+  if (
+    dependency === 'pino' &&
+    filePath !== 'apps/server/src/logging.ts' &&
+    key !== 'logging'
+  )
+    fail(
+      file,
+      'Pino belongs in the shared logging package or the server sink adapter.',
+    );
   const blocker = browserBlocker(specifier);
   if (blocker && !isBuild && !(isTest && testModules.has(specifier))) {
     if (browser.has(key))
@@ -725,9 +739,9 @@ function visit(name, chain) {
 }
 for (const name of graph.keys()) visit(name, []);
 if (failures.length) {
-  console.error([...new Set(failures)].join('\n'));
+  process.stderr.write(`${[...new Set(failures)].join('\n')}\n`);
   process.exitCode = 1;
 } else
-  console.log(
-    `Boundary checks passed for ${packages.length} packages and ${sources.length} source files.`,
+  process.stdout.write(
+    `Boundary checks passed for ${packages.length} packages and ${sources.length} source files.\n`,
   );

@@ -12,6 +12,7 @@
  */
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
+import process from 'node:process';
 import test from 'node:test';
 import { IDBFactory, IDBKeyRange as FakeKeyRange } from 'fake-indexeddb';
 import {
@@ -908,15 +909,15 @@ await test('local save and cached opening stay inside their targets', async () =
     samples[
       Math.min(samples.length - 1, Math.ceil(samples.length * fraction) - 1)
     ] ?? 0;
-  console.log(
+  process.stdout.write(
     `draft save over ${String(saveSamples.length)} runs: p50 ${at(saveSamples, 0.5).toFixed(2)} ms, ` +
       `p95 ${at(saveSamples, 0.95).toFixed(2)} ms, max ${(saveSamples.at(-1) ?? 0).toFixed(2)} ms ` +
-      `(fake-indexeddb in Node, not browser durability)`,
+      `(fake-indexeddb in Node, not browser durability)\n`,
   );
-  console.log(
+  process.stdout.write(
     `cached note open over ${String(readSamples.length)} runs: p50 ${at(readSamples, 0.5).toFixed(2)} ms, ` +
       `p95 ${at(readSamples, 0.95).toFixed(2)} ms, max ${(readSamples.at(-1) ?? 0).toFixed(2)} ms ` +
-      `(fake-indexeddb in Node, not a browser paint)`,
+      `(fake-indexeddb in Node, not a browser paint)\n`,
   );
   assert.ok(
     at(saveSamples, 0.95) < 150,

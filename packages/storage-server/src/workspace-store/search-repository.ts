@@ -5,8 +5,8 @@
  * function and clears the index rows of files that a changeset deleted.
  */
 import { and, eq, inArray } from 'drizzle-orm';
-import type { SearchHit, WorkspaceTransaction } from '@notesapp/core';
-import { searchIndex } from '../schema.ts';
+import type { Backlink, SearchHit, WorkspaceTransaction } from '@notesapp/core';
+import { noteLinks, searchIndex } from '../schema.ts';
 import { splitExcerpt } from '../excerpt.ts';
 import { assertUuid } from './errors.ts';
 import type { RepositoryContext } from './context.ts';
@@ -14,7 +14,7 @@ import type { RepositoryContext } from './context.ts';
 /** Builds the search slice of the port over one open transaction. */
 export function searchRepository(
   context: RepositoryContext,
-): Pick<WorkspaceTransaction, 'search' | 'onFilesDeleted'> {
+): Pick<WorkspaceTransaction, 'search' | 'backlinks' | 'onFilesDeleted'> {
   const { client, db, workspaceId } = context;
   return {
     async search(query: string, limit: number): Promise<readonly SearchHit[]> {
@@ -35,6 +35,28 @@ export function searchRepository(
       }));
     },
 
+    async backlinks(
+      targetPath: string,
+      limit: number,
+    ): Promise<readonly Backlink[]> {
+      const rows = await db
+        .select({
+          fileId: noteLinks.sourceFileId,
+          path: noteLinks.sourcePath,
+          revisionId: noteLinks.sourceRevisionId,
+        })
+        .from(noteLinks)
+        .where(
+          and(
+            eq(noteLinks.workspaceId, workspaceId),
+            eq(noteLinks.targetPath, targetPath),
+          ),
+        )
+        .orderBy(noteLinks.sourcePath)
+        .limit(limit);
+      return rows;
+    },
+
     async onFilesDeleted(fileIds: readonly string[]): Promise<void> {
       if (fileIds.length === 0) return;
       for (const fileId of fileIds) assertUuid(fileId, 'a file');
@@ -46,6 +68,14 @@ export function searchRepository(
           and(
             eq(searchIndex.workspaceId, workspaceId),
             inArray(searchIndex.fileId, ids),
+          ),
+        );
+      await db
+        .delete(noteLinks)
+        .where(
+          and(
+            eq(noteLinks.workspaceId, workspaceId),
+            inArray(noteLinks.sourceFileId, ids),
           ),
         );
     },

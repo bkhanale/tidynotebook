@@ -46,15 +46,15 @@ try {
     ),
   ];
   if (differences.length > 0) {
-    console.error(
+    process.stderr.write(
       [
         'Generated output is out of date. Run `pnpm generate`.',
         ...differences,
-      ].join('\n'),
+      ].join('\n') + '\n',
     );
     process.exitCode = 1;
   } else {
-    console.log('Generated output matches the contract.');
+    process.stdout.write('Generated output matches the contract.\n');
   }
 } finally {
   await rm(temporary, { recursive: true, force: true });

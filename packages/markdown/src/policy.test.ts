@@ -78,8 +78,6 @@ await test('every other scheme and shape is blocked', () => {
     'file:///etc/passwd',
     'ftp://example.com/file',
     '//evil.example.com/steal',
-    'relative/path.md',
-    './sibling.md',
     '/notes/not-a-uuid',
     `/notes/${noteId}/extra`,
     `/notes/${noteId}?x=1`,
@@ -88,6 +86,25 @@ await test('every other scheme and shape is blocked', () => {
     '/',
   ])
     assert.deepEqual(classifyUrl(url), { kind: 'blocked' }, url);
+});
+
+await test('portable paths resolve inside the workspace tree', () => {
+  assert.deepEqual(classifyUrl('../plan.md', 'projects/active/today.md'), {
+    kind: 'relative',
+    path: 'projects/plan.md',
+    href: '../plan.md',
+  });
+  assert.deepEqual(
+    classifyUrl('../../attachments/map%20one.png', 'projects/active/today.md'),
+    {
+      kind: 'relative',
+      path: 'attachments/map one.png',
+      href: '../../attachments/map%20one.png',
+    },
+  );
+  assert.deepEqual(classifyUrl('../../outside.md', 'one/note.md'), {
+    kind: 'blocked',
+  });
 });
 
 await test('safe heading fragments are namespaced', () => {

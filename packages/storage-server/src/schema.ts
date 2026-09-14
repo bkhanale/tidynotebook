@@ -599,6 +599,56 @@ export const searchIndex = pgTable(
   ],
 );
 
+/** One accepted, path-based link from a live note. */
+export const noteLinks = pgTable(
+  'note_links',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    sourceFileId: uuid('source_file_id').notNull(),
+    sourceRevisionId: uuid('source_revision_id').notNull(),
+    sourcePath: text('source_path').notNull(),
+    targetPath: text('target_path').notNull(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.workspaceId, table.sourceFileId, table.targetPath],
+    }),
+    foreignKey({
+      name: 'note_links_source_file_fk',
+      columns: [table.workspaceId, table.sourceFileId],
+      foreignColumns: [files.workspaceId, files.id],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'note_links_source_revision_fk',
+      columns: [table.workspaceId, table.sourceRevisionId],
+      foreignColumns: [revisions.workspaceId, revisions.id],
+    }).onDelete('cascade'),
+    index('note_links_target_idx').on(table.workspaceId, table.targetPath),
+  ],
+);
+
+/** One unresolved version 0.1.0 reference found by the data migration. */
+export const portableMarkdownMigrationReport = pgTable(
+  'portable_markdown_migration_report',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    sourcePath: text('source_path').notNull(),
+    reference: text('reference').notNull(),
+    reportedAt: timestamp('reported_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({
+      columns: [table.workspaceId, table.sourcePath, table.reference],
+    }),
+  ],
+);
+
 /**
  * Better Auth tables.
  *

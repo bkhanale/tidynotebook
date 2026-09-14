@@ -16,6 +16,7 @@
   "references": [
     { "path": "../../packages/api-contract/tsconfig.build.json" },
     { "path": "../../packages/core/tsconfig.build.json" },
+    { "path": "../../packages/logging/tsconfig.build.json" },
     { "path": "../../packages/markdown/tsconfig.build.json" },
     { "path": "../../packages/storage-server/tsconfig.build.json" }
   ]

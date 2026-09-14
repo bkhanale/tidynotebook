@@ -49,6 +49,7 @@ function fakeStore(
 ): WorkspaceStore {
   const tx: WorkspaceTransaction = {
     search: () => Promise.resolve([]),
+    backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     role: (id: string) => Promise.resolve(roles.get(id) ?? null),
     receipt: () => Promise.resolve(null),

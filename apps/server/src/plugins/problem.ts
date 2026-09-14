@@ -442,6 +442,13 @@ export function classifyError(error: unknown): {
       ...(error.fileIds !== undefined ? { fileIds: error.fileIds } : {}),
     };
   const code = fastifyErrorCode(error);
+  if (readProperty(error, 'statusCode') === 429)
+    return {
+      status: 429,
+      code: 'rate_limited',
+      detail: titles.rate_limited,
+      issues: [],
+    };
   if (code === 'FST_ERR_CTP_BODY_TOO_LARGE')
     return {
       status: 413,

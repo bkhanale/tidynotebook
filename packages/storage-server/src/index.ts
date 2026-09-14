@@ -33,6 +33,10 @@ export {
   type MigrationRun,
 } from './migrate.ts';
 export {
+  migratePortableMarkdown,
+  type PortableMarkdownMigrationResult,
+} from './portable-markdown-migration.ts';
+export {
   assertProfileDatabase,
   databaseName,
   isTestDatabaseName,

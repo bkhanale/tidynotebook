@@ -78,3 +78,4 @@ express, such as a forged Host header, uses `app.inject()`.
 | `src/routes/handlers.ts`          | One handler per operation id, readiness probes |
 | `src/auth/actor.ts`               | Turns a session into a verified actor          |
 | `src/config.ts`                   | Environment reading and refusal messages       |
+| `src/logging.ts`                  | Pino sink for the shared event catalog         |

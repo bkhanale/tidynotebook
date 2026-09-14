@@ -20,6 +20,7 @@
     "@notesapp/core": "workspace:*",
     "@notesapp/editor": "workspace:*",
     "@notesapp/markdown": "workspace:*",
+    "@notesapp/logging": "workspace:*",
     "@notesapp/storage-browser": "workspace:*",
     "@notesapp/sync": "workspace:*",
     "@notesapp/ui": "workspace:*",

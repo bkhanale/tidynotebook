@@ -31,6 +31,19 @@ await test('a complete environment produces a configuration', () => {
   assert.equal(config.limits.bodyBytes, 1048576);
   assert.equal(config.limits.headerBytes, 16384);
   assert.equal(config.limits.requestTimeoutMs, 5000);
+  assert.deepEqual(config.rateLimit, { windowSeconds: 60, max: 100 });
+});
+
+await test('the public route rate limit is explicit and configurable', () => {
+  assert.deepEqual(
+    loadServerConfig(
+      environment({
+        NOTESAPP_RATE_LIMIT_WINDOW_S: '30',
+        NOTESAPP_RATE_LIMIT_MAX: '8',
+      }),
+    ).rateLimit,
+    { windowSeconds: 30, max: 8 },
+  );
 });
 
 await test('the identity connection must use its own role', () => {

@@ -188,12 +188,16 @@ export async function main(directory) {
       );
   }
   if (failures.length > 0) {
-    console.error('Agent guide check failed:');
-    for (const failure of failures) console.error(`  ${failure}`);
+    process.stderr.write(
+      [
+        'Agent guide check failed:',
+        ...failures.map((failure) => `  ${failure}`),
+      ].join('\n') + '\n',
+    );
     return 1;
   }
-  console.log(
-    `Agent guides: the root guide matches ${rules.length} rule files, ${guidedDirectories.length} directory guides are present with a complete reading list, and both harness entries resolve.`,
+  process.stdout.write(
+    `Agent guides: the root guide matches ${rules.length} rule files, ${guidedDirectories.length} directory guides are present with a complete reading list, and both harness entries resolve.\n`,
   );
   return 0;
 }
@@ -203,7 +207,9 @@ export async function main(directory) {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.length && (args.length !== 2 || args[0] !== '--root')) {
-    console.error('Usage: node tools/check-agents-md.mjs [--root <directory>]');
+    process.stderr.write(
+      'Usage: node tools/check-agents-md.mjs [--root <directory>]\n',
+    );
     process.exit(1);
   }
   process.exit(await main(resolve(args[1] ?? root)));

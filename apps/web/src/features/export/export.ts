@@ -9,7 +9,11 @@
  * The download name comes from the answer. The server states it in the
  * content disposition, which is the one place that knows the stored path.
  */
-import { exportNote, exportWorkspace } from '@notesapp/api-client';
+import {
+  exportNote,
+  exportWorkspace,
+  importWorkspace,
+} from '@notesapp/api-client';
 
 /** The problem code of a failed generated call, or an empty string. */
 function problemCode(error: unknown): string {
@@ -110,4 +114,18 @@ export async function downloadAll(workspaceId: string): Promise<void> {
       'notes.zip',
     ),
   );
+}
+
+/** Imports one portable workspace archive without changing its references. */
+export async function importAll(
+  workspaceId: string,
+  file: File,
+): Promise<{ readonly notes: number; readonly attachments: number }> {
+  const answer = await importWorkspace({
+    path: { workspaceId },
+    body: { file },
+  });
+  if (answer.error !== undefined || answer.data === undefined)
+    throw refuse(answer.error);
+  return answer.data;
 }

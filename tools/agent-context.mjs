@@ -126,13 +126,17 @@ export async function missingFiles(directory, entries) {
  */
 export async function main(directory, paths) {
   const entries = await readingList(directory, paths);
-  console.log('Read these files in order before you edit:');
+  process.stdout.write('Read these files in order before you edit:\n');
   for (const [index, entry] of entries.entries())
-    console.log(`  ${index + 1}. ${entry.file}: ${entry.purpose}`);
+    process.stdout.write(`  ${index + 1}. ${entry.file}: ${entry.purpose}\n`);
   const missing = await missingFiles(directory, entries);
   if (missing.length > 0) {
-    console.error('Missing files. A guide points at a file that is not there:');
-    for (const file of missing) console.error(`  ${file}`);
+    process.stderr.write(
+      [
+        'Missing files. A guide points at a file that is not there:',
+        ...missing.map((file) => `  ${file}`),
+      ].join('\n') + '\n',
+    );
     return 1;
   }
   return 0;
@@ -142,7 +146,7 @@ if (import.meta.main) {
   const args = process.argv.slice(2);
   const rooted = args[0] === '--root';
   if (rooted && args.length < 2) {
-    console.error('Usage: node tools/agent-context.mjs [path ...]');
+    process.stderr.write('Usage: node tools/agent-context.mjs [path ...]\n');
     process.exit(1);
   }
   const directory = resolve(rooted ? (args[1] ?? root) : root);

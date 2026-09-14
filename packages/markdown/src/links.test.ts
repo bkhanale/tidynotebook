@@ -35,7 +35,13 @@ function expected(
   targetId: string | null,
 ): unknown {
   const from = offsetOf(source);
-  return { range: { from, to: from + source.length }, label, targetId, source };
+  return {
+    range: { from, to: from + source.length },
+    label,
+    targetId,
+    targetPath: null,
+    source,
+  };
 }
 
 await test('every reported range is an exact slice of the source', () => {
@@ -109,6 +115,7 @@ await test('the corpus attachment image is found', () => {
     {
       range: { from, to: from + image.length },
       revisionId: attachmentIdA,
+      targetPath: null,
       source: image,
     },
   ]);
@@ -145,4 +152,17 @@ await test('a byte order mark does not shift a reported range', () => {
     `\ufeff![a](/attachments/${attachmentIdA})\n`,
   );
   assert.equal(images[0]?.range.from, 1);
+});
+
+await test('portable note and attachment paths resolve from the source note', () => {
+  const source =
+    '[plan](../plan.md#work)\n\n![map](../../attachments/map%20one.png)\n';
+  assert.equal(
+    extractLinks(source, 'projects/active/today.md')[0]?.targetPath,
+    'projects/plan.md',
+  );
+  assert.equal(
+    extractAttachmentRefs(source, 'projects/active/today.md')[0]?.targetPath,
+    'attachments/map one.png',
+  );
 });

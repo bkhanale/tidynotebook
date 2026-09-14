@@ -80,6 +80,31 @@ export type IdentityAdapter = {
   resolver: IdentityResolver;
 };
 
+/** The account calls that can resolve a session in a single-user install. */
+type SessionAccountStore = Pick<
+  IdentityStoreHandle,
+  'accountOf' | 'linkFirstAccount'
+>;
+
+/**
+ * Returns the account of one session without opening a second-account path.
+ *
+ * A failed setup compensation can leave an unlinked identity user. That user
+ * must not become another application account when its session is resolved.
+ */
+export async function accountForSession(
+  identity: SessionAccountStore,
+  authUserId: string,
+): Promise<string | null> {
+  return (
+    (await identity.accountOf(authUserId)) ??
+    identity.linkFirstAccount({
+      authUserId,
+      workspaceName: 'Personal',
+    })
+  );
+}
+
 /**
  * Reads the session of a request.
  *
@@ -177,15 +202,11 @@ export function createIdentityAdapter(
     });
     const user = readSessionUser(session);
     if (user === null) return null;
-    // The account identifier is created on first sign-in, together with the
-    // personal workspace, in one database transaction. The call is idempotent,
-    // so a repeated sign-in reuses the account it already created.
-    const linked =
-      (await dependencies.identity.accountOf(user.id)) ??
-      (await dependencies.identity.linkAccount({
-        authUserId: user.id,
-        workspaceName: 'Personal',
-      }));
+    // A session can reuse its linked account. An unlinked identity can create
+    // only the first account, so a failed setup compensation cannot become a
+    // path to a second account.
+    const linked = await accountForSession(dependencies.identity, user.id);
+    if (linked === null) return null;
     const memberships = await dependencies.identity.memberships(linked);
     const verified = verifyActor(linked, sessionGrants(memberships));
     if (!verified.ok) return null;

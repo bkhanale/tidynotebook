@@ -21,6 +21,7 @@ import {
   parseProfile,
   type MigrationProfile,
 } from './profiles.ts';
+import { migratePortableMarkdown } from './portable-markdown-migration.ts';
 
 /** The name of the runtime role that the migration creates. */
 export const runtimeRole = 'notesapp_app';
@@ -41,7 +42,15 @@ export const authRole = 'notesapp_auth';
  * `migrations/meta/_journal.json`. The readiness probe compares its answer
  * with this constant, so one value describes the required set.
  */
-export const requiredSchemaVersion = 3;
+export const requiredSchemaVersion = 4;
+
+/**
+ * One PostgreSQL advisory lock serializes every migration run.
+ *
+ * This is a session lock because Drizzle can commit between migration files.
+ * The fixed signed 64 bit key belongs only to the notesapp migration command.
+ */
+const migrationLockKey = '6178626538595505297';
 
 /** The reviewed migration directory of this package. */
 export function migrationsFolder(): string {
@@ -83,22 +92,32 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
   const client = new pg.Client({ connectionString: run.databaseUrl });
   await client.connect();
   try {
-    await migrate(drizzle(client), { migrationsFolder: migrationsFolder() });
-    for (const [role, password] of [
-      [runtimeRole, run.runtimePassword],
-      [authRole, run.authPassword],
-    ] as const) {
-      // DDL cannot take a bind parameter, so PostgreSQL itself quotes the
-      // literal and the result is executed as one statement.
-      const built = await client.query<{ statement: string }>(
-        'select format($1, $2::text) as statement',
-        [`alter role ${role} with password %L`, password],
-      );
-      const statement = built.rows[0]?.statement;
-      if (statement === undefined) {
-        throw new Error(`notesapp: the ${role} password was not built.`);
+    await client.query('select pg_advisory_lock($1::bigint)', [
+      migrationLockKey,
+    ]);
+    try {
+      await migrate(drizzle(client), { migrationsFolder: migrationsFolder() });
+      for (const [role, password] of [
+        [runtimeRole, run.runtimePassword],
+        [authRole, run.authPassword],
+      ] as const) {
+        // DDL cannot take a bind parameter, so PostgreSQL itself quotes the
+        // literal and the result is executed as one statement.
+        const built = await client.query<{ statement: string }>(
+          'select format($1, $2::text) as statement',
+          [`alter role ${role} with password %L`, password],
+        );
+        const statement = built.rows[0]?.statement;
+        if (statement === undefined) {
+          throw new Error(`notesapp: the ${role} password was not built.`);
+        }
+        await client.query(statement);
       }
-      await client.query(statement);
+      await migratePortableMarkdown(run.databaseUrl);
+    } finally {
+      await client.query('select pg_advisory_unlock($1::bigint)', [
+        migrationLockKey,
+      ]);
     }
   } finally {
     await client.end();

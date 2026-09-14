@@ -55,6 +55,7 @@ import {
   type SyncState,
 } from './lib/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
+import { webLogger } from './logging.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
 function readProperty(value: unknown, key: string): unknown {
@@ -74,7 +75,8 @@ export function problemMessage(error: unknown): string {
   const status = readProperty(error, 'status');
   const knownCode = typeof code === 'string' && code !== '' ? code : null;
   const knownStatus = typeof status === 'number' ? status : null;
-  if (knownCode !== null) console.warn('notesapp problem code', knownCode);
+  if (knownCode !== null)
+    webLogger.emit('web.problem', { problemCode: knownCode });
   return problemSentence(knownCode, knownStatus);
 }
 

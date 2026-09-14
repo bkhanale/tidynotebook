@@ -16,6 +16,8 @@ import {
   type MutableRefObject,
 } from 'react';
 import { createAttachmentLoader } from '../../lib/attachment-content.ts';
+import { extractAttachmentRefs } from '@notesapp/markdown';
+import type { LocalStore } from '@notesapp/sync';
 
 /** Attachment revision references in stored Markdown. */
 const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
@@ -71,7 +73,10 @@ export type AttachmentUrls = {
  * always holds the current map, so a resolver can read it without a rerender.
  */
 export function useAttachmentUrls(
+  store: LocalStore,
+  accountId: string,
   workspaceId: string,
+  notePath: string,
   bufferText: string,
 ): AttachmentUrls {
   const [attachmentUrls, setAttachmentUrls] = useState<
@@ -90,34 +95,50 @@ export function useAttachmentUrls(
   // Attachment widgets use authenticated object URLs. URLs are revoked when
   // their references leave the note and when the editor closes.
   useEffect(() => {
-    const wanted = extractAttachmentIds(bufferText);
-    const owned = ownedUrlsRef.current;
-    for (const [id, entry] of owned) {
-      if (!wanted.includes(id)) {
-        entry.dispose();
-        owned.delete(id);
-      }
-    }
-    if (wanted.every((id) => owned.has(id))) {
-      setAttachmentUrls((current) =>
-        sameUrls(current, owned)
-          ? current
-          : new Map([...owned].map(([id, entry]) => [id, entry.url] as const)),
-      );
-      return;
-    }
     let cancelled = false;
     const controller = new AbortController();
     void (async (): Promise<void> => {
-      for (const id of wanted) {
-        if (cancelled || owned.has(id)) continue;
+      const references = extractAttachmentRefs(bufferText, notePath);
+      const files = await store.listLocalFiles(accountId, workspaceId);
+      if (cancelled) return;
+      const wanted = references.flatMap((reference) => {
+        if (reference.revisionId !== null)
+          return [
+            { key: reference.revisionId, revisionId: reference.revisionId },
+          ];
+        const file = files.find(
+          (entry) =>
+            entry.kind === 'attachment' &&
+            !entry.deleted &&
+            entry.path === reference.targetPath,
+        );
+        const revisionId =
+          file?.localHeadRevisionId ?? file?.acceptedHeadRevisionId;
+        return reference.targetPath === null ||
+          revisionId === null ||
+          revisionId === undefined
+          ? []
+          : [{ key: reference.targetPath, revisionId }];
+      });
+      const owned = ownedUrlsRef.current;
+      for (const [key, entry] of owned) {
+        if (!wanted.some((item) => item.key === key)) {
+          entry.dispose();
+          owned.delete(key);
+        }
+      }
+      for (const item of wanted) {
+        if (cancelled || owned.has(item.key)) continue;
         try {
-          const loaded = await loader.loadAttachment(id, controller.signal);
+          const loaded = await loader.loadAttachment(
+            item.revisionId,
+            controller.signal,
+          );
           if (cancelled) {
             loaded.dispose();
             continue;
           }
-          owned.set(id, { url: loaded.url, dispose: loaded.dispose });
+          owned.set(item.key, { url: loaded.url, dispose: loaded.dispose });
         } catch {
           // A missing attachment stays as editable source in its widget.
         }
@@ -135,7 +156,7 @@ export function useAttachmentUrls(
       cancelled = true;
       controller.abort();
     };
-  }, [loader, bufferText]);
+  }, [store, accountId, workspaceId, notePath, loader, bufferText]);
 
   useEffect(
     () => () => {

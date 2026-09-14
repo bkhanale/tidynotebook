@@ -32,6 +32,13 @@ export function isIdentifier(value: string): boolean {
 export type ContentUrl =
   | { readonly kind: 'note'; readonly id: string; readonly href: string }
   | { readonly kind: 'attachment'; readonly id: string; readonly href: string }
+  | {
+      readonly kind: 'relative';
+      /** The decoded, workspace-root-relative target path. */
+      readonly path: string;
+      /** The portable destination as it appears in rendered HTML. */
+      readonly href: string;
+    }
   | { readonly kind: 'fragment'; readonly href: string }
   | { readonly kind: 'external'; readonly href: string }
   | { readonly kind: 'blocked' };
@@ -59,6 +66,43 @@ const notePath = /^\/notes\/([^/?#]+)(#[A-Za-z0-9_-]+)?$/;
 const attachmentPath = /^\/attachments\/([^/?#]+)$/;
 const localFragment = /^#([A-Za-z0-9_-]+)$/;
 
+/** A scheme at the start of a destination. */
+const anyScheme = /^[A-Za-z][A-Za-z0-9+.-]*:/;
+
+/** Resolves a portable destination against the folder of one stored note. */
+function relativeTarget(url: string, sourcePath: string): string | null {
+  const hash = url.indexOf('#');
+  const encodedPath = hash === -1 ? url : url.slice(0, hash);
+  const rawFragment = hash === -1 ? '' : url.slice(hash);
+  if (encodedPath === '' || encodedPath.includes('?')) return null;
+  if (rawFragment !== '' && !localFragment.test(rawFragment)) return null;
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(encodedPath);
+  } catch {
+    return null;
+  }
+  if (
+    decoded === '' ||
+    decoded.startsWith('/') ||
+    decoded.includes('\\') ||
+    hasControlCharacter(decoded)
+  )
+    return null;
+  const base = sourcePath.split('/');
+  base.pop();
+  for (const part of decoded.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') {
+      if (base.length === 0) return null;
+      base.pop();
+      continue;
+    }
+    base.push(part.normalize('NFC'));
+  }
+  return base.length === 0 ? null : base.join('/');
+}
+
 /**
  * Classifies an author-supplied destination.
  *
@@ -68,7 +112,7 @@ const localFragment = /^#([A-Za-z0-9_-]+)$/;
  * fragment, and any other relative path. A malformed identifier is blocked
  * too, so a broken reference can never become a working target.
  */
-export function classifyUrl(raw: string): ContentUrl {
+export function classifyUrl(raw: string, sourcePath = ''): ContentUrl {
   const url = raw.trim();
   if (url === '' || hasControlCharacter(url)) return blocked;
   if (url.startsWith('//')) return blocked;
@@ -101,7 +145,10 @@ export function classifyUrl(raw: string): ContentUrl {
     }
     return blocked;
   }
-  return allowedScheme.test(url) ? { kind: 'external', href: url } : blocked;
+  if (allowedScheme.test(url)) return { kind: 'external', href: url };
+  if (anyScheme.test(url) || url.includes(':')) return blocked;
+  const path = relativeTarget(url, sourcePath);
+  return path === null ? blocked : { kind: 'relative', path, href: url };
 }
 
 /**

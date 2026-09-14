@@ -147,8 +147,10 @@ function isFootnoteLink(node: Element): boolean {
  * reader still sees what the author wrote.
  */
 export type RenderMarkdownOptions = {
-  /** Maps an allowed attachment revision to its transport-specific path. */
-  readonly attachmentHref?: (revisionId: string) => string;
+  /** The stored path of the note that holds the Markdown. */
+  readonly sourcePath?: string;
+  /** Maps an allowed attachment path to its transport-specific path. */
+  readonly attachmentHref?: (path: string) => string;
 };
 
 function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
@@ -158,7 +160,9 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
         if (isFootnoteLink(node)) return;
         const href = stringProperty(node, 'href');
         const target =
-          href === null ? { kind: 'blocked' as const } : classifyUrl(href);
+          href === null
+            ? { kind: 'blocked' as const }
+            : classifyUrl(href, options.sourcePath);
         if (target.kind === 'blocked') {
           replaceWith(node, 'span', { dataBlocked: 'link' }, node.children);
           return;
@@ -179,10 +183,13 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
       const source = stringProperty(node, 'src');
       const alt = stringProperty(node, 'alt') ?? '';
       const target =
-        source === null ? { kind: 'blocked' as const } : classifyUrl(source);
-      if (target.kind === 'attachment') {
+        source === null
+          ? { kind: 'blocked' as const }
+          : classifyUrl(source, options.sourcePath);
+      if (target.kind === 'attachment' || target.kind === 'relative') {
         const title = stringProperty(node, 'title');
-        const src = options.attachmentHref?.(target.id) ?? target.href;
+        const key = target.kind === 'attachment' ? target.id : target.path;
+        const src = options.attachmentHref?.(key) ?? target.href;
         node.properties = title === null ? { src, alt } : { src, alt, title };
         return;
       }
@@ -329,7 +336,7 @@ export async function renderMarkdown(
   // this processor would have produced.
   const tree = parseMarkdown(source);
   const processor =
-    options.attachmentHref === undefined
+    options.attachmentHref === undefined && options.sourcePath === undefined
       ? renderProcessor
       : buildRenderProcessor(options);
   const html = processor.stringify(await processor.run(tree));

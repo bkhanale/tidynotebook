@@ -201,8 +201,8 @@ try {
       corpusBatch(start, Math.min(seedBatchSize, corpusNoteCount - start)),
       heads,
     );
-    console.log(
-      `Seeded ${String(Math.min(start + seedBatchSize, corpusNoteCount))} notes.`,
+    process.stdout.write(
+      `Seeded ${String(Math.min(start + seedBatchSize, corpusNoteCount))} notes.\n`,
     );
   }
   await seedBatch(
@@ -212,7 +212,9 @@ try {
     [stressNote()],
     heads,
   );
-  console.log(`Seeded one ${String(stressNoteBytes)} byte stress note.`);
+  process.stdout.write(
+    `Seeded one ${String(stressNoteBytes)} byte stress note.\n`,
+  );
 
   let postgresVersion = 'unknown';
   const statisticsClient = new pg.Client({ connectionString: migrationUrl });
@@ -316,8 +318,8 @@ try {
   for (let round = 1; round <= measuredRounds; round += 1)
     await saveRound(round, true);
   const saveP95Ms = percentile(saveSamples, 0.95);
-  console.log(
-    `Measured ${String(saveSamples.length)} saves with p95 ${saveP95Ms.toFixed(2)} ms.`,
+  process.stdout.write(
+    `Measured ${String(saveSamples.length)} saves with p95 ${saveP95Ms.toFixed(2)} ms.\n`,
   );
 
   const searchSamples: number[] = [];
@@ -352,8 +354,8 @@ try {
   );
   if (!singleSearch.ok || singleSearch.value.length === 0)
     throw new Error('The search warmup failed.');
-  console.log(
-    `Single search warmup took ${(performance.now() - singleSearchStarted).toFixed(2)} ms.`,
+  process.stdout.write(
+    `Single search warmup took ${(performance.now() - singleSearchStarted).toFixed(2)} ms.\n`,
   );
   await searchRound(false);
   for (let round = 0; round < measuredRounds; round += 1)
@@ -392,7 +394,7 @@ try {
       status: searchP95Ms < searchBudgetMs ? 'pass' : 'fail',
     },
   };
-  console.log(JSON.stringify(report, null, 2));
+  process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
   if (report.save.status === 'fail' || report.search.status === 'fail')
     process.exitCode = 1;
 } finally {

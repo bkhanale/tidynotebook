@@ -37,6 +37,7 @@ import {
   RequestMediaTypeError,
   ResponseContractError,
 } from './problem.ts';
+import { createServerLogger } from '../logging.ts';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -250,10 +251,14 @@ function rejectResponse(
 ): never {
   // The rejected body is never logged, so the failure cannot leak the content
   // that the contract refused.
-  request.log.error(
-    { requestId: request.id, ...detail },
-    'The service produced a response outside the contract.',
-  );
+  createServerLogger(request.log)
+    .bind({ requestId: request.id })
+    .emit('http.response.rejected', {
+      operationId: detail.operationId,
+      statusCode: detail.status,
+      mediaType: detail.mediaType,
+      reason: detail.reason,
+    });
   throw new ResponseContractError(detail.status, detail.mediaType);
 }
 
@@ -421,6 +426,10 @@ export function registerOperations(
   handlers: HandlerMap,
   identity?: IdentityResolver,
   protocols: readonly ProtocolAdapter[] = [],
+  rateLimit: {
+    readonly windowSeconds: number;
+    readonly max: number;
+  } = { windowSeconds: 60, max: 100 },
 ): void {
   checkRegistration(
     operations,
@@ -573,9 +582,25 @@ export function registerOperations(
     app.route({
       method: routeMethods[operation.method],
       url: toRoutePath(operation.path),
-      config: { operationId: operation.id },
-      ...(operation.id === 'uploadAttachment'
-        ? { bodyLimit: 25 * 1024 * 1024 }
+      config: {
+        operationId: operation.id,
+        ...(operation.id === 'getSetupStatus' || operation.id === 'createOwner'
+          ? {
+              rateLimit: {
+                groupId: 'setup',
+                max: rateLimit.max,
+                timeWindow: rateLimit.windowSeconds * 1000,
+              },
+            }
+          : {}),
+      },
+      ...(operation.id === 'uploadAttachment' || operation.id === 'importWorkspace'
+        ? {
+            bodyLimit:
+              operation.id === 'importWorkspace'
+                ? 105 * 1024 * 1024
+                : 25 * 1024 * 1024,
+          }
         : {}),
       schema,
       handler: async (request, reply) => {

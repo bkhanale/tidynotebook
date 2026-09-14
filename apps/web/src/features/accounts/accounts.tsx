@@ -5,7 +5,13 @@
  * availability, and sign-out. Theme changes apply locally first and sync in
  * the background through the provider in `app.tsx`.
  */
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import {
   createOwner,
@@ -37,12 +43,13 @@ import {
   useSession,
   useTheme,
   useWorkspace,
+  useRequestSync,
 } from '../../app.tsx';
 import {
   signOut as endSession,
   revokeSessionViaClient,
 } from '../../pwa/lifecycle.ts';
-import { downloadAll } from '../export/export.ts';
+import { downloadAll, importAll } from '../export/export.ts';
 
 /** Redirects to login when no session exists. */
 export function RequireSession({
@@ -548,6 +555,10 @@ export function AccountSettingsPage(): ReactNode {
   const [signOutError, setSignOutError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importNotice, setImportNotice] = useState('');
+  const importInput = useRef<HTMLInputElement | null>(null);
+  const requestSync = useRequestSync();
   const account = session.account;
   const accountId = account?.accountId ?? null;
   const workspaceId =
@@ -693,6 +704,52 @@ export function AccountSettingsPage(): ReactNode {
               }}
             >
               {exporting ? 'Preparing the download' : 'Export all notes'}
+            </Button>
+          </div>
+        </Card>
+
+        <Card title="Import" titleId="import-heading">
+          <p className="m-0 text-control text-muted">
+            Import a zip of Markdown files and images. The files keep their
+            paths and links.
+          </p>
+          {importNotice === '' ? null : (
+            <Notice className="mt-3" tone="info" message={importNotice} />
+          )}
+          <input
+            ref={importInput}
+            className="sr-only"
+            type="file"
+            accept=".zip,application/zip"
+            aria-label="Choose a workspace zip archive"
+            onChange={(event): void => {
+              const file = event.target.files?.[0];
+              if (file === undefined || workspaceId === null) return;
+              setImporting(true);
+              setImportNotice('');
+              void importAll(workspaceId, file)
+                .then((result) => {
+                  setImportNotice(
+                    `Imported ${String(result.notes)} notes and ${String(result.attachments)} images.`,
+                  );
+                  requestSync();
+                })
+                .catch((failure: unknown) => {
+                  setImportNotice(problemMessage(failure));
+                })
+                .finally(() => {
+                  setImporting(false);
+                  event.target.value = '';
+                });
+            }}
+          />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              disabled={importing || workspaceId === null}
+              onClick={() => importInput.current?.click()}
+            >
+              {importing ? 'Importing files' : 'Import workspace'}
             </Button>
           </div>
         </Card>

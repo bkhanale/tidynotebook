@@ -17,6 +17,8 @@ import { inspect } from 'node:util';
 import type { AcceptedChangeset, Result } from '@notesapp/core';
 import { isOperationalError } from '@notesapp/core';
 import {
+  createTestDatabase,
+  dropTestDatabase,
   migrationsFolder,
   openWorkspaceStore,
   runMigrations,
@@ -35,6 +37,7 @@ import {
   openSession,
   revision,
   seedWorkspace,
+  testServerUrl,
   testActor,
   type TestDatabase,
 } from './support/database.ts';
@@ -598,6 +601,31 @@ await test('migrations: applies to an empty database and is a no operation the s
     }
   } finally {
     await fresh.destroy();
+  }
+});
+
+await test('migrations: two concurrent runs serialize on one session lock', async () => {
+  const serverUrl = testServerUrl();
+  const name = `notesapp_test_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+  const migrationUrl = await createTestDatabase(serverUrl, name);
+  const run = {
+    databaseUrl: migrationUrl,
+    runtimePassword: 'notesapp_app_test_password',
+    authPassword: 'notesapp_auth_test_password',
+  };
+  try {
+    await Promise.all([runMigrations(run), runMigrations(run)]);
+    const session = await openSession(migrationUrl);
+    try {
+      const applied = await session.query<{ total: number }>(
+        'select count(*)::int as total from drizzle.__drizzle_migrations',
+      );
+      assert.equal(applied[0]?.total, await reviewedMigrationCount());
+    } finally {
+      await session.close();
+    }
+  } finally {
+    await dropTestDatabase(serverUrl, name);
   }
 });
 

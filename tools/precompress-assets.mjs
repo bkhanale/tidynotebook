@@ -60,7 +60,9 @@ const extensionOf = (file) => {
 
 const directory = process.argv[2];
 if (directory === undefined) {
-  console.error('Usage: node tools/precompress-assets.mjs <directory>');
+  process.stderr.write(
+    'Usage: node tools/precompress-assets.mjs <directory>\n',
+  );
   process.exit(1);
 }
 
@@ -100,7 +102,7 @@ for (const file of files) {
 }
 
 const kib = (/** @type {number} */ bytes) => `${(bytes / 1024).toFixed(0)} KiB`;
-console.log(
+process.stdout.write(
   `precompress: ${String(written)} files written for ${String(files.length)} assets; ` +
-    `${kib(originalBytes)} raw, ${kib(brotliBytes)} brotli, ${kib(gzipBytes)} gzip`,
+    `${kib(originalBytes)} raw, ${kib(brotliBytes)} brotli, ${kib(gzipBytes)} gzip\n`,
 );

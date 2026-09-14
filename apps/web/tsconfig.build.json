@@ -10,7 +10,8 @@
     "lib": ["ES2024", "DOM"],
     "rootDir": "src",
     "outDir": "dist",
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
@@ -18,6 +19,7 @@
     { "path": "../../packages/api-client/tsconfig.build.json" },
     { "path": "../../packages/core/tsconfig.build.json" },
     { "path": "../../packages/editor/tsconfig.build.json" },
+    { "path": "../../packages/logging/tsconfig.build.json" },
     { "path": "../../packages/markdown/tsconfig.build.json" },
     { "path": "../../packages/storage-browser/tsconfig.build.json" },
     { "path": "../../packages/sync/tsconfig.build.json" },

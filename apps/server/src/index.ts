@@ -25,11 +25,7 @@ export {
   migrationProbe,
   storageProbe,
 } from './routes/handlers.ts';
-export {
-  attachRequestLogging,
-  redactUrl,
-  type RequestLogRecord,
-} from './request-log.ts';
+export { attachRequestLogging, redactUrl } from './request-log.ts';
 export type {
   HandlerMap,
   IdentityResolver,

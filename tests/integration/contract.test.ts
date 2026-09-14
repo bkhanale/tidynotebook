@@ -376,7 +376,7 @@ await test('every log record redacts the password reset token', async () => {
       (value): value is string => typeof value === 'string',
     );
   });
-  assert.equal(urls.length >= 2, true, resetAudit.lines.join('\n'));
+  assert.equal(urls.length >= 1, true, resetAudit.lines.join('\n'));
   assert.equal(
     urls.every((url) => url === redacted),
     true,

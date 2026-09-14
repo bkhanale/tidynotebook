@@ -31,7 +31,11 @@ import {
   type SyncChangeFeed,
   type WorkspaceTransaction,
 } from '@notesapp/core';
-import { parseMarkdown } from '@notesapp/markdown';
+import {
+  extractLinks,
+  parseMarkdown,
+  rewriteRelativeReferences,
+} from '@notesapp/markdown';
 import {
   attachmentObjects,
   changesets,
@@ -39,6 +43,7 @@ import {
   files,
   livePaths,
   mutationReceipts,
+  noteLinks,
   revisionParents,
   revisions,
   searchIndex,
@@ -242,6 +247,14 @@ async function updateAcceptedIndexes(
         inArray(searchIndex.fileId, fileIds),
       ),
     );
+  await db
+    .delete(noteLinks)
+    .where(
+      and(
+        eq(noteLinks.workspaceId, workspaceId),
+        inArray(noteLinks.sourceFileId, fileIds),
+      ),
+    );
 
   const searchable = [...acceptedHeads.values()].filter(
     (tip) => !tip.deleted && tip.content.kind === 'markdown',
@@ -262,6 +275,178 @@ async function updateAcceptedIndexes(
       };
     }),
   );
+  const links = searchable.flatMap((tip) => {
+    const text = tip.content.kind === 'markdown' ? tip.content.text : '';
+    const targets = new Set(
+      extractLinks(text, tip.path).flatMap((link) =>
+        link.targetPath === null ? [] : [link.targetPath],
+      ),
+    );
+    return [...targets].map((targetPath) => ({
+      workspaceId,
+      sourceFileId: tip.fileId,
+      sourceRevisionId: tip.id,
+      sourcePath: tip.path,
+      targetPath,
+    }));
+  });
+  if (links.length > 0) await db.insert(noteLinks).values(links);
+}
+
+/** Adds the note revisions needed to keep portable links live after a move. */
+async function expandMovedReferences(
+  db: NodePgDatabase,
+  workspaceId: string,
+  input: ChangesetInput,
+): Promise<Result<ChangesetInput>> {
+  const submittedTips = tips(input);
+  const submittedIds = [...submittedTips.keys()];
+  const current =
+    submittedIds.length === 0
+      ? []
+      : await db
+          .select({
+            fileId: files.id,
+            path: files.path,
+            headRevisionId: files.headRevisionId,
+            kind: files.kind,
+            deleted: files.deleted,
+          })
+          .from(files)
+          .where(
+            and(
+              eq(files.workspaceId, workspaceId),
+              inArray(files.id, submittedIds),
+            ),
+          );
+  const currentById = new Map(current.map((row) => [row.fileId, row]));
+  const movedPaths = new Map<string, string>();
+  for (const [fileId, tip] of submittedTips) {
+    const before = currentById.get(fileId);
+    if (
+      before !== undefined &&
+      !before.deleted &&
+      !tip.deleted &&
+      before.path !== tip.path
+    )
+      movedPaths.set(before.path, tip.path);
+  }
+  if (movedPaths.size === 0) return ok(input);
+
+  const inboundRows = await db
+    .select({ sourceFileId: noteLinks.sourceFileId })
+    .from(noteLinks)
+    .where(
+      and(
+        eq(noteLinks.workspaceId, workspaceId),
+        inArray(noteLinks.targetPath, [...movedPaths.keys()]),
+      ),
+    );
+  const sourceIds = new Set(inboundRows.map((row) => row.sourceFileId));
+  for (const [fileId, before] of currentById)
+    if (before.kind === 'note' && movedPaths.has(before.path))
+      sourceIds.add(fileId);
+
+  const sourceRows =
+    sourceIds.size === 0
+      ? []
+      : await db
+          .select({
+            fileId: files.id,
+            path: files.path,
+            headRevisionId: files.headRevisionId,
+            text: contents.markdown,
+          })
+          .from(files)
+          .innerJoin(
+            revisions,
+            and(
+              eq(revisions.workspaceId, files.workspaceId),
+              eq(revisions.id, files.headRevisionId),
+            ),
+          )
+          .innerJoin(
+            contents,
+            and(
+              eq(contents.workspaceId, revisions.workspaceId),
+              eq(contents.digest, revisions.contentDigest),
+            ),
+          )
+          .where(
+            and(
+              eq(files.workspaceId, workspaceId),
+              eq(files.deleted, false),
+              eq(files.kind, 'note'),
+              inArray(files.id, [...sourceIds]),
+            ),
+          );
+  const sourceById = new Map(sourceRows.map((row) => [row.fileId, row]));
+  const rewritten: RevisionInput[] = [];
+  for (const revision of input.revisions) {
+    if (submittedTips.get(revision.fileId)?.id !== revision.id) {
+      rewritten.push(revision);
+      continue;
+    }
+    const before = sourceById.get(revision.fileId);
+    if (before === undefined || revision.content.kind !== 'markdown') {
+      rewritten.push(revision);
+      continue;
+    }
+    const changed = rewriteRelativeReferences(
+      revision.content.text,
+      before.path,
+      movedPaths,
+    );
+    if (changed.count === 0) {
+      rewritten.push(revision);
+      continue;
+    }
+    rewritten.push({
+      ...revision,
+      content: {
+        kind: 'markdown',
+        digest: markdownDigest(changed.text),
+        text: changed.text,
+      },
+    });
+  }
+
+  const expectedHeads: Record<string, string | null> = {
+    ...input.expectedHeads,
+  };
+  for (const source of sourceRows) {
+    if (
+      submittedTips.has(source.fileId) ||
+      source.headRevisionId === null ||
+      source.text === null
+    )
+      continue;
+    const changed = rewriteRelativeReferences(
+      source.text,
+      source.path,
+      movedPaths,
+    );
+    if (changed.count === 0) continue;
+    expectedHeads[source.fileId] = source.headRevisionId;
+    rewritten.push({
+      id: randomUUID(),
+      fileId: source.fileId,
+      parents: [source.headRevisionId],
+      path: source.path,
+      deleted: false,
+      content: {
+        kind: 'markdown',
+        digest: markdownDigest(changed.text),
+        text: changed.text,
+      },
+      clientTime: new Date().toISOString(),
+      message: 'Keep links after move.',
+      restoredFrom: null,
+    });
+  }
+  const fileIds = [...new Set(rewritten.map((revision) => revision.fileId))];
+  if (fileIds.length > 1000) return fail('invalid_graph', fileIds);
+  return ok({ ...input, expectedHeads, revisions: rewritten });
 }
 
 /** Builds the sync slice of the port over one open transaction. */
@@ -321,8 +506,13 @@ export function syncRepository(
           'notesapp: a changeset must carry at least one revision.',
         );
       }
+      const expanded = await expandMovedReferences(db, workspaceId, input);
+      if (!expanded.ok) return expanded;
+      const acceptedInput = expanded.value;
       const fileIds = [
-        ...new Set(input.revisions.map((revision) => revision.fileId)),
+        ...new Set(
+          acceptedInput.revisions.map((revision) => revision.fileId),
+        ),
       ].sort();
       return withAcceptSavepoint(
         client,
@@ -332,7 +522,7 @@ export function syncRepository(
             db,
             writer,
             workspaceId,
-            input,
+            acceptedInput,
             digest,
             fileIds,
             superseded,

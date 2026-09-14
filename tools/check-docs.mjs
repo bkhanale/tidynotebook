@@ -304,13 +304,17 @@ export async function main(directory) {
         failures.push(`${path}: the link "${target}" resolves to no file.`);
     }
   if (failures.length > 0) {
-    console.error('Documentation check failed:');
-    for (const failure of failures) console.error(`  ${failure}`);
-    console.error('  See docs/README.md for the rule behind each message.');
+    process.stderr.write(
+      [
+        'Documentation check failed:',
+        ...failures.map((failure) => `  ${failure}`),
+        '  See docs/README.md for the rule behind each message.',
+      ].join('\n') + '\n',
+    );
     return 1;
   }
-  console.log(
-    `Documents: ${documents.length} files under docs/ sit in ${documentKinds.length} known directories, with every header and every relative link in place.`,
+  process.stdout.write(
+    `Documents: ${documents.length} files under docs/ sit in ${documentKinds.length} known directories, with every header and every relative link in place.\n`,
   );
   return 0;
 }
@@ -320,7 +324,9 @@ export async function main(directory) {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.length && (args.length !== 2 || args[0] !== '--root')) {
-    console.error('Usage: node tools/check-docs.mjs [--root <directory>]');
+    process.stderr.write(
+      'Usage: node tools/check-docs.mjs [--root <directory>]\n',
+    );
     process.exit(1);
   }
   process.exit(await main(resolve(args[1] ?? root)));
