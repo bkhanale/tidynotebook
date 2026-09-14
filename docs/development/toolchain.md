@@ -1,9 +1,10 @@
 # Toolchain
 
 This document owns the dependency policy, the compiler policy, and the checks
-that `pnpm lint` runs. It records no version number and no measured result.
-The manifests hold the versions, and `tools/check-versions.mjs` fails the gate
-when a manifest and the installed tree disagree.
+that `pnpm lint` and `pnpm lint:types` run. It records no version number and no
+measured result. The manifests hold the versions, and
+`tools/check-versions.mjs` fails the gate when a manifest and the installed tree
+disagree.
 
 ## Versions
 
@@ -92,17 +93,23 @@ An error class avoids a TypeScript parameter property for the same reason.
 
 ## The checks
 
-`pnpm lint` runs these in order. Each takes `--root <directory>` and has a root
-tool test that builds a disposable fixture tree.
+`pnpm lint` runs these in order. Each check in this table takes a
+`--root <directory>` flag and has a root tool test over a fixture tree.
 
 | Check                          | Proves                                                             |
 | ------------------------------ | ------------------------------------------------------------------ |
 | `tools/check-versions.mjs`     | The installed runtime matches the pins in the manifests.           |
-| `oxlint --type-aware`          | The source rules, with type information, and no warning survives.  |
+| `oxlint`                       | The source rules that need no type information, with no warning.   |
 | `tools/check-boundaries.mjs`   | The package graph, the browser rule, and the transport rule.       |
 | `tools/check-agents-md.mjs`    | The root guide matches `rules/`, and each directory has its guide. |
 | `tools/check-docs.mjs`         | The documentation rules of `docs/README.md`.                       |
 | `tools/check-design-rules.mjs` | The styling and user-facing text rules of the interface code.      |
+
+`pnpm lint` reads the sources only, so it passes in a fresh checkout with no
+build output. `pnpm lint:types` runs `oxlint --type-aware`, which needs the
+emitted declaration of every workspace package, so it runs after `pnpm build`
+and `pnpm verify` keeps that order. `tools/check-declarations.mjs` runs first
+inside it and names that one cause when the build output is absent.
 
 `tools/check-boundaries.mjs` holds the rules that
 [Architecture](architecture.md) states. It parses every source file rather than

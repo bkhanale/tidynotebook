@@ -40,8 +40,21 @@ pnpm verify
 it is safe to run while another checkout uses the same service.
 
 `pnpm verify` runs the complete gate: contract lint, generated file
-comparison, typecheck, lint, format, unit tests, integration tests and all
-builds. It must pass before a change is ready.
+comparison, typecheck, lint, format, unit tests, integration tests, all builds,
+and the type-aware lint. It must pass before a change is ready.
+
+## The order of the lint
+
+There are two lint commands, and the order between them matters.
+
+- `pnpm lint` reads the sources only. It needs no build, so it passes in a
+  fresh checkout right after `pnpm install --frozen-lockfile`.
+- `pnpm lint:types` runs the type-aware rules. It reads the declaration files
+  that `pnpm build` writes, so run `pnpm build` first. It stops with one
+  message when that build output is absent.
+
+`pnpm verify` holds that order for you: it runs `pnpm lint` early and
+`pnpm lint:types` after the build.
 
 ## Browser tests
 
@@ -63,6 +76,7 @@ Reports go to `playwright-report` and `test-results/playwright`.
 | `pnpm build`            | Builds all packages, the server, and the web app                 |
 | `pnpm typecheck`        | Checks all TypeScript projects                                   |
 | `pnpm lint`             | Checks versions, source rules, boundaries, guides, and documents |
+| `pnpm lint:types`       | Checks the type-aware source rules; needs `pnpm build` first     |
 | `pnpm format`           | Applies Prettier formatting                                      |
 | `pnpm test:unit`        | Runs unit tests                                                  |
 | `pnpm test:integration` | Runs the PostgreSQL and IndexedDB integration tests              |
