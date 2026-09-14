@@ -1,0 +1,83 @@
+# Dependabot opens the dependency bumps that the version policy allows.
+#
+# `tools/check-versions.mjs` refuses a range, so the npm entry uses an
+# increasing versioning strategy. That strategy writes a new exact version into
+# a manifest that already holds an exact version, so no range reaches a
+# manifest and the gate stays green.
+#
+# Each ecosystem groups its wave into one change, so a review reads one branch
+# and not forty. See docs/development/toolchain.md.
+version: 2
+updates:
+  - package-ecosystem: npm
+    # The root manifest and the pnpm workspace manifests that it names.
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    versioning-strategy: increase
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
+    ignore:
+      # The workspace links stay at `workspace:*`.
+      - dependency-name: '@notesapp/*'
+      # `tools/check-versions.mjs` names both TypeScript versions itself, so a
+      # bump edits that check in the same commit. A person does it.
+      - dependency-name: typescript
+    groups:
+      runtime-dependencies:
+        dependency-type: production
+        patterns:
+          - '*'
+      build-toolchain:
+        dependency-type: development
+        patterns:
+          - '*'
+
+  - package-ecosystem: github-actions
+    # The workflows under .github/workflows/, which pin each action by digest.
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: ci
+      include: scope
+    groups:
+      github-actions:
+        patterns:
+          - '*'
+
+  - package-ecosystem: docker
+    # Dockerfile, which pins the Node base image by digest in both stages.
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      base-images:
+        patterns:
+          - '*'
+
+  - package-ecosystem: docker-compose
+    # docker-compose.yml and compose.test.yaml, which pin PostgreSQL by digest.
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 2
+    commit-message:
+      prefix: build
+      include: scope
+    groups:
+      service-images:
+        patterns:
+          - '*'

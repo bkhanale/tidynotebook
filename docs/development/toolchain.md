@@ -24,6 +24,29 @@ exact version, in the manifest of the package that uses it.
 A version change is one commit over the manifest and the lockfile. The
 evidence belongs in that commit body, not here.
 
+## Automated bumps
+
+`.github/dependabot.yml` opens the bump changes. It runs once a week. It groups
+each wave into one change per area: the runtime dependencies, the development
+and build tools, the GitHub Actions, and the container images of `Dockerfile`
+and the Compose files. Each change carries a conventional commit prefix.
+
+The npm entry sets an increasing versioning strategy, so Dependabot writes a new
+exact version into a manifest that already holds one. No range reaches a
+manifest, and `tools/check-versions.mjs` accepts the change. Review a bump
+change like any other change. Run `pnpm verify` on the branch, and run the
+browser matrix when the change touches the editor, the router, or a storage
+library.
+
+Two pins stay manual, and the configuration says why.
+
+- TypeScript. `tools/check-versions.mjs` names the version of the code
+  generator and the version of every other package, so a bump edits that check
+  in the same commit.
+- The image digest inside the `perf:service` script of the root `package.json`.
+  Dependabot reads a Dockerfile and a Compose file, not a script. Move this
+  digest with the base image digest of `Dockerfile`.
+
 ## Packages
 
 `pnpm-workspace.yaml` names the workspace globs. Each package carries its
