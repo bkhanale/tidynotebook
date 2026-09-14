@@ -8,6 +8,7 @@
  */
 import {
   createContext,
+  Fragment,
   useCallback,
   useContext,
   useEffect,
@@ -787,7 +788,15 @@ export function AppProviders({
   );
 }
 
-/** Remounts its children whenever the signed-in account changes. */
+/**
+ * Remounts its children whenever the signed-in account changes.
+ *
+ * The key rides on a fragment, so the application tree gets a new identity
+ * without a node in the layout. React compares the key of the one child it
+ * holds: a new account gives a new key, so React drops the whole tree below
+ * and builds it again. Every store, cache, and screen state of the account
+ * that left goes with it.
+ */
 function SessionScope({
   accountKey,
   children,
@@ -795,5 +804,5 @@ function SessionScope({
   readonly accountKey: string;
   readonly children: ReactNode;
 }): ReactNode {
-  return <div key={accountKey}>{children}</div>;
+  return <Fragment key={accountKey}>{children}</Fragment>;
 }
