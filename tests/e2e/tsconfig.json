@@ -6,8 +6,5 @@
     "skipLibCheck": true
   },
   "include": ["../../playwright.config.ts", "**/*.ts"],
-  "references": [
-    { "path": "../../apps/server/tsconfig.build.json" },
-    { "path": "../../packages/storage-server/tsconfig.build.json" }
-  ]
+  "references": [{ "path": "../../apps/server/tsconfig.build.json" }]
 }

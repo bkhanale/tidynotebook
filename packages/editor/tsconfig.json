@@ -5,5 +5,5 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "references": []
+  "references": [{ "path": "../markdown/tsconfig.build.json" }]
 }

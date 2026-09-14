@@ -5,5 +5,8 @@
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],
-  "references": [{ "path": "../core/tsconfig.build.json" }]
+  "references": [
+    { "path": "../api-client/tsconfig.build.json" },
+    { "path": "../core/tsconfig.build.json" }
+  ]
 }

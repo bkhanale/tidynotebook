@@ -5,5 +5,8 @@
     "skipLibCheck": true
   },
   "include": ["src/**/*.ts", "drizzle.config.ts"],
-  "references": [{ "path": "../core/tsconfig.build.json" }]
+  "references": [
+    { "path": "../core/tsconfig.build.json" },
+    { "path": "../markdown/tsconfig.build.json" }
+  ]
 }
