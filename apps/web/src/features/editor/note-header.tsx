@@ -8,7 +8,10 @@
  * to the name.
  */
 import { useRef, type ReactNode } from 'react';
-import { noteTitleClassName } from '../../lib/note-header-layout.ts';
+import {
+  noteHeaderRowClassName,
+  noteTitleClassName,
+} from '../../lib/note-header-layout.ts';
 
 /** The sticky header of one open note. */
 export function NoteHeader({
@@ -31,7 +34,7 @@ export function NoteHeader({
   const fallbackRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <header className="sticky top-0 z-20 flex shrink-0 flex-col gap-2 border-b border-edge-subtle bg-app px-4 py-3 sm:px-6">
+    <header className={noteHeaderRowClassName()}>
       <input
         ref={nameInputRef ?? fallbackRef}
         id={`notes-path-${fileId}`}

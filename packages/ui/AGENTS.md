@@ -18,6 +18,8 @@ accessible controls, menus, dialogs, notices, and lightweight SVG icons.
 - `src/layout.tsx` holds `Page`, `PageHeader`, `Card`, `EmptyState`,
   `ListRow`, and `Toolbar`. `src/controls.tsx`, `src/menu.tsx`,
   `src/dialog.tsx`, and `src/notice.tsx` hold the controls.
+  `src/loading.tsx` holds `LoadingState`, the one placeholder that a screen
+  shows while it waits.
 - No screen, no route, no data fetching, and no storage lives here. A control
   takes its data and its callbacks as props.
 

@@ -414,3 +414,79 @@ test('A slash in the name is refused and the note stays put', async ({
     page.getByRole('button', { name: 'Other', exact: true }),
   ).toHaveCount(0);
 });
+
+/** Makes a folder inside the folder that is selected right now. */
+async function createChildFolder(page: Page, child: string): Promise<void> {
+  await openNavigation(page);
+  await page
+    .getByRole('button', { name: 'New folder', exact: true })
+    .first()
+    .click();
+  await page.getByLabel('Folder name').fill(child);
+  await page.getByRole('button', { name: 'Make folder' }).click();
+  await expect(
+    page.getByRole('button', { name: child, exact: true }),
+  ).toBeVisible();
+}
+
+test('Delete a child folder keeps the folder above it', async ({
+  checkedPage: page,
+  browser,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  const suffix = Date.now().toString();
+  const parent = `parent-${suffix}`;
+  const child = `child-${suffix}`;
+
+  await createFolder(page, parent);
+  await page.getByRole('button', { name: parent, exact: true }).click();
+  await createChildFolder(page, child);
+  await createNoteInFolder(page, child, 'Child note', '# Child');
+  await waitForSynced(page);
+
+  // A second device knows the folders through the note paths only, which is
+  // the state in which one delete used to take the whole branch. The context
+  // is new, so it starts with no folder of its own.
+  const second = await browser.newContext();
+  try {
+    const other = await second.newPage();
+    await signIn(other, stack);
+    await openPersonalWorkspace(other);
+    await openNavigation(other);
+    const otherTree = other.locator('section[aria-labelledby="tree-heading"]');
+    await expandFolder(folderDisclosure(other, parent));
+    await expandFolder(folderDisclosure(other, child));
+    // The second device holds the note before the delete runs, so the delete
+    // moves a note and never an empty folder.
+    await expect(
+      otherTree.getByRole('link', { name: 'Child note' }),
+    ).toBeVisible();
+
+    // The second device can still be pulling the note down. The application
+    // says so and asks for the action again, so the journey repeats the same
+    // action until it runs, and it waits for that state instead of a delay.
+    await expect(async () => {
+      await other
+        .getByRole('button', { name: `Actions for the folder ${child}` })
+        .click();
+      await other.getByRole('menuitem', { name: 'Delete folder' }).click();
+      await expect(other.getByText('Child note moved to Trash.')).toBeVisible({
+        timeout: 2000,
+      });
+    }).toPass({ timeout: 30_000 });
+    await expect(
+      other.getByRole('button', { name: child, exact: true }),
+    ).toHaveCount(0);
+    // Only the folder the person named goes. The folder above it stays.
+    await expect(
+      other.getByRole('button', { name: parent, exact: true }),
+    ).toBeVisible();
+    await expect(
+      otherTree.getByRole('link', { name: 'Child note' }),
+    ).toHaveCount(0);
+  } finally {
+    await second.close();
+  }
+});

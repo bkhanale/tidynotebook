@@ -12,10 +12,10 @@ import {
   Button,
   EmptyState,
   FileTextIcon,
+  LoadingState,
   Page,
   PageHeader,
   PlusIcon,
-  StatusRegion,
 } from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
@@ -65,7 +65,7 @@ export function NotesHomeView(): ReactNode {
         </p>
       )}
       {files.loading ? (
-        <StatusRegion message="Loading your notes." />
+        <LoadingState shape="list" rows={6} label="Your notes are loading." />
       ) : total === 0 ? (
         <EmptyState
           icon={<FileTextIcon size={32} />}

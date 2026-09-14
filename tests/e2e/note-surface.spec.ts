@@ -128,3 +128,66 @@ test('the active line stays clear inside a code block', async ({
   expect(style.outlineWidth).not.toBe('0px');
   expect(style.outlineColor).not.toBe(style.backgroundColor);
 });
+
+test('a table renders as columns that line up', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await replaceEditorText(
+    page,
+    'Intro\n\n| Name | Count |\n| :--- | ----: |\n| A | 2 |\n| Much longer cell | 30 |\n',
+  );
+  // The caret sits away from the table, so every row renders instead of
+  // showing its source.
+  await page.locator('.cm-content').press('Control+Home');
+
+  const head = page.locator('.cm-np-table-head').first();
+  const firstBodyCell = page.locator('.cm-np-table-cell').first();
+  await expect(head).toBeVisible();
+
+  const display = await head.evaluate(
+    (element) => getComputedStyle(element).display,
+  );
+  expect(display).toBe('table-cell');
+
+  // A column of the table has one left edge and one width over every row,
+  // which is what makes it a table instead of raw text.
+  const box = async (locator: typeof head): Promise<DOMRect> =>
+    await locator.evaluate((element) =>
+      element.getBoundingClientRect().toJSON(),
+    );
+  const headBox = await box(head);
+  const cellBox = await box(firstBodyCell);
+  expect(Math.abs(headBox.left - cellBox.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(headBox.width - cellBox.width)).toBeLessThanOrEqual(1);
+
+  // The table is still Markdown text: nothing is hidden and every cell can
+  // be edited where it stands.
+  await expect(page.locator('.cm-content')).toContainText(
+    '| Much longer cell | 30 |',
+  );
+});
+
+test('the note name sits close above the note text', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await replaceEditorText(page, 'First line');
+
+  const gap = await page.evaluate(() => {
+    const title = document.querySelector('input[aria-label="Note name"]');
+    const line = document.querySelector('.cm-line');
+    if (title === null || line === null) return Number.NaN;
+    return (
+      line.getBoundingClientRect().top - title.getBoundingClientRect().bottom
+    );
+  });
+  expect(gap).toBeGreaterThanOrEqual(0);
+  expect(gap).toBeLessThanOrEqual(24);
+});

@@ -25,7 +25,17 @@ function rule(selector: string): Record<string, unknown> {
 await test('the block padding of the surface sits on the editable element', () => {
   assert.equal(rule('.cm-scroller').paddingBlock, undefined);
   assert.equal(rule('.cm-scroller').padding, undefined);
-  assert.equal(rule('.cm-content').paddingBlock, 'calc(var(--spacing) * 6)');
+  assert.equal(rule('.cm-content').paddingBlockEnd, 'calc(var(--spacing) * 6)');
+});
+
+await test('the text starts close under the note name', () => {
+  // The note name titles the text under it, so the two group together. The
+  // space under the last line stays large, because a click there must still
+  // reach the editable element and place the caret.
+  const content = rule('.cm-content');
+  assert.equal(content.paddingBlock, undefined);
+  assert.equal(content.paddingBlockStart, 'calc(var(--spacing) * 2)');
+  assert.equal(content.paddingBlockEnd, 'calc(var(--spacing) * 6)');
 });
 
 await test('the scroller stretches its content over its full height', () => {

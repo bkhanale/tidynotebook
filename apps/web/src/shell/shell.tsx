@@ -45,8 +45,8 @@ import {
   PencilIcon,
   PlusIcon,
   SearchIcon,
+  LoadingState,
   SettingsIcon,
-  StatusRegion,
   SunIcon,
   TrashIcon,
   WorkspaceIcon,
@@ -675,7 +675,13 @@ function Sidebar({
             </button>
           </div>
           {files.loading ? (
-            <StatusRegion message="Loading your notes." />
+            <div className="px-2 py-2">
+              <LoadingState
+                shape="list"
+                rows={4}
+                label="Your notes are loading."
+              />
+            </div>
           ) : tree.length === 0 ? (
             <p className="my-1 px-2 text-control text-muted">No notes yet.</p>
           ) : (

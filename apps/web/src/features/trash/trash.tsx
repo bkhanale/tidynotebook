@@ -40,10 +40,10 @@ import {
   Card,
   EmptyState,
   ListRow,
+  LoadingState,
   Notice,
   Page,
   PageHeader,
-  StatusRegion,
   TrashIcon,
 } from '@notesapp/ui';
 import {
@@ -388,7 +388,7 @@ export function TrashView(): ReactNode {
     return (
       <Page>
         <PageHeader title="Trash" />
-        <StatusRegion message="Loading the trash." />
+        <LoadingState shape="list" rows={4} label="The trash is loading." />
       </Page>
     );
 
@@ -581,7 +581,7 @@ function TrashList({
         {outcome === null ? null : <Notice tone="success" message={outcome} />}
         {failure === null ? null : <Notice tone="problem" message={failure} />}
         {loading ? (
-          <StatusRegion message="Loading the trash." />
+          <LoadingState shape="list" rows={4} label="The trash is loading." />
         ) : items.length === 0 ? (
           <EmptyState
             icon={<TrashIcon size={24} />}

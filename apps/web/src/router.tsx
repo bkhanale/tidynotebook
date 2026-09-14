@@ -9,6 +9,7 @@
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Link, RouterProvider, createBrowserRouter } from 'react-router';
+import { LoadingState } from '@notesapp/ui';
 import {
   AccountSettingsPage,
   LoginPage,
@@ -43,7 +44,7 @@ function deferred(element: ReactNode): ReactNode {
     <Suspense
       fallback={
         <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-          <p role="status">Loading this screen.</p>
+          <LoadingState label="The screen is loading." />
         </main>
       }
     >

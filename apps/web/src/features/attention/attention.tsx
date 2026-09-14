@@ -26,6 +26,7 @@ import {
   Card,
   EmptyState,
   ListRow,
+  LoadingState,
   Notice,
   Page,
   PageHeader,
@@ -180,7 +181,11 @@ export function AttentionRoute(): ReactNode {
     return (
       <Page>
         <PageHeader title={attentionTitle} />
-        <StatusRegion message="Loading the saves that need attention." />
+        <LoadingState
+          shape="list"
+          rows={3}
+          label="The saves that need attention are loading."
+        />
       </Page>
     );
 

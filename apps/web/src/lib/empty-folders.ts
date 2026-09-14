@@ -11,6 +11,23 @@
  * performs the reads and the writes.
  */
 
+/**
+ * The folders that contain one folder, outermost first.
+ *
+ * `Work/Plans/2026` lies in `Work` and in `Work/Plans`. A folder at the root
+ * has none, so the result is empty.
+ */
+export function parentFolders(folder: string): readonly string[] {
+  const parents: string[] = [];
+  let prefix = '';
+  for (const segment of folder.split('/').slice(0, -1)) {
+    if (segment === '') continue;
+    prefix = prefix === '' ? segment : `${prefix}/${segment}`;
+    parents.push(prefix);
+  }
+  return parents;
+}
+
 /** Whether any note path lies inside the named folder. */
 function holdsNote(folder: string, notePaths: readonly string[]): boolean {
   const prefix = `${folder}/`.toLowerCase();
@@ -50,6 +67,13 @@ export function withEmptyFolder(
  *
  * A sibling with a shared prefix stays, because the match includes the
  * separator: removing `Work` keeps `Workshop`.
+ *
+ * Every folder above the one that goes stays as well, and it is remembered
+ * here so it survives the removal of its last child. A parent is often only
+ * visible through one child folder or through the notes under it, so without
+ * this rule one delete would take a whole branch of the tree. A parent that
+ * still holds a note drops out again in `pruneEmptyFolders`, because the note
+ * paths already describe it.
  */
 export function removeEmptyFolders(
   remembered: readonly string[],
@@ -57,20 +81,23 @@ export function removeEmptyFolders(
 ): readonly string[] {
   if (folder === '') return remembered;
   const prefix = `${folder.toLowerCase()}/`;
-  return tidy(
-    remembered.filter(
+  return tidy([
+    ...remembered.filter(
       (one) =>
         one.toLowerCase() !== folder.toLowerCase() &&
         !one.toLowerCase().startsWith(prefix),
     ),
-  );
+    ...parentFolders(folder),
+  ]);
 }
 
 /**
  * The set after a folder moved or was renamed.
  *
  * The folder itself and every remembered folder inside it follow the move, so
- * an empty folder that a person dragged keeps its place in the tree.
+ * an empty folder that a person dragged keeps its place in the tree. The
+ * folder it came out of stays where it was, for the same reason that a delete
+ * keeps it: a move takes one folder, never the branch above it.
  */
 export function rewriteEmptyFolders(
   remembered: readonly string[],
@@ -79,8 +106,8 @@ export function rewriteEmptyFolders(
 ): readonly string[] {
   if (fromFolder === '') return tidy(remembered);
   const prefix = `${fromFolder}/`;
-  return tidy(
-    remembered.map((folder) => {
+  return tidy([
+    ...remembered.map((folder) => {
       if (folder === fromFolder) return toFolder;
       if (folder.startsWith(prefix))
         return toFolder === ''
@@ -88,5 +115,6 @@ export function rewriteEmptyFolders(
           : `${toFolder}/${folder.slice(prefix.length)}`;
       return folder;
     }),
-  );
+    ...parentFolders(fromFolder),
+  ]);
 }

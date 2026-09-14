@@ -61,6 +61,7 @@ export { mathMarkdownExtension } from './math-syntax.ts';
 export type { OutlineHeading } from './outline.ts';
 export { outlineOf } from './outline.ts';
 export type {
+  DelimiterPart,
   PreviewBuild,
   PreviewNode,
   PreviewRange,
@@ -68,6 +69,7 @@ export type {
 export {
   buildPreview,
   contentText,
+  delimiterRowParts,
   headingLevel,
   livePreview,
   previewStructureOf,

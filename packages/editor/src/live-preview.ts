@@ -99,6 +99,43 @@ export function tableAlignments(row: string): readonly ColumnAlign[] {
   });
 }
 
+/** One piece of the delimiter row of a table. */
+export type DelimiterPart = {
+  readonly from: number;
+  readonly to: number;
+  /** True for a `|` separator, false for the dashes of one column. */
+  readonly pipe: boolean;
+};
+
+/**
+ * The separators and the column runs of one GFM delimiter row.
+ *
+ * The parser reports the whole delimiter row as one node, so the pieces come
+ * from the text of that node. This is the same source that
+ * {@link tableAlignments} already reads, and it is the text of one tree node
+ * rather than a scan of the document.
+ *
+ * The pieces cover the row without a gap, so every row of the table carries
+ * the same number of boxes and the columns of the table line up.
+ */
+export function delimiterRowParts(
+  text: string,
+  offset: number,
+): readonly DelimiterPart[] {
+  const parts: DelimiterPart[] = [];
+  let start = 0;
+  for (let at = 0; at < text.length; at += 1) {
+    if (text[at] !== '|') continue;
+    if (at > start)
+      parts.push({ from: offset + start, to: offset + at, pipe: false });
+    parts.push({ from: offset + at, to: offset + at + 1, pipe: true });
+    start = at + 1;
+  }
+  if (text.length > start)
+    parts.push({ from: offset + start, to: offset + text.length, pipe: false });
+  return parts;
+}
+
 /** The heading level of an ATX or setext heading node name, or 0. */
 export function headingLevel(name: string): number {
   const atx = /^ATXHeading([1-6])$/.exec(name);
@@ -321,7 +358,33 @@ export function buildPreview(
   const tree = syntaxTree(state);
   const stack: string[] = [];
   let alignments: readonly ColumnAlign[] = [];
-  let cellIndex = 0;
+
+  /**
+   * Marks one whole cell of a table row, with the alignment of its column.
+   *
+   * The range runs from one separator to the next, so it holds the padding
+   * spaces of the cell as well as its text. A row therefore has no text
+   * outside a cell and every row of the table carries the same boxes, which
+   * is what lets the columns line up.
+   */
+  const tableCellMark = (
+    from: number,
+    to: number,
+    header: boolean,
+    column: number,
+  ): void => {
+    const align = alignments[column] ?? null;
+    mark(
+      from,
+      to,
+      [
+        header ? 'cm-np-table-head' : 'cm-np-table-cell',
+        align === null ? '' : `cm-np-align-${align}`,
+      ]
+        .filter((part) => part !== '')
+        .join(' '),
+    );
+  };
 
   /** The nesting depth of the given container kind on the current stack. */
   const depthOf = (...names: readonly string[]): number =>
@@ -570,26 +633,61 @@ export function buildPreview(
     }
 
     if (name === 'TableHeader' || name === 'TableRow') {
-      cellIndex = 0;
+      const header = name === 'TableHeader';
+      // A separator keeps its box at every moment and only changes how
+      // visible it is, so the columns never move when a row shows its
+      // source.
+      const pipeClass = touchesLines(node.from, node.to)
+        ? 'cm-np-table-pipe cm-np-table-shown'
+        : 'cm-np-table-pipe';
+      let column = 0;
+      let at = node.from;
+      for (
+        let child = node.node.firstChild;
+        child !== null;
+        child = child.nextSibling
+      ) {
+        if (child.name !== 'TableDelimiter') continue;
+        if (child.from > at) {
+          tableCellMark(at, child.from, header, column);
+          column += 1;
+        }
+        mark(child.from, child.to, pipeClass);
+        at = child.to;
+      }
+      if (node.to > at) tableCellMark(at, node.to, header, column);
       return true;
     }
 
-    if (name === 'TableCell') {
-      const align = alignments[cellIndex] ?? null;
-      cellIndex += 1;
-      const header = parent === 'TableHeader';
-      const classes = [
-        header ? 'cm-np-table-head' : 'cm-np-table-cell',
-        align === null ? '' : `cm-np-align-${align}`,
-      ]
-        .filter((part) => part !== '')
-        .join(' ');
-      mark(node.from, node.to, classes);
-      return true;
-    }
+    // The row above already marked the whole cell, padding included, so the
+    // cell node adds nothing. The walk still enters it, because the inline
+    // text inside a cell carries its own decorations.
+    if (name === 'TableCell') return true;
 
     if (name === 'TableDelimiter') {
-      dim(node.from, node.to);
+      // A separator inside a row is marked by the row itself. Only the
+      // delimiter row of the table reaches this point, and the parser reports
+      // it as one node, so its columns come from its own text.
+      if (parent !== 'Table') return false;
+      // The dashes state the alignment, which the columns already show, so
+      // the row stays out of the way until the selection reaches its line.
+      if (!touchesLines(node.from, node.to)) {
+        hide(node.from, node.to);
+        // An empty row still holds one line box, which would leave a band
+        // under the header. The line closes to nothing and opens again with
+        // the source when the selection reaches it.
+        lineClass(node.from, node.to, 'cm-np-table-closed');
+        return false;
+      }
+      for (const part of delimiterRowParts(
+        doc.sliceString(node.from, node.to),
+        node.from,
+      ))
+        mark(
+          part.from,
+          part.to,
+          part.pipe ? 'cm-np-table-pipe cm-np-table-shown' : 'cm-np-table-rule',
+        );
       return false;
     }
 

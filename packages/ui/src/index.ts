@@ -55,6 +55,8 @@ export {
   StatusRegion,
   TextField,
 } from './controls.tsx';
+export type { LoadingShape } from './loading.tsx';
+export { LoadingState } from './loading.tsx';
 export type { PageWidth } from './layout.tsx';
 export {
   Card,

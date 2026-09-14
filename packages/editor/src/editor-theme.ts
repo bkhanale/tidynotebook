@@ -169,11 +169,16 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       lineHeight: 'var(--text-note--line-height)',
       alignItems: 'stretch',
     },
+    // The text starts close under the note name, because the name titles the
+    // text and the two read as one page. The space under the last line stays
+    // large, so there is always a strip of the editable element to click on
+    // below the text.
     '.cm-content': {
       caretColor: 'var(--notes-focus)',
       width: '100%',
       paddingInline: 'calc(var(--spacing) * 2)',
-      paddingBlock: 'calc(var(--spacing) * 6)',
+      paddingBlockStart: 'calc(var(--spacing) * 2)',
+      paddingBlockEnd: 'calc(var(--spacing) * 6)',
     },
     '.cm-line': {
       maxWidth: 'var(--container-note)',
@@ -294,25 +299,55 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderTop: '1px solid var(--notes-border)',
     },
 
+    // A table reads as a table. Each line of the table is a table row and
+    // each cell is a table cell, so the browser sizes the columns and every
+    // row lines up under the header. The rows of one table are neighbouring
+    // line elements, so the browser groups them into one anonymous table
+    // without a wrapper element, and the source stays editable text: no
+    // widget replaces the table and nothing of it is hidden.
     '.cm-np-table-line': {
-      fontFamily: 'var(--font-mono)',
+      display: 'table-row',
       fontSize: 'var(--text-note-mono)',
       paddingBlock: '0',
     },
+    '.cm-np-table-cell': {
+      display: 'table-cell',
+      paddingInline: 'calc(var(--spacing) * 2)',
+      paddingBlock: 'calc(var(--spacing) * 1)',
+      verticalAlign: 'top',
+      borderBottom: '1px solid var(--notes-border-subtle)',
+    },
     '.cm-np-table-head': {
+      display: 'table-cell',
+      paddingInline: 'calc(var(--spacing) * 2)',
+      paddingBlock: 'calc(var(--spacing) * 1)',
+      verticalAlign: 'top',
+      borderBottom: '1px solid var(--notes-border)',
       fontWeight: '700',
       color: 'var(--notes-text-strong)',
     },
-    // The cell separators of a table carry no meaning, so they stay far
-    // quieter than the text they divide.
-    '.cm-np-table-align': {
+    // The cell separators of a table carry no meaning once the columns show
+    // it, so they keep their box and lose their ink. They come back on the
+    // row that the selection touches, and the box never changes, so the
+    // columns do not move while a person edits a row.
+    '.cm-np-table-pipe': {
+      display: 'table-cell',
       color: 'var(--notes-text-muted)',
-      opacity: '0.35',
+      opacity: '0',
     },
-    '.cm-np-table-line .cm-np-marker': { opacity: '0.35' },
-    '.cm-np-align-left': { display: 'inline-block', textAlign: 'left' },
-    '.cm-np-align-center': { display: 'inline-block', textAlign: 'center' },
-    '.cm-np-align-right': { display: 'inline-block', textAlign: 'right' },
+    '.cm-np-table-rule': {
+      display: 'table-cell',
+      paddingInline: 'calc(var(--spacing) * 2)',
+      color: 'var(--notes-text-muted)',
+      opacity: '0.45',
+    },
+    '.cm-np-table-shown': { opacity: '0.45' },
+    '.cm-np-table-align': { color: 'var(--notes-text-muted)' },
+    // The delimiter row that stepped aside keeps no height of its own.
+    '.cm-np-table-closed': { fontSize: '0', lineHeight: '0' },
+    '.cm-np-align-left': { textAlign: 'left' },
+    '.cm-np-align-center': { textAlign: 'center' },
+    '.cm-np-align-right': { textAlign: 'right' },
 
     '.cm-np-hard-break': {
       borderBottom: '1px dotted var(--notes-border)',

@@ -46,7 +46,7 @@ import {
   type LinkTarget,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
-import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
+import { Button, CollapsibleSection, LoadingState, Notice } from '@notesapp/ui';
 import { problemMessage, useRequestSync, useTheme } from '../../app.tsx';
 import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
 import { downloadNote } from '../export/export.ts';
@@ -1045,7 +1045,7 @@ function NoteEditorBody({
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 gap-6 py-4">
+        <div className="flex min-h-0 flex-1 gap-6 pb-4">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
             <div
               ref={containerRef}
@@ -1264,7 +1264,7 @@ export function NoteEditorLoader({
   if (status.kind === 'loading')
     return (
       <section className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
-        <StatusRegion message="Loading the note." />
+        <LoadingState shape="note" label="The note is loading." />
       </section>
     );
   if (status.kind === 'unknown')

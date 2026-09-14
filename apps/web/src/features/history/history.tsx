@@ -48,10 +48,10 @@ import {
   EmptyState,
   HistoryIcon,
   ListRow,
+  LoadingState,
   Notice,
   Page,
   PageHeader,
-  StatusRegion,
 } from '@notesapp/ui';
 import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import {
@@ -234,7 +234,7 @@ export function HistoryView(): ReactNode {
     return (
       <Page width="wide">
         <PageHeader title="History" />
-        <StatusRegion message="Loading the history." />
+        <LoadingState shape="list" rows={5} label="The history is loading." />
       </Page>
     );
   return (
@@ -538,7 +538,11 @@ function HistoryDetail({
     return (
       <Page width="wide">
         <PageHeader title="History" />
-        <StatusRegion message="Loading the history of this note." />
+        <LoadingState
+          shape="list"
+          rows={5}
+          label="The history of this note is loading."
+        />
       </Page>
     );
   if (head.status === 'error')
@@ -717,7 +721,7 @@ function RevisionPanel({
   readonly newest: boolean;
 }): ReactNode {
   if (detail === null || detail.status === 'loading')
-    return <StatusRegion message="Loading this version." />;
+    return <LoadingState label="This version is loading." />;
   if (detail.status === 'error')
     return <Notice tone="problem" message={detail.message} />;
   if (kind === 'attachment')
@@ -748,7 +752,11 @@ function RevisionPanel({
           No comparison is available for this version.
         </p>
       ) : diff.status === 'loading' ? (
-        <StatusRegion message="Comparing the two versions." />
+        <LoadingState
+          shape="list"
+          rows={4}
+          label="The comparison of the two versions is loading."
+        />
       ) : diff.status === 'ready' ? (
         <InlineDiff
           hunks={diff.hunks}

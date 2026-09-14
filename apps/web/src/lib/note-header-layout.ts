@@ -6,7 +6,22 @@
  * palette. The rule lives here so a unit test can hold it: the name takes the
  * full width of the header at every size, so the most important text on the
  * screen is never cut.
+ *
+ * The name and the text of the note are one block, so the space under the
+ * name stays small. The space above it keeps the row clear of the frame.
  */
+
+/**
+ * The classes of the sticky header row.
+ *
+ * The bottom space is smaller than the top space on purpose: the name titles
+ * the text under it, so the two group together and the note reads as one
+ * page. The editor column and the note surface add the rest of the space, so
+ * this row keeps its own part of it short.
+ */
+export function noteHeaderRowClassName(): string {
+  return 'sticky top-0 z-20 flex shrink-0 flex-col gap-1 border-b border-edge-subtle bg-app px-4 pb-1.5 pt-3 sm:px-6';
+}
 
 /**
  * The classes of the inline editable note name.
