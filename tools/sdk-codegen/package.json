@@ -17,7 +17,7 @@
   "devDependencies": {
     "@hey-api/openapi-ts": "0.99.0",
     "@redocly/cli": "2.51.2",
-    "@types/node": "26.4.1",
-    "typescript": "6.0.3"
+    "@types/node": "catalog:",
+    "typescript": "catalog:codegen"
   }
 }

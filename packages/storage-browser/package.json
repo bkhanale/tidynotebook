@@ -20,7 +20,7 @@
     "dexie": "4.4.5"
   },
   "devDependencies": {
-    "@types/node": "26.4.1",
-    "typescript": "7.0.2"
+    "@types/node": "catalog:",
+    "typescript": "catalog:toolchain"
   }
 }

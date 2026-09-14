@@ -105,6 +105,44 @@ settings:
   autoInstallPeers: false
   excludeLinksFromLockfile: false
 
+catalogs:
+  codegen:
+    typescript:
+      specifier: 6.0.3
+      version: 6.0.3
+  default:
+    '@types/node':
+      specifier: 26.4.1
+      version: 26.4.1
+    '@types/pg':
+      specifier: 8.23.1
+      version: 8.23.1
+    '@types/react':
+      specifier: 19.2.8
+      version: 19.2.8
+    drizzle-orm:
+      specifier: 0.45.2
+      version: 0.45.2
+    fastify:
+      specifier: 5.12.3
+      version: 5.12.3
+    katex:
+      specifier: 0.18.5
+      version: 0.18.5
+    pg:
+      specifier: 8.23.0
+      version: 8.23.0
+    react:
+      specifier: 19.2.8
+      version: 19.2.8
+    sharp:
+      specifier: 0.35.4
+      version: 0.35.4
+  toolchain:
+    typescript:
+      specifier: 7.0.2
+      version: 7.0.2
+
 importers:
 
   .:
@@ -140,16 +178,16 @@ importers:
         specifier: 1.63.0
         version: 1.63.0
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       '@types/pg':
-        specifier: 8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       fake-indexeddb:
         specifier: 6.2.5
         version: 6.2.5
       fastify:
-        specifier: 5.12.3
+        specifier: 'catalog:'
         version: 5.12.3
       oxc-parser:
         specifier: 0.148.0
@@ -161,16 +199,16 @@ importers:
         specifier: 7.0.2001
         version: 7.0.2001
       pg:
-        specifier: 8.23.0
+        specifier: 'catalog:'
         version: 8.23.0
       prettier:
         specifier: 3.9.6
         version: 3.9.6
       sharp:
-        specifier: 0.35.4
+        specifier: 'catalog:'
         version: 0.35.4(@types/node@26.4.1)
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   apps/server:
@@ -206,29 +244,29 @@ importers:
         specifier: 1.4.0
         version: 1.4.0(zod@4.5.4)
       drizzle-orm:
-        specifier: 0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)
       fastify:
-        specifier: 5.12.3
+        specifier: 'catalog:'
         version: 5.12.3
       nodemailer:
         specifier: 10.0.0
         version: 10.0.0
       pg:
-        specifier: 8.23.0
+        specifier: 'catalog:'
         version: 8.23.0
       sharp:
-        specifier: 0.35.4
+        specifier: 'catalog:'
         version: 0.35.4(@types/node@26.4.1)
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       '@types/pg':
-        specifier: 8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   apps/web:
@@ -255,13 +293,13 @@ importers:
         specifier: workspace:*
         version: link:../../packages/ui
       katex:
-        specifier: 0.18.5
+        specifier: 'catalog:'
         version: 0.18.5
       mermaid:
         specifier: 11.17.2
         version: 11.17.2
       react:
-        specifier: 19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       react-dom:
         specifier: 19.2.8
@@ -277,10 +315,10 @@ importers:
         specifier: 4.3.3
         version: 4.3.3(vite@8.2.2(@types/node@26.4.1)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.13))
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       '@types/react':
-        specifier: 19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       '@types/react-dom':
         specifier: 19.2.7
@@ -292,7 +330,7 @@ importers:
         specifier: 4.41.0
         version: 4.41.0
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
       vite:
         specifier: 8.2.2
@@ -307,7 +345,7 @@ importers:
   packages/api-client:
     devDependencies:
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/api-contract:
@@ -320,19 +358,19 @@ importers:
         version: 3.0.1(ajv@8.20.0)
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/core:
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/editor:
@@ -384,10 +422,10 @@ importers:
         version: 9.0.0
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/markdown:
@@ -399,7 +437,7 @@ importers:
         specifier: 4.0.4
         version: 4.0.4
       katex:
-        specifier: 0.18.5
+        specifier: 'catalog:'
         version: 0.18.5
       mdast-util-to-string:
         specifier: 4.0.0
@@ -436,10 +474,10 @@ importers:
         version: 5.1.0
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/storage-browser:
@@ -455,10 +493,10 @@ importers:
         version: 4.4.5
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/storage-server:
@@ -470,23 +508,23 @@ importers:
         specifier: workspace:*
         version: link:../markdown
       drizzle-orm:
-        specifier: 0.45.2
+        specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)
       pg:
-        specifier: 8.23.0
+        specifier: 'catalog:'
         version: 8.23.0
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       '@types/pg':
-        specifier: 8.23.1
+        specifier: 'catalog:'
         version: 8.23.1
       drizzle-kit:
         specifier: 0.31.10
         version: 0.31.10
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/sync:
@@ -499,26 +537,26 @@ importers:
         version: link:../core
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/ui:
     dependencies:
       react:
-        specifier: 19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       '@types/react':
-        specifier: 19.2.8
+        specifier: 'catalog:'
         version: 19.2.8
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   tools/sdk-codegen:
@@ -530,10 +568,10 @@ importers:
         specifier: 2.51.2
         version: 2.51.2
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 6.0.3
+        specifier: catalog:codegen
         version: 6.0.3
 
 packages:

@@ -15,11 +15,11 @@
     "test:unit": "node ../../tools/run-tests.mjs unit"
   },
   "dependencies": {
-    "react": "19.2.8"
+    "react": "catalog:"
   },
   "devDependencies": {
-    "@types/node": "26.4.1",
-    "@types/react": "19.2.8",
-    "typescript": "7.0.2"
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "typescript": "catalog:toolchain"
   }
 }

@@ -15,6 +15,6 @@
     "test:unit": "node ../../tools/run-tests.mjs unit"
   },
   "devDependencies": {
-    "typescript": "7.0.2"
+    "typescript": "catalog:toolchain"
   }
 }

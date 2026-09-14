@@ -10,7 +10,7 @@ disagree.
 
 Node and pnpm are pinned in `.node-version`, and in `engines` and
 `packageManager` in the root `package.json`. Every dependency is pinned to an
-exact version, in the manifest of the package that uses it.
+exact version, once, in a manifest or in the `pnpm-workspace.yaml` catalog.
 
 - Check a version against the registry and the release notes before you change
   it. Registry availability does not prove runtime behaviour.
@@ -34,10 +34,10 @@ and the Compose files. Each change carries a conventional commit prefix.
 
 The npm entry sets an increasing versioning strategy, so Dependabot writes a new
 exact version into a manifest that already holds one. No range reaches a
-manifest, and `tools/check-versions.mjs` accepts the change. Review a bump
-change like any other change. Run `pnpm verify` on the branch, and run the
-browser matrix when the change touches the editor, the router, or a storage
-library.
+manifest, and `tools/check-versions.mjs` accepts the change. Dependabot reaches
+a version that a manifest states, and a person bumps a catalog version by hand.
+Review a bump like any other change. Run `pnpm verify` on the branch, and run
+the browser matrix when it touches the editor, the router, or a storage library.
 
 Two pins stay manual, and the configuration says why.
 

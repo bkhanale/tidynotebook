@@ -42,16 +42,16 @@
     "@notesapp/storage-server": "workspace:*",
     "@notesapp/sync": "workspace:*",
     "@playwright/test": "1.63.0",
-    "@types/node": "26.4.1",
-    "@types/pg": "8.23.1",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
     "fake-indexeddb": "6.2.5",
-    "fastify": "5.12.3",
+    "fastify": "catalog:",
     "oxc-parser": "0.148.0",
     "oxlint": "1.81.0",
     "oxlint-tsgolint": "7.0.2001",
-    "pg": "8.23.0",
+    "pg": "catalog:",
     "prettier": "3.9.6",
-    "sharp": "0.35.4",
-    "typescript": "7.0.2"
+    "sharp": "catalog:",
+    "typescript": "catalog:toolchain"
   }
 }
