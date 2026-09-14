@@ -1,4 +1,4 @@
-# Plan 007: Central logging
+# Plan 008: Central logging
 
 Status: complete
 

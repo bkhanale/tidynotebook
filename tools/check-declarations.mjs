@@ -35,12 +35,14 @@ export async function missingDeclarations(directory = root) {
 export async function main(directory) {
   const missing = await missingDeclarations(directory);
   if (missing.length > 0) {
-    console.error(
-      'The type-aware lint reads the declaration files that the build writes, and they are absent. Run `pnpm build` first, then run `pnpm lint:types` again.',
+    process.stderr.write(
+      'The type-aware lint reads the declaration files that the build writes, and they are absent. Run `pnpm build` first, then run `pnpm lint:types` again.\n',
     );
     return 1;
   }
-  console.log('Declarations: every workspace package has its build output.');
+  process.stdout.write(
+    'Declarations: every workspace package has its build output.\n',
+  );
   return 0;
 }
 
@@ -49,8 +51,8 @@ export async function main(directory) {
 if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.length && (args.length !== 2 || args[0] !== '--root')) {
-    console.error(
-      'Usage: node tools/check-declarations.mjs [--root <directory>]',
+    process.stderr.write(
+      'Usage: node tools/check-declarations.mjs [--root <directory>]\n',
     );
     process.exit(1);
   }

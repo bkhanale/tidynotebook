@@ -440,10 +440,10 @@ importers:
   packages/logging:
     devDependencies:
       '@types/node':
-        specifier: 26.4.1
+        specifier: 'catalog:'
         version: 26.4.1
       typescript:
-        specifier: 7.0.2
+        specifier: catalog:toolchain
         version: 7.0.2
 
   packages/markdown:
