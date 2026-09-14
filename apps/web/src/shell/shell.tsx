@@ -710,6 +710,15 @@ function Sidebar({
               onNavigate={onNavigate}
             />
           )}
+          {files.limitNotice === null ? null : (
+            <p
+              className="my-1 px-2 text-control text-muted"
+              role="status"
+              aria-live="polite"
+            >
+              {files.limitNotice}
+            </p>
+          )}
         </section>
         {deleteProblem === null ? null : (
           <p className="mx-2 my-2 text-control text-danger" role="alert">

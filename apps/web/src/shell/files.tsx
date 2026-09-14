@@ -20,6 +20,7 @@ import {
   type ReactNode,
 } from 'react';
 import { listFiles, type WorkspaceFileSummary } from '@notesapp/api-client';
+import { maxListedFiles } from '@notesapp/core';
 import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 import { problemMessage, useLocalStore, useSession } from '../app.tsx';
 import { useLocalQuery } from '../local-state.ts';
@@ -29,6 +30,11 @@ import {
   rewriteEmptyFolders,
   withEmptyFolder,
 } from '../lib/empty-folders.ts';
+import {
+  fileListLimitNotice,
+  loadBoundedFiles,
+  type BoundedFiles,
+} from '../lib/file-load.ts';
 import { mergeNotes, type NoteSummary } from '../lib/note-list.ts';
 import { folderPaths } from '../lib/note-name.ts';
 
@@ -52,6 +58,14 @@ export type FilesValue = {
   readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
   /** Forgets a folder and everything below it after a folder left the tree. */
   readonly removeEmptyFolders: (folder: string) => void;
+  /**
+   * What the person reads when the area holds more notes than the list.
+   *
+   * The value is `null` while the list holds every note. The tree shows the
+   * sentence as it is, so a person always knows when the list is shorter than
+   * the area, and how to reach a note that is not in it.
+   */
+  readonly limitNotice: string | null;
   /** Reads the server list again, for example after a restore. */
   readonly reload: () => void;
 };
@@ -64,6 +78,7 @@ const FilesContext = createContext<FilesValue>({
   addEmptyFolder: () => {},
   moveEmptyFolders: () => {},
   removeEmptyFolders: () => {},
+  limitNotice: null,
   reload: () => {},
 });
 
@@ -72,33 +87,43 @@ export function useFiles(): FilesValue {
   return useContext(FilesContext);
 }
 
+/** The number of rows that one list call asks for. */
+const listPageSize = 100;
+
 /**
- * Every live note of the area, in the order of the folder tree.
+ * The live notes of the area, in the order of the folder tree, up to the
+ * bound.
  *
  * The server sorts and pages the listing, so each page continues the
  * previous one through its cursor instead of scanning from the front. The
  * sidebar shows a folder tree, so it asks for the path order.
+ *
+ * The loop stops at `maxListedFiles`, which is the one bound that the server
+ * and this device share. A mount therefore makes a small, fixed number of
+ * calls, and it holds a list of a known size. A bigger area keeps its other
+ * notes: search reads the server, so it opens a note that this list left out.
  */
-async function loadAllFiles(
+function loadFiles(
   workspaceId: string,
-): Promise<readonly WorkspaceFileSummary[]> {
-  const files: WorkspaceFileSummary[] = [];
-  let cursor: string | null = null;
-  for (;;) {
+): Promise<BoundedFiles<WorkspaceFileSummary>> {
+  return loadBoundedFiles<WorkspaceFileSummary>(async (cursor) => {
     const page: { readonly cursor?: string } =
       cursor === null ? {} : { cursor };
     const result = await listFiles({
       path: { workspaceId },
-      query: { ...page, limit: 100, sort: 'path' },
+      query: { ...page, limit: listPageSize, sort: 'path' },
     });
     if (result.error !== undefined || result.data === undefined)
       throw new Error(problemMessage(result.error));
-    files.push(...result.data.files);
-    if (result.data.nextCursor === null) break;
-    cursor = result.data.nextCursor;
-  }
-  return files;
+    return { files: result.data.files, nextCursor: result.data.nextCursor };
+  }, maxListedFiles);
 }
+
+/** The list before the first answer of the server, and after a failure. */
+const noServerFiles: BoundedFiles<WorkspaceFileSummary> = {
+  files: [],
+  reachedLimit: false,
+};
 
 /** Publishes the one note list of the open area to every screen below. */
 export function FilesProvider({
@@ -110,9 +135,8 @@ export function FilesProvider({
 }): ReactNode {
   const session = useSession();
   const store = useLocalStore();
-  const [serverFiles, setServerFiles] = useState<
-    readonly WorkspaceFileSummary[]
-  >([]);
+  const [serverFiles, setServerFiles] =
+    useState<BoundedFiles<WorkspaceFileSummary>>(noServerFiles);
   const [loading, setLoading] = useState(true);
   const [generation, setGeneration] = useState(0);
   const emptyLocalFiles = useMemo<readonly LocalFileSummary[]>(() => [], []);
@@ -133,13 +157,13 @@ export function FilesProvider({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    setServerFiles([]);
-    void loadAllFiles(workspaceId)
+    setServerFiles(noServerFiles);
+    void loadFiles(workspaceId)
       .then((loaded) => {
         if (!cancelled) setServerFiles(loaded);
       })
       .catch(() => {
-        if (!cancelled) setServerFiles([]);
+        if (!cancelled) setServerFiles(noServerFiles);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -150,8 +174,17 @@ export function FilesProvider({
   }, [workspaceId, generation]);
 
   const notes = useMemo(
-    () => mergeNotes(serverFiles, localFiles.value),
-    [serverFiles, localFiles.value],
+    () => mergeNotes(serverFiles.files, localFiles.value),
+    [serverFiles.files, localFiles.value],
+  );
+
+  // The notice counts the server rows only. A note that this device holds and
+  // the server does not is in the list whatever the bound is, so it is not a
+  // part of the size that the sentence states.
+  const limitNotice = useMemo(
+    () =>
+      fileListLimitNotice(serverFiles.files.length, serverFiles.reachedLimit),
+    [serverFiles],
   );
 
   const reload = useCallback(() => {
@@ -172,9 +205,10 @@ export function FilesProvider({
       addEmptyFolder: empty.addEmptyFolder,
       moveEmptyFolders: empty.moveEmptyFolders,
       removeEmptyFolders: empty.removeEmptyFolders,
+      limitNotice,
       reload,
     }),
-    [notes, loading, empty, reload],
+    [notes, loading, empty, limitNotice, reload],
   );
 
   return (

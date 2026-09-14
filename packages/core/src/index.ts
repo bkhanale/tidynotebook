@@ -104,6 +104,7 @@ export {
   defaultPageSize,
   fileSort,
   listFiles,
+  maxListedFiles,
   maxPageSize,
   pageSize,
   readFile,

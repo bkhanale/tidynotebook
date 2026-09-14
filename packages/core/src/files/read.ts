@@ -28,6 +28,19 @@ export const maxPageSize = 500;
 /** The page size of a list call that asks for none. */
 export const defaultPageSize = 100;
 
+/**
+ * The largest number of files that one whole listing collects.
+ *
+ * A list call answers one page, so a caller that wants the files of a
+ * workspace asks page after page. This value stops that loop. It bounds the
+ * work of one screen, and it bounds the number of calls that one screen makes:
+ * a caller that keeps the default page size asks for ten pages at the most.
+ * The value is a multiple of `defaultPageSize`, so the loop always stops on a
+ * page boundary. A caller that reaches this bound must say so, because the
+ * list it holds is then shorter than the workspace.
+ */
+export const maxListedFiles = 1000;
+
 /** One file together with the content of its accepted head. */
 export type FileWithHead = {
   readonly file: FileRecord;
