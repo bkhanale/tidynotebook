@@ -79,9 +79,9 @@ export type ReadinessCheck = {
 /**
  * One startup requirement that readiness reports.
  *
- * The list is injectable, so the task that adds PostgreSQL adds a database
- * probe and the task that adds attachment storage adds a storage probe without
- * changing this module, and a test can force a degraded report.
+ * `src/app.ts` wires the default probe list at startup, and that list includes
+ * the database probe and the storage probe. The list stays injectable, so a
+ * test can supply its own probe and force a degraded report.
  */
 export type ReadinessProbe = () => Promise<ReadinessCheck>;
 
