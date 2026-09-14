@@ -98,6 +98,7 @@ import {
   useNoteSave,
   useOnline,
 } from '../features/editor/save-status.tsx';
+import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncStateMessage } from '../lib/sync-state.ts';
 import { RequireCurrentWorkspace } from './workspaces.tsx';
@@ -1098,7 +1099,7 @@ function ShellFrame({
                 Search notes
               </span>
               <kbd className="hidden shrink-0 rounded border border-edge bg-hover px-1.5 text-control text-muted sm:inline">
-                Ctrl P
+                <KeyHint keys="Cmd or Ctrl + P" />
               </kbd>
             </button>
 
