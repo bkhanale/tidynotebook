@@ -47,7 +47,7 @@ import {
   type RichWidgetResolvers,
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
-import { problemMessage, useTheme } from '../../app.tsx';
+import { problemMessage, useRequestSync, useTheme } from '../../app.tsx';
 import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
 import { downloadNote } from '../export/export.ts';
 import { useFiles } from '../../shell/files.tsx';
@@ -235,14 +235,19 @@ function NoteEditorBody({
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   const [pasteNotice, setPasteNotice] = useState('');
   const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
+  const [recentAttachments, setRecentAttachments] = useState<
+    ReadonlyMap<string, string>
+  >(new Map());
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const lastFilesRef = useRef<readonly File[]>([]);
+  const requestSync = useRequestSync();
   const { attachmentUrls, attachmentUrlsRef } = useAttachmentUrls(
     store,
     accountId,
     workspaceId,
     validPathRef.current,
     bufferText,
+    recentAttachments,
   );
   const [mathReady, setMathReady] = useState(false);
   // The base moves to each new checkpoint, so the next save names the parent
@@ -499,7 +504,9 @@ function NoteEditorBody({
             : target.kind === 'relative'
               ? target.path
               : null;
-        return key === null ? null : (attachmentUrlsRef.current.get(key) ?? null);
+        return key === null
+          ? null
+          : (attachmentUrlsRef.current.get(key) ?? null);
       },
       createDiagram: (source: string): HTMLElement =>
         createDiagramFrame({
@@ -778,6 +785,10 @@ function NoteEditorBody({
             continue;
           }
           const attachmentPath = `attachments/${fileId}-${safeName}`;
+          setRecentAttachments((currentAttachments) =>
+            new Map(currentAttachments).set(attachmentPath, revisionId),
+          );
+          requestSync();
           insertAtCursor(
             `![${safeName}](${portableRelativePath(validPathRef.current, attachmentPath)})`,
           );

@@ -4,7 +4,7 @@
  * Export is the promise that the file is the document: nothing is stored that
  * the person cannot take away as plain Markdown. One note leaves as one
  * Markdown file, and the whole workspace leaves as a zip of Markdown files in
- * their folders plus the images that those notes reference. Nothing in an
+ * their folders plus every live image file. Nothing in an
  * archive needs this application to be read again.
  *
  * The archive is produced as a stream. One note or one image is held in

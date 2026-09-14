@@ -27,14 +27,9 @@ await test('legacy references migrate and dead references are reported', () => {
     '[A](/notes/3f2504e0-4f89-41d3-9a0c-0305e82c3301) ![x](/attachments/0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d) [dead](/notes/7c9e6679-7425-40de-944b-e07fc1f90ae7)',
     'folder/current.md',
     {
-      notes: new Map([
-        ['3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'plan.md'],
-      ]),
+      notes: new Map([['3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'plan.md']]),
       attachments: new Map([
-        [
-          '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d',
-          'attachments/image.png',
-        ],
+        ['0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d', 'attachments/image.png'],
       ]),
     },
   );

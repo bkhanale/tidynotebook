@@ -57,8 +57,6 @@ paths:
           $ref: '#/components/responses/Health'
         '400':
           $ref: '#/components/responses/BadRequest'
-        '429':
-          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/ServerError'
   /api/ready:
@@ -109,6 +107,8 @@ paths:
                     readOnly: true
         '400':
           $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/ServerError'
     post:
@@ -1060,11 +1060,11 @@ paths:
   /api/workspaces/{workspaceId}/export:
     get:
       operationId: exportWorkspace
-      summary: Download every live note as a zip of Markdown files.
+      summary: Download every live note and image as a zip archive.
       description: >-
         Streams a zip archive that holds every live note of the workspace as a
-        Markdown file at its stored path, plus an attachments folder with the
-        images that those notes reference. A deleted note is not in the
+        Markdown file at its stored path, plus every live image at its stored
+        path. A deleted file is not in the
         archive. Nothing in the archive needs this application to be read
         again, so it is also the cheapest disaster recovery.
       tags:

@@ -6,8 +6,8 @@ this directory. The recipe for a whole feature is in
 
 ## Purpose
 
-The Fastify HTTP adapter. It serves the built web application, the REST API,
-and the authentication routes on one origin. It holds no domain rule.
+The Fastify HTTP adapter serves the web application, the REST API, and the
+authentication routes on one origin. It holds no domain rule.
 
 ## What lives here and what does not
 
@@ -16,8 +16,7 @@ and the authentication routes on one origin. It holds no domain rule.
   `problem.ts` (RFC 9457 body), `security-headers.ts`, `static-assets.ts`, `host.ts`.
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns
   one handler per operation id, and the body of a handler lives in its area
-  file: `files.ts`, `history.ts`, `search.ts`, `sync.ts`, `accounts.ts`,
-  `attachments.ts`, `export.ts`, `workspaces.ts`, `zip.ts`.
+  file. Import, export, backlinks, and archive parsing each have one file.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, mail, and
   the first user setup. `src/jobs/` holds background work. `src/cli/` holds
   the operator commands.
@@ -26,11 +25,10 @@ and the authentication routes on one origin. It holds no domain rule.
 
 ## Allowed imports
 
-`@notesapp/api-contract`, `@notesapp/core`, `@notesapp/storage-server`,
-`@notesapp/markdown`.
-
-This package is Node only. It may use Node built in modules and Node only
-packages such as `fastify`, `pg`, and `sharp`.
+`@notesapp/api-contract`, `@notesapp/core`, `@notesapp/logging`,
+`@notesapp/markdown`, `@notesapp/storage-server`. This package is Node only.
+It may use Node built in modules and Node only packages such as `fastify`,
+`pg`, and `sharp`.
 
 ## How to add a common thing here
 

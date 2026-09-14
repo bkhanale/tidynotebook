@@ -51,7 +51,7 @@ test('an attached image travels to the server and back', async ({
 
   // While the caret sits on the inserted reference it shows as source. Move
   // it away so the one surface draws the image widget.
-  await expect(page.locator('.cm-content')).toContainText('/attachments/');
+  await expect(page.locator('.cm-content')).toContainText('attachments/');
   await page.locator('.cm-content').press('Control+Home');
   const image = page.locator('img.cm-np-widget-image');
   await expect(image).toBeVisible();

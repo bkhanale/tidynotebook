@@ -18,7 +18,11 @@ export type PortableMigration = ReferenceRewrite & {
   readonly deadReferences: readonly string[];
 };
 
-type Replacement = { readonly from: number; readonly to: number; readonly text: string };
+type Replacement = {
+  readonly from: number;
+  readonly to: number;
+  readonly text: string;
+};
 
 function folder(path: string): readonly string[] {
   const parts = path.split('/');
@@ -27,7 +31,10 @@ function folder(path: string): readonly string[] {
 }
 
 /** Returns the portable path of `targetPath` seen from `sourcePath`. */
-export function portableRelativePath(sourcePath: string, targetPath: string): string {
+export function portableRelativePath(
+  sourcePath: string,
+  targetPath: string,
+): string {
   const source = folder(sourcePath);
   const target = targetPath.split('/');
   let shared = 0;
@@ -49,17 +56,25 @@ export function portableRelativePath(sourcePath: string, targetPath: string): st
     .replaceAll(')', '%29');
 }
 
-function destinationRange(source: string, node: Nodes, destination: string): { from: number; to: number } | null {
+function destinationRange(
+  source: string,
+  node: Nodes,
+  destination: string,
+): { from: number; to: number } | null {
   const from = node.position?.start.offset;
   const to = node.position?.end.offset;
   if (from === undefined || to === undefined) return null;
   const found = source.indexOf(destination, from);
-  return found < from || found >= to ? null : { from: found, to: found + destination.length };
+  return found < from || found >= to
+    ? null
+    : { from: found, to: found + destination.length };
 }
 
 function rewrite(source: string, replacements: readonly Replacement[]): string {
   let result = source;
-  for (const item of [...replacements].sort((left, right) => right.from - left.from))
+  for (const item of [...replacements].sort(
+    (left, right) => right.from - left.from,
+  ))
     result = `${result.slice(0, item.from)}${item.text}${result.slice(item.to)}`;
   return result;
 }
@@ -73,7 +88,12 @@ export function rewriteRelativeReferences(
   const nextSourcePath = movedPaths.get(sourcePath) ?? sourcePath;
   const replacements: Replacement[] = [];
   visit(parseMarkdown(source), (node) => {
-    if (node.type !== 'link' && node.type !== 'image' && node.type !== 'definition') return;
+    if (
+      node.type !== 'link' &&
+      node.type !== 'image' &&
+      node.type !== 'definition'
+    )
+      return;
     const target = classifyUrl(node.url, sourcePath);
     if (target.kind !== 'relative') return;
     const nextTargetPath = movedPaths.get(target.path) ?? target.path;
@@ -99,7 +119,12 @@ export function migrateLegacyReferences(
   const replacements: Replacement[] = [];
   const deadReferences: string[] = [];
   visit(parseMarkdown(source), (node) => {
-    if (node.type !== 'link' && node.type !== 'image' && node.type !== 'definition') return;
+    if (
+      node.type !== 'link' &&
+      node.type !== 'image' &&
+      node.type !== 'definition'
+    )
+      return;
     const target = classifyUrl(node.url, sourcePath);
     const targetPath =
       target.kind === 'note'

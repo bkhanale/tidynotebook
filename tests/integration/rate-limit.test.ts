@@ -1,7 +1,6 @@
 /** Public setup and authentication routes apply one explicit attempt limit. */
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
-import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';

@@ -1,5 +1,9 @@
 /** HTTP adapter for the accepted path-based backlink index. */
-import { listBacklinks, type Result, type WorkspaceStore } from '@notesapp/core';
+import {
+  listBacklinks,
+  type Result,
+  type WorkspaceStore,
+} from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { DomainProblemError } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';

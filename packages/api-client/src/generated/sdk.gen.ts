@@ -292,9 +292,9 @@ export const commitChangeset = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
- * Download every live note as a zip of Markdown files.
+ * Download every live note and image as a zip archive.
  *
- * Streams a zip archive that holds every live note of the workspace as a Markdown file at its stored path, plus an attachments folder with the images that those notes reference. A deleted note is not in the archive. Nothing in the archive needs this application to be read again, so it is also the cheapest disaster recovery.
+ * Streams a zip archive that holds every live note of the workspace as a Markdown file at its stored path, plus every live image at its stored path. A deleted file is not in the archive. Nothing in the archive needs this application to be read again, so it is also the cheapest disaster recovery.
  */
 export const exportWorkspace = <ThrowOnError extends boolean = false>(options: Options<ExportWorkspaceData, ThrowOnError>): RequestResult<ExportWorkspaceResponses, ExportWorkspaceErrors, ThrowOnError> => (options.client ?? client).get<ExportWorkspaceResponses, ExportWorkspaceErrors, ThrowOnError>({
     security: [{

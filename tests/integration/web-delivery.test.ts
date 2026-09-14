@@ -319,14 +319,18 @@ await test('an unexpected server error is logged with the failure', async () => 
     const logged = recorder
       .records()
       .filter((record) => record.level === 50)
-      .find((record) => JSON.stringify(record.err ?? '').includes(failure));
+      .find(
+        (record) =>
+          record.event === 'http.request.failed' &&
+          record.errorName === 'Error',
+      );
     assert.ok(
       logged !== undefined,
-      `no error record named the failure: ${recorder.lines.join('\n')}`,
+      `no error record named the event: ${recorder.lines.join('\n')}`,
     );
     // The record carries the request id, so a report from the user can be
     // matched to the stack that produced it.
-    assert.equal(logged.reqId, answer.headers['x-request-id']);
+    assert.equal(logged.requestId, answer.headers['x-request-id']);
     // The client answer still says nothing about the cause.
     assert.equal(answer.body.includes(failure), false);
   } finally {

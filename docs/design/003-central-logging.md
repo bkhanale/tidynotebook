@@ -1,6 +1,6 @@
 # 003: Central logging
 
-Status: active
+Status: complete
 
 This design states how a log record is written, and how the next one stays the
 same as the last one. It covers the server and the browser.

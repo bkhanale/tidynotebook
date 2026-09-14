@@ -1,6 +1,6 @@
 # 004: Portable Markdown at rest
 
-Status: active
+Status: complete
 
 This design states what a stored note is, and how the stored bytes become a file that a
 person takes anywhere.

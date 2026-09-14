@@ -3534,14 +3534,6 @@ export const operations: readonly OperationEntry[] = [
         }
       },
       {
-        "status": 429,
-        "mediaType": "application/problem+json",
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
-        }
-      },
-      {
         "status": 500,
         "mediaType": "application/problem+json",
         "schema": {
@@ -3837,6 +3829,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 429,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",

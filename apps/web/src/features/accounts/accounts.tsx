@@ -680,8 +680,8 @@ export function AccountSettingsPage(): ReactNode {
 
         <Card title="Export" titleId="export-heading">
           <p className="m-0 text-control text-muted">
-            Download every note as a zip of Markdown files. The files keep their
-            folders and need no application to be read again.
+            Download every note and image as a zip. The files keep their folders
+            and need no application to be read again.
           </p>
           {exportError === '' ? null : (
             <Notice className="mt-3" tone="problem" message={exportError} />
@@ -730,7 +730,7 @@ export function AccountSettingsPage(): ReactNode {
               void importAll(workspaceId, file)
                 .then((result) => {
                   setImportNotice(
-                    `Imported ${String(result.notes)} notes and ${String(result.attachments)} images.`,
+                    `Imported ${String(result.notes)} ${result.notes === 1 ? 'note' : 'notes'} and ${String(result.attachments)} ${result.attachments === 1 ? 'image' : 'images'}.`,
                   );
                   requestSync();
                 })

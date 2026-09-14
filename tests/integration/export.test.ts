@@ -323,7 +323,10 @@ await test('the archive holds every live note and the images they use', async ()
       file: new File([archive], 'notes.zip', { type: 'application/zip' }),
     },
   });
-  assert.deepEqual(imported.data, { notes: 2, attachments: 1 });
+  assert.deepEqual(imported.data, {
+    notes: paths.filter((path) => path.endsWith('.md')).length,
+    attachments: 1,
+  });
   const roundTrip = await exportWorkspace({
     headers: browser(cookie),
     path: { workspaceId: importedWorkspaceId },
@@ -333,7 +336,10 @@ await test('the archive holds every live note and the images they use', async ()
   );
   assert.deepEqual([...roundTripEntries.keys()], [...entries.keys()]);
   for (const [path, bytes] of entries)
-    assert.equal(Buffer.compare(roundTripEntries.get(path) ?? Buffer.alloc(0), bytes), 0);
+    assert.equal(
+      Buffer.compare(roundTripEntries.get(path) ?? Buffer.alloc(0), bytes),
+      0,
+    );
 });
 
 await test('the archive follows a rename and a later edit', async () => {

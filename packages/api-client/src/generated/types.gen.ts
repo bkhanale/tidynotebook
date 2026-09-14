@@ -1883,10 +1883,6 @@ export type GetHealthErrors = {
      */
     400: ProblemDetails;
     /**
-     * Too many attempts were made in a short time.
-     */
-    429: ProblemDetails;
-    /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
@@ -1959,6 +1955,10 @@ export type GetSetupStatusErrors = {
      * The request did not match the contract.
      */
     400: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
     /**
      * The service failed to complete the request.
      */

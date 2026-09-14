@@ -147,6 +147,24 @@ function buildAuth(
       window: config.rateLimit.windowSeconds,
       max: config.rateLimit.max,
       storage: 'memory',
+      customRules: {
+        '/sign-in/*': {
+          window: config.rateLimit.windowSeconds,
+          max: config.rateLimit.max,
+        },
+        '/sign-up/*': {
+          window: config.rateLimit.windowSeconds,
+          max: config.rateLimit.max,
+        },
+        '/change-password': {
+          window: config.rateLimit.windowSeconds,
+          max: config.rateLimit.max,
+        },
+        '/change-email': {
+          window: config.rateLimit.windowSeconds,
+          max: config.rateLimit.max,
+        },
+      },
     },
     database: drizzleAdapter(database, {
       provider: 'pg',

@@ -45,19 +45,17 @@ await test('an unsafe or protocol relative address asks for nothing', () => {
     assert.deepEqual(resolveLinkAction(destination), { kind: 'none' });
 });
 
-await test('a relative destination names another note', () => {
+await test('a relative Markdown path names another note', () => {
+  assert.deepEqual(resolveLinkAction('../Ideas.md', 'Projects/Active.md'), {
+    kind: 'note-path',
+    path: 'Ideas.md',
+  });
   assert.deepEqual(resolveLinkAction('Projects/Ideas.md'), {
-    kind: 'note-name',
-    name: 'Projects/Ideas',
+    kind: 'note-path',
+    path: 'Projects/Ideas.md',
   });
-  assert.deepEqual(resolveLinkAction('Shopping'), {
-    kind: 'note-name',
-    name: 'Shopping',
-  });
-  assert.deepEqual(resolveLinkAction('Shopping.MD#list'), {
-    kind: 'note-name',
-    name: 'Shopping',
-  });
+  assert.deepEqual(resolveLinkAction('Shopping'), { kind: 'none' });
+  assert.deepEqual(resolveLinkAction('Shopping.MD#list'), { kind: 'none' });
 });
 
 await test('an application path or a bare fragment names no note', () => {

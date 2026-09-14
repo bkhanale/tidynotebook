@@ -594,7 +594,8 @@ export function registerOperations(
             }
           : {}),
       },
-      ...(operation.id === 'uploadAttachment' || operation.id === 'importWorkspace'
+      ...(operation.id === 'uploadAttachment' ||
+      operation.id === 'importWorkspace'
         ? {
             bodyLimit:
               operation.id === 'importWorkspace'

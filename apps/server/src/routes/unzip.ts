@@ -77,7 +77,8 @@ export function unzipArchive(bytes: Buffer): readonly UnzipEntry[] {
     if (expanded > maxExpandedBytes)
       throw new Error('notesapp: the import is too large.');
     const content = bytes.subarray(start, finish);
-    const uncompressed = method === 0 ? Buffer.from(content) : inflateRawSync(content);
+    const uncompressed =
+      method === 0 ? Buffer.from(content) : inflateRawSync(content);
     if (uncompressed.length !== size)
       throw new Error('notesapp: the import entry size is not valid.');
     paths.add(path);

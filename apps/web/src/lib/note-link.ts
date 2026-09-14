@@ -40,8 +40,7 @@ export function resolveLinkAction(
 ): LinkAction {
   const target = classifyUrl(destination, sourcePath);
   if (target.kind === 'note') return { kind: 'note-id', fileId: target.id };
-  if (target.kind === 'external')
-    return { kind: 'external', url: target.href };
+  if (target.kind === 'external') return { kind: 'external', url: target.href };
   if (target.kind === 'relative' && target.path.endsWith('.md'))
     return { kind: 'note-path', path: target.path };
   return noAction;

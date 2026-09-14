@@ -1,6 +1,6 @@
 # Plan 008: Portable Markdown at rest
 
-Status: active
+Status: complete
 
 > The live item is [GitHub issue 71](https://github.com/bkhanale/notesapp/issues/71) on the project board.
 

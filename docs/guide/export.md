@@ -21,7 +21,7 @@ You get one zip file. Inside it:
 
 - every note as a `.md` file, at its folder path, so your folders come out as
   folders;
-- an `attachments` folder holding the images that those notes use.
+- an `attachments` folder holding your live images.
 
 The files are ordinary Markdown. They need no application to be read again.
 
@@ -38,5 +38,9 @@ from Trash before you export.
 
 ## Import
 
-There is no import in this release. See
-[decision 0009](../decisions/0009-export-first-import-later.md).
+Open **Settings** from the header menu and find the **Import** card. Select
+**Import workspace**, then select a zip file that contains Markdown files and
+images. The import keeps each file path and each relative link.
+
+An imported path must not be in use. If a path is in use, rename or remove that
+file before you import the zip file again.

@@ -1,6 +1,6 @@
 # Plan 007: Central logging
 
-Status: active
+Status: complete
 
 > The live item is [GitHub issue 21](https://github.com/bkhanale/notesapp/issues/21) on the project board.
 

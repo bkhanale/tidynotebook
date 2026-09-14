@@ -78,6 +78,7 @@ export function useAttachmentUrls(
   workspaceId: string,
   notePath: string,
   bufferText: string,
+  recentAttachments: ReadonlyMap<string, string>,
 ): AttachmentUrls {
   const [attachmentUrls, setAttachmentUrls] = useState<
     ReadonlyMap<string, string>
@@ -105,6 +106,14 @@ export function useAttachmentUrls(
         if (reference.revisionId !== null)
           return [
             { key: reference.revisionId, revisionId: reference.revisionId },
+          ];
+        const recentRevisionId =
+          reference.targetPath === null
+            ? undefined
+            : recentAttachments.get(reference.targetPath);
+        if (recentRevisionId !== undefined)
+          return [
+            { key: reference.targetPath ?? '', revisionId: recentRevisionId },
           ];
         const file = files.find(
           (entry) =>
@@ -156,7 +165,15 @@ export function useAttachmentUrls(
       cancelled = true;
       controller.abort();
     };
-  }, [store, accountId, workspaceId, notePath, loader, bufferText]);
+  }, [
+    store,
+    accountId,
+    workspaceId,
+    notePath,
+    loader,
+    bufferText,
+    recentAttachments,
+  ]);
 
   useEffect(
     () => () => {

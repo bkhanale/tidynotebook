@@ -75,7 +75,9 @@ async function archiveBytes(request: FastifyRequest): Promise<Buffer> {
     });
   });
   parser.on('filesLimit', () => {
-    failure = new PayloadTooLargeError('The import has too many archive files.');
+    failure = new PayloadTooLargeError(
+      'The import has too many archive files.',
+    );
   });
   parser.on('partsLimit', () => {
     failure = new PayloadTooLargeError('The import has too many form parts.');
@@ -258,7 +260,9 @@ export function createImportHandlers(
         );
       for (const entry of notes) {
         if (!normalizePath(entry.path, 'note').ok)
-          throw new InvalidContentError('The archive has an invalid note path.');
+          throw new InvalidContentError(
+            'The archive has an invalid note path.',
+          );
       }
       for (const entry of images) {
         if (!normalizePath(entry.path, 'attachment').ok)

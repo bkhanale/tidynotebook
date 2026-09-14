@@ -32,6 +32,20 @@ function refuse(error: unknown): Error {
   return new Error('The download did not start. Try again.');
 }
 
+/** The message of a refused import. */
+function refuseImport(error: unknown): Error {
+  const code = problemCode(error);
+  if (code === 'path_conflict')
+    return new Error('A file already uses an imported path.');
+  if (code === 'unauthenticated')
+    return new Error('Sign in again to import your notes.');
+  if (code === 'payload_too_large')
+    return new Error('The import is too large. Select a smaller zip file.');
+  return new Error(
+    'The import did not finish. Check the zip file and try again.',
+  );
+}
+
 /**
  * The download name that the answer states, or the given fallback.
  *
@@ -126,6 +140,6 @@ export async function importAll(
     body: { file },
   });
   if (answer.error !== undefined || answer.data === undefined)
-    throw refuse(answer.error);
+    throw refuseImport(answer.error);
   return answer.data;
 }
