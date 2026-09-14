@@ -65,3 +65,54 @@ await test('the active code line has a focus outline', () => {
   assert.equal(activeCodeLine.outline, '1px solid var(--notes-focus)');
   assert.equal(activeCodeLine.outlineOffset, '-1px');
 });
+
+await test('a block quote reads in the muted text color', () => {
+  assert.equal(rule('.cm-np-quote').color, 'var(--notes-text-muted)');
+});
+
+await test('a block quote draws a left bar and never a box', () => {
+  // The GitHub style is one bar on the left. A fill, a radius, or an edge on
+  // another side turns the quote back into the box this test guards against.
+  for (const selector of [
+    '.cm-np-quote',
+    '.cm-np-quote-1',
+    '.cm-np-quote-2',
+    '.cm-np-quote-3',
+    '.cm-np-quote-4',
+  ]) {
+    const quote = rule(selector);
+    for (const property of [
+      'background',
+      'backgroundColor',
+      'border',
+      'borderTop',
+      'borderBottom',
+      'borderInlineEnd',
+      'borderBlock',
+      'borderRadius',
+      'boxShadow',
+      'outline',
+    ])
+      assert.equal(quote[property], undefined, `${selector} sets ${property}`);
+  }
+});
+
+await test('each quote level adds one bar from the theme palette', () => {
+  for (let level = 1; level <= 4; level += 1) {
+    const quote = rule(`.cm-np-quote-${String(level)}`);
+    const layers = String(quote.backgroundImage);
+    assert.equal(layers.split('linear-gradient').length - 1, level);
+    assert.ok(layers.includes('var(--notes-border)'));
+    // Every color of the adapter is a palette variable, so a literal here
+    // would put a color outside the theme registry.
+    assert.ok(!/#[0-9a-fA-F]{3}|rgba?\(/.test(layers));
+    assert.equal(String(quote.backgroundPosition).split(',').length, level);
+    assert.equal(quote.backgroundSize, 'calc(var(--spacing) * 1) 100%');
+    assert.equal(quote.backgroundRepeat, 'no-repeat');
+    // The text clears the last bar by the same step that separates two bars.
+    assert.equal(
+      quote.paddingInlineStart,
+      `calc(var(--spacing) * ${String(level * 4)})`,
+    );
+  }
+});

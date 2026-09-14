@@ -85,14 +85,42 @@ function headingRules(): Record<string, Record<string, string>> {
   return rules;
 }
 
-/** The quote bar of one nesting level, drawn with inset shadows. */
-function quoteBars(level: number): string {
-  const bars: string[] = [];
-  for (let index = 0; index < level; index += 1)
-    bars.push(
-      `inset calc(var(--spacing) * ${String(index * 3)} + 2px) 0 0 calc(var(--spacing) * -1 + 6px) var(--notes-border)`,
-    );
-  return bars.join(', ');
+/** The width of one quote bar. */
+const quoteBarWidth = 'calc(var(--spacing) * 1)';
+
+/** The distance from one quote bar to the next, and to the quoted text. */
+const quoteBarStep = 4;
+
+/**
+ * The bars and the text inset of one block quote level.
+ *
+ * A block quote reads like the GitHub style: a solid bar on the left, the
+ * text clear of that bar, and a quieter text color. It is not a box. There
+ * is no fill, no radius, and no edge on the other three sides.
+ *
+ * CodeMirror gives each quoted line its own element, so a bar is a
+ * background stripe of that line and the stripes of neighbour lines join
+ * into one continuous bar. One flat line element cannot hold a nested
+ * element, so a quote inside a quote adds one more stripe one step further
+ * in, and the reader counts one bar for each level. Each stripe is a solid
+ * background layer in the theme border color; the layer list, the layer
+ * size, and the layer position are the only way to put a stripe at an
+ * offset without a second element.
+ */
+function quoteLevel(level: number): Record<string, string> {
+  const layers: string[] = [];
+  const positions: string[] = [];
+  for (let index = 0; index < level; index += 1) {
+    layers.push('linear-gradient(var(--notes-border), var(--notes-border))');
+    positions.push(`calc(var(--spacing) * ${String(index * quoteBarStep)}) 0`);
+  }
+  return {
+    backgroundImage: layers.join(', '),
+    backgroundPosition: positions.join(', '),
+    backgroundSize: `${quoteBarWidth} 100%`,
+    backgroundRepeat: 'no-repeat',
+    paddingInlineStart: `calc(var(--spacing) * ${String(level * quoteBarStep)})`,
+  };
 }
 
 /**
@@ -208,23 +236,14 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       letterSpacing: '0.06em',
     },
 
-    '.cm-np-quote': {
-      color: 'var(--notes-text-muted)',
-      paddingInlineStart: 'calc(var(--spacing) * 4)',
-    },
-    '.cm-np-quote-1': { boxShadow: quoteBars(1) },
-    '.cm-np-quote-2': {
-      boxShadow: quoteBars(2),
-      paddingInlineStart: 'calc(var(--spacing) * 7)',
-    },
-    '.cm-np-quote-3': {
-      boxShadow: quoteBars(3),
-      paddingInlineStart: 'calc(var(--spacing) * 10)',
-    },
-    '.cm-np-quote-4': {
-      boxShadow: quoteBars(4),
-      paddingInlineStart: 'calc(var(--spacing) * 13)',
-    },
+    // A quoted line keeps the quieter text color of the palette. The bars
+    // come from the level rules below, which follow this rule, so a deeper
+    // level replaces the layers of the level above it.
+    '.cm-np-quote': { color: 'var(--notes-text-muted)' },
+    '.cm-np-quote-1': quoteLevel(1),
+    '.cm-np-quote-2': quoteLevel(2),
+    '.cm-np-quote-3': quoteLevel(3),
+    '.cm-np-quote-4': quoteLevel(4),
 
     '.cm-np-bullet': {
       color: 'var(--notes-accent-fill)',

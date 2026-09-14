@@ -137,6 +137,25 @@ await test('math renders to sanitized KaTeX and diagrams stay source', () => {
   assert.ok(html.includes('<pre data-diagram="mermaid">graph TD;\n  A-->B;'));
 });
 
+await test('a block quote nests and carries no presentation', () => {
+  // The live preview draws the bar and the muted text of a quote. The
+  // reference HTML carries the structure only, so a class or a style here
+  // would be a second presentation of the same construct.
+  const opening = html.match(/<blockquote[^>]*>/g) ?? [];
+  assert.equal(opening.length, 3);
+  for (const tag of opening) assert.equal(tag, '<blockquote>');
+  assert.equal((html.match(/<\/blockquote>/g) ?? []).length, 3);
+  // The corpus quotes one quote inside another, so the reference path must
+  // report two levels, exactly as the live preview reports two bars.
+  let depth = 0;
+  let deepest = 0;
+  for (const tag of html.match(/<\/?blockquote>/g) ?? []) {
+    depth += tag.startsWith('</') ? -1 : 1;
+    deepest = Math.max(deepest, depth);
+  }
+  assert.equal(deepest, 2);
+});
+
 await test('an unclosed fence renders as a code block', () => {
   assert.ok(
     html.includes('<pre><code class="language-js">const unclosed = true;\n'),
