@@ -50,13 +50,33 @@ for (const name of names) {
 const selected = candidates.filter(
   (file) => names.length === 0 || names.some((name) => matches(file, name)),
 );
+// The test runner measures coverage and prints the report after the results.
+// The report shows the product source only, so it excludes the tests
+// themselves, the generated clients, and the build output. Set
+// NOTESAPP_COVERAGE to `off` to hide the report while you work. Coverage is a
+// measurement here, not a gate, so no threshold flag belongs in this list.
+const coverageArgs =
+  process.env.NOTESAPP_COVERAGE === 'off'
+    ? []
+    : [
+        '--experimental-test-coverage',
+        '--test-coverage-exclude=**/*.test.ts',
+        '--test-coverage-exclude=**/*.test.mjs',
+        '--test-coverage-exclude=**/generated/**',
+        '--test-coverage-exclude=**/dist/**',
+        '--test-coverage-exclude=tests/**',
+      ];
 if (selected.length === 0) {
   console.log(`No ${kind} tests exist yet.`);
 } else {
-  const result = spawnSync(process.execPath, ['--test', ...selected.sort()], {
-    cwd: root,
-    stdio: 'inherit',
-  });
+  const result = spawnSync(
+    process.execPath,
+    ['--test', ...coverageArgs, ...selected.sort()],
+    {
+      cwd: root,
+      stdio: 'inherit',
+    },
+  );
   if (result.error) console.error(result.error.message);
   process.exitCode = result.status ?? 1;
 }

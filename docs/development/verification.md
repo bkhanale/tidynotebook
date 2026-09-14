@@ -26,6 +26,23 @@ cannot strip JSX. A React component is therefore proved by a unit test over the
 pure functions behind it and by the browser gate, never by a component test
 runner.
 
+## Coverage
+
+The test runner of Node measures coverage on each unit and integration run, and
+it prints the report after the results. `tools/run-tests.mjs` sets the flags.
+The report shows the product source only: it excludes the test files, the
+generated clients, and the build output.
+
+The report is a measurement, not a gate. No coverage threshold can fail the
+run, so a number in the report never blocks a change. Read the report to find
+the code that no test touches.
+
+Turn the report off for a short result while you work:
+
+```sh
+NOTESAPP_COVERAGE=off pnpm test:unit
+```
+
 ## The browser gate
 
 `pnpm test:e2e` is the gate for the user interface. See
