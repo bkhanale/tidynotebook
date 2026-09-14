@@ -98,7 +98,8 @@ export type LocalChange = {
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string | null;
-  readonly kind: 'draft' | 'queue' | 'file' | 'conflict' | 'cursor' | 'reset';
+  readonly kind:
+    'draft' | 'queue' | 'file' | 'purge' | 'conflict' | 'cursor' | 'reset';
 };
 
 /** One file as it must appear in local navigation. */

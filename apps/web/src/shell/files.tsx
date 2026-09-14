@@ -48,11 +48,11 @@ export type FilesValue = {
    * Folders that a person made and that hold no note yet.
    *
    * A folder is only a part of a note path, so the server cannot describe an
-   * empty one. This device remembers it until a note is made or moved into
-   * it, and no placeholder note is created.
+   * empty one. This device remembers a folder until the person deletes it,
+   * and no placeholder note is created.
    */
   readonly emptyFolders: readonly string[];
-  /** Remembers one more empty folder on this device. */
+  /** Remembers one more folder on this device. */
   readonly addEmptyFolder: (folder: string) => void;
   /** Follows a folder rename or move with the remembered empty folders. */
   readonly moveEmptyFolders: (fromFolder: string, toFolder: string) => void;
@@ -135,6 +135,7 @@ export function FilesProvider({
 }): ReactNode {
   const session = useSession();
   const store = useLocalStore();
+  const accountId = session.account?.accountId ?? null;
   const [serverFiles, setServerFiles] =
     useState<BoundedFiles<WorkspaceFileSummary>>(noServerFiles);
   const [loading, setLoading] = useState(true);
@@ -142,7 +143,7 @@ export function FilesProvider({
   const emptyLocalFiles = useMemo<readonly LocalFileSummary[]>(() => [], []);
   const localFiles = useLocalQuery(
     store.store,
-    session.account?.accountId ?? null,
+    accountId,
     workspaceId,
     (activeStore: LocalStore, accountId: string, activeWorkspace: string) =>
       activeStore.listLocalFiles(accountId, activeWorkspace),
@@ -151,8 +152,37 @@ export function FilesProvider({
       change.kind === 'draft' ||
       change.kind === 'queue' ||
       change.kind === 'file' ||
+      change.kind === 'purge' ||
       change.kind === 'reset',
   );
+
+  /** Reads the accepted server list again. */
+  const reload = useCallback(() => {
+    setGeneration((current) => current + 1);
+  }, []);
+
+  // A purge removes the local row that could mask an old server list. Read
+  // the server list again when the store reports that exact transition. A
+  // focus or reconnect is the safety path when another tab missed the event.
+  useEffect(() => {
+    const activeStore = store.store;
+    if (activeStore === null || accountId === null) return;
+    const unsubscribe = activeStore.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        change.kind === 'purge'
+      )
+        reload();
+    });
+    window.addEventListener('focus', reload);
+    window.addEventListener('online', reload);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', reload);
+      window.removeEventListener('online', reload);
+    };
+  }, [store.store, accountId, workspaceId, reload]);
 
   useEffect(() => {
     let cancelled = false;
@@ -186,10 +216,6 @@ export function FilesProvider({
       fileListLimitNotice(serverFiles.files.length, serverFiles.reachedLimit),
     [serverFiles],
   );
-
-  const reload = useCallback(() => {
-    setGeneration((current) => current + 1);
-  }, []);
 
   const empty = useEmptyFolders(
     workspaceId,
@@ -316,9 +342,9 @@ function readEmptyFolders(workspaceId: string): readonly string[] {
  * Keeps the folders that hold no note across refreshes and reloads.
  *
  * The set lives next to the open folders of the tree, because both are
- * choices of this person on this device. A folder leaves the set as soon as
- * a note lives in it: the note paths then describe the folder and the server
- * carries it to every other device.
+ * choices of this person on this device. A remembered folder stays in the
+ * set while a note lives in it. It is hidden from `emptyFolders` until its
+ * last note leaves, then it becomes visible without a timing-dependent write.
  */
 function useEmptyFolders(
   workspaceId: string,
@@ -356,12 +382,6 @@ function useEmptyFolders(
     () => pruneEmptyFolders(remembered, notePaths),
     [remembered, notePaths],
   );
-
-  useEffect(() => {
-    if (emptyFolders.length === remembered.length) return;
-    setRemembered(emptyFolders);
-    remember(emptyFolders);
-  }, [emptyFolders, remembered, remember]);
 
   const addEmptyFolder = useCallback(
     (folder: string): void => {

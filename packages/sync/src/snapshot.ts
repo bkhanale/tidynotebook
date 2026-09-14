@@ -269,6 +269,14 @@ async function fetchAndApply(
     throw new SyncFailedError(fed.problem.code, fed.problem.status);
   }
   const files: RemoteChange[] = [];
+  // One page can contain a note deletion and its later permanent deletion.
+  // The purge removes the deletion revision before this device can fetch it.
+  // Skip every earlier revision for that file and apply the final purge.
+  const purgedFileIds = new Set(
+    fed.value.changes.flatMap((change) =>
+      change.purgedFileId === null ? [] : [change.purgedFileId],
+    ),
+  );
   for (const change of fed.value.changes) {
     const pointer = change.file;
     if (pointer === null) {
@@ -278,6 +286,7 @@ async function fetchAndApply(
       files.push({ file: null, purgedFileId: change.purgedFileId });
       continue;
     }
+    if (purgedFileIds.has(pointer.fileId)) continue;
     const fetched = await sendWithRetry(ctx, (signal) =>
       net.revision(pointer.revisionId, signal),
     );

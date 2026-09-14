@@ -435,8 +435,32 @@ function TrashList({
       change.kind === 'draft' ||
       change.kind === 'queue' ||
       change.kind === 'file' ||
+      change.kind === 'purge' ||
       change.kind === 'reset',
   );
+
+  // A remote delete, restore, or purge changes which accepted rows belong in
+  // Trash. Refresh that server list after the matching local transition. A
+  // focus or reconnect also repairs a missed invalidation.
+  useEffect(() => {
+    if (store === null) return;
+    const unsubscribe = store.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        (change.kind === 'file' || change.kind === 'purge')
+      )
+        setGeneration((value) => value + 1);
+    });
+    const refresh = (): void => setGeneration((value) => value + 1);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => {
+      unsubscribe();
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('online', refresh);
+    };
+  }, [store, accountId, workspaceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -509,15 +533,33 @@ function TrashList({
         path: { workspaceId },
         body: { mutationId: generateUUID(), fileIds: [item.fileId] },
       });
-      setBusy(false);
       if (purged.error !== undefined || purged.data === undefined) {
+        setBusy(false);
         setFailure(problemMessage(purged.error));
         return;
       }
+      try {
+        await store?.forgetPurgedFiles(accountId, workspaceId, [item.fileId]);
+      } catch {
+        setBusy(false);
+        setRemote((current) =>
+          current.filter((file) => file.fileId !== item.fileId),
+        );
+        files.reload();
+        reload();
+        setFailure(
+          'The note is deleted permanently on the server. Reload this page to update this device.',
+        );
+        return;
+      }
       setOutcome(`${displayNoteName(item.path)} is deleted permanently.`);
+      setRemote((current) =>
+        current.filter((file) => file.fileId !== item.fileId),
+      );
       requestSync();
       files.reload();
       reload();
+      setBusy(false);
     })();
   };
 

@@ -120,9 +120,15 @@ export async function openLocalStore(
         typeof row['accountId'] !== 'string' ||
         typeof row['workspaceId'] !== 'string' ||
         (typeof row['fileId'] !== 'string' && row['fileId'] !== null) ||
-        !['draft', 'queue', 'file', 'conflict', 'cursor', 'reset'].includes(
-          String(row['kind']),
-        )
+        ![
+          'draft',
+          'queue',
+          'file',
+          'purge',
+          'conflict',
+          'cursor',
+          'reset',
+        ].includes(String(row['kind']))
       )
         return;
       notify(value as LocalChange);

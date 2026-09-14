@@ -25,6 +25,7 @@ import {
   LocalStorageError,
   parkRefusedSave,
   type Draft,
+  type LocalChange,
   type LocalStore,
   type QueueEntry,
 } from '@notesapp/sync';
@@ -1603,8 +1604,14 @@ await test('forgetting a purged file removes every local trace of it', async () 
   assert.ok(queued !== null);
   await parkRefusedSave(store, account, queued, 'purged');
 
+  const changes: LocalChange[] = [];
+  const unsubscribe = store.subscribe((change) => changes.push(change));
   await store.forgetPurgedFiles(account, workspace, [file]);
+  unsubscribe();
 
+  assert.deepEqual(changes, [
+    { accountId: account, workspaceId: workspace, fileId: file, kind: 'purge' },
+  ]);
   assert.deepEqual(await store.listLocalFiles(account, workspace), []);
   assert.deepEqual(await store.listAcceptedFiles(account, workspace), []);
   assert.deepEqual(await store.pending(account, workspace), []);
@@ -1640,13 +1647,19 @@ await test('a purge marker forgets the queue and recovery, not only the file row
   assert.ok(queued !== null);
   await parkRefusedSave(store, account, queued, 'save_refused');
 
+  const changes: LocalChange[] = [];
+  const unsubscribe = store.subscribe((change) => changes.push(change));
   await store.applyRemoteChanges(
     account,
     workspace,
     [{ file: null, purgedFileId: file }],
     '2',
   );
+  unsubscribe();
 
+  assert.deepEqual(changes, [
+    { accountId: account, workspaceId: workspace, fileId: file, kind: 'purge' },
+  ]);
   assert.deepEqual(await store.listLocalFiles(account, workspace), []);
   assert.deepEqual(await store.pending(account, workspace), []);
   assert.deepEqual(await store.recover(account, workspace), []);

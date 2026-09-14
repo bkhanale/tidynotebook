@@ -463,27 +463,17 @@ function Sidebar({
   const noteActions = useNoteActions();
   const [deleting, setDeleting] = useState(false);
   const [deleteProblem, setDeleteProblem] = useState<string | null>(null);
-  const keptFoldersRef = useRef<Set<string>>(new Set());
 
   const accountId = session.account?.accountId ?? null;
-
-  /** Keeps the folder of a deleted note so it stays in the tree. */
-  useEffect(() => {
-    const kept = keptFoldersRef.current;
-    if (kept.size === 0) return;
-    for (const folder of [...kept]) {
-      if (notesInFolder(files.notes, folder).length === 0) {
-        files.addEmptyFolder(folder);
-        kept.delete(folder);
-      }
-    }
-  }, [files.notes, files.addEmptyFolder]);
 
   /** Moves one note to the trash without a confirmation step. */
   const deleteNoteNow = (target: NoteSummary): void => {
     if (deleting) return;
     const name = displayNoteName(target.path);
     const folder = folderOf(target.path);
+    // Remember the folder before the local tombstone publishes its change.
+    // It stays hidden while another note still describes the folder.
+    if (folder !== null) files.addEmptyFolder(folder);
     if (
       noteActions !== null &&
       noteActions.fileId === target.fileId &&
@@ -504,7 +494,6 @@ function Sidebar({
           setDeleteProblem('The note did not move to Trash. Try again.');
           return;
         }
-        if (folder !== null) keptFoldersRef.current.add(folder);
         announce({
           workspaceId,
           items: [{ fileId: target.fileId, name }],
@@ -534,7 +523,6 @@ function Sidebar({
         setDeleteProblem(outcome.message);
         return;
       }
-      if (folder !== null) keptFoldersRef.current.add(folder);
       announce({
         workspaceId,
         items: [{ fileId: target.fileId, name }],

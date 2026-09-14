@@ -1350,6 +1350,57 @@ await test('an expired cursor restarts from a fresh snapshot and keeps the queue
   assert.equal(store.queued()?.input.mutationId, 'mutation-1');
 });
 
+await test('a purge in one change page supersedes its missing deletion revision', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '3');
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let revisionReads = 0;
+  const ops = stubOperations({
+    changes: (cursor) => {
+      assert.equal(cursor, '3');
+      return Promise.resolve({
+        ok: true as const,
+        value: {
+          changes: [
+            {
+              file: { fileId: 'file-a', revisionId: 'rev-deleted' },
+              purgedFileId: null,
+            },
+            { file: null, purgedFileId: 'file-a' },
+          ],
+          nextCursor: '5',
+        },
+      });
+    },
+    revision: () => {
+      revisionReads += 1;
+      return Promise.resolve({
+        ok: false as const,
+        problem: { status: 410, code: 'purged', fileIds: ['file-a'] },
+      });
+    },
+  });
+
+  const outcome = await pullNew(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+  );
+
+  assert.equal(outcome, 'done');
+  assert.equal(revisionReads, 0);
+  assert.deepEqual(store.applied, [
+    {
+      changes: [{ file: null, purgedFileId: 'file-a' }],
+      nextCursor: '5',
+    },
+  ]);
+  assert.deepEqual(notices, [{ kind: 'changes-applied', count: 1 }]);
+});
+
 await test('a purged revision mid-download restarts the snapshot once', async () => {
   const store = new FakeStore();
   const notices: SyncNotice[] = [];

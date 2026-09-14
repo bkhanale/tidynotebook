@@ -546,7 +546,12 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
           accountId,
           workspaceId,
           fileId,
-          kind: fileId === null ? 'cursor' : 'file',
+          kind:
+            change.purgedFileId !== null
+              ? 'purge'
+              : fileId === null
+                ? 'cursor'
+                : 'file',
         });
       }
     },
@@ -574,7 +579,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
         ),
       );
       for (const fileId of fileIds)
-        publish({ accountId, workspaceId, fileId, kind: 'file' });
+        publish({ accountId, workspaceId, fileId, kind: 'purge' });
     },
   };
 }

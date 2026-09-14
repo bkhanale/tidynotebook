@@ -7,6 +7,7 @@ import {
   openNavigation,
   openPersonalWorkspace,
   replaceEditorText,
+  runNoteAction,
   signIn,
   waitForServerSave,
 } from './support/account.ts';
@@ -231,6 +232,30 @@ test('Delete the last note in a folder keeps the folder', async ({
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
 });
 
+test('Delete the last open note keeps the folder', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  const folder = `keep-open-folder-${Date.now().toString()}`;
+  const name = 'Only open note';
+
+  await createFolder(page, folder);
+  await createNoteInFolder(page, folder, name, '# Keep the folder');
+
+  await runNoteAction(page, 'Delete this note');
+  await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
+
+  await openNavigation(page);
+  const tree = page.locator('section[aria-labelledby="tree-heading"]');
+  await expect(folderDisclosure(page, folder)).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: `Actions for the folder ${folder}` }),
+  ).toBeVisible();
+  await expect(tree.getByRole('link', { name })).toHaveCount(0);
+});
+
 test('A note deleted permanently leaves the sidebar and the trash', async ({
   checkedPage: page,
   stack,
@@ -271,6 +296,46 @@ test('A note deleted permanently leaves the sidebar and the trash', async ({
   await openNavigation(page);
   await page.getByRole('link', { name: 'Trash' }).click();
   await expect(main.locator('li').filter({ hasText: name })).toHaveCount(0);
+});
+
+test('A note deleted permanently in another session leaves the sidebar', async ({
+  checkedPage: page,
+  browser,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+
+  const name = `purge-other-tab-${Date.now().toString()}`;
+  await page.getByLabel('Note name').fill(name);
+  await replaceEditorText(page, '# Purge in another tab');
+  await waitForServerSave(page);
+
+  const otherContext = await browser.newContext();
+  const other = await otherContext.newPage();
+  await signIn(other, stack);
+  await other.goto(page.url());
+  await expect(other.getByLabel('Note name')).toHaveValue(name);
+
+  await runNoteAction(other, 'Delete this note');
+  await runNoteAction(other, 'Go to Trash');
+  const purgeRow = other.locator('main li').filter({ hasText: name });
+  await purgeRow.getByRole('button', { name: 'Delete permanently' }).click();
+  await purgeRow.getByRole('button', { name: 'Confirm' }).click();
+  await expect(
+    other.getByText(`${name} is deleted permanently.`),
+  ).toBeVisible();
+  await expect(purgeRow).toHaveCount(0);
+  await otherContext.close();
+
+  await page.bringToFront();
+  await expect(
+    page.getByRole('heading', { name: 'Note deleted permanently' }),
+  ).toBeVisible({ timeout: 25_000 });
+  await openNavigation(page);
+  const tree = page.locator('section[aria-labelledby="tree-heading"]');
+  await expect(tree.getByRole('link', { name })).toHaveCount(0);
 });
 
 test('A rename keeps a note in its folder', async ({

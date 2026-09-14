@@ -451,8 +451,10 @@ function NoteEditorBody({
         change.accountId === current.accountId &&
         change.workspaceId === current.workspaceId &&
         (change.fileId === null || change.fileId === current.fileId)
-      )
+      ) {
+        if (change.kind === 'purge') isDeletedRef.current = true;
         void refreshQueue.current();
+      }
     });
     const polling = window.setInterval(() => {
       void refreshQueue.current();
@@ -920,6 +922,8 @@ function NoteEditorBody({
   /** Deletes the open note, tells the person, and leaves for the note list. */
   const deleteNoteAndLeave = useCallback((): void => {
     const deletedName = displayNoteName(validPathRef.current);
+    const deletedFolder = folderOf(validPathRef.current);
+    if (deletedFolder !== '') noteList.addEmptyFolder(deletedFolder);
     void (async (): Promise<void> => {
       const moved = await deleteOpenNote();
       if (!moved) return;
@@ -931,7 +935,14 @@ function NoteEditorBody({
       });
       void navigate(`/w/${workspaceId}`);
     })();
-  }, [deleteOpenNote, announceDeleted, workspaceId, fileId, navigate]);
+  }, [
+    deleteOpenNote,
+    announceDeleted,
+    workspaceId,
+    fileId,
+    navigate,
+    noteList,
+  ]);
 
   /** Opens the Move to folder dialog that the note screen owns. */
   const moveNoteToFolder = useCallback((): void => {
@@ -1219,6 +1230,10 @@ export function NoteEditorLoader({
           fileId,
         );
         if (cancelled || cached === null) return;
+        if (cached.deleted && statusKind.current === 'ready') {
+          setStatus({ kind: 'deleted', path: cached.path });
+          return;
+        }
         // The note was in the trash and is not any more, so a restore
         // reached this device. The loader reads it again.
         if (!cached.deleted && statusKind.current === 'deleted')
@@ -1231,10 +1246,14 @@ export function NoteEditorLoader({
       if (
         change.accountId === accountId &&
         change.workspaceId === workspaceId &&
-        change.kind === 'file' &&
         (change.fileId === null || change.fileId === fileId)
-      )
-        void recheck();
+      ) {
+        if (change.kind === 'purge') {
+          setStatus({ kind: 'purged' });
+          return;
+        }
+        if (change.kind === 'file') void recheck();
+      }
     });
     return () => {
       cancelled = true;
