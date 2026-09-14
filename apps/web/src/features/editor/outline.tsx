@@ -1,16 +1,12 @@
 /** The note outline panel, which reads the live buffer and moves the caret. */
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { getFile } from '@notesapp/api-client';
 import {
   outlineOf,
   previewStructureOf,
   type OutlineHeading,
 } from '@notesapp/editor';
-import {
-  activeNoteView,
-  revealInActiveNote,
-  subscribeActiveNote,
-} from './active-note.ts';
+import { revealInNote, useActiveNote } from './active-note.tsx';
 
 /** The headings of one Markdown source, read from the shared grammar. */
 function outlineOfText(source: string): readonly OutlineHeading[] {
@@ -21,20 +17,14 @@ function outlineOfText(source: string): readonly OutlineHeading[] {
   );
 }
 
-/** The headings of the note that is open in the editor right now. */
-function liveOutline(): readonly OutlineHeading[] | null {
-  const view = activeNoteView();
-  return view === null ? null : outlineOf(view.state);
-}
-
 /**
  * Renders the outline of an open note.
  *
  * The rows come from the same Markdown syntax tree the editor renders, so a
- * `#` inside a code fence is code here too. While the editor is mounted the
- * panel follows the live buffer and a row moves the caret to its heading.
- * Without an editor, for example on a screen that only reads, the panel
- * falls back to the accepted server text.
+ * `#` inside a code fence is code here too. The panel sits in the scope of the
+ * open note: while its editor is mounted the panel follows the live buffer and
+ * a row moves the caret to its heading. Until the editor opens, the panel
+ * falls back to the text it is given, or to the accepted server text.
  */
 export function OutlinePanel({
   workspaceId,
@@ -45,16 +35,16 @@ export function OutlinePanel({
   readonly fileId: string | null;
   readonly text?: string | undefined;
 }): ReactNode {
-  const [live, setLive] = useState<readonly OutlineHeading[] | null>(() =>
-    liveOutline(),
+  // The scope gives a new value when the editor opens, when it closes, and
+  // when the text moves on, so the rows below follow the live buffer. The
+  // count is the reason to read the buffer again, so the walk of the syntax
+  // tree happens once for each change and not once for each render.
+  const { view, revision } = useActiveNote();
+  const live = useMemo(
+    () => (view === null ? null : outlineOf(view.state)),
+    [view, revision],
   );
   const [accepted, setAccepted] = useState<readonly OutlineHeading[]>([]);
-  useEffect(() => {
-    setLive(liveOutline());
-    return subscribeActiveNote(() => {
-      setLive(liveOutline());
-    });
-  }, [fileId]);
   useEffect(() => {
     if (fileId === null || text !== undefined) {
       setAccepted([]);
@@ -82,17 +72,16 @@ export function OutlinePanel({
       <p className="m-0 text-control text-muted">This note has no headings.</p>
     );
   const indentation = ['', 'pl-2', 'pl-4', 'pl-6', 'pl-8', 'pl-10'];
-  const movable = live !== null;
   return (
     <ol className="m-0 list-none space-y-1 p-0 text-control text-muted">
       {headings.map((heading, index) => (
         <li key={`${String(index)}:${heading.text}`}>
-          {movable ? (
+          {view !== null ? (
             <button
               type="button"
               className={`block w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit hover:text-strong ${indentation[heading.level - 1] ?? ''}`}
               onClick={(): void => {
-                revealInActiveNote(heading.from);
+                revealInNote(view, heading.from);
               }}
             >
               {heading.text}

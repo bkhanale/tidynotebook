@@ -47,7 +47,7 @@ import {
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, StatusRegion } from '@notesapp/ui';
 import { problemMessage, useTheme } from '../../app.tsx';
-import { activeNoteChanged, setActiveNoteView } from './active-note.ts';
+import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
 import { downloadNote } from '../export/export.ts';
 import { useFiles } from '../../shell/files.tsx';
 import {
@@ -155,6 +155,23 @@ export type NoteEditorProps = {
 };
 
 /**
+ * The note screen and the scope of the note it opens.
+ *
+ * The scope wraps the editor and the outline panel together, and nothing more,
+ * because those two are the only parts that share the open editor. The loader
+ * below keys this component by file, so each note gets its own scope and a
+ * panel never reads the editor of the note before it. A person who leaves the
+ * note route unmounts the scope with the screen.
+ */
+export function NoteEditor(props: NoteEditorProps): ReactNode {
+  return (
+    <ActiveNoteScope>
+      <NoteEditorBody {...props} />
+    </ActiveNoteScope>
+  );
+}
+
+/**
  * The live editing surface of one file.
  *
  * The editor view is created once per working copy and destroyed when the
@@ -162,7 +179,7 @@ export type NoteEditorProps = {
  * checkpoint through the store, theme changes reconfigure one compartment,
  * and link targets leave through the navigation callback.
  */
-export function NoteEditor({
+function NoteEditorBody({
   store,
   accountId,
   workspaceId,
@@ -181,6 +198,13 @@ export function NoteEditor({
   const navigate = useNavigate();
   const noteList = useFiles();
   const { announce: announceDeleted } = useDeleteNotice();
+  // The document queue and the editor view are built once for this working
+  // copy. They reach the scope of the open note through this ref, so a new
+  // value of the scope can never rebuild them and the one editor instance
+  // keeps its document, its undo history, and its selection.
+  const activeNoteControl = useActiveNoteControl();
+  const activeNote = useRef(activeNoteControl);
+  activeNote.current = activeNoteControl;
   const isDeletedRef = useRef(false);
   const { resolved } = useTheme();
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -237,7 +261,7 @@ export function NoteEditor({
         cancel: (token) => window.clearTimeout(token),
         run: (text) => {
           setBufferText(text);
-          activeNoteChanged();
+          activeNote.current.announce();
         },
       }),
     [],
@@ -529,10 +553,10 @@ export function NoteEditor({
       },
     );
     viewRef.current = view;
-    setActiveNoteView(view);
+    activeNote.current.register(view);
     return () => {
       viewRef.current = null;
-      setActiveNoteView(null);
+      activeNote.current.register(null);
       view.destroy();
     };
   }, [workingCopyId, documentWork]);
