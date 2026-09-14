@@ -274,7 +274,13 @@ export function ImageIcon({ size = 16, className }: IconProps): ReactNode {
   );
 }
 
-/** A folder with a plus, for the new folder action. */
+/**
+ * A folder with a plus, for the new folder action.
+ *
+ * The folder body is the same path as `FolderIcon`, so the glyph fills the
+ * 24 by 24 viewport to the same extent as the other icons. The plus sits in
+ * the centre of the body.
+ */
 export function FolderPlusIcon({ size = 16, className }: IconProps): ReactNode {
   return (
     <svg
@@ -289,9 +295,9 @@ export function FolderPlusIcon({ size = 16, className }: IconProps): ReactNode {
       aria-hidden="true"
       className={className}
     >
-      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
-      <line x1="12" y1="11" x2="12" y2="17" />
-      <line x1="9" y1="14" x2="15" y2="14" />
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
+      <line x1="12" y1="10" x2="12" y2="16" />
+      <line x1="9" y1="13" x2="15" y2="13" />
     </svg>
   );
 }
