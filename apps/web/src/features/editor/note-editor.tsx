@@ -149,11 +149,6 @@ export type NoteEditorProps = {
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
   /** Opens the Move to folder dialog that the note screen owns. */
   readonly onMoveToFolder?: (() => void) | undefined;
-  /**
-   * The path that Move to folder wrote. The editor adopts it without a
-   * remount and without replacing its document.
-   */
-  readonly movedPath?: string | null | undefined;
 };
 
 /**
@@ -195,7 +190,6 @@ function NoteEditorBody({
   onOpenLink,
   onQueued,
   onMoveToFolder,
-  movedPath,
 }: NoteEditorProps): ReactNode {
   const navigate = useNavigate();
   const noteList = useFiles();
@@ -220,6 +214,10 @@ function NoteEditorBody({
   // A name that breaks a rule is never written. The draft, the tree, and
   // the server keep the last valid name until the person fixes the field.
   const validPathRef = useRef(initialPath);
+  // True while the name field holds a value the store has not taken yet. The
+  // store is then the older statement of the path, so the editor does not
+  // adopt it and the typed name survives.
+  const nameEditPendingRef = useRef(false);
   const sequenceRef = useRef(initialSequence);
   const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
   const [pathError, setPathError] = useState('');
@@ -233,7 +231,9 @@ function NoteEditorBody({
     useState<LocalStorageErrorKind | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
-  const [pasteNotice, setPasteNotice] = useState('');
+  // The one problem line of the editor: an attachment, a paste, or an action
+  // that the store refused. It states one cause at a time.
+  const [editorNotice, setEditorNotice] = useState('');
   const [attachState, setAttachState] = useState<AttachState>({ kind: 'idle' });
   const [recentAttachments, setRecentAttachments] = useState<
     ReadonlyMap<string, string>
@@ -305,6 +305,30 @@ function NoteEditorBody({
   const themeRef = useRef(resolved);
   themeRef.current = resolved;
 
+  // The path of the open note belongs to the store, not to this screen. Move
+  // to folder, a tree drag, and Rename folder all write it through
+  // `LocalStore.moveFiles`, which gives every working copy of the file the new
+  // path (decision record 0032). The editor reads it back from the save
+  // snapshot of its own file and adopts it without a remount and without
+  // replacing its document, so every move surface reaches it the same way.
+  //
+  // The snapshot is read after a write of this editor commits, so it is never
+  // older than what this editor last wrote. A value derived from the note list
+  // would be: the list catches up later, and adopting it would undo a rename
+  // the person just made.
+  const adoptStoredPath = useRef((_path: string | null): void => {});
+  adoptStoredPath.current = (next: string | null): void => {
+    if (next === null || next === pathRef.current) return;
+    // A name the person is still typing is never replaced. The field holds a
+    // value the store has not taken yet, so the store is the older statement.
+    if (nameEditPendingRef.current) return;
+    folderRef.current = folderOf(next);
+    pathRef.current = next;
+    validPathRef.current = next;
+    setPathError('');
+    setName(displayNoteName(baseNameOf(next)));
+  };
+
   /** The draft the store would write right now. */
   const buildDraft = (deleted: boolean): Draft => {
     const current = live.current;
@@ -339,6 +363,11 @@ function NoteEditorBody({
         ),
       ]);
       setSaveSnapshot(snapshot);
+      // The note may have moved or reached the trash from the sidebar, from
+      // another tab, or from another device. The editor takes both facts from
+      // the store, so no later save writes either one back.
+      if (snapshot.deleted) isDeletedRef.current = true;
+      else adoptStoredPath.current(snapshot.path);
       const latest = checkpoints
         .filter((entry) => !entry.deleted)
         .map((entry) => entry.clientTime)
@@ -351,12 +380,16 @@ function NoteEditorBody({
     }
   };
 
-  /** Writes the current buffer as the working draft. */
-  const saveDraftNow = useRef((_deleted?: boolean): Promise<boolean> =>
-    Promise.resolve(true),
-  );
-  saveDraftNow.current = async (deleted = false): Promise<boolean> => {
-    const isDeleting = deleted || isDeletedRef.current;
+  /**
+   * Writes the current buffer as the working draft.
+   *
+   * A note that reached Trash keeps its tombstone: the draft states the
+   * deletion that the store already holds, so a pending autosave of this
+   * editor cannot bring the note back.
+   */
+  const saveDraftNow = useRef((): Promise<boolean> => Promise.resolve(true));
+  saveDraftNow.current = async (): Promise<boolean> => {
+    const isDeleting = isDeletedRef.current;
     const current = live.current;
     const savedSequence = sequenceRef.current;
     setDraftPending(true);
@@ -367,6 +400,10 @@ function NoteEditorBody({
       // A newer keystroke may have arrived while the write ran; only that
       // newer write clears the pending flag.
       if (sequenceRef.current === savedSequence) setDraftPending(false);
+      // The store now holds the name of this field, so the next snapshot is
+      // newer than the field. A move that landed while the name was pending is
+      // adopted by the queue read below.
+      nameEditPendingRef.current = false;
       setStorageError(null);
       await refreshQueue.current();
       return true;
@@ -377,31 +414,29 @@ function NoteEditorBody({
     }
   };
 
-  /** Creates one immutable checkpoint from the current buffer. */
+  /**
+   * Creates one immutable checkpoint from the current buffer.
+   *
+   * A note that reached Trash gets none. The deletion is a whole-file action
+   * of the store, so this editor never writes a tombstone of its own and never
+   * writes a live version over one (decision record 0032).
+   */
   const checkpointInFlightRef = useRef<Promise<boolean> | null>(null);
-  const checkpointNow = useRef((_deleted?: boolean): Promise<boolean> =>
-    Promise.resolve(true),
-  );
-  checkpointNow.current = (deleted = false): Promise<boolean> => {
-    if (!deleted && isDeletedRef.current) return Promise.resolve(false);
-    const isDeleting = deleted || isDeletedRef.current;
-    if (!isDeleting) {
-      const error = nameProblemRef.current();
-      setPathError(error ?? '');
-      if (error !== null) return Promise.resolve(false);
-    }
+  const checkpointNow = useRef((): Promise<boolean> => Promise.resolve(true));
+  checkpointNow.current = (): Promise<boolean> => {
+    if (isDeletedRef.current) return Promise.resolve(false);
+    const error = nameProblemRef.current();
+    setPathError(error ?? '');
+    if (error !== null) return Promise.resolve(false);
     const existing = checkpointInFlightRef.current;
-    if (existing !== null)
-      return isDeleting
-        ? existing.then(() => checkpointNow.current(true))
-        : existing;
+    if (existing !== null) return existing;
     const run = (async (): Promise<boolean> => {
-      const saved = await saveDraftNow.current(isDeleting);
+      const saved = await saveDraftNow.current();
       if (!saved) return false;
       const current = live.current;
       try {
         const entry = await current.store.checkpoint(
-          buildDraft(isDeleting),
+          buildDraft(false),
           saveCheckpointMessage,
         );
         // The new checkpoint is the parent of the next one. Holding it here
@@ -414,6 +449,15 @@ function NoteEditorBody({
         await refreshQueue.current();
         return true;
       } catch (failure: unknown) {
+        // A `stale` refusal is not a failed write. The store holds a newer
+        // statement of this file than the editor does, for example a deletion
+        // that arrived from the sidebar or another device, so nothing was
+        // lost and nothing is for the person to fix. The queue read below
+        // brings the editor to what the store holds.
+        if (isLocalStorageError(failure) && failure.kind === 'stale') {
+          await refreshQueue.current();
+          return false;
+        }
         setStorageError(
           isLocalStorageError(failure) ? failure.kind : 'aborted',
         );
@@ -658,12 +702,12 @@ function NoteEditorBody({
   }, []);
 
   /**
-   * Deletes the open note through the editor.
+   * Moves the open note to the trash.
    *
-   * The sidebar calls this for the open note, so the delete runs with the
-   * editor buffer instead of behind its back. It writes the tombstone only
-   * and reports whether the checkpoint ran. The caller announces the undo
-   * notice and leaves for the note list.
+   * The write is the same store operation that the sidebar runs, so one
+   * deletion path serves every surface (decision record 0032). It marks every
+   * working copy of the note deleted, so this editor cannot bring it back. The
+   * caller announces the undo notice and leaves for the note list.
    */
   const deleteInFlightRef = useRef<Promise<boolean> | null>(null);
   const deleteOpenNote = useCallback((): Promise<boolean> => {
@@ -679,15 +723,30 @@ function NoteEditorBody({
       versionTimerRef.current = null;
     }
     const run = (async (): Promise<boolean> => {
-      sequenceRef.current += 1;
-      let moved = false;
+      const current = live.current;
       try {
-        moved = await checkpointNow.current(true);
-      } catch {
-        moved = false;
+        await current.store.trashFiles(current.accountId, current.workspaceId, [
+          current.fileId,
+        ]);
+      } catch (failure: unknown) {
+        isDeletedRef.current = false;
+        // A `stale` refusal means this device does not hold the note yet, so
+        // it cannot state the deletion. That is not a storage failure, and it
+        // must not pass in silence: the person is told to wait for the note.
+        if (isLocalStorageError(failure) && failure.kind === 'stale') {
+          setEditorNotice(
+            `${displayNoteName(baseNameOf(validPathRef.current))} is not on this device yet. Try again in a moment.`,
+          );
+          return false;
+        }
+        setStorageError(
+          isLocalStorageError(failure) ? failure.kind : 'aborted',
+        );
+        return false;
       }
-      if (!moved) isDeletedRef.current = false;
-      return moved;
+      setEditorNotice('');
+      await refreshQueue.current();
+      return true;
     })();
     deleteInFlightRef.current = run;
     void run.finally(() => {
@@ -747,7 +806,7 @@ function NoteEditorBody({
             kind: 'failed',
             message: `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
           });
-          setPasteNotice(
+          setEditorNotice(
             `The image ${file.name} is larger than 20 MiB and was not uploaded.`,
           );
           continue;
@@ -760,7 +819,7 @@ function NoteEditorBody({
           if (uploaded.error !== undefined || uploaded.data === undefined) {
             const message = `The image ${file.name} did not upload: ${problemMessage(uploaded.error)}`;
             setAttachState({ kind: 'failed', message });
-            setPasteNotice(message);
+            setEditorNotice(message);
             continue;
           }
           const fileId = generateUUID();
@@ -783,7 +842,7 @@ function NoteEditorBody({
           if (finalized.error !== undefined) {
             const message = `The image ${file.name} did not finalize: ${problemMessage(finalized.error)}`;
             setAttachState({ kind: 'failed', message });
-            setPasteNotice(message);
+            setEditorNotice(message);
             continue;
           }
           const attachmentPath = `attachments/${fileId}-${safeName}`;
@@ -795,11 +854,11 @@ function NoteEditorBody({
             `![${safeName}](${portableRelativePath(validPathRef.current, attachmentPath)})`,
           );
           setAttachState({ kind: 'idle' });
-          setPasteNotice('');
+          setEditorNotice('');
         } catch {
           const message = `The image ${file.name} could not be read on this device.`;
           setAttachState({ kind: 'failed', message });
-          setPasteNotice(message);
+          setEditorNotice(message);
         }
       }
     })();
@@ -839,6 +898,7 @@ function NoteEditorBody({
     if (problem !== null) return;
     validPathRef.current = pathRef.current;
     sequenceRef.current += 1;
+    nameEditPendingRef.current = true;
     setDraftPending(true);
     if (saveTimerRef.current !== null)
       window.clearTimeout(saveTimerRef.current);
@@ -860,19 +920,6 @@ function NoteEditorBody({
     if (cleaned !== name) applyName(cleaned);
     else setPathError(nameProblemRef.current() ?? '');
   };
-
-  // Move to folder writes the new path in the store. The open editor adopts
-  // it here without a remount and without replacing its document, so the
-  // next keystroke cannot overwrite the move.
-  useEffect(() => {
-    if (movedPath === undefined || movedPath === null) return;
-    if (movedPath === pathRef.current) return;
-    folderRef.current = folderOf(movedPath);
-    pathRef.current = movedPath;
-    validPathRef.current = movedPath;
-    setPathError('');
-    setName(displayNoteName(baseNameOf(movedPath)));
-  }, [movedPath]);
 
   /** Copies the open note into a new note beside it. */
   const duplicateNote = useCallback((): void => {
@@ -957,7 +1004,7 @@ function NoteEditorBody({
   /** Saves the open note as one Markdown file on this device. */
   const exportMarkdown = useCallback((): void => {
     void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
-      setPasteNotice(
+      setEditorNotice(
         failure instanceof Error
           ? failure.message
           : 'The note could not be saved as a file.',
@@ -971,7 +1018,6 @@ function NoteEditorBody({
   const noteScreenActions = useMemo<NoteScreenActions>(
     () => ({
       fileId,
-      delete: deleteOpenNote,
       deleteAndLeave: deleteNoteAndLeave,
       moveToFolder: moveNoteToFolder,
       duplicate: duplicateNote,
@@ -980,7 +1026,6 @@ function NoteEditorBody({
     }),
     [
       fileId,
-      deleteOpenNote,
       deleteNoteAndLeave,
       moveNoteToFolder,
       duplicateNote,
@@ -1005,9 +1050,9 @@ function NoteEditorBody({
       />
 
       <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-6">
-        {pasteNotice === '' ? null : (
+        {editorNotice === '' ? null : (
           <div className="mt-4">
-            <Notice tone="problem" message={pasteNotice} />
+            <Notice tone="problem" message={editorNotice} />
           </div>
         )}
         <input
@@ -1128,14 +1173,12 @@ export function NoteEditorLoader({
   workspaceId,
   fileId,
   onMoveToFolder,
-  movedPath,
 }: {
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string;
   readonly onMoveToFolder?: (() => void) | undefined;
-  readonly movedPath?: string | null | undefined;
 }): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1201,6 +1244,27 @@ export function NoteEditorLoader({
           });
         return;
       }
+      // The screen reached this note before the ordered feed reached the
+      // store, so this device holds no row for it. Keep the read, so a later
+      // save, move, or deletion starts from a local row instead of naming a
+      // create precondition for a file the server already has.
+      const head = result.data.head;
+      if (store !== null && head !== null && head !== undefined) {
+        try {
+          await store.cacheServerNote(accountId, workspaceId, {
+            fileId,
+            path: result.data.path,
+            kind: result.data.kind === 'attachment' ? 'attachment' : 'note',
+            revisionId: head.revisionId,
+            digest: head.digest,
+            text: head.text ?? '',
+          });
+        } catch {
+          // The note still opens from the buffer above. A device that could
+          // not keep the read reports its failure on the next write.
+        }
+      }
+      if (cancelled) return;
       setStatus({
         kind: 'ready',
         path: result.data.path,
@@ -1360,7 +1424,6 @@ export function NoteEditorLoader({
         initialSequence={status.sequence}
         focusName={focusName}
         onMoveToFolder={onMoveToFolder}
-        movedPath={movedPath}
         onOpenLink={(target: LinkTarget): void => {
           const action = resolveLinkAction(target.target, status.path);
           if (action.kind === 'note-id') {

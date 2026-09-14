@@ -117,6 +117,22 @@ export type LocalFileSummary = {
 /** Durable save facts for one file only. */
 export type FileSaveSnapshot = {
   readonly fileId: string;
+  /**
+   * The path the store holds for the file, or `null` when it holds none.
+   *
+   * The open editor reads it rather than keeping a path of its own, so a move
+   * from any surface reaches it. The value is read after a write of that
+   * editor commits, so it is never older than what the editor last wrote.
+   */
+  readonly path: string | null;
+  /**
+   * Whether the newest state of the file on this device is a tombstone.
+   *
+   * The open editor reads it, so a note that the sidebar or another device
+   * moved to Trash cannot be brought back by the next save of an editor that
+   * still believed it was live.
+   */
+  readonly deleted: boolean;
   readonly latestDraftSequence: number | null;
   readonly latestMutationId: string | null;
   readonly queueState: QueueState | null;
@@ -172,6 +188,17 @@ export type CheckpointRecord = {
 
 /** Whether a file holds Markdown or an attachment. */
 export type LocalFileKind = 'note' | 'attachment';
+
+/**
+ * One file that moves, with the path it moves to.
+ *
+ * A folder is not a stored object, so a folder move is a set of these. The
+ * path carries the one `.md` suffix, as every stored note path does.
+ */
+export type FileMove = {
+  readonly fileId: string;
+  readonly toPath: string;
+};
 
 /**
  * What a caller supplies to keep pending work after access ends.
@@ -325,6 +352,23 @@ export type SnapshotRevision = {
   readonly deleted: boolean;
   readonly digest: string;
   readonly text: string | null;
+};
+
+/**
+ * One note that a screen read from the server, ready to cache.
+ *
+ * A device that opens a note it has not received yet reads it over HTTP. The
+ * store keeps that read, so every later action on the note starts from a local
+ * row instead of from nothing. Without it a save, a move, or a deletion would
+ * name a create precondition for a file the server already has.
+ */
+export type ServerNote = {
+  readonly fileId: string;
+  readonly path: string;
+  readonly kind: LocalFileKind;
+  readonly revisionId: string;
+  readonly digest: string;
+  readonly text: string;
 };
 
 /**
@@ -537,6 +581,67 @@ export type LocalStore = {
    * the current accepted head when another save reached the server first.
    */
   checkpoint(draft: Draft, message: string | null): Promise<QueueEntry | null>;
+
+  /**
+   * Gives every named file a new path in one transaction.
+   *
+   * A move is one operation of this port and not a draft that a caller
+   * composes, because the path of a note lives on every working copy of that
+   * note. Each file gets one checkpoint that keeps the text the note reads
+   * with right now and carries the new path, and every stored draft of that
+   * file takes the new path as well, keeping its text, its sequence, and its
+   * parent. No working copy of a moved file can hold the old path, so a later
+   * save of an open editor cannot write the move back. See decision record
+   * 0032.
+   *
+   * Either every named file moves or none does. A file that already carries
+   * its target path is skipped and produces no checkpoint. The answer holds
+   * one queue entry per file that moved, in the order of `moves`.
+   *
+   * Rejects with a `stale` failure when a named file is unknown on this
+   * device or is deleted, because the caller read a list that has moved on.
+   */
+  moveFiles(
+    accountId: string,
+    workspaceId: string,
+    moves: readonly FileMove[],
+  ): Promise<readonly QueueEntry[]>;
+
+  /**
+   * Moves every named file to Trash in one transaction.
+   *
+   * A deletion is one operation of this port for the same reason a move is:
+   * the deletion state of a note lives on every working copy of that note.
+   * Each file gets one tombstone checkpoint, which carries no text, and every
+   * stored draft of that file is marked deleted as well, so no open editor can
+   * bring the note back with its next save. See decision record 0032.
+   *
+   * Either every named file reaches Trash or none does. A file that is
+   * already deleted is skipped and produces no checkpoint. The answer holds
+   * one queue entry per file that moved, in the order of `fileIds`.
+   *
+   * Rejects with a `stale` failure when a named file is unknown on this
+   * device, because the caller read a list that has moved on.
+   */
+  trashFiles(
+    accountId: string,
+    workspaceId: string,
+    fileIds: readonly string[],
+  ): Promise<readonly QueueEntry[]>;
+
+  /**
+   * Keeps one note that a screen read from the server.
+   *
+   * The write is refused for a file this device already holds, so it never
+   * touches local work and never moves an accepted head backwards. It advances
+   * no cursor: the ordered feed stays the one source of the mirror. It exists
+   * so that a note a person can open is a note they can act on.
+   */
+  cacheServerNote(
+    accountId: string,
+    workspaceId: string,
+    note: ServerNote,
+  ): Promise<void>;
 
   /** The queued mutations of one workspace, in submission order. */
   pending(

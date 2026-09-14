@@ -18,6 +18,9 @@ and local search.
   digest, so a retry repeats the same mutation.
 - `src/queue.ts`, `src/lease.ts`, `src/snapshot.ts`, `src/checkpoints.ts`,
   and `src/local-search.ts` hold their own rules.
+- A whole-file action is one port operation, `moveFiles` or `trashFiles`, and
+  never a draft that a caller composes. The path and the deletion state live on
+  every working copy, so one transaction rewrites them all (record 0032).
 - No IndexedDB and no Dexie code lives here. No React and no screen lives
   here.
 

@@ -1751,3 +1751,465 @@ await test('acknowledging a tombstone removes the leftover deletion draft', asyn
   );
   await store.close();
 });
+
+await test('a move survives the next save of an open working copy', async () => {
+  const backend = createBackend('move-open-copy');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  // The person opens a note and it reaches the server, so the editor holds
+  // working copy `copy-a` over the accepted head.
+  const opened = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
+  await store.saveDraft(opened);
+  const first = await store.checkpoint(opened, null);
+  await store.acknowledge(account, acceptanceOf(first, account, '2'));
+
+  const [queued] = await store.moveFiles(account, workspace, [
+    { fileId, toPath: 'Work/one.md' },
+  ]);
+  assert.ok(queued !== undefined, 'the move queues one mutation');
+  assert.equal(queued.input.revisions[0]?.path, 'Work/one.md');
+  await store.acknowledge(account, acceptanceOf(queued, account, '3'));
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['Work/one.md'],
+    'the move shows at once',
+  );
+  // The move gave every working copy of the file the new path, so the open
+  // editor cannot write the old one back.
+  assert.equal(
+    (await store.readDraft(account, workspace, 'copy-a'))?.path,
+    'Work/one.md',
+  );
+
+  // The person types one more character into the open editor and it becomes
+  // a version. The editor writes the working copy it holds, whose path is
+  // the one the move gave it.
+  const held = await store.readDraft(account, workspace, 'copy-a');
+  assert.ok(held !== null);
+  const typed: Draft = { ...held, text: 'text edited\n', sequence: 2 };
+  await store.saveDraft(typed);
+  const after = await store.checkpoint(typed, null);
+
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['Work/one.md'],
+    'the note stays in the folder',
+  );
+  assert.equal(after?.input.revisions[0]?.path, 'Work/one.md');
+  assert.equal(
+    (await store.readCachedNote(account, workspace, fileId))?.path,
+    'Work/one.md',
+  );
+  await store.close();
+});
+
+await test('a move keeps text that is typed and not yet a version', async () => {
+  const backend = createBackend('move-unsaved');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const opened = draftOf(account, workspace, fileId, 'copy-a', 'saved\n');
+  await store.saveDraft(opened);
+  const first = await store.checkpoint(opened, null);
+  await store.acknowledge(account, acceptanceOf(first, account, '2'));
+  await store.saveDraft({ ...opened, text: 'typed\n', sequence: 2 });
+
+  const [queued] = await store.moveFiles(account, workspace, [
+    { fileId, toPath: 'Work/one.md' },
+  ]);
+
+  // The move carries what the note reads with, so nothing the person typed
+  // is reverted by the move.
+  assert.equal(queued?.input.revisions[0]?.path, 'Work/one.md');
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, 'typed\n');
+  assert.equal(cached?.path, 'Work/one.md');
+  await store.close();
+});
+
+await test('a folder move writes every note or none of them', async () => {
+  const backend = createBackend('move-folder');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const first = randomUUID();
+  const second = randomUUID();
+  for (const [index, fileId] of [first, second].entries()) {
+    const draft = draftOf(
+      account,
+      workspace,
+      fileId,
+      `copy-${String(index)}`,
+      `note ${String(index)}\n`,
+      { path: `Inbox/note-${String(index)}.md` },
+    );
+    await store.saveDraft(draft);
+    const queued = await store.checkpoint(draft, null);
+    await store.acknowledge(
+      account,
+      acceptanceOf(queued, account, String(index + 2)),
+    );
+  }
+
+  const moved = await store.moveFiles(account, workspace, [
+    { fileId: first, toPath: 'Done/note-0.md' },
+    { fileId: second, toPath: 'Done/note-1.md' },
+  ]);
+  assert.equal(moved.length, 2);
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['Done/note-0.md', 'Done/note-1.md'],
+  );
+
+  // A file this device does not know refuses the whole set, so a folder
+  // rename never leaves half of its notes moved.
+  await assert.rejects(
+    () =>
+      store.moveFiles(account, workspace, [
+        { fileId: first, toPath: 'Later/note-0.md' },
+        { fileId: randomUUID(), toPath: 'Later/gone.md' },
+      ]),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['Done/note-0.md', 'Done/note-1.md'],
+  );
+  await store.close();
+});
+
+await test('a move to the path a note already carries writes nothing', async () => {
+  const backend = createBackend('move-in-place');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
+  await store.saveDraft(draft);
+  const queued = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(queued, account, '2'));
+
+  assert.deepEqual(
+    await store.moveFiles(account, workspace, [
+      { fileId, toPath: 'notes/one.md' },
+    ]),
+    [],
+  );
+  assert.equal((await store.pending(account, workspace)).length, 0);
+  assert.equal(
+    (await store.listCheckpoints(account, workspace, fileId)).length,
+    1,
+  );
+  await store.close();
+});
+
+await test('a deletion survives the next save of an open working copy', async () => {
+  const backend = createBackend('trash-open-copy');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  // The person opens a note and it reaches the server, so the editor holds
+  // working copy `copy-a` over the accepted head.
+  const opened = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
+  await store.saveDraft(opened);
+  const first = await store.checkpoint(opened, null);
+  await store.acknowledge(account, acceptanceOf(first, account, '2'));
+
+  // The sidebar moves the note to Trash while the editor is open.
+  const [queued] = await store.trashFiles(account, workspace, [fileId]);
+  assert.ok(queued !== undefined, 'the deletion queues one mutation');
+  const tombstone = queued.input.revisions[0];
+  assert.equal(tombstone?.deleted, true);
+  assert.equal(
+    tombstone?.content.kind === 'markdown' ? tombstone.content.text : null,
+    '',
+    'a tombstone carries no text',
+  );
+
+  // The deletion reached every working copy, so the editor cannot state the
+  // note live again.
+  assert.equal(
+    (await store.readDraft(account, workspace, 'copy-a'))?.deleted,
+    true,
+  );
+  assert.equal(
+    (await store.readFileSaveSnapshot(account, workspace, fileId)).deleted,
+    true,
+  );
+
+  await store.acknowledge(account, acceptanceOf(queued, account, '3'));
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).filter(
+      (file) => !file.deleted,
+    ),
+    [],
+    'the note stays in Trash',
+  );
+  await store.close();
+});
+
+await test('a folder deletion writes every tombstone or none of them', async () => {
+  const backend = createBackend('trash-folder');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const first = randomUUID();
+  const second = randomUUID();
+  for (const [index, fileId] of [first, second].entries()) {
+    const draft = draftOf(
+      account,
+      workspace,
+      fileId,
+      `copy-${String(index)}`,
+      `note ${String(index)}\n`,
+      { path: `Inbox/note-${String(index)}.md` },
+    );
+    await store.saveDraft(draft);
+    const queued = await store.checkpoint(draft, null);
+    await store.acknowledge(
+      account,
+      acceptanceOf(queued, account, String(index + 2)),
+    );
+  }
+
+  // A file this device does not know refuses the whole set, so a folder
+  // deletion never leaves half of its notes behind.
+  await assert.rejects(
+    () => store.trashFiles(account, workspace, [first, randomUUID()]),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace))
+      .filter((file) => !file.deleted)
+      .map((file) => file.path),
+    ['Inbox/note-0.md', 'Inbox/note-1.md'],
+  );
+
+  assert.equal(
+    (await store.trashFiles(account, workspace, [first, second])).length,
+    2,
+  );
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).filter(
+      (file) => !file.deleted,
+    ),
+    [],
+  );
+  // Deleting a note that is already in Trash writes nothing.
+  assert.deepEqual(await store.trashFiles(account, workspace, [first]), []);
+  await store.close();
+});
+
+await test('a note in Trash refuses a move', async () => {
+  const backend = createBackend('trash-then-move');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
+  await store.saveDraft(draft);
+  const queued = await store.checkpoint(draft, null);
+  await store.acknowledge(account, acceptanceOf(queued, account, '2'));
+  await store.trashFiles(account, workspace, [fileId]);
+
+  await assert.rejects(
+    () =>
+      store.moveFiles(account, workspace, [{ fileId, toPath: 'Work/one.md' }]),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  await store.close();
+});
+
+await test('an editor that has not learned of a deletion cannot undo it', async () => {
+  const backend = createBackend('trash-late-editor');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const opened = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
+  await store.saveDraft(opened);
+  const first = await store.checkpoint(opened, null);
+  await store.acknowledge(account, acceptanceOf(first, account, '2'));
+
+  // The sidebar, another tab, or another device moves the note to Trash.
+  await store.trashFiles(account, workspace, [fileId]);
+
+  // The open editor flushes one last version before it learns. It still holds
+  // the note as live, so its write would undo the deletion. The store refuses
+  // the version and keeps the tombstone on the draft it writes.
+  await store.saveDraft({ ...opened, text: 'late\n', sequence: 2 });
+  assert.equal(
+    (await store.readDraft(account, workspace, 'copy-a'))?.deleted,
+    true,
+    'a draft never states a trashed file live',
+  );
+  await assert.rejects(
+    () => store.checkpoint({ ...opened, text: 'late\n', sequence: 2 }, null),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).filter(
+      (file) => !file.deleted,
+    ),
+    [],
+    'the note stays in Trash',
+  );
+  // Only the tombstone is on its way up, so no live revision reaches the
+  // server to be refused and kept as a second note.
+  const pending = await store.pending(account, workspace);
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0]?.input.revisions[0]?.deleted, true);
+  await store.close();
+});
+
+await test('a note whose body this device lacks still reaches Trash', async () => {
+  const backend = createBackend('trash-without-body');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  // The ordered feed can name a file without carrying its body, so a second
+  // device holds the note in its tree with no content row behind it.
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId,
+          revisionId: 'server-1',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: 'digest-not-stored',
+          text: null,
+        },
+        purgedFileId: null,
+      },
+    ],
+    '2',
+  );
+  assert.equal(
+    (await store.listLocalFiles(account, workspace)).length,
+    1,
+    'the note is in the tree',
+  );
+  assert.equal(
+    await store.hasContent(account, workspace, 'digest-not-stored'),
+    false,
+  );
+
+  // A tombstone carries no text, so the deletion needs no body.
+  const [queued] = await store.trashFiles(account, workspace, [fileId]);
+  assert.ok(queued !== undefined);
+  assert.equal(queued.input.revisions[0]?.deleted, true);
+  assert.equal(queued.input.expectedHeads[fileId], 'server-1');
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).filter(
+      (file) => !file.deleted,
+    ),
+    [],
+  );
+  await store.close();
+});
+
+await test('a move refuses a note whose body this device lacks', async () => {
+  const backend = createBackend('move-without-body');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId,
+          revisionId: 'server-1',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: 'digest-not-stored',
+          text: null,
+        },
+        purgedFileId: null,
+      },
+    ],
+    '2',
+  );
+
+  // A move keeps the text, so it cannot run without the body. Guessing it
+  // would write the wrong content as a version.
+  await assert.rejects(
+    () =>
+      store.moveFiles(account, workspace, [{ fileId, toPath: 'Work/one.md' }]),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
+  );
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['notes/one.md'],
+  );
+  await store.close();
+});
+
+await test('a note read from the server becomes one this device can act on', async () => {
+  const backend = createBackend('cache-server-note');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const text = '# Read over HTTP\n';
+  const digest = await contentDigest(text);
+
+  // The screen reached the note before the ordered feed reached the store.
+  await store.cacheServerNote(account, workspace, {
+    fileId,
+    path: 'notes/one.md',
+    kind: 'note',
+    revisionId: 'server-head',
+    digest,
+    text,
+  });
+
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, text);
+  assert.equal(cached?.baseRevisionId, 'server-head');
+  // The action now names the head the server has, not a create precondition.
+  const [queued] = await store.trashFiles(account, workspace, [fileId]);
+  assert.equal(queued?.input.expectedHeads[fileId], 'server-head');
+  assert.equal(queued?.input.revisions[0]?.deleted, true);
+  assert.equal(queued?.input.revisions[0]?.parents[0], 'server-head');
+  // The cursor belongs to the ordered feed and this read never moves it.
+  assert.equal(await store.readCursor(account, workspace), null);
+  await store.close();
+});
+
+await test('a read of the server never writes over what this device holds', async () => {
+  const backend = createBackend('cache-server-note-keeps-local');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const draft = draftOf(account, workspace, fileId, 'copy-a', 'mine\n');
+  await store.saveDraft(draft);
+  await store.checkpoint(draft, null);
+
+  await store.cacheServerNote(account, workspace, {
+    fileId,
+    path: 'somewhere/else.md',
+    kind: 'note',
+    revisionId: 'server-head',
+    digest: await contentDigest('theirs\n'),
+    text: 'theirs\n',
+  });
+
+  const cached = await store.readCachedNote(account, workspace, fileId);
+  assert.equal(cached?.text, 'mine\n', 'local work stays');
+  assert.equal(cached?.path, 'notes/one.md');
+  await store.close();
+});

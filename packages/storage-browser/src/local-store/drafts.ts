@@ -1,10 +1,11 @@
 /**
  * The drafts area of the local store.
  *
- * A draft is recovery data, not a server version. A draft save is one
- * transaction over one table, so recovery state becomes durable promptly.
- * `readCachedNote` reconciles a draft with the accepted head and the local
- * head, and drops a draft that says nothing the accepted head does not
+ * A draft is recovery data, not a server version. A draft save is one short
+ * transaction, so recovery state becomes durable promptly: it writes one draft
+ * record and reads the file row only to keep a deletion that the store already
+ * holds. `readCachedNote` reconciles a draft with the accepted head and the
+ * local head, and drops a draft that says nothing the accepted head does not
  * already say.
  */
 import { contentDigest } from '@notesapp/core';
@@ -197,20 +198,45 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
   return {
     async saveDraft(draft: Draft): Promise<void> {
       await guard('saving a draft', () =>
-        db.transaction('rw', tables.drafts, async () => {
-          const stored: unknown = await tables.drafts.get([
-            serverOrigin,
-            draft.accountId,
-            draft.workspaceId,
-            draft.workingCopyId,
-          ]);
-          const current = stored === undefined ? null : validateDraft(stored);
-          // A save that arrives after a newer one must not undo it.
-          if (current !== null && current.sequence > draft.sequence) return;
-          await tables.drafts.put(
-            draftRow(ctx, draft, current?.lastCheckpointId ?? null),
-          );
-        }),
+        db.transaction(
+          'rw',
+          [tables.drafts, tables.acceptedFiles],
+          async () => {
+            const stored: unknown = await tables.drafts.get([
+              serverOrigin,
+              draft.accountId,
+              draft.workspaceId,
+              draft.workingCopyId,
+            ]);
+            const current = stored === undefined ? null : validateDraft(stored);
+            // A save that arrives after a newer one must not undo it.
+            if (current !== null && current.sequence > draft.sequence) return;
+            // A draft never states a file live that the store holds as
+            // deleted. The text is kept, because a draft is recovery data,
+            // but the tombstone stays until a restore clears it. The file row
+            // is read here for that one reason; the write still touches one
+            // record (record 0032).
+            const storedFile: unknown = await tables.acceptedFiles.get([
+              serverOrigin,
+              draft.accountId,
+              draft.workspaceId,
+              draft.fileId,
+            ]);
+            const deleted =
+              draft.deleted ||
+              (current?.deleted ?? false) ||
+              (storedFile === undefined
+                ? false
+                : validateAcceptedFile(storedFile).deleted);
+            await tables.drafts.put(
+              draftRow(
+                ctx,
+                deleted === draft.deleted ? draft : { ...draft, deleted },
+                current?.lastCheckpointId ?? null,
+              ),
+            );
+          },
+        ),
       );
       publish({
         accountId: draft.accountId,

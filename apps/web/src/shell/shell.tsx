@@ -460,7 +460,6 @@ function Sidebar({
   const navigate = useNavigate();
   const { announce } = useDeleteNotice();
   const requestSync = useRequestSync();
-  const noteActions = useNoteActions();
   const [deleting, setDeleting] = useState(false);
   const [deleteProblem, setDeleteProblem] = useState<string | null>(null);
 
@@ -474,37 +473,6 @@ function Sidebar({
     // Remember the folder before the local tombstone publishes its change.
     // It stays hidden while another note still describes the folder.
     if (folder !== null) files.addEmptyFolder(folder);
-    if (
-      noteActions !== null &&
-      noteActions.fileId === target.fileId &&
-      noteActions.delete !== null
-    ) {
-      const remove = noteActions.delete;
-      setDeleting(true);
-      setDeleteProblem(null);
-      void (async (): Promise<void> => {
-        let moved = false;
-        try {
-          moved = await remove();
-        } catch {
-          moved = false;
-        }
-        if (!moved) {
-          setDeleting(false);
-          setDeleteProblem('The note did not move to Trash. Try again.');
-          return;
-        }
-        announce({
-          workspaceId,
-          items: [{ fileId: target.fileId, name }],
-        });
-        requestSync();
-        setDeleting(false);
-        setDeleteProblem(null);
-        if (fileId === target.fileId) void navigate(`/w/${workspaceId}`);
-      })();
-      return;
-    }
     const activeStore = store.store;
     if (activeStore === null || accountId === null) {
       setDeleteProblem(
@@ -552,60 +520,29 @@ function Sidebar({
       );
       return;
     }
-    const openInFolder =
-      noteActions !== null &&
-      noteActions.delete !== null &&
-      fileId !== null &&
-      noteActions.fileId === fileId &&
-      targets.some((note) => note.fileId === fileId);
-    const editorDelete = openInFolder ? (noteActions?.delete ?? null) : null;
+    // The open note needs no special case. The store marks every working copy
+    // of every named note deleted, so the open editor follows it.
+    const holdsOpenNote =
+      fileId !== null && targets.some((note) => note.fileId === fileId);
     setDeleting(true);
     setDeleteProblem(null);
     void (async (): Promise<void> => {
-      let problem: string | null = null;
-      let openMoved = false;
-      if (editorDelete !== null && fileId !== null) {
-        try {
-          openMoved = await editorDelete();
-        } catch {
-          openMoved = false;
-        }
-        if (!openMoved)
-          problem = 'The open note did not move to Trash. Try again.';
-      }
-      const rest =
-        openInFolder && fileId !== null
-          ? items.filter((item) => item.fileId !== fileId)
-          : items;
-      let restDeleted: readonly string[] = [];
-      if (rest.length > 0) {
-        const outcome = await deleteNotes(
-          activeStore,
-          accountId,
-          workspaceId,
-          rest,
-        );
-        restDeleted = outcome.deleted;
-        if (!outcome.ok && problem === null) problem = outcome.message;
-      }
-      const movedIds = new Set<string>([
-        ...(openMoved && fileId !== null ? [fileId] : []),
-        ...restDeleted,
-      ]);
-      const movedItems = items.filter((item) => movedIds.has(item.fileId));
-      if (movedItems.length > 0) {
-        announce({ workspaceId, items: movedItems });
-        requestSync();
-        files.removeEmptyFolders(folder);
-      }
+      const outcome = await deleteNotes(
+        activeStore,
+        accountId,
+        workspaceId,
+        items,
+      );
       setDeleting(false);
-      if (problem !== null) {
-        setDeleteProblem(problem);
-        if (openMoved && fileId !== null) void navigate(`/w/${workspaceId}`);
+      if (!outcome.ok) {
+        setDeleteProblem(outcome.message);
         return;
       }
+      announce({ workspaceId, items });
+      requestSync();
+      files.removeEmptyFolders(folder);
       setDeleteProblem(null);
-      if (openMoved && fileId !== null) void navigate(`/w/${workspaceId}`);
+      if (holdsOpenNote) void navigate(`/w/${workspaceId}`);
     })();
   };
 

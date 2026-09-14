@@ -3,8 +3,9 @@
  *
  * Two transaction boundaries matter, and they come from the design:
  *
- * - A draft save is one transaction over one table. The target is at most
- *   150 ms after input, so recovery state becomes durable promptly.
+ * - A draft save is one short transaction that writes one draft record. The
+ *   target is at most 150 ms after input, so recovery state becomes durable
+ *   promptly.
  * - A checkpoint is one transaction that writes the content, the immutable
  *   checkpoint with its parent, the local head, and the queue entry. Either
  *   all of them exist or none does, so a queued mutation always has the bytes
@@ -19,9 +20,9 @@
  *
  * `openLocalStore` is the composition root. It opens the database, checks the
  * schema, builds one `LocalStoreContext`, and assembles the full port from the
- * area modules: drafts, versions, queue and receipts, recovery, preferences,
- * and snapshot. The area modules never touch the invalidation channel, so the
- * messaging and the subscription stay here.
+ * area modules: drafts, versions, file actions, queue and receipts, recovery,
+ * preferences, and snapshot. The area modules never touch the invalidation
+ * channel, so the messaging and the subscription stay here.
  */
 import { generateUUID } from '@notesapp/core';
 import {
@@ -33,6 +34,7 @@ import { createDatabase, defaultDatabaseName, guard } from '../database.ts';
 import { ensureSchema } from '../migrations.ts';
 import { createDraftsSlice } from './drafts.ts';
 import { createFilesSlice } from './files.ts';
+import { createFileActionsSlice } from './file-actions.ts';
 import { createPreferencesSlice } from './preferences.ts';
 import { createQueueSlice } from './queue.ts';
 import { createRecoverySlice } from './recovery.ts';
@@ -189,6 +191,7 @@ export async function openLocalStore(
 
     ...createDraftsSlice(ctx),
     ...createVersionsSlice(ctx),
+    ...createFileActionsSlice(ctx),
     ...createQueueSlice(ctx),
     ...createRecoverySlice(ctx),
     ...createPreferencesSlice(ctx),

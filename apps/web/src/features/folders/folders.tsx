@@ -2,7 +2,8 @@
  * The folder dialogs: new folder, move to folder, and rename folder.
  *
  * Every dialog states the outcome before it writes and reports one cause
- * when it cannot run. The rewrite itself lives in `folder-moves.ts`.
+ * when it cannot run. The rules of a rewrite live in `lib/folder-moves.ts`
+ * and the write itself lives in `apply-moves.ts`.
  *
  * A folder holds no state of its own: it exists because notes carry a path
  * with a separator in it. New folder therefore writes nothing. It names a
@@ -10,13 +11,9 @@
  * so making a folder never makes a note.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { generateUUID } from '@notesapp/core';
-import {
-  isLocalStorageError,
-  type Draft,
-  type LocalStore,
-} from '@notesapp/sync';
+import type { LocalStore } from '@notesapp/sync';
 import { Button, Dialog, DialogBody, DialogFooter } from '@notesapp/ui';
+import { applyMoves } from './apply-moves.ts';
 import {
   folderMoves,
   moveProblem,
@@ -35,49 +32,6 @@ import {
   noteBaseNameProblem,
   rewriteFolder,
 } from '../../lib/note-name.ts';
-
-/**
- * Writes one path rewrite per note as a version.
- *
- * Each note keeps its text and gets a new path, exactly as a rename in the
- * note name field does. A failure stops the run and reports the note that
- * did not move.
- */
-export async function applyMoves(
-  store: LocalStore,
-  accountId: string,
-  workspaceId: string,
-  moves: readonly PathMove[],
-): Promise<string | null> {
-  for (const move of moves) {
-    const cached = await store.readCachedNote(
-      accountId,
-      workspaceId,
-      move.fileId,
-    );
-    if (cached === null || cached.deleted) continue;
-    const draft: Draft = {
-      accountId,
-      workspaceId,
-      workingCopyId: cached.workingCopyId ?? generateUUID(),
-      fileId: move.fileId,
-      baseRevisionId: cached.baseRevisionId,
-      text: cached.text,
-      path: move.toPath,
-      deleted: false,
-      sequence: cached.sequence + 1,
-    };
-    try {
-      await store.saveDraft(draft);
-      await store.checkpoint(draft, null);
-    } catch (failure: unknown) {
-      return isLocalStorageError(failure)
-        ? `${displayNoteName(cached.path)} did not move. Free device space and try again.`
-        : `${displayNoteName(cached.path)} did not move. Try again.`;
-    }
-  }
-  return null;
-}
 
 /** A labelled field with its own error line, shared by the dialogs below. */
 function NameField({
@@ -238,7 +192,13 @@ export function NewFolderDialog({
   );
 }
 
-/** Moves one note into a folder that already exists, or into a new one. */
+/**
+ * Moves one note into a folder that already exists, or into a new one.
+ *
+ * The move is one store operation, so the tree and the open editor both read
+ * the new path from the store. The dialog reports nothing back but its own
+ * closing.
+ */
 export function MoveNoteDialog({
   open,
   onClose,
@@ -249,7 +209,6 @@ export function MoveNoteDialog({
   folders,
   fileId,
   path,
-  onMoved,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -260,7 +219,6 @@ export function MoveNoteDialog({
   readonly folders: readonly string[];
   readonly fileId: string;
   readonly path: string;
-  readonly onMoved: (toPath: string) => void;
 }): ReactNode {
   const [target, setTarget] = useState<string | null>('');
   const [custom, setCustom] = useState('');
@@ -301,7 +259,6 @@ export function MoveNoteDialog({
         return;
       }
       onClose();
-      onMoved(toPath);
     })();
   };
 

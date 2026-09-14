@@ -11,6 +11,7 @@ import {
   LocalStorageError,
   type LocalStore,
   type RemoteChange,
+  type ServerNote,
   type SnapshotRevision,
 } from '@notesapp/sync';
 import {
@@ -45,6 +46,7 @@ type SnapshotSlice = Pick<
   | 'readCursor'
   | 'applyRemoteChanges'
   | 'forgetPurgedFiles'
+  | 'cacheServerNote'
 >;
 
 export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
@@ -387,6 +389,56 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
         fileId: null,
         kind: 'cursor',
       });
+    },
+
+    async cacheServerNote(
+      accountId: string,
+      workspaceId: string,
+      note: ServerNote,
+    ): Promise<void> {
+      const written = await guard('keeping a note of the server', () =>
+        db.transaction(
+          'rw',
+          [tables.acceptedFiles, tables.contents],
+          async (): Promise<boolean> => {
+            const known: unknown = await tables.acceptedFiles.get([
+              serverOrigin,
+              accountId,
+              workspaceId,
+              note.fileId,
+            ]);
+            // A file this device already holds keeps what it holds. This read
+            // of the server is only for a note that reached the screen before
+            // the ordered feed reached the store.
+            if (known !== undefined) return false;
+            await tables.contents.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              digest: note.digest,
+              text: note.text,
+              bytes: null,
+              size: byteLength(note.text),
+            });
+            await tables.acceptedFiles.put({
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId: note.fileId,
+              kind: note.kind,
+              path: note.path,
+              deleted: false,
+              acceptedHeadRevisionId: note.revisionId,
+              acceptedHeadDigest: note.digest,
+              localHeadRevisionId: note.revisionId,
+              updatedAt: nowIso(),
+            });
+            return true;
+          },
+        ),
+      );
+      if (!written) return;
+      publish({ accountId, workspaceId, fileId: note.fileId, kind: 'file' });
     },
 
     readCursor(accountId: string, workspaceId: string): Promise<string | null> {

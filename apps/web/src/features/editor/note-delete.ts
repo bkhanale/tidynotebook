@@ -1,20 +1,15 @@
 /**
- * Moving notes to the trash from the sidebar, as data.
+ * Moving notes to the trash, as data.
  *
- * The note screen deletes one note by writing a tombstone checkpoint. The
- * sidebar offers the same action on a note row and, for a folder row, on
- * every note under the folder. Both call `deleteNotes` here, so one deletion
- * path writes the same tombstone for one note and for many.
+ * The note screen, the sidebar note row, and the sidebar folder row all reach
+ * this function, so one deletion path writes the same tombstone for one note
+ * and for many. The write itself is one operation of the local store: it marks
+ * every working copy of each note deleted in one transaction, so no open editor
+ * can bring the note back with its next save. See decision record 0032.
  */
-import { generateUUID } from '@notesapp/core';
-import {
-  isLocalStorageError,
-  type Draft,
-  type LocalStore,
-} from '@notesapp/sync';
-import { displayNoteName } from '../../lib/note-name.ts';
+import { isLocalStorageError, type LocalStore } from '@notesapp/sync';
 
-/** One note that the sidebar asks to move to the trash. */
+/** One note that a screen asks to move to the trash. */
 export type DeleteTarget = { readonly fileId: string; readonly name: string };
 
 /** Whether every named note reached the trash, or why the run stopped. */
@@ -26,13 +21,27 @@ export type DeleteOutcome =
       readonly message: string;
     };
 
+/** The one sentence that states why a set of deletions did not run. */
+export function deleteFailureMessage(
+  targets: readonly DeleteTarget[],
+  failure: unknown,
+): string {
+  const first = targets[0];
+  const subject =
+    targets.length === 1 && first !== undefined
+      ? first.name
+      : `${String(targets.length)} notes`;
+  return isLocalStorageError(failure) && failure.kind === 'quota'
+    ? `${subject} did not move to Trash. Free device space and try again.`
+    : `${subject} did not move to Trash. Try again.`;
+}
+
 /**
- * Moves each named note to the trash with one tombstone checkpoint.
+ * Moves each named note to the trash with one tombstone per note.
  *
- * A note that this device does not hold cannot be deleted here, so the run
- * refuses it and names the note. A failure stops the run and names the note
- * that did not move. The caller asks the sync engine for a pass and announces
- * the undo notice.
+ * Either every note reaches the trash or none does, so a folder deletion never
+ * leaves half of its notes behind. A note that is already in the trash is
+ * skipped, and it still counts as deleted for the caller.
  */
 export async function deleteNotes(
   store: LocalStore,
@@ -40,49 +49,19 @@ export async function deleteNotes(
   workspaceId: string,
   targets: readonly DeleteTarget[],
 ): Promise<DeleteOutcome> {
-  const deleted: string[] = [];
-  for (const target of targets) {
-    const cached = await store.readCachedNote(
+  if (targets.length === 0) return { ok: true, deleted: [] };
+  try {
+    await store.trashFiles(
       accountId,
       workspaceId,
-      target.fileId,
+      targets.map((target) => target.fileId),
     );
-    if (cached === null)
-      return {
-        ok: false,
-        deleted: [...deleted],
-        message: `${target.name} is not on this device yet. Open it, then delete it.`,
-      };
-    if (cached.deleted)
-      return {
-        ok: false,
-        deleted: [...deleted],
-        message: 'The note is already in Trash.',
-      };
-    const draft: Draft = {
-      accountId,
-      workspaceId,
-      workingCopyId: cached.workingCopyId ?? generateUUID(),
-      fileId: target.fileId,
-      baseRevisionId: cached.baseRevisionId,
-      text: cached.text,
-      path: cached.path,
-      deleted: true,
-      sequence: cached.sequence + 1,
+    return { ok: true, deleted: targets.map((target) => target.fileId) };
+  } catch (failure: unknown) {
+    return {
+      ok: false,
+      deleted: [],
+      message: deleteFailureMessage(targets, failure),
     };
-    try {
-      await store.saveDraft(draft);
-      await store.checkpoint(draft, null);
-    } catch (failure: unknown) {
-      return {
-        ok: false,
-        deleted: [...deleted],
-        message: isLocalStorageError(failure)
-          ? `${displayNoteName(cached.path)} did not move to Trash. Free device space and try again.`
-          : `${displayNoteName(cached.path)} did not move to Trash. Try again.`,
-      };
-    }
-    deleted.push(target.fileId);
   }
-  return { ok: true, deleted };
 }

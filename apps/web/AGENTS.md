@@ -6,9 +6,8 @@ this directory. The recipe for a whole feature is in
 
 ## Purpose
 
-The React web application: the router, the screens, the service worker, and
-the sandboxed diagram frame. It composes the packages, and it holds no domain
-rule and no storage rule of its own.
+The React web application: the router, the screens, the service worker, and the
+sandboxed diagram frame. It composes the packages and holds no rule of its own.
 
 ## What lives here and what does not
 
@@ -41,13 +40,15 @@ that the boundary checker allows, because it runs in Node during the build.
   that imports React is not `lib`; it stays with its feature. `save-state.ts`,
   `note-name.ts`, and `palette-items.ts` are the pattern.
 - **A command palette action.** Add it in `src/lib/palette-items.ts`.
+- **A move or a deletion.** Call `applyMoves` in `features/folders/` or
+  `deleteNotes` in `features/editor/`. No screen holds either value (0032).
 
 ## Testing conventions here
 
-`node --test` through `pnpm test:unit`. A test file is `*.test.ts` next to
-the module it tests. There is no DOM unit framework, so a test covers a pure
-module only, and it must prove the rule and its refusal path. Screen
-behaviour is proved by a Playwright journey in `tests/e2e`.
+`node --test` through `pnpm test:unit`. A test file is `*.test.ts` next to the
+module it tests. There is no DOM unit framework, so a test covers a pure module
+only, and it must prove the rule and its refusal path. Screen behaviour is
+proved by a Playwright journey in `tests/e2e`.
 
 ## Forbidden here
 

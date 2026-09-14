@@ -90,4 +90,7 @@ what a published link is: an opaque token that is hashed at rest, a scope of one
 note or one folder, an optional password through the hasher of the account path,
 an optional expiry, and immediate revocation. Record 0031 states how the server
 serves that link without an actor, and it gives the sanitized renderer that
-record 0025 kept its first production reader.
+record 0025 kept its first production reader. Record 0032 makes a move and a
+deletion each one operation of the local store, because the path and the
+deletion state of a note live on every working copy of that note and an action
+that wrote only one of them was reverted by the next save of any other.

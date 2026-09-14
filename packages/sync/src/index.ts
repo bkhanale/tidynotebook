@@ -12,6 +12,7 @@ export type {
   AttachmentPin,
   CheckpointRecord,
   Draft,
+  FileMove,
   LocalAcceptedFile,
   LocalCachedNote,
   LocalConflict,
@@ -31,6 +32,7 @@ export type {
   RecoveryInput,
   RecoveryReason,
   RecoveryRecord,
+  ServerNote,
   StagedSnapshot,
 } from './local-port.ts';
 export {

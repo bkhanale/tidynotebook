@@ -17,19 +17,19 @@ import {
   type LocalStore,
   type QueueEntry,
 } from '@notesapp/sync';
-import {
-  guard,
-  partitionRange,
-  type CheckpointRow,
-  type FileRow,
-} from '../database.ts';
+import { guard, type CheckpointRow, type FileRow } from '../database.ts';
 import {
   validateAcceptedFile,
   validateCheckpoint,
   validateDraft,
-  validateQueueRow,
 } from '../migrations.ts';
-import { byteLength, draftRow, type LocalStoreContext } from './shared.ts';
+import {
+  byteLength,
+  draftRow,
+  nextCheckpointSequence,
+  nextQueueSequence,
+  type LocalStoreContext,
+} from './shared.ts';
 
 type VersionsSlice = Pick<LocalStore, 'checkpoint' | 'listCheckpoints'>;
 
@@ -53,32 +53,6 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
     mutationId: row.mutationId,
     accepted: row.accepted,
   });
-
-  /** The next submission order number of one partition. */
-  const nextQueueSequence = async (
-    accountId: string,
-    workspaceId: string,
-  ): Promise<number> => {
-    const range = partitionRange(serverOrigin, accountId, workspaceId);
-    const last: unknown = await tables.queue
-      .where('[serverOrigin+accountId+workspaceId+sequence]')
-      .between(range.lower, range.upper, true, true)
-      .last();
-    return last === undefined ? 1 : validateQueueRow(last).sequence + 1;
-  };
-
-  /** The next checkpoint order number of one partition. */
-  const nextCheckpointSequence = async (
-    accountId: string,
-    workspaceId: string,
-  ): Promise<number> => {
-    const range = partitionRange(serverOrigin, accountId, workspaceId);
-    const last: unknown = await tables.checkpoints
-      .where('[serverOrigin+accountId+workspaceId+sequence]')
-      .between(range.lower, range.upper, true, true)
-      .last();
-    return last === undefined ? 1 : validateCheckpoint(last).sequence + 1;
-  };
 
   return {
     async checkpoint(
@@ -139,6 +113,18 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
               storedFile === undefined
                 ? null
                 : validateAcceptedFile(storedFile);
+
+            // A note that reached Trash comes back only through a restore,
+            // which the server owns. A live revision over a tombstone would
+            // undo the deletion, so it is refused and nothing is written. The
+            // screen that asked cannot know better than the store: the
+            // deletion may have arrived from another tab, another device, or
+            // the sidebar while this editor was still open (record 0032).
+            if (!draft.deleted && file?.deleted === true)
+              throw new LocalStorageError(
+                'stale',
+                'this file is in Trash, so it takes no new version',
+              );
 
             const lastCheckpointId = current?.lastCheckpointId ?? null;
             let previous: {
@@ -206,7 +192,11 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
               clientTime,
               mutationId,
               accepted: false,
-              sequence: await nextCheckpointSequence(accountId, workspaceId),
+              sequence: await nextCheckpointSequence(
+                ctx,
+                accountId,
+                workspaceId,
+              ),
             };
             // `add` and not `put`: a checkpoint is immutable, so writing over
             // an existing identifier is a defect, not an update.
@@ -252,7 +242,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
               accountId,
               workspaceId,
               mutationId,
-              sequence: await nextQueueSequence(accountId, workspaceId),
+              sequence: await nextQueueSequence(ctx, accountId, workspaceId),
               input,
               state: 'pending',
               digest: null,

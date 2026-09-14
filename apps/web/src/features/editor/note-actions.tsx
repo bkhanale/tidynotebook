@@ -20,8 +20,6 @@ import {
 /** What the open note screen can do on request. */
 export type NoteScreenActions = {
   readonly fileId: string;
-  /** Deletes the open note through the editor, when the screen offers it. */
-  readonly delete: (() => Promise<boolean>) | null;
   /** Deletes the open note, tells the person, and leaves for the note list. */
   readonly deleteAndLeave: (() => void) | null;
   /** Opens the Move to folder dialog of the open note. */

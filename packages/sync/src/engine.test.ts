@@ -150,6 +150,20 @@ class FakeStore implements LocalStore {
     return Promise.resolve(entry);
   }
 
+  /** The engine never caches a read of a screen. */
+  cacheServerNote(): Promise<void> {
+    throw new Error('the engine must not cache a note of the server');
+  }
+
+  /** The engine runs no whole-file action, so both stop the test at once. */
+  moveFiles(): Promise<readonly QueueEntry[]> {
+    throw new Error('the engine must not move a file');
+  }
+
+  trashFiles(): Promise<readonly QueueEntry[]> {
+    throw new Error('the engine must not trash a file');
+  }
+
   rebaseDraft(
     _account: string,
     _workspace: string,
@@ -315,6 +329,8 @@ class FakeStore implements LocalStore {
   ): Promise<FileSaveSnapshot> {
     return Promise.resolve({
       fileId,
+      path: null,
+      deleted: false,
       latestDraftSequence: null,
       latestMutationId: null,
       queueState: null,

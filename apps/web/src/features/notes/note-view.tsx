@@ -3,7 +3,9 @@
  *
  * The unknown, purged, empty, and readable states stay distinct here, and the
  * Move to folder dialog that the note screen owns lives beside the editor. The
- * editor host that owns the one CodeMirror view is loaded lazily from
+ * dialog writes the move through the store, and the editor reads the new path
+ * from the note list, so this screen carries no path of its own. The editor
+ * host that owns the one CodeMirror view is loaded lazily from
  * `note-editor.tsx`. The layout frame lives in `shell.tsx`.
  */
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
@@ -29,10 +31,6 @@ export function NoteView(): ReactNode {
   const store = useLocalStore();
   const files = useFiles();
   const [moveOpen, setMoveOpen] = useState(false);
-  const [movedNote, setMovedNote] = useState<{
-    readonly fileId: string;
-    readonly path: string;
-  } | null>(null);
   const moveFolders = useMemo(
     () =>
       [...new Set([...files.folders, ...files.emptyFolders])].sort(
@@ -78,7 +76,6 @@ export function NoteView(): ReactNode {
           workspaceId={workspaceId}
           fileId={fileId}
           onMoveToFolder={() => setMoveOpen(true)}
-          movedPath={movedNote?.fileId === fileId ? movedNote.path : null}
         />
       </Suspense>
       {notePath === null ? null : (
@@ -92,10 +89,6 @@ export function NoteView(): ReactNode {
           folders={moveFolders}
           fileId={fileId}
           path={notePath}
-          onMoved={(toPath) => {
-            setMovedNote({ fileId, path: toPath });
-            setMoveOpen(false);
-          }}
         />
       )}
     </main>

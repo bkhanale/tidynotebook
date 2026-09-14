@@ -226,8 +226,15 @@ export function createFilesSlice(ctx: LocalStoreContext): FilesSlice {
                   file.deleted !== draft.deleted;
               }
             }
+            // The newest statement of this device: the leading working copy,
+            // else the file row. The open editor reads both, so a path or a
+            // deletion that another surface wrote reaches it.
+            const leading =
+              draft !== undefined && draftLeads(file, draft) ? draft : null;
             return {
               fileId,
+              path: leading?.path ?? file?.path ?? null,
+              deleted: leading?.deleted ?? file?.deleted ?? false,
               latestDraftSequence: draft?.sequence ?? null,
               latestMutationId: queue?.mutationId ?? null,
               queueState: queue?.state ?? null,

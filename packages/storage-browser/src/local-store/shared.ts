@@ -130,6 +130,39 @@ export const draftsOfFile = async (
     });
 };
 
+/**
+ * The next submission order number of one partition.
+ *
+ * The caller runs inside a transaction that covers the queue table, so two
+ * writers of one partition cannot take the same number.
+ */
+export const nextQueueSequence = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+): Promise<number> => {
+  const range = partitionRange(ctx.serverOrigin, accountId, workspaceId);
+  const last: unknown = await ctx.tables.queue
+    .where('[serverOrigin+accountId+workspaceId+sequence]')
+    .between(range.lower, range.upper, true, true)
+    .last();
+  return last === undefined ? 1 : validateQueueRow(last).sequence + 1;
+};
+
+/** The next checkpoint order number of one partition. */
+export const nextCheckpointSequence = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+): Promise<number> => {
+  const range = partitionRange(ctx.serverOrigin, accountId, workspaceId);
+  const last: unknown = await ctx.tables.checkpoints
+    .where('[serverOrigin+accountId+workspaceId+sequence]')
+    .between(range.lower, range.upper, true, true)
+    .last();
+  return last === undefined ? 1 : validateCheckpoint(last).sequence + 1;
+};
+
 /** The stored Markdown body of one digest, or `null` when it is absent. */
 export const bodyOfDigest = async (
   ctx: LocalStoreContext,

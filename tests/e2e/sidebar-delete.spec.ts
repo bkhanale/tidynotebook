@@ -317,6 +317,10 @@ test('A note deleted permanently in another session leaves the sidebar', async (
   await signIn(other, stack);
   await other.goto(page.url());
   await expect(other.getByLabel('Note name')).toHaveValue(name);
+  // The second device deletes a note it holds. A device that has not received
+  // the note yet cannot state its deletion, and the application says so, so
+  // this journey waits for the first sync instead of racing it.
+  await waitForSynced(other);
 
   await runNoteAction(other, 'Delete this note');
   await runNoteAction(other, 'Go to Trash');
@@ -489,4 +493,39 @@ test('Delete a child folder keeps the folder above it', async ({
   } finally {
     await second.close();
   }
+});
+
+test('Delete the open note from its row keeps it in Trash', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+
+  const name = `open-row-delete-${Date.now().toString()}`;
+  await page.getByLabel('Note name').fill(name);
+  await replaceEditorText(page, '# Before the delete');
+  await waitForServerSave(page);
+
+  // The sidebar deletes the note that the editor has open. The store marks
+  // every working copy deleted, so the open editor cannot save it back.
+  const tree = page.locator('section[aria-labelledby="tree-heading"]');
+  await openNavigation(page);
+  await tree
+    .getByRole('button', { name: `Actions for the note ${name}` })
+    .click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
+  await expect(tree.getByRole('link', { name })).toHaveCount(0);
+
+  await waitForSynced(page);
+  await page.reload();
+  await waitForSynced(page);
+  await expect(tree.getByRole('link', { name })).toHaveCount(0);
+  await openNavigation(page);
+  await page.getByRole('link', { name: 'Trash' }).click();
+  await expect(
+    page.locator('main').locator('li').filter({ hasText: name }),
+  ).toHaveCount(1);
 });
