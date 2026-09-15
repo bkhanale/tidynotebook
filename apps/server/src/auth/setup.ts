@@ -5,6 +5,7 @@ import type { IdentityStoreHandle } from '@notesapp/storage-server';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { ForbiddenError } from '../plugins/problem.ts';
 import { readProperty } from '../values.ts';
+import { requireWriteOrigin } from './actor.ts';
 import type { NotesappAuth } from './better-auth.ts';
 import { seedWelcomeNote } from './welcome-note.ts';
 
@@ -26,11 +27,18 @@ function text(value: unknown, key: string): string {
   return member;
 }
 
-/** Builds the two public operations used before the first sign-in. */
+/**
+ * Builds the two public operations used before the first sign-in.
+ *
+ * @param servedOrigins the served origins of the deployment, from
+ * `config.servedOrigins`. The create operation declares no security scheme, so
+ * the identity hook never runs for it and it applies the origin rule itself.
+ */
 export function createSetupHandlers(
   auth: NotesappAuth,
   identity: IdentityStoreHandle,
   content: WorkspaceStore,
+  servedOrigins: readonly string[],
 ): HandlerMap {
   return {
     getSetupStatus: async (): Promise<HandlerResult> => ({
@@ -43,6 +51,12 @@ export function createSetupHandlers(
       request: FastifyRequest,
       reply: FastifyReply,
     ): Promise<HandlerResult> => {
+      // This is the one write that a stranger can reach, and it answers with a
+      // session cookie. It reads the one served origin list of
+      // [decision 0039](../../../../docs/decisions/0039-one-list-of-served-origins.md),
+      // the same list that every guarded write reads, so no page of another
+      // origin can start the installation on behalf of the person who runs it.
+      requireWriteOrigin(servedOrigins, request);
       if (await identity.hasAccount())
         throw new ForbiddenError('The single user already exists.');
 

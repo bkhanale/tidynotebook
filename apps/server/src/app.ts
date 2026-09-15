@@ -378,7 +378,12 @@ export async function createApp(
           ? {}
           : { lifecycle: options.lifecycle }),
       }),
-      ...createSetupHandlers(auth.auth, identity, content),
+      ...createSetupHandlers(
+        auth.auth,
+        identity,
+        content,
+        config.servedOrigins,
+      ),
     },
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],

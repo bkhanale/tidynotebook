@@ -168,8 +168,9 @@ export function checkWriteOrigin(
  * Refuses a cookie authenticated write that does not name a served origin.
  *
  * The identity hook applies this to every guarded operation. An operation that
- * declares no security requirement but still reads a cookie calls this helper
- * itself, so the rule lives in one place and no such operation can forget it.
+ * declares no security requirement but still reads or issues a cookie calls
+ * this helper itself, so the rule lives in one place and no such operation can
+ * forget it. `auth/setup.ts` is the one such operation today.
  */
 export function requireWriteOrigin(
   servedOrigins: readonly string[],

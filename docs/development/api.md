@@ -26,6 +26,9 @@ The session cookie is the only credential the API accepts.
   one of them, so a write with neither is refused. The served origins are one
   list, which the identity routes trust as well. See
   [decision 0039](../decisions/0039-one-list-of-served-origins.md).
+- First-run setup issues a cookie rather than reading one, and it applies the
+  same origin rule itself. It is the one state changing write that a caller
+  with no account can reach.
 - The identity adapter refuses a request that carries an authorization header.
   No bearer scheme exists, so such a request is not authenticated through the
   cookie either.

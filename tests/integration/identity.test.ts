@@ -23,6 +23,13 @@ function responseOf(response: Response | undefined): Response {
   return response;
 }
 
+/** The stable application error code of a failed generated call. */
+function problemCode(error: unknown): string {
+  if (error === null || typeof error !== 'object') return '';
+  const code: unknown = Object.fromEntries(Object.entries(error))['code'];
+  return typeof code === 'string' ? code : '';
+}
+
 function cookieHeader(values: readonly string[]): string {
   return values
     .map((value) => (value.split(';')[0] ?? '').trim())
@@ -60,6 +67,36 @@ await test('a new installation reports that setup is required', async () => {
   const result = await getSetupStatus();
   assert.equal(result.error, undefined);
   assert.equal(result.data?.initialized, false);
+});
+
+await test('setup refuses a write from an origin this deployment does not serve', async () => {
+  // Setup is the one write that a stranger can reach, and it answers with a
+  // session cookie. It reads the same served origin list as every guarded
+  // write, so a page of another origin cannot start this installation.
+  const foreign = await createOwner({
+    headers: { origin: 'https://attacker.invalid' },
+    body: {
+      email: 'foreign-owner@notes.invalid',
+      password: 'foreign-owner-password-1',
+    },
+  });
+  assert.equal(responseOf(foreign.response).status, 403);
+  assert.equal(problemCode(foreign.error), 'forbidden');
+
+  // A caller that names no origin at all did not come from a browser page.
+  const nameless = await createOwner({
+    body: {
+      email: 'nameless-owner@notes.invalid',
+      password: 'nameless-owner-password-1',
+    },
+  });
+  assert.equal(responseOf(nameless.response).status, 403);
+  assert.equal(problemCode(nameless.error), 'origin_required');
+
+  // Neither attempt created the single user, so the served origin below still
+  // finds an empty installation.
+  const status = await getSetupStatus();
+  assert.equal(status.data?.initialized, false);
 });
 
 await test('one concurrent setup request creates the only user', async () => {
