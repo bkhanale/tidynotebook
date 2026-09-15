@@ -1,9 +1,10 @@
 /**
  * Production server entry point.
  *
- * It starts the Fastify server with validated configuration and gives the stop
- * signals to the drain. The steps of the stop and their order live in
- * `lifecycle.ts`, which owns no signal and no exit, so a test drives them.
+ * It starts the Fastify server on the configured socket with validated
+ * configuration, and it gives the stop signals to the drain. The steps of the
+ * start and of the stop live in `lifecycle.ts`, which owns no signal and no
+ * exit, so a test drives them.
  */
 import process from 'node:process';
 import { createApp } from './app.ts';
@@ -12,8 +13,12 @@ import {
   loadProtectedEnvironment,
   loadServerConfig,
 } from './config.ts';
-import type { DrainEvent } from './lifecycle.ts';
-import { createDrain, createServiceLifecycle } from './lifecycle.ts';
+import type { DrainEvent, StartEvent } from './lifecycle.ts';
+import {
+  createDrain,
+  createServiceLifecycle,
+  startListener,
+} from './lifecycle.ts';
 
 /**
  * Writes one step of the stop where the operator reads it.
@@ -49,6 +54,30 @@ function reportStop(event: DrainEvent): void {
   }
 }
 
+/**
+ * Writes the result of the start where the operator reads it.
+ *
+ * The listening line names the socket and the public origin, because the two
+ * are different addresses and an operator behind a proxy reads both. A start
+ * that fails names the two values that decide the socket, which is what the
+ * operator can act on.
+ */
+function reportStart(
+  event: StartEvent,
+  listen: { readonly host: string; readonly port: number },
+  origin: string,
+): void {
+  if (event.step === 'listening') {
+    process.stdout.write(
+      `notesapp: listening on ${listen.host}:${String(listen.port)} (origin: ${origin})\n`,
+    );
+    return;
+  }
+  process.stderr.write(
+    'notesapp: the server cannot use the configured listening address. Check NOTESAPP_HOST and NOTESAPP_PORT, and check that no other process holds that port.\n',
+  );
+}
+
 /** Starts the HTTP server and gives the stop signals to the drain. */
 export async function main(): Promise<void> {
   let config;
@@ -66,12 +95,6 @@ export async function main(): Promise<void> {
     }
     process.exit(1);
   }
-
-  const host = process.env['NOTESAPP_HOST'] ?? '0.0.0.0';
-  const defaultPort = new URL(config.origin).port;
-  const port = Number(
-    process.env['NOTESAPP_PORT'] ?? (defaultPort ? defaultPort : '3000'),
-  );
 
   // The readiness answer reads this state, so the state is built before the
   // application and it reaches the handlers through the composition.
@@ -104,17 +127,18 @@ export async function main(): Promise<void> {
   process.on('SIGTERM', () => void drain('SIGTERM'));
   process.on('SIGINT', () => void drain('SIGINT'));
 
-  try {
-    await app.listen({ host, port });
-    process.stdout.write(
-      `notesapp: listening on http://${host}:${port} (origin: ${config.origin})\n`,
-    );
-  } catch (error) {
-    process.stderr.write(
-      `notesapp: failed to bind port: ${error instanceof Error ? error.message : String(error)}\n`,
-    );
-    process.exit(1);
-  }
+  // A listen that fails closes the pools and the stores that the composition
+  // already opened, so the process ends them instead of dropping them.
+  await startListener({
+    listen: async () => {
+      await app.listen(config.listen);
+    },
+    close: () => app.close(),
+    report: (event) => {
+      reportStart(event, config.listen, config.origin);
+    },
+    exit: (code) => process.exit(code),
+  });
 }
 
 if (import.meta.main) {

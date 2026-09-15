@@ -17,12 +17,15 @@ export type {
   DrainTimers,
   ServiceLifecycle,
   ServiceState,
+  StartEvent,
+  StartOptions,
 } from './lifecycle.ts';
 export {
   createDrain,
   createServiceLifecycle,
   realTimers,
   runningLifecycle,
+  startListener,
 } from './lifecycle.ts';
 export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers } from './app.ts';

@@ -165,6 +165,14 @@ export async function createAppWithHandlers(
               ? {}
               : { stream: options.logStream }),
           },
+    // The configured proxies are the only senders whose forwarded headers this
+    // server believes. An empty list is `false`, which is the Fastify default
+    // and the default of every deployment: the client address is then the peer
+    // address of the socket and a forwarded header changes nothing. The list
+    // makes `request.ip` the one answer to "who is the caller", and the
+    // attempt limit keys on it. See decision 0043.
+    trustProxy:
+      config.trustedProxies.length === 0 ? false : [...config.trustedProxies],
     bodyLimit: config.limits.bodyBytes,
     routerOptions: { maxParamLength: 256 },
     requestTimeout: config.limits.requestTimeoutMs,

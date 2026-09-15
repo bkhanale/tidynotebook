@@ -18,10 +18,14 @@
  * stops the listener, waits for the open requests, and then runs the close
  * hooks that end the pools, the timers, and the stores.
  *
+ * The start of the listener lives here as well, because a listen that fails
+ * has to close the resources that the process already opened, and that is the
+ * same order of steps read from the other end.
+ *
  * The state machine lives here and not in `main.ts`, because the entry point
  * owns the real signals and the real exit and no test can drive those. Every
- * decision of this module is injected: the wait, the deadline, the close, the
- * report, and the exit.
+ * decision of this module is injected: the wait, the deadline, the listen, the
+ * close, the report, and the exit.
  */
 
 /** What the service reports about its own lifecycle. */
@@ -63,6 +67,49 @@ export const runningLifecycle: ServiceLifecycle = {
   state: (): ServiceState => 'running',
   beginDrain: (): boolean => false,
 };
+
+/** The result of the start, as the operator reads it. */
+export type StartEvent =
+  { readonly step: 'listening' } | { readonly step: 'unavailable' };
+
+/** Everything that the start needs from the process that it starts. */
+export type StartOptions = {
+  /** Opens the listening socket. */
+  readonly listen: () => Promise<void>;
+  /** Closes the resources that the process opened before the listen. */
+  readonly close: () => Promise<void>;
+  /** Tells the operator what the start did. */
+  readonly report: (event: StartEvent) => void;
+  /** Ends a process that cannot serve. */
+  readonly exit: (code: number) => void;
+};
+
+/**
+ * Opens the listening socket, or closes what the process opened.
+ *
+ * The application holds its connection pools before the listen, so a process
+ * that ends here without closing them drops open connections instead of
+ * ending them. The close runs first and the exit runs last, and a close that
+ * fails changes nothing: the process is leaving either way, and the operator
+ * reads one message for one cause.
+ */
+export async function startListener(options: StartOptions): Promise<void> {
+  try {
+    await options.listen();
+    options.report({ step: 'listening' });
+    return;
+  } catch {
+    // The failure itself is never shown. The report below states what the
+    // operator can act on.
+  }
+  try {
+    await options.close();
+  } catch {
+    // A start that already failed cannot be helped by a failed close.
+  }
+  options.report({ step: 'unavailable' });
+  options.exit(1);
+}
 
 /** One step of the stop, as the operator reads it. */
 export type DrainEvent =

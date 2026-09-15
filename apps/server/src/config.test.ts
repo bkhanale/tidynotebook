@@ -75,6 +75,91 @@ await test('a mail transport needs a sender address', () => {
   assert.equal(loadServerConfig(valid).mail, null);
 });
 
+await test('the listening socket has a default and takes named values', () => {
+  assert.deepEqual(loadServerConfig(valid).listen, {
+    host: '0.0.0.0',
+    port: 3000,
+  });
+  assert.deepEqual(
+    loadServerConfig(
+      environment({ NOTESAPP_HOST: '127.0.0.1', NOTESAPP_PORT: '8080' }),
+    ).listen,
+    { host: '127.0.0.1', port: 8080 },
+  );
+});
+
+await test('the public port of the origin is not the listening port', () => {
+  // Decision 0042. The proxy in front publishes 8443, and the server listens
+  // on the port that names it.
+  assert.deepEqual(
+    loadServerConfig(
+      environment({
+        NOTESAPP_ORIGIN: 'https://notes.example.com:8443',
+        NOTESAPP_PORT: '3000',
+      }),
+    ).listen,
+    { host: '0.0.0.0', port: 3000 },
+  );
+});
+
+await test('an origin with a port needs a listening port', () => {
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({ NOTESAPP_ORIGIN: 'https://notes.example.com:8443' }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) => issue.startsWith('NOTESAPP_PORT:')),
+  );
+  // The default port of the scheme names no port at all, so it asks for
+  // nothing.
+  assert.equal(
+    loadServerConfig(
+      environment({ NOTESAPP_ORIGIN: 'https://notes.example.com:443' }),
+    ).listen.port,
+    3000,
+  );
+});
+
+await test('a listening port outside the range stops startup', () => {
+  for (const value of ['0', '65536', '99999', 'http']) {
+    assert.throws(
+      () => loadServerConfig(environment({ NOTESAPP_PORT: value })),
+      (error: unknown) => error instanceof ConfigError,
+    );
+  }
+});
+
+await test('a deployment trusts no proxy until it names one', () => {
+  assert.deepEqual(loadServerConfig(valid).trustedProxies, []);
+  assert.deepEqual(
+    loadServerConfig(environment({ NOTESAPP_TRUSTED_PROXIES: '' }))
+      .trustedProxies,
+    [],
+  );
+  assert.deepEqual(
+    loadServerConfig(
+      environment({ NOTESAPP_TRUSTED_PROXIES: '10.5.0.2, uniquelocal' }),
+    ).trustedProxies,
+    ['10.5.0.2', 'uniquelocal'],
+  );
+});
+
+await test('a proxy that is not an address or a range stops startup', () => {
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({ NOTESAPP_TRUSTED_PROXIES: 'proxy.example.com' }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) =>
+        issue.startsWith('NOTESAPP_TRUSTED_PROXIES:'),
+      ),
+  );
+});
+
 await test('the stop of the server has a default and takes a named value', () => {
   assert.deepEqual(loadServerConfig(valid).shutdown, {
     gracePeriodMs: 5000,
@@ -164,7 +249,12 @@ await test('the log level defaults to info when it is absent', () => {
 
 await test('an absent additional list serves the canonical origin only', () => {
   const config = loadServerConfig(
-    environment({ NOTESAPP_ORIGIN: 'https://Notes.Example.com:8443' }),
+    environment({
+      NOTESAPP_ORIGIN: 'https://Notes.Example.com:8443',
+      // The public port of the origin is not the listening port, so a public
+      // port asks for the listening value (decision 0042).
+      NOTESAPP_PORT: '3000',
+    }),
   );
   assert.equal(config.origin, 'https://notes.example.com:8443');
   assert.deepEqual(config.servedOrigins, ['https://notes.example.com:8443']);

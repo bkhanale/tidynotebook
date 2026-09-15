@@ -10,6 +10,7 @@ import type { SchemaObject } from '@notesapp/api-contract';
 import { compileSchema, describeIssues } from '@notesapp/api-contract';
 import { readFile } from 'node:fs/promises';
 import { readServedOrigins } from './served-origins.ts';
+import { readTrustedProxies } from './trusted-proxies.ts';
 
 const logLevels = [
   'fatal',
@@ -41,7 +42,9 @@ export type ServerConfig = {
    * Canonical origin of this deployment.
    *
    * It is the first entry of `servedOrigins`. It decides the base URL of the
-   * identity routes, the secure cookie flag, and the default listening port.
+   * identity routes and the secure cookie flag. It does not decide the
+   * listening socket, which `listen` below holds. See
+   * [decision 0042](../../../docs/decisions/0042-the-listening-socket-is-not-the-public-origin.md).
    */
   readonly origin: string;
   /** PostgreSQL connection URL of the runtime role. */
@@ -67,6 +70,25 @@ export type ServerConfig = {
    * [decision 0039](../../../docs/decisions/0039-one-list-of-served-origins.md).
    */
   readonly servedOrigins: readonly string[];
+  /**
+   * The socket that this process listens on.
+   *
+   * A proxy in front publishes the origin above on its own address, so the
+   * public address and this socket are two different things.
+   */
+  readonly listen: {
+    readonly host: string;
+    readonly port: number;
+  };
+  /**
+   * The proxies whose forwarded headers this deployment believes.
+   *
+   * An empty list trusts nothing, so the client address is the peer address
+   * of the socket. `apps/server/src/trusted-proxies.ts` builds the list and
+   * `apps/server/src/app.ts` gives it to Fastify. See
+   * [decision 0043](../../../docs/decisions/0043-one-decider-of-the-client-address.md).
+   */
+  readonly trustedProxies: readonly string[];
   /** Level of the structured log. `silent` disables logging. */
   readonly logLevel: LogLevel;
   /** Request limits applied before a handler runs. */
@@ -154,12 +176,16 @@ const variables = [
  * Values that a deployment may leave unset.
  *
  * An absent value has a stated meaning: no additional origin serves the
- * canonical origin and nothing else, and no mail transport disables recovery
- * by email. An empty value is treated as absent, so a placeholder in a Compose
- * file cannot enable a half configured transport.
+ * canonical origin and nothing else, no mail transport disables recovery by
+ * email, and no trusted proxy believes no forwarded header. An empty value is
+ * treated as absent, so a placeholder in a Compose file cannot enable a half
+ * configured transport and cannot grant trust that nobody named.
  */
 const optionalVariables = [
   'NOTESAPP_ADDITIONAL_ORIGINS',
+  'NOTESAPP_HOST',
+  'NOTESAPP_PORT',
+  'NOTESAPP_TRUSTED_PROXIES',
   'NOTESAPP_SMTP_URL',
   'NOTESAPP_MAIL_FROM',
   'NOTESAPP_SESSION_MAX_AGE_S',
@@ -245,6 +271,21 @@ const defaultShutdownDeadlineMs = 20000;
 const defaultUploadIdleTimeoutMs = 10000;
 
 /**
+ * The listening socket of a deployment that names no value of its own.
+ *
+ * Every interface is the default address, because the process usually runs in
+ * a container and reaches the network through an address that it cannot know.
+ * The image and the Compose file both publish port 3000 of that container on
+ * the loopback address of the host. See
+ * [decision 0042](../../../docs/decisions/0042-the-listening-socket-is-not-the-public-origin.md).
+ */
+const defaultListenHost = '0.0.0.0';
+const defaultListenPort = 3000;
+
+/** The highest port number of TCP. */
+const highestPort = 65535;
+
+/**
  * Values that this release does not read.
  *
  * A deployment that still sets one stops at startup. A silent drop would
@@ -286,6 +327,11 @@ const configSchema: SchemaObject = {
     // The shape of one entry is decided by `served-origins.ts`, which refuses
     // a value that is not exactly one origin and names what to write instead.
     NOTESAPP_ADDITIONAL_ORIGINS: { type: 'string', maxLength: 1024 },
+    NOTESAPP_HOST: { type: 'string', minLength: 1, maxLength: 255 },
+    NOTESAPP_PORT: positiveInteger,
+    // The shape of one entry is decided by `trusted-proxies.ts`, which refuses
+    // a value that names no address and no range, and names what to write.
+    NOTESAPP_TRUSTED_PROXIES: { type: 'string', maxLength: 1024 },
     NOTESAPP_LOG_LEVEL: { type: 'string', enum: [...logLevels] },
     NOTESAPP_MAX_BODY_BYTES: positiveInteger,
     NOTESAPP_MAX_HEADER_BYTES: positiveInteger,
@@ -347,6 +393,15 @@ export function loadServerConfig(
     throw new ConfigError([
       'NOTESAPP_ORIGIN: name the origin of this installation.',
     ]);
+  const trusted = readTrustedProxies(raw.NOTESAPP_TRUSTED_PROXIES);
+  if (!trusted.ok) throw new ConfigError(trusted.issues);
+  const listen = {
+    host: raw.NOTESAPP_HOST ?? defaultListenHost,
+    port:
+      raw.NOTESAPP_PORT === undefined
+        ? defaultListenPort
+        : Number(raw.NOTESAPP_PORT),
+  };
   const shutdown = {
     gracePeriodMs:
       raw.NOTESAPP_SHUTDOWN_GRACE_MS === undefined
@@ -358,6 +413,16 @@ export function loadServerConfig(
         : Number(raw.NOTESAPP_SHUTDOWN_DEADLINE_MS),
   };
   const partial: string[] = [];
+  if (listen.port > highestPort)
+    partial.push('NOTESAPP_PORT: name a port between 1 and 65535.');
+  // The public port of the origin was the listening port before decision 0042.
+  // A deployment that named one and no listening port would move from that
+  // port to 3000 in silence, so it stops here instead and reads which value
+  // states the listening port now.
+  if (raw.NOTESAPP_PORT === undefined && new URL(canonical).port !== '')
+    partial.push(
+      'NOTESAPP_PORT: name the port that this server listens on. NOTESAPP_ORIGIN names the public address of this installation, and a proxy in front of the server can publish it on another port.',
+    );
   if (shutdown.deadlineMs <= shutdown.gracePeriodMs)
     partial.push(
       'NOTESAPP_SHUTDOWN_DEADLINE_MS: the stop deadline must be longer than NOTESAPP_SHUTDOWN_GRACE_MS.',
@@ -387,6 +452,8 @@ export function loadServerConfig(
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
     authSecret: raw.NOTESAPP_AUTH_SECRET,
     servedOrigins: served.origins,
+    listen,
+    trustedProxies: trusted.proxies,
     logLevel: isLogLevel(raw.NOTESAPP_LOG_LEVEL)
       ? raw.NOTESAPP_LOG_LEVEL
       : 'info',

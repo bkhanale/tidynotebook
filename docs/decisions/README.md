@@ -71,6 +71,8 @@ and needs no record.
 | [0039](0039-one-list-of-served-origins.md)                     | One list of served origins                                |
 | [0040](0040-a-probe-address-is-a-contract-operation.md)        | A probe address is a contract operation                   |
 | [0041](0041-readiness-reads-the-served-pool.md)                | Readiness reads the pool that the deployment serves from  |
+| [0042](0042-the-listening-socket-is-not-the-public-origin.md)  | The listening socket is not the public origin             |
+| [0043](0043-one-decider-of-the-client-address.md)              | One decider of the client address                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -130,4 +132,10 @@ Record 0040 makes every address that the server answers an operation of the
 contract, so the root probe addresses that an operator configures are covered
 by the response check. Record 0041 makes readiness read the pool that the
 deployment already serves from, so a probe that an orchestrator repeats forever
-opens no connection of its own.
+opens no connection of its own. Records 0042 and 0043 answer issue 25, the
+optional TLS profile. Record 0042 gives the listening socket its own
+configuration, because a proxy separates the public address from the address
+that the process binds, and it refines the last bullet of record 0039. Record
+0043 gives the client address one decider: one named list grants the trust, it
+is empty by default, and Better Auth reads the answer of this server instead of
+a header of the caller.

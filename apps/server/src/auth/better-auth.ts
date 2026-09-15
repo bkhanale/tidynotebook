@@ -18,6 +18,9 @@
  *     `config.servedOrigins`, and the cookie write check of `actor.ts` reads
  *     the same list, so the two cannot accept a different set. See
  *     [decision 0039](../../../../docs/decisions/0039-one-list-of-served-origins.md).
+ *   * One client address, which this server resolves and the adapter passes
+ *     on. The library reads no forwarded header of the caller. See
+ *     [decision 0043](../../../../docs/decisions/0043-one-decider-of-the-client-address.md).
  *   * Password hashing and token lifetime owned by Better Auth.
  *   * SMTP password recovery when a transport is configured, and the operator
  *     recovery command when none is.
@@ -230,6 +233,13 @@ function buildAuth(
       },
     },
     advanced: {
+      // The base URL above is the canonical origin of the deployment, so a
+      // forwarded host must never move it. This stays off for that reason.
+      trustedProxyHeaders: false,
+      // The adapter writes the one client address of this server into
+      // `x-forwarded-for`, so the library reads that header and no other, and
+      // it needs no proxy list of its own. Decision 0043 holds the rule.
+      ipAddress: { ipAddressHeaders: ['x-forwarded-for'] },
       useSecureCookies: secure,
       cookiePrefix: 'notesapp',
       cookies: { session_token: { name: 'notesapp_session' } },
@@ -290,22 +300,44 @@ export function createAuthPool(config: ServerConfig): pg.Pool {
 }
 
 /** Header names that never travel to the protocol handler. */
-const droppedRequestHeaders = new Set(['content-length', 'connection']);
+const droppedRequestHeaders = new Set([
+  'content-length',
+  'connection',
+  'forwarded',
+]);
+
+/** Whether one header name states a hop in front of this server. */
+function isForwardedHeader(name: string): boolean {
+  return droppedRequestHeaders.has(name) || name.startsWith('x-forwarded-');
+}
 
 /**
  * The headers of a Fastify request as a Web standard `Headers` object.
  *
  * The identity adapter passes them to `auth.api.getSession`, which reads the
  * session cookie from them.
+ *
+ * Every header that states a hop is removed first, and one `x-forwarded-for`
+ * that holds `request.ip` replaces them. The protocol library reads the client
+ * address from that header, and the address of this server is the one answer:
+ * it is the peer address of the socket, or the address that a configured proxy
+ * forwarded. Without this step the library would believe the header of any
+ * caller, and the attempt limit of the identity routes would count a new
+ * client for each forged address. See
+ * [decision 0043](../../../../docs/decisions/0043-one-decider-of-the-client-address.md).
  */
 export function toRequestHeaders(request: FastifyRequest): Headers {
   const headers = new Headers();
   for (const [name, value] of Object.entries(request.headers)) {
-    if (droppedRequestHeaders.has(name)) continue;
+    if (isForwardedHeader(name)) continue;
     if (typeof value === 'string') headers.append(name, value);
     else if (Array.isArray(value))
       for (const entry of value) headers.append(name, entry);
   }
+  // A socket that closed before the hook runs carries no address. The library
+  // then reads no address at all, which is the safe answer.
+  const client = request.ip;
+  if (client) headers.set('x-forwarded-for', client);
   return headers;
 }
 

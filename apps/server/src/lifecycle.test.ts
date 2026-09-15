@@ -3,15 +3,16 @@
  *
  * The test owns the wait and the deadline, so it proves the order of the
  * steps, the re-entrancy guard, and the forced exit without waiting for real
- * time.
+ * time. The start of the listener is driven the same way.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { DrainEvent, DrainTimers } from './lifecycle.ts';
+import type { DrainEvent, DrainTimers, StartEvent } from './lifecycle.ts';
 import {
   createDrain,
   createServiceLifecycle,
   runningLifecycle,
+  startListener,
 } from './lifecycle.ts';
 
 /** One pending call and the answer that releases it. */
@@ -198,4 +199,50 @@ await test('a close that fails is reported and never forces the exit', async () 
     steps.map((step) => step.step),
     ['started', 'failed'],
   );
+});
+
+await test('a listen that succeeds reports it and closes nothing', async () => {
+  const steps: string[] = [];
+  const events: StartEvent[] = [];
+  await startListener({
+    listen: async () => {
+      steps.push('listen');
+    },
+    close: async () => {
+      steps.push('close');
+    },
+    report: (event) => events.push(event),
+    exit: (code) => steps.push(`exit ${String(code)}`),
+  });
+  assert.deepEqual(steps, ['listen']);
+  assert.deepEqual(events, [{ step: 'listening' }]);
+});
+
+await test('a listen that fails closes the resources before it exits', async () => {
+  // The application holds its connection pools before the listen, so a
+  // process that ends here without the close drops them instead of ending
+  // them.
+  const steps: string[] = [];
+  const events: StartEvent[] = [];
+  await startListener({
+    listen: () => Promise.reject(new Error('the port is in use')),
+    close: async () => {
+      steps.push('close');
+    },
+    report: (event) => events.push(event),
+    exit: (code) => steps.push(`exit ${String(code)}`),
+  });
+  assert.deepEqual(steps, ['close', 'exit 1']);
+  assert.deepEqual(events, [{ step: 'unavailable' }]);
+});
+
+await test('a close that also fails still ends the process', async () => {
+  const steps: string[] = [];
+  await startListener({
+    listen: () => Promise.reject(new Error('the port is in use')),
+    close: () => Promise.reject(new Error('the pool did not close')),
+    report: () => steps.push('report'),
+    exit: (code) => steps.push(`exit ${String(code)}`),
+  });
+  assert.deepEqual(steps, ['report', 'exit 1']);
 });
