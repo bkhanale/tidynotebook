@@ -104,6 +104,19 @@ export async function waitForServerSave(page: Page): Promise<void> {
     .toBe('saved-server');
 }
 
+/**
+ * Closes the current version and waits until the server holds it.
+ *
+ * A version closes after a pause in typing, so two edits that follow each
+ * other quickly become one version. Control + S is the visible accelerator
+ * that closes a version at once, so a journey that needs two versions asks
+ * for the boundary instead of waiting out the pause.
+ */
+export async function saveVersion(page: Page): Promise<void> {
+  await page.keyboard.press('Control+S');
+  await waitForServerSave(page);
+}
+
 /** Waits until the current edit changes the active file save state. */
 export async function waitForLocalWrite(page: Page): Promise<void> {
   await expect

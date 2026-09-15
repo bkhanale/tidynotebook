@@ -5,8 +5,8 @@ import {
   openPersonalWorkspace,
   replaceEditorText,
   runNoteAction,
+  saveVersion,
   signIn,
-  waitForServerSave,
 } from './support/account.ts';
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
@@ -26,10 +26,12 @@ test('an earlier version can be restored from the history', async ({
 
   const name = `history-${Date.now().toString()}`;
   await page.getByLabel('Note name').fill(name);
+  // Each edit closes its own version, so the history holds two of them and
+  // the journey never depends on how long a pause in typing lasts.
   await replaceEditorText(page, '# First content');
-  await waitForServerSave(page);
+  await saveVersion(page);
   await replaceEditorText(page, '# Second content');
-  await waitForServerSave(page);
+  await saveVersion(page);
 
   await runNoteAction(page, 'Open the history of this note');
   await expect(

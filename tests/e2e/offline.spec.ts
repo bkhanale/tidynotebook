@@ -4,6 +4,7 @@ import {
   createNewNote,
   openPersonalWorkspace,
   replaceEditorText,
+  saveVersion,
   signIn,
   waitForLocalWrite,
   waitForServerSave,
@@ -52,8 +53,7 @@ test('an offline edit survives reload and syncs after reconnect', async ({
   if (testInfo.project.name !== 'webkit') await context.setOffline(false);
   // The reload loaded the offline draft, which is not a version yet, so make
   // one on purpose and let the sync engine send it now that transport is back.
-  await page.keyboard.press('Control+S');
-  await waitForServerSave(page);
+  await saveVersion(page);
   await page.reload();
   await expect(page.locator('.cm-content')).toContainText('Still here.');
 });

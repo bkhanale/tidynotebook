@@ -43,8 +43,15 @@ transport rules still apply here: a test calls a generated operation or
 starts the PostgreSQL service from `compose.test.yaml` and builds first. Each
 integration file creates its own disposable database, so files do not share
 state. `e2e` runs under `pnpm test:e2e` across chromium, firefox, webkit, and
-a 390 px phone viewport. A test must prove the result through the public
-interface and check the server state, not an internal call.
+emulated phone and tablet viewports. A test must prove the result through the
+public interface and check the server state, not an internal call.
+
+`pnpm test:e2e` runs several workers at the same time, and each worker owns
+its own stack. The journeys of one file keep their written order on that
+stack, but the order of the files across the workers can change. A journey
+therefore gives every note and every folder a name of its own, and it never
+depends on what another file wrote. See
+[decision 0036](../docs/decisions/0036-the-browser-gate-runs-in-parallel-workers.md).
 
 ## Forbidden here
 
@@ -55,14 +62,16 @@ interface and check the server state, not an internal call.
 - No shared database between test files, and no leaked temporary directory.
 - No dependence on a test only route in a browser journey.
 - No assertion on an internal identifier that a person never sees.
+- No browser journey that reads a note, a folder, or a trash row that another
+  file wrote.
 
 ## Key files
 
-| File                              | Purpose                                |
-| --------------------------------- | -------------------------------------- |
-| `integration/support/database.ts` | One disposable database per test file  |
-| `integration/support/server.ts`   | A real listening server                |
-| `integration/contract.test.ts`    | Every operation and its handler        |
-| `integration/row-access.test.ts`  | The row access policies                |
-| `e2e/support/stack.ts`            | One owned application stack per worker |
-| `../playwright.config.ts`         | The browser matrix                     |
+| File                              | Purpose                                 |
+| --------------------------------- | --------------------------------------- |
+| `integration/support/database.ts` | One disposable database per test file   |
+| `integration/support/server.ts`   | A real listening server                 |
+| `integration/contract.test.ts`    | Every operation and its handler         |
+| `integration/row-access.test.ts`  | The row access policies                 |
+| `e2e/support/stack.ts`            | One owned application stack per worker  |
+| `../playwright.config.ts`         | The browser matrix and the worker count |

@@ -54,6 +54,11 @@ through the visible login form. The tests use the real IndexedDB store, the
 generated client, and the sync engine, so nothing is stubbed below the
 interface.
 
+Several workers run at the same time, and each one owns its whole stack. See
+[decision 0036](../decisions/0036-the-browser-gate-runs-in-parallel-workers.md).
+The order of the files across the workers can change, so a journey must not
+depend on what another file wrote.
+
 `playwright.config.ts` defines the projects: the desktop browsers plus emulated
 phone and tablet viewports. An emulated viewport verifies responsive layout and
 touch settings. **It is not evidence from a physical device.**
@@ -71,19 +76,20 @@ count of checks from that report, not from a document.
 
 ## What each area proves
 
-| Area                            | Evidence                                                                            |
-| ------------------------------- | ----------------------------------------------------------------------------------- |
-| Package imports                 | `tools/check-boundaries.mjs` and its fixture test.                                  |
-| Request and response validation | `tests/integration/contract.test.ts`, including the operation coverage mapping.     |
-| Row access                      | The identity, row access, revision, and history integration tests.                  |
-| Replay order                    | The revision, attachment, history, and sync tests over receipts and preconditions.  |
-| Immutable history               | The core graph tests and the storage constraints, plus restore and purge behaviour. |
-| Multi-file atomicity            | Forced failed changesets in the storage, revision, history, and sync tests.         |
-| Local draft preservation        | The browser storage and offline lifecycle tests over rollback, quota, and recovery. |
-| Stale draft and stale delete    | The browser storage and sync tests.                                                 |
-| Cleanup and purge races         | The attachment and history tests over reference locks, retries, and late writes.    |
-| One Markdown grammar            | `tests/integration/markdown-equivalence.test.ts` over the shared corpus.            |
-| Documents                       | `tools/check-docs.mjs` over the rules in [the document index](../README.md).        |
+| Area                            | Evidence                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------ |
+| Package imports                 | `tools/check-boundaries.mjs` and its fixture test.                                   |
+| Request and response validation | `tests/integration/contract.test.ts`, including the operation coverage mapping.      |
+| Row access                      | The identity, row access, revision, and history integration tests.                   |
+| Replay order                    | The revision, attachment, history, and sync tests over receipts and preconditions.   |
+| Immutable history               | The core graph tests and the storage constraints, plus restore and purge behaviour.  |
+| Multi-file atomicity            | Forced failed changesets in the storage, revision, history, and sync tests.          |
+| Local draft preservation        | The browser storage and offline lifecycle tests over rollback, quota, and recovery.  |
+| Stale draft and stale delete    | The browser storage and sync tests.                                                  |
+| Cleanup and purge races         | The attachment and history tests over reference locks, retries, and late writes.     |
+| One Markdown grammar            | `tests/integration/markdown-equivalence.test.ts` over the shared corpus.             |
+| Documents                       | `tools/check-docs.mjs` over the rules in [the document index](../README.md).         |
+| Parallel migrations             | `tests/integration/concurrent-migrations.test.ts` over two databases of one cluster. |
 
 ## Performance
 

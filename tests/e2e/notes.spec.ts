@@ -7,6 +7,7 @@ import {
   openPersonalWorkspace,
   replaceEditorText,
   runNoteAction,
+  saveVersion,
   signIn,
   waitForServerSave,
 } from './support/account.ts';
@@ -51,8 +52,7 @@ test('create, save, reload, rename, and delete use durable note state', async ({
 
   await page.getByLabel('Note name').fill(renamed);
   // A rename is a draft until a version is created, so make one on purpose.
-  await page.keyboard.press('Control+S');
-  await waitForServerSave(page);
+  await saveVersion(page);
   await openNavigation(page);
   await expect(page.getByRole('link', { name: renamed }).first()).toBeVisible();
 

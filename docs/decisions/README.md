@@ -65,6 +65,7 @@ and needs no record.
 | [0033](0033-a-task-box-is-a-control-not-a-marker.md)           | A task box is a control, not a marker                     |
 | [0034](0034-the-open-note-selects-its-folder.md)               | The open note selects its folder                          |
 | [0035](0035-the-sidebar-width-belongs-to-the-person.md)        | The sidebar width belongs to the person                   |
+| [0036](0036-the-browser-gate-runs-in-parallel-workers.md)      | The browser gate runs in parallel workers                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -104,4 +105,6 @@ person can tick an item on the line they are writing. Record 0034 makes the
 open note select its folder and stops a background read of the note list from
 moving that selection, so a create action lands where the person is reading,
 and it refines record 0029. Record 0035 gives the sidebar four named widths and
-a collapsed state that belong to the person.
+a collapsed state that belong to the person. Record 0036 opens the browser
+gate to parallel workers, because each worker already owns its whole stack,
+and it refines record 0014.

@@ -52,9 +52,65 @@ export const requiredSchemaVersion = 4;
  */
 const migrationLockKey = '6178626538595505297';
 
+/**
+ * How many times a role password statement runs again after a catalog clash.
+ *
+ * The advisory lock above belongs to one database, but a role is a cluster
+ * wide object. Two runs against two databases of one cluster therefore write
+ * the same catalog row at the same time, and PostgreSQL refuses the second
+ * one with `tuple concurrently updated`. The statement sets an absolute
+ * value, so running it again is safe and it is the only remedy.
+ */
+const rolePasswordAttempts = 10;
+
 /** The reviewed migration directory of this package. */
 export function migrationsFolder(): string {
   return fileURLToPath(new URL('../migrations/', import.meta.url));
+}
+
+/** Whether PostgreSQL refused a statement because a catalog row was busy. */
+function isBusyCatalogRow(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof error.message === 'string' &&
+    error.message.includes('tuple concurrently updated')
+  );
+}
+
+/**
+ * Gives one role its password, and waits out a concurrent run.
+ *
+ * The statement runs outside a transaction, so a refusal leaves the session
+ * usable and the next attempt starts from a clean state.
+ */
+async function setRolePassword(
+  client: pg.Client,
+  role: string,
+  password: string,
+): Promise<void> {
+  // DDL cannot take a bind parameter, so PostgreSQL itself quotes the
+  // literal and the result is executed as one statement.
+  const built = await client.query<{ statement: string }>(
+    'select format($1, $2::text) as statement',
+    [`alter role ${role} with password %L`, password],
+  );
+  const statement = built.rows[0]?.statement;
+  if (statement === undefined) {
+    throw new Error(`notesapp: the ${role} password was not built.`);
+  }
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      await client.query(statement);
+      return;
+    } catch (error: unknown) {
+      if (attempt >= rolePasswordAttempts || !isBusyCatalogRow(error))
+        throw error;
+      const wait = attempt * 25;
+      await new Promise((accept) => setTimeout(accept, wait));
+    }
+  }
 }
 
 /** What one migration run needs. */
@@ -101,17 +157,7 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
         [runtimeRole, run.runtimePassword],
         [authRole, run.authPassword],
       ] as const) {
-        // DDL cannot take a bind parameter, so PostgreSQL itself quotes the
-        // literal and the result is executed as one statement.
-        const built = await client.query<{ statement: string }>(
-          'select format($1, $2::text) as statement',
-          [`alter role ${role} with password %L`, password],
-        );
-        const statement = built.rows[0]?.statement;
-        if (statement === undefined) {
-          throw new Error(`notesapp: the ${role} password was not built.`);
-        }
-        await client.query(statement);
+        await setRolePassword(client, role, password);
       }
       await migratePortableMarkdown(run.databaseUrl);
     } finally {

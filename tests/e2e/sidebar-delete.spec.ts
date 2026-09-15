@@ -8,6 +8,7 @@ import {
   openPersonalWorkspace,
   replaceEditorText,
   runNoteAction,
+  saveVersion,
   signIn,
   waitForServerSave,
 } from './support/account.ts';
@@ -356,8 +357,7 @@ test('A rename keeps a note in its folder', async ({
 
   await page.getByLabel('Note name').fill(renamed);
   // A rename is a draft until a version is created, so make one on purpose.
-  await page.keyboard.press('Control+S');
-  await waitForServerSave(page);
+  await saveVersion(page);
 
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
   const folderToggle = folderDisclosure(page, folder);
