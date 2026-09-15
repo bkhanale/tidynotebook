@@ -9,8 +9,30 @@ import {
 
 type Json = Record<string, unknown>;
 
+/** The component groups of the fixture, named so a test can edit one. */
+type FixtureComponents = {
+  securitySchemes: Json;
+  parameters: Json;
+  responses: Json;
+  schemas: Json;
+};
+
+/**
+ * The fixture document, with its groups declared.
+ *
+ * The walk under test takes a plain record, but a test that adds or removes
+ * one component has to reach a group. The fixture states its own shape, so
+ * the edits below need no claim about it.
+ */
+type FixtureDocument = {
+  openapi: string;
+  security: readonly Json[];
+  paths: Json;
+  components: FixtureComponents;
+};
+
 /** A small document with one operation that uses part of its components. */
-function document(): Json {
+function document(): FixtureDocument {
   return {
     openapi: '3.1.1',
     security: [{ sessionCookie: [] }],
@@ -86,9 +108,8 @@ await test('the walk reports every component nothing reaches', () => {
 
 await test('a schema property called security is not read as a scheme', () => {
   const input = document();
-  const components = input.components as Json;
-  const schemas = components.schemas as Json;
-  schemas.Note = {
+  const schemas = input.components.schemas;
+  schemas['Note'] = {
     type: 'object',
     properties: { security: { $ref: '#/components/schemas/Limit' } },
   };
@@ -113,17 +134,15 @@ await test('generation stops and names the unreachable component', () => {
 
 await test('a document whose components are all used passes', () => {
   const input = document();
-  const components = input.components as Json;
-  delete (components.schemas as Json).Forgotten;
-  delete (components.securitySchemes as Json).bearerToken;
+  delete input.components.schemas['Forgotten'];
+  delete input.components.securitySchemes['bearerToken'];
   assert.deepEqual(findOrphanComponents(input), []);
   assertNoOrphanComponents(input);
 });
 
 await test('a reference that names nothing is a failure', () => {
   const input = document();
-  const components = input.components as Json;
-  (components.schemas as Json).NoteList = {
+  input.components.schemas['NoteList'] = {
     type: 'array',
     items: { $ref: '#/components/schemas/Missing' },
   };

@@ -46,7 +46,7 @@ class FakeWorkspace {
   readonly roles = new Map<string, Role>();
   readonly files = new Map<string, FileRecord>();
   readonly revisions = new Map<string, RevisionRecord>();
-  readonly receipts = new Map<string, MutationReceipt<unknown>>();
+  readonly receipts = new Map<string, MutationReceipt>();
   readonly purged = new Set<string>();
   readonly history: HistoryRevision[] = [];
 
@@ -62,11 +62,8 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     role: (id: string) => Promise.resolve(state.roles.get(id) ?? null),
-    receipt: <T = AcceptedChangeset>(mutationId: string, id: string) =>
-      Promise.resolve(
-        (state.receipts.get(`${id}:${mutationId}`) as
-          MutationReceipt<T> | undefined) ?? null,
-      ),
+    receipt: (mutationId: string, id: string) =>
+      Promise.resolve(state.receipts.get(`${id}:${mutationId}`) ?? null),
     heads: (fileIds: readonly string[]) =>
       Promise.resolve(
         new Map(

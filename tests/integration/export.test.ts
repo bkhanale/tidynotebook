@@ -74,6 +74,14 @@ function browser(cookie: string): Record<string, string> {
   return { origin: 'https://notes.test', cookie };
 }
 
+/** The archive bytes of an export answer, or a test failure. */
+async function archiveBytes(
+  data: Blob | File | undefined,
+): Promise<Buffer<ArrayBuffer>> {
+  assert.ok(data !== undefined, 'the export answered with no archive');
+  return Buffer.from(await data.arrayBuffer());
+}
+
 /** Every entry of a ZIP archive, read through its central directory. */
 function readArchive(bytes: Buffer): ReadonlyMap<string, Buffer> {
   const end = bytes.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
@@ -292,7 +300,7 @@ await test('the archive holds every live note and the images they use', async ()
     /^attachment; filename="notes\.zip"/,
   );
 
-  const archive = Buffer.from(await (answer.data as Blob).arrayBuffer());
+  const archive = await archiveBytes(answer.data);
   const entries = readArchive(archive);
   const paths = [...entries.keys()];
   assert.ok(paths.includes('folder/illustrated.md'), paths.join(', '));
@@ -331,9 +339,7 @@ await test('the archive holds every live note and the images they use', async ()
     headers: browser(cookie),
     path: { workspaceId: importedWorkspaceId },
   });
-  const roundTripEntries = readArchive(
-    Buffer.from(await (roundTrip.data as Blob).arrayBuffer()),
-  );
+  const roundTripEntries = readArchive(await archiveBytes(roundTrip.data));
   assert.deepEqual([...roundTripEntries.keys()], [...entries.keys()]);
   for (const [path, bytes] of entries)
     assert.equal(
@@ -354,9 +360,7 @@ await test('the archive follows a rename and a later edit', async () => {
     headers: browser(cookie),
     path: { workspaceId },
   });
-  const entries = readArchive(
-    Buffer.from(await (answer.data as Blob).arrayBuffer()),
-  );
+  const entries = readArchive(await archiveBytes(answer.data));
   assert.equal(entries.get('moved/renamed.md')?.toString('utf8'), '# Two\n');
   assert.equal(entries.has('moving.md'), false);
 });

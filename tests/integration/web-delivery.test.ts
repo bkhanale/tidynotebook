@@ -313,7 +313,11 @@ await test('an unexpected server error is logged with the failure', async () => 
       url: '/api/health',
     });
     assert.equal(answer.statusCode, 500);
-    const problem = JSON.parse(answer.body) as { code: string };
+    const problem: unknown = JSON.parse(answer.body);
+    assert.ok(
+      typeof problem === 'object' && problem !== null && 'code' in problem,
+      'the answer is a problem document',
+    );
     assert.equal(problem.code, 'internal_error');
 
     const logged = recorder

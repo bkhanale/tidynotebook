@@ -247,7 +247,7 @@ await test('a created workspace has its creator as owner', async () => {
 await test('an appearance outside the union is rejected', async () => {
   const store = createFakeStore();
   const bad = await updatePreferences(store, actorFor(alice), {
-    appearance: 'neon' as Preferences['appearance'],
+    appearance: 'neon',
     themeFamily: 'nord',
   });
   assert.equal(bad.ok, false);

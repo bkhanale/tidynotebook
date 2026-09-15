@@ -47,6 +47,17 @@ function corrupt(detail: string): never {
 }
 
 /**
+ * True when a stored value can be read and written by key.
+ *
+ * A migration step edits the stored record in place, so it cannot use
+ * `object`, which copies. This guard proves only that the value holds
+ * members; every member stays `unknown` until a reader checks it.
+ */
+function isWritableRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
  * The value as a plain record, or a refusal.
  *
  * Only own enumerable members are kept, so an inherited member of a value that
@@ -446,9 +457,8 @@ export const migrationSteps: readonly {
     to: 3,
     run: async (tables): Promise<void> => {
       await tables.queue.toCollection().modify((value: unknown) => {
-        if (value === null || typeof value !== 'object') return;
-        const row = value as Record<string, unknown>;
-        row['errorCode'] = null;
+        if (!isWritableRecord(value)) return;
+        value['errorCode'] = null;
       });
     },
   },
@@ -459,19 +469,18 @@ export const migrationSteps: readonly {
       // The branch members of a queue entry have no reader left. The Dexie
       // schema of version 4 already deleted the `branches` table itself.
       await tables.queue.toCollection().modify((value: unknown) => {
-        if (value === null || typeof value !== 'object') return;
-        const row = value as Record<string, unknown>;
-        delete row['conflictGroupId'];
-        delete row['branchMutationId'];
-        delete row['branchState'];
+        if (!isWritableRecord(value)) return;
+        delete value['conflictGroupId'];
+        delete value['branchMutationId'];
+        delete value['branchState'];
       });
       // Only a revoked membership or a viewer downgrade wrote these two
       // reasons, and neither can happen now. No shipped code path ever wrote
       // one, so nothing of the person's work is dropped here.
       await tables.recovery
         .filter((row: unknown) => {
-          if (row === null || typeof row !== 'object') return false;
-          const reason: unknown = (row as Record<string, unknown>)['reason'];
+          if (!isWritableRecord(row)) return false;
+          const reason: unknown = row['reason'];
           return reason === 'access_revoked' || reason === 'role_downgraded';
         })
         .delete();

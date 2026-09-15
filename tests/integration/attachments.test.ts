@@ -39,6 +39,7 @@ import {
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
+import { isOperationalError } from '@notesapp/core';
 import sharp from 'sharp';
 import {
   createDisposableDatabase,
@@ -1357,6 +1358,97 @@ await test('a workspace deletion sends its attachment bytes to the reclaim', asy
     'the workspace deletion took the bytes off the disk',
   );
   assert.equal(await attachments.reclaimAttachments(new Date()), 0);
+});
+
+await test('an upload with no content type is refused with 415', async () => {
+  // The form reader needs the media type and its boundary. A request that
+  // states neither carries no body, so the contract check lets it through,
+  // and the handler has to answer. 415 is the declared answer for it.
+  //
+  // Regression: the handler used to claim the header instead of reading it,
+  // and the form reader then threw inside the request, so the person met a
+  // server problem rather than the answer the contract states. No generated
+  // operation can leave the header out, so this goes through `app.inject`.
+  const answer = await server.app.inject({
+    method: 'POST',
+    url: `/api/workspaces/${workspaceId}/attachments`,
+    headers: browser(cookie),
+  });
+  assert.equal(answer.statusCode, 415);
+  assert.equal(problemCode(JSON.parse(answer.body)), 'unsupported_media_type');
+});
+
+await test('a stored media type the domain refuses stops the read', async () => {
+  // `media_type` is a text column, so nothing in the database keeps a row
+  // inside the union. An older release, a repair by hand, or a media type
+  // that a later release removes can all leave one outside it. The read then
+  // refuses instead of answering with a type the domain never declared, and
+  // the person gets the one server message rather than an engine notice.
+  const bytes = await uniquePng(11, 22, 33);
+  const uploaded = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { file: new File([bytes], 'refused.png', { type: 'image/png' }) },
+  });
+  assert.ok(uploaded.data);
+  const objectId = uploaded.data.objectId;
+  const fileId = randomUUID();
+  const revisionId = randomUUID();
+  const finalized = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId },
+    body: {
+      fileId,
+      revisionId,
+      path: 'assets/refused.png',
+      digest: uploaded.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(finalized.response).status, 200);
+
+  // The read works while the row names a media type of the union.
+  const before = await getAttachmentRevision({
+    headers: browser(cookie),
+    path: { workspaceId, revisionId },
+  });
+  assert.equal(
+    responseOf(before.response).headers.get('content-type'),
+    'image/png',
+  );
+
+  const session = await openSession(database.migrationUrl);
+  try {
+    await session.query(
+      `update attachment_objects set media_type = $3
+        where workspace_id = $1 and id = $2`,
+      [workspaceId, objectId, 'image/svg+xml'],
+    );
+  } finally {
+    await session.close();
+  }
+
+  // The revision read goes through the raw SQL path of the store.
+  const after = await getAttachmentRevision({
+    headers: browser(cookie),
+    path: { workspaceId, revisionId },
+  });
+  assert.equal(responseOf(after.response).status, 500);
+  assert.equal(problemCode(after.error), 'internal_error');
+
+  // The metadata read goes through the Drizzle path of the same store.
+  await assert.rejects(
+    attachments.getAttachmentObject(
+      memberActor(ownerAccountId, workspaceId),
+      workspaceId,
+      objectId,
+    ),
+    (error: unknown) => {
+      assert.ok(isOperationalError(error));
+      assert.equal(error.kind, 'unexpected');
+      return true;
+    },
+  );
 });
 
 // Teardown

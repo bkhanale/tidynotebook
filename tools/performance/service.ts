@@ -39,6 +39,16 @@ import {
   type CorpusNote,
 } from './corpus.ts';
 
+/** One member of a prepared list, or a loud failure when it is absent. */
+function at<T>(list: readonly T[], index: number, what: string): T {
+  const value = list[index];
+  if (value === undefined)
+    throw new Error(
+      `The run has no ${what} at position ${String(index)}. The setup above is incomplete.`,
+    );
+  return value;
+}
+
 const activeUsers = 20;
 const seedBatchSize = 1000;
 const measuredRounds = 5;
@@ -173,10 +183,13 @@ try {
     runtimeRole,
     process.env['NOTESAPP_RUNTIME_PASSWORD'] ?? testRuntimePassword,
   );
-  store = openWorkspaceStore(runtimeUrl, {
+  // The measured closures below run after the assignment, so they read this
+  // constant. The outer `store` stays for the `finally` that closes it.
+  const openStore = openWorkspaceStore(runtimeUrl, {
     poolSize: activeUsers,
     statementTimeoutMs: 30_000,
   });
+  store = openStore;
 
   const workspaceId = randomUUID();
   const accountIds = Array.from({ length: activeUsers }, () => randomUUID());
@@ -196,7 +209,7 @@ try {
   for (let start = 0; start < corpusNoteCount; start += seedBatchSize) {
     await seedBatch(
       store,
-      actors[0] as Actor,
+      at(actors, 0, 'actor'),
       workspaceId,
       corpusBatch(start, Math.min(seedBatchSize, corpusNoteCount - start)),
       heads,
@@ -207,7 +220,7 @@ try {
   }
   await seedBatch(
     store,
-    actors[0] as Actor,
+    at(actors, 0, 'actor'),
     workspaceId,
     [stressNote()],
     heads,
@@ -235,8 +248,8 @@ try {
   const saveActors: Actor[] = [];
   const currentHeads: { fileId: string; revisionId: string }[] = [];
   for (let index = 0; index < activeUsers; index += 1) {
-    const saveWorkspaceId = saveWorkspaceIds[index] as string;
-    const accountId = accountIds[index] as string;
+    const saveWorkspaceId = at(saveWorkspaceIds, index, 'save workspace');
+    const accountId = at(accountIds, index, 'account');
     await provisionWorkspace(migrationUrl, {
       workspaceId: saveWorkspaceId,
       name: `Performance save workspace ${String(index)}`,
@@ -267,7 +280,7 @@ try {
     const prepared = await Promise.all(
       currentHeads.map(async (head, index) => {
         const base = corpusNote(index);
-        const saveWorkspaceId = saveWorkspaceIds[index] as string;
+        const saveWorkspaceId = at(saveWorkspaceIds, index, 'save workspace');
         return {
           index,
           input: updateFileChangeset({
@@ -294,8 +307,8 @@ try {
       prepared.map(async ({ index, input }) => {
         const started = performance.now();
         const result = await commitChangeset(
-          store as ReturnType<typeof openWorkspaceStore>,
-          saveActors[index] as Actor,
+          openStore,
+          at(saveActors, index, 'save actor'),
           input,
           `performance-save-${input.mutationId}`,
         );
@@ -328,7 +341,7 @@ try {
       actors.map(async (currentActor, index) => {
         const started = performance.now();
         const result = await searchFiles(
-          store as ReturnType<typeof openWorkspaceStore>,
+          openStore,
           currentActor,
           workspaceId,
           corpusNote(index).searchTerm,
@@ -347,7 +360,7 @@ try {
   const singleSearchStarted = performance.now();
   const singleSearch = await searchFiles(
     store,
-    actors[0] as Actor,
+    at(actors, 0, 'actor'),
     workspaceId,
     corpusNote(0).searchTerm,
     50,

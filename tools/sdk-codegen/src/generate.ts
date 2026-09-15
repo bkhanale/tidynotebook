@@ -68,7 +68,8 @@ function componentSchemas(
 ): Record<string, unknown> {
   const components: unknown = document.components;
   if (components === null || typeof components !== 'object') return {};
-  const schemas: unknown = (components as Record<string, unknown>).schemas;
+  if (!('schemas' in components)) return {};
+  const schemas: unknown = components.schemas;
   if (schemas === null || typeof schemas !== 'object') return {};
   return Object.fromEntries(Object.entries(schemas));
 }

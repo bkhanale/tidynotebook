@@ -11,8 +11,13 @@ async function archive(entries: readonly ZipEntry[]): Promise<Buffer> {
     (async function* stream() {
       for (const entry of entries) yield entry;
     })(),
-  ))
-    parts.push(chunk as Buffer);
+  )) {
+    // `Readable` iterates as `any`, so the test proves that the archive
+    // stream yields bytes before it reads them.
+    if (!Buffer.isBuffer(chunk))
+      throw new Error('The archive stream yielded a chunk that is not bytes.');
+    parts.push(chunk);
+  }
   return Buffer.concat(parts);
 }
 

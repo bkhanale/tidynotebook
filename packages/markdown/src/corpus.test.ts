@@ -111,12 +111,14 @@ await test('front matter renders as document content', () => {
     ),
   );
   const types = new Set<string>();
-  const collect = (node: { type: string; children?: unknown }): void => {
-    types.add(node.type);
-    const children = node.children;
-    if (Array.isArray(children))
-      for (const child of children)
-        collect(child as { type: string; children?: unknown });
+  // The syntax tree is a plain object tree, so each node is checked before it
+  // is read. A node of another shape adds no type and the test still fails.
+  const collect = (node: unknown): void => {
+    if (typeof node !== 'object' || node === null) return;
+    if ('type' in node && typeof node.type === 'string') types.add(node.type);
+    if (!('children' in node)) return;
+    const children: unknown = node.children;
+    if (Array.isArray(children)) for (const child of children) collect(child);
   };
   collect(parseMarkdown(corpusMarkdown));
   assert.ok(types.has('yaml'));

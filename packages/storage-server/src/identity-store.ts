@@ -38,11 +38,11 @@ const defaultThemeFamily = 'ink';
 const appearances: readonly AppearanceChoice[] = ['system', 'light', 'dark'];
 
 function isRole(value: string): value is Role {
-  return (roles as readonly string[]).includes(value);
+  return roles.some((role) => role === value);
 }
 
 function isAppearance(value: string): value is AppearanceChoice {
-  return (appearances as readonly string[]).includes(value);
+  return appearances.some((appearance) => appearance === value);
 }
 
 /** Rejects an identifier that is not a UUID before it reaches SQL. */

@@ -555,7 +555,11 @@ async function reviewedMigrationCount(): Promise<number> {
   const journal: unknown = JSON.parse(
     await readFile(join(migrationsFolder(), 'meta', '_journal.json'), 'utf8'),
   );
-  const entries = (journal as { entries?: unknown }).entries;
+  assert.ok(
+    typeof journal === 'object' && journal !== null && 'entries' in journal,
+    'the migration journal is a record with entries',
+  );
+  const entries: unknown = journal.entries;
   assert.ok(Array.isArray(entries), 'the migration journal lists its entries');
   return entries.length;
 }

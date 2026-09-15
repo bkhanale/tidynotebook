@@ -13,7 +13,8 @@ browser journeys.
 ## What lives here and what does not
 
 - `integration/` holds one file per area. `integration/support/` holds the
-  disposable database, the identity provider, and the listening server.
+  disposable database, the identity provider, the listening server, and the
+  Tailwind compiler of the web build.
 - `e2e/` holds the browser journeys. `e2e/support/` holds the per worker
   application stack and the account helpers.
 - A unit test does not live here. It lives next to its module in a package

@@ -20,21 +20,23 @@ import {
   themePropertyNames,
   themes,
 } from '@notesapp/ui';
-import { themeRegistryData, webManifest } from '../vite.config.ts';
+import {
+  themeRegistry,
+  themeRegistryData,
+  webManifest,
+  webManifestDocument,
+  type InlineThemeVariant,
+} from '../vite.config.ts';
 
-/** The registry data as the inline script of the shell receives it. */
-type InlineVariant = {
-  readonly id: string;
-  readonly values: readonly string[];
-};
+const inline = themeRegistry();
 
-type InlineThemes = {
-  readonly fallback: string;
-  readonly properties: readonly string[];
-  readonly families: Record<string, Record<string, InlineVariant>>;
-};
+await test('the inline script text carries the registry it was built from', () => {
+  assert.deepEqual(JSON.parse(themeRegistryData()), inline);
+});
 
-const inline = JSON.parse(themeRegistryData()) as InlineThemes;
+await test('the manifest text carries the document it was built from', () => {
+  assert.deepEqual(JSON.parse(webManifest()), webManifestDocument());
+});
 
 await test('the inline script carries every theme of the registry', () => {
   assert.equal(inline.fallback, defaultThemeFamilyId);
@@ -51,7 +53,8 @@ await test('the inline script carries every theme of the registry', () => {
     const variants = inline.families[family.id];
     assert.ok(variants !== undefined, family.id);
     for (const theme of family.variants) {
-      const variant: InlineVariant | undefined = variants[theme.appearance];
+      const variant: InlineThemeVariant | undefined =
+        variants[theme.appearance];
       assert.ok(variant !== undefined, theme.id);
       assert.equal(variant.id, theme.id);
       assert.equal(variant.values.length, inline.properties.length);
@@ -63,11 +66,7 @@ await test('the inline script carries every theme of the registry', () => {
 });
 
 await test('the manifest takes its interface colour from the registry', () => {
-  const manifest = JSON.parse(webManifest()) as {
-    readonly theme_color: string;
-    readonly background_color: string;
-    readonly name: string;
-  };
+  const manifest = webManifestDocument();
   const theme = defaultThemeFor('dark');
   assert.equal(manifest.theme_color, theme.tokens.background);
   assert.equal(manifest.background_color, theme.tokens.background);

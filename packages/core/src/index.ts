@@ -10,7 +10,13 @@
  * Only the names below are public. The verified actor marker stays internal,
  * so an actor can be built only through `verifyActor`.
  */
-export type { Action, Actor, Grant, Role } from './identity/actor.ts';
+export type {
+  Action,
+  Actor,
+  Grant,
+  Role,
+  StoredGrant,
+} from './identity/actor.ts';
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
 export type {
@@ -90,8 +96,10 @@ export type {
 } from './files/attachments.ts';
 export {
   allowedMediaTypes,
+  attachmentStates,
   createAttachmentChangeset,
   isAllowedMediaType,
+  isAttachmentState,
 } from './files/attachments.ts';
 export type { RestoreFileInput } from './files/trash.ts';
 export {
@@ -117,6 +125,7 @@ export type {
   AccountTransaction,
   AppearanceChoice,
   Preferences,
+  StoredPreferences,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,

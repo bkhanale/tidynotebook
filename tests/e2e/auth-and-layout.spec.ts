@@ -22,8 +22,11 @@ test('login has loaded theme and layout styles', async ({
     .locator('..')
     .evaluate((card) => {
       const computed = getComputedStyle(card);
+      const parent = card.parentElement;
+      if (parent === null)
+        throw new Error('The sign in card sits in no parent element.');
       return {
-        display: getComputedStyle(card.parentElement as Element).display,
+        display: getComputedStyle(parent).display,
         background: computed.backgroundColor,
         radius: computed.borderRadius,
       };

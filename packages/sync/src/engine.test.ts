@@ -32,6 +32,7 @@ import {
   backoffDelay,
   pushQueue,
   type CommitResult,
+  type Problem,
   type PushOutcome,
   type QueueNetwork,
   type SyncContext,
@@ -911,9 +912,10 @@ await test('a refusal code this release does not know is parked too', async () =
 });
 
 await test('permanent file failures are preserved', async () => {
-  for (const problem of [
-    { status: 409, code: 'path_conflict', fileIds: ['file-a'] as string[] },
-  ]) {
+  const problems: readonly Problem[] = [
+    { status: 409, code: 'path_conflict', fileIds: ['file-a'] },
+  ];
+  for (const problem of problems) {
     const store = new FakeStore();
     store.enqueue(
       queuedEntry('file-a', 'rev-b', '# B\n', 'rev-a', 'mutation-2'),
@@ -1011,10 +1013,11 @@ await test('an invalid graph is preserved after exactly one attempt', async () =
 });
 
 await test('an expired session pauses and a lost workspace stops the push', async () => {
-  for (const problem of [
-    { status: 401, code: 'unauthorized', fileIds: [] as string[] },
-    { status: 403, code: 'forbidden', fileIds: [] as string[] },
-  ]) {
+  const problems: readonly Problem[] = [
+    { status: 401, code: 'unauthorized', fileIds: [] },
+    { status: 403, code: 'forbidden', fileIds: [] },
+  ];
+  for (const problem of problems) {
     const store = new FakeStore();
     store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
     const ops = stubOperations({

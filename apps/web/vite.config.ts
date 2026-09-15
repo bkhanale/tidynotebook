@@ -52,6 +52,21 @@ const themeColourPlaceholder = '__NOTESAPP_THEME_COLOUR__';
 /** The served name of the installed application manifest. */
 const manifestPath = 'manifest.webmanifest';
 
+/** One theme of the registry as the inline script receives it. */
+export type InlineThemeVariant = {
+  readonly id: string;
+  readonly values: readonly string[];
+};
+
+/** The whole registry as the inline script receives it. */
+export type InlineThemes = {
+  readonly fallback: string;
+  readonly properties: readonly string[];
+  readonly families: Readonly<
+    Record<string, Readonly<Record<string, InlineThemeVariant>>>
+  >;
+};
+
 /**
  * The palette data of the script that runs before the first paint.
  *
@@ -59,12 +74,15 @@ const manifestPath = 'manifest.webmanifest';
  * order, so the whole registry stays small inside the document. The script
  * reads the stored family and appearance and writes the properties, which is
  * why a reload never shows the wrong palette.
+ *
+ * The shape is declared here, where the value is built, so a reader of the
+ * text does not have to claim one.
  */
-export function themeRegistryData(): string {
+export function themeRegistry(): InlineThemes {
   const names = themeProperties(defaultThemeFor('dark')).map(([name]) => name);
-  const families: Record<string, Record<string, unknown>> = {};
+  const families: Record<string, Record<string, InlineThemeVariant>> = {};
   for (const family of themeFamilies) {
-    const variants: Record<string, unknown> = {};
+    const variants: Record<string, InlineThemeVariant> = {};
     for (const theme of family.variants)
       variants[theme.appearance] = {
         id: theme.id,
@@ -72,12 +90,39 @@ export function themeRegistryData(): string {
       };
     families[family.id] = variants;
   }
-  return JSON.stringify({
+  return {
     fallback: defaultThemeFamilyId,
     properties: names,
     families,
-  });
+  };
 }
+
+/** The palette data of the inline script, serialized. */
+export function themeRegistryData(): string {
+  return JSON.stringify(themeRegistry());
+}
+
+/** One icon of the installed application manifest. */
+export type WebManifestIcon = {
+  readonly src: string;
+  readonly sizes: string;
+  readonly type: string;
+  readonly purpose: string;
+};
+
+/** The installed application manifest, before it is serialized. */
+export type WebManifestDocument = {
+  readonly name: string;
+  readonly short_name: string;
+  readonly description: string;
+  readonly start_url: string;
+  readonly scope: string;
+  readonly display: string;
+  readonly orientation: string;
+  readonly background_color: string;
+  readonly theme_color: string;
+  readonly icons: readonly WebManifestIcon[];
+};
 
 /**
  * The installed application manifest.
@@ -85,44 +130,48 @@ export function themeRegistryData(): string {
  * The interface colour is the page background of the default dark theme, so
  * the manifest cannot drift from the registry. A theme change repaints the
  * `theme-color` element of the live document as well.
+ *
+ * The shape is declared here, where the value is built, so a reader of the
+ * text does not have to claim one.
  */
-export function webManifest(): string {
+export function webManifestDocument(): WebManifestDocument {
   const theme = defaultThemeFor('dark');
-  return `${JSON.stringify(
-    {
-      name: 'Notesapp',
-      short_name: 'Notes',
-      description: 'Offline notes with versioned history.',
-      start_url: '/',
-      scope: '/',
-      display: 'standalone',
-      orientation: 'any',
-      background_color: theme.tokens.background,
-      theme_color: theme.tokens.background,
-      icons: [
-        {
-          src: '/icon-192.png',
-          sizes: '192x192',
-          type: 'image/png',
-          purpose: 'any',
-        },
-        {
-          src: '/icon-512.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'any',
-        },
-        {
-          src: '/maskable-512.png',
-          sizes: '512x512',
-          type: 'image/png',
-          purpose: 'maskable',
-        },
-      ],
-    },
-    null,
-    2,
-  )}\n`;
+  return {
+    name: 'Notesapp',
+    short_name: 'Notes',
+    description: 'Offline notes with versioned history.',
+    start_url: '/',
+    scope: '/',
+    display: 'standalone',
+    orientation: 'any',
+    background_color: theme.tokens.background,
+    theme_color: theme.tokens.background,
+    icons: [
+      {
+        src: '/icon-192.png',
+        sizes: '192x192',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/icon-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'any',
+      },
+      {
+        src: '/maskable-512.png',
+        sizes: '512x512',
+        type: 'image/png',
+        purpose: 'maskable',
+      },
+    ],
+  };
+}
+
+/** The installed application manifest, serialized. */
+export function webManifest(): string {
+  return `${JSON.stringify(webManifestDocument(), null, 2)}\n`;
 }
 
 /**

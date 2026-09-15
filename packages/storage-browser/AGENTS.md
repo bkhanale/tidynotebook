@@ -23,6 +23,7 @@ area, preferences, and the offline snapshot.
 channel, and composes these area modules behind the one port, each a factory
 over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 
+- `channel.ts`: the message shape of the invalidation channel (0019).
 - `shared.ts`: the context type and the cross-area row helpers.
 - `drafts.ts`: save, read, rebase, drop a draft; read a cached note.
 - `versions.ts`: checkpoint a save and list local history.
@@ -66,8 +67,7 @@ migration test the upgrade from the earlier stored shape.
 - No write outside a Dexie transaction. A save writes the local version and
   the queue entry in one transaction.
 - No schema change without a new `schemaVersions` entry and its upgrade.
-- No silent data loss on a blocked or newer schema. Refuse with
-  `LocalStorageError`.
+- No silent data loss on a blocked or newer schema. Refuse loudly.
 - No treatment of a draft as a server version. A draft is recovery data.
 
 ## Key files

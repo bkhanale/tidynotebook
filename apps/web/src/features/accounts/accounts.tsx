@@ -46,6 +46,7 @@ import {
   useWorkspace,
   useRequestSync,
 } from '../../app.tsx';
+import { problemCode, problemStatus } from '../../lib/problem-text.ts';
 import {
   signOut as endSession,
   revokeSessionViaClient,
@@ -145,19 +146,8 @@ export function LoginPage(): ReactNode {
       : await signInWithPassword({ body: { email, password } });
     setBusy(false);
     if (result.error !== undefined || result.data === undefined) {
-      const code =
-        typeof result.error === 'object' &&
-        result.error !== null &&
-        'code' in result.error
-          ? (result.error as { readonly code?: string }).code
-          : undefined;
-      const httpStatus =
-        result.response?.status ??
-        (typeof result.error === 'object' &&
-        result.error !== null &&
-        'status' in result.error
-          ? (result.error as { readonly status?: number }).status
-          : undefined);
+      const code = problemCode(result.error);
+      const httpStatus = result.response?.status ?? problemStatus(result.error);
       if (
         httpStatus === 400 ||
         httpStatus === 401 ||

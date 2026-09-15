@@ -63,7 +63,12 @@ await test('liveness and readiness root aliases report status correctly', async 
     // Root /ready alias
     const readyRoot = await app.inject({ method: 'GET', url: '/ready' });
     assert.equal(readyRoot.statusCode, 200);
-    const readyBody = JSON.parse(readyRoot.body) as { status: string };
+    const readyBody: unknown = JSON.parse(readyRoot.body);
+    assert.ok(
+      typeof readyBody === 'object' && readyBody !== null,
+      'the readiness answer is a record',
+    );
+    assert.ok('status' in readyBody);
     assert.equal(readyBody.status, 'ok');
 
     await app.close();
@@ -94,7 +99,12 @@ await test('readiness reports degraded when a probe fails', async () => {
 
     const res = await app.inject({ method: 'GET', url: '/ready' });
     assert.equal(res.statusCode, 503);
-    const body = JSON.parse(res.body) as { code: string; status: number };
+    const body: unknown = JSON.parse(res.body);
+    assert.ok(
+      typeof body === 'object' && body !== null,
+      'the readiness problem is a record',
+    );
+    assert.ok('code' in body && 'status' in body);
     assert.equal(body.code, 'not_ready');
     assert.equal(body.status, 503);
 

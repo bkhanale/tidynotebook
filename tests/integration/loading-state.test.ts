@@ -15,34 +15,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { loadCompiler, webRequire } from './support/tailwind.ts';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
 const stylesheet = resolve(root, 'apps/web/src/tailwind.css');
 const component = resolve(root, 'packages/ui/src/loading.tsx');
-
-/** The Tailwind compiler that the web build uses. */
-type Compile = (
-  source: string,
-  options: unknown,
-) => Promise<{ build: (candidates: string[]) => string }>;
-
-/** The module loader of the web application, so its toolchain is used. */
-const load = createRequire(resolve(root, 'apps/web/package.json'));
-
-/** Loads the Tailwind compiler through the web application resolver. */
-function loadCompiler(): Compile {
-  const loaded: unknown = load('tailwindcss');
-  const module = loaded as {
-    compile?: unknown;
-    default?: { compile?: unknown };
-  };
-  const compile = module.compile ?? module.default?.compile;
-  assert.equal(typeof compile, 'function');
-  return compile as Compile;
-}
 
 /** Every class name token that the loading component can write. */
 function candidatesOf(source: string): readonly string[] {
@@ -67,7 +46,7 @@ async function buildCss(candidates: readonly string[]): Promise<string> {
     ): Promise<{ path: string; base: string; content: string }> => {
       const path = id.startsWith('.')
         ? resolve(base, id)
-        : load.resolve(`${id}/index.css`);
+        : webRequire.resolve(`${id}/index.css`);
       return {
         path,
         base: dirname(path),

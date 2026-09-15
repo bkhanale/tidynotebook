@@ -17,6 +17,7 @@ import { fail, ok, type Result } from '../files/model.ts';
 import type {
   AppearanceChoice,
   Preferences,
+  StoredPreferences,
   WorkspaceAdminStore,
   WorkspaceSummary,
 } from './ports.ts';
@@ -164,15 +165,21 @@ export function readPreferences(
 export function updatePreferences(
   store: WorkspaceAdminStore,
   actor: Actor,
-  preferences: Preferences,
+  preferences: StoredPreferences,
 ): Promise<Result<Preferences>> {
   return store.account(actor, async (tx) => {
-    if (!appearanceChoices.includes(preferences.appearance))
-      return fail<Preferences>('forbidden');
+    const appearance = appearanceChoices.find(
+      (choice) => choice === preferences.appearance,
+    );
+    if (appearance === undefined) return fail<Preferences>('forbidden');
     if (!isThemeFamilyId(preferences.themeFamily))
       return fail<Preferences>('forbidden');
-    await tx.savePreferences(preferences);
-    return ok(preferences);
+    const checked: Preferences = {
+      appearance,
+      themeFamily: preferences.themeFamily,
+    };
+    await tx.savePreferences(checked);
+    return ok(checked);
   });
 }
 

@@ -66,6 +66,21 @@ function isRecord(value: unknown): value is Json {
 }
 
 /**
+ * One schema read back from the text that `JSON.stringify` wrote for it.
+ *
+ * Every text here comes from a schema of the bundled contract, so a value
+ * that is not a record means that the text and the schema no longer agree.
+ * Generation then stops rather than emitting a definition of an unknown
+ * shape.
+ */
+function parseSchema(text: string): Json {
+  const parsed: unknown = JSON.parse(text);
+  if (!isRecord(parsed))
+    throw new Error('A shared definition body is not a schema object.');
+  return parsed;
+}
+
+/**
  * Calls `visit` on this schema and on every schema inside it.
  *
  * Only the JSON Schema keywords above hold schemas. Every other member is
@@ -201,7 +216,7 @@ export function shareDefinitions(
   for (const [name, text] of bodies.sort(([left], [right]) =>
     left < right ? -1 : 1,
   ))
-    definitions[name] = rewriteMembers(JSON.parse(text) as Json, names);
+    definitions[name] = rewriteMembers(parseSchema(text), names);
 
   return {
     index: {

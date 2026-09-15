@@ -32,6 +32,7 @@ import {
 } from '@notesapp/sync';
 import { createDatabase, defaultDatabaseName, guard } from '../database.ts';
 import { ensureSchema } from '../migrations.ts';
+import { localChangeOf } from './channel.ts';
 import { createDraftsSlice } from './drafts.ts';
 import { createFilesSlice } from './files.ts';
 import { createFileActionsSlice } from './file-actions.ts';
@@ -115,25 +116,9 @@ export async function openLocalStore(
   };
   if (channel !== null)
     channel.onmessage = (event: MessageEvent<unknown>): void => {
-      const value = event.data;
-      if (value === null || typeof value !== 'object') return;
-      const row = value as Record<string, unknown>;
-      if (
-        typeof row['accountId'] !== 'string' ||
-        typeof row['workspaceId'] !== 'string' ||
-        (typeof row['fileId'] !== 'string' && row['fileId'] !== null) ||
-        ![
-          'draft',
-          'queue',
-          'file',
-          'purge',
-          'conflict',
-          'cursor',
-          'reset',
-        ].includes(String(row['kind']))
-      )
-        return;
-      notify(value as LocalChange);
+      const change = localChangeOf(event.data);
+      if (change === null) return;
+      notify(change);
     };
   const publish = (change: LocalChange): void => {
     notify(change);

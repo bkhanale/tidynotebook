@@ -16,9 +16,9 @@ import type {
   Actor,
   AttachmentMediaType,
   AttachmentObjectRecord,
-  AttachmentState,
 } from '@notesapp/core';
 import { OperationalError } from '@notesapp/core';
+import { storedAttachmentState, storedMediaType } from './attachment-row.ts';
 import { attachmentObjects } from './schema.ts';
 import { WorkspaceUnavailableError } from './workspace-store/index.ts';
 
@@ -297,10 +297,10 @@ export function openAttachmentStore(
           id: row.id,
           digest: row.digest,
           size: Number(row.size),
-          mediaType: row.mediaType as AttachmentMediaType,
+          mediaType: storedMediaType(row.mediaType),
           width: row.width,
           height: row.height,
-          state: row.state as AttachmentState,
+          state: storedAttachmentState(row.state),
           createdAt: row.createdAt.toISOString(),
           finalizedAt: row.finalizedAt ? row.finalizedAt.toISOString() : null,
         };
@@ -373,7 +373,7 @@ export function openAttachmentStore(
               id: row.id,
               digest: row.digest,
               size: Number(row.size),
-              mediaType: row.media_type as AttachmentMediaType,
+              mediaType: storedMediaType(row.media_type),
               width: row.width,
               height: row.height,
               state: 'finalized',
@@ -391,7 +391,7 @@ export function openAttachmentStore(
             id: row.id,
             digest: row.digest,
             size: Number(row.size),
-            mediaType: row.media_type as AttachmentMediaType,
+            mediaType: storedMediaType(row.media_type),
             width: row.width,
             height: row.height,
             state: 'finalized',
@@ -449,7 +449,7 @@ export function openAttachmentStore(
         return {
           stream: createReadStream(filePath),
           size: BigInt(row.size),
-          mediaType: row.media_type as AttachmentMediaType,
+          mediaType: storedMediaType(row.media_type),
           digest: row.digest,
           revisionId: row.revision_id,
         };

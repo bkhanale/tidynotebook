@@ -73,8 +73,15 @@ export function createAttachmentHandlers(
         writeFinishedReject = reject;
       });
 
+      // Busboy needs the media type and its boundary. A request without one
+      // cannot be read as a form, and 415 is the declared answer for it.
+      const contentType = request.headers['content-type'];
+      if (contentType === undefined)
+        throw new UnsupportedMediaTypeError(
+          'The upload states no content type.',
+        );
       const bb = new Busboy({
-        headers: request.headers as { 'content-type': string },
+        headers: { ...request.headers, 'content-type': contentType },
         limits: {
           fileSize: maxAttachmentBytes,
           files: 1,
@@ -164,8 +171,12 @@ export function createAttachmentHandlers(
         bb.on('finish', () => {
           resolve();
         });
-        bb.on('error', (err) => {
-          reject(err as Error);
+        bb.on('error', (err: unknown) => {
+          reject(
+            err instanceof Error
+              ? err
+              : new Error('The upload could not be read as a form.'),
+          );
         });
       });
 

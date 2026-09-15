@@ -11,15 +11,21 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { noteSurfaceStyle } from './editor-theme.ts';
 
-/** One rule of the surface style, read as a flat record. */
-function rule(selector: string): Record<string, unknown> {
-  const style = noteSurfaceStyle() as Record<string, unknown>;
-  const found = style[selector];
-  assert.ok(
-    typeof found === 'object' && found !== null,
-    `the surface style has no ${selector} rule`,
-  );
-  return found as Record<string, unknown>;
+/** One rule of the surface style, as CodeMirror declares it. */
+type SurfaceRule = ReturnType<typeof noteSurfaceStyle>[string];
+
+/** One declaration of a rule, which the test reads as text. */
+function text(rule: SurfaceRule, property: string): string {
+  const value = rule[property];
+  assert.equal(typeof value, 'string', `${property} is not a declaration`);
+  return typeof value === 'string' ? value : '';
+}
+
+/** One rule of the surface style, or a test failure. */
+function rule(selector: string): SurfaceRule {
+  const found = noteSurfaceStyle()[selector];
+  assert.ok(found !== undefined, `the surface style has no ${selector} rule`);
+  return found;
 }
 
 await test('the block padding of the surface sits on the editable element', () => {
@@ -135,13 +141,13 @@ await test('a block quote draws a left bar and never a box', () => {
 await test('each quote level adds one bar from the theme palette', () => {
   for (let level = 1; level <= 4; level += 1) {
     const quote = rule(`.cm-np-quote-${String(level)}`);
-    const layers = String(quote.backgroundImage);
+    const layers = text(quote, 'backgroundImage');
     assert.equal(layers.split('linear-gradient').length - 1, level);
     assert.ok(layers.includes('var(--notes-border)'));
     // Every color of the adapter is a palette variable, so a literal here
     // would put a color outside the theme registry.
     assert.ok(!/#[0-9a-fA-F]{3}|rgba?\(/.test(layers));
-    assert.equal(String(quote.backgroundPosition).split(',').length, level);
+    assert.equal(text(quote, 'backgroundPosition').split(',').length, level);
     assert.equal(quote.backgroundSize, 'calc(var(--spacing) * 1) 100%');
     assert.equal(quote.backgroundRepeat, 'no-repeat');
     // The text clears the last bar by the same step that separates two bars.

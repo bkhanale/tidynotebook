@@ -9,12 +9,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  actionsForRole,
   authorize,
   verifyActor,
   type Action,
   type Actor,
-  type Grant,
   type Role,
+  type StoredGrant,
 } from './actor.ts';
 
 const workspace = 'workspace-1';
@@ -26,15 +27,21 @@ const permitted: Readonly<Record<Role, readonly Action[]>> = {
 };
 
 /**
- * A value outside its union, as an unvalidated storage read could return it.
- * The assertion is stated once here, so no test repeats it.
+ * The role texts that a stored row could hold and the union does not.
+ *
+ * Each of them names a role of an earlier release or of a product that this
+ * one is not. The tests below read them as text, because the union holds
+ * none of them and nothing may claim that it does.
  */
-function stored<T>(value: string): T {
-  return value as unknown as T;
-}
+const storedRolesOutsideTheUnion: readonly string[] = [
+  'viewer',
+  'superuser',
+  'editor',
+  '',
+];
 
 /** The verified actor, or a test failure when the input was rejected. */
-function actorOf(accountId: string, grants: readonly Grant[]): Actor {
+function actorOf(accountId: string, grants: readonly StoredGrant[]): Actor {
   const result = verifyActor(accountId, grants);
   assert.equal(result.ok, true, 'expected the actor to be verified');
   if (!result.ok) throw new Error('unreachable');
@@ -85,26 +92,32 @@ await test('a grant for another workspace does not apply', () => {
   assert.equal(authorize(actor, workspace, 'owner', 'write').ok, false);
 });
 
-await test('a grant cannot widen what the role permits', () => {
-  // A stored role outside the union grants nothing, whatever the request
-  // scope proved.
-  const actor = fullActor();
-  const role = stored<Role>('viewer');
-  assert.equal(authorize(actor, workspace, role, 'purge').ok, false);
-  assert.equal(authorize(actor, workspace, role, 'read').ok, false);
+await test('a role outside the union permits no action', () => {
+  // A stored row can hold a role text that the union no longer contains. The
+  // lookup must answer with no action instead of failing, so every decision
+  // that reads it becomes a denial.
+  for (const role of storedRolesOutsideTheUnion) {
+    assert.deepEqual([...actionsForRole(role)], [], role);
+  }
+  assert.deepEqual([...actionsForRole('owner')], [...permitted.owner]);
 });
 
-await test('a role outside the union denies every action', () => {
-  // A stored role can hold an unexpected string. The lookup must deny it
-  // instead of failing, so the check states the unchecked value once.
-  const role = stored<Role>('superuser');
-  for (const action of actions) {
-    assert.equal(authorize(fullActor(), workspace, role, action).ok, false);
-  }
+await test('a grant cannot widen what the role permits', () => {
+  // The decision is the intersection. A grant that carries an action the role
+  // does not permit still denies it, because the role is read first.
+  const actor = fullActor();
+  for (const action of actions)
+    assert.equal(
+      authorize(actor, workspace, 'owner', action).ok,
+      permitted.owner.includes(action),
+      action,
+    );
 });
 
 await test('a verified actor copies the grants it was given', () => {
-  const grants = [{ workspaceId: workspace, actions: ['read'] as Action[] }];
+  const grants: { workspaceId: string; actions: Action[] }[] = [
+    { workspaceId: workspace, actions: ['read'] },
+  ];
   const actor = actorOf('account-1', grants);
   grants[0]?.actions.push('purge');
   assert.equal(authorize(actor, workspace, 'owner', 'purge').ok, false);
@@ -129,10 +142,23 @@ await test('an empty workspace identifier is rejected', () => {
 
 await test('an unknown action rejects the whole actor', () => {
   // A stored token scope can hold a string that the union no longer contains.
-  const action = stored<Action>('administer');
+  // Nothing is dropped silently: a partly understood scope must not become a
+  // smaller scope that then looks verified.
   const result = verifyActor('account-1', [
-    { workspaceId: workspace, actions: ['read', action] },
+    { workspaceId: workspace, actions: ['read', 'administer'] },
   ]);
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.error.code, 'forbidden');
+});
+
+await test('a verified actor keeps only the actions it was given', () => {
+  const result = verifyActor('account-1', [
+    { workspaceId: workspace, actions: ['read', 'history'] },
+  ]);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(
+    result.value.grants.map((grant) => [...grant.actions]),
+    [['read', 'history']],
+  );
 });

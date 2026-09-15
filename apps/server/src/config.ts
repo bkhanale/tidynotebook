@@ -23,7 +23,7 @@ const logLevels = [
 export type LogLevel = (typeof logLevels)[number];
 
 function isLogLevel(value: string): value is LogLevel {
-  return (logLevels as readonly string[]).includes(value);
+  return logLevels.some((level) => level === value);
 }
 
 /** The mail transport that password recovery uses, when one is configured. */

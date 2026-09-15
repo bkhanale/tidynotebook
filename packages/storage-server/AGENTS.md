@@ -17,7 +17,8 @@ bytes, and provisioning. It implements the ports that `packages/core` owns.
 - `src/workspace-store/` implements `WorkspaceStore`: `transaction.ts` is the
   unit of work, one repository per context holds the SQL, and `index.ts` is the
   composition root. `src/admin.ts`, `src/identity-store.ts`, `src/profiles.ts`,
-  `src/snapshots.ts`, and `src/attachments.ts` own their own areas.
+  `src/snapshots.ts`, `src/attachments.ts`, and `src/attachment-row.ts`, which
+  refuses a stored value outside its union (0019), own their own areas.
 - `src/migrate.ts` runs the migrations with the migration role and exports
   `requiredSchemaVersion`.
 - No domain rule and no HTTP route live here. A rule lives in `packages/core`.
@@ -27,9 +28,8 @@ bytes, and provisioning. It implements the ports that `packages/core` owns.
 `@notesapp/core` and `@notesapp/markdown`, plus `drizzle-orm` and `pg`.
 
 `@notesapp/markdown` is allowed because an accepted index update parses
-Markdown inside the same transaction that advances a head. This package is
-Node only, so it may use Node built in modules. A browser package must never
-import it.
+Markdown in the same transaction that advances a head. This package is Node
+only, so it may use Node built in modules. A browser package cannot import it.
 
 ## How to add a common thing here
 

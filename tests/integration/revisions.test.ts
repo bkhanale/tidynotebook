@@ -540,6 +540,54 @@ await test('a replay after the head moved returns the first outcome', async () =
   assert.equal(read.data?.head?.text, '# three\n');
 });
 
+await test('a stored outcome of an unknown shape stops the replay', async () => {
+  // A replay answers from the stored outcome without repeating the write, so
+  // the outcome must carry every member of an accepted changeset. A value
+  // that does not is a defect of a writer. The read refuses loudly, because
+  // an unchecked outcome would reach the client as the answer of a save that
+  // it cannot compare with its own state.
+  const file = await newFile('notes/broken-receipt.md', '# one\n');
+  const identifiers = ids();
+
+  // A stored receipt is immutable, so an outcome of an unknown shape can only
+  // come from a writer of another release. The insert below states that row
+  // directly, because no path of this release can write one.
+  const session = await openSession(database.migrationUrl);
+  try {
+    await session.query(
+      `insert into mutation_receipts
+         (workspace_id, actor_account_id, mutation_id, request_digest, outcome)
+       values ($1, $2, $3, $4, $5::jsonb)`,
+      [
+        workspaceId,
+        ownerAccountId,
+        identifiers.mutationId,
+        'sha256:an-earlier-release',
+        '{"mutationId":"broken"}',
+      ],
+    );
+  } finally {
+    await session.close();
+  }
+
+  // The write reads the receipt of its mutation before it does anything else,
+  // so the refusal reaches the person as the one server message.
+  const broken = await updateFile({
+    headers: { ...browser(cookie), 'if-match': file.tag },
+    path: { workspaceId, fileId: file.fileId },
+    body: { text: '# two\n', ...identifiers },
+  });
+  assert.equal(responseOf(broken.response).status, 500);
+  assert.equal(problemCode(broken.error), 'internal_error');
+
+  // The note kept its first text: the refused read wrote nothing.
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: file.fileId },
+  });
+  assert.equal(read.data?.head?.text, '# one\n');
+});
+
 await test('the same mutation identity with another body is refused', async () => {
   const file = await newFile('notes/reused.md', '# one\n');
   const identifiers = ids();

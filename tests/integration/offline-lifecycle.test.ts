@@ -25,7 +25,6 @@ import {
   metaKey,
   openLocalStore,
   type LocalStoreOptions,
-  type MetaRow,
 } from '@notesapp/storage-browser';
 import {
   isLeaseExpired,
@@ -212,8 +211,8 @@ await test('a newer stored schema blocks the upgrade without losing drafts', asy
   await db.open();
   try {
     const meta = await tables.meta.get(metaKey);
-    assert.notEqual(meta, undefined);
-    await tables.meta.put({ ...(meta as MetaRow), schemaVersion: 99 });
+    assert.ok(meta !== undefined, 'the database holds no meta record');
+    await tables.meta.put({ ...meta, schemaVersion: 99 });
   } finally {
     db.close();
   }
@@ -243,10 +242,8 @@ await test('an interrupted migration with a bad record is refused', async () => 
   await db.open();
   try {
     const meta = await tables.meta.get(metaKey);
-    await tables.meta.put({
-      ...(meta as MetaRow),
-      migrationState: 'in-progress',
-    });
+    assert.ok(meta !== undefined, 'the database holds no meta record');
+    await tables.meta.put({ ...meta, migrationState: 'in-progress' });
     const rows = await tables.drafts.toArray();
     const row = rows[0];
     assert.ok(row !== undefined);

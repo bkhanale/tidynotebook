@@ -342,13 +342,17 @@ await test('late commits do not change snapshot pages but appear in changes', as
 });
 
 await test('an unsupported sync version is rejected without changing data', async () => {
-  const rejected = await startSnapshot({
-    headers: browser(ownerCookie),
-    path: { workspaceId },
-    body: { syncVersion: 2 } as never,
+  // The contract states version 1, so no generated operation can send another
+  // one. `app.inject` is the one way to send a request that no operation
+  // expresses.
+  const rejected = await server.app.inject({
+    method: 'POST',
+    url: `/api/workspaces/${workspaceId}/sync/snapshots`,
+    headers: { ...browser(ownerCookie), 'content-type': 'application/json' },
+    payload: { syncVersion: 2 },
   });
-  assert.equal(responseOf(rejected.response).status, 400);
-  assert.equal(problemCode(rejected.error), 'invalid_request');
+  assert.equal(rejected.statusCode, 400);
+  assert.equal(problemCode(JSON.parse(rejected.body)), 'invalid_request');
 });
 
 await test('an expired snapshot requires a restart', async () => {

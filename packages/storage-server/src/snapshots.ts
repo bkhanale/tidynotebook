@@ -266,6 +266,7 @@ export async function readSyncChanges(
     'select min(cursor) as oldest from sync_changes where workspace_id = $1',
     [input.workspaceId],
   );
+  const oldestCursor = oldest.rows[0]?.oldest ?? null;
   const changes: SyncChange[] = rows.rows.map((row) => ({
     cursor: BigInt(row.cursor).toString(),
     entityKind: row.entity_kind === 'membership' ? 'membership' : 'file',
@@ -277,9 +278,7 @@ export async function readSyncChanges(
     changes,
     highWater: cursor.toString(),
     oldestRetained:
-      oldest.rows[0]?.oldest === null || oldest.rows[0]?.oldest === undefined
-        ? null
-        : BigInt(oldest.rows[0].oldest as string).toString(),
+      oldestCursor === null ? null : BigInt(oldestCursor).toString(),
   };
 }
 

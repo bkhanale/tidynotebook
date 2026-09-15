@@ -10,7 +10,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import ajvFormats from 'ajv-formats';
-import { operations, sharedDefinitions } from './generated/contract.ts';
+import {
+  operations,
+  sharedDefinitions,
+  type JsonSchema,
+} from './generated/contract.ts';
 import { compileCounts } from './validators.ts';
 import { describeIssues, responseValidator } from './index.ts';
 
@@ -20,9 +24,29 @@ function isRecord(value: unknown): value is Json {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-const document = sharedDefinitions as Json;
-const definitions = (document.$defs ?? {}) as Json;
-const pointerPrefix = `${String(document.$id)}#/$defs/`;
+/**
+ * True when a value carries every declared member of an Ajv schema object.
+ *
+ * `expand` builds a new object out of parsed members, so nothing in its
+ * result proves that Ajv can compile it. This guard checks each member that
+ * the schema object declares, and the compile calls below take only what it
+ * accepted.
+ */
+function isSchemaObject(value: unknown): value is JsonSchema {
+  if (!isRecord(value)) return false;
+  for (const key of ['id', '$id', '$schema']) {
+    const member: unknown = value[key];
+    if (member !== undefined && typeof member !== 'string') return false;
+  }
+  return value['$async'] !== true;
+}
+
+const document: Json = sharedDefinitions;
+const declaredDefinitions: unknown = document['$defs'];
+if (!isRecord(declaredDefinitions))
+  throw new Error('The shared definition document holds no $defs map.');
+const definitions: Json = declaredDefinitions;
+const pointerPrefix = `${String(document['$id'])}#/$defs/`;
 
 /** Replaces every pointer into the shared document with what it names. */
 function expand(value: unknown, seen: readonly string[] = []): unknown {
@@ -39,7 +63,8 @@ function expand(value: unknown, seen: readonly string[] = []): unknown {
     assert.ok(!seen.includes(name), `the definition ${name} refers to itself`);
     const rest = Object.entries(value).filter(([key]) => key !== '$ref');
     const target = expand(definitions[name], [...seen, name]);
-    return { ...Object.fromEntries(rest), ...(target as Json) };
+    assert.ok(isRecord(target), `the definition ${name} is not an object`);
+    return { ...Object.fromEntries(rest), ...target };
   }
   return Object.fromEntries(
     Object.entries(value).map(([key, member]) => [key, expand(member, seen)]),
@@ -47,20 +72,25 @@ function expand(value: unknown, seen: readonly string[] = []): unknown {
 }
 
 /** Every schema the index states, one per request slot and per response. */
-function everySchema(): Json[] {
-  const schemas: Json[] = [];
+function everySchema(): JsonSchema[] {
+  const schemas: JsonSchema[] = [];
   for (const operation of operations) {
     schemas.push(
-      operation.request.params as Json,
-      operation.request.query as Json,
-      operation.request.headers as Json,
+      operation.request.params,
+      operation.request.query,
+      operation.request.headers,
     );
-    if (operation.request.body !== null)
-      schemas.push(operation.request.body as Json);
-    for (const response of operation.responses)
-      schemas.push(response.schema as Json);
+    if (operation.request.body !== null) schemas.push(operation.request.body);
+    for (const response of operation.responses) schemas.push(response.schema);
   }
   return schemas;
+}
+
+/** One schema with every shared pointer replaced by what it names. */
+function expandSchema(schema: JsonSchema): JsonSchema {
+  const expanded = expand(schema);
+  assert.ok(isSchemaObject(expanded), 'an expanded schema is not compilable');
+  return expanded;
 }
 
 await test('every shared pointer resolves to a definition', () => {
@@ -95,8 +125,8 @@ await test('an expanded schema compiles and behaves like the pointer form', () =
     (response) => response.mediaType === 'application/problem+json',
   );
   assert.ok(declared !== undefined);
-  const pointerForm = shared.compile(declared.schema as Json);
-  const expandedForm = ajv.compile(expand(declared.schema) as Json);
+  const pointerForm = shared.compile(declared.schema);
+  const expandedForm = ajv.compile(expandSchema(declared.schema));
   assert.equal(pointerForm(problem), true);
   assert.equal(expandedForm(problem), true);
   const broken = { ...problem, status: 'four hundred' };

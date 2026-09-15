@@ -231,7 +231,7 @@ await test('the corpus has the same structure through both paths', async () => {
 await test('the corpus keeps every construct the matrix covers', async () => {
   const preview = previewStructureOf(corpusMarkdown);
   const kinds = new Set(preview.map((node) => node.kind));
-  for (const kind of [
+  const expected: readonly PreviewNode['kind'][] = [
     'front-matter',
     'heading',
     'list-item',
@@ -240,8 +240,8 @@ await test('the corpus keeps every construct the matrix covers', async () => {
     'table',
     'quote',
     'thematic-break',
-  ])
-    assert.ok(kinds.has(kind as PreviewNode['kind']), kind);
+  ];
+  for (const kind of expected) assert.ok(kinds.has(kind), kind);
   const levels = new Set(
     preview.flatMap((node) => (node.kind === 'heading' ? [node.level] : [])),
   );

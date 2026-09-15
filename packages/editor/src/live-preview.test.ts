@@ -42,6 +42,30 @@ function stateOf(doc: string): EditorState {
   return state;
 }
 
+/**
+ * The class names of a decoration, or `null` when it sets none.
+ *
+ * `Decoration.spec` is the object that the caller passed, so CodeMirror
+ * declares nothing about it. These readers check each member that the tests
+ * below read, so a decoration built in another shape fails the test instead
+ * of passing it by accident.
+ */
+function specClass(spec: unknown): string | null {
+  if (typeof spec !== 'object' || spec === null) return null;
+  if (!('class' in spec)) return null;
+  const className: unknown = spec.class;
+  return typeof className === 'string' ? className : null;
+}
+
+/** The constructor name of the widget of a decoration, or `null`. */
+function specWidget(spec: unknown): string | null {
+  if (typeof spec !== 'object' || spec === null) return null;
+  if (!('widget' in spec)) return null;
+  const widget: unknown = spec.widget;
+  if (typeof widget !== 'object' || widget === null) return null;
+  return widget.constructor.name;
+}
+
 /** One decoration, described as text so a test can assert on it. */
 type Described = {
   readonly from: number;
@@ -71,26 +95,20 @@ function describe(
   );
   const found: Described[] = [];
   built.decorations.between(0, state.doc.length, (from, to, value) => {
-    const spec = value.spec as {
-      class?: string;
-      widget?: { constructor: { name: string } };
-    };
-    if (spec.widget !== undefined)
-      found.push({
-        from,
-        to,
-        kind: 'widget',
-        value: spec.widget.constructor.name,
-      });
-    else if (spec.class === undefined)
-      found.push({ from, to, kind: 'hide', value: '' });
-    else
-      found.push({
-        from,
-        to,
-        kind: from === to ? 'line' : 'mark',
-        value: spec.class,
-      });
+    const widget = specWidget(value.spec);
+    if (widget !== null)
+      found.push({ from, to, kind: 'widget', value: widget });
+    else {
+      const className = specClass(value.spec);
+      if (className === null) found.push({ from, to, kind: 'hide', value: '' });
+      else
+        found.push({
+          from,
+          to,
+          kind: from === to ? 'line' : 'mark',
+          value: className,
+        });
+    }
   });
   return found;
 }
@@ -593,11 +611,11 @@ function headingLines(state: EditorState): readonly string[] {
   );
   const found: string[] = [];
   built.decorations.between(0, state.doc.length, (from, to, value) => {
-    const spec = value.spec as { class?: string };
     if (from !== to) return;
-    if (spec.class === undefined) return;
-    if (!spec.class.split(' ').includes('cm-np-heading')) return;
-    found.push(`${String(from)}:${spec.class}`);
+    const className = specClass(value.spec);
+    if (className === null) return;
+    if (!className.split(' ').includes('cm-np-heading')) return;
+    found.push(`${String(from)}:${className}`);
   });
   return found;
 }

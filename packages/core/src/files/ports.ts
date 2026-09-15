@@ -21,9 +21,9 @@ import type { SearchHit } from '../search/service.ts';
 import type { Backlink } from './backlinks.ts';
 
 /** A stored outcome of an earlier accepted changeset, kept for safe retries. */
-export type MutationReceipt<T = AcceptedChangeset> = {
+export type MutationReceipt = {
   readonly digest: string;
-  readonly outcome: T;
+  readonly outcome: AcceptedChangeset;
 };
 
 /** Whether a file holds Markdown or an attachment. */
@@ -157,10 +157,10 @@ export type WorkspaceTransaction = {
    * lookup is bound to the actor, so a replay cannot use another account's
    * outcome.
    */
-  receipt<T = AcceptedChangeset>(
+  receipt(
     mutationId: string,
     accountId: string,
-  ): Promise<MutationReceipt<T> | null>;
+  ): Promise<MutationReceipt | null>;
   /**
    * The accepted head of each requested file. The value is `null` when the
    * file does not exist in accepted state. A missing key means the same.

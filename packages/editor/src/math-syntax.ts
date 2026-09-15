@@ -51,18 +51,25 @@ const closeParen = 41;
 const newline = 10;
 
 /**
- * The container depth of a line.
+ * The container depth that a parser line reports.
  *
  * `Line.depth` is how the upstream fenced code parser knows that its
  * container, for example a block quote, ended on this line. The field is
- * public in the parser but not in its declarations, so this narrow view
- * names it once instead of spreading a cast through the parser.
+ * public in the parser but absent from its declarations, so this reader
+ * proves it at run time instead of claiming it. The parameter is `object`,
+ * because the reader checks the value it is given and a test can drive both
+ * of its paths.
+ *
+ * A line without a numeric depth means that the pinned parser changed in a
+ * way this extension cannot follow. That is a defect of the build, not an
+ * answer a reader can use, so the refusal is loud and the unit tests of this
+ * package catch it before it ships.
  */
-type LineWithDepth = { readonly depth: number };
-
-/** Reads the container depth of a line. */
-function containerDepth(line: Line): number {
-  return (line as unknown as LineWithDepth).depth;
+export function containerDepth(line: object): number {
+  if ('depth' in line && typeof line.depth === 'number') return line.depth;
+  throw new Error(
+    'The Markdown parser gave a line with no container depth. The math extension needs it to close a block at the end of its container.',
+  );
 }
 
 /** The offset after the leading dollar run of a line, or -1. */

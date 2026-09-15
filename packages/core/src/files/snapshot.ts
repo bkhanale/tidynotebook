@@ -95,7 +95,7 @@ export function snapshotPosition(position: number | null | undefined): number {
 
 /** Whether the requested sync protocol version is accepted. */
 export function isSupportedSyncVersion(version: number): boolean {
-  return (supportedSyncVersions as readonly number[]).includes(version);
+  return supportedSyncVersions.some((supported) => supported === version);
 }
 
 /** What a caller asks for when it starts a snapshot. */

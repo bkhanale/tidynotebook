@@ -28,6 +28,19 @@ export type Preferences = {
   readonly themeFamily: string;
 };
 
+/**
+ * Settings as a caller read them, before the appearance is checked.
+ *
+ * A preference reaches this package from a request body or from a stored row,
+ * so the appearance can be a text that the union does not hold. A caller
+ * states what it read and `updatePreferences` decides, instead of claiming a
+ * shape that nothing proved.
+ */
+export type StoredPreferences = {
+  readonly appearance: string;
+  readonly themeFamily: string;
+};
+
 /** One workspace as its member sees it. */
 export type WorkspaceSummary = {
   readonly workspaceId: string;

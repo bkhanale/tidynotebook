@@ -132,11 +132,16 @@ function parseAcceptedRevision(value: unknown): AcceptedRevision {
 function parseSuperseded(value: unknown): readonly SupersededHead[] {
   if (!Array.isArray(value)) return [];
   const entries: SupersededHead[] = [];
-  for (const entry of value as unknown[]) {
+  for (const entry of value) {
     if (typeof entry !== 'object' || entry === null) continue;
-    const fileId = readString(entry, 'fileId');
-    const previous = readString(entry, 'previousHeadRevisionId');
-    const accepted = readString(entry, 'acceptedRevisionId');
+    // Only own enumerable members count, so an inherited member of a value
+    // that another tool wrote cannot pass a check.
+    const record: Record<string, unknown> = Object.fromEntries(
+      Object.entries(entry),
+    );
+    const fileId = readString(record, 'fileId');
+    const previous = readString(record, 'previousHeadRevisionId');
+    const accepted = readString(record, 'acceptedRevisionId');
     if (fileId === null || previous === null || accepted === null) continue;
     entries.push({
       fileId,
@@ -147,15 +152,25 @@ function parseSuperseded(value: unknown): readonly SupersededHead[] {
   return entries;
 }
 
-/** One string member of an unknown stored object, or `null`. */
-function readString(value: object, key: string): string | null {
-  if (!(key in value)) return null;
-  const member = (value as Record<string, unknown>)[key];
+/** One string member of an unknown stored record, or `null`. */
+function readString(
+  record: Record<string, unknown>,
+  key: string,
+): string | null {
+  const member: unknown = record[key];
   return typeof member === 'string' ? member : null;
 }
 
-/** Reads the stored outcome of a mutation receipt. */
-function parseOutcome<T = AcceptedChangeset>(value: unknown): T {
+/**
+ * Reads the stored outcome of a mutation receipt.
+ *
+ * The outcome column holds the JSON that `accept` wrote. A retry answers from
+ * it without repeating the write, so the value must carry every member of an
+ * accepted changeset. A value that does not is a defect of a writer, and the
+ * refusal is loud: an unchecked outcome would reach the client as the answer
+ * of a save that it cannot compare with its own state.
+ */
+function parseOutcome(value: unknown): AcceptedChangeset {
   if (
     typeof value === 'object' &&
     value !== null &&
@@ -177,10 +192,7 @@ function parseOutcome<T = AcceptedChangeset>(value: unknown): T {
       superseded: parseSuperseded(
         'superseded' in value ? value.superseded : undefined,
       ),
-    } as unknown as T;
-  }
-  if (typeof value === 'object' && value !== null && 'mutationId' in value) {
-    return value as unknown as T;
+    };
   }
   throw new OperationalError(
     'unexpected',
@@ -216,10 +228,10 @@ export function syncRepository(
 > {
   const { client, db, actor, workspaceId } = context;
   return {
-    async receipt<T = AcceptedChangeset>(
+    async receipt(
       mutationId: string,
       accountId: string,
-    ): Promise<MutationReceipt<T> | null> {
+    ): Promise<MutationReceipt | null> {
       assertUuid(mutationId, 'the mutation');
       assertUuid(accountId, 'the account');
       const rows = await db
@@ -237,7 +249,7 @@ export function syncRepository(
         );
       const row = rows[0];
       if (row === undefined) return null;
-      return { digest: row.digest, outcome: parseOutcome<T>(row.outcome) };
+      return { digest: row.digest, outcome: parseOutcome(row.outcome) };
     },
 
     async accept(

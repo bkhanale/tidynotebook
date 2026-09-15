@@ -20,11 +20,23 @@ export type AttachmentMediaType = (typeof allowedMediaTypes)[number];
 export function isAllowedMediaType(
   value: string,
 ): value is AttachmentMediaType {
-  return (allowedMediaTypes as readonly string[]).includes(value);
+  return allowedMediaTypes.some((allowed) => allowed === value);
 }
 
+/** The states that one immutable attachment object can hold. */
+export const attachmentStates = [
+  'temporary',
+  'finalized',
+  'unavailable',
+] as const;
+
 /** State of one immutable attachment object. */
-export type AttachmentState = 'temporary' | 'finalized' | 'unavailable';
+export type AttachmentState = (typeof attachmentStates)[number];
+
+/** True when a text names a state that an attachment object can hold. */
+export function isAttachmentState(value: string): value is AttachmentState {
+  return attachmentStates.some((state) => state === value);
+}
 
 /** One attachment object metadata record. */
 export type AttachmentObjectRecord = {

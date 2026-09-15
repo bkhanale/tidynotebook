@@ -150,7 +150,8 @@ export function createEditor(
       }),
       EditorView.domEventHandlers({
         mousedown: (event, view): boolean => {
-          const target = event.target as HTMLElement | null;
+          const target =
+            event.target instanceof HTMLElement ? event.target : null;
           const position = view.posAtCoords({
             x: event.clientX,
             y: event.clientY,

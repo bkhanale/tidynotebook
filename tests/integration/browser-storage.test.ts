@@ -32,6 +32,7 @@ import {
 import {
   createDatabase,
   metaKey,
+  migrationSteps,
   openLocalStore,
   partitionRange,
   type LocalStoreOptions,
@@ -197,12 +198,14 @@ function createFailingFactory(
           return (
             names: string | readonly string[],
             mode?: IDBTransactionMode,
-          ) =>
-            wrapTransaction(
+          ) => {
+            const stores = typeof names === 'string' ? names : [...names];
+            return wrapTransaction(
               mode === undefined
-                ? target.transaction(names as string[])
-                : target.transaction(names as string[], mode),
+                ? target.transaction(stores)
+                : target.transaction(stores, mode),
             );
+          };
         return bind(target, property);
       },
     });
@@ -231,6 +234,15 @@ function createFailingFactory(
       };
     },
   });
+}
+
+/** The stored meta record, or a test failure when the database holds none. */
+async function storedMeta(
+  tables: ReturnType<typeof createDatabase>['tables'],
+): Promise<MetaRow> {
+  const meta = await tables.meta.get(metaKey);
+  assert.ok(meta !== undefined, 'the database holds no meta record');
+  return meta;
 }
 
 /** Reads rows that the port does not expose, for storage level checks. */
@@ -759,12 +771,9 @@ await test('an interrupted migration is completed on the next open', async () =>
   await first.close();
 
   await withRawDatabase(backend, async (tables) => {
-    const meta = await tables.meta.get(metaKey);
-    assert.equal(meta?.migrationState, 'complete');
-    await tables.meta.put({
-      ...(meta as MetaRow),
-      migrationState: 'in-progress',
-    });
+    const meta = await storedMeta(tables);
+    assert.equal(meta.migrationState, 'complete');
+    await tables.meta.put({ ...meta, migrationState: 'in-progress' });
   });
 
   const second = await openLocalStore(origin, backend.options());
@@ -834,13 +843,90 @@ await test('migration repair validates records in bounded batches', async () => 
   await repaired.close();
 });
 
+await test('a record upgrade edits the stored rows of a real database', async () => {
+  // The upgrades of version 3 and version 4 write through the stored record
+  // itself, so they run over real rows here and not over a hand built object.
+  // Version 3 gives every queue entry an error code. Version 4 removes what
+  // the conflict branch feature wrote and drops the two recovery reasons that
+  // no shipped path can produce.
+  const backend = createBackend('record-upgrade');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const draft = draftOf(account, workspace, file, 'copy-a', 'kept\n');
+  await store.saveDraft(draft);
+  const queued = await store.checkpoint(draft, null);
+  assert.ok(queued !== null);
+  await store.close();
+
+  const key = [origin, account, workspace, queued.input.mutationId];
+  await withRawDatabase(backend, async (tables) => {
+    // Put the stored records back in the shape of the earlier release. The
+    // edit runs through `modify`, which hands over the stored record itself,
+    // so the test writes the older shape without claiming the newer one.
+    await tables.queue.toCollection().modify((value) => {
+      const stored: Record<string, unknown> = value;
+      delete stored['errorCode'];
+      stored['conflictGroupId'] = randomUUID();
+      stored['branchMutationId'] = randomUUID();
+      stored['branchState'] = 'open';
+    });
+    await tables.recovery.put({
+      serverOrigin: origin,
+      accountId: account,
+      workspaceId: workspace,
+      recoveryId: randomUUID(),
+      fileId: file,
+      path: 'notes/revoked.md',
+      text: 'text\n',
+      reason: 'purged',
+      code: null,
+      mutationId: null,
+      createdAt: '2026-09-06T10:00:00.000Z',
+    });
+    await tables.recovery.toCollection().modify((value) => {
+      const stored: Record<string, unknown> = value;
+      stored['reason'] = 'access_revoked';
+    });
+  });
+
+  await withRawDatabase(backend, async (tables) => {
+    for (const from of [2, 3] as const) {
+      const upgrade = migrationSteps.find((entry) => entry.from === from);
+      assert.ok(upgrade !== undefined, `the upgrade from ${String(from)}`);
+      await upgrade.run(tables);
+    }
+  });
+
+  await withRawDatabase(backend, async (tables) => {
+    const row = await tables.queue.get(key);
+    assert.ok(row !== undefined);
+    const upgraded: Record<string, unknown> = { ...row };
+    assert.equal(upgraded['errorCode'], null);
+    assert.equal('conflictGroupId' in upgraded, false);
+    assert.equal('branchMutationId' in upgraded, false);
+    assert.equal('branchState' in upgraded, false);
+    assert.deepEqual(await tables.recovery.toArray(), []);
+  });
+
+  // The upgraded database opens, so every row still matches its validator.
+  const reopened = await openLocalStore(origin, backend.options());
+  assert.equal(
+    (await reopened.pending(account, workspace)).length,
+    1,
+    'the queued mutation survived the upgrade',
+  );
+  await reopened.close();
+});
+
 await test('a database this application cannot read is refused', async () => {
   const newer = createBackend('newer');
   const opened = await openLocalStore(origin, newer.options());
   await opened.close();
   await withRawDatabase(newer, async (tables) => {
-    const meta = await tables.meta.get(metaKey);
-    await tables.meta.put({ ...(meta as MetaRow), schemaVersion: 99 });
+    const meta = await storedMeta(tables);
+    await tables.meta.put({ ...meta, schemaVersion: 99 });
   });
   await assert.rejects(
     openLocalStore(origin, newer.options()),
@@ -857,11 +943,8 @@ await test('a database this application cannot read is refused', async () => {
   );
   await store.close();
   await withRawDatabase(broken, async (tables) => {
-    const meta = await tables.meta.get(metaKey);
-    await tables.meta.put({
-      ...(meta as MetaRow),
-      migrationState: 'in-progress',
-    });
+    const meta = await storedMeta(tables);
+    await tables.meta.put({ ...meta, migrationState: 'in-progress' });
     // A record whose shape this application does not accept.
     const rows = await tables.drafts.toArray();
     const row = rows[0];

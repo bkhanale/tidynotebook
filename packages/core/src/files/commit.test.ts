@@ -68,11 +68,8 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     role: (id: string) => Promise.resolve(state.roles.get(id) ?? null),
-    receipt: <T = AcceptedChangeset>(mutationId: string, id: string) =>
-      Promise.resolve(
-        (state.receipts.get(`${id}:${mutationId}`) as
-          MutationReceipt<T> | undefined) ?? null,
-      ),
+    receipt: (mutationId: string, id: string) =>
+      Promise.resolve(state.receipts.get(`${id}:${mutationId}`) ?? null),
     heads: (fileIds: readonly string[]) =>
       Promise.resolve(
         new Map(

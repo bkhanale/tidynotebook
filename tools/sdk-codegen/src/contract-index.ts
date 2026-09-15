@@ -110,7 +110,7 @@ function asArray(value: unknown, where: string): unknown[] {
 }
 
 function isHttpMethod(value: string): value is HttpMethod {
-  return (httpMethods as readonly string[]).includes(value);
+  return httpMethods.some((method) => method === value);
 }
 
 function isParameterLocation(value: string): value is ParameterLocation {

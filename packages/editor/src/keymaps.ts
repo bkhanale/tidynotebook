@@ -486,6 +486,23 @@ function dispatching(
 }
 
 /**
+ * The permission name that the Clipboard API adds.
+ *
+ * `PermissionName` in the DOM declarations of TypeScript lists the registry
+ * of the Permissions API only, so it holds no clipboard name. The Clipboard
+ * API specifies `clipboard-read`, and a browser that does not know the name
+ * rejects the query, which the caller below already handles. This overload
+ * states that one name instead of claiming a shape with an assertion.
+ */
+declare global {
+  interface Permissions {
+    query(descriptor: {
+      readonly name: 'clipboard-read';
+    }): Promise<PermissionStatus>;
+  }
+}
+
+/**
  * Reads a link destination from the clipboard when that needs no prompt.
  *
  * Reading the clipboard asks the person for permission in some browsers. A
@@ -497,12 +514,7 @@ async function grantedClipboardText(): Promise<string | null> {
     const permissions: Permissions | undefined = navigator.permissions;
     const clipboard: Clipboard | undefined = navigator.clipboard;
     if (permissions === undefined || clipboard === undefined) return null;
-    // `clipboard-read` is not in the standard permission name union, so the
-    // descriptor is built as an unknown value and narrowed at the call.
-    const descriptor = {
-      name: 'clipboard-read',
-    } as unknown as PermissionDescriptor;
-    const status = await permissions.query(descriptor);
+    const status = await permissions.query({ name: 'clipboard-read' });
     if (status.state !== 'granted') return null;
     return await clipboard.readText();
   } catch {

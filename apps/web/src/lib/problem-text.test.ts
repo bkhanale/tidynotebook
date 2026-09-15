@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hasProblemSentence, problemSentence } from './problem-text.ts';
+import {
+  hasProblemSentence,
+  problemCode,
+  problemSentence,
+  problemStatus,
+} from './problem-text.ts';
 
 /** Every code that a server answer can carry today. */
 const codes = [
@@ -58,4 +63,34 @@ await test('no answer at all reads as a connection problem', () => {
 
 await test('a server failure asks the person to try again', () => {
   assert.ok(problemSentence(null, 503).includes('Try again'));
+});
+
+await test('a problem document gives up its code and its status', () => {
+  assert.equal(
+    problemCode({ code: 'path_conflict', status: 409 }),
+    'path_conflict',
+  );
+  assert.equal(problemStatus({ code: 'path_conflict', status: 409 }), 409);
+});
+
+await test('a failure that carries no problem gives nothing', () => {
+  // The generated client answers with a network error, a plain string, or
+  // nothing at all. Each of them must read as no code and no status, so the
+  // sentence falls back instead of showing a wrong one.
+  for (const value of [null, undefined, 'failed', 7, [], new Error('x')]) {
+    assert.equal(problemCode(value), null);
+    assert.equal(problemStatus(value), null);
+  }
+});
+
+await test('a member of the wrong kind reads as none', () => {
+  assert.equal(problemCode({ code: 404 }), null);
+  assert.equal(problemCode({ code: '' }), null);
+  assert.equal(problemStatus({ status: '404' }), null);
+});
+
+await test('an inherited member cannot pass as a problem', () => {
+  const inherited: unknown = Object.create({ code: 'forbidden', status: 403 });
+  assert.equal(problemCode(inherited), null);
+  assert.equal(problemStatus(inherited), null);
 });

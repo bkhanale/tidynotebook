@@ -46,7 +46,11 @@ import {
   type Theme,
 } from '@notesapp/ui';
 import { displayNoteName } from './lib/note-name.ts';
-import { problemSentence } from './lib/problem-text.ts';
+import {
+  problemCode,
+  problemSentence,
+  problemStatus,
+} from './lib/problem-text.ts';
 import {
   startingSyncState,
   syncStateFileId,
@@ -57,12 +61,6 @@ import {
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 import { webLogger } from './logging.ts';
 
-/** Reads one property of an unknown value without asserting its shape. */
-function readProperty(value: unknown, key: string): unknown {
-  if (value === null || typeof value !== 'object') return undefined;
-  return Object.fromEntries(Object.entries(value))[key];
-}
-
 /**
  * Turns a generated failure into one plain sentence for the person.
  *
@@ -71,10 +69,8 @@ function readProperty(value: unknown, key: string): unknown {
  * it is available for a report without reaching the screen.
  */
 export function problemMessage(error: unknown): string {
-  const code = readProperty(error, 'code');
-  const status = readProperty(error, 'status');
-  const knownCode = typeof code === 'string' && code !== '' ? code : null;
-  const knownStatus = typeof status === 'number' ? status : null;
+  const knownCode = problemCode(error);
+  const knownStatus = problemStatus(error);
   if (knownCode !== null)
     webLogger.emit('web.problem', { problemCode: knownCode });
   return problemSentence(knownCode, knownStatus);
@@ -102,6 +98,20 @@ const SessionContext = createContext<SessionValue>({
 
 const cachedAccountKey = 'notesapp.cached-account';
 const syncWorkerKey = 'notesapp.sync-worker';
+
+/**
+ * Reads one member of an unknown stored value.
+ *
+ * Only own enumerable members count, so an inherited member of a value that
+ * another page of this origin wrote cannot pass a check.
+ */
+function readProperty(value: unknown, key: string): unknown {
+  if (value === null || typeof value !== 'object') return undefined;
+  const record: Record<string, unknown> = Object.fromEntries(
+    Object.entries(value),
+  );
+  return record[key];
+}
 
 /** Reads only a previously validated account shape from browser storage. */
 function readCachedAccount(): Account | null {

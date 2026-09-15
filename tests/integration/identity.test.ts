@@ -46,7 +46,9 @@ const config = loadServerConfig({
 });
 const app = await createApp(config);
 await app.listen({ host: '127.0.0.1', port: 0 });
-const address = app.server.address() as AddressInfo;
+const address: string | AddressInfo | null = app.server.address();
+if (address === null || typeof address === 'string')
+  throw new Error('The test server did not bind a TCP port.');
 const baseUrl = `http://127.0.0.1:${String(address.port)}`;
 configureClient(baseUrl, undefined);
 
@@ -186,15 +188,17 @@ await test('no auth answer hands the session token to page script', async () => 
     headers: { origin: 'http://127.0.0.1', cookie },
   });
   assert.equal(session.statusCode, 200);
-  const record = JSON.parse(session.body) as {
-    session?: Record<string, unknown>;
-    token?: unknown;
-  };
-  assert.ok(record.session !== undefined);
-  assert.equal('token' in record.session, false);
+  const record: unknown = JSON.parse(session.body);
+  assert.ok(
+    typeof record === 'object' && record !== null && 'session' in record,
+    'the session answer is a record with a session',
+  );
+  const held: unknown = record.session;
+  assert.ok(typeof held === 'object' && held !== null);
+  assert.equal('token' in held, false);
   assert.equal('token' in record, false);
   // The parts the client needs are still there.
-  assert.ok(typeof record.session.id === 'string');
+  assert.ok('id' in held && typeof held.id === 'string');
 });
 
 await test('the bootstrap command refuses to create a second account', async () => {

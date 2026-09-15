@@ -374,7 +374,7 @@ export function partitionRange(
 function errorName(value: unknown): string {
   if (value instanceof Error) return value.name;
   if (typeof value === 'object' && value !== null && 'name' in value) {
-    const name: unknown = (value as { name: unknown }).name;
+    const name: unknown = value.name;
     if (typeof name === 'string') return name;
   }
   return '';

@@ -26,6 +26,19 @@ export type Grant = {
 };
 
 /**
+ * One grant as a caller read it, before the actions are checked.
+ *
+ * A scope reaches this package from a stored row or from a session record, so
+ * an action can be a text that the union no longer contains. A caller states
+ * what it read and `verifyActor` decides, instead of claiming a shape that
+ * nothing proved.
+ */
+export type StoredGrant = {
+  readonly workspaceId: string;
+  readonly actions: readonly string[];
+};
+
+/**
  * Marker of a verified actor.
  *
  * The marker keeps verified identity apart from user supplied input. A parsed
@@ -74,7 +87,7 @@ const actionsOfRole = new Map<string, readonly Action[]>(
   Object.entries(roleActions),
 );
 /** Every action, for the runtime check of a supplied grant. */
-const knownActions = new Set<string>(roleActions.owner);
+const knownActions: readonly Action[] = roleActions.owner;
 
 /**
  * Creates a verified actor.
@@ -91,19 +104,19 @@ const knownActions = new Set<string>(roleActions.owner);
  */
 export function verifyActor(
   accountId: string,
-  grants: readonly Grant[],
+  grants: readonly StoredGrant[],
 ): Result<Actor> {
   if (accountId.length === 0) return fail('forbidden');
   const copied: Grant[] = [];
   for (const grant of grants) {
     if (grant.workspaceId.length === 0) return fail('forbidden');
+    const actions: Action[] = [];
     for (const action of grant.actions) {
-      if (!knownActions.has(action)) return fail('forbidden');
+      const known = knownActions.find((entry) => entry === action);
+      if (known === undefined) return fail('forbidden');
+      actions.push(known);
     }
-    copied.push({
-      workspaceId: grant.workspaceId,
-      actions: [...grant.actions],
-    });
+    copied.push({ workspaceId: grant.workspaceId, actions });
   }
   return ok({
     accountId,
@@ -113,13 +126,15 @@ export function verifyActor(
 }
 
 /**
- * The actions that one role permits.
+ * The actions that one stored role text permits.
  *
  * The identity adapter uses this to build the grants of a browser session,
- * which carries the full role. A role outside the union returns no action, so
- * an unexpected stored value denies everything.
+ * which carries the full role. The parameter is text, because a role reaches
+ * this package from a stored row that can hold a value the union no longer
+ * contains. Such a text returns no action, so every decision that reads it is
+ * a denial.
  */
-export function actionsForRole(role: Role): readonly Action[] {
+export function actionsForRole(role: string): readonly Action[] {
   return actionsOfRole.get(role) ?? [];
 }
 
@@ -137,7 +152,7 @@ export function authorize(
   role: Role,
   action: Action,
 ): Result<void> {
-  const permitted = actionsOfRole.get(role) ?? [];
+  const permitted = actionsForRole(role);
   if (!permitted.includes(action)) return fail('forbidden');
   const grant = actor.grants.find((entry) => entry.workspaceId === workspaceId);
   if (grant === undefined || !grant.actions.includes(action))

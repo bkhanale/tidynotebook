@@ -67,3 +67,31 @@ export function problemSentence(
 export function hasProblemSentence(code: string): boolean {
   return sentences[code] !== undefined;
 }
+
+/**
+ * One member of a generated failure, read without a claim about its shape.
+ *
+ * A failure of the generated client is `unknown`: it carries the problem
+ * document of the server, a network error, or a value that a middleware put
+ * there. Only own enumerable members count, so an inherited member cannot
+ * pass a check.
+ */
+function readProperty(error: unknown, key: string): unknown {
+  if (error === null || typeof error !== 'object') return undefined;
+  const record: Record<string, unknown> = Object.fromEntries(
+    Object.entries(error),
+  );
+  return record[key];
+}
+
+/** The problem code of a generated failure, or `null`. */
+export function problemCode(error: unknown): string | null {
+  const code = readProperty(error, 'code');
+  return typeof code === 'string' && code !== '' ? code : null;
+}
+
+/** The HTTP status of a generated failure, or `null`. */
+export function problemStatus(error: unknown): number | null {
+  const status = readProperty(error, 'status');
+  return typeof status === 'number' ? status : null;
+}

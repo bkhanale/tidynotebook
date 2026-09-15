@@ -12,6 +12,7 @@ import {
   fail,
   maxPageSize,
   ok,
+  OperationalError,
   type Actor,
   type BlockingReference,
   type DeletedFilePage,
@@ -155,8 +156,17 @@ export function trashRepository(
       const blockingReferences: BlockingReference[] = [];
       const count = row.blocking_kind?.length ?? 0;
       for (let i = 0; i < count; i++) {
+        // The SQL function returns the kind as text. A purge preview names
+        // one kind of blocking reference, so any other text is a defect of
+        // the function and not an answer that a caller can act on.
+        const kind = row.blocking_kind[i];
+        if (kind !== 'revision')
+          throw new OperationalError(
+            'unexpected',
+            'notesapp: a purge preview names a blocking reference of an unknown kind.',
+          );
         blockingReferences.push({
-          kind: row.blocking_kind[i] as 'revision',
+          kind,
           targetId: row.blocking_target_id[i] ?? '',
           referrerId: row.blocking_referrer_id[i] ?? '',
           description: row.blocking_description[i] ?? '',
