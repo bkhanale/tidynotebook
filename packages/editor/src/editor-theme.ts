@@ -240,6 +240,13 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       textTransform: 'uppercase',
       letterSpacing: '0.06em',
     },
+    '.cm-np-front-matter': {
+      fontFamily: 'var(--font-mono)',
+      fontSize: 'var(--text-note-mono)',
+      color: 'var(--notes-text-muted)',
+      backgroundColor: 'var(--notes-surface-hover)',
+      paddingInline: 'calc(var(--spacing) * 3)',
+    },
 
     // A quoted line keeps the quieter text color of the palette. The bars
     // come from the level rules below, which follow this rule, so a deeper

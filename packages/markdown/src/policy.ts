@@ -286,7 +286,10 @@ export const sanitizeSchema: SanitizeSchema = {
       ['id', namespacedId],
     ],
     ol: ['start', ['className', 'contains-task-list']],
-    pre: [['dataDiagram', 'mermaid']],
+    pre: [
+      ['dataDiagram', 'mermaid'],
+      ['dataFrontmatter', 'yaml'],
+    ],
     section: [
       'dataFootnotes',
       ['className', 'footnotes'],

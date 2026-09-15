@@ -105,10 +105,11 @@ await test('a footnote renders with a matching back reference', () => {
 });
 
 await test('front matter renders as document content', () => {
-  assert.ok(html.includes('title: Corpus example'));
-  assert.ok(html.includes('tags: [demo, markdown]'));
-  // No front matter extension is installed, so the parser reports no metadata
-  // node for it.
+  assert.ok(
+    html.includes(
+      '<pre data-frontmatter="yaml">title: Corpus example\ntags: [demo, markdown]</pre>',
+    ),
+  );
   const types = new Set<string>();
   const collect = (node: { type: string; children?: unknown }): void => {
     types.add(node.type);
@@ -118,7 +119,7 @@ await test('front matter renders as document content', () => {
         collect(child as { type: string; children?: unknown });
   };
   collect(parseMarkdown(corpusMarkdown));
-  assert.ok(!types.has('yaml'));
+  assert.ok(types.has('yaml'));
   assert.ok(!types.has('toml'));
 });
 

@@ -3,16 +3,19 @@
  *
  * `@codemirror/lang-markdown` runs the Lezer Markdown parser. This module
  * configures it to the flavor that `@notesapp/markdown` defines: CommonMark,
- * the GFM bundle (tables, task items, strikethrough, autolinks), and the
- * shared math delimiter rule. Nothing else scans Markdown in this package.
- * Every decoration, the outline, and every widget read `syntaxTree(state)`
- * of the language built here.
+ * the GFM bundle (tables, task items, strikethrough, autolinks), YAML front
+ * matter, and the shared math delimiter rule. The maintained YAML front
+ * matter wrapper gives the body to the Markdown parser and parses the leading
+ * metadata as YAML. It does not evaluate or export a metadata value. Every
+ * decoration, the outline, and every widget read `syntaxTree(state)` of the
+ * language built here.
  *
  * Code inside a fence is parsed by a second language when one is known for
  * the info string. Those languages load on demand, so the initial bundle
  * carries none of them.
  */
 import { markdown } from '@codemirror/lang-markdown';
+import { yamlFrontmatter } from '@codemirror/lang-yaml';
 import {
   HighlightStyle,
   LanguageDescription,
@@ -170,9 +173,11 @@ const codeHighlightStyle = HighlightStyle.define([...codeHighlightSpecs]);
  * separately by the keymap module.
  */
 export function noteMarkdown(): LanguageSupport {
-  return markdown({
-    extensions: [GFM, mathMarkdownExtension],
-    codeLanguages: [...codeLanguages],
+  return yamlFrontmatter({
+    content: markdown({
+      extensions: [GFM, mathMarkdownExtension],
+      codeLanguages: [...codeLanguages],
+    }),
   });
 }
 

@@ -4,15 +4,15 @@
  * One parser configuration serves the editor, the server, and the reading
  * surface, so all three agree on what a document means. The flavor is CommonMark
  * plus the GFM set (tables, task list items, strikethrough, autolinks, and
- * footnotes) plus inline and display math.
+ * footnotes), YAML front matter, and inline and display math.
  *
  * Four rules matter for the rest of the package:
  *
  * - Position information is kept. Every node carries the source offsets that
  *   link extraction and the editor decorations rely on.
- * - Front matter is document content. No front matter extension is installed,
- *   so a leading `---` block parses as ordinary Markdown and cannot set
- *   metadata, permissions, or rendering options.
+ * - Front matter is inert metadata. A leading YAML block has its own syntax
+ *   node, but this package does not parse its values or let it set permissions,
+ *   rendering options, or application behavior.
  * - Unknown syntax stays text. Raw HTML is parsed into `html` nodes so that
  *   the source stays addressable, but the renderer never emits it.
  * - One dollar is money, not math. The math delimiter rule comes from
@@ -31,6 +31,7 @@
  * address the string the caller passed in.
  */
 import type { Root } from 'mdast';
+import remarkFrontmatter from 'remark-frontmatter';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import remarkParse from 'remark-parse';
@@ -49,6 +50,7 @@ import { singleDollarTextMath } from './math-syntax.ts';
 export function createMarkdownProcessor() {
   return unified()
     .use(remarkParse)
+    .use(remarkFrontmatter, 'yaml')
     .use(remarkGfm)
     .use(remarkMath, { singleDollarTextMath })
     .use(remarkMathParens);

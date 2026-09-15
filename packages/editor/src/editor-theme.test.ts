@@ -76,6 +76,13 @@ await test('the active code line has a focus outline', () => {
   assert.equal(activeCodeLine.outlineOffset, '-1px');
 });
 
+await test('front matter uses the metadata style from the theme', () => {
+  const frontMatter = rule('.cm-np-front-matter');
+  assert.equal(frontMatter.fontFamily, 'var(--font-mono)');
+  assert.equal(frontMatter.color, 'var(--notes-text-muted)');
+  assert.equal(frontMatter.backgroundColor, 'var(--notes-surface-hover)');
+});
+
 await test('a block quote reads in the muted text color', () => {
   assert.equal(rule('.cm-np-quote').color, 'var(--notes-text-muted)');
 });

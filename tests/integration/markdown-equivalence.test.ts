@@ -107,6 +107,14 @@ function renderedStructure(html: string): readonly PreviewNode[] {
     if (tag.name === 'section' && attribute(tag, 'data-footnotes') !== null)
       footnotes += tag.closing ? -1 : 1;
     if (footnotes > 0) continue;
+    if (
+      tag.name === 'pre' &&
+      !tag.closing &&
+      attribute(tag, 'data-frontmatter') === 'yaml'
+    ) {
+      found.push({ kind: 'front-matter' });
+      continue;
+    }
     if (tag.name === 'hr' && !tag.closing) {
       found.push({ kind: 'thematic-break' });
       continue;
@@ -199,6 +207,19 @@ function renderedStructure(html: string): readonly PreviewNode[] {
   return found;
 }
 
+await test('front matter is metadata in both Markdown paths', async () => {
+  const source = '---\ntitle: Example\ntags: [one, two]\n---\n\n# Body\n';
+  const html = await renderMarkdown(source);
+  assert.equal(
+    html,
+    '<pre data-frontmatter="yaml">title: Example\ntags: [one, two]</pre>\n<h1 id="user-content-body">Body</h1>',
+  );
+  assert.deepEqual(previewStructureOf(source), [
+    { kind: 'front-matter' },
+    { kind: 'heading', level: 1, text: 'Body' },
+  ]);
+});
+
 await test('the corpus has the same structure through both paths', async () => {
   const html = await renderMarkdown(corpusMarkdown);
   const rendered = renderedStructure(html);
@@ -211,6 +232,7 @@ await test('the corpus keeps every construct the matrix covers', async () => {
   const preview = previewStructureOf(corpusMarkdown);
   const kinds = new Set(preview.map((node) => node.kind));
   for (const kind of [
+    'front-matter',
     'heading',
     'list-item',
     'task',

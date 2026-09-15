@@ -6,7 +6,28 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { attachmentIdA, noteIdA } from '../test-data/content.ts';
+import { parseMarkdown } from './parse.ts';
 import { renderMarkdown } from './render.ts';
+
+await test('leading YAML front matter is metadata and not a heading', async () => {
+  const source =
+    '---\ntitle: Example\nunsafe: <script>alert(1)</script>\n---\n\n# Body\n';
+  const tree = parseMarkdown(source);
+  assert.deepEqual(
+    tree.children.map((node) => node.type),
+    ['yaml', 'heading'],
+  );
+  const matter = tree.children[0];
+  if (matter?.type !== 'yaml') assert.fail('expected YAML front matter');
+  assert.equal(
+    matter.value,
+    'title: Example\nunsafe: <script>alert(1)</script>',
+  );
+  assert.equal(
+    await renderMarkdown(source),
+    '<pre data-frontmatter="yaml">title: Example\nunsafe: &#x3C;script>alert(1)&#x3C;/script></pre>\n<h1 id="user-content-body">Body</h1>',
+  );
+});
 
 await test('the URL policy applies to a reference link', async () => {
   const html = await renderMarkdown(

@@ -44,7 +44,7 @@ test('one surface reads and writes the note in place', async ({
   await page.getByLabel('Note name').fill('One surface');
   await replaceEditorText(
     page,
-    '# Heading\n\nBody with `code`.\n\n- [ ] Task\n\n| Name | Count |\n| :--- | ----: |\n| Alpha | 2 |\n\n```js\nconst answer = 42;\n```\n',
+    '---\ntitle: Example\ntags: [one, two]\n---\n\n# Heading\n\nBody with `code`.\n\n- [ ] Task\n\n| Name | Count |\n| :--- | ----: |\n| Alpha | 2 |\n\n```js\nconst answer = 42;\n```\n',
   );
   // Move the caret onto an empty line, away from every construct, so each
   // one renders instead of showing its source.
@@ -53,8 +53,13 @@ test('one surface reads and writes the note in place', async ({
   // The note saves itself; a version follows the typing pause and reaches the
   // server, so there is no Save button to press.
   await waitForServerSave(page);
+  await page.reload();
 
   // The one surface renders every construct in place.
+  await expect(page.locator('.cm-np-front-matter')).toHaveCount(4);
+  await expect(page.locator('.cm-np-h2')).toHaveCount(0);
+  await expect(page.locator('.cm-np-rule')).toHaveCount(0);
+  await expect(page.locator('.cm-content')).toContainText('title: Example');
   await expect(page.locator('.cm-np-h1')).toHaveText('Heading');
   await expect(page.locator('.cm-np-code')).toHaveText('code');
   await expect(page.locator('.cm-np-task')).toBeVisible();

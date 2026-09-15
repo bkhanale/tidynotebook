@@ -14,6 +14,9 @@
  * - It never fetches anything. An internal reference stays a path that the
  *   caller resolves through the generated API operations, and an external
  *   image becomes a placeholder that needs an explicit user action.
+ * - It never evaluates front matter. The parser keeps the YAML text in its
+ *   own syntax node, and the Markdown to HTML stage emits it as escaped text
+ *   in one metadata block.
  * - It never runs unbounded work. `./limits.ts` bounds the document before the
  *   parser sees it and bounds the parsed tree afterwards.
  *
@@ -58,6 +61,7 @@ function textElement(
  */
 type InlineMathNode = Extract<Nodes, { type: 'inlineMath' }>;
 type MathNode = Extract<Nodes, { type: 'math' }>;
+type YamlNode = Extract<Nodes, { type: 'yaml' }>;
 
 /**
  * Turns a math node into a placeholder that keeps its source.
@@ -73,6 +77,11 @@ function mathPlaceholder(node: InlineMathNode | MathNode): Element {
     { dataMath: node.type === 'math' ? 'display' : 'inline' },
     node.value,
   );
+}
+
+/** Renders inert YAML metadata as one text-only block. */
+function frontMatterBlock(node: YamlNode): Element {
+  return textElement('pre', { dataFrontmatter: 'yaml' }, node.value);
 }
 
 /** Info strings that are safe to repeat in a class name. */
@@ -308,6 +317,7 @@ function buildRenderProcessor(options: RenderMarkdownOptions = {}) {
         code: (_state, node: Code) => codeBlock(node),
         inlineMath: (_state, node: InlineMathNode) => mathPlaceholder(node),
         math: (_state, node: MathNode) => mathPlaceholder(node),
+        yaml: (_state, node: YamlNode) => frontMatterBlock(node),
       },
     })
     .use(addHeadingIdentifiers)

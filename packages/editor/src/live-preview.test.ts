@@ -224,6 +224,25 @@ await test('both thematic break forms render as a rule and never as a bullet', (
   }
 });
 
+await test('leading YAML front matter stays editable and is not a heading', () => {
+  const doc = '---\ntitle: Example\ntags: [one, two]\n---\n\n# Body\n';
+  const found = describe(doc);
+  const metadataLines = found.filter(
+    (item) => item.kind === 'line' && item.value.includes('cm-np-front-matter'),
+  );
+  assert.deepEqual(
+    metadataLines.map((item) => item.from),
+    [0, 4, 19, 36],
+  );
+  assert.ok(!has(found, 'line', 'cm-np-h2'));
+  assert.ok(!has(found, 'widget', 'RuleWidget'));
+  assert.deepEqual(structureOf(doc), [
+    { kind: 'front-matter' },
+    { kind: 'heading', level: 1, text: 'Body' },
+  ]);
+  assert.ok(visibleText(doc).startsWith('---\ntitle: Example\n'));
+});
+
 await test('a bullet is replaced at every depth and an ordered marker is kept', () => {
   const doc = '- a\n  - b\n    - c\n';
   const bullets = describe(doc).filter(

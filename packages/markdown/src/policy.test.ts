@@ -6,10 +6,44 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { classifyUrl, isIdentifier } from './policy.ts';
+import type { Root } from 'hast';
+import rehypeSanitize from 'rehype-sanitize';
+import rehypeStringify from 'rehype-stringify';
+import { unified } from 'unified';
+import { classifyUrl, isIdentifier, sanitizeSchema } from './policy.ts';
 
 const noteId = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
 const attachmentId = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
+
+await test('the front matter marker accepts only YAML', async () => {
+  const tree: Root = {
+    type: 'root',
+    children: [
+      {
+        type: 'element',
+        tagName: 'pre',
+        properties: { dataFrontmatter: 'yaml' },
+        children: [{ type: 'text', value: 'accepted' }],
+      },
+      {
+        type: 'element',
+        tagName: 'pre',
+        properties: {
+          dataFrontmatter: 'toml',
+          onClick: 'alert(1)',
+        },
+        children: [{ type: 'text', value: 'refused' }],
+      },
+    ],
+  };
+  const processor = unified()
+    .use(rehypeSanitize, sanitizeSchema)
+    .use(rehypeStringify);
+  assert.equal(
+    processor.stringify(await processor.run(tree)),
+    '<pre data-frontmatter="yaml">accepted</pre><pre>refused</pre>',
+  );
+});
 
 await test('an identifier is accepted in either case', () => {
   assert.ok(isIdentifier(noteId));

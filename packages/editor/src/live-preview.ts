@@ -42,6 +42,7 @@ import { noteMarkdown } from './language.ts';
 
 /** One structural fact the preview decorated, in document order. */
 export type PreviewNode =
+  | { readonly kind: 'front-matter' }
   | { readonly kind: 'heading'; readonly level: number; readonly text: string }
   | {
       readonly kind: 'list-item';
@@ -402,6 +403,17 @@ export function buildPreview(
    */
   const visit = (node: SyntaxNodeRef, parent: string): boolean => {
     const name = node.name;
+    if (name === 'Frontmatter') {
+      lineClass(
+        node.from,
+        Math.max(node.from, node.to - 1),
+        'cm-np-front-matter',
+      );
+      // The YAML language owns the nested highlighting. Front matter is one
+      // metadata block and never a set of Markdown headings.
+      structure.push({ kind: 'front-matter' });
+      return false;
+    }
     const level = headingLevel(name);
     if (level > 0) {
       const atx = name.startsWith('ATX');
