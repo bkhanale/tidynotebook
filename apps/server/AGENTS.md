@@ -15,41 +15,40 @@ authentication routes on one origin. It holds no domain rule.
   business resource: `register.ts` (contract routes and boundary validation),
   `problem.ts` (RFC 9457 body), `security-headers.ts`, `static-assets.ts`, `host.ts`.
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns
-  one handler per operation id, and the body of a handler lives in its area
-  file. Import, export, backlinks, and archive parsing each have one file.
-- `src/auth/` holds the Better Auth adapter, the actor resolver, mail, and
-  the first user setup. `src/jobs/` holds background work. `src/cli/` holds
-  the operator commands.
+  one handler per operation id, and the body of a handler lives in its area file.
+- `main.ts` starts the process and gives each stop signal to the drain in
+  `src/lifecycle.ts`, which owns the order of the stop and holds no signal.
+- `src/auth/` holds the Better Auth adapter, the actor resolver, mail, and the
+  first user setup. `src/jobs/` holds background work and `src/cli/` the operator commands.
 - A domain rule lives in `packages/core`. A SQL statement lives in
   `packages/storage-server`. A request shape lives in `packages/api-contract/`.
 
 ## Allowed imports
 
 `@notesapp/api-contract`, `@notesapp/core`, `@notesapp/logging`,
-`@notesapp/markdown`, `@notesapp/storage-server`. This package is Node only.
-It may use Node built in modules and Node only packages such as `fastify`,
-`pg`, and `sharp`.
+`@notesapp/markdown`, `@notesapp/storage-server`. This package is Node only. It
+may use Node built in modules and Node only packages such as `fastify`, `pg`, and `sharp`.
 
 ## How to add a common thing here
 
-- **A handler for a new operation.** Write the operation in
-  `packages/api-contract/` and run `pnpm generate` first. Add the
-  function in the area file under `src/routes/`, then return it from
-  `createHandlers` in `src/routes/handlers.ts`. A missing handler and an
-  unknown handler both stop startup.
-- **A background job.** Add `src/jobs/<name>.ts` and start it from
-  `src/app.ts`. A job takes the store as an argument, so a test can drive it.
-- **A readiness check.** Add the probe in `src/routes/handlers.ts` beside the
-  other probes, then add it to `evaluateReadiness`.
+- **A handler for a new operation.** Write the operation in `packages/api-contract/`
+  and run `pnpm generate` first. Add the function in the area file under
+  `src/routes/`, then return it from `createHandlers` in `src/routes/handlers.ts`. A
+  missing handler and an unknown handler both stop startup.
+- **A background job, or any resource that must close.** Add `src/jobs/<name>.ts` and
+  start it from `src/app.ts`. A job takes the store as an argument, so a test can
+  drive it. Close every resource in the `onClose` hook, which the drain runs.
+- **A readiness check.** Add the probe in `src/routes/handlers.ts` beside the other
+  probes, then add it to `evaluateReadiness`. A stop answers before the probes run.
 
 ## Testing conventions here
 
-`node --test` through `pnpm test:unit` for pure modules such as `config.ts`
-and `request-log.ts`. Everything that needs a database or a listening server
-is an integration test under `tests/integration/`, which uses the real
-PostgreSQL service. A handler test must prove the status, the media type, the
-body, and the failure code. A request that no generated operation can
-express, such as a forged Host header, uses `app.inject()`.
+`node --test` through `pnpm test:unit` for a pure module such as `config.ts`,
+`request-log.ts`, or `lifecycle.ts`. Everything that needs a database or a listening
+server is an integration test under `tests/integration/`, against the real
+PostgreSQL service. A handler test must prove the status, the media type, the body,
+and the failure code. A request that no generated operation can express, such as a
+forged Host header, uses `app.inject()`.
 
 ## Forbidden here
 
@@ -75,6 +74,7 @@ express, such as a forged Host header, uses `app.inject()`.
 | `src/plugins/static-assets.ts`    | Precompressed assets, caching, `ETag`          |
 | `src/routes/handlers.ts`          | One handler per operation id, readiness probes |
 | `src/auth/actor.ts`               | Turns a session into a verified actor          |
+| `src/lifecycle.ts`                | The order of the stop, with its deadline       |
 | `src/config.ts`                   | Environment reading and refusal messages       |
 | `src/served-origins.ts`           | The one list of origins this deployment serves |
 | `src/logging.ts`                  | Pino sink for the shared event catalog         |

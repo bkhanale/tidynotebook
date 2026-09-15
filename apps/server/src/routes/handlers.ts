@@ -9,6 +9,8 @@ import { access, constants } from 'node:fs/promises';
 import pg from 'pg';
 import type { WorkspaceAdminStore, WorkspaceStore } from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
+import type { ServiceLifecycle } from '../lifecycle.ts';
+import { runningLifecycle } from '../lifecycle.ts';
 import { readProperty } from '../values.ts';
 import { createAccountHandlers } from './accounts.ts';
 import { createExportHandlers } from './export.ts';
@@ -59,7 +61,7 @@ function missingAttachmentStore(): AttachmentStore {
   };
 }
 
-/** What the account and workspace handlers need from the composition. */
+/** What the handlers need from the composition. */
 export type HandlerDependencies = {
   /** The account and workspace store of the deployment. */
   readonly store?: WorkspaceAdminStore;
@@ -67,6 +69,13 @@ export type HandlerDependencies = {
   readonly content?: WorkspaceStore;
   /** The attachment store of the deployment. */
   readonly attachments?: AttachmentStore;
+  /**
+   * The lifecycle state of the process, which the readiness answer reads.
+   *
+   * `main.ts` owns it and the stop moves it. A server that owns no signal
+   * handler leaves it out and always reports that it runs.
+   */
+  readonly lifecycle?: ServiceLifecycle;
 };
 
 const jsonMediaType = 'application/json';
@@ -237,6 +246,7 @@ export function createHandlers(
   dependencies: HandlerDependencies = {},
 ): HandlerMap {
   const store = dependencies.store ?? missingStore();
+  const lifecycle = dependencies.lifecycle ?? runningLifecycle;
   return {
     ...createAccountHandlers(store),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
@@ -264,6 +274,25 @@ export function createHandlers(
         body: { status: 'ok' },
       }),
     getReadiness: async (request): Promise<HandlerResult> => {
+      // A process that stops reports that it is not ready before its listener
+      // closes, so a proxy or an orchestrator sends the next request
+      // elsewhere while the open requests complete here. This is not a
+      // degraded check: every requirement can still be met, and the process
+      // stops because an operator asked for it. Liveness answers that the
+      // process runs, so nothing restarts a container that stops on purpose.
+      if (lifecycle.state() === 'draining')
+        return {
+          status: 503,
+          mediaType: problemMediaType,
+          body: createProblem({
+            code: 'shutting_down',
+            status: 503,
+            detail:
+              'The server stops. It completes the open requests and accepts no new traffic.',
+            instance: request.url.split('?')[0] ?? request.url,
+            requestId: request.id,
+          }),
+        };
       const report = await evaluateReadiness(
         probes,
         readDetailLevel(request.query),

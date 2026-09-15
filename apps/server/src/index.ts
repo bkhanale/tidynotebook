@@ -10,6 +10,20 @@ export {
   loadProtectedEnvironment,
   loadServerConfig,
 } from './config.ts';
+export type {
+  Drain,
+  DrainEvent,
+  DrainOptions,
+  DrainTimers,
+  ServiceLifecycle,
+  ServiceState,
+} from './lifecycle.ts';
+export {
+  createDrain,
+  createServiceLifecycle,
+  realTimers,
+  runningLifecycle,
+} from './lifecycle.ts';
 export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers } from './app.ts';
 export type {
@@ -28,6 +42,7 @@ export {
 export { attachRequestLogging, redactUrl } from './request-log.ts';
 export type {
   HandlerMap,
+  HandlerResult,
   IdentityResolver,
   ProtocolAdapter,
   ProtocolResult,

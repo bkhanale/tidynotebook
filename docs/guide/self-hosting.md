@@ -163,6 +163,27 @@ host is refused. Your reverse proxy must pass the original `Host` header to the
 application, which Caddy and Traefik do on their own and nginx does when you set
 it.
 
+## Stopping the server
+
+`docker compose stop` and `docker compose down` send a stop signal to the
+application. The server does not stop at once. It first reports that it is not
+ready, so the reverse proxy in front of it sends new requests elsewhere. It then
+closes its listener, completes the requests that are already open, and closes
+its database connections. A deadline ends the process when one request does not
+complete, so a stop always finishes.
+
+`NOTESAPP_SHUTDOWN_GRACE_MS` is the time between the report and the close of the
+listener. Make it longer than the interval at which your proxy reads readiness.
+Set it to 0 when no proxy is in front of the server.
+`NOTESAPP_SHUTDOWN_DEADLINE_MS` is the whole time from the signal to a forced
+end. `.env.example` holds both values.
+
+A second stop signal changes nothing, because the server is already stopping.
+The container health check accepts the readiness answer of a server that stops,
+so a normal stop does not mark the container unhealthy. The Compose file gives
+the container more time than the deadline, so Docker never ends a stop that
+still runs.
+
 ## Logs
 
 Structured request logs contain the request ID, method, redacted URL, status, and duration. They do not contain headers, cookies, credentials, request bodies, note text, search text, or query values.

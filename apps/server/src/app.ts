@@ -16,6 +16,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
+import type { ServiceLifecycle } from './lifecycle.ts';
 import {
   configurationProbe,
   createHandlers,
@@ -103,6 +104,13 @@ export type AppOptions = {
   readonly protocols?: readonly ProtocolAdapter[];
   /** Optional custom readiness probes. */
   readonly probes?: readonly ReadinessProbe[];
+  /**
+   * The lifecycle state of the process, which the readiness answer reads.
+   *
+   * `createApp` passes it to the handlers that it builds. A caller that
+   * supplies its own handler map wires the state into that map instead.
+   */
+  readonly lifecycle?: ServiceLifecycle;
   /** Custom web assets directory or null to disable web asset serving. */
   readonly webDist?: string | null;
 };
@@ -388,6 +396,9 @@ export async function createApp(
         store: identity,
         content,
         attachments,
+        ...(options?.lifecycle === undefined
+          ? {}
+          : { lifecycle: options.lifecycle }),
       }),
       ...createSetupHandlers(auth.auth, identity, content),
     },

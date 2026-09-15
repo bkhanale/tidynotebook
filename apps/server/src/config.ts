@@ -89,6 +89,23 @@ export type ServerConfig = {
   readonly mail: MailConfig | null;
   /** Life of one browser session, in seconds. */
   readonly sessionMaxAgeSeconds: number;
+  /**
+   * The stop of this process.
+   *
+   * `gracePeriodMs` is the wait between the moment the readiness answer
+   * reports the stop and the moment the listener closes. A proxy reads that
+   * answer inside the window and sends the next request elsewhere. A
+   * deployment with no proxy in front sets it to zero.
+   *
+   * `deadlineMs` is the whole budget from the stop signal to a forced exit, so
+   * one request that never completes cannot hold the process. It must be
+   * longer than the grace period. The stop of the container platform must
+   * allow at least this much time.
+   */
+  readonly shutdown: {
+    readonly gracePeriodMs: number;
+    readonly deadlineMs: number;
+  };
 };
 
 /** Startup failure that names every rejected configuration entry. */
@@ -129,6 +146,8 @@ const optionalVariables = [
   'NOTESAPP_SESSION_MAX_AGE_S',
   'NOTESAPP_RATE_LIMIT_WINDOW_S',
   'NOTESAPP_RATE_LIMIT_MAX',
+  'NOTESAPP_SHUTDOWN_GRACE_MS',
+  'NOTESAPP_SHUTDOWN_DEADLINE_MS',
 ] as const;
 
 const protectedFiles = {
@@ -175,6 +194,22 @@ export async function loadProtectedEnvironment(
 }
 
 const positiveInteger = { type: 'string', pattern: '^[1-9][0-9]{0,9}$' };
+// A grace period of zero is a stated choice: the deployment has no proxy in
+// front, so nothing has to observe the readiness answer before the listener
+// closes.
+const wholeNumber = { type: 'string', pattern: '^(0|[1-9][0-9]{0,9})$' };
+
+/**
+ * The stop of a deployment that names no value of its own.
+ *
+ * Five seconds covers the readiness interval of a common reverse proxy, so the
+ * proxy reads the stop before the listener closes. Twenty seconds is longer
+ * than the request timeout of this server, so a request that obeys that
+ * timeout always completes inside the budget. Both values stay well inside the
+ * stop period that `docker-compose.yml` gives the container.
+ */
+const defaultShutdownGraceMs = 5000;
+const defaultShutdownDeadlineMs = 20000;
 
 /**
  * Values that this release does not read.
@@ -231,6 +266,8 @@ const configSchema: SchemaObject = {
     NOTESAPP_SESSION_MAX_AGE_S: positiveInteger,
     NOTESAPP_RATE_LIMIT_WINDOW_S: positiveInteger,
     NOTESAPP_RATE_LIMIT_MAX: positiveInteger,
+    NOTESAPP_SHUTDOWN_GRACE_MS: wholeNumber,
+    NOTESAPP_SHUTDOWN_DEADLINE_MS: positiveInteger,
   },
 };
 
@@ -276,7 +313,21 @@ export function loadServerConfig(
     throw new ConfigError([
       'NOTESAPP_ORIGIN: name the origin of this installation.',
     ]);
+  const shutdown = {
+    gracePeriodMs:
+      raw.NOTESAPP_SHUTDOWN_GRACE_MS === undefined
+        ? defaultShutdownGraceMs
+        : Number(raw.NOTESAPP_SHUTDOWN_GRACE_MS),
+    deadlineMs:
+      raw.NOTESAPP_SHUTDOWN_DEADLINE_MS === undefined
+        ? defaultShutdownDeadlineMs
+        : Number(raw.NOTESAPP_SHUTDOWN_DEADLINE_MS),
+  };
   const partial: string[] = [];
+  if (shutdown.deadlineMs <= shutdown.gracePeriodMs)
+    partial.push(
+      'NOTESAPP_SHUTDOWN_DEADLINE_MS: the stop deadline must be longer than NOTESAPP_SHUTDOWN_GRACE_MS.',
+    );
   if (mail !== null && mail.from === '')
     partial.push(
       'NOTESAPP_MAIL_FROM: a mail transport also needs a sender address.',
@@ -316,5 +367,6 @@ export function loadServerConfig(
       raw.NOTESAPP_SESSION_MAX_AGE_S === undefined
         ? 60 * 60 * 24 * 7
         : Number(raw.NOTESAPP_SESSION_MAX_AGE_S),
+    shutdown,
   };
 }

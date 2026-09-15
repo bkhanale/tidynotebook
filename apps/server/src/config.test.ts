@@ -74,6 +74,44 @@ await test('a mail transport needs a sender address', () => {
   assert.equal(loadServerConfig(valid).mail, null);
 });
 
+await test('the stop of the server has a default and takes a named value', () => {
+  assert.deepEqual(loadServerConfig(valid).shutdown, {
+    gracePeriodMs: 5000,
+    deadlineMs: 20000,
+  });
+  // A deployment with no proxy in front reports the stop and closes at once.
+  assert.deepEqual(
+    loadServerConfig(
+      environment({
+        NOTESAPP_SHUTDOWN_GRACE_MS: '0',
+        NOTESAPP_SHUTDOWN_DEADLINE_MS: '9000',
+      }),
+    ).shutdown,
+    { gracePeriodMs: 0, deadlineMs: 9000 },
+  );
+});
+
+await test('the stop deadline must be longer than the grace period', () => {
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_SHUTDOWN_GRACE_MS: '9000',
+          NOTESAPP_SHUTDOWN_DEADLINE_MS: '9000',
+        }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) =>
+        issue.includes('NOTESAPP_SHUTDOWN_DEADLINE_MS'),
+      ),
+  );
+  assert.throws(
+    () => loadServerConfig(environment({ NOTESAPP_SHUTDOWN_GRACE_MS: '-1' })),
+    (error: unknown) => error instanceof ConfigError,
+  );
+});
+
 await test('the session lifetime has a safe default', () => {
   assert.equal(loadServerConfig(valid).sessionMaxAgeSeconds, 604800);
 });

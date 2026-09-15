@@ -3,6 +3,12 @@
  *
  * It asks the local listener for readiness. The Host header names the host of
  * the configured origin, because the deployment answers that host only.
+ *
+ * A container that stops on purpose is not a container to replace. The server
+ * reports that it is not ready as the first step of its stop, so this check
+ * accepts that one answer and fails on every other refusal. Without that, a
+ * normal stop would mark the container unhealthy and a platform that replaces
+ * an unhealthy container would act on a container that is already leaving.
  */
 import http from 'node:http';
 
@@ -17,12 +23,42 @@ try {
   process.exit(1);
 }
 
+/**
+ * Whether a refusal body reports the stop of the server.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function stopping(text) {
+  /** @type {unknown} */
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body))
+    return false;
+  return Object.fromEntries(Object.entries(body))['code'] === 'shutting_down';
+}
+
 const request = http.request(
   { host: '127.0.0.1', port, path: '/ready', method: 'GET', headers: { host } },
   (response) => {
-    response.resume();
+    response.setEncoding('utf8');
+    let text = '';
+    // The readiness body is a small report or a small problem. The check reads
+    // at most one kilobyte of it and never prints it.
+    response.on('data', (chunk) => {
+      if (text.length < 1024) text += chunk;
+    });
     response.on('end', () => {
-      process.exit(response.statusCode === 200 ? 0 : 1);
+      if (response.statusCode === 200) process.exit(0);
+      if (response.statusCode === 503 && stopping(text)) {
+        process.stdout.write('notesapp: the server is stopping.\n');
+        process.exit(0);
+      }
+      process.exit(1);
     });
   },
 );
