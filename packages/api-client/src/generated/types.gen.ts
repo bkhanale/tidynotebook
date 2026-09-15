@@ -2282,6 +2282,10 @@ export type UploadAttachmentErrors = {
      */
     404: ProblemDetails;
     /**
+     * The request body stopped arriving before the operation could read all of it, so the operation did nothing.
+     */
+    408: ProblemDetails;
+    /**
      * The request body is larger than the configured limit.
      */
     413: ProblemDetails;

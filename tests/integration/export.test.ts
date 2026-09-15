@@ -235,6 +235,25 @@ await test('one note is exported as a Markdown file with its name', async () => 
   assert.equal(answer.data, text);
 });
 
+await test('a hostile note name reaches the header encoded', async () => {
+  // The export path and the attachment path share one encoder. A quote and a
+  // semicolon cannot end the field or start a second one, and an apostrophe and
+  // a bracket are encoded, because neither is a character that RFC 8187 carries
+  // unencoded in an extended value.
+  const name = `report "final";it${String.fromCharCode(39)}s (v2).md`;
+  const note = await newNote(`plans/${name}`, '# Report\n');
+  const answer = await exportNote({
+    headers: browser(cookie),
+    path: { workspaceId, fileId: note.fileId },
+  });
+  const response = responseOf(answer.response);
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get('content-disposition'),
+    `attachment; filename="report _final_;it${String.fromCharCode(39)}s (v2).md"; filename*=UTF-8''report%20%22final%22%3Bit%27s%20%28v2%29.md`,
+  );
+});
+
 await test('a deleted note cannot be exported', async () => {
   const note = await newNote('plans/gone.md', '# Gone\n');
   const removed = await deleteFile({

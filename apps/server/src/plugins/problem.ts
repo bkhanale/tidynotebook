@@ -22,6 +22,7 @@ export type ProblemCode =
   | 'host_not_allowed'
   | 'payload_too_large'
   | 'unsupported_media_type'
+  | 'request_timeout'
   | 'unauthenticated'
   | 'forbidden'
   | 'origin_required'
@@ -63,6 +64,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   host_not_allowed: 'The Host header is not served by this deployment.',
   payload_too_large: 'The request body is larger than the configured limit.',
   unsupported_media_type: 'The request media type is not supported.',
+  request_timeout: 'The request body stopped before it was complete.',
   unauthenticated: 'The request carries no usable session or token.',
   forbidden: 'The actor may not perform this operation.',
   origin_required:
@@ -175,6 +177,20 @@ export class PayloadTooLargeError extends Error {
   constructor(detail = titles.payload_too_large) {
     super(detail);
     this.name = 'PayloadTooLargeError';
+  }
+}
+
+/**
+ * A request body that stopped arriving.
+ *
+ * A route that reads a streamed body bounds the gap between two chunks. The
+ * bound is not a bound on the whole body, because a large file over a slow
+ * link is not a fault. See `plugins/body-idle-timeout.ts`.
+ */
+export class RequestTimeoutError extends Error {
+  constructor(detail = titles.request_timeout) {
+    super(detail);
+    this.name = 'RequestTimeoutError';
   }
 }
 
@@ -432,6 +448,13 @@ export function classifyError(error: unknown): {
     return {
       status: 413,
       code: 'payload_too_large',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof RequestTimeoutError)
+    return {
+      status: 408,
+      code: 'request_timeout',
       detail: error.message,
       issues: [],
     };

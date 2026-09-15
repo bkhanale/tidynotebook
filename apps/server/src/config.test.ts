@@ -12,7 +12,7 @@ const valid: Record<string, string> = {
   NOTESAPP_LOG_LEVEL: 'warn',
   NOTESAPP_MAX_BODY_BYTES: '1048576',
   NOTESAPP_MAX_HEADER_BYTES: '16384',
-  NOTESAPP_REQUEST_TIMEOUT_MS: '5000',
+  NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
 };
 
 /** @param overrides values that replace or remove an entry. */
@@ -29,7 +29,8 @@ await test('a complete environment produces a configuration', () => {
   assert.equal(config.logLevel, 'warn');
   assert.equal(config.limits.bodyBytes, 1048576);
   assert.equal(config.limits.headerBytes, 16384);
-  assert.equal(config.limits.requestTimeoutMs, 5000);
+  assert.equal(config.limits.requestTimeoutMs, 60000);
+  assert.equal(config.limits.uploadIdleTimeoutMs, 10000);
   assert.deepEqual(config.rateLimit, { windowSeconds: 60, max: 100 });
 });
 
@@ -109,6 +110,44 @@ await test('the stop deadline must be longer than the grace period', () => {
   assert.throws(
     () => loadServerConfig(environment({ NOTESAPP_SHUTDOWN_GRACE_MS: '-1' })),
     (error: unknown) => error instanceof ConfigError,
+  );
+});
+
+await test('the upload idle bound takes the configured value', () => {
+  assert.equal(
+    loadServerConfig(environment({ NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: '2500' }))
+      .limits.uploadIdleTimeoutMs,
+    2500,
+  );
+});
+
+await test('the upload idle bound must be shorter than the request bound', () => {
+  // An idle bound that is not shorter never applies, because the request
+  // bound covers the whole body and always fires first.
+  for (const value of ['60000', '90000']) {
+    assert.throws(
+      () =>
+        loadServerConfig(
+          environment({ NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: value }),
+        ),
+      (error: unknown) =>
+        error instanceof ConfigError &&
+        error.issues.some((issue) =>
+          issue.includes('NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS'),
+        ),
+      value,
+    );
+  }
+  // The shipped default of the idle bound also has to fit a short request
+  // bound, so a deployment that shortens one must state the other.
+  assert.throws(
+    () =>
+      loadServerConfig(environment({ NOTESAPP_REQUEST_TIMEOUT_MS: '5000' })),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) =>
+        issue.includes('NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS'),
+      ),
   );
 });
 

@@ -128,6 +128,8 @@ export function testEnvironment(storageRoot: string): Record<string, string> {
     NOTESAPP_MAX_BODY_BYTES: '1024',
     NOTESAPP_MAX_HEADER_BYTES: '16384',
     NOTESAPP_REQUEST_TIMEOUT_MS: '5000',
+    // The idle bound of an upload must stay shorter than the request bound.
+    NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: '2000',
   };
 }
 

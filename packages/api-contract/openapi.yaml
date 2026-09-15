@@ -192,6 +192,8 @@ components:
       $ref: './components/responses/NotFound.yaml'
     PayloadTooLarge:
       $ref: './components/responses/PayloadTooLarge.yaml'
+    RequestTimeout:
+      $ref: './components/responses/RequestTimeout.yaml'
     UnsupportedMediaType:
       $ref: './components/responses/UnsupportedMediaType.yaml'
     RateLimited:

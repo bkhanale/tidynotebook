@@ -75,6 +75,24 @@ Every failure is an RFC 9457 problem document with a stable application code.
 The client normalizes a transport failure into the same shape, so a caller
 always branches on the code and never on a message.
 
+## Limits and timing
+
+A request carries three bounds. The body size limit and the total receive time
+belong to the whole deployment, and one route can narrow the body size. The
+attachment upload adds the bound that a streamed body needs: the longest gap
+between two of its chunks. A large image over a slow link is not an attack, so
+the upload measures the gap and not the whole. An upload that passes the gap
+answers with the `request_timeout` code and stores nothing. The total receive
+time stays longer than that gap, and `apps/server/src/config.ts` refuses a
+configuration where it does not. `apps/server/src/plugins/body-idle-timeout.ts`
+holds the rule.
+
+A download names its file.
+`apps/server/src/plugins/content-disposition.ts` decides what the browser does
+with the bytes and encodes the name that the person gave the file. An image of
+an accepted type is shown, because the note surface and the reader page point a
+browser at that address. Every other media type is saved.
+
 ## Logging
 
 A log record names the operation, the status, and the request identifier. It

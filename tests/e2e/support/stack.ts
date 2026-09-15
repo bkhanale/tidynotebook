@@ -101,6 +101,7 @@ export async function startE2EStack(
       NOTESAPP_MAX_BODY_BYTES: String(25 * 1024 * 1024),
       NOTESAPP_MAX_HEADER_BYTES: '16384',
       NOTESAPP_REQUEST_TIMEOUT_MS: '10000',
+      NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: '5000',
     });
   let app: Awaited<ReturnType<typeof createApp>> | null = null;
   try {

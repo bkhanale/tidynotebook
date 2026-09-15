@@ -63,6 +63,18 @@ import { createServerLogger, errorName } from './logging.ts';
  */
 const requestIdPattern = /^[A-Za-z0-9._-]{1,128}$/;
 
+/**
+ * The longest wait for the request line and the headers of one request.
+ *
+ * The total receive bound of `config.limits.requestTimeoutMs` covers the whole
+ * request, so it has to be long enough for the largest upload body. The
+ * headers of every operation fit in one packet, so they keep a short bound of
+ * their own and a sender that trickles a header list reaches nothing. Node
+ * refuses a header bound that is longer than the request bound, so the smaller
+ * of the two wins.
+ */
+const maxHeadersTimeoutMs = 10000;
+
 /** The caller's correlation id when it is usable, otherwise a new UUID. */
 export function requestId(supplied: unknown): string {
   return typeof supplied === 'string' && requestIdPattern.test(supplied)
@@ -158,7 +170,13 @@ export async function createAppWithHandlers(
     requestTimeout: config.limits.requestTimeoutMs,
     // Fastify's own header limit is a server option, so it is applied here
     // rather than per route.
-    http: { maxHeaderSize: config.limits.headerBytes },
+    http: {
+      maxHeaderSize: config.limits.headerBytes,
+      headersTimeout: Math.min(
+        maxHeadersTimeoutMs,
+        config.limits.requestTimeoutMs,
+      ),
+    },
     genReqId: (request) => requestId(request.headers['x-request-id']),
     disableRequestLogging: true,
   });

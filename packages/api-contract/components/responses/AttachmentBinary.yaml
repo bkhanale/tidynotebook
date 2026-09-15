@@ -1,4 +1,12 @@
 description: Binary bytes of the immutable attachment.
+headers:
+  content-disposition:
+    description: >-
+      Names the file and states what the client does with the bytes. An image
+      of an accepted type is shown, and every other type is saved.
+    schema:
+      type: string
+      maxLength: 1024
 content:
   image/png:
     schema:

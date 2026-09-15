@@ -98,6 +98,7 @@ export function createHandlers(
     ...createAttachmentHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
+      config.limits.uploadIdleTimeoutMs,
     ),
     ...createExportHandlers(
       dependencies.content ?? missingWorkspaceStore(),

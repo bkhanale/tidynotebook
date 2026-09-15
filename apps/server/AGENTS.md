@@ -9,8 +9,9 @@ authentication routes on one origin. It holds no domain rule.
 ## What lives here and what does not
 
 - `src/plugins/` holds one cross-cutting Fastify concern per file and no business
-  resource: `register.ts` (contract routes and boundary validation), `problem.ts` (RFC
-  9457 body), `security-headers.ts`, `static-assets.ts`, `host.ts`.
+  resource: `register.ts` (contract routes and validation), `problem.ts` (RFC 9457
+  body), `security-headers.ts`, `static-assets.ts`, `host.ts`, `content-disposition.ts`
+  (the name and the kind of a download), and `body-idle-timeout.ts` (the idle bound).
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns one
   handler per operation id, the body lives in its area file, and `health.ts` holds
   liveness, readiness, and the probes.
@@ -36,17 +37,16 @@ and Node only packages such as `fastify`, `pg`, and `sharp`.
   start it from `src/app.ts`. A job takes the store as an argument, so a test can drive
   it. Close every resource in the `onClose` hook, which the drain runs.
 - **A readiness check.** Add the probe in `src/routes/health.ts` and list it in
-  `src/app.ts`. A stop answers first, and a database probe reads a pool the application
-  owns (record 0041).
+  `src/app.ts`. A stop answers first, and a database probe reads a served pool (0041).
 
 ## Testing conventions here
 
-`node --test` through `pnpm test:unit` for a pure module, for example `config.ts`,
-`lifecycle.ts`, or `routes/health.ts`. A test that needs a database or a listening
-server is an integration test under `tests/integration/`, against the real PostgreSQL
-service. A handler test proves the status, the media type, the body, and the failure
-code. A request that no generated operation can express, such as a forged Host header,
-uses `app.inject()`.
+`node --test` through `pnpm test:unit` for a pure module, for example `config.ts` or
+`plugins/content-disposition.ts`. A test that needs a database or a listening server is
+an integration test under `tests/integration/`, against the real PostgreSQL service. A
+handler test proves the status, the media type, the body, and the failure code. A
+request that no generated operation can express, such as a forged Host header or a body
+that arrives in pieces, uses `app.inject()`.
 
 ## Forbidden here
 

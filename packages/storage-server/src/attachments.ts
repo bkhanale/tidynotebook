@@ -63,6 +63,10 @@ export type AttachmentStore = {
 
   /**
    * Reads the binary content and metadata of an accepted attachment revision.
+   *
+   * `path` is the stored path of the revision. Its last segment is the name
+   * that the person gave the file, which the download names in its
+   * `Content-Disposition` header.
    */
   readAttachmentRevision(
     actor: Actor,
@@ -74,6 +78,7 @@ export type AttachmentStore = {
     readonly mediaType: AttachmentMediaType;
     readonly digest: string;
     readonly revisionId: string;
+    readonly path: string;
   } | null>;
 
   /**
@@ -412,10 +417,12 @@ export function openAttachmentStore(
       readonly mediaType: AttachmentMediaType;
       readonly digest: string;
       readonly revisionId: string;
+      readonly path: string;
     } | null> {
       return withClient(actor, workspaceId, async (client) => {
         const query = `
           SELECT r.id AS revision_id, r.deleted, r.content_digest AS digest,
+                 r.path,
                  c.size, c.object_id,
                  ao.media_type, ao.state
           FROM revisions r
@@ -427,6 +434,7 @@ export function openAttachmentStore(
           revision_id: string;
           deleted: boolean;
           digest: string;
+          path: string;
           size: string;
           object_id: string;
           media_type: string;
@@ -452,6 +460,7 @@ export function openAttachmentStore(
           mediaType: storedMediaType(row.media_type),
           digest: row.digest,
           revisionId: row.revision_id,
+          path: row.path,
         };
       });
     },

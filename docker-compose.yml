@@ -58,7 +58,14 @@ services:
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}
-      NOTESAPP_REQUEST_TIMEOUT_MS: ${NOTESAPP_REQUEST_TIMEOUT_MS:-5000}
+      # The whole request must arrive inside this time, and that includes the
+      # body of an image upload over a slow link. The bound that refuses a
+      # sender which delivers almost nothing is the idle bound below.
+      NOTESAPP_REQUEST_TIMEOUT_MS: ${NOTESAPP_REQUEST_TIMEOUT_MS:-60000}
+      # The longest gap between two chunks of an upload body. It must stay
+      # shorter than NOTESAPP_REQUEST_TIMEOUT_MS. An empty value keeps the
+      # default that apps/server/src/config.ts states.
+      NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: ${NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS:-}
       NOTESAPP_RATE_LIMIT_WINDOW_S: ${NOTESAPP_RATE_LIMIT_WINDOW_S:-60}
       NOTESAPP_RATE_LIMIT_MAX: ${NOTESAPP_RATE_LIMIT_MAX:-100}
       NOTESAPP_HOST: 0.0.0.0

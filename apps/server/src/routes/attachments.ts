@@ -2,6 +2,15 @@
  * Attachment HTTP handlers.
  *
  * Implements uploadAttachment, finalizeAttachment, and getAttachmentRevision.
+ *
+ * The upload reads a streamed body, so it carries two bounds that the rest of
+ * the boundary does not: the byte bound of `maxAttachmentBytes`, and the idle
+ * bound of `plugins/body-idle-timeout.ts`, which refuses a sender that holds
+ * the connection while it delivers almost nothing.
+ *
+ * The download names its file. `plugins/content-disposition.ts` decides what
+ * the browser does with the bytes and encodes the name that the person gave
+ * the file, so no name can reach the header field unencoded.
  */
 import { createHash, randomUUID } from 'node:crypto';
 import { createWriteStream, existsSync } from 'node:fs';
@@ -20,6 +29,12 @@ import {
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { inspectImage } from '../jobs/inspect-image.ts';
+import { watchBodyIdle } from '../plugins/body-idle-timeout.ts';
+import {
+  contentDisposition,
+  dispositionKind,
+  downloadName,
+} from '../plugins/content-disposition.ts';
 import {
   answerAccepted,
   header,
@@ -35,16 +50,26 @@ import {
   PayloadTooLargeError,
   PreconditionRequiredError,
   RequestContractError,
+  RequestTimeoutError,
   UnsupportedMediaTypeError,
 } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 
 const maxAttachmentBytes = 20 * 1024 * 1024;
 
-/** Builds the attachment operation handlers. */
+/** The name of a download whose stored path holds none. */
+const fallbackAttachmentName = 'image';
+
+/**
+ * Builds the attachment operation handlers.
+ *
+ * @param uploadIdleTimeoutMs the longest gap between two chunks of an upload
+ * body, from `config.limits.uploadIdleTimeoutMs`.
+ */
 export function createAttachmentHandlers(
   workspaceStore: WorkspaceStore,
   attachmentStore: AttachmentStore,
+  uploadIdleTimeoutMs: number,
 ): HandlerMap {
   return {
     uploadAttachment: async (request): Promise<HandlerResult> => {
@@ -66,6 +91,13 @@ export function createAttachmentHandlers(
       let declaredMimeType = '';
       let fileReceived = false;
       let streamError: Error | null = null;
+      /**
+       * Stops the write of the file part, once one is open.
+       *
+       * The idle bound below needs it. A body that stopped arriving must not
+       * leave an open writer on a file that the failure path already removed.
+       */
+      let stopFilePart: ((failure: Error) => void) | null = null;
       let writeFinishedResolve: () => void;
       let writeFinishedReject: (err: Error) => void;
       const writeFinished = new Promise<void>((resolve, reject) => {
@@ -128,6 +160,7 @@ export function createAttachmentHandlers(
             out.destroy();
             fileStream.resume();
           };
+          stopFilePart = stopWriting;
 
           fileStream.on('data', (chunk: Buffer) => {
             bytesCount += chunk.length;
@@ -169,6 +202,11 @@ export function createAttachmentHandlers(
 
       const parseFinished = new Promise<void>((resolve, reject) => {
         bb.on('finish', () => {
+          // No file part means no writer was ever opened, so nothing else can
+          // settle the write promise. Without this the request would wait for
+          // a stream that does not exist and hold its slot until the peer
+          // gave up.
+          if (!fileReceived) writeFinishedResolve();
           resolve();
         });
         bb.on('error', (err: unknown) => {
@@ -180,16 +218,42 @@ export function createAttachmentHandlers(
         });
       });
 
+      // The bound is armed after the pipe, so no chunk of the body is lost to
+      // the watch, and it is stopped in every exit of the read below.
+      let idleReject: (error: Error) => void = () => {};
+      const idle = new Promise<never>((_resolve, reject) => {
+        idleReject = reject;
+      });
+      request.raw.pipe(bb);
+      const watch = watchBodyIdle({
+        body: request.raw,
+        idleMs: uploadIdleTimeoutMs,
+        onIdle: () => {
+          const failure = new RequestTimeoutError(
+            'The upload stopped. Send the image again.',
+          );
+          stopFilePart?.(failure);
+          streamError ??= failure;
+          idleReject(failure);
+        },
+      });
+
       try {
-        request.raw.pipe(bb);
-        await parseFinished;
-        await writeFinished;
+        await Promise.race([
+          (async (): Promise<void> => {
+            await parseFinished;
+            await writeFinished;
+          })(),
+          idle,
+        ]);
       } catch (err: unknown) {
         if (existsSync(tmpPath)) {
           await unlink(tmpPath).catch(() => {});
         }
         if (streamError) throw streamError;
         throw err;
+      } finally {
+        watch.stop();
       }
 
       if (streamError) {
@@ -399,6 +463,16 @@ export function createAttachmentHandlers(
         status: 200,
         mediaType: result.mediaType,
         body: result.stream,
+        headers: [
+          [
+            'content-disposition',
+            contentDisposition({
+              kind: dispositionKind(result.mediaType),
+              name: downloadName(result.path),
+              fallback: fallbackAttachmentName,
+            }),
+          ],
+        ],
       };
     },
   };

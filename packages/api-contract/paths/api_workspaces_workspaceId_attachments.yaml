@@ -23,6 +23,8 @@ post:
       $ref: '../components/responses/Forbidden.yaml'
     '404':
       $ref: '../components/responses/NotFound.yaml'
+    '408':
+      $ref: '../components/responses/RequestTimeout.yaml'
     '413':
       $ref: '../components/responses/PayloadTooLarge.yaml'
     '415':

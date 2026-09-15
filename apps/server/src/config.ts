@@ -73,7 +73,26 @@ export type ServerConfig = {
   readonly limits: {
     readonly bodyBytes: number;
     readonly headerBytes: number;
+    /**
+     * The total receive bound of every request.
+     *
+     * The Node HTTP server owns it, and it cannot hold one value per route.
+     * It must therefore cover the largest declared body of any route, which
+     * is the attachment upload, at a modest rate over a slow link. The two
+     * bounds that stay tight are the header bound of `app.ts` and
+     * `uploadIdleTimeoutMs` below.
+     */
     readonly requestTimeoutMs: number;
+    /**
+     * The longest gap between two chunks of an upload body.
+     *
+     * A large file over a slow link is not an attack, so the upload route
+     * bounds idle time instead of total time. It must stay shorter than
+     * `requestTimeoutMs`, or the total bound always fires first and the
+     * caller reads the bare answer of the framework instead of a problem
+     * body. `plugins/body-idle-timeout.ts` holds the rule.
+     */
+    readonly uploadIdleTimeoutMs: number;
   };
   /** Attempt limit for the public setup and authentication routes. */
   readonly rateLimit: {
@@ -148,6 +167,7 @@ const optionalVariables = [
   'NOTESAPP_RATE_LIMIT_MAX',
   'NOTESAPP_SHUTDOWN_GRACE_MS',
   'NOTESAPP_SHUTDOWN_DEADLINE_MS',
+  'NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS',
 ] as const;
 
 const protectedFiles = {
@@ -204,12 +224,25 @@ const wholeNumber = { type: 'string', pattern: '^(0|[1-9][0-9]{0,9})$' };
  *
  * Five seconds covers the readiness interval of a common reverse proxy, so the
  * proxy reads the stop before the listener closes. Twenty seconds is longer
- * than the request timeout of this server, so a request that obeys that
- * timeout always completes inside the budget. Both values stay well inside the
- * stop period that `docker-compose.yml` gives the container.
+ * than the grace period plus the idle bound of an upload, so a stop never ends
+ * before the upload route itself would have refused a body that stopped
+ * arriving. A body that is still arriving can meet the deadline, because a
+ * deadline is what bounds the stop. Both values stay well inside the stop
+ * period that `docker-compose.yml` gives the container.
  */
 const defaultShutdownGraceMs = 5000;
 const defaultShutdownDeadlineMs = 20000;
+
+/**
+ * The idle bound of an upload that names no value of its own.
+ *
+ * Ten seconds with no byte of the body is far longer than any pause of a
+ * working connection and far shorter than the patience of a sender that
+ * delivers almost nothing. It also keeps the stop coherent: the grace period
+ * plus this bound stays inside the stop deadline, so a drain never ends before
+ * the upload route itself would have refused.
+ */
+const defaultUploadIdleTimeoutMs = 10000;
 
 /**
  * Values that this release does not read.
@@ -268,6 +301,7 @@ const configSchema: SchemaObject = {
     NOTESAPP_RATE_LIMIT_MAX: positiveInteger,
     NOTESAPP_SHUTDOWN_GRACE_MS: wholeNumber,
     NOTESAPP_SHUTDOWN_DEADLINE_MS: positiveInteger,
+    NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: positiveInteger,
   },
 };
 
@@ -332,6 +366,15 @@ export function loadServerConfig(
     partial.push(
       'NOTESAPP_MAIL_FROM: a mail transport also needs a sender address.',
     );
+  const requestTimeoutMs = Number(raw.NOTESAPP_REQUEST_TIMEOUT_MS);
+  const uploadIdleTimeoutMs =
+    raw.NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS === undefined
+      ? defaultUploadIdleTimeoutMs
+      : Number(raw.NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS);
+  if (uploadIdleTimeoutMs >= requestTimeoutMs)
+    partial.push(
+      'NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: the idle bound of an upload must be shorter than NOTESAPP_REQUEST_TIMEOUT_MS. The request bound covers the whole body, so an idle bound that is not shorter never applies.',
+    );
   if (raw.NOTESAPP_AUTH_DATABASE_URL === raw.NOTESAPP_DATABASE_URL)
     partial.push(
       'NOTESAPP_AUTH_DATABASE_URL: the identity connection must use its own role, not the runtime role.',
@@ -350,7 +393,8 @@ export function loadServerConfig(
     limits: {
       bodyBytes: Number(raw.NOTESAPP_MAX_BODY_BYTES),
       headerBytes: Number(raw.NOTESAPP_MAX_HEADER_BYTES),
-      requestTimeoutMs: Number(raw.NOTESAPP_REQUEST_TIMEOUT_MS),
+      requestTimeoutMs,
+      uploadIdleTimeoutMs,
     },
     rateLimit: {
       windowSeconds:

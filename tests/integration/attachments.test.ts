@@ -9,6 +9,7 @@
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { PassThrough } from 'node:stream';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -103,6 +104,9 @@ const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
   poolSize: 4,
 });
 
+/** The idle bound of an upload body on this test deployment. */
+const uploadIdleTimeoutMs = 1500;
+
 /** The environment of this test deployment. */
 function environment(): Record<string, string> {
   return {
@@ -116,6 +120,9 @@ function environment(): Record<string, string> {
     NOTESAPP_MAX_BODY_BYTES: '8388608',
     NOTESAPP_MAX_HEADER_BYTES: '16384',
     NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
+    // Short enough to keep the slow upload test quick, and far longer than
+    // the gap between two chunks of any other upload in this file.
+    NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: String(uploadIdleTimeoutMs),
   };
 }
 
@@ -1449,6 +1456,161 @@ await test('a stored media type the domain refuses stops the read', async () => 
       return true;
     },
   );
+});
+
+await test('a download names its file and states what to do with it', async () => {
+  // The stored name holds a quote, a semicolon, and characters outside ASCII.
+  // A path cannot hold a control character, because `normalizePath` refuses
+  // one, so the header encoder is the second of two layers here.
+  const storedName = 'résumé "quote";drop.png';
+  const bytes = await uniquePng(160, 170, 180);
+  const uploaded = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { file: new File([bytes], 'upload.png', { type: 'image/png' }) },
+  });
+  assert.equal(responseOf(uploaded.response).status, 201);
+  assert.ok(uploaded.data);
+
+  const revisionId = randomUUID();
+  const finalized = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: uploaded.data.objectId },
+    body: {
+      fileId: randomUUID(),
+      revisionId,
+      path: `assets/${storedName}`,
+      digest: uploaded.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(finalized.response).status, 200);
+
+  const read = await getAttachmentRevision({
+    headers: browser(cookie),
+    path: { workspaceId, revisionId },
+  });
+  const answer = responseOf(read.response);
+  assert.equal(answer.status, 200);
+  // An image of an accepted type is shown, so the note surface and a later
+  // reader page can point a browser straight at this address.
+  assert.equal(
+    answer.headers.get('content-disposition'),
+    `inline; filename="r_sum_ _quote_;drop.png"; filename*=UTF-8''r%C3%A9sum%C3%A9%20%22quote%22%3Bdrop.png`,
+  );
+  // One header, not two. A second field would join with a comma here, and a
+  // split answer would carry a header that nothing declared.
+  assert.equal(
+    [...answer.headers.keys()].filter((name) => name === 'content-disposition')
+      .length,
+    1,
+  );
+  assert.equal(answer.headers.get('x-content-type-options'), 'nosniff');
+});
+
+await test('a path with a control character never reaches a header', async () => {
+  const bytes = await uniquePng(161, 171, 181);
+  const uploaded = await uploadAttachment({
+    headers: browser(cookie),
+    path: { workspaceId },
+    body: { file: new File([bytes], 'upload.png', { type: 'image/png' }) },
+  });
+  assert.ok(uploaded.data);
+  const finalized = await finalizeAttachment({
+    headers: browser(cookie),
+    path: { workspaceId, objectId: uploaded.data.objectId },
+    body: {
+      fileId: randomUUID(),
+      revisionId: randomUUID(),
+      path: `assets/split${String.fromCharCode(13)}${String.fromCharCode(10)}evil.png`,
+      digest: uploaded.data.digest,
+      ...mutationIds(),
+    },
+  });
+  assert.equal(responseOf(finalized.response).status, 422);
+  assert.equal(problemCode(finalized.error), 'invalid_path');
+});
+
+/** One multipart boundary of the hand built upload bodies below. */
+const boundary = 'notesappIntegrationBoundary';
+
+/** The head of a multipart body that declares one image file part. */
+function filePartHead(name: string): string {
+  return [
+    `--${boundary}`,
+    `Content-Disposition: form-data; name="file"; filename="${name}"`,
+    'Content-Type: image/png',
+    '',
+    '',
+  ].join('\r\n');
+}
+
+await test('an upload that stops arriving answers with the declared timeout', async () => {
+  // The generated operation cannot express a body that arrives in pieces, so
+  // this drives the real instance through `app.inject`, which is the one
+  // permitted way to send such a request. The body opens a file part, sends a
+  // few bytes, and then says nothing at all.
+  const body = new PassThrough();
+  body.write(filePartHead('slow.png'));
+  body.write(samplePngBytes.subarray(0, 8));
+
+  const started = Date.now();
+  const answer = await server.app.inject({
+    method: 'POST',
+    url: `/api/workspaces/${workspaceId}/attachments`,
+    headers: {
+      ...browser(cookie),
+      'content-type': `multipart/form-data; boundary=${boundary}`,
+    },
+    payload: body,
+  });
+  body.destroy();
+
+  assert.equal(answer.statusCode, 408);
+  assert.equal(
+    answer.headers['content-type'],
+    'application/problem+json; charset=utf-8',
+  );
+  const problem: unknown = JSON.parse(answer.body);
+  assert.equal(readProperty(problem, 'code'), 'request_timeout');
+  assert.equal(readProperty(problem, 'status'), 408);
+  assert.equal(
+    readProperty(problem, 'detail'),
+    'The upload stopped. Send the image again.',
+  );
+  // The answer waits for the bound rather than for a fixed delay, and it
+  // arrives once the bound passes rather than at the request bound of the
+  // whole deployment, which is forty times longer.
+  assert.ok(
+    Date.now() - started >= uploadIdleTimeoutMs,
+    'the answer came before the idle bound',
+  );
+});
+
+await test('an upload with no file part is refused rather than held', async () => {
+  // Every part of this body arrives at once, so nothing here is slow. Before
+  // the fix the request waited for a file stream that was never opened and
+  // held its slot until the caller gave up.
+  const payload = [
+    `--${boundary}`,
+    'Content-Disposition: form-data; name="note"',
+    '',
+    'no file here',
+    `--${boundary}--`,
+    '',
+  ].join('\r\n');
+  const answer = await server.app.inject({
+    method: 'POST',
+    url: `/api/workspaces/${workspaceId}/attachments`,
+    headers: {
+      ...browser(cookie),
+      'content-type': `multipart/form-data; boundary=${boundary}`,
+    },
+    payload,
+  });
+  assert.equal(answer.statusCode, 400);
+  const problem: unknown = JSON.parse(answer.body);
+  assert.equal(readProperty(problem, 'code'), 'invalid_request');
 });
 
 // Teardown

@@ -164,6 +164,7 @@ await test('the server drains on a stop signal and ignores the second one', asyn
     NOTESAPP_MAX_BODY_BYTES: '1048576',
     NOTESAPP_MAX_HEADER_BYTES: '16384',
     NOTESAPP_REQUEST_TIMEOUT_MS: '5000',
+    NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: '2000',
     NOTESAPP_SHUTDOWN_GRACE_MS: String(gracePeriodMs),
     NOTESAPP_SHUTDOWN_DEADLINE_MS: '15000',
   });

@@ -186,6 +186,20 @@ so a normal stop does not mark the container unhealthy. The Compose file gives
 the container more time than the deadline, so Docker never ends a stop that
 still runs.
 
+## Request and upload timing
+
+`NOTESAPP_REQUEST_TIMEOUT_MS` is the time that a whole request has to arrive. It
+covers the body of an image upload, so a large image over a slow link needs a
+value well above a few seconds. Keep the default unless you know the speed of
+every link that reaches the server.
+
+`NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS` is the longest gap between two parts of an
+upload body. An upload that stops for longer than this gap is refused, and the
+person reads a message that asks for the image again. A large image that keeps
+arriving is not refused, because the gap is what this value measures. It must be
+shorter than `NOTESAPP_REQUEST_TIMEOUT_MS`. The server refuses to start when it
+is not, and it names both values. `.env.example` holds both.
+
 ## Logs
 
 Structured request logs contain the request ID, method, redacted URL, status, and duration. They do not contain headers, cookies, credentials, request bodies, note text, search text, or query values.

@@ -20,6 +20,11 @@ import type { AttachmentStore } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { readText } from './files.ts';
 import { DomainProblemError, NotFoundError } from '../plugins/problem.ts';
+import {
+  contentDisposition,
+  dispositionKind,
+  downloadName,
+} from '../plugins/content-disposition.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { zipArchive, type ZipEntry } from './zip.ts';
 
@@ -28,6 +33,9 @@ const markdownMediaType = 'text/markdown';
 
 /** Media type of the whole workspace export. */
 const archiveMediaType = 'application/zip';
+
+/** Download name of the whole workspace export. */
+const archiveName = 'notes.zip';
 
 /** How many files one page of the export listing reads. */
 const exportPageSize = 200;
@@ -39,21 +47,23 @@ function unwrap<T>(result: Result<T>): T {
 }
 
 /**
- * The download name of one note.
+ * The header of one export download.
  *
- * A path holds folders and can hold any character that the path rules permit,
- * so the last segment is taken and every character that a quoted header field
- * cannot carry is replaced. The header also states the name again in UTF-8,
- * because the quoted form is limited to ASCII.
+ * Neither export is an image, so `dispositionKind` answers `attachment` for
+ * both and the browser saves the file. The name is encoded by the one
+ * function of `plugins/content-disposition.ts`, so the export path and the
+ * attachment path cannot drift apart.
  */
-export function contentDisposition(path: string): string {
-  const name = path.slice(path.lastIndexOf('/') + 1);
-  // Every character that a quoted header field cannot carry becomes one
-  // underscore. The pattern matches whole code points, so a character that
-  // needs two units leaves no half behind.
-  const safe = name.replaceAll(/["\\]|[^\u0020-\u007e]/gu, '_');
-  const quoted = safe === '' ? 'note.md' : safe;
-  return `attachment; filename="${quoted}"; filename*=UTF-8''${encodeURIComponent(name)}`;
+function exportDisposition(input: {
+  readonly path: string;
+  readonly mediaType: string;
+  readonly fallback: string;
+}): string {
+  return contentDisposition({
+    kind: dispositionKind(input.mediaType),
+    name: downloadName(input.path),
+    fallback: input.fallback,
+  });
 }
 
 /** The whole content of one readable stream. */
@@ -133,7 +143,16 @@ export function createExportHandlers(
         status: 200,
         mediaType: markdownMediaType,
         body: Buffer.from(text, 'utf8'),
-        headers: [['content-disposition', contentDisposition(found.file.path)]],
+        headers: [
+          [
+            'content-disposition',
+            exportDisposition({
+              path: found.file.path,
+              mediaType: markdownMediaType,
+              fallback: 'note.md',
+            }),
+          ],
+        ],
       };
     },
 
@@ -144,7 +163,14 @@ export function createExportHandlers(
         mediaType: archiveMediaType,
         body: zipArchive(archiveEntries(request, workspaceId)),
         headers: [
-          ['content-disposition', contentDisposition('notes.zip')],
+          [
+            'content-disposition',
+            exportDisposition({
+              path: archiveName,
+              mediaType: archiveMediaType,
+              fallback: archiveName,
+            }),
+          ],
           // The archive is produced while it is sent, so its length is not
           // known when the headers leave.
           ['cache-control', 'no-store'],

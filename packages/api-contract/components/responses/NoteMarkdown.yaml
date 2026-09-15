@@ -6,7 +6,7 @@ headers:
       show it.
     schema:
       type: string
-      maxLength: 512
+      maxLength: 1024
 content:
   text/markdown:
     schema:
