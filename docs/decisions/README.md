@@ -68,6 +68,7 @@ and needs no record.
 | [0036](0036-the-browser-gate-runs-in-parallel-workers.md)      | The browser gate runs in parallel workers                 |
 | [0037](0037-backlinks-are-derived-on-the-device.md)            | Backlinks are derived on the device and merged            |
 | [0038](0038-an-empty-state-is-not-a-failed-read.md)            | An empty state is not a failed read                       |
+| [0039](0039-one-list-of-served-origins.md)                     | One list of served origins                                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -117,4 +118,8 @@ backlink surface that item 3 of
 answer of the device from the note bodies it already holds, so no second index
 enters the browser. Record 0038 splits an empty answer from a failed read
 across every read surface of the web application, because the backlink panel
-reported no inbound link whenever it could not reach the server.
+reported no inbound link whenever it could not reach the server. Record 0039
+gives the deployment one list of served origins, which the operator names as
+full origins, because the cookie write check, the trusted list of the identity
+routes, and the Host allowlist each answered the question from a different
+value.
