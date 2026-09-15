@@ -12,7 +12,9 @@ NotesApp runs as one application service and one PostgreSQL service. The
 application container applies the database migrations and then serves the web
 app, the REST API, and the authentication routes on one origin.
 
-Put an HTTPS reverse proxy in front of `127.0.0.1:3000`. Do not publish the
+Put an HTTPS reverse proxy in front of `127.0.0.1:3000`. The Compose file
+carries an optional profile that starts one for you. Read
+[Behind a reverse proxy](#behind-a-reverse-proxy) below. Do not publish the
 PostgreSQL port. The Compose database network is private. The application uses
 a second network for optional SMTP and other required outbound traffic.
 
@@ -31,6 +33,77 @@ save paths work when a plain HTTP browser does not provide secure-context APIs.
 Some optional browser functions, such as service worker installation and the
 asynchronous clipboard, can still be unavailable on plain HTTP. Use HTTPS for
 a permanent deployment and for full offline installation behavior.
+
+## Behind a reverse proxy
+
+A proxy terminates HTTPS and sends each request to the application. Three
+things belong to you.
+
+**Pass the original `Host` header.** The application answers the host name of
+each origin it serves and refuses every other host. Caddy and Traefik pass the
+header on their own. nginx passes it when you set it.
+
+**Name the proxy.** A proxy replaces the address of the caller with its own,
+and it states the original address in a forwarded header. Any caller that
+reaches the listening port can write that header, so the application believes
+it only from a proxy that you name in `NOTESAPP_TRUSTED_PROXIES`. The value is
+empty by default, which believes no forwarded header at all. Name an IP
+address, a range in CIDR form, or one of `loopback`, `linklocal` and
+`uniquelocal`, and separate two entries with a comma. The attempt limits of the
+setup screen and the sign-in screen count each client only when this value
+names your proxy. Without it every client behind the proxy shares one count.
+
+A range such as `uniquelocal` covers every private address, so name a range
+only when the proxy is the one caller that reaches the listening port. Keep
+`NOTESAPP_BIND_HOST` on the loopback address, and prefer the address of the
+proxy itself when you know it.
+
+**Name the listening port when your origin carries one.** `NOTESAPP_ORIGIN` is
+the public address, and `NOTESAPP_PORT` is the port that the server listens on.
+The two are different addresses when a proxy publishes the installation on
+another port. A server that starts with a port in the origin and no
+`NOTESAPP_PORT` stops and names the value to set. The Compose file and the
+image both set it already.
+
+### The TLS profile
+
+The Compose file holds an optional Caddy service in the `tls` profile. It
+terminates HTTPS, gets the certificate on its own, passes the original `Host`,
+and adds the forwarded headers. `docker/Caddyfile` is its whole configuration.
+A default `docker compose up` does not start it.
+
+Name the domain and the trusted proxy in `.env`, then start the profile:
+
+```bash
+NOTESAPP_DOMAIN=notes.example.com
+NOTESAPP_ORIGIN=https://notes.example.com
+NOTESAPP_TRUSTED_PROXIES=uniquelocal
+NOTESAPP_TLS_DIR=/srv/notesapp/tls
+```
+
+```bash
+docker compose --profile tls up -d
+docker compose --profile tls ps
+```
+
+The domain must resolve to this host, and ports 80 and 443 must reach it, so
+that the certificate authority can answer the challenge. Caddy writes the
+certificate and its private key under `NOTESAPP_TLS_DIR`, so put that directory
+on encrypted host storage with the other data directories.
+
+With no `NOTESAPP_DOMAIN` the proxy answers `localhost` with a certificate that
+it makes itself. That serves a check on your own machine and nothing else,
+because no browser trusts that certificate.
+
+Stop the profile with the profile name, so that the proxy stops as well:
+
+```bash
+docker compose --profile tls down
+```
+
+The proxy does not read the readiness answer of the application. With one
+application container a stop is short, and the proxy reports a failure until
+the container serves again.
 
 ## Host requirements
 
@@ -162,8 +235,7 @@ result.
 The deployment answers the host name of each origin it serves, so the container
 health check sends the host name of the origin. A request that names another
 host is refused. Your reverse proxy must pass the original `Host` header to the
-application, which Caddy and Traefik do on their own and nginx does when you set
-it.
+application. See [Behind a reverse proxy](#behind-a-reverse-proxy).
 
 ## Stopping the server
 

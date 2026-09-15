@@ -31,7 +31,12 @@ table. See [Single-user identity](../development/identity.md).
   output, and the backups. See [Self-hosting](self-hosting.md).
 - **HTTPS is the operator's job.** The application publishes a plain HTTP
   listener on the loopback address. Put a reverse proxy that terminates HTTPS
-  in front of it.
+  in front of it. The Compose file holds an optional profile that starts one.
+  See [Self-hosting](self-hosting.md).
+- **A forwarded header is believed only from a named proxy.** The application
+  reads the address of the caller from the connection. It reads a forwarded
+  header only from a proxy that you name, and it names none by default, so a
+  caller cannot state an address of its own choice.
 - **The origin is required.** The configured origin has no default. Cookies and
   absolute URLs belong to that origin. The installation serves the origins that
   you name and no other, and it adds no scheme and no port to them. A request

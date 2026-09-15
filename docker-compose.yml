@@ -70,6 +70,11 @@ services:
       NOTESAPP_RATE_LIMIT_MAX: ${NOTESAPP_RATE_LIMIT_MAX:-100}
       NOTESAPP_HOST: 0.0.0.0
       NOTESAPP_PORT: 3000
+      # The proxies whose forwarded headers this installation believes. An
+      # empty value believes none of them, which is the default. Name the
+      # address or the range of your proxy when one sits in front, and read
+      # docs/guide/self-hosting.md before you name a whole range.
+      NOTESAPP_TRUSTED_PROXIES: ${NOTESAPP_TRUSTED_PROXIES:-}
       # The stop of the server. An empty value keeps the default that
       # apps/server/src/config.ts states.
       NOTESAPP_SHUTDOWN_GRACE_MS: ${NOTESAPP_SHUTDOWN_GRACE_MS:-}
@@ -107,6 +112,47 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+
+  # Optional TLS front. It starts only with `--profile tls`, so a default
+  # `docker compose up` runs the application alone, as before.
+  #
+  # Caddy answers NOTESAPP_DOMAIN, gets the certificate on its own, and sends
+  # every request to the application container. It keeps the original Host
+  # header, which the application requires, and it adds the forwarded headers.
+  # The application believes those headers only when NOTESAPP_TRUSTED_PROXIES
+  # names this proxy. See docs/guide/self-hosting.md.
+  caddy:
+    image: caddy@sha256:5f5c8640aae01df9654968d946d8f1a56c497f1dd5c5cda4cf95ab7c14d58648
+    profiles:
+      - tls
+    restart: unless-stopped
+    depends_on:
+      - app
+    environment:
+      # The domain that this proxy answers. Name it in `.env`. Compose reads
+      # every service of this file before it selects a profile, so this value
+      # cannot be a required one: that would stop a default start as well. With
+      # no value the proxy answers `localhost` with a certificate that it makes
+      # itself, which serves a local check and nothing else.
+      NOTESAPP_DOMAIN: ${NOTESAPP_DOMAIN:-localhost}
+    volumes:
+      - ./docker/Caddyfile:/etc/caddy/Caddyfile:ro
+      # The certificate and its private key live here. Put this directory on
+      # encrypted host storage, next to the other data directories.
+      - ${NOTESAPP_TLS_DIR:-./.tls}/data:/data
+      - ${NOTESAPP_TLS_DIR:-./.tls}/config:/config
+    ports:
+      # Port 80 answers the certificate challenge and sends a browser to HTTPS.
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
+    networks:
+      - frontend
+    logging:
+      driver: json-file
+      options:
+        max-size: ${NOTESAPP_LOG_MAX_SIZE:-10m}
+        max-file: ${NOTESAPP_LOG_MAX_FILE:-5}
 
 networks:
   database:

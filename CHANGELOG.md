@@ -35,9 +35,19 @@ installation starts from an empty database.
 - **Note size messages.** A note that is too large or too deeply nested to
   render is refused with a sentence the author can act on, instead of a
   server error.
+- **An optional TLS front.** `docker compose --profile tls up -d` starts Caddy
+  in front of the application. It answers `NOTESAPP_DOMAIN`, gets the
+  certificate on its own, passes the original `Host` header, and adds the
+  forwarded headers. A default `docker compose up` starts the application
+  alone, as before.
 
 ### Changed
 
+- The port that the server listens on is `NOTESAPP_PORT`, and it no longer
+  follows the port of `NOTESAPP_ORIGIN`. The public address and the listening
+  socket are two different things behind a proxy. An installation that names a
+  port in its origin and no `NOTESAPP_PORT` stops at startup with a message
+  that names the value to set. The Compose file and the image set it already.
 - The first `docker compose up` is safe with no edit beyond the origin. The
   listener is published on `127.0.0.1`, the installation serves the configured
   origin and nothing else, `NOTESAPP_ORIGIN` is required and has no default,
@@ -103,5 +113,10 @@ installation starts from an empty database.
   check and the identity routes read that one list, and no scheme and no port
   is added to it, so the shipped defaults no longer trust an address that
   nobody named.
+- One value decides whose forwarded headers the installation believes.
+  `NOTESAPP_TRUSTED_PROXIES` names the proxies in front, it is empty by
+  default, and the identity routes read the address that the server resolved
+  instead of a header of the caller. A caller can no longer state an address of
+  its own choice and pass the attempt limit of the sign-in screen.
 - `.dockerignore` keeps the secret, storage, database, report and document
   trees out of the build context.
