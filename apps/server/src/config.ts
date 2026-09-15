@@ -9,6 +9,7 @@
 import type { SchemaObject } from '@notesapp/api-contract';
 import { compileSchema, describeIssues } from '@notesapp/api-contract';
 import { readFile } from 'node:fs/promises';
+import { readServedOrigins } from './served-origins.ts';
 
 const logLevels = [
   'fatal',
@@ -36,7 +37,12 @@ export type MailConfig = {
 
 /** Validated server configuration. */
 export type ServerConfig = {
-  /** Public origin of this deployment, used for cookie and CORS decisions. */
+  /**
+   * Canonical origin of this deployment.
+   *
+   * It is the first entry of `servedOrigins`. It decides the base URL of the
+   * identity routes, the secure cookie flag, and the default listening port.
+   */
   readonly origin: string;
   /** PostgreSQL connection URL of the runtime role. */
   readonly databaseUrl: string;
@@ -54,11 +60,13 @@ export type ServerConfig = {
   /** Secret that signs sessions and tokens. */
   readonly authSecret: string;
   /**
-   * Host header values that this deployment answers.
+   * Every origin that this deployment serves, the canonical one first.
    *
-   * When no list is configured, it holds the host of the origin only.
+   * It is the one list. The cookie write check, the trusted list of the
+   * identity routes, and the Host allowlist all read it. See
+   * [decision 0039](../../../docs/decisions/0039-one-list-of-served-origins.md).
    */
-  readonly allowedHosts: readonly string[];
+  readonly servedOrigins: readonly string[];
   /** Level of the structured log. `silent` disables logging. */
   readonly logLevel: LogLevel;
   /** Request limits applied before a handler runs. */
@@ -109,14 +117,13 @@ const variables = [
 /**
  * Values that a deployment may leave unset.
  *
- * An absent value has a stated meaning: no allowed-host list serves the host
- * of the origin and nothing else, no mail transport disables recovery by
- * email, and no provider values disable OpenID Connect. An empty value is
- * treated as absent, so a placeholder in a Compose file cannot enable a
- * half configured provider.
+ * An absent value has a stated meaning: no additional origin serves the
+ * canonical origin and nothing else, and no mail transport disables recovery
+ * by email. An empty value is treated as absent, so a placeholder in a Compose
+ * file cannot enable a half configured transport.
  */
 const optionalVariables = [
-  'NOTESAPP_ALLOWED_HOSTS',
+  'NOTESAPP_ADDITIONAL_ORIGINS',
   'NOTESAPP_SMTP_URL',
   'NOTESAPP_MAIL_FROM',
   'NOTESAPP_SESSION_MAX_AGE_S',
@@ -170,21 +177,18 @@ export async function loadProtectedEnvironment(
 const positiveInteger = { type: 'string', pattern: '^[1-9][0-9]{0,9}$' };
 
 /**
- * The host names that this deployment serves.
+ * Values that this release does not read.
  *
- * A deployment that names no list serves the host of its own origin and
- * nothing else. That is the only host that its cookies and its absolute URLs
- * can belong to, so it is the safe default for a fresh installation.
+ * A deployment that still sets one stops at startup. A silent drop would
+ * narrow what the installation serves, and the person who runs it would only
+ * find out at the next sign-in.
  */
-function allowedHosts(
-  configured: string | undefined,
-  origin: string,
-): readonly string[] {
-  if (configured !== undefined) {
-    return configured.split(',').map((host) => host.trim().toLowerCase());
-  }
-  return [new URL(origin).hostname.toLowerCase()];
-}
+const removedVariables: readonly (readonly [string, string])[] = [
+  [
+    'NOTESAPP_ALLOWED_HOSTS',
+    'this installation does not read a host list. Name each full origin, with its scheme and its port, in NOTESAPP_ORIGIN and NOTESAPP_ADDITIONAL_ORIGINS.',
+  ],
+];
 
 const configSchema: SchemaObject = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
@@ -211,12 +215,9 @@ const configSchema: SchemaObject = {
     NOTESAPP_STORAGE_ROOT: { type: 'string', pattern: '^/', maxLength: 1024 },
     // A short secret cannot protect a session cookie.
     NOTESAPP_AUTH_SECRET: { type: 'string', minLength: 32, maxLength: 512 },
-    // A bracketed IPv6 literal such as `[::1]` is an allowed entry.
-    NOTESAPP_ALLOWED_HOSTS: {
-      type: 'string',
-      pattern: '^[A-Za-z0-9.:_\\[\\]-]+(,[A-Za-z0-9.:_\\[\\]-]+)*$',
-      maxLength: 1024,
-    },
+    // The shape of one entry is decided by `served-origins.ts`, which refuses
+    // a value that is not exactly one origin and names what to write instead.
+    NOTESAPP_ADDITIONAL_ORIGINS: { type: 'string', maxLength: 1024 },
     NOTESAPP_LOG_LEVEL: { type: 'string', enum: [...logLevels] },
     NOTESAPP_MAX_BODY_BYTES: positiveInteger,
     NOTESAPP_MAX_HEADER_BYTES: positiveInteger,
@@ -242,6 +243,11 @@ const validate = compileSchema<RawConfig>(configSchema);
 export function loadServerConfig(
   environment: Readonly<Record<string, string | undefined>>,
 ): ServerConfig {
+  const removed = removedVariables.flatMap(([name, advice]) => {
+    const value = environment[name];
+    return value === undefined || value === '' ? [] : [`${name}: ${advice}`];
+  });
+  if (removed.length > 0) throw new ConfigError(removed);
   const raw: Record<string, string> = { NOTESAPP_LOG_LEVEL: 'info' };
   for (const name of [...variables, ...optionalVariables]) {
     const value = environment[name];
@@ -260,6 +266,16 @@ export function loadServerConfig(
           smtpUrl: raw.NOTESAPP_SMTP_URL,
           from: raw.NOTESAPP_MAIL_FROM ?? '',
         };
+  const served = readServedOrigins(
+    raw.NOTESAPP_ORIGIN,
+    raw.NOTESAPP_ADDITIONAL_ORIGINS,
+  );
+  if (!served.ok) throw new ConfigError(served.issues);
+  const [canonical] = served.origins;
+  if (canonical === undefined)
+    throw new ConfigError([
+      'NOTESAPP_ORIGIN: name the origin of this installation.',
+    ]);
   const partial: string[] = [];
   if (mail !== null && mail.from === '')
     partial.push(
@@ -271,12 +287,12 @@ export function loadServerConfig(
     );
   if (partial.length > 0) throw new ConfigError(partial);
   return {
-    origin: raw.NOTESAPP_ORIGIN,
+    origin: canonical,
     databaseUrl: raw.NOTESAPP_DATABASE_URL,
     authDatabaseUrl: raw.NOTESAPP_AUTH_DATABASE_URL,
     storageRoot: raw.NOTESAPP_STORAGE_ROOT,
     authSecret: raw.NOTESAPP_AUTH_SECRET,
-    allowedHosts: allowedHosts(raw.NOTESAPP_ALLOWED_HOSTS, raw.NOTESAPP_ORIGIN),
+    servedOrigins: served.origins,
     logLevel: isLogLevel(raw.NOTESAPP_LOG_LEVEL)
       ? raw.NOTESAPP_LOG_LEVEL
       : 'info',

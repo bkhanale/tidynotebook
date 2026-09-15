@@ -51,12 +51,12 @@ function cookieHeader(values: readonly string[]): string {
 const database = await createDisposableDatabase();
 const storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-trash-test-'));
 const environment = (): Record<string, string> => ({
-  NOTESAPP_ORIGIN: 'https://notes.test',
+  NOTESAPP_ORIGIN: 'http://127.0.0.1',
   NOTESAPP_DATABASE_URL: database.runtimeUrl,
   NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
   NOTESAPP_STORAGE_ROOT: storageRoot,
   NOTESAPP_AUTH_SECRET: 'trash-test-secret-value-00123456789abcd',
-  NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost,notes.test',
+  NOTESAPP_ADDITIONAL_ORIGINS: 'http://localhost',
   NOTESAPP_LOG_LEVEL: 'error',
   NOTESAPP_MAX_BODY_BYTES: '8388608',
   NOTESAPP_MAX_HEADER_BYTES: '16384',
@@ -73,7 +73,7 @@ const auth = createAuth(config, { mail: null }, authPool);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,
-  origin: config.origin,
+  servedOrigins: config.servedOrigins,
 });
 const server = await startTestServer({
   environment: environment(),
@@ -88,13 +88,13 @@ const email = 'trash-owner@notes.invalid';
 const password = 'owner-password-123456';
 await bootstrapOwner({ config, email, name: 'Trash Owner', password });
 const signedIn = await signInWithPassword({
-  headers: { origin: 'https://notes.test' },
+  headers: { origin: 'http://127.0.0.1' },
   body: { email, password },
 });
 const cookie = cookieHeader(
   responseOf(signedIn.response).headers.getSetCookie(),
 );
-const headers = { origin: 'https://notes.test', cookie };
+const headers = { origin: 'http://127.0.0.1', cookie };
 const workspaces = await listWorkspaces({ headers });
 const workspaceId = workspaces.data?.workspaces[0]?.workspaceId ?? '';
 const device = 'trash-test';

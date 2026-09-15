@@ -86,9 +86,12 @@ the image. PostgreSQL sets the owner of its own directory. Name both paths in
 Copy `.env.example` to `.env`. The `.env` file contains only nonsecret
 settings. Set `NOTESAPP_ORIGIN` to the public HTTPS origin. This value is
 required and has no default: `docker compose up` stops with a message that
-names it when it is not set. Leave `NOTESAPP_ALLOWED_HOSTS` empty unless a
-second host name reaches this installation. An empty list serves the host of
-the origin and nothing else.
+names it when it is not set. Leave `NOTESAPP_ADDITIONAL_ORIGINS` empty unless a
+second address reaches this installation. Write each additional origin in full,
+with its scheme and its port, and use the scheme of `NOTESAPP_ORIGIN` for each
+one. One installation serves HTTP or HTTPS, not both, because one cookie policy
+serves all of its origins. An empty list serves `NOTESAPP_ORIGIN` and nothing
+else.
 
 Set `NOTESAPP_SECRETS_DIR` and create the directory it names. The Compose
 default is `./.secrets` inside the repository, which is a convenience for a
@@ -154,9 +157,11 @@ must create the same first account before a browser opens.
 
 The same contract operations are available at `/api/health` and `/api/ready`.
 
-The deployment answers the host of its origin only, so the container health
-check sends that host name. A request that names another host is refused with
-status 400 and the code `host_not_allowed`.
+The deployment answers the host name of each origin it serves, so the container
+health check sends the host name of the origin. A request that names another
+host is refused. Your reverse proxy must pass the original `Host` header to the
+application, which Caddy and Traefik do on their own and nginx does when you set
+it.
 
 ## Logs
 

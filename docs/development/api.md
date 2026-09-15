@@ -21,9 +21,11 @@ The session cookie is the only credential the API accepts.
 
 - Better Auth issues the cookie. It is `HttpOnly` and `SameSite`, and a
   deployment that serves HTTPS uses the secure cookie prefix.
-- A write with a cookie must also name the configured origin, through the
-  origin header or the same-site fetch metadata header. A browser page always
-  sends one of them, so a write with neither is refused.
+- A write with a cookie must also name a served origin, through the origin
+  header or the same-site fetch metadata header. A browser page always sends
+  one of them, so a write with neither is refused. The served origins are one
+  list, which the identity routes trust as well. See
+  [decision 0039](../decisions/0039-one-list-of-served-origins.md).
 - The identity adapter refuses a request that carries an authorization header.
   No bearer scheme exists, so such a request is not authenticated through the
   cookie either.
@@ -36,7 +38,7 @@ The boundary verifies the actor before a handler runs, and `packages/core`
 decides the action inside the same transaction that performs the write.
 
 1. The session must exist and must map to an application account.
-2. A write must name the configured origin.
+2. A write must name a served origin.
 3. The account must be a member of the workspace that the operation names.
 4. The current role must permit the action of the operation. The role is read
    from storage on every request, so a role change takes effect at once.

@@ -39,9 +39,8 @@ It may use Node built in modules and Node only packages such as `fastify`,
   unknown handler both stop startup.
 - **A background job.** Add `src/jobs/<name>.ts` and start it from
   `src/app.ts`. A job takes the store as an argument, so a test can drive it.
-- **A readiness check.** Add the probe in `src/routes/handlers.ts` next to
-  `databaseProbe`, `migrationProbe`, `storageProbe`, and
-  `configurationProbe`, and add it to `evaluateReadiness`.
+- **A readiness check.** Add the probe in `src/routes/handlers.ts` beside the
+  other probes, then add it to `evaluateReadiness`.
 
 ## Testing conventions here
 
@@ -60,6 +59,7 @@ express, such as a forged Host header, uses `app.inject()`.
   `packages/core` use case with the store, and returns a result.
 - No direct SQL. Every statement belongs to `packages/storage-server`.
 - No weakened server invariant to hide a client defect.
+- No second served origin list, and no invented scheme or port (record 0039).
 - No rejected body, token, or password in a log line. A rejection is logged
   with the request id, the operation, the status, and the reason.
 - No handwritten HTTP transport. `better-auth.ts` is the one listed protocol
@@ -76,4 +76,5 @@ express, such as a forged Host header, uses `app.inject()`.
 | `src/routes/handlers.ts`          | One handler per operation id, readiness probes |
 | `src/auth/actor.ts`               | Turns a session into a verified actor          |
 | `src/config.ts`                   | Environment reading and refusal messages       |
+| `src/served-origins.ts`           | The one list of origins this deployment serves |
 | `src/logging.ts`                  | Pino sink for the shared event catalog         |

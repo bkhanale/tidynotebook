@@ -1,9 +1,9 @@
 # Production Compose file for one NotesApp instance.
 #
 # NOTESAPP_ORIGIN is required and has no default. Every other value has a safe
-# default: the listener is published on the loopback address, the allowed-host
-# list holds the host of the origin only, and both services rotate their logs.
-# Copy `.env.example` to `.env` and set the values there.
+# default: the listener is published on the loopback address, the installation
+# serves the configured origin and nothing else, and both services rotate their
+# logs. Copy `.env.example` to `.env` and set the values there.
 services:
   postgres:
     image: postgres@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
@@ -51,9 +51,10 @@ services:
       NOTESAPP_AUTH_DATABASE_URL_FILE: /run/secrets/auth_database_url
       NOTESAPP_STORAGE_ROOT: /var/lib/notesapp
       NOTESAPP_AUTH_SECRET_FILE: /run/secrets/auth_secret
-      # An empty list serves the host of the origin and nothing else. Add more
-      # host names only when a second name reaches this installation.
-      NOTESAPP_ALLOWED_HOSTS: ${NOTESAPP_ALLOWED_HOSTS:-}
+      # An empty list serves the origin above and nothing else. Add a full
+      # origin, with its scheme and its port, only when a second address
+      # reaches this installation.
+      NOTESAPP_ADDITIONAL_ORIGINS: ${NOTESAPP_ADDITIONAL_ORIGINS:-}
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}

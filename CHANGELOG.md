@@ -39,9 +39,14 @@ installation starts from an empty database.
 ### Changed
 
 - The first `docker compose up` is safe with no edit beyond the origin. The
-  listener is published on `127.0.0.1`, the allowed-host list holds the host
-  of the origin only, `NOTESAPP_ORIGIN` is required and has no default, and
-  both services rotate their container logs.
+  listener is published on `127.0.0.1`, the installation serves the configured
+  origin and nothing else, `NOTESAPP_ORIGIN` is required and has no default,
+  and both services rotate their container logs.
+- An installation now names the addresses it serves as full origins. Set
+  `NOTESAPP_ORIGIN` to the one public origin, and name a second address in
+  `NOTESAPP_ADDITIONAL_ORIGINS`, with its scheme and its port. The host list
+  `NOTESAPP_ALLOWED_HOSTS` is gone: an installation that still sets it stops at
+  startup with a message that names the two values to set.
 - Database migrations run in the application container entry point, with the
   migration role, before the server starts with the restricted runtime role.
   The separate one-shot migration service is gone.
@@ -94,5 +99,9 @@ installation starts from an empty database.
 - The default deployment no longer carries a private network address as its
   origin, no longer binds every interface, and no longer accepts any host
   name.
+- One list decides which origins the installation serves. The cookie write
+  check and the identity routes read that one list, and no scheme and no port
+  is added to it, so the shipped defaults no longer trust an address that
+  nobody named.
 - `.dockerignore` keeps the secret, storage, database, report and document
   trees out of the build context.

@@ -123,7 +123,7 @@ export function testEnvironment(storageRoot: string): Record<string, string> {
       'postgres://notesapp_auth:notesapp_auth@127.0.0.1:5432/notesapp',
     NOTESAPP_STORAGE_ROOT: storageRoot,
     NOTESAPP_AUTH_SECRET: 'test-secret-value-for-integration-checks',
-    NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
+    NOTESAPP_ADDITIONAL_ORIGINS: 'http://localhost',
     NOTESAPP_LOG_LEVEL: 'silent',
     NOTESAPP_MAX_BODY_BYTES: '1024',
     NOTESAPP_MAX_HEADER_BYTES: '16384',

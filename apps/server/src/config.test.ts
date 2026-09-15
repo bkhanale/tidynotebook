@@ -9,7 +9,6 @@ const valid: Record<string, string> = {
     'postgres://notesapp_auth:notesapp_auth@127.0.0.1:5432/notesapp',
   NOTESAPP_STORAGE_ROOT: '/var/lib/notesapp',
   NOTESAPP_AUTH_SECRET: 'test-secret-value-for-integration-checks',
-  NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
   NOTESAPP_LOG_LEVEL: 'warn',
   NOTESAPP_MAX_BODY_BYTES: '1048576',
   NOTESAPP_MAX_HEADER_BYTES: '16384',
@@ -26,7 +25,7 @@ function environment(
 await test('a complete environment produces a configuration', () => {
   const config = loadServerConfig(valid);
   assert.equal(config.origin, 'http://127.0.0.1');
-  assert.deepEqual(config.allowedHosts, ['127.0.0.1', 'localhost']);
+  assert.deepEqual(config.servedOrigins, ['http://127.0.0.1']);
   assert.equal(config.logLevel, 'warn');
   assert.equal(config.limits.bodyBytes, 1048576);
   assert.equal(config.limits.headerBytes, 16384);
@@ -86,24 +85,23 @@ await test('the log level defaults to info when it is absent', () => {
   );
 });
 
-await test('an absent allowed-host list serves the host of the origin only', () => {
+await test('an absent additional list serves the canonical origin only', () => {
+  const config = loadServerConfig(
+    environment({ NOTESAPP_ORIGIN: 'https://Notes.Example.com:8443' }),
+  );
+  assert.equal(config.origin, 'https://notes.example.com:8443');
+  assert.deepEqual(config.servedOrigins, ['https://notes.example.com:8443']);
+});
+
+await test('an additional origin joins the served list', () => {
   assert.deepEqual(
     loadServerConfig(
       environment({
-        NOTESAPP_ORIGIN: 'https://Notes.Example.com:8443',
-        NOTESAPP_ALLOWED_HOSTS: undefined,
+        NOTESAPP_ORIGIN: 'http://127.0.0.1',
+        NOTESAPP_ADDITIONAL_ORIGINS: 'http://localhost,http://[::1]:3000',
       }),
-    ).allowedHosts,
-    ['notes.example.com'],
-  );
-});
-
-await test('a bracketed IPv6 entry is an allowed host', () => {
-  assert.deepEqual(
-    loadServerConfig(
-      environment({ NOTESAPP_ALLOWED_HOSTS: '[::1],notes.test' }),
-    ).allowedHosts,
-    ['[::1]', 'notes.test'],
+    ).servedOrigins,
+    ['http://127.0.0.1', 'http://localhost', 'http://[::1]:3000'],
   );
 });
 
@@ -134,13 +132,37 @@ await test('a short authentication secret stops startup', () => {
   );
 });
 
-await test('a malformed host list stops startup', () => {
+await test('a malformed additional origin stops startup', () => {
   assert.throws(
     () =>
       loadServerConfig(
-        environment({ NOTESAPP_ALLOWED_HOSTS: 'notes.test,bad host' }),
+        environment({ NOTESAPP_ADDITIONAL_ORIGINS: 'notes.test' }),
       ),
-    ConfigError,
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.some((issue) =>
+        issue.startsWith('NOTESAPP_ADDITIONAL_ORIGINS:'),
+      ),
+  );
+});
+
+await test('a removed host list stops startup and names the values to set', () => {
+  // A deployment of 0.1 named its second host here. Dropping the value in
+  // silence would narrow what the installation serves, and the person who runs
+  // it would find out at the next sign-in.
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({ NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost' }),
+      ),
+    (error: unknown) =>
+      error instanceof ConfigError &&
+      error.issues.length === 1 &&
+      error.issues.every(
+        (issue) =>
+          issue.startsWith('NOTESAPP_ALLOWED_HOSTS:') &&
+          issue.includes('NOTESAPP_ADDITIONAL_ORIGINS'),
+      ),
   );
 });
 

@@ -179,7 +179,7 @@ await test('a request that names no served Host is rejected', async () => {
   // value is the closest reachable form of an absent Host. The unit tests
   // cover an absent and an empty header value directly.
   const narrow = await startTestServer({
-    environment: { NOTESAPP_ALLOWED_HOSTS: '127.0.0.1' },
+    environment: { NOTESAPP_ADDITIONAL_ORIGINS: '' },
   });
   try {
     const response = await narrow.app.inject({
@@ -195,7 +195,7 @@ await test('a request that names no served Host is rejected', async () => {
 
 await test('a bracketed IPv6 Host with a port is served', async () => {
   const sixth = await startTestServer({
-    environment: { NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,[::1]' },
+    environment: { NOTESAPP_ADDITIONAL_ORIGINS: 'http://[::1]' },
   });
   try {
     const response = await sixth.app.inject({

@@ -27,7 +27,9 @@ cannot widen the surface without a reviewed change.
 
 A password has a minimum length. A session cookie is `HttpOnly` and
 `SameSite`, and an HTTPS deployment also marks it secure. A cookie write must
-name the configured origin. See [HTTP API access](api.md).
+name a served origin, and the identity routes trust the same list. See
+[HTTP API access](api.md) and
+[decision 0039](../decisions/0039-one-list-of-served-origins.md).
 
 ## Account mapping
 

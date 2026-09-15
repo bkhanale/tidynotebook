@@ -71,8 +71,8 @@ curl -s http://127.0.0.1:3000/ready
 docker compose logs app --tail 20
 ```
 
-The deployment answers the host of its origin only. A request that names
-another host is refused with `host_not_allowed`.
+The installation serves the origin that you set, and nothing else. A request
+that names another host is refused.
 
 ## What the defaults give you
 
@@ -80,7 +80,7 @@ another host is refused with `host_not_allowed`.
 | -------------------- | ------------------------- | --------------------------------- |
 | `NOTESAPP_ORIGIN`    | `http://127.0.0.1:3000`   | your `.env`, required, no default |
 | Published address    | `127.0.0.1:3000`          | `docker-compose.yml` default      |
-| Allowed hosts        | the host of the origin    | `docker-compose.yml` default      |
+| Served origins       | the origin above only     | `docker-compose.yml` default      |
 | Secrets directory    | `./.secrets`              | `docker-compose.yml` default      |
 | Database directory   | `./.data/postgres`        | `docker-compose.yml` default      |
 | Attachment directory | `./.storage`              | `docker-compose.yml` default      |

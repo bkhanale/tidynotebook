@@ -145,7 +145,7 @@ jobs:
     # needs no private address and no undocumented variable.
     env:
       NOTESAPP_ORIGIN: https://notes.example.com
-      NOTESAPP_ALLOWED_HOSTS: notes.example.com
+      NOTESAPP_ADDITIONAL_ORIGINS: ''
       NOTESAPP_BIND_HOST: 127.0.0.1
       NOTESAPP_PORT: '3000'
       NOTESAPP_LOG_LEVEL: info

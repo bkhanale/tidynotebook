@@ -101,7 +101,7 @@ function readDetailLevel(query: unknown): 'summary' | 'full' {
 export function configurationProbe(config: ServerConfig): ReadinessProbe {
   return () =>
     Promise.resolve(
-      config.allowedHosts.length > 0
+      config.servedOrigins.length > 0
         ? {
             name: 'configuration',
             status: 'ok',
@@ -110,7 +110,7 @@ export function configurationProbe(config: ServerConfig): ReadinessProbe {
         : {
             name: 'configuration',
             status: 'degraded',
-            detail: 'The deployment serves no Host value.',
+            detail: 'The deployment serves no origin.',
           },
     );
 }

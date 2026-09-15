@@ -33,8 +33,9 @@ table. See [Single-user identity](../development/identity.md).
   listener on the loopback address. Put a reverse proxy that terminates HTTPS
   in front of it.
 - **The origin is required.** The configured origin has no default. Cookies and
-  absolute URLs belong to that origin, and a request that names another host is
-  refused.
+  absolute URLs belong to that origin. The installation serves the origins that
+  you name and no other, and it adds no scheme and no port to them. A request
+  from another origin is refused.
 - **A backup key is not recoverable.** If a volume key or a backup key is lost,
   the data it protects is lost. See
   [Backup and restore](backup-and-restore.md).
@@ -43,7 +44,7 @@ table. See [Single-user identity](../development/identity.md).
 
 - The session cookie is the only credential the API accepts. It is `HttpOnly`
   and `SameSite`, and an HTTPS deployment marks it secure.
-- A write must also name the configured origin.
+- A write must also name an origin that the installation serves.
 - Note content is rendered through one sanitizer. Raw HTML is dropped, and a
   link to anything other than a web address, a mail address, another note, or
   an attachment loses its destination.

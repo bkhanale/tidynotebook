@@ -29,7 +29,7 @@ await test('operator bootstrap seeds the welcome note', async () => {
     NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
     NOTESAPP_STORAGE_ROOT: storageRoot,
     NOTESAPP_AUTH_SECRET: 'bootstrap-test-secret-value-0123456789',
-    NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
+    NOTESAPP_ADDITIONAL_ORIGINS: 'http://localhost',
     NOTESAPP_LOG_LEVEL: 'silent',
     NOTESAPP_MAX_BODY_BYTES: '8388608',
     NOTESAPP_MAX_HEADER_BYTES: '16384',

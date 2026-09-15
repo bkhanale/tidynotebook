@@ -68,8 +68,8 @@ export function requireActor(request: FastifyRequest): ResolvedActor {
 export type IdentityDependencies = {
   readonly auth: NotesappAuth;
   readonly identity: IdentityStoreHandle;
-  /** Public origin of the deployment, used for the cookie write check. */
-  readonly origin: string;
+  /** The served origins of the deployment, from `config.servedOrigins`. */
+  readonly servedOrigins: readonly string[];
 };
 
 /** The identity adapter of one deployment. */
@@ -140,12 +140,16 @@ export type OriginDecision = 'accepted' | 'foreign' | 'missing';
  * Decides a cookie authenticated write by its origin headers.
  *
  * A browser always sends `Origin` or the Fetch Metadata headers on a write, so
- * the check is positive rather than permissive: the request must name the
- * configured origin, or state that it is same-origin. A request with neither
+ * the check is positive rather than permissive: the request must name one of
+ * the served origins, or state that it is same-origin. A request with neither
  * header did not come from a browser page.
+ *
+ * The list is the one that `config.servedOrigins` holds, which is the same
+ * list that the identity routes trust. See
+ * [decision 0039](../../../../docs/decisions/0039-one-list-of-served-origins.md).
  */
 export function checkWriteOrigin(
-  origin: string,
+  servedOrigins: readonly string[],
   method: string,
   headers: {
     readonly origin?: string | undefined;
@@ -154,30 +158,30 @@ export function checkWriteOrigin(
 ): OriginDecision {
   if (safeMethods.has(method.toUpperCase())) return 'accepted';
   if (headers.origin !== undefined)
-    return headers.origin === origin ? 'accepted' : 'foreign';
+    return servedOrigins.includes(headers.origin) ? 'accepted' : 'foreign';
   if (headers.site !== undefined)
     return headers.site === 'same-origin' ? 'accepted' : 'foreign';
   return 'missing';
 }
 
 /**
- * Refuses a cookie authenticated write that does not name the origin.
+ * Refuses a cookie authenticated write that does not name a served origin.
  *
  * The identity hook applies this to every guarded operation. An operation that
  * declares no security requirement but still reads a cookie calls this helper
  * itself, so the rule lives in one place and no such operation can forget it.
  */
 export function requireWriteOrigin(
-  origin: string,
+  servedOrigins: readonly string[],
   request: FastifyRequest,
 ): void {
-  const decision = checkWriteOrigin(origin, request.method, {
+  const decision = checkWriteOrigin(servedOrigins, request.method, {
     origin: headerValue(request.headers.origin),
     site: headerValue(request.headers['sec-fetch-site']),
   });
   if (decision === 'foreign')
     throw new ForbiddenError(
-      'A cookie authenticated write must come from the configured origin.',
+      'A cookie authenticated write must come from an origin that this deployment serves.',
     );
   if (decision === 'missing') throw new OriginRequiredError();
 }
@@ -241,7 +245,7 @@ export function createIdentityAdapter(
       throw new UnauthenticatedError(
         'This operation does not accept the supplied credential.',
       );
-    requireWriteOrigin(dependencies.origin, request);
+    requireWriteOrigin(dependencies.servedOrigins, request);
     actors.set(request, resolved);
   };
 

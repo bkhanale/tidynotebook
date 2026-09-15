@@ -120,7 +120,7 @@ await test('an https deployment declares strict transport security', async () =>
   const server = await startTestServer({
     environment: {
       NOTESAPP_ORIGIN: 'https://notes.invalid',
-      NOTESAPP_ALLOWED_HOSTS: 'notes.invalid',
+      NOTESAPP_ADDITIONAL_ORIGINS: '',
     },
   });
   try {

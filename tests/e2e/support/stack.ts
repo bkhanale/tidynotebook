@@ -97,7 +97,6 @@ export async function startE2EStack(
       NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
       NOTESAPP_STORAGE_ROOT: storageRoot,
       NOTESAPP_AUTH_SECRET: 'e2e-session-secret-with-at-least-32-characters',
-      NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost',
       NOTESAPP_LOG_LEVEL: 'silent',
       NOTESAPP_MAX_BODY_BYTES: String(25 * 1024 * 1024),
       NOTESAPP_MAX_HEADER_BYTES: '16384',

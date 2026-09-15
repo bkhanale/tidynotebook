@@ -86,7 +86,7 @@ function cookieHeader(values: readonly string[]): string {
 
 /** The headers of a browser request. A write also names the origin. */
 function browser(cookie: string): Record<string, string> {
-  return { origin: 'https://notes.test', cookie };
+  return { origin: 'http://127.0.0.1', cookie };
 }
 
 /** The SHA-256 digest of UTF-8 Markdown, as the design defines it. */
@@ -106,12 +106,12 @@ const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
 /** The environment of this test deployment. */
 function environment(): Record<string, string> {
   return {
-    NOTESAPP_ORIGIN: 'https://notes.test',
+    NOTESAPP_ORIGIN: 'http://127.0.0.1',
     NOTESAPP_DATABASE_URL: database.runtimeUrl,
     NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
     NOTESAPP_STORAGE_ROOT: storageRoot,
     NOTESAPP_AUTH_SECRET: 'sync-test-secret-value-0123456789abcdef',
-    NOTESAPP_ALLOWED_HOSTS: '127.0.0.1,localhost,notes.test',
+    NOTESAPP_ADDITIONAL_ORIGINS: 'http://localhost',
     NOTESAPP_LOG_LEVEL: 'error',
     NOTESAPP_MAX_BODY_BYTES: '8388608',
     NOTESAPP_MAX_HEADER_BYTES: '16384',
@@ -125,7 +125,7 @@ const auth = createAuth(config, { mail: null }, authPool);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,
-  origin: config.origin,
+  servedOrigins: config.servedOrigins,
 });
 const server = await startTestServer({
   environment: environment(),
@@ -150,7 +150,7 @@ await bootstrapOwner({
 });
 
 const ownerSignedIn = await signInWithPassword({
-  headers: { origin: 'https://notes.test' },
+  headers: { origin: 'http://127.0.0.1' },
   body: { email: ownerEmail, password: ownerPassword },
 });
 const ownerCookie = cookieHeader(

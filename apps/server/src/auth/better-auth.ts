@@ -13,8 +13,11 @@
  *     first-run setup operation creates the only account.
  *   * Secure, HttpOnly, SameSite cookies, a session that expires, and a
  *     session that refreshes while it is used.
- *   * Origin and Fetch Metadata checks against the configured origin, which is
- *     the only trusted origin.
+ *   * Origin and Fetch Metadata checks against the served origins of the
+ *     deployment, which are the only trusted origins. That list is the one in
+ *     `config.servedOrigins`, and the cookie write check of `actor.ts` reads
+ *     the same list, so the two cannot accept a different set. See
+ *     [decision 0039](../../../../docs/decisions/0039-one-list-of-served-origins.md).
  *   * Password hashing and token lifetime owned by Better Auth.
  *   * SMTP password recovery when a transport is configured, and the operator
  *     recovery command when none is.
@@ -176,23 +179,12 @@ function buildAuth(
         verification: authVerification,
       },
     }),
-    // The configured origin and allowed hosts are trusted. Better Auth checks the
-    // Origin header and the Fetch Metadata headers of every cookie
-    // authenticated write against this list, and it rejects a redirect target
-    // outside it.
-    trustedOrigins: Array.from(
-      new Set([
-        config.origin,
-        ...config.allowedHosts.flatMap((host) => {
-          const hasPort = host.includes(':');
-          return [
-            `http://${host}`,
-            `https://${host}`,
-            ...(hasPort ? [] : [`http://${host}:3000`, `https://${host}:3000`]),
-          ];
-        }),
-      ]),
-    ),
+    // The served origins are the trusted origins, and nothing else is. Better
+    // Auth checks the Origin header and the Fetch Metadata headers of every
+    // cookie authenticated write against this list, and it rejects a redirect
+    // target outside it. No scheme and no port is added here: the list arrives
+    // as the operator wrote it, through `served-origins.ts`.
+    trustedOrigins: [...config.servedOrigins],
     emailAndPassword: {
       enabled: true,
       disableSignUp: options.allowSignUp !== true,

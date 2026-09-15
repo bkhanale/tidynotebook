@@ -72,6 +72,7 @@ export function requestId(supplied: unknown): string {
 
 import { hostName } from './plugins/host.ts';
 export { hostName } from './plugins/host.ts';
+import { servedHostNames } from './served-origins.ts';
 
 function instanceOf(request: FastifyRequest): string {
   return request.url.split('?')[0] ?? request.url;
@@ -175,9 +176,13 @@ export async function createAppWithHandlers(
 
   // A request that names a Host this deployment does not serve is rejected
   // before any handler runs. This blocks cache poisoning and absolute URL
-  // rewriting through a forged Host header.
+  // rewriting through a forged Host header. The list is the host name of each
+  // served origin, because a Host header carries no scheme. The origin itself
+  // is checked by the cookie write check and by the identity routes, which
+  // both read the same served origin list.
+  const servedHosts = servedHostNames(config.servedOrigins);
   app.addHook('onRequest', async (request, reply) => {
-    if (config.allowedHosts.includes(hostName(request.headers.host))) return;
+    if (servedHosts.includes(hostName(request.headers.host))) return;
     const id = request.routeOptions.config.operationId;
     const status = contractStatus(id, 400);
     await reply
@@ -375,7 +380,7 @@ export async function createApp(
   const adapter = createIdentityAdapter({
     auth: auth.auth,
     identity,
-    origin: config.origin,
+    servedOrigins: config.servedOrigins,
   });
   const app = await createAppWithHandlers(config, {
     handlers: {
