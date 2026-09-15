@@ -3916,3 +3916,82 @@ export type RestoreFileResponses = {
 };
 
 export type RestoreFileResponse = RestoreFileResponses[keyof RestoreFileResponses];
+
+export type GetRootHealthData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/health';
+};
+
+export type GetRootHealthErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetRootHealthError = GetRootHealthErrors[keyof GetRootHealthErrors];
+
+export type GetRootHealthResponses = {
+    /**
+     * The service process is running.
+     */
+    200: HealthReport;
+};
+
+export type GetRootHealthResponse = GetRootHealthResponses[keyof GetRootHealthResponses];
+
+export type GetRootReadinessData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: {
+        /**
+         * Amount of readiness information to return. A summary report omits the detail text of each check.
+         */
+        detail?: 'summary' | 'full';
+    };
+    url: '/ready';
+};
+
+export type GetRootReadinessErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+    /**
+     * The service cannot accept traffic yet.
+     */
+    503: ProblemDetails;
+};
+
+export type GetRootReadinessError = GetRootReadinessErrors[keyof GetRootReadinessErrors];
+
+export type GetRootReadinessResponses = {
+    /**
+     * The service can accept traffic.
+     */
+    200: ReadinessReport;
+};
+
+export type GetRootReadinessResponse = GetRootReadinessResponses[keyof GetRootReadinessResponses];

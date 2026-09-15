@@ -23,7 +23,13 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import process from 'node:process';
 import test from 'node:test';
-import { configureClient, getHealth, getReadiness } from '@notesapp/api-client';
+import {
+  configureClient,
+  getHealth,
+  getReadiness,
+  getRootHealth,
+  getRootReadiness,
+} from '@notesapp/api-client';
 import {
   createDrain,
   createHandlers,
@@ -183,11 +189,20 @@ await test('the server drains on a stop signal and ignores the second one', asyn
     );
   });
 
+  // The root address is the one that `docker/healthcheck.mjs` probes and that
+  // an orchestrator usually probes, so it must report the stop as well.
+  const rootAnswer = await getRootReadiness();
+  assert.equal(statusOf(rootAnswer), 503, 'the root address reports the stop');
+  assert.equal(problemCode(rootAnswer.error), 'shutting_down');
+
   // Liveness is a different question. The process runs, so nothing restarts a
-  // container that stops on purpose.
+  // container that stops on purpose. Both liveness addresses say so.
   const alive = await getHealth();
   assert.equal(statusOf(alive), 200);
   assert.deepEqual(alive.data, { status: 'ok' });
+  const aliveAtRoot = await getRootHealth();
+  assert.equal(statusOf(aliveAtRoot), 200);
+  assert.deepEqual(aliveAtRoot.data, alive.data);
 
   // The second signal must not end the process in the middle of the close.
   server.child.kill('SIGTERM');

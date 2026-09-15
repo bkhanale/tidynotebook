@@ -1,0 +1,25 @@
+get:
+  operationId: getRootReadiness
+  summary: Report whether the service can accept traffic, at the root address.
+  description: >-
+    Serves the same answer as the readiness operation at the API address. A
+    load balancer and an orchestrator usually probe a fixed root path, so the
+    service answers that address too. The server calls one implementation for
+    both addresses, so the two answers cannot disagree. Reports the state of
+    every startup requirement, and reports the stop of the process while it
+    drains.
+  tags:
+    - service
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/Detail.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Readiness.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/NotReady.yaml'

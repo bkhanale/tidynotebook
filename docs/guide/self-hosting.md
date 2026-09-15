@@ -155,7 +155,9 @@ must create the same first account before a browser opens.
 
 `GET /health` reports process liveness. `GET /ready` checks configuration, database connectivity, storage access, and the required database schema version. The container health check uses readiness. A failed migration keeps the application unready.
 
-The same contract operations are available at `/api/health` and `/api/ready`.
+The application uses `/api/health` and `/api/ready`. The two addresses of
+each answer are one operation of the contract, so they always report the same
+result.
 
 The deployment answers the host name of each origin it serves, so the container
 health check sends the host name of the origin. A request that names another

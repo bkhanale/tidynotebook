@@ -33,6 +33,22 @@ import { syncRepository } from './sync-repository.ts';
 
 export { DatabaseFailure, WorkspaceUnavailableError } from './errors.ts';
 
+/**
+ * What one readiness read learns about the database behind the pool.
+ *
+ * The read answers instead of throwing, because an unreachable database is a
+ * readiness answer and not a fault of the caller.
+ */
+export type DatabaseProbeResult = {
+  /** True when a pooled connection answered a trivial statement. */
+  readonly reachable: boolean;
+  /**
+   * The number of applied migrations, or `null` when the database gave no
+   * answer. A reachable database with no answer has no migrated schema.
+   */
+  readonly schemaVersion: number | null;
+};
+
 /** Options of one storage pool. */
 export type WorkspaceStoreOptions = {
   /** Maximum pooled connections. A test uses one to reuse one connection. */
@@ -66,8 +82,24 @@ export type WorkspaceStoreHandle = WorkspaceStore & {
    * earlier transaction used.
    */
   readPooledIdentity(): Promise<string | null>;
+  /**
+   * Reads the state of the database through one pooled connection.
+   *
+   * The readiness probe of the server calls it on every probe request, so it
+   * borrows a connection from the pool that already serves the workspace
+   * traffic and opens none of its own. It runs a trivial statement, so a pool
+   * that hands over a connection cannot report a database that answers
+   * nothing.
+   */
+  probeDatabase(): Promise<DatabaseProbeResult>;
   /** Closes every pooled connection. */
   close(): Promise<void>;
+};
+
+/** The answer of a read that no pooled connection could complete. */
+const unreachableDatabase: DatabaseProbeResult = {
+  reachable: false,
+  schemaVersion: null,
 };
 
 /** Builds the port implementation over one open transaction. */
@@ -143,6 +175,35 @@ export function openWorkspaceStore(
           "select nullif(current_setting('notesapp.account_id', true), '') as value",
         );
         return result.rows[0]?.value ?? null;
+      } finally {
+        client.release();
+      }
+    },
+
+    async probeDatabase(): Promise<DatabaseProbeResult> {
+      let client: pg.PoolClient;
+      try {
+        client = await pool.connect();
+      } catch {
+        return unreachableDatabase;
+      }
+      try {
+        await client.query('select 1');
+      } catch {
+        // A connection that cannot answer this must not go back to the pool,
+        // so the probe destroys it and the next caller gets a new one.
+        client.release(true);
+        return unreachableDatabase;
+      }
+      try {
+        const result = await client.query<{ version: number }>(
+          'select public.notesapp_schema_version() as version',
+        );
+        return { reachable: true, schemaVersion: result.rows[0]?.version ?? 0 };
+      } catch {
+        // The database answers, so it is reachable. It reports no version,
+        // which the migration check reads as an unmigrated schema.
+        return { reachable: true, schemaVersion: null };
       } finally {
         client.release();
       }

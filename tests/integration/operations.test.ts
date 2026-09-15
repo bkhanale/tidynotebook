@@ -20,16 +20,20 @@ import pg from 'pg';
 import {
   createAppWithHandlers,
   createHandlers,
-  databaseProbe,
+  databaseProbes,
+  evaluateReadiness,
   loadProtectedEnvironment,
   loadServerConfig,
-  migrationProbe,
   redactUrl,
   storageProbe,
+  type ReadinessCheck,
   type ReadinessProbe,
 } from '@notesapp/server';
+import { openWorkspaceStore } from '@notesapp/storage-server';
 import {
   createDisposableDatabase,
+  openSession,
+  testServerUrl,
   type TestDatabase,
 } from './support/database.ts';
 import {
@@ -39,7 +43,7 @@ import {
   testEnvironment,
 } from './support/server.ts';
 
-await test('liveness and readiness root aliases report status correctly', async () => {
+await test('the root address and the API address give the same answer', async () => {
   const tempDir = await mkdtemp(join(tmpdir(), 'notesapp-ops-health-'));
   try {
     const config = loadServerConfig(testEnvironment(tempDir));
@@ -50,26 +54,23 @@ await test('liveness and readiness root aliases report status correctly', async 
       webDist: null,
     });
 
-    // Root /health alias
-    const healthRoot = await app.inject({ method: 'GET', url: '/health' });
-    assert.equal(healthRoot.statusCode, 200);
-    assert.deepEqual(JSON.parse(healthRoot.body), { status: 'ok' });
-
-    // Contract /api/health path
-    const healthApi = await app.inject({ method: 'GET', url: '/api/health' });
-    assert.equal(healthApi.statusCode, 200);
-    assert.deepEqual(JSON.parse(healthApi.body), { status: 'ok' });
-
-    // Root /ready alias
-    const readyRoot = await app.inject({ method: 'GET', url: '/ready' });
-    assert.equal(readyRoot.statusCode, 200);
-    const readyBody: unknown = JSON.parse(readyRoot.body);
-    assert.ok(
-      typeof readyBody === 'object' && readyBody !== null,
-      'the readiness answer is a record',
-    );
-    assert.ok('status' in readyBody);
-    assert.equal(readyBody.status, 'ok');
+    for (const pair of [
+      ['/health', '/api/health'],
+      ['/ready', '/api/ready'],
+    ]) {
+      const [rootPath, apiPath] = pair;
+      assert.ok(rootPath !== undefined && apiPath !== undefined);
+      const root = await app.inject({ method: 'GET', url: rootPath });
+      const api = await app.inject({ method: 'GET', url: apiPath });
+      assert.equal(root.statusCode, 200, rootPath);
+      assert.equal(api.statusCode, 200, apiPath);
+      assert.equal(root.headers['content-type'], api.headers['content-type']);
+      assert.deepEqual(
+        JSON.parse(root.body),
+        JSON.parse(api.body),
+        pair.join(' and '),
+      );
+    }
 
     await app.close();
   } finally {
@@ -122,12 +123,91 @@ await test('storage probe detects missing or unwritable directory', async () => 
   assert.equal(result.status, 'degraded');
 });
 
-await test('database probe detects invalid connection URL', async () => {
-  const badUrl = 'postgres://invalid:invalid@127.0.0.1:1/invalid';
-  const probe = databaseProbe(badUrl);
-  const result = await probe();
-  assert.equal(result.name, 'database');
-  assert.equal(result.status, 'degraded');
+/** The check of one name inside a readiness report. */
+function checkNamed(
+  checks: readonly ReadinessCheck[],
+  name: string,
+): ReadinessCheck {
+  const found = checks.find((check) => check.name === name);
+  assert.ok(found !== undefined, `the report holds the ${name} check`);
+  return found;
+}
+
+await test('a database that no pool can reach reports degraded', async () => {
+  const store = openWorkspaceStore(
+    'postgres://invalid:invalid@127.0.0.1:1/invalid',
+  );
+  try {
+    const report = await evaluateReadiness(
+      databaseProbes(() => store.probeDatabase()),
+      'full',
+    );
+    assert.equal(report.status, 'degraded');
+    assert.equal(checkNamed(report.checks, 'database').status, 'degraded');
+    assert.equal(checkNamed(report.checks, 'migration').status, 'degraded');
+  } finally {
+    await store.close();
+  }
+});
+
+/**
+ * Issue 24 and finding 11 of the architecture review of 2026-09-11.
+ *
+ * The readiness probes opened a throwaway connection on every call, and an
+ * orchestrator repeats that call every few seconds forever. The database
+ * itself proves the fix here: the test caps the database at the connections
+ * that the pool already holds, so a probe that opened one of its own would be
+ * refused and would report a degraded database.
+ */
+await test('a readiness probe opens no database connection of its own', async () => {
+  const database = await createDisposableDatabase();
+  // The administration session runs on the server database, so it takes none
+  // of the connections that this test counts.
+  const admin = await openSession(testServerUrl());
+  const openCount = async (): Promise<number> => {
+    const rows = await admin.query<{ count: string }>(
+      'select count(*)::text as count from pg_stat_activity where datname = $1',
+      [database.name],
+    );
+    return Number(rows[0]?.count ?? '0');
+  };
+  // The migration step may leave a connection behind, and it would widen the
+  // limit below and hide the defect.
+  await admin.query(
+    'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1',
+    [database.name],
+  );
+  const store = openWorkspaceStore(database.runtimeUrl, { poolSize: 1 });
+  try {
+    const probes = databaseProbes(() => store.probeDatabase());
+    // The first read opens the one pooled connection of this store.
+    assert.equal((await evaluateReadiness(probes, 'full')).status, 'ok');
+    assert.equal(
+      await openCount(),
+      1,
+      'the read borrows the one pooled connection and opens no other',
+    );
+    const statement = await admin.query<{ text: string }>(
+      'select format($1, $2::text) as text',
+      ['alter database %I connection limit 1', database.name],
+    );
+    const text = statement[0]?.text;
+    assert.ok(text !== undefined);
+    await admin.query(text);
+
+    // Every later read must reuse that connection, because the database now
+    // refuses a second one.
+    for (let call = 0; call < 5; call += 1) {
+      const report = await evaluateReadiness(probes, 'full');
+      assert.equal(report.status, 'ok', `readiness call ${String(call + 1)}`);
+      assert.equal(checkNamed(report.checks, 'database').status, 'ok');
+      assert.equal(checkNamed(report.checks, 'migration').status, 'ok');
+    }
+  } finally {
+    await admin.close();
+    await store.close();
+    await database.destroy();
+  }
 });
 
 await test('protected configuration files load without exposing their values', async () => {
@@ -255,8 +335,15 @@ await test('backup and restore round-trip a note with its history and attachment
   try {
     sourceDb = await createDisposableDatabase();
     targetDb = await createDisposableDatabase();
-    const schemaStatus = await migrationProbe(sourceDb.runtimeUrl)();
-    assert.equal(schemaStatus.status, 'ok');
+    const schemaStore = openWorkspaceStore(sourceDb.runtimeUrl, {
+      poolSize: 1,
+    });
+    const schemaReport = await evaluateReadiness(
+      databaseProbes(() => schemaStore.probeDatabase()),
+      'full',
+    );
+    await schemaStore.close();
+    assert.equal(schemaReport.status, 'ok');
 
     // Create attachment file and database record in source
     const content = Buffer.from('dummy attachment content');

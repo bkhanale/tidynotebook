@@ -16,16 +16,14 @@ its own file. Redocly bundles those files into the one document that
 ([decision 0019](../../docs/decisions/0019-contract-validation-and-shared-types.md)).
 Every reference is relative and names a file: `'../components/<section>/<Name>.yaml'`
 from a path file, `'./<Name>.yaml'` in one section, and `'../<section>/<Name>.yaml'` across two.
-`tools/sdk-codegen/src/contract-layout.ts` refuses a file that the root does
-not list, and a definition that stays in the root.
+`tools/sdk-codegen/src/contract-layout.ts` refuses a file that the root does not list, a definition that stays in the root, and two rows that name one file.
 
 ## What lives here and what does not
 
 - `openapi.yaml`, `paths/` and `components/` are authoritative.
   `redocly.yaml` holds the strict rules of `pnpm contract:lint`.
-- `src/generated/` holds the operation index and the compiled validators.
-  Never edit a file there. `pnpm generate` writes it and `generated:check`
-  compares it.
+- `src/generated/` holds the operation index and the compiled validators. Never
+  edit a file there. `pnpm generate` writes it and `generated:check` compares it.
 - `src/operations.ts` gives the registry lookups and `src/schema.ts` compiles
   a schema. No route, no handler, and no client code lives here. The generator
   lives in `tools/sdk-codegen`.
@@ -40,7 +38,9 @@ No workspace package. Only `ajv` and `ajv-formats`.
   `paths` in the root. The file name is the path without its leading slash,
   each `{name}` written bare and each remaining slash written as `_`, so
   `/api/workspaces/{workspaceId}/files` becomes
-  `paths/api_workspaces_workspaceId_files.yaml`.
+  `paths/api_workspaces_workspaceId_files.yaml`. A second address for one answer
+  is its own file with its own `operationId`
+  ([decision 0040](../../docs/decisions/0040-a-probe-address-is-a-contract-operation.md)).
 - **A schema, a parameter, a response, a request body, a security scheme.**
   Write it in `components/<section>/<Name>.yaml`, named after the component,
   then add its row to `components.<section>` in the root.

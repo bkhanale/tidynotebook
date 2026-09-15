@@ -10,7 +10,13 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { configureClient, getHealth, getReadiness } from '@notesapp/api-client';
+import {
+  configureClient,
+  getHealth,
+  getReadiness,
+  getRootHealth,
+  getRootReadiness,
+} from '@notesapp/api-client';
 import { operations } from '@notesapp/api-contract';
 import { createHandlers, loadServerConfig } from '@notesapp/server';
 import {
@@ -73,6 +79,57 @@ await test('a summary report omits the detail of every check', async () => {
   const result = await getReadiness({ query: { detail: 'summary' } });
   assert.equal(result.error, undefined);
   assert.equal(result.data?.checks[0]?.detail, undefined);
+});
+
+await test('the root address and the API address give one answer', async () => {
+  // Issue 24. A load balancer and an orchestrator probe a fixed root path, so
+  // the contract declares that address as well. One implementation answers
+  // both ids, and this check proves that the two answers stay equal.
+  const [health, rootHealth] = await Promise.all([
+    getHealth(),
+    getRootHealth(),
+  ]);
+  assert.equal(responseOf(health.response).status, 200);
+  assert.equal(responseOf(rootHealth.response).status, 200);
+  assert.deepEqual(rootHealth.data, health.data);
+  assert.equal(
+    responseOf(rootHealth.response).headers.get('content-type'),
+    responseOf(health.response).headers.get('content-type'),
+  );
+
+  const [ready, rootReady] = await Promise.all([
+    getReadiness(),
+    getRootReadiness(),
+  ]);
+  assert.equal(responseOf(ready.response).status, 200);
+  assert.equal(responseOf(rootReady.response).status, 200);
+  assert.deepEqual(rootReady.data, ready.data);
+});
+
+await test('the root readiness address takes the same detail parameter', async () => {
+  const result = await getRootReadiness({ query: { detail: 'summary' } });
+  assert.equal(result.error, undefined);
+  assert.equal(result.data?.checks[0]?.detail, undefined);
+});
+
+await test('the root address rejects a query that the operation does not declare', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/health?bogus=1',
+    headers: { host: '127.0.0.1' },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(asProblem(response.json()).code, 'invalid_request');
+});
+
+await test('a forged Host header is rejected at the root address too', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/ready',
+    headers: { host: 'evil.example' },
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(asProblem(response.json()).code, 'host_not_allowed');
 });
 
 await test('the server echoes a caller supplied request id', async () => {
@@ -457,4 +514,57 @@ for (const answer of leakingAnswers) {
   });
 
   await rejecting.close();
+}
+
+/**
+ * The response check covers the root addresses.
+ *
+ * Issue 24. The root addresses used to be hand registered routes with no
+ * operation id, so `preSerialization` returned early and never compared their
+ * answer with the contract. Each one is a contract operation now, so an answer
+ * that leaves the contract is refused and logged under that operation id.
+ */
+const rootAddresses: readonly {
+  readonly operationId: 'getRootHealth' | 'getRootReadiness';
+  readonly call: () => Promise<{
+    readonly data?: unknown;
+    readonly error?: unknown;
+    readonly response?: Response;
+  }>;
+}[] = [
+  { operationId: 'getRootHealth', call: () => getRootHealth() },
+  { operationId: 'getRootReadiness', call: () => getRootReadiness() },
+];
+
+for (const address of rootAddresses) {
+  const audit = new LogRecorder();
+  const guarded = await startTestServer({
+    environment: { NOTESAPP_LOG_LEVEL: 'error' },
+    logStream: audit,
+    handlers: (config) => ({
+      ...createHandlers(config),
+      [address.operationId]: () =>
+        Promise.resolve({
+          status: 200,
+          mediaType: 'application/json',
+          body: { status: 'ok', leaked: 'internal detail' },
+        }),
+    }),
+  });
+  configureClient(guarded.baseUrl, undefined);
+
+  await test(`the response check refuses an undeclared member of ${address.operationId}`, async () => {
+    const result = await address.call();
+    assert.equal(result.data, undefined);
+    assert.equal(responseOf(result.response).status, 500);
+    const problem = asProblem(result.error);
+    assert.equal(problem.code, 'invalid_response');
+    assert.equal(JSON.stringify(problem).includes('leaked'), false);
+    const errors = audit.records().filter((record) => record.level === 50);
+    assert.equal(errors.length >= 1, true, audit.lines.join('\n'));
+    assert.equal(errors[0]?.operationId, address.operationId);
+    assert.equal(audit.lines.join('\n').includes('leaked'), false);
+  });
+
+  await guarded.close();
 }

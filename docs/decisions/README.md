@@ -69,6 +69,8 @@ and needs no record.
 | [0037](0037-backlinks-are-derived-on-the-device.md)            | Backlinks are derived on the device and merged            |
 | [0038](0038-an-empty-state-is-not-a-failed-read.md)            | An empty state is not a failed read                       |
 | [0039](0039-one-list-of-served-origins.md)                     | One list of served origins                                |
+| [0040](0040-a-probe-address-is-a-contract-operation.md)        | A probe address is a contract operation                   |
+| [0041](0041-readiness-reads-the-served-pool.md)                | Readiness reads the pool that the deployment serves from  |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -122,4 +124,10 @@ reported no inbound link whenever it could not reach the server. Record 0039
 gives the deployment one list of served origins, which the operator names as
 full origins, because the cookie write check, the trusted list of the identity
 routes, and the Host allowlist each answered the question from a different
-value.
+value. Records 0040 and 0041 answer issue 24 and finding 11 of the
+[architecture review of 2026-09-11](../audits/2026-09-11/architecture-review.md).
+Record 0040 makes every address that the server answers an operation of the
+contract, so the root probe addresses that an operator configures are covered
+by the response check. Record 0041 makes readiness read the pool that the
+deployment already serves from, so a probe that an orchestrator repeats forever
+opens no connection of its own.

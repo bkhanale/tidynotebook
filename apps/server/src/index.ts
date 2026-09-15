@@ -26,19 +26,27 @@ export {
 } from './lifecycle.ts';
 export type { AppOptions } from './app.ts';
 export { createApp, createAppWithHandlers } from './app.ts';
+export type { HandlerDependencies } from './routes/handlers.ts';
+export { createHandlers } from './routes/handlers.ts';
 export type {
-  HandlerDependencies,
+  DatabaseRead,
+  ProbeRequest,
   ReadinessCheck,
   ReadinessProbe,
-} from './routes/handlers.ts';
+} from './routes/health.ts';
 export {
   configurationProbe,
-  createHandlers,
+  createServiceHandlers,
   databaseProbe,
+  databaseProbes,
   evaluateReadiness,
+  livenessAnswer,
   migrationProbe,
+  readinessAnswer,
+  singleFlight,
   storageProbe,
-} from './routes/handlers.ts';
+  withDeadline,
+} from './routes/health.ts';
 export { attachRequestLogging, redactUrl } from './request-log.ts';
 export type {
   HandlerMap,

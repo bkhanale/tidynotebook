@@ -10,6 +10,7 @@ export {
   DatabaseFailure,
   openWorkspaceStore,
   WorkspaceUnavailableError,
+  type DatabaseProbeResult,
   type WorkspaceStoreHandle,
   type WorkspaceStoreOptions,
 } from './workspace-store/index.ts';

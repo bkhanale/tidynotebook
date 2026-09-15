@@ -30,7 +30,10 @@ The session cookie is the only credential the API accepts.
   No bearer scheme exists, so such a request is not authenticated through the
   cookie either.
 - The health, readiness, setup, and authentication protocol routes need no
-  session. Every other operation needs one.
+  session. Every other operation needs one. Each probe answer has a second
+  address at the root of the origin, for a load balancer that probes a fixed
+  path, and both addresses are operations of the contract. See
+  [decision 0040](../decisions/0040-a-probe-address-is-a-contract-operation.md).
 
 ## Per call authorization
 

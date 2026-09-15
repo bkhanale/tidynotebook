@@ -17,14 +17,13 @@ import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
 import type { ServiceLifecycle } from './lifecycle.ts';
+import { createHandlers } from './routes/handlers.ts';
 import {
   configurationProbe,
-  createHandlers,
-  databaseProbe,
-  migrationProbe,
+  databaseProbes,
   storageProbe,
   type ReadinessProbe,
-} from './routes/handlers.ts';
+} from './routes/health.ts';
 import type {
   HandlerMap,
   IdentityResolver,
@@ -207,29 +206,6 @@ export async function createAppWithHandlers(
       );
   });
 
-  // Root health and readiness aliases for load balancers and orchestrators.
-  app.get('/health', async (request, reply) => {
-    const result = await options.handlers.getHealth?.(request, reply);
-    if (result) {
-      return reply
-        .status(result.status)
-        .header('content-type', result.mediaType)
-        .send(result.body);
-    }
-    return reply.status(200).send({ status: 'ok' });
-  });
-
-  app.get('/ready', async (request, reply) => {
-    const result = await options.handlers.getReadiness?.(request, reply);
-    if (result) {
-      return reply
-        .status(result.status)
-        .header('content-type', result.mediaType)
-        .send(result.body);
-    }
-    return reply.status(503).send({ status: 'degraded' });
-  });
-
   const defaultWebDist = resolve(import.meta.dirname, '../../web/dist/web');
   const webDist =
     options.webDist !== undefined
@@ -358,17 +334,19 @@ export async function createApp(
   config: ServerConfig,
   options?: Partial<AppOptions>,
 ): Promise<FastifyInstance> {
-  const probes = options?.probes ?? [
-    configurationProbe(config),
-    databaseProbe(config.databaseUrl),
-    storageProbe(config.storageRoot),
-    migrationProbe(config.databaseUrl),
-  ];
   const identity = openIdentityStore(config.databaseUrl);
   // The content store uses the same runtime role. It opens its own pool,
   // because a content transaction holds the workspace lock for the length of a
   // changeset and must not queue behind an identity lookup.
   const content = openWorkspaceStore(config.databaseUrl);
+  // The database probes read through the pool that serves the workspace
+  // traffic, so a probe that an orchestrator repeats forever opens no
+  // connection of its own and proves the path that a request takes.
+  const probes = options?.probes ?? [
+    configurationProbe(config),
+    storageProbe(config.storageRoot),
+    ...databaseProbes(() => content.probeDatabase()),
+  ];
   const attachments = openAttachmentStore(
     config.databaseUrl,
     config.storageRoot,

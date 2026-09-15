@@ -39,6 +39,10 @@ tags:
 security:
   - sessionCookie: []
 paths:
+  /health:
+    $ref: './paths/health.yaml'
+  /ready:
+    $ref: './paths/ready.yaml'
   /api/health:
     $ref: './paths/api_health.yaml'
   /api/ready:
