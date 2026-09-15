@@ -1,0 +1,55 @@
+type: object
+description: The outcome of one accepted changeset.
+additionalProperties: false
+required:
+  - mutationId
+  - revisionIds
+  - cursor
+  - revisions
+  - superseded
+properties:
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The mutation identity that the client submitted.
+  revisionIds:
+    type: array
+    readOnly: true
+    description: >-
+      Every revision that this changeset accepted, in submitted order. A
+      retry of the same mutation returns exactly these identifiers again.
+    minItems: 1
+    maxItems: 4000
+    items:
+      $ref: './Uuid.yaml'
+  cursor:
+    type: string
+    readOnly: true
+    description: >-
+      The commit ordered position of this change in the workspace. A sync
+      client asks for changes after a cursor it already applied.
+    minLength: 1
+    maxLength: 32
+    pattern: ^[0-9]+$
+  revisions:
+    type: array
+    readOnly: true
+    description: >-
+      Every accepted revision with the values that the workspace
+      assigned. A client applies these without reading the workspace
+      again, and a retry of the same mutation repeats them.
+    minItems: 1
+    maxItems: 4000
+    items:
+      $ref: './AcceptedRevision.yaml'
+  superseded:
+    type: array
+    readOnly: true
+    description: >-
+      Every file whose accepted head this changeset rebased, empty for
+      the normal case. A client shows the person that a save from
+      another device is now only in the history of the file.
+    maxItems: 4000
+    items:
+      $ref: './SupersededHead.yaml'

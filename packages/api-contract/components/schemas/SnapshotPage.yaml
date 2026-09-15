@@ -1,0 +1,55 @@
+type: object
+description: One page of the items that a snapshot captured.
+additionalProperties: false
+required:
+  - token
+  - cursor
+  - expiresAt
+  - position
+  - nextPosition
+  - totalItems
+  - items
+properties:
+  token:
+    type: string
+    readOnly: true
+    description: The token of the snapshot, echoed for the client.
+    minLength: 43
+    maxLength: 43
+    pattern: ^[A-Za-z0-9_-]{43}$
+  cursor:
+    type: string
+    readOnly: true
+    description: The captured high-water cursor.
+    minLength: 1
+    maxLength: 32
+    pattern: ^[0-9]+$
+  expiresAt:
+    type: string
+    readOnly: true
+    description: Instant at which the snapshot expires.
+    format: date-time
+  position:
+    type: integer
+    readOnly: true
+    description: Ordinal of the first item of this page.
+    minimum: 0
+  nextPosition:
+    oneOf:
+      - type: integer
+        minimum: 0
+      - type: 'null'
+    readOnly: true
+    description: Ordinal of the next page, or null on the last page.
+  totalItems:
+    type: integer
+    readOnly: true
+    description: How many items the snapshot holds now.
+    minimum: 0
+  items:
+    type: array
+    readOnly: true
+    description: The captured items of this page, ordered by file.
+    maxItems: 500
+    items:
+      $ref: './SnapshotItem.yaml'

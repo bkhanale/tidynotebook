@@ -1,0 +1,33 @@
+get:
+  operationId: getSnapshotPage
+  summary: Read one page of a materialized snapshot.
+  description: >-
+    Reads one page of the items that the snapshot captured. The page runs
+    in its own short transaction and rechecks current access; no
+    database transaction stays open across network pages. A missing token,
+    an expired snapshot, and a snapshot that a purge invalidated all answer
+    410 with the code snapshot_required: the client starts a fresh snapshot
+    and keeps its local work.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/SnapshotToken.yaml'
+    - $ref: '../components/parameters/SnapshotPosition.yaml'
+    - $ref: '../components/parameters/SnapshotPageLimit.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/SnapshotPage.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '410':
+      $ref: '../components/responses/SnapshotRequired.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

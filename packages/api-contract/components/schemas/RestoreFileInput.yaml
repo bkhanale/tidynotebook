@@ -1,0 +1,20 @@
+type: object
+description: Payload to bring one deleted file back into the file tree.
+additionalProperties: false
+required:
+  - mutationId
+  - deviceId
+  - clientTime
+  - revisionId
+properties:
+  mutationId:
+    $ref: './Uuid.yaml'
+  deviceId:
+    $ref: './DeviceId.yaml'
+  clientTime:
+    type: string
+    format: date-time
+    minLength: 20
+    maxLength: 64
+  revisionId:
+    $ref: './Uuid.yaml'

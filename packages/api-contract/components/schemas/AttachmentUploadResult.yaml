@@ -1,0 +1,39 @@
+type: object
+description: The uploaded temporary attachment object and its verified digest.
+additionalProperties: false
+required:
+  - objectId
+  - digest
+  - size
+  - mediaType
+  - width
+  - height
+properties:
+  objectId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Unique identifier of the uploaded attachment object.
+  digest:
+    allOf:
+      - $ref: './ContentDigest.yaml'
+    description: SHA-256 digest of the validated image bytes.
+  size:
+    type: integer
+    minimum: 1
+    description: Size of the attachment in bytes.
+  mediaType:
+    type: string
+    description: Validated MIME type of the uploaded image.
+    enum:
+      - image/png
+      - image/jpeg
+      - image/gif
+      - image/webp
+  width:
+    type: integer
+    minimum: 1
+    description: Width of the image in pixels.
+  height:
+    type: integer
+    minimum: 1
+    description: Height of the image in pixels.

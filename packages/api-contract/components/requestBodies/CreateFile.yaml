@@ -1,0 +1,6 @@
+description: The identifiers, the path, and the first content of a new file.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/CreateFileInput.yaml'

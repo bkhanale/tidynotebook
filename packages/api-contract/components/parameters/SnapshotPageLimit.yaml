@@ -1,0 +1,13 @@
+name: limit
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  Largest number of snapshot items in one page. The server uses the page
+  size stored with the snapshot when the parameter is absent and never
+  returns more than 500.
+schema:
+  type: integer
+  minimum: 1
+  maximum: 500

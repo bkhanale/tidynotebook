@@ -3,24 +3,32 @@
 Read the root [AGENTS.md](../../AGENTS.md) first. This file adds the rules of
 this directory. The recipe for a whole feature is in
 [docs/development/feature-workflow.md](../../docs/development/feature-workflow.md).
+This package is the only source of the notesapp HTTP interface. It also
+exposes the generated operation index and the compiled Ajv 2020-12 validators
+that the server boundary uses.
 
-## Purpose
+## The source layout
 
-`openapi.yaml` is the only source of the notesapp HTTP interface. This
-package also exposes the generated operation index and the compiled Ajv
-2020-12 validators that the server boundary uses.
+`openapi.yaml` is the root document. It holds `info`, `servers`, `tags` and
+`security`, and it lists every path item and every component as a reference to
+its own file. Redocly bundles those files into the one document that
+`pnpm generate` reads, so the split reaches no generated file
+([decision 0019](../../docs/decisions/0019-contract-validation-and-shared-types.md)).
+Every reference is relative and names a file: `'../components/<section>/<Name>.yaml'`
+from a path file, `'./<Name>.yaml'` in one section, and `'../<section>/<Name>.yaml'` across two.
+`tools/sdk-codegen/src/contract-layout.ts` refuses a file that the root does
+not list, and a definition that stays in the root.
 
 ## What lives here and what does not
 
-- `openapi.yaml` is authoritative. `redocly.yaml` holds the strict rules that
-  `pnpm contract:lint` applies.
+- `openapi.yaml`, `paths/` and `components/` are authoritative.
+  `redocly.yaml` holds the strict rules of `pnpm contract:lint`.
 - `src/generated/` holds the operation index and the compiled validators.
-  Never edit a file there. `pnpm generate` writes it and
-  `pnpm generated:check` compares it.
-- `src/operations.ts` gives the registry lookups. `src/schema.ts` compiles a
-  schema and describes an issue.
-- No route, no handler, and no client code lives here. The generator lives in
-  `tools/sdk-codegen`.
+  Never edit a file there. `pnpm generate` writes it and `generated:check`
+  compares it.
+- `src/operations.ts` gives the registry lookups and `src/schema.ts` compiles
+  a schema. No route, no handler, and no client code lives here. The generator
+  lives in `tools/sdk-codegen`.
 
 ## Allowed imports
 
@@ -28,29 +36,33 @@ No workspace package. Only `ajv` and `ajv-formats`.
 
 ## How to add a common thing here
 
-- **An operation.** Add it in `openapi.yaml` with a stable `camelCase`
-  `operationId`, a summary, a description, and a declared tag. Give every
-  parameter `in`, `required`, `style`, `explode`, a description, and a
-  schema. Declare the success status, `400`, and `500`, plus `413` and `415`
-  when the operation has a request body.
-- **A schema.** Set `additionalProperties: false` on a write body object.
-  Mark a client only member `writeOnly` and a server only member `readOnly`.
-  Reference it from an operation, because an orphan component fails
-  generation.
-- **A failure code.** Use `application/problem+json` with `ProblemDetails`
-  and give the failure a stable `code`.
+- **A path.** Write the path item in `paths/<name>.yaml`, then add its row to
+  `paths` in the root. The file name is the path without its leading slash,
+  each `{name}` written bare and each remaining slash written as `_`, so
+  `/api/workspaces/{workspaceId}/files` becomes
+  `paths/api_workspaces_workspaceId_files.yaml`.
+- **A schema, a parameter, a response, a request body, a security scheme.**
+  Write it in `components/<section>/<Name>.yaml`, named after the component,
+  then add its row to `components.<section>` in the root.
+- **An operation.** Give it a stable `camelCase` `operationId`, a summary, a
+  description, and a declared tag. Give every parameter `in`, `required`,
+  `style`, `explode`, a description, and a schema. Declare the success status,
+  `400` and `500`, plus `413` and `415` when it has a request body.
+- **A schema member.** Set `additionalProperties: false` on a write body
+  object. Mark a client only member `writeOnly` and a server only member
+  `readOnly`. Reference the schema, because an orphan component fails
+  generation. A failure answers `ProblemDetails` with a stable `code`.
 
 ## Testing conventions here
 
-`node --test` through `pnpm test:unit`. `src/validators.test.ts` proves that
-a compiled validator accepts the declared shape and refuses the neighbouring
-undeclared one. `tests/integration/contract.test.ts` calls each generated
-operation against a real listening server and proves the one to one mapping
-between the contract and the handler map.
+`node --test` through `pnpm test:unit`. `src/validators.test.ts` proves that a
+compiled validator accepts the declared shape and refuses the neighbouring one.
+`tests/integration/contract.test.ts` proves the contract to handler mapping.
 
 ## Forbidden here
 
 - No edit under `src/generated/`.
+- No second path item or component in one file. No absolute reference.
 - No operation without `additionalProperties: false` on a write body.
 - No parameter without `style` and `explode`. No cookie parameter.
 - No status with more than one media type.
@@ -59,11 +71,10 @@ between the contract and the handler map.
 
 ## Key files
 
-| File                | Purpose                                   |
-| ------------------- | ----------------------------------------- |
-| `openapi.yaml`      | The authoritative OpenAPI 3.1.2 document  |
-| `redocly.yaml`      | The strict rules of `pnpm contract:lint`  |
-| `src/index.ts`      | The one public entry point                |
-| `src/operations.ts` | Registry lookups over the generated index |
-| `src/validators.ts` | Compiled request and response validators  |
-| `src/generated/`    | Generated output, never edited by hand    |
+| File             | Purpose                                  |
+| ---------------- | ---------------------------------------- |
+| `openapi.yaml`   | The root OpenAPI 3.1.2 document          |
+| `paths/`         | One file for each path item              |
+| `components/`    | One file for each component, by section  |
+| `redocly.yaml`   | The strict rules of `pnpm contract:lint` |
+| `src/generated/` | Generated output, never edited by hand   |

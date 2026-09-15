@@ -1,0 +1,6 @@
+description: Multipart form upload that contains the binary attachment file.
+required: true
+content:
+  multipart/form-data:
+    schema:
+      $ref: '../schemas/UploadAttachmentInput.yaml'

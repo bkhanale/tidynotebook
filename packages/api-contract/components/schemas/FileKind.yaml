@@ -1,0 +1,5 @@
+type: string
+description: Whether a file holds Markdown or an attachment.
+enum:
+  - note
+  - attachment

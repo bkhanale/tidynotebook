@@ -1,0 +1,5 @@
+description: The named record no longer exists.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Removed.yaml'

@@ -1,0 +1,5 @@
+description: Counts of the files read from one portable archive.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/ImportWorkspaceResult.yaml'

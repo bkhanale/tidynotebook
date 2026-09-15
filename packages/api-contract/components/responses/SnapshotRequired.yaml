@@ -1,0 +1,9 @@
+description: >-
+  The snapshot expired, is unknown, was invalidated by a purge, or the
+  sync cursor predates the retained 90 day window. The code is
+  snapshot_required. The client starts a fresh snapshot and keeps its
+  local work.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

@@ -1,0 +1,20 @@
+type: object
+description: The revision that one single file operation accepted.
+additionalProperties: false
+required:
+  - revision
+  - accepted
+properties:
+  revision:
+    allOf:
+      - $ref: './AcceptedRevision.yaml'
+    readOnly: true
+    description: >-
+      The accepted revision, as the workspace recorded it. Its identifier
+      is the entity tag of the answer. It carries no text: the request
+      that wrote it already holds the content.
+  accepted:
+    allOf:
+      - $ref: './AcceptedChangeset.yaml'
+    readOnly: true
+    description: The outcome of the changeset that carried the revision.

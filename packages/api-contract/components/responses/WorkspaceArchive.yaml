@@ -1,0 +1,14 @@
+description: A zip archive of every live note and its attachments.
+headers:
+  content-disposition:
+    description: >-
+      Names the download and asks the client to save it rather than to
+      show it.
+    schema:
+      type: string
+      maxLength: 512
+content:
+  application/zip:
+    schema:
+      type: string
+      format: binary

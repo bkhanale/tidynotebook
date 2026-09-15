@@ -1,0 +1,6 @@
+description: Deleted file restore payload.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/RestoreFileInput.yaml'

@@ -1,0 +1,11 @@
+name: cursor
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  Position to continue a file listing from. Use the nextCursor value of
+  the previous page, together with the same sort. The first page names
+  no cursor.
+schema:
+  $ref: '../schemas/FilePageToken.yaml'

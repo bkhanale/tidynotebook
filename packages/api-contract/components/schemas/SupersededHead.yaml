@@ -1,0 +1,32 @@
+type: object
+description: >-
+  One file whose accepted head moved between the read of the client and
+  this changeset. The workspace rebased the save on the current head, so
+  the later save still wins and the head that it passed stays in history.
+  The record carries no text and no path: the accepted revision of the
+  same answer already names the path.
+additionalProperties: false
+required:
+  - fileId
+  - previousHeadRevisionId
+  - acceptedRevisionId
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The file whose accepted head moved.
+  previousHeadRevisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: >-
+      The accepted head that the client did not see. It is now a history
+      entry of the file, and its text is not lost.
+  acceptedRevisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: >-
+      The revision of this changeset that became the new accepted head
+      of the file.

@@ -1,0 +1,8 @@
+type: string
+description: >-
+  Identifier of a theme family in the client theme registry, for example
+  tokyo-night. An identifier that the client does not know falls back to
+  the default family, so a stored value never stops the page painting.
+minLength: 1
+maxLength: 40
+pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'

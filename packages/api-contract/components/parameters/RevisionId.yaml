@@ -1,0 +1,8 @@
+name: revisionId
+in: path
+required: true
+style: simple
+explode: false
+description: Identifier of the revision that the operation reads.
+schema:
+  $ref: '../schemas/Uuid.yaml'

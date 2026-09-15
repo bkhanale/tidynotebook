@@ -1,0 +1,6 @@
+description: Snapshot start payload.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/StartSnapshotInput.yaml'

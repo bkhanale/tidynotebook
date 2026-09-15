@@ -1,0 +1,5 @@
+description: The request did not match the contract.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

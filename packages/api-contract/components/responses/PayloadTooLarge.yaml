@@ -1,0 +1,5 @@
+description: The request body is larger than the configured limit.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

@@ -14,6 +14,7 @@ import { join, resolve } from 'node:path';
 import { createClient } from '@hey-api/openapi-ts';
 import { mergeAuthContract } from './auth-contract.ts';
 import { buildContractIndex } from './contract-index.ts';
+import { assertContractLayout } from './contract-layout.ts';
 import { shareDefinitions } from './definitions.ts';
 import { emitContractModule } from './emit.ts';
 import { assertNoOrphanComponents } from './orphans.ts';
@@ -98,7 +99,12 @@ async function generateFrom(
   // The authentication protocol fragment is added to the source form, so the
   // generated client keeps one set of shared component types.
   bundleContract(contractFile, sourceFile, false);
-  const merged = mergeAuthContract(await readDocument(sourceFile));
+  const source = await readDocument(sourceFile);
+  // A source file that the root document does not reference never reaches the
+  // bundle, so no Redocly rule can see it. The check runs before the merge,
+  // because the fragment below adds paths and schemas that no file holds.
+  await assertContractLayout(source);
+  const merged = mergeAuthContract(source);
   // A component that nothing reaches would still reach the shipped client, so
   // it is a generation failure rather than a review matter.
   assertNoOrphanComponents(merged);

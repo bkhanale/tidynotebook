@@ -1,0 +1,5 @@
+description: One workspace of the signed in account.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Workspace.yaml'

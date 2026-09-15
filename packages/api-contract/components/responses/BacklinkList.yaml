@@ -1,0 +1,5 @@
+description: Live notes that link to one file path.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/BacklinkList.yaml'

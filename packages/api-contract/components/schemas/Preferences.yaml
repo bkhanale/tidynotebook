@@ -1,0 +1,17 @@
+type: object
+description: Settings that follow one account to every device.
+additionalProperties: false
+required:
+  - appearance
+  - themeFamily
+properties:
+  appearance:
+    allOf:
+      - $ref: './Appearance.yaml'
+    readOnly: true
+    description: The stored appearance choice of the account.
+  themeFamily:
+    allOf:
+      - $ref: './ThemeFamily.yaml'
+    readOnly: true
+    description: The stored theme family of the account.

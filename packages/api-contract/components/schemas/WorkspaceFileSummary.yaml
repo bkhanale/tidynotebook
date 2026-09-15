@@ -1,0 +1,46 @@
+type: object
+description: One live file of a workspace, without its content.
+additionalProperties: false
+required:
+  - fileId
+  - path
+  - kind
+  - headRevisionId
+  - createdAt
+  - updatedAt
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Stable identifier of the file. A rename never changes it.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+    description: The accepted path of the file.
+  kind:
+    allOf:
+      - $ref: './FileKind.yaml'
+    readOnly: true
+    description: Whether the file holds Markdown or an attachment.
+  headRevisionId:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The accepted head of the file, which is also its entity tag, or
+      null for a file that has no accepted revision yet.
+  createdAt:
+    type: string
+    readOnly: true
+    description: Instant at which the file was created.
+    format: date-time
+    maxLength: 64
+  updatedAt:
+    type: string
+    readOnly: true
+    description: Instant at which the workspace accepted the last change.
+    format: date-time
+    maxLength: 64

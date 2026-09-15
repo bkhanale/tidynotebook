@@ -13,17 +13,17 @@ export const repositoryRoot = resolve(packageRoot, '../..');
 /** Redocly executable installed by this package. */
 export const redoclyBin = resolve(packageRoot, 'node_modules/.bin/redocly');
 
-/** Authoritative OpenAPI document. */
-export const contractFile = resolve(
+/** Directory that holds the contract source files. */
+export const contractDirectory = resolve(
   repositoryRoot,
-  'packages/api-contract/openapi.yaml',
+  'packages/api-contract',
 );
 
+/** Root document of the contract. Redocly bundles its files into one. */
+export const contractFile = resolve(contractDirectory, 'openapi.yaml');
+
 /** Redocly rule configuration for the contract. */
-export const redoclyConfigFile = resolve(
-  repositoryRoot,
-  'packages/api-contract/redocly.yaml',
-);
+export const redoclyConfigFile = resolve(contractDirectory, 'redocly.yaml');
 
 /**
  * Output directories relative to a repository-like root. `check-generated`

@@ -1,0 +1,7 @@
+type:
+  - string
+  - 'null'
+description: >-
+  Name of a checkpoint, or null for an ordinary revision. It is written
+  by the author and is not interpreted by the server.
+maxLength: 512

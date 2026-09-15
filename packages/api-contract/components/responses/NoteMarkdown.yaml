@@ -1,0 +1,14 @@
+description: The accepted head of one note as a Markdown file.
+headers:
+  content-disposition:
+    description: >-
+      Names the download and asks the client to save it rather than to
+      show it.
+    schema:
+      type: string
+      maxLength: 512
+content:
+  text/markdown:
+    schema:
+      type: string
+      format: binary

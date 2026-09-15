@@ -1,0 +1,9 @@
+type: string
+description: >-
+  A conditional request header value: either the literal *, or one or
+  more entity tags separated by commas. A tag is quoted, and a weak tag
+  carries the W/ prefix. A write compares strongly, as RFC 9110 requires,
+  so it accepts a strong tag only.
+minLength: 1
+maxLength: 1024
+pattern: ^(?:\*|(?:W/)?"[^"]*"(?:[ \t]*,[ \t]*(?:W/)?"[^"]*")*)$

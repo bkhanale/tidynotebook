@@ -1,0 +1,43 @@
+type: object
+description: The identifiers, the path, and the first content of a new file.
+additionalProperties: false
+required:
+  - fileId
+  - revisionId
+  - mutationId
+  - deviceId
+  - path
+  - text
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: >-
+      Identifier of the new file. The client assigns it, so a file that
+      was written offline keeps one identity everywhere.
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identifier of the first revision.
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: >-
+      Identity of this operation. A retry that repeats it returns the
+      first outcome instead of writing a second time.
+  deviceId:
+    allOf:
+      - $ref: './DeviceId.yaml'
+    description: The device that submitted the change.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    description: Path of the new note, which must end in .md.
+  text:
+    allOf:
+      - $ref: './MarkdownText.yaml'
+    description: Markdown of the first revision.
+  message:
+    allOf:
+      - $ref: './CheckpointMessage.yaml'
+    description: Name of this checkpoint, or null.

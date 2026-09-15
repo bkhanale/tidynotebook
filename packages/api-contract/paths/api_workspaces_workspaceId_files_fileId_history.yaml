@@ -1,0 +1,30 @@
+get:
+  operationId: listHistory
+  summary: Read the revision history of a file.
+  description: >-
+    Lists the immutable revisions of one file in reverse chronological
+    order. The result supports cursor pagination. Each item reports byte
+    size, author identity, checkpoint status, and restored-from references.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/FileId.yaml'
+    - $ref: '../components/parameters/PageCursor.yaml'
+    - $ref: '../components/parameters/HistoryLimit.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/HistoryPage.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '410':
+      $ref: '../components/responses/Gone.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

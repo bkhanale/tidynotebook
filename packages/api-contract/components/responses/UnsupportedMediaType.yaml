@@ -1,0 +1,5 @@
+description: The request media type is not supported.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

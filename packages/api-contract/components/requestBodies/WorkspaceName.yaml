@@ -1,0 +1,6 @@
+description: The name to give the workspace.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/WorkspaceNameInput.yaml'

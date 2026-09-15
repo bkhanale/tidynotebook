@@ -1,0 +1,12 @@
+type: object
+description: Liveness report of the service process.
+additionalProperties: false
+required:
+  - status
+properties:
+  status:
+    type: string
+    readOnly: true
+    description: Always the literal value ok while the process answers.
+    enum:
+      - ok

@@ -1,0 +1,10 @@
+type: object
+description: Multipart form upload payload that contains one zip archive.
+additionalProperties: false
+required:
+  - file
+properties:
+  file:
+    type: string
+    format: binary
+    description: Portable workspace zip archive.

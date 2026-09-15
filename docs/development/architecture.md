@@ -132,7 +132,7 @@ structure. See [Markdown](markdown.md).
 
 ## Contract and generation
 
-`packages/api-contract/openapi.yaml` is the source. `pnpm generate` writes the
+`packages/api-contract/` is the source. `pnpm generate` writes the
 typed client and the contract index, and `pnpm generated:check` fails when the
 committed output does not match the contract. Every request and response is
 validated against the contract at the HTTP boundary. See

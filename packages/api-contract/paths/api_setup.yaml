@@ -1,0 +1,81 @@
+get:
+  operationId: getSetupStatus
+  summary: Report whether the single user exists.
+  description: Reports if first-run setup is complete without exposing account data.
+  tags:
+    - auth
+  security: []
+  responses:
+    '200':
+      description: The setup state.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required:
+              - initialized
+            properties:
+              initialized:
+                type: boolean
+                readOnly: true
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+post:
+  operationId: createOwner
+  summary: Create the single user during first-run setup.
+  description: This operation is refused after the first account exists.
+  tags:
+    - auth
+  security: []
+  requestBody:
+    description: The email address and password of the single user.
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          additionalProperties: false
+          required:
+            - email
+            - password
+          properties:
+            email:
+              type: string
+              format: email
+              minLength: 3
+              maxLength: 320
+            password:
+              type: string
+              minLength: 12
+              maxLength: 512
+  responses:
+    '201':
+      description: The single user was created and signed in.
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            required:
+              - initialized
+            properties:
+              initialized:
+                type: boolean
+                readOnly: true
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

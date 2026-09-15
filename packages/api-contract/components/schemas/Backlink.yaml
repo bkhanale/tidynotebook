@@ -1,0 +1,20 @@
+type: object
+description: One live note that links to the requested file path.
+additionalProperties: false
+required:
+  - fileId
+  - path
+  - revisionId
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true

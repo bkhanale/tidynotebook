@@ -1,0 +1,5 @@
+description: The uploaded temporary attachment object and its verified digest.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/AttachmentUploadResult.yaml'

@@ -164,7 +164,7 @@ The gate enforces these. The detail is in
   `fetch` in feature code.
 - Style with Tailwind utilities. `apps/web/src/tailwind.css` is the only
   application CSS source.
-- Add a new API operation to `packages/api-contract/openapi.yaml` first, then
+- Add a new API operation to `packages/api-contract/` first, then
   run `pnpm generate`. See
   [docs/development/api-contract.md](docs/development/api-contract.md).
 - Validate at domain boundaries. Do not weaken a server invariant to hide a

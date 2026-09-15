@@ -1,0 +1,12 @@
+name: limit
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  Largest number of change records in one answer. The server uses 100
+  when the parameter is absent and never returns more than 500.
+schema:
+  type: integer
+  minimum: 1
+  maximum: 500

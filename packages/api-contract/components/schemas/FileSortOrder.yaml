@@ -1,0 +1,7 @@
+type: string
+description: >-
+  Order of a file listing. `updated` is the newest accepted change
+  first. `path` is the stored path in ascending order.
+enum:
+  - updated
+  - path

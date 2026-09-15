@@ -1,0 +1,33 @@
+post:
+  operationId: purgeFiles
+  summary: Permanently delete files and write purge markers.
+  description: >-
+    Permanently purges files and revisions, writes purge markers, and
+    reclaims storage. Subsequent writes to purged file identifiers answer
+    410 Gone. Restricted to the workspace owner.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/PurgeFiles.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/PurgedFiles.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

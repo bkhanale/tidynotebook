@@ -88,7 +88,9 @@ list, the branch workflow and the commit style.
 
 ## API generation
 
-The contract is `packages/api-contract/openapi.yaml`.
+The contract is `packages/api-contract/`. `openapi.yaml` is the root
+document, and it lists one file for each path item and one file for each
+component.
 
 ```bash
 pnpm contract:lint

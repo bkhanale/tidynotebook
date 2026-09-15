@@ -1,0 +1,6 @@
+description: Revision restore payload.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/RestoreRevisionInput.yaml'

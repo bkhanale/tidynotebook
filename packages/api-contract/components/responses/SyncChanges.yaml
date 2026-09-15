@@ -1,0 +1,5 @@
+description: Ordered incremental changes after a cursor.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/SyncChanges.yaml'

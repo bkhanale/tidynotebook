@@ -1,0 +1,5 @@
+description: The service process is running.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/HealthReport.yaml'

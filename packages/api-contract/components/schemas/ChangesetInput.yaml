@@ -1,0 +1,34 @@
+type: object
+description: One atomic change of one or more files.
+additionalProperties: false
+required:
+  - mutationId
+  - deviceId
+  - expectedHeads
+  - revisions
+properties:
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: >-
+      Identity of this operation. A retry with the same identity and the
+      same body returns the first outcome.
+  deviceId:
+    allOf:
+      - $ref: './DeviceId.yaml'
+    description: The device that submitted the changeset.
+  expectedHeads:
+    allOf:
+      - $ref: './ExpectedHeads.yaml'
+    description: The precondition of every file that the changeset changes.
+  revisions:
+    type: array
+    description: >-
+      The revisions to accept, in submission order. The revisions of one
+      file form one chain, and the last one becomes its head. One
+      changeset may change at most 1000 files, and a file may carry
+      several revisions, so the limit below is above the file limit.
+    minItems: 1
+    maxItems: 4000
+    items:
+      $ref: './RevisionInput.yaml'

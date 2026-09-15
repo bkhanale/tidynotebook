@@ -1,0 +1,10 @@
+type: object
+description: Confirmation that the named record no longer exists.
+additionalProperties: false
+required:
+  - removed
+properties:
+  removed:
+    type: boolean
+    readOnly: true
+    description: Always true. The record no longer exists.

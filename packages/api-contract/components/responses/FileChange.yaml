@@ -1,0 +1,5 @@
+description: The accepted revision and the outcome of its changeset.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/FileChange.yaml'

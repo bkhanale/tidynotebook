@@ -1,0 +1,22 @@
+type: object
+description: One page of the deleted files of a workspace.
+additionalProperties: false
+required:
+  - files
+  - nextCursor
+properties:
+  files:
+    type: array
+    readOnly: true
+    description: The deleted files of this page, in the requested order.
+    maxItems: 500
+    items:
+      $ref: './WorkspaceDeletedFileSummary.yaml'
+  nextCursor:
+    oneOf:
+      - $ref: './FilePageToken.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      Cursor of the next page, or null when this page is the last one.
+      It continues the sort that produced it.

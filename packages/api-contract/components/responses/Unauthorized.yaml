@@ -1,0 +1,5 @@
+description: The request carries no usable session.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

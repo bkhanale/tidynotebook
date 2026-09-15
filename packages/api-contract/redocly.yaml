@@ -4,7 +4,15 @@ extends:
 rules:
   struct: error
   no-unresolved-refs: error
-  no-unused-components: error
+  # Off, and the check is not lost. The contract source is a root document
+  # beside one file for each path item and each component, so the root declares
+  # every component as a reference to its file. This rule counts that reference
+  # as a use, so it can report nothing and it proves nothing here.
+  # `tools/sdk-codegen/src/orphans.ts` holds the check instead. It walks the
+  # bundled document from the paths and the document security, and it also
+  # sees the authentication fragment that the generator merges, which this rule
+  # never read. `pnpm generate` and `pnpm generated:check` both run it.
+  no-unused-components: off
   security-defined: error
   operation-operationId: error
   operation-operationId-unique: error

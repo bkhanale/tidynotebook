@@ -1,0 +1,7 @@
+description: >-
+  An expected head does not match the accepted head. The fileIds member
+  names every file that moved on, so the client can resolve them.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

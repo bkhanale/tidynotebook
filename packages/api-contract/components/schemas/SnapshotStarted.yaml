@@ -1,0 +1,43 @@
+type: object
+description: The captured snapshot and its opaque page token.
+additionalProperties: false
+required:
+  - token
+  - expiresAt
+  - cursor
+  - itemCount
+  - pageSize
+properties:
+  token:
+    type: string
+    readOnly: true
+    description: >-
+      Opaque token that addresses the materialized pages for 15 minutes.
+    minLength: 43
+    maxLength: 43
+    pattern: ^[A-Za-z0-9_-]{43}$
+  expiresAt:
+    type: string
+    readOnly: true
+    description: Instant at which the snapshot expires.
+    format: date-time
+  cursor:
+    type: string
+    readOnly: true
+    description: >-
+      The captured high-water cursor. A sync client asks for changes
+      after this position.
+    minLength: 1
+    maxLength: 32
+    pattern: ^[0-9]+$
+  itemCount:
+    type: integer
+    readOnly: true
+    description: How many items the snapshot captured.
+    minimum: 0
+  pageSize:
+    type: integer
+    readOnly: true
+    description: The page size stored with the snapshot.
+    minimum: 1
+    maximum: 500

@@ -1,0 +1,32 @@
+get:
+  operationId: listDeletedFiles
+  summary: List the deleted files of a workspace.
+  description: >-
+    Lists the files of the workspace that a tombstone revision deleted,
+    in the requested order and paged with a keyset cursor, exactly as the
+    live listing is. A deleted file holds no place in the file tree, so it
+    appears here instead. Each entry names the instant of the deletion and
+    the tombstone that is the accepted head, which the restore operation
+    needs. A permanently purged file is not listed, because nothing of it
+    is left to restore.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/FilePageCursor.yaml'
+    - $ref: '../components/parameters/PageLimit.yaml'
+    - $ref: '../components/parameters/FileSort.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/DeletedFileList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

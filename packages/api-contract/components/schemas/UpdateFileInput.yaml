@@ -1,0 +1,36 @@
+type: object
+description: The identifiers and the new content or path of a file.
+additionalProperties: false
+required:
+  - revisionId
+  - mutationId
+  - deviceId
+properties:
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identifier of the new revision.
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identity of this operation, which makes a retry safe.
+  deviceId:
+    allOf:
+      - $ref: './DeviceId.yaml'
+    description: The device that submitted the change.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    description: >-
+      New path of the file. The path of the expected head is kept when
+      this member is absent.
+  text:
+    allOf:
+      - $ref: './MarkdownText.yaml'
+    description: >-
+      New Markdown of the file. The content of the expected head is kept
+      when this member is absent, which is how a plain rename is written.
+  message:
+    allOf:
+      - $ref: './CheckpointMessage.yaml'
+    description: Name of this checkpoint, or null.

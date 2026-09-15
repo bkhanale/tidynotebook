@@ -1,0 +1,19 @@
+get:
+  operationId: getHealth
+  summary: Report that the service process is running.
+  description: >-
+    Reports process liveness only. The operation never inspects a
+    dependency, so a caller cannot use it to decide that the service can
+    accept traffic. Use the readiness operation for that decision.
+  tags:
+    - service
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Health.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

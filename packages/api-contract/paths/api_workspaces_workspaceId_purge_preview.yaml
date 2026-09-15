@@ -1,0 +1,31 @@
+post:
+  operationId: previewPurge
+  summary: Preview permanent deletion of files.
+  description: >-
+    Reports affected revisions, reclaimable bytes, and blocking references
+    such as attachments referenced by external revisions. Restricted to
+    workspace owners.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/PreviewPurge.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/PurgePreview.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

@@ -1,0 +1,25 @@
+get:
+  operationId: getAttachmentRevision
+  summary: Read the binary image of an accepted attachment revision.
+  description: >-
+    Streams the immutable binary bytes of an accepted attachment revision
+    with its declared media type.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/RevisionId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/AttachmentBinary.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

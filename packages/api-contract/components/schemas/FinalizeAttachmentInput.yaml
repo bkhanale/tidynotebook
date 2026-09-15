@@ -1,0 +1,39 @@
+type: object
+description: Payload to finalize an attachment and create an immutable revision.
+additionalProperties: false
+required:
+  - fileId
+  - revisionId
+  - mutationId
+  - deviceId
+  - path
+  - digest
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identifier of the file that holds this attachment revision.
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identifier of the new revision.
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identity of this operation, which makes a retry safe.
+  deviceId:
+    allOf:
+      - $ref: './DeviceId.yaml'
+    description: The device that submitted the change.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    description: Path of the attachment file in the workspace.
+  digest:
+    allOf:
+      - $ref: './ContentDigest.yaml'
+    description: The verified SHA-256 digest of the attachment object.
+  message:
+    allOf:
+      - $ref: './CheckpointMessage.yaml'
+    description: Name of this checkpoint, or null.

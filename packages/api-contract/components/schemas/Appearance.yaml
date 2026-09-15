@@ -1,0 +1,8 @@
+type: string
+description: >-
+  Appearance choice. The value system follows the device preference
+  between the light and the dark variant of the chosen theme family.
+enum:
+  - system
+  - light
+  - dark

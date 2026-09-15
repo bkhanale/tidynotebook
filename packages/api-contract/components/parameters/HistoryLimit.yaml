@@ -1,0 +1,10 @@
+name: limit
+in: query
+required: false
+style: form
+explode: true
+description: Largest number of history items to return. Defaults to 50.
+schema:
+  type: integer
+  minimum: 1
+  maximum: 100

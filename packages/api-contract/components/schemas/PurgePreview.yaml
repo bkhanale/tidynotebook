@@ -1,0 +1,39 @@
+type: object
+description: Summary preview of an intended permanent file purge.
+additionalProperties: false
+required:
+  - fileIds
+  - revisionIds
+  - contentDigests
+  - attachmentObjectIds
+  - blockingReferences
+  - dependentRevisionCount
+  - reclaimableBytes
+  - canPurge
+properties:
+  fileIds:
+    type: array
+    items:
+      $ref: './Uuid.yaml'
+  revisionIds:
+    type: array
+    items:
+      $ref: './Uuid.yaml'
+  contentDigests:
+    type: array
+    items:
+      type: string
+  attachmentObjectIds:
+    type: array
+    items:
+      $ref: './Uuid.yaml'
+  blockingReferences:
+    type: array
+    items:
+      $ref: './BlockingReference.yaml'
+  dependentRevisionCount:
+    type: integer
+  reclaimableBytes:
+    type: integer
+  canPurge:
+    type: boolean

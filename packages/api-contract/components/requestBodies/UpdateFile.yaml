@@ -1,0 +1,6 @@
+description: The identifiers and the new content or path of a file.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/UpdateFileInput.yaml'

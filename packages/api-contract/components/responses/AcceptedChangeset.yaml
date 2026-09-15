@@ -1,0 +1,5 @@
+description: The outcome of one accepted changeset.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/AcceptedChangeset.yaml'

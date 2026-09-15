@@ -1,0 +1,7 @@
+type: string
+description: >-
+  Opaque position inside one file listing. It belongs to the sort that
+  produced it and carries no meaning for a client.
+minLength: 1
+maxLength: 2048
+pattern: '^(updated|path)\.[0-9a-fA-F-]{36}\.[A-Za-z0-9\-._~!*''()%]*$'

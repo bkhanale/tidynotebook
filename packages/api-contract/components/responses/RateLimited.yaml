@@ -1,0 +1,5 @@
+description: Too many attempts were made in a short time.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

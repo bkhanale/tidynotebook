@@ -1,0 +1,6 @@
+description: Payload to finalize an attachment and create an immutable revision.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/FinalizeAttachmentInput.yaml'

@@ -1,0 +1,24 @@
+type: object
+description: The identifiers of a tombstone revision.
+additionalProperties: false
+required:
+  - revisionId
+  - mutationId
+  - deviceId
+properties:
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identifier of the tombstone revision.
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identity of this operation, which makes a retry safe.
+  deviceId:
+    allOf:
+      - $ref: './DeviceId.yaml'
+    description: The device that submitted the deletion.
+  message:
+    allOf:
+      - $ref: './CheckpointMessage.yaml'
+    description: Reason for the deletion, or null.

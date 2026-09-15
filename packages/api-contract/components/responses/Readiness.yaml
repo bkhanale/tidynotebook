@@ -1,0 +1,5 @@
+description: The service can accept traffic.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/ReadinessReport.yaml'

@@ -1,0 +1,30 @@
+put:
+  operationId: updatePreferences
+  summary: Replace the stored settings of the signed in account.
+  description: >-
+    Replaces the settings that follow the account to every device. The
+    theme family selects the palette, and the appearance selects the light
+    variant, the dark variant, or the one that matches the device.
+  tags:
+    - accounts
+  security:
+    - sessionCookie: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/PreferencesUpdate.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Preferences.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

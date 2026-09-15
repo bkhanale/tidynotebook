@@ -1,0 +1,43 @@
+post:
+  operationId: finalizeAttachment
+  summary: Finalize an attachment object and create an immutable revision.
+  description: >-
+    Finalizes an uploaded temporary attachment object and commits an
+    attachment revision to the workspace file tree in one transaction. An
+    existing file requires an If-Match header naming the accepted head.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/ObjectId.yaml'
+    - $ref: '../components/parameters/IfMatch.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/FinalizeAttachment.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/FileChange.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
+    '410':
+      $ref: '../components/responses/Gone.yaml'
+    '412':
+      $ref: '../components/responses/PreconditionFailed.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '428':
+      $ref: '../components/responses/PreconditionRequired.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

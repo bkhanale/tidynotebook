@@ -1,0 +1,27 @@
+get:
+  operationId: getRevision
+  summary: Read one immutable revision.
+  description: >-
+    Reports one accepted revision of the workspace with its parents, its
+    path at that time, and its content. A Markdown revision carries its
+    text. An attachment revision carries the identity of its immutable
+    object; its bytes are transferred through the attachment operations.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/RevisionId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Revision.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

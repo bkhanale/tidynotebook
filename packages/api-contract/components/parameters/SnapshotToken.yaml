@@ -1,0 +1,13 @@
+name: token
+in: path
+required: true
+style: simple
+explode: false
+description: >-
+  Opaque token of a materialized snapshot, issued by the snapshot start
+  operation. Only its hash is stored, so the value cannot be guessed.
+schema:
+  type: string
+  minLength: 43
+  maxLength: 43
+  pattern: ^[A-Za-z0-9_-]{43}$

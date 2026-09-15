@@ -1,0 +1,10 @@
+type: object
+description: Multipart form upload payload that contains the binary attachment file.
+additionalProperties: false
+required:
+  - file
+properties:
+  file:
+    type: string
+    format: binary
+    description: Binary bytes of the image attachment.

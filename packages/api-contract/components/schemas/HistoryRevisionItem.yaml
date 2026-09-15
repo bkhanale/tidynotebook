@@ -1,0 +1,63 @@
+type: object
+description: One historic revision of a file.
+additionalProperties: false
+required:
+  - revisionId
+  - fileId
+  - path
+  - deleted
+  - parents
+  - digest
+  - size
+  - actorAccountId
+  - clientTime
+  - serverTime
+  - message
+  - isCheckpoint
+  - checkpointName
+  - restoredFrom
+  - text
+  - objectId
+properties:
+  revisionId:
+    $ref: './Uuid.yaml'
+  fileId:
+    $ref: './Uuid.yaml'
+  path:
+    $ref: './FilePath.yaml'
+  deleted:
+    type: boolean
+  parents:
+    type: array
+    items:
+      $ref: './Uuid.yaml'
+  digest:
+    $ref: './ContentDigest.yaml'
+  size:
+    type: integer
+  actorAccountId:
+    $ref: './Uuid.yaml'
+  clientTime:
+    type: string
+    format: date-time
+  serverTime:
+    type: string
+    format: date-time
+  message:
+    $ref: './CheckpointMessage.yaml'
+  isCheckpoint:
+    type: boolean
+  checkpointName:
+    $ref: './CheckpointMessage.yaml'
+  restoredFrom:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'
+  text:
+    type:
+      - string
+      - 'null'
+  objectId:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'

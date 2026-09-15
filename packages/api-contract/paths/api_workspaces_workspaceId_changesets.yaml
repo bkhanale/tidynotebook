@@ -1,0 +1,42 @@
+post:
+  operationId: commitChangeset
+  summary: Accept one atomic change of one or more files.
+  description: >-
+    Accepts a complete changeset: every revision commits or none does. The
+    request states an expected head for each file it changes, and null for
+    a file that must not exist yet. It is the operation that the sync
+    engine uses, and it also performs a folder change of up to 1000 files.
+    A retry with the same mutation identity and the same body returns the
+    first outcome; the same identity with a different body is refused.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/Changeset.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/AcceptedChangeset.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
+    '410':
+      $ref: '../components/responses/Gone.yaml'
+    '412':
+      $ref: '../components/responses/PreconditionFailed.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

@@ -1,0 +1,7 @@
+type: string
+description: >-
+  Relative POSIX path of the file inside its workspace. A note path ends
+  in .md. The stored path is the Unicode NFC form of this value, and it
+  is compared case sensitively.
+minLength: 1
+maxLength: 1024

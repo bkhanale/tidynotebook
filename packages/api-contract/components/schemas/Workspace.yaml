@@ -1,0 +1,29 @@
+type: object
+description: One workspace as its member sees it.
+additionalProperties: false
+required:
+  - workspaceId
+  - name
+  - role
+  - personal
+properties:
+  workspaceId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Identifier of the workspace.
+  name:
+    type: string
+    readOnly: true
+    description: Name of the workspace.
+    minLength: 1
+    maxLength: 200
+  role:
+    allOf:
+      - $ref: './Role.yaml'
+    readOnly: true
+    description: The role of the reading account in this workspace.
+  personal:
+    type: boolean
+    readOnly: true
+    description: True for the workspace that was created with the account.

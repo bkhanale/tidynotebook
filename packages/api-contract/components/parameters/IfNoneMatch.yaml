@@ -1,0 +1,11 @@
+name: if-none-match
+in: header
+required: false
+style: simple
+explode: false
+description: >-
+  Entity tag that the client already holds, or a list of them. The answer
+  is 304 with no body when one of them names the current head. The value *
+  means any representation, so it answers 304 for a file that exists.
+schema:
+  $ref: '../schemas/EntityTagCondition.yaml'

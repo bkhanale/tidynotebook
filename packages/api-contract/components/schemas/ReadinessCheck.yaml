@@ -1,0 +1,27 @@
+type: object
+description: State of one startup requirement.
+additionalProperties: false
+required:
+  - name
+  - status
+properties:
+  name:
+    type: string
+    readOnly: true
+    description: Stable name of the requirement, for example configuration.
+    minLength: 1
+    maxLength: 64
+  status:
+    type: string
+    readOnly: true
+    description: State of this requirement.
+    enum:
+      - ok
+      - degraded
+  detail:
+    type: string
+    readOnly: true
+    description: >-
+      Operator readable explanation. The field is absent in a summary
+      report and it never contains note content or a secret.
+    maxLength: 512

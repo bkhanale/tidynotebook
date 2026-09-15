@@ -1,0 +1,15 @@
+type: object
+description: Settings to store for the signed in account.
+additionalProperties: false
+required:
+  - appearance
+  - themeFamily
+properties:
+  appearance:
+    allOf:
+      - $ref: './Appearance.yaml'
+    description: The appearance choice to store.
+  themeFamily:
+    allOf:
+      - $ref: './ThemeFamily.yaml'
+    description: The theme family to store.

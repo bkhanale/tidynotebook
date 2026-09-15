@@ -1,0 +1,7 @@
+description: >-
+  The operation needs a precondition and the request carried none. Repeat
+  the request with the entity tag of the head that was read.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

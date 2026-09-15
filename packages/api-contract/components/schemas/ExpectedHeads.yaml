@@ -1,0 +1,16 @@
+type: object
+description: >-
+  The accepted head that the client saw for each file of the changeset,
+  keyed by file identifier. The value null states that the file must not
+  exist in accepted state, which is the precondition of a new file. Every
+  file that the changeset changes needs an entry, and an entry for a file
+  that it does not change is refused. The limit below is a coarse bound
+  that protects the parser; the rule that a changeset may change at most
+  1000 files is applied by the workspace and answers 422.
+maxProperties: 4000
+propertyNames:
+  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$
+additionalProperties:
+  oneOf:
+    - $ref: './Uuid.yaml'
+    - type: 'null'

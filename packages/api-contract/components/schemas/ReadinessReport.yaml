@@ -1,0 +1,24 @@
+type: object
+description: Readiness report of every startup requirement.
+additionalProperties: false
+required:
+  - status
+  - checks
+properties:
+  status:
+    type: string
+    readOnly: true
+    description: >-
+      Overall readiness. The value is degraded when at least one check is
+      degraded.
+    enum:
+      - ok
+      - degraded
+  checks:
+    type: array
+    readOnly: true
+    description: One entry for every startup requirement that was checked.
+    minItems: 1
+    maxItems: 32
+    items:
+      $ref: './ReadinessCheck.yaml'

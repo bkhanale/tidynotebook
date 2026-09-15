@@ -1,0 +1,11 @@
+name: position
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  Ordinal of the first snapshot item to return. Use the nextPosition
+  value of the previous page. The first page starts at zero.
+schema:
+  type: integer
+  minimum: 0

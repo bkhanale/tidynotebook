@@ -1,0 +1,19 @@
+type: object
+description: A reference that blocks permanent deletion.
+additionalProperties: false
+required:
+  - kind
+  - targetId
+  - referrerId
+  - description
+properties:
+  kind:
+    type: string
+    enum:
+      - revision
+  targetId:
+    type: string
+  referrerId:
+    type: string
+  description:
+    type: string

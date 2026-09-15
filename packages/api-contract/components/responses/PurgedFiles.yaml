@@ -1,0 +1,5 @@
+description: Outcome of executed permanent file purge.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/PurgedFiles.yaml'

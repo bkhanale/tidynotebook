@@ -1,0 +1,13 @@
+type: object
+description: Every workspace of the signed in account.
+additionalProperties: false
+required:
+  - workspaces
+properties:
+  workspaces:
+    type: array
+    readOnly: true
+    description: One entry for each workspace the account belongs to.
+    maxItems: 1000
+    items:
+      $ref: './Workspace.yaml'

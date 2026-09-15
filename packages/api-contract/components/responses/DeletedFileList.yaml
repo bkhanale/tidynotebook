@@ -1,0 +1,5 @@
+description: One page of the deleted files of a workspace.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/WorkspaceDeletedFileList.yaml'

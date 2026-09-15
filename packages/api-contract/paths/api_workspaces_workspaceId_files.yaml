@@ -1,0 +1,73 @@
+get:
+  operationId: listFiles
+  summary: List the live files of a workspace.
+  description: >-
+    Lists the accepted files of the workspace in the requested order,
+    paged with a keyset cursor. `updated` is the newest accepted change
+    first and is the default; `path` is the order of the folder tree. A
+    deleted file is not listed, because it holds no place in the file
+    tree; its history stays readable through its revisions. The answer
+    carries metadata only, so a file tree can be drawn without downloading
+    any note.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/FilePageCursor.yaml'
+    - $ref: '../components/parameters/PageLimit.yaml'
+    - $ref: '../components/parameters/FileSort.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/FileList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+post:
+  operationId: createFile
+  summary: Create a file with its first revision.
+  description: >-
+    Creates a file that does not exist yet, together with the first
+    revision of its content. The client assigns the file, revision, and
+    mutation identifiers, so a retry that lost its answer repeats the same
+    operation instead of creating a second file. The answer carries a
+    strong entity tag that names the accepted revision.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/CreateFile.yaml'
+  responses:
+    '201':
+      $ref: '../components/responses/FileChange.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
+    '410':
+      $ref: '../components/responses/Gone.yaml'
+    '412':
+      $ref: '../components/responses/PreconditionFailed.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

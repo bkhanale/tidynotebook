@@ -1,0 +1,5 @@
+description: The stored settings of the signed in account.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Preferences.yaml'

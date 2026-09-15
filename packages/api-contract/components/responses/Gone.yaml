@@ -1,0 +1,7 @@
+description: >-
+  The file identifier was permanently purged. It can never be written
+  again, so a late offline change must be recovered into a new file.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

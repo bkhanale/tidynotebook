@@ -1,0 +1,9 @@
+type: apiKey
+in: cookie
+name: notesapp_session
+description: >-
+  Browser session cookie. The cookie is HttpOnly and SameSite, and a
+  cookie authenticated write also needs an origin check. A deployment
+  whose origin is https serves the same cookie under the reserved name
+  __Secure-notesapp_session and adds the Secure attribute, as the cookie
+  prefix rules require.

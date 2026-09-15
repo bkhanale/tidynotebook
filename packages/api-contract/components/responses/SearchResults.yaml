@@ -1,0 +1,5 @@
+description: Accepted live notes that match the search query.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/SearchResults.yaml'

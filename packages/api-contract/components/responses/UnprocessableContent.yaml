@@ -1,0 +1,7 @@
+description: >-
+  The request is well formed but its content cannot be accepted. The code
+  names the reason: invalid_path, invalid_graph, or invalid_content.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

@@ -1,0 +1,11 @@
+name: sort
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  Order of the listing. `updated` puts the newest accepted change first
+  and is the default. `path` orders by the stored path, which is the
+  order of the folder tree.
+schema:
+  $ref: '../schemas/FileSortOrder.yaml'

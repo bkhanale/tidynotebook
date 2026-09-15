@@ -1,0 +1,33 @@
+post:
+  operationId: uploadAttachment
+  summary: Upload a temporary attachment image file.
+  description: >-
+    Uploads an image as multipart/form-data. The server stores the bytes in
+    a temporary object, validates format, dimensions, and pixel count in an
+    isolated worker, and computes the SHA-256 digest.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/UploadAttachment.yaml'
+  responses:
+    '201':
+      $ref: '../components/responses/AttachmentUploaded.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

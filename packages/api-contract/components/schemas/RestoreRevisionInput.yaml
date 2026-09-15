@@ -1,0 +1,31 @@
+type: object
+description: Payload to restore a file to an earlier historic revision.
+additionalProperties: false
+required:
+  - mutationId
+  - deviceId
+  - clientTime
+  - targetRevisionId
+  - revisionId
+properties:
+  mutationId:
+    $ref: './Uuid.yaml'
+  deviceId:
+    $ref: './DeviceId.yaml'
+  clientTime:
+    type: string
+    format: date-time
+    minLength: 20
+    maxLength: 64
+  targetRevisionId:
+    $ref: './Uuid.yaml'
+  expectedHead:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'
+  revisionId:
+    $ref: './Uuid.yaml'
+  path:
+    $ref: './FilePath.yaml'
+  message:
+    $ref: './CheckpointMessage.yaml'

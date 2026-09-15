@@ -1,0 +1,6 @@
+description: Purge preview payload.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/PreviewPurgeInput.yaml'

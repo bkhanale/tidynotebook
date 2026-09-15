@@ -1,0 +1,37 @@
+post:
+  operationId: startSnapshot
+  summary: Capture a consistent download snapshot of a workspace.
+  description: >-
+    Captures the accepted file metadata and the workspace high-water cursor
+    in one repeatable-read transaction and materializes bounded metadata
+    pages for 15 minutes. Each item names an immutable revision identifier;
+    content transfer reuses the revision read by that identifier, never a
+    later current head. The syncVersion names the sync protocol version;
+    only version 1 is served and any other value is rejected without
+    changing data.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/StartSnapshot.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/SnapshotStarted.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

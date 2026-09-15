@@ -1,10 +1,13 @@
 /**
  * Orphan component check over the merged contract document.
  *
- * Redocly's unused-component rule reads `openapi.yaml` alone, so it never sees
- * the authentication fragment that `auth-contract.ts` adds. A component that
- * nothing reaches is still generated into the shipped client, which is how one
- * schema of a deleted sign-in operation stayed in the public types.
+ * This walk is the only unused-component check of the contract. Redocly's rule
+ * is off, because the root document declares every component as a reference to
+ * its own file and the rule counts that reference as a use. That rule also
+ * never saw the authentication fragment that `auth-contract.ts` adds. A
+ * component that nothing reaches is still generated into the shipped client,
+ * which is how one schema of a deleted sign-in operation stayed in the public
+ * types.
  *
  * The walk starts at the paths and the document security, follows every
  * `$ref`, and reports every component that it never reached. It reads the

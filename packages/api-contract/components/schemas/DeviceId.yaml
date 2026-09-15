@@ -1,0 +1,6 @@
+type: string
+description: >-
+  The device that submitted the change. It is informational and appears
+  in the history of the workspace.
+minLength: 1
+maxLength: 128

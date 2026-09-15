@@ -1,8 +1,8 @@
 # HTTP API access
 
 This document states how a caller reaches the HTTP API and which rules every
-call satisfies. `packages/api-contract/openapi.yaml` is the authoritative
-interface: read it for a path, a parameter, a schema, or a status. To add or
+call satisfies. `packages/api-contract/` holds the authoritative interface:
+read it for a path, a parameter, a schema, or a status. To add or
 change an operation, read [Adding an API operation](api-contract.md).
 
 ## One surface

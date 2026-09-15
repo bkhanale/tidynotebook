@@ -1,0 +1,5 @@
+description: One page of file history revisions.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/HistoryPage.yaml'

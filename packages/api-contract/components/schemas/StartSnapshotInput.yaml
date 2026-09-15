@@ -1,0 +1,20 @@
+type: object
+description: Snapshot start payload.
+additionalProperties: false
+required:
+  - syncVersion
+properties:
+  syncVersion:
+    type: integer
+    description: >-
+      Sync protocol version of the client. Only version 1 is served; any
+      other value is rejected without changing data.
+    enum:
+      - 1
+  pageSize:
+    type: integer
+    description: >-
+      Largest number of snapshot items in one page. The server uses 100
+      when the value is absent and never stores more than 500.
+    minimum: 1
+    maximum: 500

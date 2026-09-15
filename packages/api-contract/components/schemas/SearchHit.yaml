@@ -1,0 +1,28 @@
+type: object
+description: One accepted live note that matched a search.
+additionalProperties: false
+required:
+  - fileId
+  - path
+  - revisionId
+  - excerpt
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+  excerpt:
+    type: array
+    readOnly: true
+    description: The matching part of the note, in reading order.
+    maxItems: 128
+    items:
+      $ref: './SearchExcerptPart.yaml'

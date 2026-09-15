@@ -1,0 +1,27 @@
+get:
+  operationId: exportWorkspace
+  summary: Download every live note and image as a zip archive.
+  description: >-
+    Streams a zip archive that holds every live note of the workspace as a
+    Markdown file at its stored path, plus every live image at its stored
+    path. A deleted file is not in the
+    archive. Nothing in the archive needs this application to be read
+    again, so it is also the cheapest disaster recovery.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/WorkspaceArchive.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

@@ -21,7 +21,7 @@ authentication routes on one origin. It holds no domain rule.
   the first user setup. `src/jobs/` holds background work. `src/cli/` holds
   the operator commands.
 - A domain rule lives in `packages/core`. A SQL statement lives in
-  `packages/storage-server`. A request shape lives in `openapi.yaml`.
+  `packages/storage-server`. A request shape lives in `packages/api-contract/`.
 
 ## Allowed imports
 
@@ -33,7 +33,7 @@ It may use Node built in modules and Node only packages such as `fastify`,
 ## How to add a common thing here
 
 - **A handler for a new operation.** Write the operation in
-  `packages/api-contract/openapi.yaml` and run `pnpm generate` first. Add the
+  `packages/api-contract/` and run `pnpm generate` first. Add the
   function in the area file under `src/routes/`, then return it from
   `createHandlers` in `src/routes/handlers.ts`. A missing handler and an
   unknown handler both stop startup.

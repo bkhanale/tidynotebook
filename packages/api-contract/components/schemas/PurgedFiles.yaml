@@ -1,0 +1,21 @@
+type: object
+description: Outcome of executed permanent file purge.
+additionalProperties: false
+required:
+  - mutationId
+  - purgedFileIds
+  - purgedRevisionIds
+  - reclaimedBytes
+properties:
+  mutationId:
+    $ref: './Uuid.yaml'
+  purgedFileIds:
+    type: array
+    items:
+      $ref: './Uuid.yaml'
+  purgedRevisionIds:
+    type: array
+    items:
+      $ref: './Uuid.yaml'
+  reclaimedBytes:
+    type: integer

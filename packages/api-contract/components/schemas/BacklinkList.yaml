@@ -1,0 +1,12 @@
+type: object
+description: Live notes that link to one current file path.
+additionalProperties: false
+required:
+  - backlinks
+properties:
+  backlinks:
+    type: array
+    readOnly: true
+    maxItems: 100
+    items:
+      $ref: './Backlink.yaml'

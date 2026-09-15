@@ -1,0 +1,5 @@
+description: The service cannot accept traffic yet.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

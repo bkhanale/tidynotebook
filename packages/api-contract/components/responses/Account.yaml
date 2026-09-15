@@ -1,0 +1,5 @@
+description: The signed in account and its settings.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Account.yaml'

@@ -20,6 +20,9 @@ the HTTP boundary instead of using it.
   `src/definitions.ts`, `src/emit.ts`, and `src/paths.ts` write the output.
 - `src/orphans.ts` walks the merged document from the paths and the document
   security and reports every component that nothing reaches.
+  `src/contract-layout.ts` compares the contract source files with the root
+  document, because a file that the root does not list reaches no Redocly
+  rule.
 - No application code lives here. No handler and no screen.
 
 ## Allowed imports
@@ -61,4 +64,5 @@ proved by `pnpm generated:check`, which is part of `pnpm verify`.
 | `src/check-generated.ts` | Compares the committed output with the source |
 | `src/auth-contract.ts`   | The authentication protocol fragment          |
 | `src/orphans.ts`         | The orphan component check                    |
+| `src/contract-layout.ts` | The contract source layout check              |
 | `src/emit.ts`            | File emission                                 |

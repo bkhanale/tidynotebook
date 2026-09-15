@@ -1,0 +1,8 @@
+name: fileId
+in: path
+required: true
+style: simple
+explode: false
+description: Identifier of the file that the operation acts on.
+schema:
+  $ref: '../schemas/Uuid.yaml'

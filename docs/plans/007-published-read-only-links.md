@@ -34,11 +34,11 @@ throttle.
 
 ## A. The contract (0030, 0031)
 
-1. In `packages/api-contract/openapi.yaml`, add the owner operations: create a
+1. In `packages/api-contract/`, add the owner operations: create a
    link, list the links of a workspace, revoke a link. They keep the default
    session security. Acceptance: the create answer holds the token exactly once,
    and no other answer holds it.
-2. In the same file, add the reader operations, each with an empty security
+2. In the same place, add the reader operations, each with an empty security
    requirement: unlock a link, read the published page, read a published
    attachment. The page answers `text/html`. The attachment address names the
    token, the note, and the attachment revision. Acceptance: a reader operation

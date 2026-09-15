@@ -14,26 +14,28 @@ An architectural choice needs a decision record first. See
 
 ## Where does this go
 
-| Feature kind                                  | Package                              |
-| --------------------------------------------- | ------------------------------------ |
-| A new or changed HTTP operation               | `packages/api-contract/openapi.yaml` |
-| A domain rule, a limit, a storage port        | `packages/core`                      |
-| A PostgreSQL table, query, or migration       | `packages/storage-server`            |
-| A route handler, headers, static files        | `apps/server`                        |
-| An IndexedDB table or transaction             | `packages/storage-browser`           |
-| A queue, lease, or offline rule               | `packages/sync`                      |
-| A screen, a route, a React feature            | `apps/web/src/features`              |
-| A shared control, layout, icon, theme         | `packages/ui`                        |
-| Markdown syntax, sanitizing, URL policy       | `packages/markdown`                  |
-| Editor decoration, widget, command            | `packages/editor`                    |
-| The generator or the contract check           | `tools/sdk-codegen`                  |
-| An end to end journey or a real database test | `tests`                              |
+| Feature kind                                  | Package                    |
+| --------------------------------------------- | -------------------------- |
+| A new or changed HTTP operation               | `packages/api-contract/`   |
+| A domain rule, a limit, a storage port        | `packages/core`            |
+| A PostgreSQL table, query, or migration       | `packages/storage-server`  |
+| A route handler, headers, static files        | `apps/server`              |
+| An IndexedDB table or transaction             | `packages/storage-browser` |
+| A queue, lease, or offline rule               | `packages/sync`            |
+| A screen, a route, a React feature            | `apps/web/src/features`    |
+| A shared control, layout, icon, theme         | `packages/ui`              |
+| Markdown syntax, sanitizing, URL policy       | `packages/markdown`        |
+| Editor decoration, widget, command            | `packages/editor`          |
+| The generator or the contract check           | `tools/sdk-codegen`        |
+| An end to end journey or a real database test | `tests`                    |
 
 ## a. The contract first
 
-Write the operation in `packages/api-contract/openapi.yaml` before any code
-that uses it, then run `pnpm contract:lint` and `pnpm generate` and commit the
-generated output with the contract. Never edit a file under a `src/generated/`
+Write the operation in `packages/api-contract/` before any code that uses it,
+then run `pnpm contract:lint` and `pnpm generate` and commit the generated
+output with the contract. The contract source is a root document beside one
+file for each path item and one file for each component, so a new operation
+adds a file under `paths/` and one row in the root `paths` list. Never edit a file under a `src/generated/`
 directory. The rules that generation enforces are in
 [Adding an API operation](api-contract.md).
 
@@ -122,8 +124,8 @@ force push.
 
 ## Definition of done
 
-- [ ] The contract change is in `openapi.yaml`, and the generated output is
-      committed with it.
+- [ ] The contract change is in `packages/api-contract/`, and the generated
+      output is committed with it.
 - [ ] The domain rule is in `packages/core` with a unit test for the accepted
       path and for the refusal.
 - [ ] The storage change has a migration, a raised `requiredSchemaVersion`, and

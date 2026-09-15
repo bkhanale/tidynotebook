@@ -1,0 +1,15 @@
+type: object
+description: One page of file history revisions.
+additionalProperties: false
+required:
+  - revisions
+  - nextCursor
+properties:
+  revisions:
+    type: array
+    items:
+      $ref: './HistoryRevisionItem.yaml'
+  nextCursor:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'

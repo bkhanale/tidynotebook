@@ -1,0 +1,45 @@
+type: object
+description: One deleted file of a workspace, without its content.
+additionalProperties: false
+required:
+  - fileId
+  - path
+  - kind
+  - headRevisionId
+  - createdAt
+  - deletedAt
+properties:
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Stable identifier of the file. A rename never changes it.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+    description: The path that the file held when it was deleted.
+  kind:
+    allOf:
+      - $ref: './FileKind.yaml'
+    readOnly: true
+    description: Whether the file holds Markdown or an attachment.
+  headRevisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: >-
+      The tombstone revision that deleted the file, which is its accepted
+      head and its entity tag. A restore states it as the expected head.
+  createdAt:
+    type: string
+    readOnly: true
+    description: Instant at which the file was created.
+    format: date-time
+    maxLength: 64
+  deletedAt:
+    type: string
+    readOnly: true
+    description: Instant at which the workspace accepted the deletion.
+    format: date-time
+    maxLength: 64

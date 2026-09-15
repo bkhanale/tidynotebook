@@ -1,0 +1,17 @@
+type: object
+description: One value that a boundary check rejected.
+additionalProperties: false
+required:
+  - path
+  - message
+properties:
+  path:
+    type: string
+    readOnly: true
+    description: JSON Pointer of the rejected value inside its request slot.
+    maxLength: 256
+  message:
+    type: string
+    readOnly: true
+    description: Reason the value was rejected. It never repeats the value.
+    maxLength: 256

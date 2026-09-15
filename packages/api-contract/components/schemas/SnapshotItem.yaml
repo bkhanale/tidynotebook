@@ -1,0 +1,29 @@
+type: object
+description: >-
+  One pinned file of a snapshot. The revision identifier is immutable, so
+  a later commit cannot change what a page shows.
+additionalProperties: false
+required:
+  - fileId
+  - revisionId
+  - path
+  - kind
+  - deleted
+properties:
+  fileId:
+    $ref: './Uuid.yaml'
+  revisionId:
+    $ref: './Uuid.yaml'
+  path:
+    $ref: './FilePath.yaml'
+  kind:
+    type: string
+    readOnly: true
+    description: Whether the file holds Markdown or an attachment.
+    enum:
+      - note
+      - attachment
+  deleted:
+    type: boolean
+    readOnly: true
+    description: Whether the file was deleted when captured. Always false.

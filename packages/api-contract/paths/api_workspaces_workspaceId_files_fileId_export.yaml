@@ -1,0 +1,28 @@
+get:
+  operationId: exportNote
+  summary: Download one note as a Markdown file.
+  description: >-
+    Returns the accepted head of one note as Markdown, with a content
+    disposition that names the file. A deleted note answers 404, because it
+    holds no place in the file tree any more.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/FileId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/NoteMarkdown.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '410':
+      $ref: '../components/responses/Gone.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

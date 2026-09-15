@@ -1,0 +1,5 @@
+description: The captured snapshot and its opaque page token.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/SnapshotStarted.yaml'

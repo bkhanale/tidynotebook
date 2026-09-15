@@ -1,0 +1,10 @@
+name: limit
+in: query
+required: false
+style: form
+explode: true
+description: Largest number of search results to return.
+schema:
+  type: integer
+  minimum: 1
+  maximum: 100

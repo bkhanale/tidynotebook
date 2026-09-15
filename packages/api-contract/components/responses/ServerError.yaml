@@ -1,0 +1,5 @@
+description: The service failed to complete the request.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

@@ -1,0 +1,5 @@
+description: Preview of permanent file purge.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/PurgePreview.yaml'

@@ -1,0 +1,55 @@
+type: object
+description: One revision that a client submits inside a changeset.
+additionalProperties: false
+required:
+  - revisionId
+  - fileId
+  - parents
+  - path
+  - deleted
+  - content
+  - clientTime
+properties:
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: Identifier that the client assigned to this revision.
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: The file that this revision belongs to.
+  parents:
+    type: array
+    description: >-
+      The parents of this revision. A parent is either an earlier
+      revision of the same file in this submission or an accepted
+      revision of that file.
+    maxItems: 2
+    items:
+      $ref: './Uuid.yaml'
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    description: The path that the file has after this revision.
+  deleted:
+    type: boolean
+    description: True for a tombstone, which records a deletion.
+  content:
+    allOf:
+      - $ref: './ContentInput.yaml'
+    description: The content of this revision.
+  clientTime:
+    type: string
+    description: The device clock at the moment of the change.
+    format: date-time
+    minLength: 20
+    maxLength: 64
+  message:
+    allOf:
+      - $ref: './CheckpointMessage.yaml'
+    description: Name of this checkpoint, or null.
+  restoredFrom:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'
+    description: The historic revision that this one restores, or null.

@@ -1,0 +1,6 @@
+description: One atomic change of one or more files.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/ChangesetInput.yaml'

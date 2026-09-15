@@ -1,0 +1,18 @@
+description: Binary bytes of the immutable attachment.
+content:
+  image/png:
+    schema:
+      type: string
+      format: binary
+  image/jpeg:
+    schema:
+      type: string
+      format: binary
+  image/gif:
+    schema:
+      type: string
+      format: binary
+  image/webp:
+    schema:
+      type: string
+      format: binary

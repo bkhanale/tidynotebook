@@ -1,0 +1,74 @@
+type: object
+description: >-
+  RFC 9457 problem details. The code field carries the stable application
+  error code that a client can branch on.
+additionalProperties: true
+required:
+  - type
+  - title
+  - status
+  - code
+  - requestId
+properties:
+  type:
+    type: string
+    readOnly: true
+    description: Stable URI reference that identifies the problem type.
+    format: uri-reference
+    maxLength: 256
+  title:
+    type: string
+    readOnly: true
+    description: Short human readable summary of the problem type.
+    maxLength: 256
+  status:
+    type: integer
+    readOnly: true
+    description: HTTP status code of this response.
+    minimum: 100
+    maximum: 599
+  detail:
+    type: string
+    readOnly: true
+    description: >-
+      Explanation of this occurrence. The field never contains note
+      content, a secret, or a stack trace.
+    maxLength: 1024
+  instance:
+    type: string
+    readOnly: true
+    description: URI reference of the request that produced the problem.
+    format: uri-reference
+    maxLength: 1024
+  code:
+    type: string
+    readOnly: true
+    description: Stable application error code.
+    pattern: ^[a-z][a-z0-9_]*$
+    maxLength: 64
+  requestId:
+    type: string
+    readOnly: true
+    description: Identifier of the request, repeated in the x-request-id header.
+    minLength: 1
+    maxLength: 128
+  issues:
+    type: array
+    readOnly: true
+    description: >-
+      Values that a boundary check rejected. Each entry names the value by
+      JSON Pointer and never repeats the value itself.
+    maxItems: 64
+    items:
+      $ref: './ValidationIssue.yaml'
+  fileIds:
+    type: array
+    readOnly: true
+    description: >-
+      The files that a content failure refers to, for example every file
+      whose accepted head moved on. The list is absent when the failure
+      names no file. It carries identifiers only, never a path or note
+      content.
+    maxItems: 4000
+    items:
+      $ref: './Uuid.yaml'

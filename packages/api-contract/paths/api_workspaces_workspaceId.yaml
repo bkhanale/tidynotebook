@@ -1,0 +1,54 @@
+put:
+  operationId: updateWorkspace
+  summary: Rename a workspace.
+  description: >-
+    Renames a workspace. An owner or an administrator of that workspace may
+    do this.
+  tags:
+    - workspaces
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/WorkspaceName.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Workspace.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+delete:
+  operationId: deleteWorkspace
+  summary: Delete a workspace and every record that belongs to it.
+  description: >-
+    Deletes a workspace and its complete content history. Only its owner
+    may do this.
+  tags:
+    - workspaces
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Removed.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

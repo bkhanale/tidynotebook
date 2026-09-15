@@ -1,6 +1,13 @@
 # Adding an API operation
 
-`packages/api-contract/openapi.yaml` is the only source of the HTTP interface.
+`packages/api-contract/` is the only source of the HTTP interface. The source
+is a root document, `openapi.yaml`, beside one file for each path item and one
+file for each component. Redocly bundles them into the one document that the
+generator reads. See
+[decision 0019](../decisions/0019-contract-validation-and-shared-types.md) for
+that layout, and the guide of the package for the naming rule and where each
+kind of addition goes.
+
 A change to the interface is one change that holds the specification, the
 generated output, the handler, and the tests. Do not split them across commits,
 and never edit a file under a `src/generated/` directory.
@@ -12,7 +19,9 @@ why the contract emits shared definitions.
 
 | Path                                   | Purpose                                     |
 | -------------------------------------- | ------------------------------------------- |
-| `packages/api-contract/openapi.yaml`   | The authoritative document.                 |
+| `packages/api-contract/openapi.yaml`   | The root document that lists the files.     |
+| `packages/api-contract/paths/`         | One file for each path item.                |
+| `packages/api-contract/components/`    | One file for each component, by section.    |
 | `packages/api-contract/redocly.yaml`   | The strict rules of `pnpm contract:lint`.   |
 | `packages/api-contract/src/generated/` | The operation index and its validators.     |
 | `packages/api-client/src/generated/`   | The typed operations and the transport.     |
@@ -23,8 +32,9 @@ why the contract emits shared definitions.
 
 ## Steps
 
-1. **Write the operation.** Give it a stable `camelCase` operation id. The id
-   never changes and is never reused.
+1. **Write the operation.** Put the path item in its own file under `paths/`
+   and add its row to `paths` in the root. Give the operation a stable
+   `camelCase` operation id. The id never changes and is never reused.
 2. **Declare every parameter completely**, including the serialization style. A
    client and a server must not disagree about serialization, so the generator
    refuses a parameter that leaves it unstated, and startup refuses a
@@ -37,7 +47,10 @@ why the contract emits shared definitions.
    generator requires for the shape of the operation. Every error uses the
    problem media type with a stable code. One status carries one media type.
 5. **Run `pnpm contract:lint`**, then **`pnpm generate`**, and commit the
-   generated output with the contract.
+   generated output with the contract. Generation refuses a source file that
+   the root document does not list, and a component that no operation reaches.
+   Redocly cannot see either one, because a file the root does not list never
+   reaches the bundle.
 6. **Add the handler.** `createHandlers` returns one function per operation id.
    A missing handler and an unknown handler both stop startup, so the server
    cannot drift from the contract. A handler returns a status, a media type,

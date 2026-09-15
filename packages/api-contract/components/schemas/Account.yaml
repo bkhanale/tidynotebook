@@ -1,0 +1,31 @@
+type: object
+description: The signed in account and its settings.
+additionalProperties: false
+required:
+  - accountId
+  - preferences
+properties:
+  accountId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Stable identifier of the account inside this deployment.
+  email:
+    type:
+      - string
+      - 'null'
+    readOnly: true
+    description: Sign-in address, or null when no address is linked.
+    maxLength: 320
+  name:
+    type:
+      - string
+      - 'null'
+    readOnly: true
+    description: Display name, or null when no name is stored.
+    maxLength: 256
+  preferences:
+    allOf:
+      - $ref: './Preferences.yaml'
+    readOnly: true
+    description: The stored settings of the account.

@@ -1,0 +1,5 @@
+description: One page of the items that a snapshot captured.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/SnapshotPage.yaml'

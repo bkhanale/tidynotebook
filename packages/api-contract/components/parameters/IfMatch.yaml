@@ -1,0 +1,17 @@
+name: if-match
+in: header
+required: false
+style: simple
+explode: false
+description: >-
+  The strong entity tag of the accepted head that the client saw, for
+  example "3f1c2b7a-0e5d-4c1b-9a7e-2b6d4f8c1a03". A list of tags is
+  accepted and the request proceeds when any of them names the current
+  head. The operation needs a tag: a request without one answers 428, and
+  a head that has moved answers 412. The parameter is declared optional
+  so that the missing case reaches the documented 428 answer instead of a
+  schema error. The value * is refused with 428 as well: it would permit
+  a write against a state the client never read, which is the lost update
+  that this precondition exists to prevent.
+schema:
+  $ref: '../schemas/EntityTagCondition.yaml'

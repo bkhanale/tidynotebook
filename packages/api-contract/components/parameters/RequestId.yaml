@@ -1,0 +1,14 @@
+name: x-request-id
+in: header
+required: false
+style: simple
+explode: false
+description: >-
+  Optional caller supplied correlation identifier. The server echoes the
+  value and generates a UUID when the header is absent. A value outside
+  the pattern below is rejected with a 400 problem.
+schema:
+  type: string
+  minLength: 1
+  maxLength: 128
+  pattern: ^[A-Za-z0-9._-]+$

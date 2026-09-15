@@ -8,7 +8,7 @@ this directory. The recipe for a whole feature is in
 
 The typed HTTP client. Every application HTTP call uses an operation that
 this package exports. `src/generated/` is written by `pnpm generate` from
-`packages/api-contract/openapi.yaml`.
+the contract in `packages/api-contract/`.
 
 ## What lives here and what does not
 
@@ -28,7 +28,7 @@ No workspace package and no runtime dependency.
 ## How to add a common thing here
 
 - **An operation.** Do not write one here. Add it to
-  `packages/api-contract/openapi.yaml` and run `pnpm generate`.
+  `packages/api-contract/` and run `pnpm generate`.
 - **A client setting.** Add it in `src/configure.ts`. It may pass a fetch
   implementation and a base URL to the generated client; it must not call a
   transport itself.

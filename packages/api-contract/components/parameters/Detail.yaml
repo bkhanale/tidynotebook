@@ -1,0 +1,13 @@
+name: detail
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  Amount of readiness information to return. A summary report omits the
+  detail text of each check.
+schema:
+  type: string
+  enum:
+    - summary
+    - full

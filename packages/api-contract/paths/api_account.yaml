@@ -1,0 +1,22 @@
+get:
+  operationId: getAccount
+  summary: Report the signed in account and its settings.
+  description: >-
+    Reports the identifier of the signed in account, the address and the
+    display name that the identity provider supplied, and the stored
+    settings of that account.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Account.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

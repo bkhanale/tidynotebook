@@ -1,0 +1,12 @@
+type: object
+description: Search results from current accepted note revisions.
+additionalProperties: false
+required:
+  - hits
+properties:
+  hits:
+    type: array
+    readOnly: true
+    maxItems: 100
+    items:
+      $ref: './SearchHit.yaml'

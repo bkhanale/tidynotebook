@@ -1,0 +1,5 @@
+type: string
+description: >-
+  The Markdown source of one revision. It is stored and returned exactly
+  as it was written, without normalization.
+maxLength: 1048576

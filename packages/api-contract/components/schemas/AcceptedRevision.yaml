@@ -1,0 +1,73 @@
+type: object
+description: >-
+  One revision as the workspace accepted it. The record carries the
+  values that the workspace assigned, and no note text: the client that
+  wrote the revision already holds its content, and an actor that may
+  write but not read must not receive content through a write answer.
+additionalProperties: false
+required:
+  - revisionId
+  - fileId
+  - parents
+  - path
+  - deleted
+  - digest
+  - size
+  - actorAccountId
+  - serverTime
+  - message
+properties:
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Identifier of the accepted revision.
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The file that the revision belongs to.
+  parents:
+    type: array
+    readOnly: true
+    description: The parents of the revision, in submitted order.
+    maxItems: 2
+    items:
+      $ref: './Uuid.yaml'
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+    description: The accepted path, in its normalized form.
+  deleted:
+    type: boolean
+    readOnly: true
+    description: True for a tombstone, which is how a deletion is recorded.
+  digest:
+    allOf:
+      - $ref: './ContentDigest.yaml'
+    readOnly: true
+    description: Digest of the content of the revision.
+  size:
+    type: integer
+    readOnly: true
+    description: Size of the content in bytes.
+    minimum: 0
+  actorAccountId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: >-
+      The account that the workspace recorded as the author. It comes
+      from the verified request; a client cannot supply it.
+  serverTime:
+    type: string
+    readOnly: true
+    description: Instant at which the workspace accepted the revision.
+    format: date-time
+    maxLength: 64
+  message:
+    allOf:
+      - $ref: './CheckpointMessage.yaml'
+    readOnly: true
+    description: The checkpoint name of the revision, or null.

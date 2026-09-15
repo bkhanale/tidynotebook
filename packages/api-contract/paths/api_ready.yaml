@@ -1,0 +1,23 @@
+get:
+  operationId: getReadiness
+  summary: Report whether the service can accept traffic.
+  description: >-
+    Reports the state of every startup requirement that the service can
+    check. The current release validates configuration only, because no
+    database or storage dependency exists yet. A later task adds a database
+    check and a storage check to the same report.
+  tags:
+    - service
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/Detail.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Readiness.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/NotReady.yaml'

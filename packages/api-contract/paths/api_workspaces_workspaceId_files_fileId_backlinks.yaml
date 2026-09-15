@@ -1,0 +1,25 @@
+get:
+  operationId: listBacklinks
+  summary: List notes that link to one live file.
+  description: >-
+    Reads the accepted path-based link index. Each result names the live
+    note and revision that contains at least one link to this file.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/FileId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/BacklinkList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
