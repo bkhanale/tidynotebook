@@ -66,6 +66,8 @@ and needs no record.
 | [0034](0034-the-open-note-selects-its-folder.md)               | The open note selects its folder                          |
 | [0035](0035-the-sidebar-width-belongs-to-the-person.md)        | The sidebar width belongs to the person                   |
 | [0036](0036-the-browser-gate-runs-in-parallel-workers.md)      | The browser gate runs in parallel workers                 |
+| [0037](0037-backlinks-are-derived-on-the-device.md)            | Backlinks are derived on the device and merged            |
+| [0038](0038-an-empty-state-is-not-a-failed-read.md)            | An empty state is not a failed read                       |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -107,4 +109,12 @@ moving that selection, so a create action lands where the person is reading,
 and it refines record 0029. Record 0035 gives the sidebar four named widths and
 a collapsed state that belong to the person. Record 0036 opens the browser
 gate to parallel workers, because each worker already owns its whole stack,
-and it refines record 0014.
+and it refines record 0014. Records 0037 and 0038 follow
+[design 009](../design/009-backlinks-on-standard-links.md), which reads the
+backlink surface that item 3 of
+[plan 009](../plans/009-portable-markdown-at-rest.md) already delivered. Record
+0037 keeps the server table as the one link index at rest and derives the
+answer of the device from the note bodies it already holds, so no second index
+enters the browser. Record 0038 splits an empty answer from a failed read
+across every read surface of the web application, because the backlink panel
+reported no inbound link whenever it could not reach the server.
