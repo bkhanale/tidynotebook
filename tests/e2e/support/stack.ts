@@ -90,9 +90,15 @@ export async function startE2EStack(
   );
   const email = 'owner@e2e.notes.invalid';
   const password = 'e2e-owner-password';
-  const configure = (baseUrl: string): ReturnType<typeof loadServerConfig> =>
-    loadServerConfig({
+  const configure = (baseUrl: string): ReturnType<typeof loadServerConfig> => {
+    // This stack has no proxy, so the public origin and the listening socket
+    // name the same port. The origin of a stack that binds no port names none
+    // either. See
+    // [decision 0042](../../../docs/decisions/0042-the-listening-socket-is-not-the-public-origin.md).
+    const port = new URL(baseUrl).port;
+    return loadServerConfig({
       NOTESAPP_ORIGIN: baseUrl,
+      ...(port === '' ? {} : { NOTESAPP_PORT: port }),
       NOTESAPP_DATABASE_URL: database.runtimeUrl,
       NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
       NOTESAPP_STORAGE_ROOT: storageRoot,
@@ -103,6 +109,7 @@ export async function startE2EStack(
       NOTESAPP_REQUEST_TIMEOUT_MS: '10000',
       NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: '5000',
     });
+  };
   let app: Awaited<ReturnType<typeof createApp>> | null = null;
   try {
     // The owner is written to the database, so it survives a port that the
