@@ -36,7 +36,7 @@ import {
   loadBoundedFiles,
   type BoundedFiles,
 } from '../lib/file-load.ts';
-import { shouldRevalidate } from '../lib/revalidate.ts';
+import { msUntilRevalidate } from '../lib/revalidate.ts';
 import { mergeNotes, type NoteSummary } from '../lib/note-list.ts';
 import { folderPaths } from '../lib/note-name.ts';
 
@@ -146,6 +146,8 @@ export function FilesProvider({
   const [answered, setAnswered] = useState(false);
   const [generation, setGeneration] = useState(0);
   const lastReadAt = useRef<number | null>(null);
+  // The timer of a read that the quiet period holds, or `null` when none.
+  const heldRead = useRef<number | null>(null);
   const emptyLocalFiles = useMemo<readonly LocalFileSummary[]>(() => [], []);
   const localFiles = useLocalQuery(
     store.store,
@@ -171,12 +173,31 @@ export function FilesProvider({
    * Reads the server list again, at most once per quiet period.
    *
    * A window focus and a reconnect both arrive as often as a person switches
-   * windows, so the rule in `lib/revalidate.ts` bounds them.
+   * windows, so the rule in `lib/revalidate.ts` bounds them. A read that the
+   * period holds is not lost: it runs when the period ends, because the
+   * person switched to this window once and no second event is coming.
    */
   const revalidate = useCallback(() => {
-    if (!shouldRevalidate(lastReadAt.current, Date.now())) return;
-    reload();
+    const wait = msUntilRevalidate(lastReadAt.current, Date.now());
+    if (wait === 0) {
+      reload();
+      return;
+    }
+    if (heldRead.current !== null) return;
+    heldRead.current = window.setTimeout(() => {
+      heldRead.current = null;
+      reload();
+    }, wait);
   }, [reload]);
+
+  // One held read at a time, and none after this screen goes away.
+  useEffect(
+    () => () => {
+      if (heldRead.current !== null) window.clearTimeout(heldRead.current);
+      heldRead.current = null;
+    },
+    [],
+  );
 
   // The area changed, so nothing that is on screen describes it. This is the
   // one moment the list is emptied and the placeholder comes back.
@@ -200,12 +221,19 @@ export function FilesProvider({
       )
         reload();
     });
+    // A tab that becomes visible again reads the list, because a browser
+    // gives that tab the visibility event and not always a window focus.
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') revalidate();
+    };
     window.addEventListener('focus', revalidate);
     window.addEventListener('online', revalidate);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       unsubscribe();
       window.removeEventListener('focus', revalidate);
       window.removeEventListener('online', revalidate);
+      document.removeEventListener('visibilitychange', onVisible);
     };
   }, [store.store, accountId, workspaceId, reload, revalidate]);
 
@@ -294,17 +322,26 @@ function readOpenFolders(workspaceId: string): ReadonlySet<string> {
 }
 
 /**
+ * Which folders of the tree are open, and how to change that.
+ *
+ * The frame holds one of these and gives it to the sidebar, because an action
+ * outside the tree, such as the New folder dialog, must be able to show what
+ * it made.
+ */
+export type OpenFoldersControl = {
+  readonly openFolders: ReadonlySet<string>;
+  readonly toggleFolder: (path: string) => void;
+  readonly openFolder: (path: string) => void;
+};
+
+/**
  * Keeps the open folders of the tree across refreshes and reloads.
  *
  * The state is a person choice, so a file list change never rewrites it. A
  * folder that the person collapsed stays collapsed when a keystroke changes
  * a local file summary, and it is still collapsed after a page reload.
  */
-export function useOpenFolders(workspaceId: string): {
-  readonly openFolders: ReadonlySet<string>;
-  readonly toggleFolder: (path: string) => void;
-  readonly openFolder: (path: string) => void;
-} {
+export function useOpenFolders(workspaceId: string): OpenFoldersControl {
   const [openFolders, setOpenFolders] = useState<ReadonlySet<string>>(() =>
     readOpenFolders(workspaceId),
   );

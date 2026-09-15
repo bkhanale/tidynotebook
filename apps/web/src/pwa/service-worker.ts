@@ -150,6 +150,27 @@ async function serveAsset(request: Request): Promise<Response> {
 }
 
 /**
+ * Every address the main thread pinned, as this worker knows them now.
+ *
+ * The fetch listener has to decide without waiting whether this worker can
+ * answer a request at all, and only an address in this set has stored bytes.
+ * The set follows the pinned cache: it is read once when the worker starts
+ * and it follows every pin and unpin message after that.
+ */
+const pinnedUrls = new Set<string>();
+
+/** Reads the pinned addresses that an earlier run of this worker stored. */
+async function readPinnedUrls(): Promise<void> {
+  try {
+    const pinned = await self.caches.open(pinnedCacheName);
+    for (const request of await pinned.keys()) pinnedUrls.add(request.url);
+  } catch {
+    // Storage can be refused. The worker then pins nothing and serves the
+    // network, which is what a miss does as well.
+  }
+}
+
+/**
  * Serves one request from the pinned cache, or `undefined` when it misses.
  *
  * A pin is explicit bytes the main thread named. A cache that cannot be read
@@ -167,13 +188,9 @@ async function servePinned(request: Request): Promise<Response | undefined> {
 /** Serves one fetch without ever storing a private response. */
 async function handleFetch(event: FetchEvent): Promise<Response> {
   const request = event.request;
-  if (request.method !== 'GET') return fetch(request);
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return fetch(request);
   if (request.mode === 'navigate') {
     try {
-      const network = await fetch(request);
-      return network;
+      return await fetch(request);
     } catch {
       try {
         const cache = await self.caches.open(appCacheName);
@@ -182,14 +199,43 @@ async function handleFetch(event: FetchEvent): Promise<Response> {
       } catch {
         // Storage is unavailable, so there is no cached shell to serve.
       }
-      throw new Error('The application shell is not cached yet.');
+      // A network error and not a thrown error. The page then reports a lost
+      // connection, the way it does for a request this worker never saw.
+      return Response.error();
     }
   }
-  if (isCacheableAsset(request, self.location.origin))
-    return serveAsset(request);
+  if (isCacheableAsset(request, self.location.origin)) {
+    try {
+      return await serveAsset(request);
+    } catch {
+      return Response.error();
+    }
+  }
   const pinnedHit = await servePinned(request);
   if (pinnedHit !== undefined) return pinnedHit;
-  return fetch(request);
+  try {
+    return await fetch(request);
+  } catch {
+    return Response.error();
+  }
+}
+
+/**
+ * Whether this worker has an answer of its own for a request.
+ *
+ * A worker that takes over a request it cannot answer adds one failure path
+ * and nothing else: the request then travels through the worker, and a worker
+ * that stops, or a network that fails, ends it with a worker error instead of
+ * the plain network error the page knows. So the worker stands aside unless
+ * it holds the page shell, a static asset, or pinned bytes for the address.
+ */
+function servedByWorker(request: Request): boolean {
+  if (request.mode === 'navigate') return true;
+  if (request.method !== 'GET') return false;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return false;
+  if (isCacheableAsset(request, self.location.origin)) return true;
+  return pinnedUrls.has(url.href);
 }
 
 self.addEventListener('install', (event) => {
@@ -210,12 +256,14 @@ self.addEventListener('activate', (event) => {
       } catch {
         // Cleanup is best effort. The worker still takes over the clients.
       }
+      await readPinnedUrls();
       await self.clients.claim();
     })(),
   );
 });
 
 self.addEventListener('fetch', (event) => {
+  if (!servedByWorker(event.request)) return;
   event.respondWith(handleFetch(event));
 });
 
@@ -231,7 +279,9 @@ self.addEventListener('message', (event) => {
       (async (): Promise<void> => {
         const pinned = await self.caches.open(pinnedCacheName);
         const response = await fetch(message.url);
-        if (response.ok) await pinned.put(message.url, response.clone());
+        if (!response.ok) return;
+        await pinned.put(message.url, response.clone());
+        pinnedUrls.add(new URL(message.url, self.location.origin).href);
       })(),
     );
     return;
@@ -240,6 +290,7 @@ self.addEventListener('message', (event) => {
     (async (): Promise<void> => {
       const pinned = await self.caches.open(pinnedCacheName);
       await pinned.delete(message.url);
+      pinnedUrls.delete(new URL(message.url, self.location.origin).href);
     })(),
   );
 });

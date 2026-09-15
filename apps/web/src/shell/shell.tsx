@@ -79,7 +79,12 @@ import {
   useAttentionCount,
 } from '../features/attention/attention-link.tsx';
 import { CommandPalette } from './command-palette.tsx';
-import { FilesProvider, useFiles, useOpenFolders } from './files.tsx';
+import {
+  FilesProvider,
+  useFiles,
+  useOpenFolders,
+  type OpenFoldersControl,
+} from './files.tsx';
 import {
   NewFolderDialog,
   RenameFolderDialog,
@@ -433,6 +438,7 @@ function GroupLabel({
 function Sidebar({
   workspaceId,
   selectedFolder,
+  folders,
   onSelectFolder,
   onNavigate,
   onNewFolderIn,
@@ -442,6 +448,7 @@ function Sidebar({
 }: {
   readonly workspaceId: string;
   readonly selectedFolder: string;
+  readonly folders: OpenFoldersControl;
   readonly onSelectFolder: (folder: string) => void;
   readonly onNavigate: () => void;
   readonly onNewFolderIn: (folder: string) => void;
@@ -457,7 +464,7 @@ function Sidebar({
   const sync = useSyncState();
   const files = useFiles();
   const online = useOnline();
-  const { openFolders, toggleFolder, openFolder } = useOpenFolders(workspaceId);
+  const { openFolders, toggleFolder, openFolder } = folders;
   const drag = useTreeDrag({
     store: store.store,
     accountId: session.account?.accountId ?? null,
@@ -916,6 +923,9 @@ function ShellFrame({
   const [renameFolder, setRenameFolder] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState('');
   const sidebar = useSidebarSize();
+  // The frame owns the open folders of the tree, because the New folder
+  // dialog sits here and has to show the folder it made.
+  const folders = useOpenFolders(workspaceId);
   const menuButtonRef = useRef<HTMLButtonElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const drawerWasOpenRef = useRef(false);
@@ -948,11 +958,16 @@ function ShellFrame({
     return files.notes.find((note) => note.fileId === fileId)?.path ?? null;
   }, [params.fileId, files.notes]);
 
+  // Opening a note selects the folder of that note (record 0034). The rule
+  // runs on the address of the screen and not only on the path value, because
+  // a person who selects another folder and then opens the same note again
+  // has opened a note: that act moves the selection back to its folder.
+  const openedAt = location.key;
   useEffect(() => {
     setSelectedFolder((selected) =>
       selectionForOpenNote(selected, openNotePath),
     );
-  }, [openNotePath]);
+  }, [openNotePath, openedAt]);
 
   // A folder that left the tree cannot be a parent. The list of an area that
   // has not answered yet holds nothing, so the check waits for the answer:
@@ -1307,6 +1322,7 @@ function ShellFrame({
             <Sidebar
               workspaceId={workspaceId}
               selectedFolder={selectedFolder}
+              folders={folders}
               onSelectFolder={setSelectedFolder}
               onNavigate={() => setDrawerOpen(false)}
               onNewFolderIn={(folder) => setNewFolderParent(folder)}
@@ -1371,6 +1387,11 @@ function ShellFrame({
             parent={newFolderParent ?? ''}
             onCreated={(folder) => {
               files.addEmptyFolder(folder);
+              // The new folder must be on the screen. Its parent can be
+              // closed, because the row menu makes a folder inside a folder
+              // that nobody opened, so every folder above it opens here.
+              for (const above of ancestorFolders(folder))
+                folders.openFolder(above);
               setSelectedFolder(folder);
             }}
           />

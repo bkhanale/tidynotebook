@@ -655,9 +655,17 @@ export function useWorkspaceSync(
     const onOffline = (): void => {
       setState({ kind: 'waiting' });
     };
+    // A tab that comes back to the screen asks for a pass. `focus` alone is
+    // not enough: a browser gives a tab that becomes visible again only the
+    // visibility event, so a person who returns to the tab would otherwise
+    // wait for the safety interval.
+    const onVisible = (): void => {
+      if (document.visibilityState === 'visible') requestSync();
+    };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
     window.addEventListener('focus', requestSync);
+    document.addEventListener('visibilitychange', onVisible);
     readQueue();
     void engine.run(controller.signal).catch(() => {
       setState({ kind: 'stopped' });
@@ -667,6 +675,7 @@ export function useWorkspaceSync(
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
       window.removeEventListener('focus', requestSync);
+      document.removeEventListener('visibilitychange', onVisible);
       controller.abort();
       engine.stop();
       wake.current = () => {};

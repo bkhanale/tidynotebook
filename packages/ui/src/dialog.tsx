@@ -64,6 +64,15 @@ export function Dialog({
 }): ReactNode {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const openerRef = useRef<HTMLElement | null>(null);
+  // The latest close handler, which the effect below reads when a key or a
+  // pointer asks for it. A screen passes a new function on every render, and
+  // the effect must not run again for that: it moves focus when it starts and
+  // when it ends, so a repeat would take the caret out of the field a person
+  // is typing in.
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -86,7 +95,7 @@ export function Dialog({
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopImmediatePropagation();
-        onClose();
+        closeRef.current();
         return;
       }
       if (event.key !== 'Tab') return;
@@ -115,7 +124,7 @@ export function Dialog({
       document.body.style.overflow = previousOverflow;
       openerRef.current?.focus();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 

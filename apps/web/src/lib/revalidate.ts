@@ -27,7 +27,26 @@ export function shouldRevalidate(
   now: number,
   intervalMs: number = revalidateIntervalMs,
 ): boolean {
-  if (lastAt === null) return true;
-  if (now < lastAt) return true;
-  return now - lastAt >= intervalMs;
+  return msUntilRevalidate(lastAt, now, intervalMs) === 0;
+}
+
+/**
+ * How long the quiet period still holds a background read, in milliseconds.
+ *
+ * Zero means the read may run now. A larger number is the wait after which it
+ * may run. The event that asked for the read does not come back on its own: a
+ * person who returns to the window inside the quiet period switches windows
+ * once, so a read that is only dropped would leave that person with a list
+ * that no event refreshes. The caller therefore waits this long and then
+ * reads.
+ */
+export function msUntilRevalidate(
+  lastAt: number | null,
+  now: number,
+  intervalMs: number = revalidateIntervalMs,
+): number {
+  if (lastAt === null) return 0;
+  if (now < lastAt) return 0;
+  const waited = now - lastAt;
+  return waited >= intervalMs ? 0 : intervalMs - waited;
 }
