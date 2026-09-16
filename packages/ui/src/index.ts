@@ -51,6 +51,7 @@ export {
   Button,
   buttonClassName,
   CollapsibleSection,
+  ReadOnlyField,
   SelectField,
   StatusRegion,
   TextField,

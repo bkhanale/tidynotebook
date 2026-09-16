@@ -232,6 +232,57 @@ export function TextField({
   );
 }
 
+/**
+ * A labelled value that a person copies and cannot change.
+ *
+ * A machine value such as a link is text that a person moves to another
+ * program, so the field carries it in a monospaced face, selects the whole
+ * value whenever it takes focus, and stays a real input that the keyboard
+ * reaches. A read only input keeps the value selectable and copyable, which a
+ * paragraph of text does not.
+ *
+ * The field takes no `onChange`, so nothing can write through it, and it
+ * reports `readonly` to assistive technology rather than `disabled`, because
+ * a disabled control leaves the tab order and the value with it.
+ */
+export function ReadOnlyField({
+  id,
+  label,
+  value,
+  autoFocus,
+  describedBy,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly value: string;
+  /** Takes focus when the field appears, for a value shown one time. */
+  readonly autoFocus?: boolean | undefined;
+  readonly describedBy?: string | undefined;
+}): ReactNode {
+  return (
+    <div className="mb-3.5">
+      <label
+        className="mb-1.5 block text-control font-semibold text-strong"
+        htmlFor={id}
+      >
+        {label}
+      </label>
+      <input
+        id={id}
+        className="w-full rounded-lg border border-edge bg-app px-3 py-2 font-mono text-control text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
+        type="text"
+        value={value}
+        readOnly
+        autoFocus={autoFocus ?? false}
+        aria-describedby={describedBy}
+        onFocus={(event): void => {
+          event.currentTarget.select();
+        }}
+      />
+    </div>
+  );
+}
+
 /** One option of {@link SelectField}. */
 export type SelectOption = {
   readonly value: string;
