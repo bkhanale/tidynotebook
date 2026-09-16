@@ -141,6 +141,12 @@ export type AcceptedChangeset = {
  * `unsupported_version` means that the client asked for a sync protocol
  * version that this server does not serve. The request changes nothing.
  *
+ * `published_link_unavailable` is the one refusal of the reader path of a
+ * published link. A link that never existed, a revoked link, an expired link
+ * and a wrong password all take it, as decision 0030 requires, so the answer
+ * states nothing about the link. `publications/errors.ts` holds the one value
+ * that carries this code.
+ *
  * `note_too_large` and `note_too_deep` mean that the Markdown of a note is
  * above a fixed limit of the Markdown package, so the note cannot be read as
  * Markdown. Storage reports them when it indexes an accepted revision.
@@ -159,6 +165,7 @@ export type DomainErrorCode =
   | 'unsupported_version'
   | 'note_too_large'
   | 'note_too_deep'
+  | 'published_link_unavailable'
   | 'not_found';
 
 /**

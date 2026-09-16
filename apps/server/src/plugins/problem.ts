@@ -264,6 +264,10 @@ const domainStatus: Readonly<
   invalid_content: { status: 422, code: 'invalid_content' },
   note_too_large: { status: 422, code: 'unrenderable_note' },
   note_too_deep: { status: 422, code: 'unrenderable_note' },
+  published_link_unavailable: {
+    status: 404,
+    code: 'published_link_unavailable',
+  },
   quota: { status: 413, code: 'quota_exceeded' },
 };
 
@@ -288,6 +292,11 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   invalid_content: 'Submitted content does not match its declared digest.',
   note_too_large: 'This note is too large to render.',
   note_too_deep: 'This note nests too deeply to render.',
+  // The one refusal of the reader path. The word is the word of
+  // `titles.published_link_unavailable` and of `PublishedRefusal` in the
+  // contract, so a refusal that arrives as a domain failure and a refusal that
+  // arrives as `PublishedLinkUnavailableError` read the same.
+  published_link_unavailable: 'This link is not available.',
   quota: 'The workspace has no room left for new content.',
 };
 

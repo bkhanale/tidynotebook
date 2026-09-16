@@ -31,15 +31,17 @@
 import { fail, ok, type Result } from './model.ts';
 
 /**
- * The kind of file that the path names.
+ * The kind of thing that the path names.
  *
  * A `note` path must end in `.md`. An `attachment` path keeps the uploaded
- * name and needs no fixed suffix. The parameter is optional and defaults to
- * `note`, so `normalizePath(input)` states the Markdown rule. This is the
- * documented choice between a separate function and a kind parameter: one
- * function keeps every other rule in one place.
+ * name and needs no fixed suffix. A `folder` path names a part of a note path
+ * under decision 0005 and needs no suffix either, so a published folder scope
+ * reads its path through the same rules. The parameter is optional and
+ * defaults to `note`, so `normalizePath(input)` states the Markdown rule. This
+ * is the documented choice between a separate function and a kind parameter:
+ * one function keeps every other rule in one place.
  */
-export type PathKind = 'note' | 'attachment';
+export type PathKind = 'note' | 'attachment' | 'folder';
 
 const maxPathBytes = 1024;
 const maxSegmentBytes = 255;

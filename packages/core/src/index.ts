@@ -8,7 +8,10 @@
  * client, because the browser also runs these rules.
  *
  * Only the names below are public. The verified actor marker stays internal,
- * so an actor can be built only through `verifyActor`.
+ * so an actor can be built only through `verifyActor`. The publications
+ * context exports no name that builds an actor and no name that opens a link
+ * record without its four checks, so the reader path of decision 0031 stays
+ * closed.
  */
 export type {
   Action,
@@ -182,3 +185,51 @@ export {
   searchFiles,
   searchLimit,
 } from './search/service.ts';
+export type {
+  PublicationScope,
+  PublishedLink,
+  PublishedNote,
+  PublishedNoteContent,
+  ReadingTicket,
+  ScopedNote,
+} from './publications/model.ts';
+export { maxPublishedLinksPerWorkspace } from './publications/model.ts';
+export type {
+  ReaderRefusalCause,
+  ReaderRefusalLog,
+} from './publications/errors.ts';
+export {
+  publishedLinkUnavailable,
+  readerRefusalCauses,
+} from './publications/errors.ts';
+export type {
+  Clock,
+  PasswordHasher,
+  PublicationContext,
+  PublicationReader,
+  PublicationStore,
+  SecretDigest,
+} from './publications/ports.ts';
+export {
+  folderScopePrefix,
+  isNoteInScope,
+  normalizeScope,
+} from './publications/scope.ts';
+export {
+  isTicketUsable,
+  readingTicketExpiry,
+  readingTicketLifetimeMs,
+} from './publications/ticket.ts';
+export type { NewPublishedLink } from './publications/create-link.ts';
+export { planPublishedLink } from './publications/create-link.ts';
+export type { ReaderCredentials } from './publications/resolve-link.ts';
+export { resolvePublishedLink } from './publications/resolve-link.ts';
+export type { PublishedNoteRead } from './publications/read-note.ts';
+export { readPublishedNote } from './publications/read-note.ts';
+export type { PublishedNoteList } from './publications/list-scope.ts';
+export { listPublishedNotes } from './publications/list-scope.ts';
+export type {
+  PublishedAttachment,
+  PublishedAttachmentRequest,
+} from './publications/attachment-reference.ts';
+export { resolvePublishedAttachment } from './publications/attachment-reference.ts';
