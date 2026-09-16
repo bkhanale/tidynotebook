@@ -7,6 +7,7 @@ import {
   matchesEntityTag,
   mimeTypeFor,
   servesApplicationShell,
+  stylesheetHrefs,
 } from './static-assets.ts';
 
 await test('brotli is preferred over gzip whatever the header order', () => {
@@ -85,4 +86,46 @@ await test('an address that names a page still receives the shell', () => {
   assert.ok(servesApplicationShell('/w/one/notes/two/history'));
   // A dot inside a folder of the address is not a file extension of it.
   assert.ok(servesApplicationShell('/w/one.two/notes/three'));
+});
+
+/**
+ * The stylesheet of the built shell document, which plan 007 item 25 decides.
+ *
+ * The published page loads that one stylesheet, so it cannot drift from the
+ * theme. The address is read from the artefact that this server already serves
+ * and already parses for the inline script hashes of its content policy. The
+ * alternative was a build manifest, which would have been a second output that
+ * describes the same fact.
+ */
+await test('the stylesheet of a built document is read from its links', () => {
+  const html = [
+    '<!doctype html><html><head>',
+    '<link rel="icon" href="/icon.svg">',
+    '<link rel="stylesheet" crossorigin href="/assets/main-abc.css">',
+    '</head><body></body></html>',
+  ].join('\n');
+  assert.deepEqual(stylesheetHrefs(html), ['/assets/main-abc.css']);
+});
+
+await test('a stylesheet of another origin is never answered', () => {
+  const html = [
+    `<link rel="stylesheet" href="https://cdn.invalid/a.css">`,
+    `<link rel="stylesheet" href="//cdn.invalid/b.css">`,
+    `<link rel="stylesheet" href="relative.css">`,
+    `<link rel='stylesheet' href='/assets/ok.css'>`,
+  ].join('\n');
+  assert.deepEqual(stylesheetHrefs(html), ['/assets/ok.css']);
+});
+
+await test('a document with no stylesheet answers none', () => {
+  assert.deepEqual(stylesheetHrefs('<html><head></head></html>'), []);
+  assert.deepEqual(stylesheetHrefs('<link rel="preload" href="/a.css">'), []);
+});
+
+await test('a document that names one stylesheet twice answers it once', () => {
+  const html = [
+    '<link rel="stylesheet" href="/a.css">',
+    '<link rel="STYLESHEET" href="/a.css">',
+  ].join('\n');
+  assert.deepEqual(stylesheetHrefs(html), ['/a.css']);
 });

@@ -5,8 +5,10 @@ import type { ProtocolResult } from './register.ts';
 import {
   baseMediaType,
   checkBodyMediaType,
+  checkHtmlAnswer,
   checkRegistration,
   isJsonPayload,
+  maxHtmlAnswerBytes,
   mediaTypeHandling,
   toRoutePath,
 } from './register.ts';
@@ -255,5 +257,82 @@ await test('a protocol operation outside the adapter path list stops startup', (
         },
       ]),
     /is not in the exact path list of protocol better-auth/,
+  );
+});
+
+/**
+ * The `html` branch of the media type table, which plan 007 item 23 asks for.
+ *
+ * A document reaches a person, so its size, the policy that decides what it
+ * may load, and the caches that may keep it are all checked at the boundary
+ * rather than in one handler. Decision 0031 asks for a private cache directive
+ * and no shared cache.
+ */
+const document = {
+  status: 200,
+  mediaType: 'text/html',
+  body: '<!doctype html><html></html>',
+  headers: [
+    ['cache-control', 'private, no-store'],
+    ['content-security-policy', "default-src 'none'"],
+  ] as const,
+};
+
+await test('an HTML answer with its policy and its directive passes', () => {
+  assert.equal(checkHtmlAnswer(document), null);
+  assert.equal(
+    checkHtmlAnswer({
+      ...document,
+      headers: [
+        ['Cache-Control', 'no-store'],
+        ['Content-Security-Policy', "default-src 'none'"],
+      ],
+    }),
+    null,
+  );
+});
+
+await test('an HTML answer that a shared cache could store is refused', () => {
+  assert.equal(
+    checkHtmlAnswer({ ...document, headers: [...document.headers.slice(1)] }),
+    'no_cache_directive',
+  );
+  assert.equal(
+    checkHtmlAnswer({
+      ...document,
+      headers: [
+        ['cache-control', 'public, max-age=60'],
+        ['content-security-policy', "default-src 'none'"],
+      ],
+    }),
+    'shared_cache',
+  );
+  assert.equal(
+    checkHtmlAnswer({
+      ...document,
+      headers: [
+        ['cache-control', 'max-age=60'],
+        ['content-security-policy', "default-src 'none'"],
+      ],
+    }),
+    'shared_cache',
+  );
+});
+
+await test('an HTML answer with no content policy is refused', () => {
+  assert.equal(
+    checkHtmlAnswer({ ...document, headers: [document.headers[0]] }),
+    'no_content_policy',
+  );
+});
+
+await test('an HTML answer that is not bounded text is refused', () => {
+  assert.equal(
+    checkHtmlAnswer({ ...document, body: Readable.from(['x']) }),
+    'not_text',
+  );
+  assert.equal(
+    checkHtmlAnswer({ ...document, body: 'a'.repeat(maxHtmlAnswerBytes + 1) }),
+    'too_large',
   );
 });

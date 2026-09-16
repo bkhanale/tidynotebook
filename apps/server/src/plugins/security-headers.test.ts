@@ -7,6 +7,8 @@ import {
   dataContentPolicy,
   framedDocumentContentPolicy,
   inlineScriptHashes,
+  publishedDocumentContentPolicy,
+  publishedDocumentHeaders,
   serviceWorkerContentPolicy,
 } from './security-headers.ts';
 
@@ -94,4 +96,41 @@ await test('a module script and a type attribute are hashed as well', () => {
   const html = '<script type="module">start();</script>';
   const expected = `sha256-${createHash('sha256').update('start();', 'utf8').digest('base64')}`;
   assert.deepEqual(inlineScriptHashes(html), [expected]);
+});
+
+/**
+ * The content policy of the published page, which plan 007 item 27 asks for.
+ *
+ * Decision 0031 refuses a script on the reader path, and decision 0046 makes
+ * the address itself a credential, so the referrer must name no origin.
+ */
+await test('the published page denies framing and every script', () => {
+  const policy = publishedDocumentContentPolicy;
+  assert.ok(policy.includes("frame-ancestors 'none'"));
+  assert.ok(policy.includes("script-src 'none'"));
+  assert.ok(!policy.includes('unsafe-inline'));
+  assert.ok(!policy.includes('unsafe-eval'));
+  assert.ok(policy.startsWith("default-src 'none'"));
+  // The page loads the built stylesheet and its fonts, and the pictures of its
+  // own scope, from this origin and from nowhere else.
+  assert.ok(policy.includes("style-src 'self'"));
+  assert.ok(policy.includes("img-src 'self'"));
+  assert.ok(policy.includes("font-src 'self'"));
+  // The password form sends to this origin only.
+  assert.ok(policy.includes("form-action 'self'"));
+});
+
+await test('the published page names no origin and no cache', () => {
+  const headers = Object.fromEntries(publishedDocumentHeaders);
+  assert.equal(headers['referrer-policy'], 'no-referrer');
+  assert.equal(headers['cache-control'], 'private, no-store');
+  assert.equal(headers['x-robots-tag'], 'noindex, nofollow');
+  assert.equal(
+    headers['content-security-policy'],
+    publishedDocumentContentPolicy,
+  );
+  // The base policy of every other answer names the origin, which is what
+  // defect D43 reported for this one page.
+  const base = Object.fromEntries(baseSecurityHeaders('https://notes.invalid'));
+  assert.equal(base['referrer-policy'], 'strict-origin-when-cross-origin');
 });
