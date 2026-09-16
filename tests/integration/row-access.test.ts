@@ -52,6 +52,8 @@ const scopedTables = [
   'snapshot_items',
   'search_index',
   'attachment_objects',
+  'publications',
+  'reading_tickets',
 ] as const;
 
 /** One seeded workspace and the identifiers that the checks use. */
@@ -113,6 +115,19 @@ async function seedEverything(): Promise<Seeded> {
       `insert into snapshot_items (token_hash, ordinal, workspace_id, file_id, revision_id)
        values ($1, 0, $2, $3, $4)`,
       [`snapshot-${workspaceId}`, workspaceId, first.fileId, second.id],
+    );
+    const publicationId = randomUUID();
+    await session.query(
+      `insert into publications
+          (workspace_id, id, owner_account_id, token_digest, scope_kind, scope_path)
+       values ($1, $2, $3, encode(sha256($4::text::bytea), 'hex'), 'folder', 'notes')`,
+      [workspaceId, publicationId, accountId, randomUUID()],
+    );
+    await session.query(
+      `insert into reading_tickets
+          (ticket_digest, workspace_id, publication_id, expires_at)
+       values (encode(sha256($1::text::bytea), 'hex'), $2, $3, now() + interval '12 hours')`,
+      [randomUUID(), workspaceId, publicationId],
     );
   } finally {
     await session.close();
@@ -219,6 +234,49 @@ await test('non members and anonymous readers: shows nothing without an identity
     assert.equal(await visible(session, 'accounts'), 0);
   } finally {
     await session.close();
+  }
+});
+
+await test('a published link belongs to the account that made it', async () => {
+  // The policy of a link needs the membership and the owner account, so a
+  // second account of the same workspace still reads none of its links. The
+  // product serves one account today, so the row is written by hand here.
+  const foreign = randomUUID();
+  const owner = await openSession(database.migrationUrl);
+  try {
+    await owner.query(
+      `insert into publications
+          (workspace_id, id, owner_account_id, token_digest, scope_kind, scope_path)
+       values ($1, $2, $3, encode(sha256($4::text::bytea), 'hex'), 'folder', 'notes')`,
+      [owned.workspaceId, foreign, other.accountId, randomUUID()],
+    );
+  } finally {
+    await owner.close();
+  }
+  const session = await openSession(database.runtimeUrl, owned.accountId);
+  try {
+    const rows = await session.query<{ id: string }>(
+      'select id from publications where id = $1',
+      [foreign],
+    );
+    assert.deepEqual(rows, []);
+    // A member of the workspace cannot write a link for another account
+    // either, because the policy checks the new row as well.
+    const refused = await session.failure(
+      `insert into publications
+          (workspace_id, id, owner_account_id, token_digest, scope_kind, scope_path)
+       values ($1, $2, $3, encode(sha256($4::text::bytea), 'hex'), 'folder', 'notes')`,
+      [owned.workspaceId, randomUUID(), other.accountId, randomUUID()],
+    );
+    assert.equal(refused.code, '42501');
+  } finally {
+    await session.close();
+  }
+  const cleanup = await openSession(database.migrationUrl);
+  try {
+    await cleanup.query('delete from publications where id = $1', [foreign]);
+  } finally {
+    await cleanup.close();
   }
 });
 
