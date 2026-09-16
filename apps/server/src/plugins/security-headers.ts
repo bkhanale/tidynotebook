@@ -88,6 +88,61 @@ export const framedDocumentContentPolicy = [
 ].join('; ');
 
 /**
+ * Content policy of the published page of a read-only link.
+ *
+ * The page is a document that the server builds for a person with no account,
+ * so it is the strictest document policy of this deployment. It permits
+ * nothing by default and then names the four things the page needs: the built
+ * application stylesheet, the pictures of the notes in its own scope, the
+ * fonts of that stylesheet, and the address that its password form sends to.
+ *
+ * `script-src 'none'` is the rule of decision 0031. The page holds no script,
+ * so an injected one cannot run even if a later change let one through the
+ * sanitizer. `style-src` has no `'unsafe-inline'`, because the page writes no
+ * inline style either, and the shell policy above is the only one that needs
+ * that allowance.
+ *
+ * `frame-ancestors 'none'` denies framing, so no other page can put a
+ * published note inside itself and read the address around it.
+ */
+export const publishedDocumentContentPolicy = [
+  "default-src 'none'",
+  "script-src 'none'",
+  "style-src 'self'",
+  "img-src 'self'",
+  "font-src 'self'",
+  "connect-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+  // The password form sends to this origin and to no other one.
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+].join('; ');
+
+/**
+ * Headers that belong to the published page and to no other answer.
+ *
+ * Three rules of decision 0030, 0046 and 0047 meet on this one answer.
+ *
+ * - The address is the credential, so the page sends `no-referrer`. A reader
+ *   that follows an external link out of a published note names no origin and
+ *   no address to the site it reaches. The base policy of this file is
+ *   `strict-origin-when-cross-origin`, which would name the origin.
+ * - The link opens nothing the moment the owner revokes it, and a stored copy
+ *   would outlive that. `no-store` therefore forbids every cache, and
+ *   `private` names the one reader that the answer belongs to, so no shared
+ *   cache keeps a note behind a secret address.
+ * - A published address that a person pastes in public must not become a
+ *   search result, so the page asks a crawler to keep it out of an index.
+ */
+export const publishedDocumentHeaders: readonly HeaderPair[] = [
+  ['content-security-policy', publishedDocumentContentPolicy],
+  ['cache-control', 'private, no-store'],
+  ['referrer-policy', 'no-referrer'],
+  ['x-robots-tag', 'noindex, nofollow'],
+];
+
+/**
  * Content policy of the installed application worker script.
  *
  * A browser enforces the content policy of the service worker script response

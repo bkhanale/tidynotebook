@@ -6,7 +6,12 @@
  * handler never has to repeat the contract shape. The body of each handler
  * lives in the file of its area, and this file only assembles the map.
  */
-import type { WorkspaceAdminStore, WorkspaceStore } from '@notesapp/core';
+import type {
+  PasswordHasher,
+  ReaderRefusalCause,
+  WorkspaceAdminStore,
+  WorkspaceStore,
+} from '@notesapp/core';
 import type { ServerConfig } from '../config.ts';
 import type { ServiceLifecycle } from '../lifecycle.ts';
 import { runningLifecycle } from '../lifecycle.ts';
@@ -18,13 +23,17 @@ import type { ReadinessProbe } from './health.ts';
 import { configurationProbe, createServiceHandlers } from './health.ts';
 import type { HandlerMap } from '../plugins/register.ts';
 
-import { type AttachmentStore } from '@notesapp/storage-server';
+import {
+  type AttachmentStore,
+  type WorkspaceStoreHandle,
+} from '@notesapp/storage-server';
 import { createAttachmentHandlers } from './attachments.ts';
 import { createHistoryHandlers } from './history.ts';
 import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
 import { createImportHandlers } from './import.ts';
 import { createBacklinkHandlers } from './backlinks.ts';
+import { secretDigest } from '../auth/publication-secrets.ts';
 import { createPublicationHandlers } from './publications.ts';
 import { createPublishedHandlers } from './published.ts';
 
@@ -60,6 +69,31 @@ function missingAttachmentStore(): AttachmentStore {
   };
 }
 
+/**
+ * The store of a published link, both of its sides and its one write.
+ *
+ * The reader side is the read-only port of decision 0031, the owner side needs
+ * a verified actor, and the unlock is the one write of the boundary. One value
+ * carries the three, so a composition cannot supply one without the others.
+ */
+export type PublicationStores = Pick<
+  WorkspaceStoreHandle,
+  'publications' | 'publishedLinks' | 'unlockPublication'
+>;
+
+/** What the published link operations need from the composition. */
+export type PublicationDependencies = {
+  readonly store: PublicationStores;
+  /** The bytes of an attachment revision that a published note names. */
+  readonly attachments: AttachmentStore;
+  /** The password rule of the account path, which a link reuses. */
+  readonly hasher: PasswordHasher;
+  /** The stylesheets of the built application document. */
+  readonly stylesheets: () => readonly string[];
+  /** Where the cause of a reader refusal goes, for the operator only. */
+  readonly recordRefusal: (cause: ReaderRefusalCause) => void;
+};
+
 /** What the handlers need from the composition. */
 export type HandlerDependencies = {
   /** The account and workspace store of the deployment. */
@@ -75,6 +109,14 @@ export type HandlerDependencies = {
    * handler leaves it out and always reports that it runs.
    */
   readonly lifecycle?: ServiceLifecycle;
+  /**
+   * The published link surface of the deployment.
+   *
+   * A test that checks the service operations leaves it out. The page of a
+   * link then answers the one document of a link that opens nothing, because
+   * no token of such a build opens anything.
+   */
+  readonly publications?: PublicationDependencies;
 };
 
 /**
@@ -91,6 +133,7 @@ export function createHandlers(
 ): HandlerMap {
   const store = dependencies.store ?? missingStore();
   const lifecycle = dependencies.lifecycle ?? runningLifecycle;
+  const published = dependencies.publications;
   return {
     ...createAccountHandlers(store),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
@@ -112,8 +155,30 @@ export function createHandlers(
       dependencies.attachments ?? missingAttachmentStore(),
     ),
     ...createWorkspaceHandlers(store),
-    ...createPublicationHandlers(),
-    ...createPublishedHandlers(),
+    ...createPublicationHandlers(
+      published === undefined
+        ? undefined
+        : {
+            links: published.store.publishedLinks,
+            hasher: published.hasher,
+            secrets: secretDigest,
+            clock: Date.now,
+          },
+    ),
+    ...createPublishedHandlers(
+      published === undefined
+        ? undefined
+        : {
+            store: published.store.publications,
+            unlock: (attempt) => published.store.unlockPublication(attempt),
+            attachments: published.attachments,
+            secrets: secretDigest,
+            hasher: published.hasher,
+            stylesheets: published.stylesheets,
+            clock: Date.now,
+            recordRefusal: published.recordRefusal,
+          },
+    ),
     ...createServiceHandlers(probes, lifecycle),
   };
 }

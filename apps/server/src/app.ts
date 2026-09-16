@@ -13,6 +13,7 @@ import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import type { ReaderRefusalCause } from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
 import { findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
@@ -37,6 +38,7 @@ import {
   createAuthProtocol,
 } from './auth/better-auth.ts';
 import { createIdentityAdapter } from './auth/actor.ts';
+import { createPublicationHasher } from './auth/publication-secrets.ts';
 import { createSetupHandlers } from './auth/setup.ts';
 import { createMailTransport } from './auth/mail.ts';
 import {
@@ -51,12 +53,14 @@ import {
 } from './plugins/problem.ts';
 import { baseSecurityHeaders } from './plugins/security-headers.ts';
 import {
+  documentStylesheetHrefs,
   sendStaticFile,
   servesApplicationShell,
   statFile,
 } from './plugins/static-assets.ts';
-import { attachRequestLogging, redactUrl } from './request-log.ts';
+import { attachRequestLogging, redactPath, redactUrl } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
+import { createPublicationCleanup } from './jobs/publication-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 import { createServerLogger, errorName } from './logging.ts';
 
@@ -90,8 +94,15 @@ import { hostName } from './plugins/host.ts';
 export { hostName } from './plugins/host.ts';
 import { servedHostNames } from './served-origins.ts';
 
+/**
+ * The address of one request, as a problem body repeats it.
+ *
+ * The query goes, so a reading ticket and a search term never reach a body,
+ * and the path passes the one redaction rule of `request-log.ts`, because the
+ * token of a published link is a path segment (decision 0046).
+ */
 function instanceOf(request: FastifyRequest): string {
-  return request.url.split('?')[0] ?? request.url;
+  return redactPath(request.url.split('?')[0] ?? request.url);
 }
 
 /**
@@ -105,6 +116,23 @@ function contractStatus(id: OperationId | undefined, status: number): number {
     (response) => response.status === status,
   );
   return declared ? status : 500;
+}
+
+/** The built browser assets of this deployment, or `null` when there are none. */
+const defaultWebDist = resolve(import.meta.dirname, '../../web/dist/web');
+
+/**
+ * The directory of the built browser assets.
+ *
+ * One decider, because two parts of the composition read it: the static
+ * handler serves from it, and the published page of decision 0031 reads the
+ * stylesheet of the shell document in it.
+ */
+export function webAssetsDirectory(
+  configured: string | null | undefined,
+): string | null {
+  if (configured !== undefined) return configured;
+  return existsSync(defaultWebDist) ? defaultWebDist : null;
 }
 
 /** Everything that a deployment or a test supplies besides configuration. */
@@ -236,13 +264,7 @@ export async function createAppWithHandlers(
       );
   });
 
-  const defaultWebDist = resolve(import.meta.dirname, '../../web/dist/web');
-  const webDist =
-    options.webDist !== undefined
-      ? options.webDist
-      : existsSync(defaultWebDist)
-        ? defaultWebDist
-        : null;
+  const webDist = webAssetsDirectory(options.webDist);
 
   app.setNotFoundHandler(async (request, reply) => {
     if (
@@ -390,6 +412,21 @@ export async function createApp(
     config.storageRoot,
   );
   const mail = createMailTransport(config.mail);
+  // The published page reads the stylesheet of the built shell document, so
+  // the page cannot drift from the theme (decision 0031). A deployment that
+  // serves no built assets, which is what a development run and most tests
+  // are, answers no stylesheet and the page is still readable text.
+  const webDist = webAssetsDirectory(options?.webDist);
+  const publishedStylesheets = (): readonly string[] => {
+    if (webDist === null) return [];
+    const document = resolve(webDist, 'index.html');
+    const stats = statFile(document);
+    return stats === null ? [] : documentStylesheetHrefs(document, stats);
+  };
+  // The cause of a reader refusal reaches the operator and reaches no answer.
+  // The sink is filled once the instance exists, as the protocol sink below
+  // is, so nothing reaches the console in between.
+  const refusals: { record?: (cause: ReaderRefusalCause) => void } = {};
   // The protocol library writes into the application log. The sink is filled
   // once the instance exists, so nothing reaches the console in between.
   const sink: { write?: (record: AuthLogRecord) => void } = {};
@@ -412,6 +449,13 @@ export async function createApp(
         store: identity,
         content,
         attachments,
+        publications: {
+          store: content,
+          attachments,
+          hasher: createPublicationHasher(auth.auth),
+          stylesheets: publishedStylesheets,
+          recordRefusal: (cause) => refusals.record?.(cause),
+        },
         ...(options?.lifecycle === undefined
           ? {}
           : { lifecycle: options.lifecycle }),
@@ -432,8 +476,12 @@ export async function createApp(
     ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
   });
   const logger = createServerLogger(app.log);
+  refusals.record = (cause): void => {
+    logger.emit('published.refused', { cause });
+  };
   const cleanupSync = createSyncCleanup(content);
   const cleanupAttachments = createAttachmentCleanup(attachments);
+  const cleanupPublications = createPublicationCleanup(content);
   let cleanupRunning = false;
   const runCleanup = async (): Promise<void> => {
     if (cleanupRunning) return;
@@ -448,6 +496,11 @@ export async function createApp(
         await cleanupAttachments();
       } catch {
         logger.emit('maintenance.failed', { job: 'attachments' });
+      }
+      try {
+        await cleanupPublications();
+      } catch {
+        logger.emit('maintenance.failed', { job: 'publications' });
       }
     } finally {
       cleanupRunning = false;

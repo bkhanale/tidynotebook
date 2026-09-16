@@ -787,6 +787,11 @@ export type PublishedLinkList = {
 };
 
 /**
+ * Names one note of a folder link. The page of a folder link lists the notes that it opens, and each entry of that list carries this value. Any short text is accepted, because a value that names no note inside the scope of the link answers the same page as a value that names nothing at all.
+ */
+export type PublishedNoteReference = string;
+
+/**
  * A link that opens one note.
  */
 export type PublishedNoteScope = {
@@ -805,7 +810,7 @@ export type PublishedNoteScope = {
  */
 export type PublishedPasswordFormInput = {
     /**
-     * The password that the owner gave the link. Any value is accepted here and a wrong value answers the same page, so the answer states nothing about the link or about the password policy.
+     * The password that the owner gave the link. Any value is accepted here and a wrong value answers the same page, so the answer states nothing about the link or about the password policy. An empty value is accepted as well, because a form that a person sends empty is a wrong password and answers the same page.
      */
     password: string;
 };
@@ -1662,6 +1667,11 @@ export type PublishedToken = PublishedSecret;
  * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
  */
 export type ReadingTicket = PublishedSecret;
+
+/**
+ * The note of a folder link that the page shows. Leave it out to read the list of every note that the link opens. A link over one note opens that note, so it needs no value here.
+ */
+export type PublishedNote = PublishedNoteReference;
 
 /**
  * The settings to store for the signed in account.
@@ -4397,6 +4407,10 @@ export type GetPublishedPageData = {
     };
     query?: {
         /**
+         * The note of a folder link that the page shows. Leave it out to read the list of every note that the link opens. A link over one note opens that note, so it needs no value here.
+         */
+        note?: PublishedNoteReference;
+        /**
          * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
          */
         ticket?: PublishedSecret;
@@ -4443,7 +4457,12 @@ export type OpenPublishedPageData = {
          */
         token: PublishedSecret;
     };
-    query?: never;
+    query?: {
+        /**
+         * The note of a folder link that the page shows. Leave it out to read the list of every note that the link opens. A link over one note opens that note, so it needs no value here.
+         */
+        note?: PublishedNoteReference;
+    };
     url: '/published/{token}';
 };
 

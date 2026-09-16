@@ -25,7 +25,7 @@
  * link record without these four checks.
  */
 import { ok, type Result } from '../files/model.ts';
-import { refuseRead, type ReaderRefusalCause } from './errors.ts';
+import { publishedLinkUnavailable, type ReaderRefusalCause } from './errors.ts';
 import { instantMs, type PublishedLink } from './model.ts';
 import type { PublicationContext, PublicationReader } from './ports.ts';
 import { isTicketUsable } from './ticket.ts';
@@ -64,29 +64,72 @@ export function linkRefusalCause(
 }
 
 /**
- * Opens one link inside an open read.
+ * What the record of a link lets this reader do at this instant.
+ *
+ * Every use case of this context reads it, and one surface needs more than the
+ * one refusal: a page that shows a password form has to know that a password
+ * is what the link waits for, which is the functional exception that decision
+ * 0047 states and bounds. `locked` is therefore a value of this type and never
+ * a value of a `Result`, so no other caller can read a cause by mistake.
+ */
+export type PublishedAccess =
+  | { readonly kind: 'open'; readonly link: PublishedLink }
+  | { readonly kind: 'locked' }
+  | { readonly kind: 'unavailable' };
+
+/** The one shape of a link that opens nothing, whatever the cause. */
+const unavailable: PublishedAccess = Object.freeze({ kind: 'unavailable' });
+
+/** The one shape of a link that waits for its password. */
+const locked: PublishedAccess = Object.freeze({ kind: 'locked' });
+
+/**
+ * Reads what this address may do, inside an open read.
  *
  * Internal to this context: it is exported for the sibling use cases and it is
  * not a name of `src/index.ts`.
+ */
+export async function readAccess(
+  context: PublicationContext,
+  reader: PublicationReader,
+  credentials: ReaderCredentials,
+): Promise<PublishedAccess> {
+  const now = context.clock();
+  const link = await reader.linkByTokenDigest(credentials.tokenDigest);
+  if (link === null) {
+    context.refusals.record('unknown');
+    return unavailable;
+  }
+  const stopped = linkRefusalCause(link, now);
+  if (stopped !== null) {
+    context.refusals.record(stopped);
+    return unavailable;
+  }
+  if (!link.passwordProtected) return { kind: 'open', link };
+  if (credentials.ticketDigest !== null) {
+    const ticket = await reader.ticketOfLink(link, credentials.ticketDigest);
+    if (ticket !== null && isTicketUsable(link, ticket, now))
+      return { kind: 'open', link };
+  }
+  context.refusals.record('locked');
+  return locked;
+}
+
+/**
+ * Opens one link inside an open read.
+ *
+ * Internal to this context: it is exported for the sibling use cases and it is
+ * not a name of `src/index.ts`. It turns every state that is not open into the
+ * one refusal value, so a caller of a `Result` learns nothing about the cause.
  */
 export async function openLink(
   context: PublicationContext,
   reader: PublicationReader,
   credentials: ReaderCredentials,
 ): Promise<Result<PublishedLink>> {
-  const now = context.clock();
-  const link = await reader.linkByTokenDigest(credentials.tokenDigest);
-  if (link === null) return refuseRead(context.refusals, 'unknown');
-  const stopped = linkRefusalCause(link, now);
-  if (stopped !== null) return refuseRead(context.refusals, stopped);
-  if (link.passwordProtected) {
-    if (credentials.ticketDigest === null)
-      return refuseRead(context.refusals, 'locked');
-    const ticket = await reader.ticketOfLink(link, credentials.ticketDigest);
-    if (ticket === null || !isTicketUsable(link, ticket, now))
-      return refuseRead(context.refusals, 'locked');
-  }
-  return ok(link);
+  const access = await readAccess(context, reader, credentials);
+  if (access.kind === 'open') return ok(access.link);
+  return { ok: false, error: publishedLinkUnavailable };
 }
 
 /** Answers the link that this address opens, or the one refusal. */

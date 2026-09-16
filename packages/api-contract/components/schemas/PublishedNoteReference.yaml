@@ -1,0 +1,8 @@
+type: string
+description: >-
+  Names one note of a folder link. The page of a folder link lists the notes
+  that it opens, and each entry of that list carries this value. Any short
+  text is accepted, because a value that names no note inside the scope of
+  the link answers the same page as a value that names nothing at all.
+minLength: 1
+maxLength: 200

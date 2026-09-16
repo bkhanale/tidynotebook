@@ -1,0 +1,11 @@
+name: note
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  The note of a folder link that the page shows. Leave it out to read the
+  list of every note that the link opens. A link over one note opens that
+  note, so it needs no value here.
+schema:
+  $ref: '../schemas/PublishedNoteReference.yaml'

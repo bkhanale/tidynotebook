@@ -230,6 +230,8 @@ export {
 } from './publications/resolve-link.ts';
 export type { PublishedNoteRead } from './publications/read-note.ts';
 export { readPublishedNote } from './publications/read-note.ts';
+export type { PublishedPage } from './publications/read-page.ts';
+export { readPublishedPage } from './publications/read-page.ts';
 export type { PublishedNoteList } from './publications/list-scope.ts';
 export { listPublishedNotes } from './publications/list-scope.ts';
 export type {

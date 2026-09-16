@@ -53,10 +53,13 @@ export type MediaHandling = 'json' | 'html' | 'binary';
  * Media type handling table.
  *
  * A `json` media type is validated against the declared response schema before
- * it is sent. The `html` and `binary` rows are the documented hook for later
- * tasks: those responses carry bytes, so a later task adds size, access, and
- * caching checks there instead of JSON validation. No operation returns them
- * yet. A media type outside this table cannot leave the boundary.
+ * it is sent. An `html` answer carries no members that a schema could read, so
+ * `checkHtmlAnswer` below takes its place: it bounds the size, it requires the
+ * content policy that decides what the document may load, and it requires a
+ * cache directive that keeps the document out of every shared cache. A
+ * `binary` answer is a stream of stored bytes whose route states its own
+ * length and disposition. A media type outside this table cannot leave the
+ * boundary.
  */
 export const mediaTypeHandling: Readonly<Record<string, MediaHandling>> = {
   'application/json': 'json',
@@ -69,6 +72,71 @@ export const mediaTypeHandling: Readonly<Record<string, MediaHandling>> = {
   'image/webp': 'binary',
   'text/markdown': 'binary',
   'application/zip': 'binary',
+};
+
+/**
+ * The largest HTML answer that the boundary sends, in bytes.
+ *
+ * It is the bound that `PublishedDocument` of the contract declares for the
+ * one HTML answer of this server. A document is built in memory, so the bound
+ * is the memory that one request may take for its answer.
+ */
+export const maxHtmlAnswerBytes = 8 * 1024 * 1024;
+
+/** What is wrong with an HTML answer, if anything. */
+export type HtmlAnswerIssue =
+  | 'not_text'
+  | 'too_large'
+  | 'no_cache_directive'
+  | 'shared_cache'
+  | 'no_content_policy';
+
+/** The header of this name that the answer carries, in lower case. */
+function headerOf(result: HandlerResult, name: string): string | null {
+  for (const [candidate, value] of result.headers ?? [])
+    if (candidate.toLowerCase() === name) return value.toLowerCase();
+  return null;
+}
+
+/**
+ * Checks the one answer of this boundary that is a document.
+ *
+ * A document reaches a person, so three facts about it are structural rather
+ * than a habit of one handler.
+ *
+ * - **Size.** The answer is text that the handler built in memory, so it is
+ *   bounded before it is written.
+ * - **Access.** The answer states what the document may load. A document with
+ *   no content policy would fall back to the base policy of the deployment,
+ *   which permits nothing, so a page that forgot its policy would render
+ *   without its stylesheet instead of failing here.
+ * - **Caching.** A document that a secret address produced must not be stored
+ *   by a cache that another person can read. The answer therefore names the
+ *   reader with `private` or forbids the store outright, and an answer that
+ *   says `public` is refused.
+ */
+export function checkHtmlAnswer(result: HandlerResult): HtmlAnswerIssue | null {
+  if (typeof result.body !== 'string') return 'not_text';
+  if (Buffer.byteLength(result.body, 'utf8') > maxHtmlAnswerBytes)
+    return 'too_large';
+  const cache = headerOf(result, 'cache-control');
+  if (cache === null) return 'no_cache_directive';
+  const directives = cache.split(',').map((value) => value.trim());
+  if (directives.includes('public')) return 'shared_cache';
+  if (!directives.includes('private') && !directives.includes('no-store'))
+    return 'shared_cache';
+  if (headerOf(result, 'content-security-policy') === null)
+    return 'no_content_policy';
+  return null;
+}
+
+/** What each issue of an HTML answer reports to the operator. */
+const htmlAnswerReasons: Readonly<Record<HtmlAnswerIssue, string>> = {
+  not_text: 'an HTML answer must be text',
+  too_large: 'the HTML answer is larger than the boundary sends',
+  no_cache_directive: 'an HTML answer must state its cache directive',
+  shared_cache: 'an HTML answer must not be stored by a shared cache',
+  no_content_policy: 'an HTML answer must carry its own content policy',
 };
 
 /**
@@ -313,6 +381,11 @@ function checkHandlerResult(
       ...shared,
       reason: 'a JSON answer must be an object or an array, not bytes or text',
     });
+  if (handling === 'html') {
+    const issue = checkHtmlAnswer(result);
+    if (issue !== null)
+      rejectResponse(request, { ...shared, reason: htmlAnswerReasons[issue] });
+  }
 }
 
 /** Whether the operation declares this status without a response body. */
@@ -411,6 +484,20 @@ export function checkRegistration(
     );
 }
 
+/**
+ * The attempt limit group of one operation, or `null` for no limit.
+ *
+ * Two operations take a password of a published link, and they take the same
+ * password, so they share one bucket. A caller that swaps one for the other
+ * therefore gains no attempt.
+ */
+function throttleGroup(id: OperationId): string | null {
+  if (id === 'getSetupStatus' || id === 'createOwner') return 'setup';
+  if (id === 'unlockPublishedLink' || id === 'openPublishedPage')
+    return 'published';
+  return null;
+}
+
 // Replies whose response validation already failed. The failure reply is built
 // by this server, so validating it a second time would only risk a loop.
 const validationFailed = new WeakSet<FastifyReply>();
@@ -437,6 +524,28 @@ export function registerOperations(
     identity !== undefined,
     protocols,
   );
+
+  // The password form of a published page holds no script, so a browser sends
+  // it in the form encoding of HTML. The platform parses that encoding, so the
+  // boundary reads one value rather than adding a library for one field. The
+  // body limit of the instance still bounds it, and the declared request
+  // schema still refuses a name that the operation does not take.
+  if (!app.hasContentTypeParser('application/x-www-form-urlencoded')) {
+    app.addContentTypeParser(
+      'application/x-www-form-urlencoded',
+      { parseAs: 'string' },
+      (_request, body: string, done) => {
+        const fields: Record<string, string> = {};
+        for (const [name, value] of new URLSearchParams(body)) {
+          // A field of this name would set the prototype of the object rather
+          // than a member of it, so it never becomes one.
+          if (name === '__proto__') continue;
+          fields[name] = value;
+        }
+        done(null, fields);
+      },
+    );
+  }
 
   if (!app.hasContentTypeParser('multipart/form-data')) {
     app.addContentTypeParser(
@@ -584,15 +693,15 @@ export function registerOperations(
       url: toRoutePath(operation.path),
       config: {
         operationId: operation.id,
-        ...(operation.id === 'getSetupStatus' || operation.id === 'createOwner'
-          ? {
+        ...(throttleGroup(operation.id) === null
+          ? {}
+          : {
               rateLimit: {
-                groupId: 'setup',
+                groupId: throttleGroup(operation.id) ?? '',
                 max: rateLimit.max,
                 timeWindow: rateLimit.windowSeconds * 1000,
               },
-            }
-          : {}),
+            }),
       },
       ...(operation.id === 'uploadAttachment' ||
       operation.id === 'importWorkspace'

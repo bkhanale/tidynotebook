@@ -22,7 +22,17 @@ export type LogEventFields = {
     readonly reason: string;
   };
   readonly 'maintenance.failed': {
-    readonly job: 'sync' | 'attachments';
+    readonly job: 'sync' | 'attachments' | 'publications';
+  };
+  /**
+   * One refusal of the reader path of a published link.
+   *
+   * The cause reaches the operator and reaches no answer, which is the rule of
+   * decision 0030. The record names no link, no note and no account, so a log
+   * of it discloses nothing that the refusal itself hides.
+   */
+  readonly 'published.refused': {
+    readonly cause: string;
   };
   readonly 'auth.debug': { readonly source: 'better-auth' };
   readonly 'auth.info': { readonly source: 'better-auth' };
@@ -49,6 +59,7 @@ export const logEventCatalog = {
     fields: ['operationId', 'statusCode', 'mediaType', 'reason'],
   },
   'maintenance.failed': { level: 'error', fields: ['job'] },
+  'published.refused': { level: 'info', fields: ['cause'] },
   'auth.debug': { level: 'debug', fields: ['source'] },
   'auth.info': { level: 'info', fields: ['source'] },
   'auth.warning': { level: 'warn', fields: ['source'] },

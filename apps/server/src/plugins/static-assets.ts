@@ -207,6 +207,77 @@ export function documentContentPolicy(
   return policy;
 }
 
+/** The stylesheets of one built document, and the file time they were read at. */
+type DocumentStylesheets = {
+  readonly hrefs: readonly string[];
+  readonly mtimeMs: number;
+};
+
+/**
+ * Stylesheet addresses of the documents that have been read.
+ *
+ * Reading one means reading the file, so the answer is kept until the file
+ * changes, exactly as a content policy is above.
+ */
+const documentStylesheets = new Map<string, DocumentStylesheets>();
+
+/** Matches one `<link>` element of a document. */
+const linkElement = /<link\b[^>]*>/gi;
+
+/** Reads one attribute of an element, or `null`. */
+function attributeOf(element: string, name: string): string | null {
+  const found = new RegExp(`\\s${name}\\s*=\\s*("[^"]*"|'[^']*')`, 'i').exec(
+    element,
+  );
+  const quoted = found?.[1];
+  return quoted === undefined ? null : quoted.slice(1, -1);
+}
+
+/**
+ * The stylesheet addresses that one built HTML document loads.
+ *
+ * The published page of decision 0031 uses the built stylesheet of the
+ * application, so that the page cannot drift from the theme. The build writes
+ * that address into the shell document under a hashed name, and this function
+ * reads it from the artefact that the server already serves, rather than from
+ * a second build output that would describe the same fact.
+ *
+ * Only a same-origin address is answered. A document of this build names no
+ * other one, and a page that this server writes must never load a stylesheet
+ * from somewhere else.
+ *
+ * The answer holds every stylesheet that the document names, in order. The
+ * build emits one today, and a build that emitted a second would show it here
+ * rather than lose it.
+ */
+export function documentStylesheetHrefs(
+  filePath: string,
+  stats: Stats,
+): readonly string[] {
+  const cached = documentStylesheets.get(filePath);
+  if (cached !== undefined && cached.mtimeMs === stats.mtimeMs)
+    return cached.hrefs;
+  const hrefs = stylesheetHrefs(readFileSync(filePath, 'utf8'));
+  documentStylesheets.set(filePath, { hrefs, mtimeMs: stats.mtimeMs });
+  return hrefs;
+}
+
+/** The same-origin stylesheet addresses of one HTML document. */
+export function stylesheetHrefs(html: string): readonly string[] {
+  const hrefs: string[] = [];
+  for (const element of html.match(linkElement) ?? []) {
+    const relation = (attributeOf(element, 'rel') ?? '').toLowerCase();
+    if (!relation.split(/\s+/).includes('stylesheet')) continue;
+    const href = attributeOf(element, 'href');
+    // A protocol relative address and an absolute one both name another
+    // origin, and a relative one would resolve against the published address.
+    if (href === null || !href.startsWith('/') || href.startsWith('//'))
+      continue;
+    if (!hrefs.includes(href)) hrefs.push(href);
+  }
+  return hrefs;
+}
+
 /** What `sendStaticFile` needs about the file it is asked to send. */
 export type StaticFileRequest = {
   /** Absolute path of the identity representation. */
