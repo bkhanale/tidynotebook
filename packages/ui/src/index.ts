@@ -92,6 +92,7 @@ export {
   FolderPlusIcon,
   HistoryIcon,
   ImageIcon,
+  LinkIcon,
   MenuIcon,
   MoonIcon,
   MoreIcon,
