@@ -35,7 +35,10 @@ const allowed = {
   // use the shared pure parser, and the edge stays acyclic.
   'storage-server': ['core', 'markdown'],
   'storage-browser': ['core', 'sync'],
-  sync: ['core', 'api-client'],
+  // The device derives its own backlinks from the note bodies it holds, so
+  // it reads links with the one shared extractor that the server index uses
+  // (record 0037). The edge stays acyclic, because markdown reaches core only.
+  sync: ['core', 'api-client', 'markdown'],
   markdown: ['core'],
   logging: [],
   editor: ['core', 'markdown', 'ui'],

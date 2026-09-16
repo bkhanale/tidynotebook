@@ -550,6 +550,9 @@ importers:
       '@notesapp/core':
         specifier: workspace:*
         version: link:../core
+      '@notesapp/markdown':
+        specifier: workspace:*
+        version: link:../markdown
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

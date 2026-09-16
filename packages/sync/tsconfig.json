@@ -7,6 +7,7 @@
   "include": ["src/**/*.ts"],
   "references": [
     { "path": "../api-client/tsconfig.build.json" },
-    { "path": "../core/tsconfig.build.json" }
+    { "path": "../core/tsconfig.build.json" },
+    { "path": "../markdown/tsconfig.build.json" }
   ]
 }

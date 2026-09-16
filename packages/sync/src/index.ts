@@ -89,5 +89,7 @@ export type {
   SyncEngine,
 } from './engine.ts';
 export { createSyncEngine } from './engine.ts';
+export type { LocalBacklink } from './local-backlinks.ts';
+export { localBacklinks } from './local-backlinks.ts';
 export type { LocalSearchFile } from './local-search.ts';
 export { searchLocal } from './local-search.ts';

@@ -8,7 +8,7 @@ this directory. The recipe for a whole feature is in
 
 The rules of offline work: the local persistence port, the save queue, the
 lease that keeps one tab sending, the snapshot download, the checkpoint rule,
-and local search.
+local search, and local backlinks.
 
 ## What lives here and what does not
 
@@ -17,7 +17,9 @@ and local search.
 - `src/engine.ts` sends queue entries in local order with a frozen body and
   digest, so a retry repeats the same mutation.
 - `src/queue.ts`, `src/lease.ts`, `src/snapshot.ts`, `src/checkpoints.ts`,
-  and `src/local-search.ts` hold their own rules.
+  `src/local-search.ts`, and `src/local-backlinks.ts` hold their own rules.
+  The last two are pure functions over the rows of `listSearchFiles`, and
+  neither keeps an index of its own (record 0037).
 - A whole-file action is one port operation, `moveFiles` or `trashFiles`, and
   never a draft that a caller composes. The path and the deletion state live on
   every working copy, so one transaction rewrites them all (record 0032).
@@ -26,7 +28,9 @@ and local search.
 
 ## Allowed imports
 
-`@notesapp/core` and `@notesapp/api-client`.
+`@notesapp/core`, `@notesapp/api-client`, and `@notesapp/markdown`. The
+device reads links with the one shared extractor that the accepted server
+index uses, so the two agree on what a link is by construction.
 
 This package is browser code. It cannot import a Node built in module, a Node
 only package, or a server only package.
