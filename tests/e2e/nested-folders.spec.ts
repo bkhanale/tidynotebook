@@ -62,7 +62,24 @@ test('the selected folder receives a child folder and a saved note', async ({
   const savedChild = page
     .getByRole('button', { name: child, exact: true })
     .locator('xpath=ancestor::li[1]');
-  await expect(savedChild.getByRole('link', { name: noteName })).toBeVisible();
+  const savedNote = savedChild.getByRole('link', { name: noteName });
+  await expect(savedNote).toBeVisible();
+
+  // A child starts after its parent icon. The former tree inset was smaller
+  // than the folder disclosure control, so a nested note started to the left
+  // of the folder icon that contained it.
+  const folderIcon = savedChild
+    .getByRole('button', { name: child, exact: true })
+    .locator('svg');
+  const noteIcon = savedNote.locator('svg');
+  const [folderBox, noteBox] = await Promise.all([
+    folderIcon.boundingBox(),
+    noteIcon.boundingBox(),
+  ]);
+  if (folderBox === null || noteBox === null)
+    throw new Error('The folder and note icons must be visible.');
+  expect(noteBox.x).toBeGreaterThan(folderBox.x);
+  expect(noteBox.x - folderBox.x).toBeLessThanOrEqual(4);
 });
 
 test('a note that moves into a folder stays there after the next edit', async ({

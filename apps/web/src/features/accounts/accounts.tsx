@@ -25,12 +25,12 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ComputerIcon,
+  LoadingState,
   MoonIcon,
   Notice,
   Page,
   pageGutter,
   PageHeader,
-  StatusRegion,
   SunIcon,
   TextField,
   themeFamilies,
@@ -64,7 +64,7 @@ export function RequireSession({
   if (session.status === 'loading') {
     return (
       <Page>
-        <StatusRegion message="Checking the session." />
+        <LoadingState label="Your account is loading." />
       </Page>
     );
   }
@@ -185,7 +185,7 @@ export function LoginPage(): ReactNode {
           {status.kind === 'loading' ? 'Notesapp' : title}
         </h1>
         {status.kind === 'loading' ? (
-          <StatusRegion message="Reading the state of this installation." />
+          <LoadingState label="The sign-in screen is loading." />
         ) : status.kind === 'unreachable' ? (
           <div className="mt-4 space-y-3">
             <Notice tone="problem" message={status.message} />

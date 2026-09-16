@@ -230,6 +230,16 @@ const rowMenuClassName =
   'inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8';
 
 /**
+ * The inset of one child branch in the tree.
+ *
+ * The border sits below the disclosure chevron. The padding then starts a
+ * child just after the folder icon of its parent. Both parts change with the
+ * disclosure size, so the same alignment holds for touch and mouse input.
+ */
+const treeBranchClassName =
+  'ml-5 border-l border-edge-subtle pl-6 md:ml-4 md:pl-4';
+
+/**
  * Renders the tree nodes as interactive collapsible lists.
  *
  * A row is a drag source and a folder row is a drop target. The handlers stay
@@ -393,11 +403,13 @@ function TreeView({
             </div>
             {isOpen ? (
               node.children.length === 0 ? (
-                <p className="my-1 ml-3 border-l border-edge-subtle py-1 pl-3 text-control text-muted">
-                  This folder is empty.
-                </p>
+                <div className={treeBranchClassName}>
+                  <p className="my-1 px-2 py-1 text-control text-muted">
+                    This folder is empty.
+                  </p>
+                </div>
               ) : (
-                <div className="ml-3 border-l border-edge-subtle pl-1">
+                <div className={treeBranchClassName}>
                   <TreeView
                     nodes={node.children}
                     workspaceId={workspaceId}

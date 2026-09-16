@@ -9,7 +9,7 @@
  */
 import { useEffect, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router';
-import { Button, Page, PageHeader, StatusRegion } from '@notesapp/ui';
+import { Button, LoadingState, Page, PageHeader } from '@notesapp/ui';
 import { useWorkspace } from '../app.tsx';
 
 /**
@@ -42,7 +42,7 @@ export function WorkspaceHome(): ReactNode {
 
   return (
     <Page>
-      <StatusRegion message="Opening your notes." />
+      <LoadingState label="Your notes are opening." />
     </Page>
   );
 }

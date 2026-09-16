@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
@@ -40,6 +40,46 @@ async function holdAnswers(
   return release;
 }
 
+/** The shared placeholder that one screen shows while it waits. */
+function loadingState(page: Page, label: string): Locator {
+  return page.getByRole('status').filter({ hasText: label }).first();
+}
+
+/** Proves that a wait uses the shared visual and accessible placeholder. */
+async function expectLoadingState(page: Page, label: string): Promise<void> {
+  const loading = loadingState(page, label);
+  await expect(loading).toBeAttached();
+  await expect(loading).toHaveAttribute('aria-busy', 'true');
+  await expect(loading.locator('[aria-hidden="true"]')).toHaveCount(1);
+}
+
+test('every startup wait shows the shape of the screen that follows', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  const releaseAccount = await holdAnswers(page, '**/api/account');
+  const releaseSetup = await holdAnswers(page, '**/api/setup');
+
+  await page.goto(`${stack.baseUrl}/`);
+  await expectLoadingState(page, 'Your account is loading.');
+
+  releaseAccount();
+  await page.waitForURL(`${stack.baseUrl}/login`);
+  await expectLoadingState(page, 'The sign-in screen is loading.');
+
+  releaseSetup();
+  await expect(page.getByLabel('Address')).toBeVisible();
+
+  const releaseWorkspaces = await holdAnswers(page, '**/api/workspaces');
+  await page.getByLabel('Address').fill(stack.email);
+  await page.getByLabel('Password', { exact: true }).fill(stack.password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expectLoadingState(page, 'Your notes are opening.');
+
+  releaseWorkspaces();
+  await openPersonalWorkspace(page);
+});
+
 test('a screen that waits shows the shape of what follows', async ({
   checkedPage: page,
   stack,
@@ -54,13 +94,7 @@ test('a screen that waits shows the shape of what follows', async ({
   // The placeholder states what loads, in one polite live region. The bars
   // that stand for the rows are decoration, so the sentence is the whole
   // message for assistive technology.
-  const loading = page
-    .getByRole('status')
-    .filter({ hasText: 'Your notes are loading.' })
-    .first();
-  await expect(loading).toBeAttached();
-  await expect(loading).toHaveAttribute('aria-busy', 'true');
-  await expect(loading.locator('[aria-hidden="true"]')).toHaveCount(1);
+  await expectLoadingState(page, 'Your notes are loading.');
 
   release();
   await expect(page.getByText('Your notes are loading.')).toHaveCount(0);
