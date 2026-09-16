@@ -58,8 +58,8 @@ request that no generated operation can express uses `app.inject()`.
 - No rejected body, token, or password in a log line, which is why the whole reader
   path of a published link is redacted. A rejection names the request id and the reason.
 - No handwritten HTTP transport. `better-auth.ts` is the one listed protocol file.
-- No actor helper in `src/routes/published.ts`, no script and no second stylesheet in
-  its document, and no HTML answer without a private cache directive (0031, 0047).
+- No actor helper in `src/routes/published.ts`, no script, no second stylesheet, no
+  uncached HTML, and no application shell under `/published/` (0031, 0047).
 
 ## Key files
 

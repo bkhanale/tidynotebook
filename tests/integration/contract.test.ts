@@ -409,8 +409,15 @@ await test('the page of a published link always answers a page', async () => {
 
 await test('a mistyped address reads like an unknown one', async () => {
   // Record 0047. The token of a reader address takes any single segment, so
-  // the boundary refuses none of them and every one reads alike.
-  for (const token of ['short', 'a'.repeat(120), 'not a token']) {
+  // the boundary refuses none of them and every one reads alike. The longest
+  // one is longer than the bound that the router once held, which answered a
+  // padded address with an engine notice instead of the page.
+  for (const token of [
+    'short',
+    'a'.repeat(120),
+    'not a token',
+    'b'.repeat(600),
+  ]) {
     const answer = await getPublishedPage({ path: { token } });
     assert.equal(responseOf(answer.response).status, 200, token);
     assert.ok(String(answer.data).includes('This link is not available.'));

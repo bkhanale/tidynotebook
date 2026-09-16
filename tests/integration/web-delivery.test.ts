@@ -330,6 +330,82 @@ await test('a missing asset is 404 and never the application shell', async () =>
   }
 });
 
+await test('a reader address never receives the application shell', async () => {
+  // Decision 0047. Every address under the reader boundary answers the one
+  // document of a published link or the one refusal of its subresources. The
+  // last segment of a mangled reader address holds no dot, so the shell rule
+  // alone would hand the reader the application, which asks a person with no
+  // account to sign in. No publication store exists in this build, so every
+  // token is unknown and the document says that the link is not available.
+  const directory = await writeBuild();
+  const server = await startTestServer({ webDist: directory });
+  // Longer than the router bound that this server once carried, which turned
+  // a padded address into an engine notice with the whole address in it.
+  const longToken = 'a'.repeat(600);
+  const note = '00000000-0000-4000-8000-000000000000';
+  try {
+    const page = await server.app.inject({
+      method: 'GET',
+      url: `/published/${longToken}`,
+      headers: { 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate' },
+    });
+    assert.equal(page.statusCode, 200);
+    assert.equal(page.headers['content-type'], 'text/html; charset=utf-8');
+    assert.equal(page.headers['cache-control'], 'private, no-store');
+    assert.ok(page.body.includes('This link is not available.'));
+    // The shell, and nothing of it, reaches a reader.
+    assert.equal(page.body.includes('type="module"'), false);
+    assert.equal(page.body.includes(longToken), false);
+
+    // A picture is a subresource, so it keeps the one refusal of 0047 and it
+    // never answers a document of any kind.
+    const attachment = await server.app.inject({
+      method: 'GET',
+      url: `/published/${longToken}/attachments/${note}/${note}`,
+      headers: { 'sec-fetch-dest': 'image', 'sec-fetch-mode': 'no-cors' },
+    });
+    assert.equal(attachment.statusCode, 404);
+    assert.match(
+      String(attachment.headers['content-type']),
+      /^application\/problem\+json/,
+    );
+    const problem: unknown = attachment.json();
+    assert.ok(problem !== null && typeof problem === 'object');
+    assert.equal(
+      Object.fromEntries(Object.entries(problem)).code,
+      'published_link_unavailable',
+    );
+
+    // An address under the boundary that names no operation at all is not a
+    // page of the router either. It takes the not-found problem.
+    for (const url of ['/published', '/published/one/two']) {
+      const answer = await server.app.inject({ method: 'GET', url });
+      assert.equal(answer.statusCode, 404, url);
+      assert.match(
+        String(answer.headers['content-type']),
+        /^application\/problem\+json/,
+        url,
+      );
+      assert.equal(answer.body.includes('<!doctype html>'), false, url);
+    }
+
+    // A note whose name starts with the same letters is still a page.
+    const application = await server.app.inject({
+      method: 'GET',
+      url: '/published-notes',
+    });
+    assert.equal(application.statusCode, 200);
+    assert.equal(
+      application.headers['content-type'],
+      'text/html; charset=utf-8',
+    );
+    assert.ok(application.body.includes('type="module"'));
+  } finally {
+    await server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 await test('the service worker is revalidated on every load', async () => {
   const directory = await writeBuild();
   const server = await startTestServer({ webDist: directory });

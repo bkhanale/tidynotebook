@@ -20,6 +20,10 @@
  * web application is one document with a router on the device, so an address
  * that names a page of that router still gets the shell. An address that names
  * a file does not. See `servesApplicationShell`.
+ *
+ * A fifth rule runs before all four: an address that the server answers by
+ * itself holds no file of the build and no page of the router, so it reaches
+ * neither. See `servesBrowserAssets`.
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, readFileSync, statSync } from 'node:fs';
@@ -79,6 +83,31 @@ export function mimeTypeFor(filePath: string): string {
 export function servesApplicationShell(path: string): boolean {
   const lastSegment = path.slice(path.lastIndexOf('/') + 1);
   return !/\.[A-Za-z0-9]+$/.test(lastSegment);
+}
+
+/**
+ * The first segment of every address that the server answers by itself.
+ *
+ * One list, because one rule reads it: an address under one of these names is
+ * never a file of the build and never a page of the router on the device, so
+ * the built assets answer none of them. Two of the three are the API and the
+ * discovery path of the identity library. The third is the reader boundary of
+ * a published link, which decision 0047 gives one document and one refusal. A
+ * reader that opens a mangled address must read that document or that refusal,
+ * and never the application, which asks a person with no account to sign in.
+ */
+const serverBoundaries = ['/api', '/.well-known', '/published'] as const;
+
+/**
+ * Whether the built browser assets answer this address at all.
+ *
+ * The check runs before the file lookup and before `servesApplicationShell`,
+ * so an address that the server owns reaches neither of them.
+ */
+export function servesBrowserAssets(path: string): boolean {
+  return !serverBoundaries.some(
+    (boundary) => path === boundary || path.startsWith(`${boundary}/`),
+  );
 }
 
 /** A content encoding that the build can prepare in advance. */

@@ -56,6 +56,7 @@ import {
   documentStylesheetHrefs,
   sendStaticFile,
   servesApplicationShell,
+  servesBrowserAssets,
   statFile,
 } from './plugins/static-assets.ts';
 import {
@@ -211,7 +212,14 @@ export async function createAppWithHandlers(
     trustProxy:
       config.trustedProxies.length === 0 ? false : [...config.trustedProxies],
     bodyLimit: config.limits.bodyBytes,
-    routerOptions: { maxParamLength: 256 },
+    // The router carries no bound of its own. Node counts the request line in
+    // the header budget, so no path parameter can be longer than the header
+    // limit, and a shorter bound here would only decide which answer a long
+    // address gets. That answer was the framework's own 414 notice: it names
+    // an engine code, it repeats the whole address, and it passes neither the
+    // problem handler nor the one document of the reader path. A long token of
+    // a published link now reads exactly like an unknown one (decision 0047).
+    routerOptions: { maxParamLength: config.limits.headerBytes },
     requestTimeout: config.limits.requestTimeoutMs,
     // Fastify's own header limit is a server option, so it is applied here
     // rather than per route.
@@ -277,17 +285,20 @@ export async function createAppWithHandlers(
       (request.method === 'GET' || request.method === 'HEAD')
     ) {
       const rawPath = request.url.split('?')[0] ?? '/';
-      const isApiPrefix =
-        rawPath.startsWith('/api/') || rawPath.startsWith('/.well-known/');
+      let decodedPath: string | null = null;
+      try {
+        decodedPath = decodeURIComponent(rawPath);
+      } catch {
+        // A malformed path is not a web asset. The normal not-found problem
+        // response below handles it without exposing a filesystem detail.
+      }
+      // Both readings of the address must leave the built assets, because an
+      // escape that hides the name of a boundary is still that boundary.
+      const servesAssets =
+        servesBrowserAssets(rawPath) &&
+        (decodedPath === null || servesBrowserAssets(decodedPath));
 
-      if (!isApiPrefix) {
-        let decodedPath: string | null = null;
-        try {
-          decodedPath = decodeURIComponent(rawPath);
-        } catch {
-          // A malformed path is not a web asset. The normal not-found problem
-          // response below handles it without exposing a filesystem detail.
-        }
+      if (servesAssets) {
         // Decision 0013: source maps are not served. A `.map` request is never
         // a web asset and never falls back to the application shell, so the
         // built image serves no source map even though the build writes one.

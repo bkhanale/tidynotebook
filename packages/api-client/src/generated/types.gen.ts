@@ -855,7 +855,7 @@ export type PublishedRefusal = {
 export type PublishedScope = PublishedNoteScope | PublishedFolderScope;
 
 /**
- * One secret of a reader, as it travels in the address of a published link. The token is a path segment and the reading ticket is a query value, and the server compares a digest of what it received with a digest at rest. A value of any other shape therefore opens nothing, exactly as an unknown value opens nothing, so this shape stays wide on purpose: a reader that mistypes an address must read the one answer of the reader path and never a refusal that tells it that the shape was wrong. The shape of the value that the server draws is in PublishedTokenValue.
+ * One secret of a reader, as it travels in the address of a published link. The token is a path segment and the reading ticket is a query value, and the server compares a digest of what it received with a digest at rest. A value of any other shape therefore opens nothing, exactly as an unknown value opens nothing, so this shape stays wide on purpose: a reader that mistypes an address must read the one answer of the reader path and never a refusal that tells it that the shape was wrong. The shape of the value that the server draws is in PublishedTokenValue. The length is not bounded here, because the server digests the value and never stores it, and the whole address is already bounded by the header byte limit of the deployment. A second bound would answer a long address with a refusal instead of the one page of decision 0047.
  */
 export type PublishedSecret = string;
 

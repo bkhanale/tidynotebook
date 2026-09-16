@@ -7,6 +7,7 @@ import {
   matchesEntityTag,
   mimeTypeFor,
   servesApplicationShell,
+  servesBrowserAssets,
   stylesheetHrefs,
 } from './static-assets.ts';
 
@@ -86,6 +87,30 @@ await test('an address that names a page still receives the shell', () => {
   assert.ok(servesApplicationShell('/w/one/notes/two/history'));
   // A dot inside a folder of the address is not a file extension of it.
   assert.ok(servesApplicationShell('/w/one.two/notes/three'));
+});
+
+await test('an address that the server owns never receives the shell', () => {
+  // The reader boundary of a published link is one of them. A mangled reader
+  // address holds no dot in its last segment, so the shell rule alone would
+  // hand a reader the application and ask a person with no account to sign in.
+  // Decision 0047 gives that address one document or one refusal instead.
+  assert.equal(servesBrowserAssets('/published'), false);
+  assert.equal(servesBrowserAssets('/published/'), false);
+  assert.equal(servesBrowserAssets('/published/a'.repeat(30)), false);
+  assert.equal(servesBrowserAssets('/published/token/attachments/one'), false);
+  assert.equal(servesBrowserAssets('/api'), false);
+  assert.equal(servesBrowserAssets('/api/files'), false);
+  assert.equal(servesBrowserAssets('/.well-known/openid-configuration'), false);
+});
+
+await test('a page of the application still reaches the built assets', () => {
+  // The boundary is the whole first segment and nothing that starts with the
+  // same letters, so a note of a person keeps its page.
+  assert.ok(servesBrowserAssets('/'));
+  assert.ok(servesBrowserAssets('/login'));
+  assert.ok(servesBrowserAssets('/assets/main-AbCdEfGh.js'));
+  assert.ok(servesBrowserAssets('/published-notes'));
+  assert.ok(servesBrowserAssets('/w/one/notes/published'));
 });
 
 /**
