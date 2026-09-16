@@ -115,4 +115,10 @@ export {
   publishedDocumentContentPolicy,
   publishedDocumentHeaders,
 } from './plugins/security-headers.ts';
+export { documentStylesheetHrefs } from './plugins/static-assets.ts';
+export {
+  publishedDocument,
+  publishedDocumentClasses,
+  type PublishedPageView,
+} from './routes/published-document.ts';
 export { createSearchHandlers } from './routes/search.ts';
