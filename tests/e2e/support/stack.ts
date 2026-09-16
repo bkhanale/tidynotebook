@@ -3,13 +3,29 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { test as base, expect, type Page } from '@playwright/test';
-import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
+import {
+  bootstrapOwner,
+  createApp,
+  createPublicationCleanup,
+  loadServerConfig,
+} from '@notesapp/server';
+import { openWorkspaceStore } from '@notesapp/storage-server';
 import { createDisposableDatabase } from '../../integration/support/database.ts';
 
 export type E2EStack = {
   readonly baseUrl: string;
   readonly email: string;
   readonly password: string;
+  /**
+   * Runs the retention job of published links with a cutoff of its own.
+   *
+   * `apps/server` runs this job every hour with the instant of the run. A
+   * journey that needs a link or a reading ticket to be past its life cannot
+   * wait for that hour and must not sleep, so it asks for the run that the
+   * hour after would perform. The job is the product's own, not a route and
+   * not a hook for tests: only the cutoff comes from the journey.
+   */
+  readonly runPublicationRetention: (cutoff: Date) => Promise<void>;
 };
 
 /** One independently owned application stack for a browser journey. */
@@ -142,6 +158,18 @@ export async function startE2EStack(
         baseUrl,
         email,
         password,
+        runPublicationRetention: async (cutoff: Date): Promise<void> => {
+          // One connection, opened for the run and closed again, so a stack
+          // that never asks for the job holds no pool for it.
+          const store = openWorkspaceStore(database.runtimeUrl, {
+            poolSize: 1,
+          });
+          try {
+            await createPublicationCleanup(store)(cutoff);
+          } finally {
+            await store.close();
+          }
+        },
         close: async (): Promise<void> => {
           await started.close();
           await database.destroy();

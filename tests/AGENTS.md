@@ -7,8 +7,7 @@ this directory. The recipe for a whole feature is in
 ## Purpose
 
 The two suites that need more than one package: the integration tests against
-a real PostgreSQL service and a real listening server, and the Playwright
-browser journeys.
+a real PostgreSQL service and a real server, and the browser journeys.
 
 ## What lives here and what does not
 
@@ -22,36 +21,35 @@ browser journeys.
 
 ## Allowed imports
 
-Any workspace package, because this tree is the top of the graph. The
-transport rules still apply here: a test calls a generated operation or
-`app.inject()`, never a handwritten HTTP call.
+Any workspace package, because this tree is the top of the graph. A test calls
+a generated operation or `app.inject()`, never a handwritten HTTP call.
 
 ## How to add a common thing here
 
-- **An integration test.** Add `integration/<area>.test.ts`. Take a
-  disposable database from `support/database.ts` and a listening server from
-  `support/server.ts`. Run it with
+- **An integration test.** Add `integration/<area>.test.ts` with a database
+  from `support/database.ts` and a server from `support/server.ts`. Run
   `pnpm test:integration -- <area>` after `tools/test-database/ensure-postgres.sh`.
 - **A browser journey.** Add `e2e/<journey>.spec.ts` and use the `stack`
   worker fixture from `support/stack.ts`, which owns its own database and its
   own port. Drive the interface through roles and accessible names.
+- **A reader journey.** Open a published address in a second browser context,
+  which holds no session, and move a link or a ticket past its life with
+  `stack.runPublicationRetention`, never with a delay.
 - **A first user test.** Start with an empty database and use the real setup
   screen. Do not create the account through a test only bootstrap route.
 
 ## Testing conventions here
 
 `integration` runs under `node --test` through `pnpm test:integration`, which
-starts the PostgreSQL service from `compose.test.yaml` and builds first. Each
-integration file creates its own disposable database, so files do not share
-state. `e2e` runs under `pnpm test:e2e` across chromium, firefox, webkit, and
-emulated phone and tablet viewports. A test must prove the result through the
-public interface and check the server state, not an internal call.
+starts the PostgreSQL service of `compose.test.yaml` and builds first. Each
+file makes its own disposable database. `e2e` runs under `pnpm test:e2e` over
+chromium, firefox, webkit and emulated phone and tablet viewports. A test
+proves the result through the public interface and checks the server state.
 
-`pnpm test:e2e` runs several workers at the same time, and each worker owns
-its own stack. The journeys of one file keep their written order on that
-stack, but the order of the files across the workers can change. A journey
-therefore gives every note and every folder a name of its own, and it never
-depends on what another file wrote. See
+`pnpm test:e2e` runs several workers at the same time, and each one owns its
+stack. The journeys of one file keep their written order, but the order of the
+files can change, so a journey gives every note and every folder a name of its
+own and depends on nothing another file wrote. See
 [decision 0036](../docs/decisions/0036-the-browser-gate-runs-in-parallel-workers.md).
 
 ## Forbidden here
@@ -76,5 +74,7 @@ depends on what another file wrote. See
 | `integration/contract.test.ts`                | Every operation and its handler         |
 | `integration/row-access.test.ts`              | The row access policies                 |
 | `integration/published-write-refusal.test.ts` | Every write, with a published token     |
+| `e2e/published-link.spec.ts`                  | The reader with no session              |
+| `e2e/published-access.spec.ts`                | The password, the expiry and Revoke     |
 | `e2e/support/stack.ts`                        | One owned application stack per worker  |
 | `../playwright.config.ts`                     | The browser matrix and the worker count |
