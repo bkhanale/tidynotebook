@@ -30,6 +30,8 @@ export type NoteScreenActions = {
   readonly attachImage: (() => void) | null;
   /** Saves the open note as one Markdown file on this device. */
   readonly exportMarkdown: (() => void) | null;
+  /** Opens the dialog that publishes the open note as a read-only link. */
+  readonly publish: (() => void) | null;
 };
 
 type NoteActionsChannel = {

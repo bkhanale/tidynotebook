@@ -1,12 +1,16 @@
 /**
  * One note route view.
  *
- * The unknown, purged, empty, and readable states stay distinct here, and the
- * Move to folder dialog that the note screen owns lives beside the editor. The
- * dialog writes the move through the store, and the editor reads the new path
- * from the note list, so this screen carries no path of its own. The editor
- * host that owns the one CodeMirror view is loaded lazily from
- * `note-editor.tsx`. The layout frame lives in `shell.tsx`.
+ * The unknown, purged, empty, and readable states stay distinct here. The two
+ * dialogs that the note screen owns, Move to folder and Publish, live beside
+ * the editor. Both open from the command palette, which is where every action
+ * of the open note lives, so the note surface itself gains no control.
+ *
+ * Move to folder writes through the store, and the editor reads the new path
+ * from the note list, so this screen carries no path of its own. Publish calls
+ * one generated operation and shows the new link one time. The editor host
+ * that owns the one CodeMirror view is loaded lazily from `note-editor.tsx`.
+ * The layout frame lives in `shell.tsx`.
  */
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router';
@@ -14,6 +18,7 @@ import { LoadingState, Page, pageGutter, PageHeader } from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useFiles } from '../../shell/files.tsx';
 import { MoveNoteDialog } from '../folders/folders.tsx';
+import { PublishDialog } from '../publishing/publish-dialog.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 
@@ -31,6 +36,7 @@ export function NoteView(): ReactNode {
   const store = useLocalStore();
   const files = useFiles();
   const [moveOpen, setMoveOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const moveFolders = useMemo(
     () =>
       [...new Set([...files.folders, ...files.emptyFolders])].sort(
@@ -76,8 +82,16 @@ export function NoteView(): ReactNode {
           workspaceId={workspaceId}
           fileId={fileId}
           onMoveToFolder={() => setMoveOpen(true)}
+          onPublish={() => setPublishOpen(true)}
         />
       </Suspense>
+      <PublishDialog
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        workspaceId={workspaceId}
+        scope={{ kind: 'note', fileId }}
+        notes={files.notes}
+      />
       {notePath === null ? null : (
         <MoveNoteDialog
           open={moveOpen}

@@ -47,6 +47,7 @@ import {
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
+  LinkIcon,
   Menu,
   MenuIcon,
   MoonIcon,
@@ -90,6 +91,8 @@ import {
   RenameFolderDialog,
 } from '../features/folders/folders.tsx';
 import { NewNoteButton, useCreateNote } from '../features/notes/new-note.tsx';
+import { PublishDialog } from '../features/publishing/publish-dialog.tsx';
+import { publishedLinksTitle } from '../features/publishing/publishing.ts';
 import {
   NoteActionsScope,
   useNoteActions,
@@ -245,6 +248,7 @@ function TreeView({
   onSelectFolder,
   onRenameFolder,
   onDeleteFolder,
+  onPublishFolder,
   onNewNoteIn,
   onNewFolderIn,
   onDeleteNote,
@@ -260,6 +264,7 @@ function TreeView({
   readonly onSelectFolder: (path: string) => void;
   readonly onRenameFolder: (path: string) => void;
   readonly onDeleteFolder: (folder: string) => void;
+  readonly onPublishFolder: (folder: string) => void;
   readonly onNewNoteIn: (path: string) => void;
   readonly onNewFolderIn: (path: string) => void;
   readonly onDeleteNote: (note: NoteSummary) => void;
@@ -371,6 +376,12 @@ function TreeView({
                     onSelect: () => onRenameFolder(node.fullPath),
                   },
                   {
+                    id: 'publish',
+                    label: 'Publish folder',
+                    icon: <LinkIcon size={14} />,
+                    onSelect: () => onPublishFolder(node.fullPath),
+                  },
+                  {
                     id: 'delete-folder',
                     label: 'Delete folder',
                     icon: <TrashIcon size={14} />,
@@ -398,6 +409,7 @@ function TreeView({
                     onSelectFolder={onSelectFolder}
                     onRenameFolder={onRenameFolder}
                     onDeleteFolder={onDeleteFolder}
+                    onPublishFolder={onPublishFolder}
                     onNewNoteIn={onNewNoteIn}
                     onNewFolderIn={onNewFolderIn}
                     onDeleteNote={onDeleteNote}
@@ -443,6 +455,7 @@ function Sidebar({
   onNavigate,
   onNewFolderIn,
   onRenameFolder,
+  onPublishFolder,
   onNewNoteIn,
   onClose,
 }: {
@@ -453,6 +466,7 @@ function Sidebar({
   readonly onNavigate: () => void;
   readonly onNewFolderIn: (folder: string) => void;
   readonly onRenameFolder: (folder: string) => void;
+  readonly onPublishFolder: (folder: string) => void;
   readonly onNewNoteIn: (folder: string) => void;
   readonly onClose: () => void;
 }): ReactNode {
@@ -496,6 +510,7 @@ function Sidebar({
     for (const folder of ancestorFolders(openNotePath)) openFolder(folder);
   }, [openNotePath, openFolder]);
   const trashPath = `/w/${workspaceId}/trash`;
+  const publishedPath = `/w/${workspaceId}/published`;
   const navigate = useNavigate();
   const { announce } = useDeleteNotice();
   const requestSync = useRequestSync();
@@ -678,6 +693,7 @@ function Sidebar({
               }}
               onRenameFolder={onRenameFolder}
               onDeleteFolder={deleteFolderNow}
+              onPublishFolder={onPublishFolder}
               onNewNoteIn={onNewNoteIn}
               onNewFolderIn={onNewFolderIn}
               onDeleteNote={deleteNoteNow}
@@ -725,6 +741,22 @@ function Sidebar({
             <TrashIcon size={14} />
           </span>
           <span>Trash</span>
+        </Link>
+        <Link
+          className="flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline motion-safe:transition-colors hover:bg-hover hover:text-strong md:min-h-8"
+          to={publishedPath}
+          onClick={onNavigate}
+          aria-current={
+            location.pathname === publishedPath ? 'page' : undefined
+          }
+        >
+          <span
+            className="inline-flex shrink-0 items-center"
+            aria-hidden="true"
+          >
+            <LinkIcon size={14} />
+          </span>
+          <span>{publishedLinksTitle}</span>
         </Link>
         <AttentionLink workspaceId={workspaceId} count={attentionCount} />
         {store.error !== null ? (
@@ -921,6 +953,8 @@ function ShellFrame({
   // that is not the selected one.
   const [newFolderParent, setNewFolderParent] = useState<string | null>(null);
   const [renameFolder, setRenameFolder] = useState<string | null>(null);
+  // The folder that the publish dialog opens, or `null` while it is closed.
+  const [publishFolder, setPublishFolder] = useState<string | null>(null);
   const [selectedFolder, setSelectedFolder] = useState('');
   const sidebar = useSidebarSize();
   // The frame owns the open folders of the tree, because the New folder
@@ -1169,6 +1203,16 @@ function ShellFrame({
                     run: noteActions.exportMarkdown,
                   },
                 ]),
+            ...(noteActions.publish === null
+              ? []
+              : [
+                  {
+                    id: 'publish-note',
+                    label: 'Publish this note',
+                    keywords: 'publish link share read only reader',
+                    run: noteActions.publish,
+                  },
+                ]),
             ...(noteActions.duplicate === null
               ? []
               : [
@@ -1196,6 +1240,14 @@ function ShellFrame({
         keywords: 'deleted restore',
         run: () => {
           void navigate(`/w/${workspaceId}/trash`);
+        },
+      },
+      {
+        id: 'published-links',
+        label: `Go to ${publishedLinksTitle}`,
+        keywords: 'publish link share revoke reader',
+        run: () => {
+          void navigate(`/w/${workspaceId}/published`);
         },
       },
       {
@@ -1327,6 +1379,7 @@ function ShellFrame({
               onNavigate={() => setDrawerOpen(false)}
               onNewFolderIn={(folder) => setNewFolderParent(folder)}
               onRenameFolder={(folder) => setRenameFolder(folder)}
+              onPublishFolder={(folder) => setPublishFolder(folder)}
               onNewNoteIn={(folder) => newNote.create(folder)}
               onClose={() => setDrawerOpen(false)}
             />
@@ -1395,6 +1448,15 @@ function ShellFrame({
               setSelectedFolder(folder);
             }}
           />
+          {publishFolder === null ? null : (
+            <PublishDialog
+              open
+              onClose={() => setPublishFolder(null)}
+              workspaceId={workspaceId}
+              scope={{ kind: 'folder', path: publishFolder }}
+              notes={files.notes}
+            />
+          )}
           {session.account === null || renameFolder === null ? null : (
             <RenameFolderDialog
               open

@@ -37,6 +37,10 @@ const TrashView = lazy(async () => ({
 const AttentionRoute = lazy(async () => ({
   default: (await import('./features/attention/attention.tsx')).AttentionRoute,
 }));
+const PublishedLinksView = lazy(async () => ({
+  default: (await import('./features/publishing/published-links.tsx'))
+    .PublishedLinksView,
+}));
 
 /** Holds a route while its deferred module loads. */
 function deferred(element: ReactNode): ReactNode {
@@ -94,6 +98,7 @@ const router = createBrowserRouter([
         element: deferred(<HistoryView />),
       },
       { path: 'trash', element: deferred(<TrashView />) },
+      { path: 'published', element: deferred(<PublishedLinksView />) },
       { path: 'attention', element: deferred(<AttentionRoute />) },
     ],
   },

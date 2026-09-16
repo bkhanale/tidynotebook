@@ -155,6 +155,8 @@ export type NoteEditorProps = {
   readonly onQueued?: ((entry: QueueEntry | null) => void) | undefined;
   /** Opens the Move to folder dialog that the note screen owns. */
   readonly onMoveToFolder?: (() => void) | undefined;
+  /** Opens the Publish dialog that the note screen owns. */
+  readonly onPublish?: (() => void) | undefined;
 };
 
 /**
@@ -196,6 +198,7 @@ function NoteEditorBody({
   onOpenLink,
   onQueued,
   onMoveToFolder,
+  onPublish,
 }: NoteEditorProps): ReactNode {
   const navigate = useNavigate();
   const noteList = useFiles();
@@ -1002,6 +1005,11 @@ function NoteEditorBody({
     onMoveToFolder?.();
   }, [onMoveToFolder]);
 
+  /** Opens the Publish dialog that the note screen owns. */
+  const publishNote = useCallback((): void => {
+    onPublish?.();
+  }, [onPublish]);
+
   /** Opens the image chooser of the editor. */
   const attachImage = useCallback((): void => {
     fileInputRef.current?.click();
@@ -1029,6 +1037,7 @@ function NoteEditorBody({
       duplicate: duplicateNote,
       attachImage,
       exportMarkdown,
+      publish: publishNote,
     }),
     [
       fileId,
@@ -1037,6 +1046,7 @@ function NoteEditorBody({
       duplicateNote,
       attachImage,
       exportMarkdown,
+      publishNote,
     ],
   );
   useRegisterNoteActions(noteScreenActions);
@@ -1179,12 +1189,14 @@ export function NoteEditorLoader({
   workspaceId,
   fileId,
   onMoveToFolder,
+  onPublish,
 }: {
   readonly store: LocalStore | null;
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string;
   readonly onMoveToFolder?: (() => void) | undefined;
+  readonly onPublish?: (() => void) | undefined;
 }): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
@@ -1430,6 +1442,7 @@ export function NoteEditorLoader({
         initialSequence={status.sequence}
         focusName={focusName}
         onMoveToFolder={onMoveToFolder}
+        onPublish={onPublish}
         onOpenLink={(target: LinkTarget): void => {
           const action = resolveLinkAction(target.target, status.path);
           if (action.kind === 'note-id') {

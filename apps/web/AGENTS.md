@@ -14,7 +14,7 @@ sandboxed diagram frame. It composes the packages and holds no rule of its own.
 - `src/shell/` is the app frame: the layout, the sidebar with its tree, width
   and drawer, the command palette, and the frame notices.
   `src/features/<feature>/` holds one feature each (notes, editor, history,
-  trash, attention, folders, accounts, export). `src/lib/` holds pure helpers.
+  trash, attention, folders, accounts, export, publishing). `src/lib/` is pure.
 - `src/app.tsx`, `src/router.tsx`, and `src/main.tsx` compose the application.
   `src/pwa/` holds the worker and its build step, `src/diagram/` the frame.
 - `src/tailwind.css` is the only application CSS source. It holds Tailwind
@@ -55,8 +55,8 @@ proved by a Playwright journey in `tests/e2e`.
 `tools/check-boundaries.mjs` and `tools/check-design-rules.mjs` fail
 `pnpm lint` on each rule below.
 
-- No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation
-  from `@notesapp/api-client`.
+- No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation.
+  `features/publishing/publishing.ts` alone names the reader address (0031).
 - No handwritten CSS, CSS module, style sheet, or `style=` attribute.
 - No colour value. Colour comes from the theme registry in
   `packages/ui/src/themes` through the theme tokens.
