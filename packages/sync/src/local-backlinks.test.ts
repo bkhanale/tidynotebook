@@ -13,7 +13,7 @@ function paths(found: readonly { path: string }[] | null): readonly string[] {
   return found === null ? ['<no answer>'] : found.map((item) => item.path);
 }
 
-test('a plain relative link makes a backlink', () => {
+await test('a plain relative link makes a backlink', () => {
   const found = localBacklinks('target', [
     file('target', 'imported/friend.md', '# Friend\n'),
     file('source', 'plan.md', '[Friend](imported/friend.md)\n'),
@@ -22,7 +22,7 @@ test('a plain relative link makes a backlink', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('the decomposed spelling of a name makes a backlink', () => {
+await test('the decomposed spelling of a name makes a backlink', () => {
   // The stored path keeps the composed form. The body writes the same name
   // with a combining accent, which the resolver composes before it compares.
   const composed = 'caf\u00e9.md';
@@ -34,7 +34,7 @@ test('the decomposed spelling of a name makes a backlink', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('the canonical percent encoded name makes a backlink', () => {
+await test('the canonical percent encoded name makes a backlink', () => {
   const found = localBacklinks('target', [
     file('target', 'team notes.md', '# Team\n'),
     file('source', 'plan.md', '[Team](team%20notes.md)\n'),
@@ -42,7 +42,7 @@ test('the canonical percent encoded name makes a backlink', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('a name hidden behind any escape makes a backlink', () => {
+await test('a name hidden behind any escape makes a backlink', () => {
   // `%65` is `e`. No scan of the name finds this body, so the percent sign
   // sends it to the parse and the resolver decodes the destination.
   const found = localBacklinks('target', [
@@ -52,7 +52,7 @@ test('a name hidden behind any escape makes a backlink', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('a name in prose is not a link', () => {
+await test('a name in prose is not a link', () => {
   const found = localBacklinks('target', [
     file('target', 'friend.md', '# Friend\n'),
     file('source', 'plan.md', 'Read friend.md one day.\n'),
@@ -60,7 +60,7 @@ test('a name in prose is not a link', () => {
   deepStrictEqual(paths(found), []);
 });
 
-test('a link to another folder with the same name is not a backlink', () => {
+await test('a link to another folder with the same name is not a backlink', () => {
   const found = localBacklinks('target', [
     file('target', 'work/friend.md', '# Friend\n'),
     file('source', 'plan.md', '[Friend](home/friend.md)\n'),
@@ -68,7 +68,7 @@ test('a link to another folder with the same name is not a backlink', () => {
   deepStrictEqual(paths(found), []);
 });
 
-test('a relative link from a folder resolves to the target', () => {
+await test('a relative link from a folder resolves to the target', () => {
   const found = localBacklinks('target', [
     file('target', 'work/friend.md', '# Friend\n'),
     file('source', 'work/notes/plan.md', '[Friend](../friend.md)\n'),
@@ -76,14 +76,14 @@ test('a relative link from a folder resolves to the target', () => {
   deepStrictEqual(paths(found), ['work/notes/plan.md']);
 });
 
-test('the device has no answer for a note it does not hold', () => {
+await test('the device has no answer for a note it does not hold', () => {
   const found = localBacklinks('missing', [
     file('source', 'plan.md', '[Friend](friend.md)\n'),
   ]);
   strictEqual(found, null);
 });
 
-test('a link reference definition makes a backlink', () => {
+await test('a link reference definition makes a backlink', () => {
   const found = localBacklinks('target', [
     file('target', 'friend.md', '# Friend\n'),
     file('source', 'plan.md', 'See [friend][a].\n\n[a]: friend.md\n'),
@@ -91,7 +91,7 @@ test('a link reference definition makes a backlink', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('the last state of a file wins, so a draft can add a link', () => {
+await test('the last state of a file wins, so a draft can add a link', () => {
   const found = localBacklinks('target', [
     file('target', 'friend.md', '# Friend\n'),
     file('source', 'plan.md', 'Nothing yet.\n'),
@@ -100,7 +100,7 @@ test('the last state of a file wins, so a draft can add a link', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('the last state of a file wins, so a draft can remove a link', () => {
+await test('the last state of a file wins, so a draft can remove a link', () => {
   const found = localBacklinks('target', [
     file('target', 'friend.md', '# Friend\n'),
     file('source', 'plan.md', '[Friend](friend.md)\n'),
@@ -109,7 +109,7 @@ test('the last state of a file wins, so a draft can remove a link', () => {
   deepStrictEqual(paths(found), []);
 });
 
-test('the answer is ordered by path, as the server index is', () => {
+await test('the answer is ordered by path, as the server index is', () => {
   const link = '[Friend](friend.md)\n';
   const found = localBacklinks('target', [
     file('target', 'friend.md', '# Friend\n'),
@@ -120,7 +120,7 @@ test('the answer is ordered by path, as the server index is', () => {
   deepStrictEqual(paths(found), ['a.md', 'b.md', 'c.md']);
 });
 
-test('an external address and an attachment are not backlinks', () => {
+await test('an external address and an attachment are not backlinks', () => {
   const found = localBacklinks('target', [
     file('target', 'friend.md', '# Friend\n'),
     file(
@@ -132,7 +132,7 @@ test('an external address and an attachment are not backlinks', () => {
   deepStrictEqual(paths(found), []);
 });
 
-test('a body the parser refuses does not stop the answer', () => {
+await test('a body the parser refuses does not stop the answer', () => {
   // The shared parser refuses a document above one mebibyte. The filter sends
   // this one to the parse, because it holds the name, and the derivation
   // states the rest of its answer instead of failing.
@@ -145,7 +145,7 @@ test('a body the parser refuses does not stop the answer', () => {
   deepStrictEqual(paths(found), ['plan.md']);
 });
 
-test('a note that links to itself is listed, as the server index lists it', () => {
+await test('a note that links to itself is listed, as the server index lists it', () => {
   const found = localBacklinks('target', [
     file('target', 'friend.md', '[Itself](friend.md)\n'),
   ]);
