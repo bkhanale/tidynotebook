@@ -33,6 +33,9 @@ Every address under `/published/` that a person opens answers `200 text/html`.
 - `openPublishedPage` is the form of the page. A served document holds no
   script, so the password travels as `application/x-www-form-urlencoded`, and
   the answer is the page again.
+- A folder link opens many notes through one address. The page therefore takes
+  the query parameter `note` beside the `ticket` of 0046, so the reader
+  boundary keeps the three paths that 0046 names.
 - `getPublishedAttachment` and `unlockPublishedLink` keep the one refusal.
   A picture cannot show a sentence, and the unlock answers a program.
 

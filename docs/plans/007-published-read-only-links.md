@@ -18,6 +18,7 @@ the design.
 - [0030. A published link is a hashed token over a read-only scope](../decisions/0030-published-links-are-hashed-tokens-over-a-scope.md)
 - [0031. The reader path is a closed read-only boundary](../decisions/0031-the-reader-path-is-a-closed-read-only-boundary.md)
 - [0046. The reader carries its credentials in the address](../decisions/0046-the-reader-carries-its-credentials-in-the-address.md)
+- [0047. The published page always answers a page](../decisions/0047-the-published-page-always-answers-a-page.md)
 - Kept: [0025. The live preview is the one note surface](../decisions/0025-the-live-preview-is-the-one-note-surface.md)
 - Kept: [0018. The directory structure follows ports and adapters](../decisions/0018-directory-structure-by-layer.md)
 - Kept: [0019. One contract, generated types, and no type assertions](../decisions/0019-contract-validation-and-shared-types.md)
@@ -48,7 +49,8 @@ throttle.
 3. In the same file, declare one refusal shape for every reader failure.
    Acceptance: a missing link, a revoked link, an expired link, and a wrong
    password answer with the same status and the same problem code, and the body
-   names no note, no folder, and no owner.
+   names no note, no folder, and no owner. Record 0047 refines this for the
+   page, which answers one document for every state instead.
 4. Run `pnpm contract:lint` and `pnpm generate`. Commit the generated output
    with the contract. Never edit a file under a `src/generated/` directory.
 
@@ -141,9 +143,10 @@ throttle.
     of the built shell document, through the same modification-time cache that
     `documentContentPolicy` in `apps/server/src/plugins/static-assets.ts` uses.
     `apps/web/vite.config.ts` emits no build manifest, so there is none to read;
-    turning that option on is the alternative, and this item decides it.
-    Acceptance: the published page loads the one built application stylesheet,
-    and no second stylesheet exists.
+    turning that option on is the alternative, and this item decided against
+    it, because the server already parses that document for the inline script
+    hashes of its content policy. Acceptance: the published page loads the one
+    built application stylesheet, and no second stylesheet exists.
 26. Add a note resolver beside the `attachmentHref` option in
     `packages/markdown/src/render.ts`. It answers with a published address for
     an in-scope note and with nothing for any other note. Acceptance: a link to
