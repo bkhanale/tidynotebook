@@ -193,3 +193,67 @@ await test('a list item keeps its own item and does not merge', async () => {
   assert.ok(html.includes('<li>one</li>'));
   assert.ok(html.includes('<li>two</li>'));
 });
+
+/**
+ * The note resolver of plan 007 item 26.
+ *
+ * A surface that opens some notes and not others passes `noteHref`. The
+ * published page of decision 0031 is that surface: it opens the notes of one
+ * scope, and a link to any other note has to lose its address rather than
+ * offer a sign-in screen.
+ */
+await test('a note resolver decides every link between two notes', async () => {
+  const seen: (readonly [string | null, string | null, string])[] = [];
+  const html = await renderMarkdown(
+    `[inside](/notes/${noteIdA}#part-two)\n\n[portable](../trip/day-two.md)\n`,
+    {
+      sourcePath: 'notes/trip/day-one.md',
+      noteHref: (target) => {
+        seen.push([target.id, target.path, target.fragment]);
+        return target.path === null ? `/published/abc${target.fragment}` : null;
+      },
+    },
+  );
+  assert.deepEqual(seen, [
+    [noteIdA, null, '#user-content-part-two'],
+    [null, 'notes/trip/day-two.md', ''],
+  ]);
+  assert.ok(html.includes('<a href="/published/abc#user-content-part-two">'));
+  // The note that the surface does not open keeps its words and loses its
+  // address, through the one blocked destination path.
+  assert.ok(html.includes('<span data-blocked="link">portable</span>'));
+  assert.ok(!html.includes('day-two.md'));
+});
+
+await test('a portable fragment reaches the resolver namespaced', async () => {
+  const fragments: string[] = [];
+  await renderMarkdown('[to](day-two.md#a-heading)\n', {
+    sourcePath: 'notes/trip/day-one.md',
+    noteHref: (target) => {
+      fragments.push(target.fragment);
+      return null;
+    },
+  });
+  assert.deepEqual(fragments, ['#user-content-a-heading']);
+});
+
+await test('an attachment resolver that answers nothing blocks the picture', async () => {
+  const html = await renderMarkdown(
+    `![a photo](/attachments/${attachmentIdA})\n`,
+    {
+      attachmentHref: () => null,
+    },
+  );
+  assert.ok(html.includes('<span data-blocked="image">a photo</span>'));
+  assert.ok(!html.includes('<img'));
+});
+
+await test('a mermaid fence stays a placeholder on the server path', async () => {
+  // Decision 0031. The diagram frame belongs to the shell, so the server
+  // renders the source as text and no diagram engine runs here.
+  const html = await renderMarkdown('```mermaid\ngraph TD;\n  A-->B;\n```\n', {
+    noteHref: () => null,
+  });
+  assert.equal(html, '<pre data-diagram="mermaid">graph TD;\n  A-->B;</pre>');
+  assert.ok(!html.includes('<svg'));
+});

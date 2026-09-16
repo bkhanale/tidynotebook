@@ -148,6 +148,59 @@ function isFootnoteLink(node: Element): boolean {
 }
 
 /**
+ * One link from this note to another note, as the policy classified it.
+ *
+ * A link that names an identifier states `id`, and a portable link states the
+ * `path` that it resolved to. Exactly one of the two is a value. `fragment`
+ * carries the heading of the destination in the namespaced form that the
+ * renderer writes, or an empty text.
+ */
+export type NoteTarget = {
+  /** The identifier of the destination, or `null` for a portable link. */
+  readonly id: string | null;
+  /** The stored path of the destination, or `null` for a link by identifier. */
+  readonly path: string | null;
+  /** The fragment with its `#`, already namespaced, or an empty text. */
+  readonly fragment: string;
+};
+
+export type RenderMarkdownOptions = {
+  /** The stored path of the note that holds the Markdown. */
+  readonly sourcePath?: string;
+  /** Maps an allowed attachment path to its transport-specific path. */
+  readonly attachmentHref?: (path: string) => string | null;
+  /**
+   * Maps a link between two notes onto the address of this surface.
+   *
+   * A surface that opens some notes and not others passes this resolver. It
+   * answers the address of a note that the surface opens, and `null` for every
+   * other note. A `null` answer takes the blocked destination path below, so
+   * the link keeps its text, loses its address, and discloses nothing.
+   *
+   * A surface that opens every note of the workspace leaves it out, and a link
+   * between notes then keeps the address of the workspace itself. The
+   * published page of decision 0031 is the surface that passes one.
+   */
+  readonly noteHref?: (target: NoteTarget) => string | null;
+};
+
+/**
+ * The namespaced fragment of one destination, or an empty text.
+ *
+ * A destination that names an identifier carries the namespaced fragment
+ * already, because `classifyUrl` writes it. A portable destination carries the
+ * fragment as the author wrote it, so it is namespaced here. Both forms
+ * therefore reach a resolver in the one shape that a rendered heading holds.
+ */
+function namespacedFragment(href: string, namespaced: boolean): string {
+  const hash = href.indexOf('#');
+  if (hash === -1) return '';
+  const raw = href.slice(hash + 1);
+  if (raw === '') return '';
+  return namespaced ? `#${raw}` : `#user-content-${raw}`;
+}
+
+/**
  * Applies the URL policy to every link and image in the HTML tree.
  *
  * This runs on HTML nodes rather than Markdown nodes so that one pass covers
@@ -155,13 +208,6 @@ function isFootnoteLink(node: Element): boolean {
  * blocked destination keeps its visible text and loses its destination, so the
  * reader still sees what the author wrote.
  */
-export type RenderMarkdownOptions = {
-  /** The stored path of the note that holds the Markdown. */
-  readonly sourcePath?: string;
-  /** Maps an allowed attachment path to its transport-specific path. */
-  readonly attachmentHref?: (path: string) => string;
-};
-
 function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
   return (tree: HastRoot): undefined => {
     visit(tree, 'element', (node) => {
@@ -182,6 +228,26 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
         // gets a window handle back. A `target` attribute is never emitted.
         const title = stringProperty(node, 'title');
         const rest = title === null ? {} : { title };
+        // A surface that opens some notes and not others decides every link
+        // between two notes. A note that it does not open, and a portable
+        // destination that names no note at all, both lose the address here
+        // rather than keeping one that this surface cannot serve.
+        if (
+          options.noteHref !== undefined &&
+          (target.kind === 'note' || target.kind === 'relative')
+        ) {
+          const resolved = options.noteHref({
+            id: target.kind === 'note' ? target.id : null,
+            path: target.kind === 'relative' ? target.path : null,
+            fragment: namespacedFragment(target.href, target.kind === 'note'),
+          });
+          if (resolved === null) {
+            replaceWith(node, 'span', { dataBlocked: 'link' }, node.children);
+            return;
+          }
+          node.properties = { href: resolved, ...rest };
+          return;
+        }
         node.properties =
           target.kind === 'external'
             ? { href: target.href, ...rest, rel: ['noopener', 'noreferrer'] }
@@ -198,7 +264,18 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
       if (target.kind === 'attachment' || target.kind === 'relative') {
         const title = stringProperty(node, 'title');
         const key = target.kind === 'attachment' ? target.id : target.path;
-        const src = options.attachmentHref?.(key) ?? target.href;
+        // A resolver that answers nothing states that this surface serves no
+        // bytes for that reference, so the picture becomes its own text.
+        const src =
+          options.attachmentHref === undefined
+            ? target.href
+            : options.attachmentHref(key);
+        if (src === null) {
+          replaceWith(node, 'span', { dataBlocked: 'image' }, [
+            { type: 'text', value: alt },
+          ]);
+          return;
+        }
         node.properties = title === null ? { src, alt } : { src, alt, title };
         return;
       }
@@ -346,7 +423,9 @@ export async function renderMarkdown(
   // this processor would have produced.
   const tree = parseMarkdown(source);
   const processor =
-    options.attachmentHref === undefined && options.sourcePath === undefined
+    options.attachmentHref === undefined &&
+    options.noteHref === undefined &&
+    options.sourcePath === undefined
       ? renderProcessor
       : buildRenderProcessor(options);
   const html = processor.stringify(await processor.run(tree));

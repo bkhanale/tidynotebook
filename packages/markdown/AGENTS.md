@@ -56,7 +56,8 @@ through the editor path, so both surfaces must agree on structure.
 - No DOM global: no `document`, `window`, `navigator`, `location`,
   `localStorage`, `indexedDB`, `caches`, or `Worker`. `.oxlintrc.json`
   refuses each one by name.
-- No `fetch` and no storage. A caller passes an `attachmentHref` resolver.
+- No `fetch` and no storage. A caller passes an `attachmentHref` resolver, and
+  a surface that opens some notes and not others passes a `noteHref` resolver.
 - No wiki link syntax. A link between notes is a standard Markdown link.
 - No unsanitized HTML path. Every render goes through `rehype-sanitize` with
   the policy in `policy.ts`.
