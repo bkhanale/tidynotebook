@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build, defineConfig, type Plugin } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
-import { VitePWA } from 'vite-plugin-pwa';
+import { precacheWorker } from './src/pwa/precache.ts';
 import {
   defaultThemeFamilyId,
   defaultThemeFor,
@@ -19,13 +19,13 @@ import {
 // The diagram frame is built on its own and emitted as one self-contained
 // document; see `diagramFrame` below.
 //
-// The installed worker uses the inject-manifest strategy: the precache
-// manifest below is injected into `src/pwa/service-worker.ts` at build time
-// by workbox-build. Registration takes no clients and performs no skip
-// waiting on its own, so old assets stay installed while old clients remain
-// active and the update applies only after local persistence succeeds. The
-// worker itself claims no client either, and it registers after the `load`
-// event, so it never competes with the document that installs it; see
+// The installed worker is compiled by `precacheWorker` in
+// `src/pwa/precache.ts`, which writes the addresses of this build and the
+// name of their cache into it. Registration takes no clients and performs no
+// skip waiting on its own, so old assets stay installed while old clients
+// remain active and the update applies only after local persistence succeeds.
+// The worker itself claims no client either, and it registers after the
+// `load` event, so it never competes with the document that installs it; see
 // decision 0044. Background Sync is never used; the foreground tab drives
 // sync.
 //
@@ -33,11 +33,6 @@ import {
 // neighbour for every compressible emitted file. The Fastify static handler
 // serves the one that the browser accepts, so nothing is compressed per
 // request. A `.map` file is left uncompressed: no shipped file names it.
-//
-// The web compiler sets skipLibCheck because the workbox-build 7.4.1 and
-// workbox-core 7.4.1 declarations do not compile under
-// exactOptionalPropertyTypes, the same class of third-party declaration
-// incompatibility that already requires the flag in apps/server.
 
 /** Matches the editor engine packages that load with the note surface. */
 const editorEngine =
@@ -318,22 +313,9 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     themeAssets(),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
-    VitePWA({
-      strategies: 'injectManifest',
-      srcDir: 'src/pwa',
-      filename: 'service-worker.ts',
-      registerType: 'prompt',
-      injectRegister: null,
-      manifest: false,
-      injectManifest: {
-        globPatterns: [
-          '**/*.{js,css,html,svg,woff,woff2,ttf,png,ico,webmanifest}',
-        ],
-        // The worker precaches the shell only (decision D13). The diagram
-        // frame carries its whole renderer, so it loads on demand instead.
-        globIgnores: ['**/src/diagram/**'],
-        maximumFileSizeToCacheInBytes: 8 * 1024 * 1024,
-      },
-    }),
+    // Last, because its hook reads every emitted file of the build, including
+    // the application manifest and the diagram frame that the two plugins
+    // above emit.
+    ...(command === 'build' ? [precacheWorker()] : []),
   ],
 }));

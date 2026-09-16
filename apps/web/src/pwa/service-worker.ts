@@ -36,11 +36,6 @@ type WorkerScope = {
   readonly location: { readonly origin: string };
   readonly caches: CacheStorage;
   readonly skipWaiting: () => Promise<void>;
-  /** The precache manifest the build injects. Never edited by hand. */
-  readonly __WB_MANIFEST: readonly {
-    readonly url: string;
-    readonly revision: string | null;
-  }[];
   addEventListener(
     type: 'install',
     listener: (event: ExtendableEvent) => void,
@@ -71,8 +66,27 @@ type ExtendableMessageEvent = ExtendableEvent & {
 
 declare const self: WorkerScope;
 
-/** Versioned application asset cache of this worker. */
-const appCacheName = 'notesapp-app-v1';
+/**
+ * The addresses of this build, written by the build step.
+ *
+ * `apps/web/src/pwa/precache.ts` derives the list from the emitted files and
+ * writes both constants into this script. The build fails when either one
+ * stays unwritten, so a worker that reaches a browser always holds them.
+ */
+declare const __NOTESAPP_PRECACHE__: readonly string[];
+
+/**
+ * The name of the asset cache of this build.
+ *
+ * The name carries a digest of the precached bytes, so a build with different
+ * bytes fills a cache of its own and `activate` below deletes the older one.
+ * An entry whose address never changes, such as `/index.html`, therefore
+ * follows the deployment instead of staying until the browser evicts it.
+ */
+declare const __NOTESAPP_APP_CACHE__: string;
+
+/** Application asset cache of this build. */
+const appCacheName = __NOTESAPP_APP_CACHE__;
 
 /** Explicitly pinned bytes named by the main thread. */
 const pinnedCacheName = 'notesapp-pinned-v1';
@@ -120,12 +134,12 @@ async function precacheShell(): Promise<void> {
     return;
   }
   await forEachBounded(
-    self.__WB_MANIFEST,
+    __NOTESAPP_PRECACHE__,
     precacheConcurrency,
-    async (entry) => {
+    async (url) => {
       try {
-        const response = await fetch(entry.url);
-        if (response.ok) await cache.put(entry.url, response.clone());
+        const response = await fetch(url);
+        if (response.ok) await cache.put(url, response.clone());
       } catch {
         // One asset that does not load must not stop the whole precache.
       }

@@ -28,8 +28,7 @@
     "mermaid": "11.17.2",
     "react": "catalog:",
     "react-dom": "19.2.8",
-    "react-router": "8.3.1",
-    "workbox-window": "7.4.1"
+    "react-router": "8.3.1"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",
@@ -39,8 +38,6 @@
     "tailwindcss": "4.3.3",
     "type-fest": "4.41.0",
     "typescript": "catalog:toolchain",
-    "vite": "8.2.2",
-    "vite-plugin-pwa": "1.3.0",
-    "workbox-build": "7.4.1"
+    "vite": "8.2.2"
   }
 }

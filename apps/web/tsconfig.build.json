@@ -10,11 +10,10 @@
     "lib": ["ES2024", "DOM"],
     "rootDir": "src",
     "outDir": "dist",
-    "skipLibCheck": true,
     "types": ["vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.tsx"],
-  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/pwa/precache.ts"],
   "references": [
     { "path": "../../packages/api-client/tsconfig.build.json" },
     { "path": "../../packages/core/tsconfig.build.json" },

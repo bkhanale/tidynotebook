@@ -216,15 +216,6 @@ export async function requestUpdate(
     return;
   }
   await target?.update().catch(() => undefined);
-  // Workbox owns the precache manifest behind this worker. The dynamic
-  // import keeps the dependency pinned and bundled without running any
-  // background sync path.
-  try {
-    const loaded: unknown = await import('workbox-window');
-    void loaded;
-  } catch {
-    return;
-  }
 }
 
 /**

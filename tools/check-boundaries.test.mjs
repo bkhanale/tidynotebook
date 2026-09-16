@@ -276,6 +276,32 @@ await test('rejects a browser import of a Node module', () => {
   );
 });
 
+await test('accepts a Node module in a named build file', () => {
+  accepted(
+    check(
+      workspace({
+        'apps/web/package.json': manifest('web'),
+        'apps/web/src/index.ts': 'export const screen = 1;\n',
+        'apps/web/src/pwa/precache.ts':
+          "import { createHash } from 'node:crypto';\nexport const digest = createHash;\n",
+      }),
+    ),
+  );
+});
+
+await test('rejects a Node module in a browser file beside a build file', () => {
+  rejected(
+    check(
+      workspace({
+        'apps/web/package.json': manifest('web'),
+        'apps/web/src/pwa/lifecycle.ts':
+          "import { createHash } from 'node:crypto';\nexport const digest = createHash;\n",
+      }),
+    ),
+    'Browser source cannot import node:crypto.',
+  );
+});
+
 await test('rejects a handwritten fetch call', () => {
   rejected(
     check(

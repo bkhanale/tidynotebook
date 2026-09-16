@@ -108,7 +108,13 @@ const assetFiles = new Set([
 // Build configuration runs in Node during the build and is never shipped to
 // a browser, so it may read the file system and compose paths. Every other
 // rule, including the dependency direction, still applies to it.
-const buildFiles = new Set(['apps/web/vite.config.ts']);
+// `precache.ts` is the build step that compiles the installed worker and
+// names its precache. It sits with the worker it builds, and the declaration
+// build of apps/web excludes it, so no browser bundle can reach it.
+const buildFiles = new Set([
+  'apps/web/vite.config.ts',
+  'apps/web/src/pwa/precache.ts',
+]);
 // The handwritten client configuration named in the plan. It may pass a fetch
 // implementation and a base URL to the generated client. It must not call fetch
 // itself, so the call rule below stays active for it.
