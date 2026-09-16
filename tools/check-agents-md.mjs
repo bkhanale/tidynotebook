@@ -49,9 +49,9 @@ export const maximumGuideLines = 80;
 export const claudeEntry =
   '@AGENTS.md\n\nAGENTS.md is the source of every rule.\n';
 
-/** The start skill, and the link that the second harness reads. */
-export const skillFile = '.agents/skills/starting-work/SKILL.md';
-export const skillLink = '.claude/skills/starting-work/SKILL.md';
+/** The change skill, and the link that the second harness reads. */
+export const skillFile = '.agents/skills/grounded-change/SKILL.md';
+export const skillLink = '.claude/skills/grounded-change/SKILL.md';
 
 /**
  * Checks the skill frontmatter against the Agent Skills rules.
