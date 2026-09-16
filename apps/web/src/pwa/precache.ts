@@ -170,8 +170,8 @@ export type BundleEntry = {
  *
  * The bundle is the list that Rollup emits, so it needs no directory walk and
  * it holds the bytes that were just built. It does not hold the public
- * directory, which Vite copies into the output on its own; `publicFiles` reads
- * that directory instead.
+ * directory, which Vite copies into the output on its own; `directoryFiles`
+ * reads that directory instead.
  */
 export function bundleFiles(
   bundle: Readonly<Record<string, BundleEntry>>,
@@ -185,8 +185,16 @@ export function bundleFiles(
   return files;
 }
 
-/** Every file of the public directory, which Vite copies into the output. */
-export async function publicFiles(
+/**
+ * Every file of one directory, with an address from the root of that
+ * directory.
+ *
+ * The plugin reads the public directory with it, because Vite copies that
+ * directory into the output and those files never pass through the bundle. A
+ * missing directory answers an empty list, so a build without a public
+ * directory precaches the bundle only.
+ */
+export async function directoryFiles(
   directory: string,
 ): Promise<readonly BuiltFile[]> {
   let entries;
@@ -196,7 +204,6 @@ export async function publicFiles(
       withFileTypes: true,
     });
   } catch {
-    // A build without a public directory precaches the bundle only.
     return [];
   }
   const files: BuiltFile[] = [];
@@ -293,7 +300,7 @@ export function precacheWorker(): Plugin {
       async handler(_options, bundle): Promise<void> {
         const precache = derivePrecache([
           ...bundleFiles(bundle),
-          ...(await publicFiles(publicDirectory)),
+          ...(await directoryFiles(publicDirectory)),
         ]);
         for (const url of precache.oversize)
           this.warn(`${url} is too large to precache.`);

@@ -41,6 +41,15 @@ const sourceMapBody = JSON.stringify({
   mappings: 'AAAA',
 });
 
+// The build writes the name of the asset cache of the worker into the worker,
+// and that name carries a digest of the precached bytes. Two deployments
+// therefore write two bodies under the one address, which is why the answer
+// below must be revalidated and must carry a tag of its own.
+const workerBody =
+  "self.addEventListener;const cache='notesapp-app-1111111111111111';\n";
+const nextWorkerBody =
+  "self.addEventListener;const cache='notesapp-app-22222222222222222222';\n";
+
 /** Writes a build directory that looks like the emitted one. */
 async function writeBuild(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), 'notesapp-web-dist-'));
@@ -53,11 +62,7 @@ async function writeBuild(): Promise<string> {
     scriptBody,
     'utf8',
   );
-  await writeFile(
-    join(directory, 'service-worker.js'),
-    'self.addEventListener;',
-    'utf8',
-  );
+  await writeFile(join(directory, 'service-worker.js'), workerBody, 'utf8');
   // The build writes a hidden source map next to each chunk. It reaches the
   // image, so the server must refuse to serve it.
   await writeFile(
@@ -344,6 +349,39 @@ await test('the service worker is revalidated on every load', async () => {
     const policy = String(answer.headers['content-security-policy']);
     assert.match(policy, /default-src 'self'/);
     assert.match(policy, /connect-src 'self'/);
+  } finally {
+    await server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+await test('a rebuilt worker reaches a browser that holds the old one', async () => {
+  const directory = await writeBuild();
+  const server = await startTestServer({ webDist: directory });
+  try {
+    const first = await server.app.inject({
+      method: 'GET',
+      url: '/service-worker.js',
+    });
+    assert.equal(first.statusCode, 200);
+    const tag = String(first.headers['etag']);
+    assert.match(first.body, /notesapp-app-1111111111111111/);
+
+    await writeFile(
+      join(directory, 'service-worker.js'),
+      nextWorkerBody,
+      'utf8',
+    );
+    const second = await server.app.inject({
+      method: 'GET',
+      url: '/service-worker.js',
+      headers: { 'if-none-match': tag },
+    });
+    // The browser learns the new cache name from this answer, so a stale one
+    // would keep the device on the assets of the last deployment.
+    assert.equal(second.statusCode, 200);
+    assert.notEqual(String(second.headers['etag']), tag);
+    assert.match(second.body, /notesapp-app-22222222222222222222/);
   } finally {
     await server.close();
     await rm(directory, { recursive: true, force: true });
