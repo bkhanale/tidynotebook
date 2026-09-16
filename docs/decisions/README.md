@@ -77,6 +77,7 @@ and needs no record.
 | [0045](0045-the-build-names-the-precache.md)                      | The build names the precache and its cache                |
 | [0046](0046-the-reader-carries-its-credentials-in-the-address.md) | The reader carries its credentials in the address         |
 | [0047](0047-the-published-page-always-answers-a-page.md)          | The published page always answers a page                  |
+| [0048](0048-publish-is-a-command-and-the-links-are-a-list.md)     | Publish is a command and the links are one workspace list |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -156,4 +157,8 @@ ticket of a published link sit, because a picture inside a server built page
 sets no header and the reader path sets no cookie. It refines record 0030.
 Record 0047 answers issue 77. It gives the address that a person opens one
 answer for every state of a link, because a problem document shows an error
-code and one status cannot carry two media types. It refines record 0030.
+code and one status cannot carry two media types.
+Record 0048 answers issue 78. It puts the publish action in the command palette
+and in the folder row menu, and it makes the links of a workspace one list
+beside Trash, because the note surface of record 0015 takes no new control and
+the list of record 0030 is scoped to a workspace. It refines record 0030.
