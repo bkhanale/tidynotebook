@@ -14,6 +14,7 @@ import {
   type QueueEntry,
 } from '@notesapp/sync';
 import {
+  accountRange,
   guard,
   partitionRange,
   type CheckpointRow,
@@ -29,6 +30,7 @@ import { draftsOfFile, type LocalStoreContext } from './shared.ts';
 type QueueSlice = Pick<
   LocalStore,
   | 'pending'
+  | 'queuedWorkspaces'
   | 'markSending'
   | 'markConflict'
   | 'discardQueueEntry'
@@ -73,6 +75,25 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
               digest: row.digest,
               errorCode: row.errorCode,
             }));
+        }),
+      );
+    },
+
+    queuedWorkspaces(accountId: string): Promise<readonly string[]> {
+      return guard('reading the queued workspaces', () =>
+        db.transaction('r', tables.queue, async () => {
+          // The account wide index of the queue table answers this without a
+          // second index and without a scan of the whole store. Record 0050
+          // asks only which workspaces hold work, so the rows are reduced to
+          // their distinct workspace.
+          const range = accountRange(serverOrigin, accountId);
+          const rows: unknown[] = await tables.queue
+            .where('[serverOrigin+accountId+mutationId]')
+            .between(range.lower, range.upper, true, true)
+            .toArray();
+          const found = new Set<string>();
+          for (const row of rows) found.add(validateQueueRow(row).workspaceId);
+          return [...found];
         }),
       );
     },

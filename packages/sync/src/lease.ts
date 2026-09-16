@@ -7,10 +7,31 @@
  * without renewal has failed, so another tab may take over. The server
  * mutation receipts stay the final protection against a double submit.
  *
+ * The lease is one row for the browser profile and not one row per workspace.
+ * Record 0050 runs an engine for the open workspace and for every workspace
+ * that still holds queued work, so one tab can run several engines at once.
+ * Every engine of one tab is given that tab's owner identifier, and the
+ * compare-and-set below refuses only a different owner, so those engines renew
+ * one lease between them and a second tab is still excluded. The unit of
+ * exclusion is therefore the tab, not the workspace. An engine that was given
+ * an owner identifier of its own would lock its siblings out.
+ *
  * The store owns the compare-and-set; this module owns the expiry math so it
  * stays testable with a fake clock.
  */
 import type { LocalStore } from './local-port.ts';
+
+/**
+ * The part of the local store that the lease needs.
+ *
+ * Each call below names only the port members it uses, so a caller supplies
+ * one row of state and nothing else. A `LocalStore` satisfies every one of
+ * these, and a test needs no wider double and no type assertion (record 0019).
+ */
+export type LeaseStore = Pick<
+  LocalStore,
+  'acquireLease' | 'releaseLease' | 'readLeaseState'
+>;
 
 /** How one worker names itself and how long its lease lasts. */
 export type WorkerLease = {
@@ -29,7 +50,7 @@ export type WorkerLease = {
  * another worker holds a live lease.
  */
 export async function acquireWorkerLease(
-  local: LocalStore,
+  local: Pick<LeaseStore, 'acquireLease'>,
   lease: WorkerLease,
 ): Promise<boolean> {
   const now = lease.clock === undefined ? Date.now() : lease.clock();
@@ -43,7 +64,7 @@ export async function acquireWorkerLease(
  * takeover releases nothing.
  */
 export async function releaseWorkerLease(
-  local: LocalStore,
+  local: Pick<LeaseStore, 'releaseLease'>,
   ownerId: string,
 ): Promise<void> {
   await local.releaseLease(ownerId);
@@ -68,7 +89,7 @@ export function isLeaseExpired(expiresAt: number, now: number): boolean {
  * and the old application stays usable with its drafts intact.
  */
 export async function readWorkerLease(
-  local: LocalStore,
+  local: Pick<LeaseStore, 'readLeaseState'>,
 ): Promise<{ readonly ownerId: string; readonly expiresAt: number } | null> {
   return local.readLeaseState();
 }

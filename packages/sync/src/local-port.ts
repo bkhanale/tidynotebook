@@ -650,6 +650,18 @@ export type LocalStore = {
   ): Promise<readonly QueueEntry[]>;
 
   /**
+   * Every workspace of one account that still holds a queued mutation.
+   *
+   * A save is durable when it reaches this store and it reaches the server
+   * when the sync engine of its workspace sends it. A person who switches to
+   * another workspace must not leave a save behind, so the application runs an
+   * engine for the open workspace and for every workspace this call names
+   * (record 0050). The answer holds no duplicate and its order is not
+   * meaningful.
+   */
+  queuedWorkspaces(accountId: string): Promise<readonly string[]>;
+
+  /**
    * Freezes the request digest of one queued mutation and marks it sending.
    *
    * The body cannot change after this point, so a retry repeats the same

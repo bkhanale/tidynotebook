@@ -370,6 +370,23 @@ export function partitionRange(
   };
 }
 
+/**
+ * The lowest and the highest key of one account, across its workspaces.
+ *
+ * A read that answers for the whole account uses this with a three part index
+ * whose last member is not the workspace, for example the account wide queue
+ * index. A read of one workspace uses `partitionRange` instead.
+ */
+export function accountRange(
+  serverOrigin: string,
+  accountId: string,
+): { readonly lower: unknown[]; readonly upper: unknown[] } {
+  return {
+    lower: [serverOrigin, accountId, Dexie.minKey],
+    upper: [serverOrigin, accountId, Dexie.maxKey],
+  };
+}
+
 /** The name of a thrown value, for failure classification. */
 function errorName(value: unknown): string {
   if (value instanceof Error) return value.name;

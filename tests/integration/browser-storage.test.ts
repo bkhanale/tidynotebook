@@ -759,6 +759,61 @@ await test('one account cannot see the records of another', async () => {
   await store.close();
 });
 
+await test('the queued workspaces of an account name only the ones with work', async () => {
+  // Record 0050. The application runs a sync engine for the open workspace and
+  // for every workspace this call names, so a save that a person leaves behind
+  // still reaches the server.
+  const backend = createBackend('queued-workspaces');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const stranger = randomUUID();
+  const withWork = randomUUID();
+  const alsoWithWork = randomUUID();
+  const quiet = randomUUID();
+
+  assert.deepEqual(await store.queuedWorkspaces(account), []);
+
+  for (const workspace of [withWork, alsoWithWork]) {
+    const draft = draftOf(
+      account,
+      workspace,
+      randomUUID(),
+      `copy-${workspace}`,
+      'queued\n',
+    );
+    await store.saveDraft(draft);
+    await store.checkpoint(draft, null);
+  }
+  // A draft alone is not queued work. Only a checkpoint queues a mutation, so
+  // this workspace stays out of the answer.
+  await store.saveDraft(
+    draftOf(account, quiet, randomUUID(), 'copy-quiet', 'not queued yet\n'),
+  );
+  // Another account's queue belongs to that account.
+  const theirs = draftOf(
+    stranger,
+    randomUUID(),
+    randomUUID(),
+    'copy-stranger',
+    'theirs\n',
+  );
+  await store.saveDraft(theirs);
+  await store.checkpoint(theirs, null);
+
+  assert.deepEqual(
+    [...(await store.queuedWorkspaces(account))].sort(),
+    [withWork, alsoWithWork].sort(),
+  );
+
+  // A workspace leaves the answer when its queue drains, which is what stops
+  // its background engine.
+  const entries = await store.pending(account, withWork);
+  const first = entries[0] ?? null;
+  await store.acknowledge(account, acceptanceOf(first, account, '1'));
+  assert.deepEqual(await store.queuedWorkspaces(account), [alsoWithWork]);
+  await store.close();
+});
+
 await test('an interrupted migration is completed on the next open', async () => {
   const backend = createBackend('migration');
   const first = await openLocalStore(origin, backend.options());

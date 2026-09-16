@@ -197,6 +197,13 @@ class FakeStore implements LocalStore {
     return Promise.resolve(found);
   }
 
+  queuedWorkspaces(account: string): Promise<readonly string[]> {
+    const found = new Set<string>();
+    for (const entry of this.entries.values())
+      if (entry.accountId === account) found.add(entry.input.workspaceId);
+    return Promise.resolve([...found]);
+  }
+
   markSending(
     _account: string,
     mutationId: string,
