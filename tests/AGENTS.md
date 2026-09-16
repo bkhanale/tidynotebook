@@ -70,11 +70,11 @@ depends on what another file wrote. See
 
 ## Key files
 
-| File                              | Purpose                                 |
-| --------------------------------- | --------------------------------------- |
-| `integration/support/database.ts` | One disposable database per test file   |
-| `integration/support/server.ts`   | A real listening server                 |
-| `integration/contract.test.ts`    | Every operation and its handler         |
-| `integration/row-access.test.ts`  | The row access policies                 |
-| `e2e/support/stack.ts`            | One owned application stack per worker  |
-| `../playwright.config.ts`         | The browser matrix and the worker count |
+| File                                          | Purpose                                 |
+| --------------------------------------------- | --------------------------------------- |
+| `integration/support/`                        | The disposable database and the server  |
+| `integration/contract.test.ts`                | Every operation and its handler         |
+| `integration/row-access.test.ts`              | The row access policies                 |
+| `integration/published-write-refusal.test.ts` | Every write, with a published token     |
+| `e2e/support/stack.ts`                        | One owned application stack per worker  |
+| `../playwright.config.ts`                     | The browser matrix and the worker count |
