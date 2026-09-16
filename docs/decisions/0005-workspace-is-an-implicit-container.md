@@ -1,6 +1,6 @@
 # 0005. Workspace becomes an implicit container
 
-- Status: Accepted
+- Status: Superseded by 0049
 - Date: 2026-09-10
 
 ## Context

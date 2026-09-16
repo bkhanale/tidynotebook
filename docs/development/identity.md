@@ -44,8 +44,10 @@ address, or move ownership. The role type has one value, and the permission
 matrix grants only the actions that have a reachable operation. A stored
 membership row with any other role grants nothing.
 
-See [decision 0005](../decisions/0005-workspace-is-an-implicit-container.md)
-for why the workspace stays implicit.
+See [decision 0049](../decisions/0049-a-workspace-is-an-explicit-container.md)
+for why a person chooses the workspace, and
+[decision 0051](../decisions/0051-an-account-always-keeps-one-workspace.md) for
+why an account always keeps one.
 
 ## Password recovery
 
