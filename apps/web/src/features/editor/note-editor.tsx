@@ -1137,11 +1137,7 @@ function NoteEditorBody({
               open={outlineOpen}
               onToggle={setOutlineOpen}
             >
-              <OutlinePanel
-                workspaceId={workspaceId}
-                fileId={fileId}
-                text={bufferText}
-              />
+              <OutlinePanel text={bufferText} />
             </CollapsibleSection>
             <CollapsibleSection
               id="notes-backlinks"
@@ -1149,7 +1145,12 @@ function NoteEditorBody({
               open={backlinksOpen}
               onToggle={setBacklinksOpen}
             >
-              <Backlinks workspaceId={workspaceId} fileId={fileId} />
+              <Backlinks
+                store={store}
+                accountId={accountId}
+                workspaceId={workspaceId}
+                fileId={fileId}
+              />
             </CollapsibleSection>
           </aside>
         </div>

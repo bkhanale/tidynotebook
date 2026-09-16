@@ -56,3 +56,44 @@ test('an imported relative link appears as a backlink', async ({
   const backlinks = page.getByRole('region', { name: 'Links to this note' });
   await expect(backlinks.getByRole('link', { name: sourceName })).toBeVisible();
 });
+
+test('a note lists its inbound links with no connection', async ({
+  checkedPage: page,
+  context,
+  stack,
+}, testInfo) => {
+  test.skip(
+    testInfo.project.name === 'phone-390' ||
+      testInfo.project.name === 'tablet-768',
+    'The note aside opens above the large breakpoint only.',
+  );
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  const stamp = Date.now().toString();
+  const targetName = `offline-target-${stamp}`;
+  const sourceName = `offline-source-${stamp}`;
+
+  await createNewNote(page);
+  await page.getByLabel('Note name').fill(targetName);
+  await replaceEditorText(page, '# Target\n');
+  await waitForServerSave(page);
+
+  await createNewNote(page);
+  await page.getByLabel('Note name').fill(sourceName);
+  await replaceEditorText(page, `[Target](${targetName}.md)\n`);
+  await waitForServerSave(page);
+
+  // The device holds both bodies now, so the panel has to answer without the
+  // server. The move to the target note stays inside the open application.
+  await context.setOffline(true);
+  const palette = await openPalette(page);
+  await palette.getByLabel('Search notes, or type an action').fill(targetName);
+  await palette.getByRole('option', { name: targetName }).click();
+  await expect(page.getByLabel('Note name')).toHaveValue(targetName);
+
+  const backlinks = page.getByRole('region', { name: 'Links to this note' });
+  await expect(backlinks.getByRole('link', { name: sourceName })).toBeVisible();
+  await expect(
+    backlinks.getByText('These links come from this device.'),
+  ).toBeVisible();
+});

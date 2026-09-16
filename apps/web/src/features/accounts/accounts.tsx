@@ -412,12 +412,19 @@ type OfflineChoices = {
   readonly history: boolean;
 };
 
+/** Whether this device could state what it keeps for offline use. */
+type OfflineStatus = 'loading' | 'ready' | 'failed';
+
 /**
  * Reads and writes what this device keeps for offline use.
  *
  * Notes are always kept. Images and older versions are larger, so each one
  * is a choice. A choice is on when every known item of that kind is already
  * kept, which is what the store records.
+ *
+ * A read that fails is not a pair of choices that are off (record 0038). The
+ * status says that the read failed, so the card can name the failure instead
+ * of showing two boxes that state something false about this device.
  */
 function useOfflineChoices(
   store: LocalStore | null,
@@ -425,19 +432,19 @@ function useOfflineChoices(
   workspaceId: string | null,
 ): {
   readonly choices: OfflineChoices;
-  readonly ready: boolean;
+  readonly status: OfflineStatus;
   readonly setChoice: (kind: keyof OfflineChoices, keep: boolean) => void;
 } {
   const [choices, setChoices] = useState<OfflineChoices>({
     images: false,
     history: false,
   });
-  const [ready, setReady] = useState(false);
+  const [status, setStatus] = useState<OfflineStatus>('loading');
   const [generation, setGeneration] = useState(0);
 
   useEffect(() => {
     if (store === null || accountId === null || workspaceId === null) {
-      setReady(false);
+      setStatus('loading');
       return;
     }
     const activeStore = store;
@@ -482,9 +489,9 @@ function useOfflineChoices(
         }
         if (cancelled) return;
         setChoices({ images: allImages, history: allHistory });
-        setReady(true);
+        setStatus('ready');
       } catch {
-        if (!cancelled) setReady(false);
+        if (!cancelled) setStatus('failed');
       }
     }
     void read();
@@ -531,7 +538,7 @@ function useOfflineChoices(
     [store, accountId, workspaceId],
   );
 
-  return { choices, ready, setChoice };
+  return { choices, status, setChoice };
 }
 
 /** Account page: profile, theme, offline availability, and sign-out. */
@@ -641,12 +648,19 @@ export function AccountSettingsPage(): ReactNode {
             Your notes are always kept on this device. Images and older versions
             take more space, so you choose whether to keep them too.
           </p>
+          {offline.status === 'failed' ? (
+            <Notice
+              className="mt-3"
+              tone="problem"
+              message="This device cannot say what it keeps offline. Open Settings again to read it."
+            />
+          ) : null}
           <div className="mt-3 space-y-1">
             <label className="flex min-h-11 items-center gap-cluster text-control text-strong md:min-h-9">
               <input
                 type="checkbox"
                 checked={offline.choices.images}
-                disabled={!offline.ready}
+                disabled={offline.status !== 'ready'}
                 onChange={(event): void => {
                   offline.setChoice('images', event.target.checked);
                 }}
@@ -657,7 +671,7 @@ export function AccountSettingsPage(): ReactNode {
               <input
                 type="checkbox"
                 checked={offline.choices.history}
-                disabled={!offline.ready}
+                disabled={offline.status !== 'ready'}
                 onChange={(event): void => {
                   offline.setChoice('history', event.target.checked);
                 }}

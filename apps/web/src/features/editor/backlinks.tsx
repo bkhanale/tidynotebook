@@ -1,46 +1,137 @@
-/** Backlinks from the accepted path-based link index. */
+/**
+ * The notes that link to the open note.
+ *
+ * The accepted index on the server is the authority, and this device derives
+ * its own answer from the note bodies it already holds, so the panel answers
+ * with no connection (record 0037). The two answers merge, and the panel marks
+ * the list when only this device answered.
+ *
+ * The panel never reports an empty list for a read that did not happen
+ * (record 0038). With no answer at all it says so and offers one action.
+ */
 import { useEffect, useState, type ReactNode } from 'react';
-import { listBacklinks, type Backlink } from '@notesapp/api-client';
+import { listBacklinks } from '@notesapp/api-client';
+import { localBacklinks, type LocalStore } from '@notesapp/sync';
+import { Button } from '@notesapp/ui';
 import { Link } from 'react-router';
 import { displayNoteName } from '../../lib/note-name.ts';
+import {
+  backlinksState,
+  type BacklinkRow,
+  type BacklinksState,
+} from './backlink-rows.ts';
+import { useOnline } from './save-status.tsx';
 
-/** Lists notes that link to the open note. */
-export function Backlinks({
-  workspaceId,
-  fileId,
-}: {
-  readonly workspaceId: string;
-  readonly fileId: string;
-}): ReactNode {
-  const [items, setItems] = useState<readonly Backlink[]>([]);
+/** Reads the notes that link to one note, from this device and the server. */
+function useBacklinks(
+  store: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  fileId: string,
+  online: boolean,
+  attempt: number,
+): BacklinksState {
+  const [state, setState] = useState<BacklinksState>({ kind: 'loading' });
+
   useEffect(() => {
     let cancelled = false;
-    void listBacklinks({ path: { workspaceId, fileId } })
-      .then((answer) => {
-        if (!cancelled && answer.data !== undefined)
-          setItems(answer.data.backlinks);
-      })
-      .catch(() => {
-        if (!cancelled) setItems([]);
-      });
+    setState({ kind: 'loading' });
+    const device = store
+      .listSearchFiles(accountId, workspaceId)
+      .then((files) => localBacklinks(fileId, files))
+      .catch((): readonly BacklinkRow[] | null => null);
+    // A request with no connection cannot answer, so the device answers alone
+    // and the list is marked. The hook reads again when the connection
+    // returns, because `online` is one of its inputs.
+    const server = online
+      ? listBacklinks({ path: { workspaceId, fileId } }).then((answer) =>
+          answer.error !== undefined || answer.data === undefined
+            ? null
+            : answer.data.backlinks.map((item): BacklinkRow => ({
+                fileId: item.fileId,
+                path: item.path,
+              })),
+        )
+      : Promise.resolve(null);
+    void Promise.all([server, device]).then(([serverRows, deviceRows]) => {
+      if (!cancelled) setState(backlinksState(serverRows, deviceRows));
+    });
     return () => {
       cancelled = true;
     };
-  }, [workspaceId, fileId]);
-  if (items.length === 0)
-    return <p className="m-0 text-control text-muted">No notes link here.</p>;
+  }, [store, accountId, workspaceId, fileId, online, attempt]);
+
+  return state;
+}
+
+/** Lists notes that link to the open note. */
+export function Backlinks({
+  store,
+  accountId,
+  workspaceId,
+  fileId,
+}: {
+  readonly store: LocalStore;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly fileId: string;
+}): ReactNode {
+  const online = useOnline();
+  const [attempt, setAttempt] = useState(0);
+  const state = useBacklinks(
+    store,
+    accountId,
+    workspaceId,
+    fileId,
+    online,
+    attempt,
+  );
+
+  if (state.kind === 'loading') return null;
+  if (state.kind === 'failed')
+    return (
+      <div className="space-y-2">
+        <p className="m-0 text-control text-muted">
+          The links to this note did not load.
+        </p>
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={(): void => {
+            setAttempt((value) => value + 1);
+          }}
+        >
+          Try again
+        </Button>
+      </div>
+    );
+  if (state.rows.length === 0)
+    return (
+      <p className="m-0 text-control text-muted">
+        {state.partial
+          ? 'This device finds no link to this note. The full list needs a connection.'
+          : 'No notes link here. Add a link to this note from another note.'}
+      </p>
+    );
   return (
-    <ul className="m-0 list-none space-y-1 p-0">
-      {items.map((item) => (
-        <li key={item.fileId}>
-          <Link
-            className="block rounded-md px-2 py-1 text-control text-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
-            to={`/w/${workspaceId}/notes/${item.fileId}`}
-          >
-            {displayNoteName(item.path)}
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <div className="space-y-2">
+      {state.partial ? (
+        <p className="m-0 text-control text-muted">
+          These links come from this device.
+        </p>
+      ) : null}
+      <ul className="m-0 list-none space-y-1 p-0">
+        {state.rows.map((item) => (
+          <li key={item.fileId}>
+            <Link
+              className="block rounded-md px-2 py-1 text-control text-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              to={`/w/${workspaceId}/notes/${item.fileId}`}
+            >
+              {displayNoteName(item.path)}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

@@ -70,8 +70,9 @@ link to it. Select a name to open that note. Select the title of the list to
 collapse it or to open it again. A note that nothing links to says that no
 notes link here.
 
-The list reads the saved text of your notes, so save a new link to see it in
-the list. A narrow window hides this side panel.
+The list works without a connection, because this device reads your notes and
+answers. It then says that the links come from this device. A link that you
+type is in the list before you save it. A narrow window hides this side panel.
 
 ## Remove a note or a folder
 

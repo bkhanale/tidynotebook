@@ -4,11 +4,7 @@ import { localBacklinks } from './local-backlinks.ts';
 import type { LocalSearchFile } from './local-search.ts';
 
 /** One local row, with the identifier and the revision a store would give. */
-function file(
-  fileId: string,
-  path: string,
-  text: string,
-): LocalSearchFile {
+function file(fileId: string, path: string, text: string): LocalSearchFile {
   return { fileId, path, revisionId: `${fileId}-rev`, text };
 }
 

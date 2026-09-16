@@ -1,6 +1,5 @@
 /** The note outline panel, which reads the live buffer and moves the caret. */
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { getFile } from '@notesapp/api-client';
+import { useMemo, type ReactNode } from 'react';
 import {
   outlineOf,
   previewStructureOf,
@@ -24,17 +23,13 @@ function outlineOfText(source: string): readonly OutlineHeading[] {
  * `#` inside a code fence is code here too. The panel sits in the scope of the
  * open note: while its editor is mounted the panel follows the live buffer and
  * a row moves the caret to its heading. Until the editor opens, the panel
- * falls back to the text it is given, or to the accepted server text.
+ * reads the text of the note that the host gives it.
+ *
+ * The panel reads no server and no store, so it has nothing that can fail and
+ * it never states an empty outline for a read that did not answer
+ * (record 0038). The host always holds the text of the open note.
  */
-export function OutlinePanel({
-  workspaceId,
-  fileId,
-  text,
-}: {
-  readonly workspaceId: string;
-  readonly fileId: string | null;
-  readonly text?: string | undefined;
-}): ReactNode {
+export function OutlinePanel({ text }: { readonly text: string }): ReactNode {
   // The scope gives a new value when the editor opens, when it closes, and
   // when the text moves on, so the rows below follow the live buffer. The
   // count is the reason to read the buffer again, so the walk of the syntax
@@ -44,29 +39,7 @@ export function OutlinePanel({
     () => (view === null ? null : outlineOf(view.state)),
     [view, revision],
   );
-  const [accepted, setAccepted] = useState<readonly OutlineHeading[]>([]);
-  useEffect(() => {
-    if (fileId === null || text !== undefined) {
-      setAccepted([]);
-      return;
-    }
-    let cancelled = false;
-    void getFile({ path: { workspaceId, fileId } }).then((result) => {
-      if (cancelled) return;
-      setAccepted(outlineOfText(result.data?.head?.text ?? ''));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [fileId, workspaceId, text]);
-  const headings =
-    live ?? (text === undefined ? accepted : outlineOfText(text));
-  if (fileId === null)
-    return (
-      <p className="m-0 text-control text-muted">
-        Open a note to see its outline.
-      </p>
-    );
+  const headings = live ?? outlineOfText(text);
   if (headings.length === 0)
     return (
       <p className="m-0 text-control text-muted">This note has no headings.</p>
