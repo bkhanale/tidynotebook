@@ -641,6 +641,45 @@ await test('a revoked link and an expired link answer the one refusal', async ()
   assert.equal(unknown.ok, false);
 });
 
+await test('a revoked link leaves the list of the owner and frees its place', async () => {
+  // Regression. The list is the audit surface of the feature, so it answers
+  // what is open right now (decision 0048). A revoked link opens nothing from
+  // the instant of the revocation, and the row that the retention run has not
+  // reached yet used to come back on the next read of the screen, with the
+  // words of a live link. The count of the limit reads the same set, so the
+  // refusal that tells an owner to revoke a link and publish again is true at
+  // the next request instead of at the next hour.
+  const link = await publish(owner, workspaceId, {
+    scope: { kind: 'folder', path: 'notes/trip' },
+    passwordDigest: null,
+    expiresAt: null,
+  });
+  const before = await store.publishedLinks.list(owner, workspaceId);
+  assert.ok(
+    before.some((entry) => entry.publicationId === link.link.publicationId),
+  );
+  value(
+    await store.publishedLinks.revoke(
+      owner,
+      workspaceId,
+      link.link.publicationId,
+      new Date(),
+    ),
+  );
+  const after = await store.publishedLinks.list(owner, workspaceId);
+  assert.ok(
+    !after.some((entry) => entry.publicationId === link.link.publicationId),
+  );
+  assert.equal(after.length, before.length - 1);
+  // The row is still at rest until the retention run, and it is the row of a
+  // link that opens nothing.
+  const rows = await admin.query<{ count: string }>(
+    'select count(*)::text as count from publications where id = $1 and revoked_at is not null',
+    [link.link.publicationId],
+  );
+  assert.equal(rows[0]?.count, '1');
+});
+
 await test('the cleanup takes the dead record and keeps the live one', async () => {
   const before = await admin.query<{ count: string }>(
     'select count(*)::text as count from publications where workspace_id = $1',
@@ -656,14 +695,16 @@ await test('the cleanup takes the dead record and keeps the live one', async () 
   const removed = await store.cleanupPublications(
     new Date('2026-09-18T00:00:00.000Z'),
   );
-  // The expired link and the revoked link of the check above, and the ticket.
-  assert.equal(removed.expiredLinks, 2);
+  // The expired link and the two revoked links of the checks above, and the
+  // ticket. A revoked row is dead to every reader and to the owner list, and
+  // this run is what finally takes it away.
+  assert.equal(removed.expiredLinks, 3);
   assert.equal(removed.expiredTickets, 1);
   const after = await admin.query<{ count: string }>(
     'select count(*)::text as count from publications where workspace_id = $1',
     [workspaceId],
   );
-  assert.equal(Number(after[0]?.count), Number(before[0]?.count) - 2);
+  assert.equal(Number(after[0]?.count), Number(before[0]?.count) - 3);
 
   const reader = readerContext();
   const link = value(

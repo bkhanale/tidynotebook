@@ -11,7 +11,9 @@
  *
  * - **The count and the insert are one transaction.** The lock of the unit of
  *   work orders them, so two creates at one instant cannot both read the same
- *   count and both pass the limit. `planPublishedLink` of `packages/core` is
+ *   count and both pass the limit. The count reads the open links only, so a
+ *   revocation frees its place at once, which is what the refusal of the
+ *   limit tells the owner to do. `planPublishedLink` of `packages/core` is
  *   the rule that decides, and the row that this file writes carries the scope
  *   that the rule answered, never the scope that the caller sent.
  * - **A stored secret is a digest.** The caller hands over the digest of the
@@ -52,7 +54,16 @@ export type PublishedLinkDraft = {
 export type PublicationOwner = {
   /** Writes one more link, or refuses the request as the rule decided. */
   create(draft: PublishedLinkDraft): Promise<Result<PublishedLink>>;
-  /** Every link of this workspace, newest first, and no digest of any. */
+  /**
+   * Every open link of this workspace, newest first, and no digest of any.
+   *
+   * A revoked link is not a link of this workspace any more. It opens
+   * nothing from the instant of the revocation, and the retention run takes
+   * its row away, so the list of the owner drops it at once: the screen
+   * answers what is open right now (decision 0048) and it has no words for a
+   * link that is not. A link that reached its expiry stays, because the
+   * screen does say that one stopped and the owner can revoke it.
+   */
   list(): Promise<readonly PublishedLink[]>;
   /** Stops one link at `at`. A link that is already revoked keeps its instant. */
   revoke(publicationId: string, at: Date): Promise<Result<PublishedLink>>;
@@ -166,7 +177,12 @@ export function publicationsOwnerRepository(
       const counted = await db
         .select({ value: count() })
         .from(publications)
-        .where(eq(publications.workspaceId, workspaceId));
+        .where(
+          and(
+            eq(publications.workspaceId, workspaceId),
+            isNull(publications.revokedAt),
+          ),
+        );
       const plan = planPublishedLink({
         scope: draft.scope,
         currentLinkCount: counted[0]?.value ?? 0,
@@ -205,7 +221,12 @@ export function publicationsOwnerRepository(
       const rows = await db
         .select(linkColumns)
         .from(publications)
-        .where(eq(publications.workspaceId, workspaceId))
+        .where(
+          and(
+            eq(publications.workspaceId, workspaceId),
+            isNull(publications.revokedAt),
+          ),
+        )
         .orderBy(desc(publications.createdAt), desc(publications.id))
         .limit(maxListedLinks);
       return rows.map(ownedLink);
