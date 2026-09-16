@@ -1,0 +1,22 @@
+type: object
+description: >-
+  The new link and its token. This is the one answer of the whole interface
+  that holds a token. The server keeps only a digest of the token, so it
+  cannot show the value again.
+additionalProperties: false
+required:
+  - link
+  - token
+properties:
+  link:
+    allOf:
+      - $ref: './PublishedLink.yaml'
+    readOnly: true
+    description: The new link, as the list reports it from now on.
+  token:
+    allOf:
+      - $ref: './PublishedTokenValue.yaml'
+    readOnly: true
+    description: >-
+      The token of the new link. The owner puts it in the address that it
+      shares. No other answer holds it, and no answer holds a part of it.

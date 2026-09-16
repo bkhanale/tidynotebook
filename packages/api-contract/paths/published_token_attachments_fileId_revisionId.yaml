@@ -1,0 +1,29 @@
+get:
+  operationId: getPublishedAttachment
+  summary: Read a picture of a published note.
+  description: >-
+    Streams the bytes of one attachment revision that a published note
+    names. The address names the link, the note and the revision, and the
+    server proves all three facts on every call: the link opens the note,
+    and the current content of that note names that revision. It trusts no
+    part of the address. The operation declares an empty security
+    requirement, so no identity hook runs for it. Every failure takes the
+    one refusal of the reader path.
+  tags:
+    - published
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/PublishedToken.yaml'
+    - $ref: '../components/parameters/FileId.yaml'
+    - $ref: '../components/parameters/RevisionId.yaml'
+    - $ref: '../components/parameters/ReadingTicket.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/AttachmentBinary.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '404':
+      $ref: '../components/responses/PublishedLinkUnavailable.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

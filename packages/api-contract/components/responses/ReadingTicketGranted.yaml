@@ -1,0 +1,5 @@
+description: The reading ticket of the link.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/ReadingTicketGrant.yaml'

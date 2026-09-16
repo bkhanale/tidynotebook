@@ -1,0 +1,44 @@
+type: object
+description: >-
+  One published link of a workspace, as its owner sees it. This shape holds
+  no token, so a read of the list cannot open a link.
+additionalProperties: false
+required:
+  - publicationId
+  - scope
+  - createdAt
+  - expiresAt
+  - passwordProtected
+properties:
+  publicationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: >-
+      Identifier of the link record. The owner names it to revoke the link.
+      It is not the token and it opens nothing.
+  scope:
+    allOf:
+      - $ref: './PublishedScope.yaml'
+    readOnly: true
+    description: What the link opens.
+  createdAt:
+    type: string
+    readOnly: true
+    description: Instant at which the owner made the link.
+    format: date-time
+    maxLength: 64
+  expiresAt:
+    oneOf:
+      - type: string
+        format: date-time
+        maxLength: 64
+      - type: 'null'
+    readOnly: true
+    description: >-
+      Instant after which the link opens nothing, or null for a link that
+      lasts until the owner revokes it.
+  passwordProtected:
+    type: boolean
+    readOnly: true
+    description: Whether a reader gives a password before it reads the link.

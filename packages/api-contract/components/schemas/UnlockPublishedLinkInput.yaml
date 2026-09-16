@@ -1,0 +1,15 @@
+type: object
+description: The password of one published link.
+additionalProperties: false
+required:
+  - password
+properties:
+  password:
+    type: string
+    writeOnly: true
+    description: >-
+      The password that the owner gave the link. Any value is accepted here
+      and a wrong value takes the one refusal, so the answer states nothing
+      about the link or about the password policy.
+    minLength: 1
+    maxLength: 512

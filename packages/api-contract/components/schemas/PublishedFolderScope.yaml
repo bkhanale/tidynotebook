@@ -1,0 +1,20 @@
+type: object
+description: >-
+  A link that opens one folder and every note below it. A folder is a part
+  of a note path, so the scope is a path prefix inside one workspace. A note
+  in the Trash stays outside it.
+additionalProperties: false
+required:
+  - kind
+  - path
+properties:
+  kind:
+    type: string
+    description: Names this scope as one folder.
+    const: folder
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    description: >-
+      The folder that the link opens. Every note below it is published, now
+      and later.

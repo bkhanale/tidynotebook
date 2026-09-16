@@ -1,0 +1,27 @@
+type: object
+description: What to publish, and how a reader reaches it.
+additionalProperties: false
+required:
+  - scope
+properties:
+  scope:
+    allOf:
+      - $ref: './PublishedScope.yaml'
+    description: The one note, or the one folder, that the link opens.
+  password:
+    type: string
+    writeOnly: true
+    description: >-
+      Password that a reader gives before it reads the link. Leave it out
+      for a link that opens without one. The product keeps one password
+      policy, so this bound is the bound of an account password.
+    minLength: 12
+    maxLength: 512
+  expiresAt:
+    type: string
+    writeOnly: true
+    description: >-
+      Instant after which the link opens nothing. Leave it out for a link
+      that lasts until the owner revokes it.
+    format: date-time
+    maxLength: 64

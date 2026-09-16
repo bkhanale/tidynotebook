@@ -1,0 +1,8 @@
+type: string
+description: >-
+  The value that a reader carries after it gives the password of a link. It
+  is bound to that one link, it lives 12 hours, and a read does not move its
+  expiry. The server keeps only a digest of it.
+pattern: ^[A-Za-z0-9_-]{22,64}$
+minLength: 22
+maxLength: 64

@@ -1,0 +1,6 @@
+description: The password of the published link.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/UnlockPublishedLinkInput.yaml'

@@ -1,0 +1,8 @@
+name: publicationId
+in: path
+required: true
+style: simple
+explode: false
+description: Identifier of the published link that the operation acts on.
+schema:
+  $ref: '../schemas/Uuid.yaml'

@@ -1,0 +1,12 @@
+name: ticket
+in: query
+required: false
+style: form
+explode: true
+description: >-
+  The reading ticket of a link that has a password. The reader carries it in
+  the address, because a picture inside a server built page sets no header
+  and the reader path sets no cookie. Leave it out for a link that opens
+  without a password.
+schema:
+  $ref: '../schemas/ReadingTicketValue.yaml'

@@ -1,0 +1,6 @@
+description: What to publish, and how a reader reaches it.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/CreatePublishedLinkInput.yaml'

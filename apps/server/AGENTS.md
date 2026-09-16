@@ -13,8 +13,8 @@ authentication routes on one origin. It holds no domain rule.
   body), `security-headers.ts`, `static-assets.ts`, `host.ts`, `content-disposition.ts`
   (the name and the kind of a download), and `body-idle-timeout.ts` (the idle bound).
 - `src/routes/` holds one controller file per resource. `handlers.ts` returns one
-  handler per operation id, the body lives in its area file, and `health.ts` holds
-  liveness, readiness, and the probes.
+  handler per operation id and the body lives in its area file. `published.ts` is the
+  reader path of a published link, and `publications.ts` its owner operations (0031).
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the
   start and of the stop and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, mail, and the first
@@ -51,16 +51,15 @@ that arrives in pieces, uses `app.inject()`.
 ## Forbidden here
 
 - No route, request shape, or response shape declared by hand. Only the contract creates
-  a route, and that includes a probe address. Two ids of one answer share one function,
-  so no handler body is copied (record 0040).
+  a route, including a probe. Two ids of one answer share one function (record 0040).
 - No domain rule in a handler. A handler reads validated input, calls a `packages/core`
   use case with the store, and returns a result.
 - No direct SQL or weakened server invariant, and that includes a readiness probe.
 - No second origin list and no second decider of the client address (0039, 0043).
 - No rejected body, token, or password in a log line. A rejection is logged with the
   request id, the operation, the status, and the reason.
-- No handwritten HTTP transport. `better-auth.ts` is the one listed protocol file, and
-  it still obeys every other boundary rule.
+- No handwritten HTTP transport. `better-auth.ts` is the one listed protocol file.
+- No actor helper in `src/routes/published.ts`. That path holds no actor (record 0031).
 
 ## Key files
 
@@ -72,6 +71,7 @@ that arrives in pieces, uses `app.inject()`.
 | `src/plugins/static-assets.ts`    | Precompressed assets, caching, `ETag`          |
 | `src/routes/handlers.ts`          | One handler per operation id                   |
 | `src/routes/health.ts`            | Liveness, readiness, and the probes            |
+| `src/routes/published.ts`         | The reader path of a published link            |
 | `src/auth/actor.ts`               | Turns a session into a verified actor          |
 | `src/lifecycle.ts`                | The order of the start and of the stop         |
 | `src/config.ts`                   | Environment reading and refusal messages       |

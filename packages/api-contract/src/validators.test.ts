@@ -16,7 +16,11 @@ import {
   type JsonSchema,
 } from './generated/contract.ts';
 import { compileCounts } from './validators.ts';
-import { describeIssues, responseValidator } from './index.ts';
+import {
+  describeIssues,
+  requestValidator,
+  responseValidator,
+} from './index.ts';
 
 type Json = Record<string, unknown>;
 
@@ -168,4 +172,128 @@ await test('a schema that many slots share compiles once', () => {
     compileCounts.schemas < compileCounts.validators / 5,
     `${String(compileCounts.schemas)} compilations for ${String(compileCounts.validators)} validators`,
   );
+});
+
+/**
+ * The one refusal of the reader path of a published link.
+ *
+ * Decision 0030 needs a missing link, a revoked link, an expired link and a
+ * wrong password to read alike. The shape is closed and every member that
+ * could carry a difference is fixed, so the boundary refuses an answer that
+ * carries one. These cases hold that rule at the contract, where a later
+ * author reads it first.
+ */
+const refusal = {
+  type: 'https://notesapp.invalid/problems/published_link_unavailable',
+  title: 'This link is not available.',
+  status: 404,
+  detail: 'This link is not available.',
+  instance: '/published/aaaaaaaaaaaaaaaaaaaaaa',
+  code: 'published_link_unavailable',
+  requestId: '00000000-0000-4000-8000-000000000000',
+};
+
+await test('every reader operation refuses with one shape', () => {
+  for (const id of [
+    'getPublishedPage',
+    'unlockPublishedLink',
+    'getPublishedAttachment',
+  ] as const) {
+    const validate = responseValidator(id, 404, 'application/problem+json');
+    assert.ok(validate !== undefined, id);
+    assert.equal(validate(refusal), true, id);
+  }
+});
+
+await test('the refusal takes no member that tells the causes apart', () => {
+  const validate = responseValidator(
+    'unlockPublishedLink',
+    404,
+    'application/problem+json',
+  );
+  assert.ok(validate !== undefined);
+  // A neighbouring body that names a cause, a note, or a count.
+  assert.equal(validate({ ...refusal, reason: 'wrong password' }), false);
+  assert.equal(validate({ ...refusal, fileIds: [] }), false);
+  assert.equal(validate({ ...refusal, issues: [] }), false);
+  assert.equal(
+    validate({ ...refusal, detail: 'The password is wrong.' }),
+    false,
+  );
+  assert.equal(validate({ ...refusal, title: 'This link expired.' }), false);
+  assert.equal(validate({ ...refusal, code: 'not_found' }), false);
+  assert.equal(validate({ ...refusal, status: 403 }), false);
+  assert.equal(
+    validate({
+      ...refusal,
+      type: 'https://notesapp.invalid/problems/not_found',
+    }),
+    false,
+  );
+  const { detail: _detail, ...withoutDetail } = refusal;
+  assert.equal(validate(withoutDetail), false);
+});
+
+await test('the token of a link appears in one answer only', () => {
+  const created = responseValidator(
+    'createPublishedLink',
+    201,
+    'application/json',
+  );
+  assert.ok(created !== undefined);
+  const link = {
+    publicationId: '00000000-0000-4000-8000-000000000000',
+    scope: { kind: 'note', fileId: '00000000-0000-4000-8000-000000000001' },
+    createdAt: '2026-09-16T00:00:00.000Z',
+    expiresAt: null,
+    passwordProtected: false,
+  };
+  assert.equal(created({ link, token: 'aaaaaaaaaaaaaaaaaaaaaa' }), true);
+  // The answer states the token once, so a second copy is refused.
+  assert.equal(created({ link }), false);
+  const listed = responseValidator(
+    'listPublishedLinks',
+    200,
+    'application/json',
+  );
+  assert.ok(listed !== undefined);
+  assert.equal(listed({ links: [link] }), true);
+  assert.equal(
+    listed({ links: [{ ...link, token: 'aaaaaaaaaaaaaaaaaaaaaa' }] }),
+    false,
+  );
+  // Not even a part of it.
+  assert.equal(listed({ links: [{ ...link, tokenPrefix: 'aaaa' }] }), false);
+});
+
+await test('a published scope is one note or one folder, never both', () => {
+  const validate = requestValidator('createPublishedLink', 'body');
+  assert.ok(validate !== undefined);
+  const note = { kind: 'note', fileId: '00000000-0000-4000-8000-000000000001' };
+  const folder = { kind: 'folder', path: 'Work' };
+  assert.equal(validate({ scope: note }), true);
+  assert.equal(validate({ scope: folder }), true);
+  assert.equal(validate({ scope: { ...note, path: 'Work' } }), false);
+  assert.equal(validate({ scope: { kind: 'note' } }), false);
+  assert.equal(validate({ scope: { kind: 'workspace' } }), false);
+  // A password is optional, and it keeps the one policy of the product.
+  assert.equal(
+    validate({ scope: note, password: 'a long enough password' }),
+    true,
+  );
+  assert.equal(validate({ scope: note, password: 'short' }), false);
+  assert.equal(
+    validate({ scope: note, token: 'aaaaaaaaaaaaaaaaaaaaaa' }),
+    false,
+  );
+});
+
+await test('a reader gives any password and takes the same refusal', () => {
+  const validate = requestValidator('unlockPublishedLink', 'body');
+  assert.ok(validate !== undefined);
+  // A short guess is a wrong password, not a malformed request, so the
+  // answer of a guess never differs from the answer of an unknown link.
+  assert.equal(validate({ password: 'x' }), true);
+  assert.equal(validate({ password: '' }), false);
+  assert.equal(validate({}), false);
 });

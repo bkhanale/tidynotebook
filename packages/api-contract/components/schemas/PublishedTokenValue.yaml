@@ -1,0 +1,9 @@
+type: string
+description: >-
+  The opaque value that opens one published link. The server draws it at
+  random, so it names no note, no folder and no account. The server keeps
+  only a digest of it, and it appears once, in the address that the owner
+  copies.
+pattern: ^[A-Za-z0-9_-]{22,64}$
+minLength: 22
+maxLength: 64

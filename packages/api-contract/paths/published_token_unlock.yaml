@@ -1,0 +1,34 @@
+post:
+  operationId: unlockPublishedLink
+  summary: Give the password of a published link.
+  description: >-
+    Takes the password of one link and answers a reading ticket that is
+    bound to that link. The reader carries the ticket in the address of
+    every later call to the link, and the server sets no cookie. The
+    operation declares an empty security requirement, so no identity hook
+    runs for it. A wrong password and a link that never existed take one
+    refusal, so a caller cannot walk the tokens. The shared attempt limit of
+    the public routes guards the password check.
+  tags:
+    - published
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/PublishedToken.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/UnlockPublishedLink.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/ReadingTicketGranted.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '404':
+      $ref: '../components/responses/PublishedLinkUnavailable.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

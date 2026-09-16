@@ -398,6 +398,16 @@ export type CreateFileInput = {
 };
 
 /**
+ * What to publish, and how a reader reaches it.
+ */
+export type CreatePublishedLinkInput = {
+    /**
+     * The one note, or the one folder, that the link opens.
+     */
+    scope: PublishedScope;
+};
+
+/**
  * The identifiers of a tombstone revision.
  */
 export type DeleteFileInput = {
@@ -708,6 +718,133 @@ export type ProblemDetails = {
 };
 
 /**
+ * The published page, as one HTML document. The server builds it from the stored Markdown with the one sanitized renderer, and it holds no script. Its only style sheet is the built style sheet of the application.
+ */
+export type PublishedDocument = string;
+
+/**
+ * A link that opens one folder and every note below it. A folder is a part of a note path, so the scope is a path prefix inside one workspace. A note in the Trash stays outside it.
+ */
+export type PublishedFolderScope = {
+    /**
+     * Names this scope as one folder.
+     */
+    kind: 'folder';
+    /**
+     * The folder that the link opens. Every note below it is published, now and later.
+     */
+    path: FilePath;
+};
+
+/**
+ * One published link of a workspace, as its owner sees it. This shape holds no token, so a read of the list cannot open a link.
+ */
+export type PublishedLink = {
+    /**
+     * Identifier of the link record. The owner names it to revoke the link. It is not the token and it opens nothing.
+     */
+    readonly publicationId: Uuid;
+    /**
+     * What the link opens.
+     */
+    readonly scope: PublishedScope;
+    /**
+     * Instant at which the owner made the link.
+     */
+    readonly createdAt: string;
+    /**
+     * Instant after which the link opens nothing, or null for a link that lasts until the owner revokes it.
+     */
+    readonly expiresAt: string | null;
+    /**
+     * Whether a reader gives a password before it reads the link.
+     */
+    readonly passwordProtected: boolean;
+};
+
+/**
+ * The new link and its token. This is the one answer of the whole interface that holds a token. The server keeps only a digest of the token, so it cannot show the value again.
+ */
+export type PublishedLinkCreated = {
+    /**
+     * The new link, as the list reports it from now on.
+     */
+    readonly link: PublishedLink;
+    /**
+     * The token of the new link. The owner puts it in the address that it shares. No other answer holds it, and no answer holds a part of it.
+     */
+    readonly token: PublishedTokenValue;
+};
+
+/**
+ * Every published link of one workspace. No entry holds a token.
+ */
+export type PublishedLinkList = {
+    /**
+     * One entry for each link that the workspace holds.
+     */
+    readonly links: Array<PublishedLink>;
+};
+
+/**
+ * A link that opens one note.
+ */
+export type PublishedNoteScope = {
+    /**
+     * Names this scope as one note.
+     */
+    kind: 'note';
+    /**
+     * The note that the link opens. A rename keeps the link, because the identifier of a note does not move.
+     */
+    fileId: Uuid;
+};
+
+/**
+ * The one refusal of the reader path. A link that never existed, a revoked link, an expired link and a wrong password all take this body, so the answer states nothing about the link. The shape is closed and every member that could carry a difference is fixed, so a later change cannot add a word that tells the four causes apart. The body names no note, no folder, no account and no identifier of the product.
+ */
+export type PublishedRefusal = {
+    /**
+     * Stable URI reference that identifies the problem type.
+     */
+    readonly type: 'https://notesapp.invalid/problems/published_link_unavailable';
+    /**
+     * The one sentence of this refusal. It repeats the detail, because a difference between the two would be a place to hide a cause.
+     */
+    readonly title: 'This link is not available.';
+    /**
+     * Always 404, for each of the four causes.
+     */
+    readonly status: 404;
+    /**
+     * The one sentence of this refusal.
+     */
+    readonly detail: 'This link is not available.';
+    /**
+     * Address of the request, without its query. It repeats what the caller sent and it adds nothing.
+     */
+    readonly instance: string;
+    /**
+     * The one code of every reader refusal.
+     */
+    readonly code: 'published_link_unavailable';
+    /**
+     * Identifier of the request, repeated in the x-request-id header.
+     */
+    readonly requestId: string;
+};
+
+/**
+ * What one published link opens.
+ */
+export type PublishedScope = PublishedNoteScope | PublishedFolderScope;
+
+/**
+ * The opaque value that opens one published link. The server draws it at random, so it names no note, no folder and no account. The server keeps only a digest of it, and it appears once, in the address that the owner copies.
+ */
+export type PublishedTokenValue = string;
+
+/**
  * Payload to permanently purge files.
  */
 export type PurgeFilesInput = {
@@ -770,6 +907,25 @@ export type ReadinessReport = {
      */
     readonly checks: Array<ReadinessCheck>;
 };
+
+/**
+ * The reading ticket of one link. The reader carries it in the address of every later call to that link. No cookie is set.
+ */
+export type ReadingTicketGrant = {
+    /**
+     * The ticket. It opens this one link and nothing else.
+     */
+    readonly ticket: ReadingTicketValue;
+    /**
+     * Instant at which the ticket stops. A read does not move it, so a reader that returns later gives the password again.
+     */
+    readonly expiresAt: string;
+};
+
+/**
+ * The value that a reader carries after it gives the password of a link. It is bound to that one link, it lives 12 hours, and a read does not move its expiry. The server keeps only a digest of it.
+ */
+export type ReadingTicketValue = string;
 
 /**
  * Confirmation that the named record no longer exists.
@@ -1032,6 +1188,16 @@ export type SyncChanges = {
 export type ThemeFamily = string;
 
 /**
+ * The password of one published link.
+ */
+export type UnlockPublishedLinkInput = {
+    /**
+     * The password that the owner gave the link. Any value is accepted here and a wrong value takes the one refusal, so the answer states nothing about the link or about the password policy.
+     */
+    password: string;
+};
+
+/**
  * The identifiers and the new content or path of a file.
  */
 export type UpdateFileInput = {
@@ -1292,10 +1458,49 @@ export type AuthSignOutWritable = {
 };
 
 /**
+ * What to publish, and how a reader reaches it.
+ */
+export type CreatePublishedLinkInputWritable = {
+    /**
+     * The one note, or the one folder, that the link opens.
+     */
+    scope: PublishedScope;
+    /**
+     * Password that a reader gives before it reads the link. Leave it out for a link that opens without one. The product keeps one password policy, so this bound is the bound of an account password.
+     */
+    password?: string;
+    /**
+     * Instant after which the link opens nothing. Leave it out for a link that lasts until the owner revokes it.
+     */
+    expiresAt?: string;
+};
+
+/**
  * The accepted head that the client saw for each file of the changeset, keyed by file identifier. The value null states that the file must not exist in accepted state, which is the precondition of a new file. Every file that the changeset changes needs an entry, and an entry for a file that it does not change is refused. The limit below is a coarse bound that protects the parser; the rule that a changeset may change at most 1000 files is applied by the workspace and answers 422.
  */
 export type ExpectedHeadsWritable = {
     [key: string]: Uuid | null;
+};
+
+/**
+ * One published link of a workspace, as its owner sees it. This shape holds no token, so a read of the list cannot open a link.
+ */
+export type PublishedLinkWritable = {
+    [key: string]: never;
+};
+
+/**
+ * The new link and its token. This is the one answer of the whole interface that holds a token. The server keeps only a digest of the token, so it cannot show the value again.
+ */
+export type PublishedLinkCreatedWritable = {
+    [key: string]: never;
+};
+
+/**
+ * Every published link of one workspace. No entry holds a token.
+ */
+export type PublishedLinkListWritable = {
+    [key: string]: never;
 };
 
 /**
@@ -1429,6 +1634,21 @@ export type SyncCursor = string;
 export type SyncLimit = number;
 
 /**
+ * Identifier of the published link that the operation acts on.
+ */
+export type PublicationId = Uuid;
+
+/**
+ * The token of the published link. It is the one part of the address that opens the link.
+ */
+export type PublishedToken = PublishedTokenValue;
+
+/**
+ * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
+ */
+export type ReadingTicket = ReadingTicketValue;
+
+/**
  * The settings to store for the signed in account.
  */
 export type PreferencesUpdate = PreferencesInput;
@@ -1497,6 +1717,16 @@ export type RestoreFile = RestoreFileInput;
  * Snapshot start payload.
  */
 export type StartSnapshot = StartSnapshotInput;
+
+/**
+ * What to publish, and how a reader reaches it.
+ */
+export type CreatePublishedLink = CreatePublishedLinkInputWritable;
+
+/**
+ * The password of the published link.
+ */
+export type UnlockPublishedLink = UnlockPublishedLinkInput;
 
 export type GetAccountData = {
     body?: never;
@@ -3321,6 +3551,181 @@ export type ImportWorkspaceResponses = {
 
 export type ImportWorkspaceResponse = ImportWorkspaceResponses[keyof ImportWorkspaceResponses];
 
+export type ListPublishedLinksData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/publications';
+};
+
+export type ListPublishedLinksErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListPublishedLinksError = ListPublishedLinksErrors[keyof ListPublishedLinksErrors];
+
+export type ListPublishedLinksResponses = {
+    /**
+     * Every published link of the workspace, without a token.
+     */
+    200: PublishedLinkList;
+};
+
+export type ListPublishedLinksResponse = ListPublishedLinksResponses[keyof ListPublishedLinksResponses];
+
+export type CreatePublishedLinkData = {
+    /**
+     * What to publish, and how a reader reaches it.
+     */
+    body: CreatePublishedLink;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/publications';
+};
+
+export type CreatePublishedLinkErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreatePublishedLinkError = CreatePublishedLinkErrors[keyof CreatePublishedLinkErrors];
+
+export type CreatePublishedLinkResponses = {
+    /**
+     * The new link and its token. This answer shows the token once, and no later answer holds it.
+     */
+    201: PublishedLinkCreated;
+};
+
+export type CreatePublishedLinkResponse = CreatePublishedLinkResponses[keyof CreatePublishedLinkResponses];
+
+export type RevokePublishedLinkData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * Identifier of the published link that the operation acts on.
+         */
+        publicationId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/publications/{publicationId}';
+};
+
+export type RevokePublishedLinkErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokePublishedLinkError = RevokePublishedLinkErrors[keyof RevokePublishedLinkErrors];
+
+export type RevokePublishedLinkResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RevokePublishedLinkResponse = RevokePublishedLinkResponses[keyof RevokePublishedLinkResponses];
+
 export type PurgeFilesData = {
     /**
      * File purge payload.
@@ -3955,6 +4360,171 @@ export type GetRootHealthResponses = {
 };
 
 export type GetRootHealthResponse = GetRootHealthResponses[keyof GetRootHealthResponses];
+
+export type GetPublishedPageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * The token of the published link. It is the one part of the address that opens the link.
+         */
+        token: PublishedTokenValue;
+    };
+    query?: {
+        /**
+         * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
+         */
+        ticket?: ReadingTicketValue;
+    };
+    url: '/published/{token}';
+};
+
+export type GetPublishedPageErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The link is not available. Every reader operation answers this one shape for a link that never existed, a revoked link, an expired link and a wrong password, so the four causes read alike.
+     */
+    404: PublishedRefusal;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetPublishedPageError = GetPublishedPageErrors[keyof GetPublishedPageErrors];
+
+export type GetPublishedPageResponses = {
+    /**
+     * The published page, as one HTML document.
+     */
+    200: PublishedDocument;
+};
+
+export type GetPublishedPageResponse = GetPublishedPageResponses[keyof GetPublishedPageResponses];
+
+export type GetPublishedAttachmentData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * The token of the published link. It is the one part of the address that opens the link.
+         */
+        token: PublishedTokenValue;
+        /**
+         * Identifier of the file that the operation acts on.
+         */
+        fileId: Uuid;
+        /**
+         * Identifier of the revision that the operation reads.
+         */
+        revisionId: Uuid;
+    };
+    query?: {
+        /**
+         * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
+         */
+        ticket?: ReadingTicketValue;
+    };
+    url: '/published/{token}/attachments/{fileId}/{revisionId}';
+};
+
+export type GetPublishedAttachmentErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The link is not available. Every reader operation answers this one shape for a link that never existed, a revoked link, an expired link and a wrong password, so the four causes read alike.
+     */
+    404: PublishedRefusal;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetPublishedAttachmentError = GetPublishedAttachmentErrors[keyof GetPublishedAttachmentErrors];
+
+export type GetPublishedAttachmentResponses = {
+    /**
+     * Binary bytes of the immutable attachment.
+     */
+    200: Blob | File;
+};
+
+export type GetPublishedAttachmentResponse = GetPublishedAttachmentResponses[keyof GetPublishedAttachmentResponses];
+
+export type UnlockPublishedLinkData = {
+    /**
+     * The password of the published link.
+     */
+    body: UnlockPublishedLink;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * The token of the published link. It is the one part of the address that opens the link.
+         */
+        token: PublishedTokenValue;
+    };
+    query?: never;
+    url: '/published/{token}/unlock';
+};
+
+export type UnlockPublishedLinkErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The link is not available. Every reader operation answers this one shape for a link that never existed, a revoked link, an expired link and a wrong password, so the four causes read alike.
+     */
+    404: PublishedRefusal;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UnlockPublishedLinkError = UnlockPublishedLinkErrors[keyof UnlockPublishedLinkErrors];
+
+export type UnlockPublishedLinkResponses = {
+    /**
+     * The reading ticket of the link.
+     */
+    200: ReadingTicketGrant;
+};
+
+export type UnlockPublishedLinkResponse = UnlockPublishedLinkResponses[keyof UnlockPublishedLinkResponses];
 
 export type GetRootReadinessData = {
     body?: never;

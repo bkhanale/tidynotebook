@@ -1,0 +1,26 @@
+get:
+  operationId: getPublishedPage
+  summary: Read the page of a published link.
+  description: >-
+    Answers the published note as one HTML document that the server builds
+    with the one sanitized renderer. The operation declares an empty
+    security requirement, so no identity hook runs for it and no session
+    reaches it. A link that never existed, a revoked link, an expired link
+    and a link whose password the reader has not given all take the one
+    refusal, so the answer states nothing about the link.
+  tags:
+    - published
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/PublishedToken.yaml'
+    - $ref: '../components/parameters/ReadingTicket.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/PublishedPage.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '404':
+      $ref: '../components/responses/PublishedLinkUnavailable.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

@@ -1,0 +1,64 @@
+type: object
+description: >-
+  The one refusal of the reader path. A link that never existed, a revoked
+  link, an expired link and a wrong password all take this body, so the
+  answer states nothing about the link. The shape is closed and every member
+  that could carry a difference is fixed, so a later change cannot add a
+  word that tells the four causes apart. The body names no note, no folder,
+  no account and no identifier of the product.
+additionalProperties: false
+required:
+  - type
+  - title
+  - status
+  - detail
+  - instance
+  - code
+  - requestId
+properties:
+  type:
+    type: string
+    readOnly: true
+    description: Stable URI reference that identifies the problem type.
+    const: https://notesapp.invalid/problems/published_link_unavailable
+    format: uri-reference
+    maxLength: 256
+  title:
+    type: string
+    readOnly: true
+    description: >-
+      The one sentence of this refusal. It repeats the detail, because a
+      difference between the two would be a place to hide a cause.
+    const: This link is not available.
+    maxLength: 256
+  status:
+    type: integer
+    readOnly: true
+    description: Always 404, for each of the four causes.
+    const: 404
+  detail:
+    type: string
+    readOnly: true
+    description: The one sentence of this refusal.
+    const: This link is not available.
+    maxLength: 1024
+  instance:
+    type: string
+    readOnly: true
+    description: >-
+      Address of the request, without its query. It repeats what the caller
+      sent and it adds nothing.
+    format: uri-reference
+    maxLength: 1024
+  code:
+    type: string
+    readOnly: true
+    description: The one code of every reader refusal.
+    const: published_link_unavailable
+    maxLength: 64
+  requestId:
+    type: string
+    readOnly: true
+    description: Identifier of the request, repeated in the x-request-id header.
+    minLength: 1
+    maxLength: 128

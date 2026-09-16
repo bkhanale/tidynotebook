@@ -25,6 +25,8 @@ import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
 import { createImportHandlers } from './import.ts';
 import { createBacklinkHandlers } from './backlinks.ts';
+import { createPublicationHandlers } from './publications.ts';
+import { createPublishedHandlers } from './published.ts';
 
 /**
  * A store that is not there yet.
@@ -109,6 +111,8 @@ export function createHandlers(
       dependencies.attachments ?? missingAttachmentStore(),
     ),
     ...createWorkspaceHandlers(store),
+    ...createPublicationHandlers(),
+    ...createPublishedHandlers(),
     ...createServiceHandlers(probes, lifecycle),
   };
 }

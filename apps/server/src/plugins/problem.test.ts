@@ -5,6 +5,7 @@ import {
   classifyError,
   createProblem,
   DomainProblemError,
+  PublishedLinkUnavailableError,
   RequestContractError,
   RequestMediaTypeError,
   ResponseContractError,
@@ -111,5 +112,29 @@ await test('a problem carries its issues only when there are some', () => {
   assert.equal(
     withIssues.type,
     'https://notesapp.invalid/problems/invalid_request',
+  );
+});
+
+await test('the one reader refusal names no cause', () => {
+  // Decision 0030. A missing link, a revoked link, an expired link and a
+  // wrong password all raise this failure, and it takes no message, so no
+  // caller can put a word in the answer that tells the four apart.
+  const classified = classifyError(new PublishedLinkUnavailableError());
+  assert.equal(classified.status, 404);
+  assert.equal(classified.code, 'published_link_unavailable');
+  assert.equal(classified.detail, 'This link is not available.');
+  assert.deepEqual(classified.issues, []);
+  assert.equal(classified.fileIds, undefined);
+  const problem = createProblem({
+    code: classified.code,
+    status: classified.status,
+    detail: classified.detail,
+    instance: '/published/aaaaaaaaaaaaaaaaaaaaaa',
+    requestId: 'trace-1',
+  });
+  assert.equal(problem.title, problem.detail);
+  assert.equal(
+    problem.type,
+    'https://notesapp.invalid/problems/published_link_unavailable',
   );
 });

@@ -1,0 +1,10 @@
+name: token
+in: path
+required: true
+style: simple
+explode: false
+description: >-
+  The token of the published link. It is the one part of the address that
+  opens the link.
+schema:
+  $ref: '../schemas/PublishedTokenValue.yaml'

@@ -1,0 +1,22 @@
+type: object
+description: >-
+  The reading ticket of one link. The reader carries it in the address of
+  every later call to that link. No cookie is set.
+additionalProperties: false
+required:
+  - ticket
+  - expiresAt
+properties:
+  ticket:
+    allOf:
+      - $ref: './ReadingTicketValue.yaml'
+    readOnly: true
+    description: The ticket. It opens this one link and nothing else.
+  expiresAt:
+    type: string
+    readOnly: true
+    description: >-
+      Instant at which the ticket stops. A read does not move it, so a
+      reader that returns later gives the password again.
+    format: date-time
+    maxLength: 64

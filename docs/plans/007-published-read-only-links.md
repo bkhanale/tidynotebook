@@ -17,6 +17,7 @@ the design.
 
 - [0030. A published link is a hashed token over a read-only scope](../decisions/0030-published-links-are-hashed-tokens-over-a-scope.md)
 - [0031. The reader path is a closed read-only boundary](../decisions/0031-the-reader-path-is-a-closed-read-only-boundary.md)
+- [0046. The reader carries its credentials in the address](../decisions/0046-the-reader-carries-its-credentials-in-the-address.md)
 - Kept: [0025. The live preview is the one note surface](../decisions/0025-the-live-preview-is-the-one-note-surface.md)
 - Kept: [0018. The directory structure follows ports and adapters](../decisions/0018-directory-structure-by-layer.md)
 - Kept: [0019. One contract, generated types, and no type assertions](../decisions/0019-contract-validation-and-shared-types.md)

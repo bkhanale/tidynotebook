@@ -32,6 +32,13 @@ tags:
     description: >-
       Files, their immutable revisions, and the atomic changesets that accept
       them.
+  - name: publishing
+    description: >-
+      Read-only links that an owner makes over one note or one folder.
+  - name: published
+    description: >-
+      The reader path of a published link. No operation of this tag names a
+      security scheme, so no identity hook runs for one.
   - name: auth
     description: >-
       Authentication protocol endpoints. Better Auth implements them; the
@@ -99,6 +106,16 @@ paths:
     $ref: './paths/api_workspaces_workspaceId_files_fileId_export.yaml'
   /api/workspaces/{workspaceId}/files/{fileId}/backlinks:
     $ref: './paths/api_workspaces_workspaceId_files_fileId_backlinks.yaml'
+  /api/workspaces/{workspaceId}/publications:
+    $ref: './paths/api_workspaces_workspaceId_publications.yaml'
+  /api/workspaces/{workspaceId}/publications/{publicationId}:
+    $ref: './paths/api_workspaces_workspaceId_publications_publicationId.yaml'
+  /published/{token}:
+    $ref: './paths/published_token.yaml'
+  /published/{token}/unlock:
+    $ref: './paths/published_token_unlock.yaml'
+  /published/{token}/attachments/{fileId}/{revisionId}:
+    $ref: './paths/published_token_attachments_fileId_revisionId.yaml'
 components:
   securitySchemes:
     sessionCookie:
@@ -144,6 +161,12 @@ components:
       $ref: './components/parameters/SyncCursor.yaml'
     SyncLimit:
       $ref: './components/parameters/SyncLimit.yaml'
+    PublicationId:
+      $ref: './components/parameters/PublicationId.yaml'
+    PublishedToken:
+      $ref: './components/parameters/PublishedToken.yaml'
+    ReadingTicket:
+      $ref: './components/parameters/ReadingTicket.yaml'
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
@@ -173,6 +196,10 @@ components:
       $ref: './components/requestBodies/RestoreFile.yaml'
     StartSnapshot:
       $ref: './components/requestBodies/StartSnapshot.yaml'
+    CreatePublishedLink:
+      $ref: './components/requestBodies/CreatePublishedLink.yaml'
+    UnlockPublishedLink:
+      $ref: './components/requestBodies/UnlockPublishedLink.yaml'
   responses:
     Health:
       $ref: './components/responses/Health.yaml'
@@ -260,6 +287,16 @@ components:
       $ref: './components/responses/SyncChanges.yaml'
     SnapshotRequired:
       $ref: './components/responses/SnapshotRequired.yaml'
+    PublishedLinkCreated:
+      $ref: './components/responses/PublishedLinkCreated.yaml'
+    PublishedLinkList:
+      $ref: './components/responses/PublishedLinkList.yaml'
+    ReadingTicketGranted:
+      $ref: './components/responses/ReadingTicketGranted.yaml'
+    PublishedLinkUnavailable:
+      $ref: './components/responses/PublishedLinkUnavailable.yaml'
+    PublishedPage:
+      $ref: './components/responses/PublishedPage.yaml'
   schemas:
     HealthReport:
       $ref: './components/schemas/HealthReport.yaml'
@@ -395,3 +432,29 @@ components:
       $ref: './components/schemas/SyncChangeItem.yaml'
     SyncChanges:
       $ref: './components/schemas/SyncChanges.yaml'
+    PublishedTokenValue:
+      $ref: './components/schemas/PublishedTokenValue.yaml'
+    ReadingTicketValue:
+      $ref: './components/schemas/ReadingTicketValue.yaml'
+    PublishedNoteScope:
+      $ref: './components/schemas/PublishedNoteScope.yaml'
+    PublishedFolderScope:
+      $ref: './components/schemas/PublishedFolderScope.yaml'
+    PublishedScope:
+      $ref: './components/schemas/PublishedScope.yaml'
+    PublishedLink:
+      $ref: './components/schemas/PublishedLink.yaml'
+    PublishedLinkList:
+      $ref: './components/schemas/PublishedLinkList.yaml'
+    PublishedLinkCreated:
+      $ref: './components/schemas/PublishedLinkCreated.yaml'
+    CreatePublishedLinkInput:
+      $ref: './components/schemas/CreatePublishedLinkInput.yaml'
+    UnlockPublishedLinkInput:
+      $ref: './components/schemas/UnlockPublishedLinkInput.yaml'
+    ReadingTicketGrant:
+      $ref: './components/schemas/ReadingTicketGrant.yaml'
+    PublishedRefusal:
+      $ref: './components/schemas/PublishedRefusal.yaml'
+    PublishedDocument:
+      $ref: './components/schemas/PublishedDocument.yaml'

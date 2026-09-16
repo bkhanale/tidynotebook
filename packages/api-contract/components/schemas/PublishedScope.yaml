@@ -1,0 +1,4 @@
+description: What one published link opens.
+oneOf:
+  - $ref: './PublishedNoteScope.yaml'
+  - $ref: './PublishedFolderScope.yaml'

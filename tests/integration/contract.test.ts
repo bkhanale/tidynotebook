@@ -13,9 +13,12 @@ import test from 'node:test';
 import {
   configureClient,
   getHealth,
+  getPublishedAttachment,
+  getPublishedPage,
   getReadiness,
   getRootHealth,
   getRootReadiness,
+  unlockPublishedLink,
 } from '@notesapp/api-client';
 import { operations } from '@notesapp/api-contract';
 import { createHandlers, loadServerConfig } from '@notesapp/server';
@@ -316,6 +319,139 @@ await test('every operation has exactly one handler and back', () => {
     operations.some((operation) => operation.protocol === 'better-auth'),
     'the contract must declare the authentication protocol fragment',
   );
+});
+
+/**
+ * The reader path of a published link, and the one refusal it gives.
+ *
+ * Plan 007 item 39. Decision 0031 makes the empty security requirement the
+ * first of four refusals that keep a write out of the reader path, so a later
+ * change that guards a reader operation, or that opens an owner operation,
+ * must fail here.
+ */
+const readerPrefix = '/published/';
+const openOperations = [
+  'createOwner',
+  'getHealth',
+  'getReadiness',
+  'getRootHealth',
+  'getRootReadiness',
+  'getSetupStatus',
+];
+
+await test('every reader operation declares an empty security requirement', () => {
+  const readers = operations.filter((operation) =>
+    operation.path.startsWith(readerPrefix),
+  );
+  assert.deepEqual(readers.map((operation) => operation.id).sort(), [
+    'getPublishedAttachment',
+    'getPublishedPage',
+    'unlockPublishedLink',
+  ]);
+  for (const reader of readers)
+    assert.deepEqual(reader.security, [], reader.id);
+});
+
+await test('every operation outside the open list names a security scheme', () => {
+  const open = operations
+    .filter(
+      (operation) =>
+        operation.protocol === null && operation.security.length === 0,
+    )
+    .map((operation) => operation.id)
+    .sort();
+  const readers = operations
+    .filter((operation) => operation.path.startsWith(readerPrefix))
+    .map((operation) => operation.id);
+  assert.deepEqual(open, [...openOperations, ...readers].sort());
+});
+
+await test('the owner operations of a published link keep the session', () => {
+  for (const id of [
+    'createPublishedLink',
+    'listPublishedLinks',
+    'revokePublishedLink',
+  ]) {
+    const operation = operations.find((entry) => entry.id === id);
+    assert.ok(operation !== undefined, id);
+    assert.deepEqual(operation.security, [{ sessionCookie: [] }], id);
+  }
+});
+
+await test('an unguarded owner call is refused before any handler runs', async () => {
+  const response = await server.app.inject({
+    method: 'GET',
+    url: '/api/workspaces/00000000-0000-4000-8000-000000000000/publications',
+    headers: { host: '127.0.0.1' },
+  });
+  assert.equal(response.statusCode, 401);
+  assert.equal(asProblem(response.json()).code, 'unauthenticated');
+});
+
+await test('every reader failure answers one refusal', async () => {
+  // Decision 0030. A link that never existed, a revoked link, an expired link
+  // and a wrong password all take this answer. No publication store exists in
+  // this build, so every token is unknown, which is the first of the four.
+  const token = 'aaaaaaaaaaaaaaaaaaaaaa';
+  const note = '00000000-0000-4000-8000-000000000000';
+  const [page, unlock, attachment] = await Promise.all([
+    getPublishedPage({ path: { token } }),
+    unlockPublishedLink({ path: { token }, body: { password: 'x' } }),
+    getPublishedAttachment({
+      path: { token, fileId: note, revisionId: note },
+    }),
+  ]);
+  const answers = [page, unlock, attachment];
+  for (const answer of answers) {
+    assert.equal(answer.data, undefined);
+    assert.equal(responseOf(answer.response).status, 404);
+    assert.match(
+      responseOf(answer.response).headers.get('content-type') ?? '',
+      /^application\/problem\+json/,
+    );
+  }
+  const bodies = answers.map((answer) => asProblem(answer.error));
+  for (const body of bodies) {
+    assert.equal(body.code, 'published_link_unavailable');
+    assert.equal(body.status, 404);
+    assert.equal(body.title, 'This link is not available.');
+    assert.equal(body.detail, 'This link is not available.');
+    // The body names no note, no folder, no account and no ticket.
+    assert.deepEqual(Object.keys(body).sort(), [
+      'code',
+      'detail',
+      'instance',
+      'requestId',
+      'status',
+      'title',
+      'type',
+    ]);
+  }
+  // Only the request identifier and the address of the call differ.
+  const shapes = bodies.map((body) => {
+    const { instance, requestId, ...rest } = body;
+    assert.equal(typeof instance, 'string');
+    assert.equal(typeof requestId, 'string');
+    return rest;
+  });
+  assert.deepEqual(shapes[0], shapes[1]);
+  assert.deepEqual(shapes[1], shapes[2]);
+});
+
+await test('a wrong password reads like an unknown token', async () => {
+  const token = 'aaaaaaaaaaaaaaaaaaaaaa';
+  const [short, long] = await Promise.all([
+    unlockPublishedLink({ path: { token }, body: { password: 'x' } }),
+    unlockPublishedLink({
+      path: { token },
+      body: { password: 'a longer guess that is wrong' },
+    }),
+  ]);
+  const first = asProblem(short.error);
+  const second = asProblem(long.error);
+  assert.equal(first.code, second.code);
+  assert.equal(first.status, second.status);
+  assert.equal(first.detail, second.detail);
 });
 
 await server.close();

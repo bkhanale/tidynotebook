@@ -1,0 +1,13 @@
+type: object
+description: Every published link of one workspace. No entry holds a token.
+additionalProperties: false
+required:
+  - links
+properties:
+  links:
+    type: array
+    readOnly: true
+    description: One entry for each link that the workspace holds.
+    maxItems: 200
+    items:
+      $ref: './PublishedLink.yaml'

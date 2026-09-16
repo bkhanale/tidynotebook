@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape } from './client/index.js';
-import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -478,6 +478,55 @@ export const importWorkspace = <ThrowOnError extends boolean = false>(options: O
 });
 
 /**
+ * List the published links of a workspace.
+ *
+ * Reports every published link of the workspace, what it opens, when it expires, and whether it has a password. No entry holds a token and no entry holds a part of one, so a read of this list opens nothing. The answer reports no reader count, because the reader path counts nothing.
+ */
+export const listPublishedLinks = <ThrowOnError extends boolean = false>(options: Options<ListPublishedLinksData, ThrowOnError>): RequestResult<ListPublishedLinksResponses, ListPublishedLinksErrors, ThrowOnError> => (options.client ?? client).get<ListPublishedLinksResponses, ListPublishedLinksErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/publications',
+    ...options
+});
+
+/**
+ * Publish a read-only link to one note or one folder.
+ *
+ * Makes one read-only link over one note, or over one folder and every note below it. The answer holds the token of the new link. The server keeps only a digest of that token, so this is the one time that the value exists outside the address that the owner copies. A workspace holds a bounded number of links, and a request past that bound is refused.
+ */
+export const createPublishedLink = <ThrowOnError extends boolean = false>(options: Options<CreatePublishedLinkData, ThrowOnError>): RequestResult<CreatePublishedLinkResponses, CreatePublishedLinkErrors, ThrowOnError> => (options.client ?? client).post<CreatePublishedLinkResponses, CreatePublishedLinkErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/publications',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke one published link.
+ *
+ * Stops one published link. The server reads the link record on every reader call, so the link opens nothing from the next call onward. A reader that holds the token then takes the one refusal of the reader path.
+ */
+export const revokePublishedLink = <ThrowOnError extends boolean = false>(options: Options<RevokePublishedLinkData, ThrowOnError>): RequestResult<RevokePublishedLinkResponses, RevokePublishedLinkErrors, ThrowOnError> => (options.client ?? client).delete<RevokePublishedLinkResponses, RevokePublishedLinkErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/publications/{publicationId}',
+    ...options
+});
+
+/**
  * Permanently delete files and write purge markers.
  *
  * Permanently purges files and revisions, writes purge markers, and reclaims storage. Subsequent writes to purged file identifiers answer 410 Gone. Restricted to the workspace owner.
@@ -634,6 +683,34 @@ export const restoreFile = <ThrowOnError extends boolean = false>(options: Optio
  * Serves the same answer as the liveness operation at the API address. A load balancer and an orchestrator usually probe a fixed root path, so the service answers that address too. The server calls one implementation for both addresses, so the two answers cannot disagree. Reports process liveness only, and never inspects a dependency.
  */
 export const getRootHealth = <ThrowOnError extends boolean = false>(options?: Options<GetRootHealthData, ThrowOnError>): RequestResult<GetRootHealthResponses, GetRootHealthErrors, ThrowOnError> => (options?.client ?? client).get<GetRootHealthResponses, GetRootHealthErrors, ThrowOnError>({ url: '/health', ...options });
+
+/**
+ * Read the page of a published link.
+ *
+ * Answers the published note as one HTML document that the server builds with the one sanitized renderer. The operation declares an empty security requirement, so no identity hook runs for it and no session reaches it. A link that never existed, a revoked link, an expired link and a link whose password the reader has not given all take the one refusal, so the answer states nothing about the link.
+ */
+export const getPublishedPage = <ThrowOnError extends boolean = false>(options: Options<GetPublishedPageData, ThrowOnError>): RequestResult<GetPublishedPageResponses, GetPublishedPageErrors, ThrowOnError> => (options.client ?? client).get<GetPublishedPageResponses, GetPublishedPageErrors, ThrowOnError>({ url: '/published/{token}', ...options });
+
+/**
+ * Read a picture of a published note.
+ *
+ * Streams the bytes of one attachment revision that a published note names. The address names the link, the note and the revision, and the server proves all three facts on every call: the link opens the note, and the current content of that note names that revision. It trusts no part of the address. The operation declares an empty security requirement, so no identity hook runs for it. Every failure takes the one refusal of the reader path.
+ */
+export const getPublishedAttachment = <ThrowOnError extends boolean = false>(options: Options<GetPublishedAttachmentData, ThrowOnError>): RequestResult<GetPublishedAttachmentResponses, GetPublishedAttachmentErrors, ThrowOnError> => (options.client ?? client).get<GetPublishedAttachmentResponses, GetPublishedAttachmentErrors, ThrowOnError>({ url: '/published/{token}/attachments/{fileId}/{revisionId}', ...options });
+
+/**
+ * Give the password of a published link.
+ *
+ * Takes the password of one link and answers a reading ticket that is bound to that link. The reader carries the ticket in the address of every later call to the link, and the server sets no cookie. The operation declares an empty security requirement, so no identity hook runs for it. A wrong password and a link that never existed take one refusal, so a caller cannot walk the tokens. The shared attempt limit of the public routes guards the password check.
+ */
+export const unlockPublishedLink = <ThrowOnError extends boolean = false>(options: Options<UnlockPublishedLinkData, ThrowOnError>): RequestResult<UnlockPublishedLinkResponses, UnlockPublishedLinkErrors, ThrowOnError> => (options.client ?? client).post<UnlockPublishedLinkResponses, UnlockPublishedLinkErrors, ThrowOnError>({
+    url: '/published/{token}/unlock',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
 
 /**
  * Report whether the service can accept traffic, at the root address.

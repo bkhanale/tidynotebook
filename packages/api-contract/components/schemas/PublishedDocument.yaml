@@ -1,0 +1,6 @@
+type: string
+description: >-
+  The published page, as one HTML document. The server builds it from the
+  stored Markdown with the one sanitized renderer, and it holds no script.
+  Its only style sheet is the built style sheet of the application.
+maxLength: 8388608

@@ -1,0 +1,8 @@
+description: >-
+  The link is not available. Every reader operation answers this one shape
+  for a link that never existed, a revoked link, an expired link and a wrong
+  password, so the four causes read alike.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/PublishedRefusal.yaml'

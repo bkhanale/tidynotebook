@@ -1,0 +1,7 @@
+description: >-
+  The new link and its token. This answer shows the token once, and no
+  later answer holds it.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/PublishedLinkCreated.yaml'

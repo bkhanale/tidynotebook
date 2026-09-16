@@ -1,0 +1,17 @@
+type: object
+description: A link that opens one note.
+additionalProperties: false
+required:
+  - kind
+  - fileId
+properties:
+  kind:
+    type: string
+    description: Names this scope as one note.
+    const: note
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: >-
+      The note that the link opens. A rename keeps the link, because the
+      identifier of a note does not move.

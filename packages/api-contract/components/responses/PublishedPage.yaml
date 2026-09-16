@@ -1,0 +1,13 @@
+description: The published page, as one HTML document.
+headers:
+  cache-control:
+    description: >-
+      States that the page belongs to this reader. No shared cache stores
+      it.
+    schema:
+      type: string
+      maxLength: 256
+content:
+  text/html:
+    schema:
+      $ref: '../schemas/PublishedDocument.yaml'

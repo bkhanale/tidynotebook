@@ -27,6 +27,7 @@ export type ProblemCode =
   | 'forbidden'
   | 'origin_required'
   | 'not_found'
+  | 'published_link_unavailable'
   | 'stale_head'
   | 'path_conflict'
   | 'mutation_reused'
@@ -70,6 +71,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   origin_required:
     'A cookie authenticated write must name the configured origin.',
   not_found: 'The requested resource does not exist.',
+  published_link_unavailable: 'This link is not available.',
   stale_head: 'The accepted head of a file has moved on.',
   path_conflict: 'Another live file already holds that path.',
   mutation_reused:
@@ -289,6 +291,23 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   quota: 'The workspace has no room left for new content.',
 };
 
+/**
+ * The one refusal of the reader path of a published link.
+ *
+ * A link that never existed, a revoked link, an expired link, a wrong
+ * password, a note outside the scope and a picture that no note in scope
+ * names all raise this one failure, as decision 0030 requires. The
+ * constructor takes nothing, so no caller can put a word in the answer that
+ * tells the causes apart, and `PublishedRefusal` in the contract fixes every
+ * member of the body, so the boundary refuses an answer that carries one.
+ */
+export class PublishedLinkUnavailableError extends Error {
+  constructor() {
+    super(titles.published_link_unavailable);
+    this.name = 'PublishedLinkUnavailableError';
+  }
+}
+
 /** The named resource does not exist, or the actor may not see that it does. */
 export class NotFoundError extends Error {
   constructor(detail = 'The requested resource does not exist.') {
@@ -420,6 +439,13 @@ export function classifyError(error: unknown): {
     return {
       status: 403,
       code: 'origin_required',
+      detail: error.message,
+      issues: [],
+    };
+  if (error instanceof PublishedLinkUnavailableError)
+    return {
+      status: 404,
+      code: 'published_link_unavailable',
       detail: error.message,
       issues: [],
     };
