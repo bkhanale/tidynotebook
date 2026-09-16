@@ -30,7 +30,7 @@ import { build, type Plugin } from 'vite';
 export const workerFileName = 'service-worker.js';
 
 /** The source that the worker is compiled from. */
-export const workerEntry = 'src/pwa/service-worker.ts';
+const workerEntry = 'src/pwa/service-worker.ts';
 
 /** The name of the cache that holds the precache, before its stamp. */
 export const appCachePrefix = 'notesapp-app-';
@@ -108,7 +108,7 @@ function kindOf(url: string): string {
  * the browser fetches it again on every load, so an entry for it would only
  * store the body of the worker that is already running.
  */
-export function isPrecached(file: BuiltFile): boolean {
+function isPrecached(file: BuiltFile): boolean {
   if (file.url === `/${workerFileName}`) return false;
   if (file.url.startsWith(excludedPrefix)) return false;
   return precachedKinds.has(kindOf(file.url));
@@ -266,9 +266,9 @@ export async function buildWorker(
     throw new Error('The worker must build to exactly one classic script.');
   const code = first.code;
   if (code.includes('__NOTESAPP_PRECACHE__'))
-    throw new Error('The worker kept its precache placeholder.');
+    throw new Error('The worker did not receive the addresses of this build.');
   if (!code.includes(precache.cacheName))
-    throw new Error('The worker kept its cache name placeholder.');
+    throw new Error('The worker did not receive the name of its cache.');
   const map = first.map;
   return {
     code,

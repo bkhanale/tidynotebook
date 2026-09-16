@@ -18,6 +18,7 @@ import test from 'node:test';
 import {
   derivePrecache,
   directoryFiles,
+  workerFileName,
 } from '../../apps/web/src/pwa/precache.ts';
 
 const distribution = join(import.meta.dirname, '../../apps/web/dist/web');
@@ -25,7 +26,7 @@ const distribution = join(import.meta.dirname, '../../apps/web/dist/web');
 /** The built worker, or a failure that names the one cause. */
 async function readWorker(): Promise<string> {
   try {
-    return await readFile(join(distribution, 'service-worker.js'), 'utf8');
+    return await readFile(join(distribution, workerFileName), 'utf8');
   } catch {
     throw new Error(
       'The browser build is absent. Run pnpm build before this test.',
@@ -45,7 +46,7 @@ await test('the built worker holds the addresses of this build', async () => {
   const precache = derivePrecache(await directoryFiles(distribution));
   assert.ok(precache.urls.includes('/index.html'));
   assert.ok(precache.urls.includes('/manifest.webmanifest'));
-  assert.ok(!precache.urls.includes('/service-worker.js'));
+  assert.ok(!precache.urls.includes(`/${workerFileName}`));
   assert.ok(!precache.urls.some((url) => url.startsWith('/src/diagram/')));
   for (const url of precache.urls) assert.ok(worker.includes(url), url);
 });
