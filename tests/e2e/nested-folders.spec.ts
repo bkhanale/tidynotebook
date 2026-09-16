@@ -11,6 +11,49 @@ import {
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
+test('four folder levels keep the deepest name readable', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  const suffix = Date.now().toString();
+  const folders = [
+    `work-${suffix}`,
+    `plans-${suffix}`,
+    `current-${suffix}`,
+    `details-${suffix}`,
+  ];
+  const navigation = page.locator('#notes-sidebar');
+
+  await openNavigation(page);
+  for (const folder of folders) {
+    await navigation
+      .getByRole('button', { name: 'New folder', exact: true })
+      .click();
+    await page.getByLabel('Folder name').fill(folder);
+    await page.getByRole('button', { name: 'Make folder' }).click();
+    await expect(
+      navigation.getByRole('button', { name: folder, exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  }
+
+  const deepest = folders.at(-1);
+  if (deepest === undefined)
+    throw new Error('The folder list must not be empty.');
+  const deepestButton = navigation.getByRole('button', {
+    name: deepest,
+    exact: true,
+  });
+  const nameWidth = await deepestButton
+    .getByText(deepest, { exact: true })
+    .evaluate((node) => node.getBoundingClientRect().width);
+
+  // The former recursive inset took one full control column at each level.
+  // At level four, the name had only a few pixels or no space at all.
+  expect(nameWidth).toBeGreaterThanOrEqual(48);
+});
+
 test('the selected folder receives a child folder and a saved note', async ({
   checkedPage: page,
   stack,
@@ -65,9 +108,8 @@ test('the selected folder receives a child folder and a saved note', async ({
   const savedNote = savedChild.getByRole('link', { name: noteName });
   await expect(savedNote).toBeVisible();
 
-  // A child starts after its parent icon. The former tree inset was smaller
-  // than the folder disclosure control, so a nested note started to the left
-  // of the folder icon that contained it.
+  // Folder and note rows reserve the same disclosure column. A child then
+  // moves right by one compact branch step instead of one full control.
   const folderIcon = savedChild
     .getByRole('button', { name: child, exact: true })
     .locator('svg');
@@ -78,8 +120,8 @@ test('the selected folder receives a child folder and a saved note', async ({
   ]);
   if (folderBox === null || noteBox === null)
     throw new Error('The folder and note icons must be visible.');
-  expect(noteBox.x).toBeGreaterThan(folderBox.x);
-  expect(noteBox.x - folderBox.x).toBeLessThanOrEqual(4);
+  expect(noteBox.x - folderBox.x).toBeGreaterThanOrEqual(12);
+  expect(noteBox.x - folderBox.x).toBeLessThanOrEqual(20);
 });
 
 test('a note that moves into a folder stays there after the next edit', async ({

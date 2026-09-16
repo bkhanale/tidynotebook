@@ -176,9 +176,10 @@ function NoteRow({
   );
   return (
     <div className={`group ${treeRowClassName({ open: active })}`}>
+      <span className="size-11 shrink-0 md:size-8" aria-hidden="true" />
       <Link
         ref={revealActive}
-        className={`flex min-h-11 flex-1 items-center gap-cluster rounded-lg px-2 text-control no-underline motion-safe:transition-colors md:min-h-8 ${treeRowTextClassName({ open: active })}`}
+        className={`flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-lg px-1 text-control no-underline motion-safe:transition-colors md:min-h-8 ${treeRowTextClassName({ open: active })}`}
         to={`/w/${workspaceId}/notes/${note.fileId}`}
         onClick={onNavigate}
         aria-current={active ? 'page' : undefined}
@@ -232,12 +233,11 @@ const rowMenuClassName =
 /**
  * The inset of one child branch in the tree.
  *
- * The border sits below the disclosure chevron. The padding then starts a
- * child just after the folder icon of its parent. Both parts change with the
- * disclosure size, so the same alignment holds for touch and mouse input.
+ * Folder and note rows reserve the same disclosure column. A branch therefore
+ * needs only one compact step for each level. The guide line and the inset
+ * stay visible without taking the name space of a deep folder.
  */
-const treeBranchClassName =
-  'ml-5 border-l border-edge-subtle pl-6 md:ml-4 md:pl-4';
+const treeBranchClassName = 'ml-3 border-l border-edge-subtle pl-1';
 
 /**
  * Renders the tree nodes as interactive collapsible lists.
