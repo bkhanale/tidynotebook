@@ -138,13 +138,24 @@ differs from the path of the head the client saw.
 ## Note links
 
 A link from one note to another is a standard Markdown link. There is no wiki
-syntax and no title lookup, so a rename of the target never breaks a link. No
-index of links is kept, and backlinks return in a later version. See
+syntax and no title lookup, so a rename of the target never breaks a link. See
 [decision 0004](../decisions/0004-standard-links-between-notes.md).
+
+The accepted body of a note is indexed by the paths that it links to.
+`packages/storage-server/src/workspace-store/portable-links.ts` writes the
+`note_links` rows inside the transaction that accepted the changeset, and it
+also adds the revisions that keep a link live after a move. A draft is
+therefore never in the index. `packages/core/src/files/backlinks.ts` reads the
+index behind the read permission of the workspace,
+`apps/server/src/routes/backlinks.ts` serves the one operation over it, and
+`apps/web/src/features/editor/backlinks.tsx` is the panel that a person reads.
+That panel reads the server index. The merge with an answer that the device
+derives is
+[decision 0037](../decisions/0037-backlinks-are-derived-on-the-device.md).
 
 ## Status mapping
 
-`apps/server/src/http/problem.ts` maps every domain failure in one table. Read
+`apps/server/src/plugins/problem.ts` maps every domain failure in one table. Read
 it rather than a copy. Two rules are not obvious from the table: a workspace
 the actor cannot see answers the same as one that does not exist, and a problem
 that refers to files carries their identifiers only, never a path and never

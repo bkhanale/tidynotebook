@@ -61,7 +61,17 @@ To search inside the note you have open, use **Ctrl + F** in the editor.
 Type `](` to get a list of your notes, and select one to insert a link. `[[`
 opens the same list and also inserts a normal Markdown link, so the file stays
 readable in any other editor. Follow a link with **Alt + Enter**, or hold
-**Ctrl** or **Cmd** and select it. There is no backlinks panel in this release.
+**Ctrl** or **Cmd** and select it.
+
+## See what links to a note
+
+**Links to this note** is at the side of the open note. It lists the notes that
+link to it. Select a name to open that note. Select the title of the list to
+collapse it or to open it again. A note that nothing links to says that no
+notes link here.
+
+The list reads the saved text of your notes, so save a new link to see it in
+the list. A narrow window hides this side panel.
 
 ## Remove a note or a folder
 
