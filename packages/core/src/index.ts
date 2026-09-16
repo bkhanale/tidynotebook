@@ -187,6 +187,7 @@ export {
 } from './search/service.ts';
 export type {
   PublicationScope,
+  PublishedAttachmentReference,
   PublishedLink,
   PublishedNote,
   PublishedNoteContent,

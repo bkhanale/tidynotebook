@@ -26,6 +26,7 @@ import {
   OperationalError,
   maxListedFiles,
   type PublicationReader,
+  type PublishedAttachmentReference,
   type PublishedLink,
   type PublishedNote,
   type PublishedNoteContent,
@@ -164,14 +165,16 @@ export function publicationsRepository(
       .limit(Math.min(Math.trunc(limit), maxListedFiles));
   };
 
-  /** The head revisions of the attachment files of these stored paths. */
+  /** The head revision of each attachment file of these stored paths. */
   const attachmentHeads = async (
     open: StoredPublication,
     paths: readonly string[],
-  ): Promise<readonly string[]> => {
+  ): Promise<
+    readonly { readonly path: string; readonly revisionId: string }[]
+  > => {
     if (paths.length === 0) return [];
     const rows = await db
-      .select({ revisionId: revisions.id })
+      .select({ path: files.path, revisionId: revisions.id })
       .from(files)
       .innerJoin(
         revisions,
@@ -190,7 +193,7 @@ export function publicationsRepository(
         ),
       )
       .limit(maxListedFiles);
-    return rows.map((row) => row.revisionId);
+    return rows;
   };
 
   return {
@@ -270,7 +273,7 @@ export function publicationsRepository(
     async attachmentsOfNote(
       link: PublishedLink,
       note: PublishedNote,
-    ): Promise<readonly string[]> {
+    ): Promise<readonly PublishedAttachmentReference[]> {
       const open = requireOpen(link);
       if (!isUuid(note.fileId)) return [];
       // The answer states what the current head names, so it reads the note
@@ -279,18 +282,24 @@ export function publicationsRepository(
       const row = rows[0];
       if (row === undefined) return [];
       const references = extractAttachmentRefs(publishedText(row), row.path);
-      const named = new Set<string>();
+      // The written form of each reference keys the answer, because that is
+      // the text that the renderer of a reader surface hands to its resolver.
+      const named = new Map<string, string>();
       const paths = new Set<string>();
       for (const reference of references) {
         // A reference of version 0.1.0 names the revision itself. A portable
         // reference names a path, and the current head of that file is the
         // revision that a reader may read.
-        if (reference.revisionId !== null) named.add(reference.revisionId);
+        if (reference.revisionId !== null)
+          named.set(reference.revisionId, reference.revisionId);
         else if (reference.targetPath !== null) paths.add(reference.targetPath);
       }
-      for (const revisionId of await attachmentHeads(open, [...paths]))
-        named.add(revisionId);
-      return [...named];
+      for (const head of await attachmentHeads(open, [...paths]))
+        named.set(head.path, head.revisionId);
+      return [...named].map(([reference, revisionId]) => ({
+        reference,
+        revisionId,
+      }));
     },
   };
 }

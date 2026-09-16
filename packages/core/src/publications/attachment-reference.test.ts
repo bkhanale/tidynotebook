@@ -14,6 +14,7 @@ import {
   type ReaderRefusalLog,
 } from './errors.ts';
 import type {
+  PublishedAttachmentReference,
   PublishedLink,
   PublishedNote,
   PublishedNoteContent,
@@ -54,11 +55,14 @@ const notes: readonly PublishedNoteContent[] = [
   note(inTrash, 'notes/trip/gone.md', true),
 ];
 
-/** What the current head of each note names. */
-const named = new Map<string, readonly string[]>([
-  [inScope, [picture]],
-  [outOfScope, [secretPicture]],
-  [inTrash, [picture]],
+/** What the current head of each note names, as the storage layer reads it. */
+const named = new Map<string, readonly PublishedAttachmentReference[]>([
+  [inScope, [{ reference: 'attachments/photo.png', revisionId: picture }]],
+  [
+    outOfScope,
+    [{ reference: 'attachments/pay.png', revisionId: secretPicture }],
+  ],
+  [inTrash, [{ reference: 'attachments/photo.png', revisionId: picture }]],
 ]);
 
 const link: PublishedLink = {

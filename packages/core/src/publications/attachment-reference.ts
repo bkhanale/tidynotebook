@@ -54,7 +54,7 @@ export function resolvePublishedAttachment(
     if (note === null || !isNoteInScope(link.scope, note))
       return refuseRead<PublishedAttachment>(context.refusals, 'out_of_scope');
     const named = await reader.attachmentsOfNote(link, note);
-    if (!named.includes(request.revisionId))
+    if (!named.some((entry) => entry.revisionId === request.revisionId))
       return refuseRead<PublishedAttachment>(context.refusals, 'no_reference');
     return ok({ link, note, revisionId: request.revisionId });
   });

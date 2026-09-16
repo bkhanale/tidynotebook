@@ -74,6 +74,25 @@ export type PublishedNote = ScopedNote & {
   readonly updatedAt: string;
 };
 
+/**
+ * One attachment reference of a note, and the revision it names now.
+ *
+ * The stored Markdown writes a reference in one of two forms: a portable path
+ * under decision 0021, or a revision identifier of the first release. The
+ * `reference` member repeats that written form, and `revisionId` states the
+ * attachment revision that the form names at this instant.
+ *
+ * A reader surface needs both. It proves a request against `revisionId`, and
+ * it builds the address of a picture from `reference`, because that is the
+ * text that the renderer hands to its resolver.
+ */
+export type PublishedAttachmentReference = {
+  /** The reference as the stored Markdown writes it. */
+  readonly reference: string;
+  /** The attachment revision that the reference names now. */
+  readonly revisionId: string;
+};
+
 /** One note with the Markdown of its current head. */
 export type PublishedNoteContent = PublishedNote & {
   readonly text: string;

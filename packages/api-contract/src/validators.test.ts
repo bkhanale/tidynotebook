@@ -19,6 +19,7 @@ import { compileCounts } from './validators.ts';
 import {
   describeIssues,
   requestValidator,
+  responseMediaTypes,
   responseValidator,
 } from './index.ts';
 
@@ -193,15 +194,25 @@ const refusal = {
   requestId: '00000000-0000-4000-8000-000000000000',
 };
 
-await test('every reader operation refuses with one shape', () => {
-  for (const id of [
-    'getPublishedPage',
-    'unlockPublishedLink',
-    'getPublishedAttachment',
-  ] as const) {
+await test('every reader subresource refuses with one shape', () => {
+  // Record 0047 gives the page one answer for every state of a link, so the
+  // page declares no refusal at all. The two subresources keep it: a picture
+  // cannot show a sentence, and the unlock answers a program.
+  for (const id of ['unlockPublishedLink', 'getPublishedAttachment'] as const) {
     const validate = responseValidator(id, 404, 'application/problem+json');
     assert.ok(validate !== undefined, id);
     assert.equal(validate(refusal), true, id);
+  }
+});
+
+await test('the page of a published link answers one document', () => {
+  for (const id of ['getPublishedPage', 'openPublishedPage'] as const) {
+    assert.deepEqual(responseMediaTypes(id, 200), ['text/html'], id);
+    assert.equal(
+      responseValidator(id, 404, 'application/problem+json'),
+      undefined,
+      id,
+    );
   }
 });
 

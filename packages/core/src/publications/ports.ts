@@ -15,6 +15,7 @@
  * `errors.ts`, so the whole shape of a refusal is in one file.
  */
 import type {
+  PublishedAttachmentReference,
   PublishedLink,
   PublishedNote,
   PublishedNoteContent,
@@ -91,16 +92,21 @@ export type PublicationReader = {
     limit: number,
   ): Promise<readonly PublishedNote[]>;
   /**
-   * The attachment revisions that the current head of this note names.
+   * The attachment references that the current head of this note names.
    *
    * The answer states what the stored Markdown references now. A revision that
    * only an older head named is not in it, so a reader cannot hold an address
    * that the note dropped.
+   *
+   * Each entry carries the written form of the reference beside the revision
+   * that it names. The written form is what the renderer of a reader surface
+   * receives, and the revision is what the address of a picture carries, so
+   * one read serves both the proof and the page.
    */
   attachmentsOfNote(
     link: PublishedLink,
     note: PublishedNote,
-  ): Promise<readonly string[]>;
+  ): Promise<readonly PublishedAttachmentReference[]>;
 };
 
 /** Opens one read-only publication transaction. */

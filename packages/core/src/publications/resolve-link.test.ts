@@ -14,6 +14,7 @@ import {
   type ReaderRefusalLog,
 } from './errors.ts';
 import type {
+  PublishedAttachmentReference,
   PublishedLink,
   PublishedNote,
   PublishedNoteContent,
@@ -35,7 +36,7 @@ type State = {
   link: PublishedLink | null;
   ticket: ReadingTicket | null;
   notes: PublishedNoteContent[];
-  attachments: Map<string, readonly string[]>;
+  attachments: Map<string, readonly PublishedAttachmentReference[]>;
 };
 
 /** One link that opens one folder and asks for no password. */
