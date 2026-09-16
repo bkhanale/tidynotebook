@@ -50,8 +50,8 @@ export const claudeEntry =
   '@AGENTS.md\n\nAGENTS.md is the source of every rule.\n';
 
 /** The change skill, and the link that the second harness reads. */
-export const skillFile = '.agents/skills/grounded-change/SKILL.md';
-export const skillLink = '.claude/skills/grounded-change/SKILL.md';
+export const skillFile = '.agents/skills/build-it-right/SKILL.md';
+export const skillLink = '.claude/skills/build-it-right/SKILL.md';
 
 /**
  * Checks the skill frontmatter against the Agent Skills rules.

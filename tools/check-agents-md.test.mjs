@@ -41,7 +41,7 @@ function guide(lines = 3) {
 
 /** A skill file that holds valid frontmatter. */
 const skill = `---
-name: grounded-change
+name: build-it-right
 description: Loads the repository context and lists every file to read. Use it before the first edit of a change.
 ---
 
@@ -78,8 +78,8 @@ function check(overrides, options = {}) {
     if (options.link !== false) {
       mkdirSync(join(directory, '.claude/skills'), { recursive: true });
       symlinkSync(
-        '../../.agents/skills/grounded-change',
-        join(directory, '.claude/skills/grounded-change'),
+        '../../.agents/skills/build-it-right',
+        join(directory, '.claude/skills/build-it-right'),
       );
     }
     const result = spawnSync(process.execPath, [checker, '--root', directory], {
@@ -158,10 +158,7 @@ await test('an entry file with more than the import fails', () => {
 
 await test('a skill name outside the allowed shape fails', () => {
   const result = check({
-    [skillFile]: skill.replace(
-      'name: grounded-change',
-      'name: Grounded_Change',
-    ),
+    [skillFile]: skill.replace('name: build-it-right', 'name: Build_It_Right'),
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /lower case letters/);

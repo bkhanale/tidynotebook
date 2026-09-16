@@ -11,9 +11,9 @@ Run `node tools/agent-context.mjs <paths you will touch>` before your first
 edit. It prints the reading list for those paths: the rules, the documents,
 the `AGENTS.md` of each directory, and the key files that the guide names.
 Read every file that it lists, then restate the task against them. The
-`grounded-change` skill drives the same steps in Claude Code and in Codex, and
+`build-it-right` skill drives the same steps in Claude Code and in Codex, and
 it also states how to build, verify and report the change. The skill is
-`.agents/skills/grounded-change/SKILL.md`, and `.claude/skills/grounded-change`
+`.agents/skills/build-it-right/SKILL.md`, and `.claude/skills/build-it-right`
 links to it.
 
 ## Requirements
