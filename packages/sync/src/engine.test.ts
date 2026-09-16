@@ -1590,6 +1590,72 @@ await test('an explicit request wakes the engine before its safety interval', as
   assert.equal(pulls, 2);
 });
 
+await test('many requests in one cycle ask for one more pass', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  let pulls = 0;
+  let resume: (() => void) | null = null;
+  const ops = stubOperations({
+    changes: async (cursor) => {
+      pulls += 1;
+      await new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      return { ok: true as const, value: { changes: [], nextCursor: cursor } };
+    },
+  });
+  /** Lets the pass that waits on the server finish. */
+  async function finishPass(): Promise<void> {
+    await waitFor(() => resume !== null);
+    const go = resume;
+    resume = null;
+    if (go === null) throw new Error('The pass held no resume function.');
+    go();
+  }
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-coalesce',
+    operations: ops,
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    // A safety interval that never ends, so only a request starts a pass.
+    // It still stops with the run, which lets the engine close at the end.
+    sleep: (_ms, signal) =>
+      new Promise<void>((_resolve, reject) => {
+        const stop = (): void => {
+          reject(new DOMException('The sync run stopped.', 'AbortError'));
+        };
+        if (signal.aborted) stop();
+        else signal.addEventListener('abort', stop, { once: true });
+      }),
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+
+  // The first pass is in flight. Three requests arrive while it runs, which
+  // is what a person who moves between windows quickly produces.
+  await waitFor(() => pulls === 1);
+  engine.requestSync();
+  engine.requestSync();
+  engine.requestSync();
+  await finishPass();
+
+  // The three requests name one more pass between them, not one pass each.
+  await waitFor(() => pulls === 2);
+  await finishPass();
+
+  // The safety interval never ends in this test, so only a request can start
+  // another pass. One does, which proves the engine rests after the second
+  // pass and that the count above is the whole answer.
+  engine.requestSync();
+  await waitFor(() => pulls === 3);
+  await finishPass();
+  assert.equal(pulls, 3);
+
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
 await test('an expired session pauses the run without sending anything', async () => {
   const store = new FakeStore();
   store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));

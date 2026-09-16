@@ -58,7 +58,9 @@ depends on what another file wrote. See
 
 - No `fetch`, no `axios`, and no other handwritten transport. Use a generated
   operation, or `app.inject()` for a request that no operation can express.
-- No fixed delay. Wait for a condition, a locator, or a state.
+- No fixed delay. Wait for a condition, a locator, or a state. A journey that
+  needs a return to the window sends `blur` and then `focus`, because the
+  harness cannot make a window active and `bringToFront` sends no event.
 - No weakened assertion and no skipped failing test.
 - No shared database between test files, and no leaked temporary directory.
 - No dependence on a test only route in a browser journey.

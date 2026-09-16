@@ -334,10 +334,20 @@ test('A note deleted permanently in another session leaves the sidebar', async (
   await expect(purgeRow).toHaveCount(0);
   await otherContext.close();
 
-  await page.bringToFront();
+  // The first device stayed at the front for the whole journey, so it never
+  // lost the focus and the browser sends it nothing: `bringToFront` had
+  // nothing to bring forward. The device then waited out the safety interval
+  // of the sync engine, and the journey depended on the load of the machine.
+  // A person who comes back to the window makes the browser send `blur` and
+  // then `focus`, and the application asks the engine for a pass on `focus`,
+  // so this journey sends that pair. The purge arrives in one pass.
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event('blur'));
+    window.dispatchEvent(new Event('focus'));
+  });
   await expect(
     page.getByRole('heading', { name: 'Note deleted permanently' }),
-  ).toBeVisible({ timeout: 25_000 });
+  ).toBeVisible();
   await openNavigation(page);
   const tree = page.locator('section[aria-labelledby="tree-heading"]');
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
