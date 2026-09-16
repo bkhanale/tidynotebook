@@ -24,8 +24,9 @@ table. See [Single-user identity](../development/identity.md).
 ## What the product assumes
 
 - **There is one user.** The setup screen creates that account and then closes
-  itself. There is no second account, no invitation, no sharing, and no public
-  page.
+  itself. There is no second account and no invitation. The one way to show a
+  note to another person is a link that you publish yourself, and you can stop
+  it at any moment. See [Published links](published-links.md).
 - **Disk encryption is the operator's job.** The product expects encrypted host
   storage for the database, the attachments, the temporary files, swap, crash
   output, and the backups. See [Self-hosting](self-hosting.md).
@@ -47,8 +48,10 @@ table. See [Single-user identity](../development/identity.md).
 
 ## What the application does on its own
 
-- The session cookie is the only credential the API accepts. It is `HttpOnly`
-  and `SameSite`, and an HTTPS deployment marks it secure.
+- The session cookie is the only credential that reaches your notes. It is
+  `HttpOnly` and `SameSite`, and an HTTPS deployment marks it secure. A
+  published link carries its own secret in the address. That secret opens what
+  you published, for reading only, and it reaches nothing else.
 - A write must also name an origin that the installation serves.
 - Note content is rendered through one sanitizer. Raw HTML is dropped, and a
   link to anything other than a web address, a mail address, another note, or

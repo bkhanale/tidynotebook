@@ -20,6 +20,8 @@ For the person who writes the notes.
   bring an older version back.
 - [Working offline](offline.md) - what you can do with no connection.
 - [Trash](trash.md) - how a deleted note comes back.
+- [Published links](published-links.md) - show one note, or one folder, to a
+  person who has no account.
 - [Appearance and shortcuts](appearance-and-shortcuts.md) - themes, light and
   dark, and the keyboard.
 - [Export](export.md) - take every note out as plain Markdown files.
