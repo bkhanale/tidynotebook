@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { redactPath, redactUrl } from './request-log.ts';
+import { problemInstance, redactPath, redactUrl } from './request-log.ts';
 
 await test('redactUrl removes a password reset token from the path', () => {
   const token = 'live-reset-token';
@@ -58,4 +58,28 @@ await test('redactPath keeps an address that names no secret', () => {
   assert.equal(redactPath('/api/workspaces'), '/api/workspaces');
   // A path that only starts with the word is not the reader boundary.
   assert.equal(redactPath('/publishedxyz'), '/publishedxyz');
+});
+
+/**
+ * The address inside a problem body, which defect D46 named.
+ *
+ * The body declares `instance` as a URI reference, so the marker of a log
+ * record cannot travel into one. A secret address keeps its prefix only.
+ */
+await test('a problem body repeats no secret and no marker', () => {
+  const token = 'live-published-token';
+  assert.equal(
+    problemInstance(`/published/${token}/attachments/a/b?ticket=t`),
+    '/published/',
+  );
+  assert.equal(
+    problemInstance(`/api/auth/reset-password/${token}`),
+    '/api/auth/reset-password/',
+  );
+  // The marker of a log record is not a URI reference, so it is not here.
+  assert.ok(!problemInstance(`/published/${token}`).includes('['));
+  assert.equal(
+    problemInstance('/api/workspaces/123/search?q=private'),
+    '/api/workspaces/123/search',
+  );
 });

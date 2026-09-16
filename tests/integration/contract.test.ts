@@ -346,6 +346,7 @@ await test('every reader operation declares an empty security requirement', () =
   assert.deepEqual(readers.map((operation) => operation.id).sort(), [
     'getPublishedAttachment',
     'getPublishedPage',
+    'openPublishedPage',
     'unlockPublishedLink',
   ]);
   for (const reader of readers)
@@ -388,20 +389,47 @@ await test('an unguarded owner call is refused before any handler runs', async (
   assert.equal(asProblem(response.json()).code, 'unauthenticated');
 });
 
-await test('every reader failure answers one refusal', async () => {
+await test('the page of a published link always answers a page', async () => {
+  // Record 0047. The address that a person opens answers one document for
+  // every state of a link, so no error code and no request identifier reaches
+  // a screen. No publication store exists in this build, so every token is
+  // unknown, and the document says that the link is not available.
+  const token = 'aaaaaaaaaaaaaaaaaaaaaa';
+  const answer = await getPublishedPage({ path: { token } });
+  const response = responseOf(answer.response);
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type') ?? '', /^text\/html/);
+  assert.equal(response.headers.get('cache-control'), 'private, no-store');
+  assert.equal(response.headers.get('referrer-policy'), 'no-referrer');
+  const html = String(answer.data);
+  assert.ok(html.includes('This link is not available.'));
+  assert.ok(!html.includes('published_link_unavailable'));
+  assert.ok(!html.includes('<script'));
+});
+
+await test('a mistyped address reads like an unknown one', async () => {
+  // Record 0047. The token of a reader address takes any single segment, so
+  // the boundary refuses none of them and every one reads alike.
+  for (const token of ['short', 'a'.repeat(120), 'not a token']) {
+    const answer = await getPublishedPage({ path: { token } });
+    assert.equal(responseOf(answer.response).status, 200, token);
+    assert.ok(String(answer.data).includes('This link is not available.'));
+  }
+});
+
+await test('every reader subresource answers one refusal', async () => {
   // Decision 0030. A link that never existed, a revoked link, an expired link
   // and a wrong password all take this answer. No publication store exists in
   // this build, so every token is unknown, which is the first of the four.
   const token = 'aaaaaaaaaaaaaaaaaaaaaa';
   const note = '00000000-0000-4000-8000-000000000000';
-  const [page, unlock, attachment] = await Promise.all([
-    getPublishedPage({ path: { token } }),
+  const [unlock, attachment] = await Promise.all([
     unlockPublishedLink({ path: { token }, body: { password: 'x' } }),
     getPublishedAttachment({
       path: { token, fileId: note, revisionId: note },
     }),
   ]);
-  const answers = [page, unlock, attachment];
+  const answers = [unlock, attachment];
   for (const answer of answers) {
     assert.equal(answer.data, undefined);
     assert.equal(responseOf(answer.response).status, 404);
@@ -435,7 +463,6 @@ await test('every reader failure answers one refusal', async () => {
     return rest;
   });
   assert.deepEqual(shapes[0], shapes[1]);
-  assert.deepEqual(shapes[1], shapes[2]);
 });
 
 await test('a wrong password reads like an unknown token', async () => {

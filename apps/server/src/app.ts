@@ -58,7 +58,11 @@ import {
   servesApplicationShell,
   statFile,
 } from './plugins/static-assets.ts';
-import { attachRequestLogging, redactPath, redactUrl } from './request-log.ts';
+import {
+  attachRequestLogging,
+  problemInstance,
+  redactUrl,
+} from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createPublicationCleanup } from './jobs/publication-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
@@ -98,11 +102,12 @@ import { servedHostNames } from './served-origins.ts';
  * The address of one request, as a problem body repeats it.
  *
  * The query goes, so a reading ticket and a search term never reach a body,
- * and the path passes the one redaction rule of `request-log.ts`, because the
- * token of a published link is a path segment (decision 0046).
+ * and a secret path segment goes with it, because the token of a published
+ * link is a path segment (decision 0046). `request-log.ts` holds the one list
+ * of the prefixes that carry a secret.
  */
 function instanceOf(request: FastifyRequest): string {
-  return redactPath(request.url.split('?')[0] ?? request.url);
+  return problemInstance(request.url);
 }
 
 /**
