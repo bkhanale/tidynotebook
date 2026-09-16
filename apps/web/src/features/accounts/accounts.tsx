@@ -47,6 +47,7 @@ import {
   useRequestSync,
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
+import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import {
   signOut as endSession,
   revokeSessionViaClient,
@@ -72,12 +73,6 @@ export function RequireSession({
   }
   return children;
 }
-
-/** The shortest password the server accepts. */
-export const minPasswordLength = 12;
-
-/** The rule of the password field, stated before anything is submitted. */
-export const passwordRule = `Use at least ${String(minPasswordLength)} characters.`;
 
 /** How far the setup status call got. */
 type SetupStatus =
@@ -131,8 +126,9 @@ export function LoginPage(): ReactNode {
 
   async function submitPassword(): Promise<void> {
     setFieldError('');
-    if (setup && password.length < minPasswordLength) {
-      setFieldError('This password is too short.');
+    const problem = setup ? passwordProblem(password) : null;
+    if (problem !== null) {
+      setFieldError(problem);
       return;
     }
     if (setup && confirmation !== password) {

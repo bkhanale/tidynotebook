@@ -5,7 +5,7 @@ import {
   expiryPhrase,
   folderScopeSentences,
   linkDetail,
-  linkPasswordProblem,
+  linkPasswordRule,
   linkTitle,
   noteCountPhrase,
   notesInScope,
@@ -84,15 +84,11 @@ await test('a note link counts the one note it names', () => {
   assert.equal(notesInScope({ kind: 'note', fileId: 'gone' }, notes), 0);
 });
 
-await test('an empty password is accepted and a short one is refused', () => {
-  assert.equal(linkPasswordProblem(''), null);
-  assert.equal(linkPasswordProblem('correct horse battery'), null);
-  assert.equal(linkPasswordProblem('short'), 'This password is too short.');
+await test('the password rule states that an empty field makes an open link', () => {
   assert.equal(
-    linkPasswordProblem('12345678901'),
-    'This password is too short.',
+    linkPasswordRule,
+    'Leave this empty for a link that opens without a password. A password needs at least 12 characters.',
   );
-  assert.equal(linkPasswordProblem('123456789012'), null);
 });
 
 await test('a note link takes the name of its note and hides the suffix', () => {

@@ -20,7 +20,10 @@
  * A browser that serves this page over plain HTTP has no clipboard, which a
  * deployment on a local network commonly is. The dialog says so and leaves the
  * link in a field that a person selects with the keyboard, so the feature
- * works without a clipboard.
+ * works without a clipboard. The field takes focus with the whole value
+ * selected as soon as the link appears, because the control that the person
+ * pressed has just left the screen, and a keyboard then starts at the one
+ * value that this moment exists to hand over.
  */
 import { useEffect, useId, useState, type ReactNode } from 'react';
 import { createPublishedLink } from '@notesapp/api-client';
@@ -32,16 +35,17 @@ import {
   DialogBody,
   DialogFooter,
   Notice,
+  ReadOnlyField,
   SelectField,
   TextField,
 } from '@notesapp/ui';
 import { copyText } from '../../platform.ts';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
+import { optionalPasswordProblem } from '../../lib/password-policy.ts';
 import {
   expiryChoices,
   expiryInstant,
   folderScopeSentences,
-  linkPasswordProblem,
   linkPasswordRule,
   noteScopeSentence,
   notesInScope,
@@ -67,7 +71,6 @@ export function PublishDialog({
   workspaceId,
   scope,
   notes,
-  onPublished,
 }: {
   readonly open: boolean;
   readonly onClose: () => void;
@@ -76,8 +79,6 @@ export function PublishDialog({
   readonly scope: PublicationScope;
   /** The notes of the workspace, which state the reach of a folder link. */
   readonly notes: readonly { readonly fileId: string; readonly path: string }[];
-  /** Runs after the server made the link, so a list can read itself again. */
-  readonly onPublished?: (() => void) | undefined;
 }): ReactNode {
   const fieldId = useId();
   const titleId = `${fieldId}-title`;
@@ -130,7 +131,7 @@ export function PublishDialog({
 
   const publish = (): void => {
     if (busy) return;
-    const problem = linkPasswordProblem(password);
+    const problem = optionalPasswordProblem(password);
     setPasswordError(problem ?? '');
     if (problem !== null) return;
     setBusy(true);
@@ -158,7 +159,6 @@ export function PublishDialog({
       setAddress(
         publishedLinkAddress(window.location.origin, result.data.token),
       );
-      onPublished?.();
     })();
   };
 
@@ -227,21 +227,21 @@ export function PublishDialog({
             <p className="m-0 text-ui font-semibold text-strong" id={scopeId}>
               {copyNow}
             </p>
-            <label
-              className="mb-1.5 mt-4 block text-control font-semibold text-strong"
-              htmlFor={`${fieldId}-address`}
+            <div className="mt-4">
+              <ReadOnlyField
+                id={`${fieldId}-address`}
+                label="Link"
+                value={address}
+                autoFocus
+                describedBy={`${fieldId}-warning`}
+              />
+            </div>
+            <p
+              className="mb-0 text-control text-muted"
+              id={`${fieldId}-warning`}
             >
-              Link
-            </label>
-            <input
-              id={`${fieldId}-address`}
-              className="w-full rounded-lg border border-edge bg-app px-3 py-2 font-mono text-control text-strong outline-none focus:border-focus focus:ring-2 focus:ring-focus/25"
-              type="text"
-              value={address}
-              readOnly
-              onFocus={(event) => event.currentTarget.select()}
-            />
-            <p className="mb-0 mt-2 text-control text-muted">{loseItBack}</p>
+              {loseItBack}
+            </p>
             {clipboardMissing ? (
               <p className="mb-0 mt-2 text-control text-muted" role="status">
                 {noClipboard}

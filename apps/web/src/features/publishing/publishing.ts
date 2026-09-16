@@ -26,6 +26,7 @@ import {
 } from '@notesapp/core';
 import { problemSentence } from '../../lib/problem-text.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
+import { minPasswordLength } from '../../lib/password-policy.ts';
 import { relativeTime } from '../../lib/relative-time.ts';
 
 /**
@@ -138,23 +139,15 @@ export function folderScopeSentences(noteCount: number): readonly string[] {
 export const noteScopeSentence =
   'This link opens one note. A person who has the link reads it without an account.';
 
-/** The shortest password that the server accepts for a link. */
-export const minLinkPasswordLength = 12;
-
-/** The rule of the password field, stated before anything is sent. */
-export const linkPasswordRule = `Leave this empty for a link that opens without a password. A password needs at least ${String(minLinkPasswordLength)} characters.`;
-
 /**
- * States why a password is refused, or `null` when it is accepted.
+ * The rule of the password field, stated before anything is sent.
  *
- * An empty password is accepted: it means a link that opens without one.
+ * The length is the one policy of `../../lib/password-policy.ts`, which the
+ * setup screen reads as well, so the two fields cannot state two rules. This
+ * field adds the one fact that the setup field does not have: an empty value
+ * is an answer here, and it makes a link that opens without a password.
  */
-export function linkPasswordProblem(password: string): string | null {
-  if (password === '') return null;
-  if (password.length < minLinkPasswordLength)
-    return 'This password is too short.';
-  return null;
-}
+export const linkPasswordRule = `Leave this empty for a link that opens without a password. A password needs at least ${String(minPasswordLength)} characters.`;
 
 /** One link of the owner list, in the shape that the screen reads. */
 export type OwnedLink = {
