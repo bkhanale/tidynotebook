@@ -1,5 +1,12 @@
 @import 'tailwindcss';
 @source "../../../packages/ui/src";
+/*
+ * The published page of decision 0031 is a document that the server writes, and
+ * it loads this one built stylesheet so that it cannot drift from the theme.
+ * Its class names therefore live in one file of the server, and that file is a
+ * source of this stylesheet. Nothing else of the server is.
+ */
+@source "../../../apps/server/src/routes/published-document.ts";
 
 /*
  * The central theme variables that are emitted as real custom properties.
