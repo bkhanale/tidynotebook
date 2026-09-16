@@ -412,6 +412,17 @@ type OfflineChoices = {
   readonly history: boolean;
 };
 
+/**
+ * What this device can say about the saves that never reached the server.
+ *
+ * A read that did not answer is not a count of zero (record 0038). The card
+ * says that it cannot tell, and it offers the action that keeps the work.
+ */
+type PendingSaves =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'failed' }
+  | { readonly kind: 'ready'; readonly count: number };
+
 /** Whether this device could state what it keeps for offline use. */
 type OfflineStatus = 'loading' | 'ready' | 'failed';
 
@@ -547,7 +558,7 @@ export function AccountSettingsPage(): ReactNode {
   const store = useLocalStore();
   const workspace = useWorkspace();
   const navigate = useNavigate();
-  const [pendingCount, setPendingCount] = useState<number | null>(null);
+  const [pending, setPending] = useState<PendingSaves>({ kind: 'loading' });
   const [signOutError, setSignOutError] = useState('');
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
@@ -563,7 +574,7 @@ export function AccountSettingsPage(): ReactNode {
 
   useEffect(() => {
     if (store.store === null || accountId === null || workspaceId === null) {
-      setPendingCount(null);
+      setPending({ kind: 'loading' });
       return;
     }
     const activeStore = store.store;
@@ -571,10 +582,10 @@ export function AccountSettingsPage(): ReactNode {
     void activeStore
       .pending(accountId, workspaceId)
       .then((queue) => {
-        if (!cancelled) setPendingCount(queue.length);
+        if (!cancelled) setPending({ kind: 'ready', count: queue.length });
       })
       .catch(() => {
-        if (!cancelled) setPendingCount(null);
+        if (!cancelled) setPending({ kind: 'failed' });
       });
     return () => {
       cancelled = true;
@@ -582,7 +593,9 @@ export function AccountSettingsPage(): ReactNode {
   }, [store.store, accountId, workspaceId]);
 
   if (account === null) return <Navigate to="/login" replace />;
-  const pending = pendingCount ?? 0;
+  // Only a count that arrived can offer the action that removes work. An
+  // unknown count keeps the safe action alone (record 0038).
+  const unsent = pending.kind === 'ready' && pending.count > 0;
 
   function handleBack(): void {
     if (window.history.length > 1) {
@@ -767,10 +780,15 @@ export function AccountSettingsPage(): ReactNode {
         </Card>
 
         <Card title="Sign out" titleId="signout-heading">
-          {pending > 0 ? (
+          {pending.kind === 'loading' ? null : unsent ? (
             <p className="m-0 text-control text-muted">
               Some saves have not reached the server yet. Keep them on this
               device for the next sign-in, or remove them now.
+            </p>
+          ) : pending.kind === 'failed' ? (
+            <p className="m-0 text-control text-muted">
+              This device cannot say what is still waiting to reach the server.
+              Sign out keeps your work on this device.
             </p>
           ) : (
             <p className="m-0 text-control text-muted">
@@ -787,11 +805,9 @@ export function AccountSettingsPage(): ReactNode {
                 endSignOut(false);
               }}
             >
-              {pending > 0
-                ? 'Sign out and keep them'
-                : 'Sign out on this device'}
+              {unsent ? 'Sign out and keep them' : 'Sign out on this device'}
             </Button>
-            {pending > 0 ? (
+            {unsent ? (
               <Button
                 variant="danger"
                 onClick={() => {
