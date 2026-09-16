@@ -1,6 +1,6 @@
 # Plan 007: Published read-only links
 
-Status: active
+Status: complete
 
 > The live prioritized list is the
 > [GitHub project board](https://github.com/users/bkhanale/projects/2).

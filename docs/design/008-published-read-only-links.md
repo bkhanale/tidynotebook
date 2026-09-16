@@ -1,6 +1,6 @@
 # 008: Published read-only links
 
-Status: active
+Status: complete
 
 This design states how a person publishes one note or one folder to a reader
 who has no account. It answers the row "Publish a read-only link to a note or a
