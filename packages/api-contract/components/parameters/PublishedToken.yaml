@@ -5,6 +5,8 @@ style: simple
 explode: false
 description: >-
   The token of the published link. It is the one part of the address that
-  opens the link.
+  opens the link. Any single segment of an address is accepted here, because
+  a value that no link holds opens nothing and must read like every other
+  value that no link holds.
 schema:
-  $ref: '../schemas/PublishedTokenValue.yaml'
+  $ref: '../schemas/PublishedSecret.yaml'

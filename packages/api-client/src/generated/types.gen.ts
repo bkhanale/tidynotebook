@@ -801,6 +801,16 @@ export type PublishedNoteScope = {
 };
 
 /**
+ * The one field of the password form of a published page. A served page holds no script, so the browser sends the field in the form encoding of HTML and the server reads one name from it.
+ */
+export type PublishedPasswordFormInput = {
+    /**
+     * The password that the owner gave the link. Any value is accepted here and a wrong value answers the same page, so the answer states nothing about the link or about the password policy.
+     */
+    password: string;
+};
+
+/**
  * The one refusal of the reader path. A link that never existed, a revoked link, an expired link and a wrong password all take this body, so the answer states nothing about the link. The shape is closed and every member that could carry a difference is fixed, so a later change cannot add a word that tells the four causes apart. The body names no note, no folder, no account and no identifier of the product.
  */
 export type PublishedRefusal = {
@@ -838,6 +848,11 @@ export type PublishedRefusal = {
  * What one published link opens.
  */
 export type PublishedScope = PublishedNoteScope | PublishedFolderScope;
+
+/**
+ * One secret of a reader, as it travels in the address of a published link. The token is a path segment and the reading ticket is a query value, and the server compares a digest of what it received with a digest at rest. A value of any other shape therefore opens nothing, exactly as an unknown value opens nothing, so this shape stays wide on purpose: a reader that mistypes an address must read the one answer of the reader path and never a refusal that tells it that the shape was wrong. The shape of the value that the server draws is in PublishedTokenValue.
+ */
+export type PublishedSecret = string;
 
 /**
  * The opaque value that opens one published link. The server draws it at random, so it names no note, no folder and no account. The server keeps only a digest of it, and it appears once, in the address that the owner copies.
@@ -1639,14 +1654,14 @@ export type SyncLimit = number;
 export type PublicationId = Uuid;
 
 /**
- * The token of the published link. It is the one part of the address that opens the link.
+ * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
  */
-export type PublishedToken = PublishedTokenValue;
+export type PublishedToken = PublishedSecret;
 
 /**
  * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
  */
-export type ReadingTicket = ReadingTicketValue;
+export type ReadingTicket = PublishedSecret;
 
 /**
  * The settings to store for the signed in account.
@@ -1727,6 +1742,11 @@ export type CreatePublishedLink = CreatePublishedLinkInputWritable;
  * The password of the published link.
  */
 export type UnlockPublishedLink = UnlockPublishedLinkInput;
+
+/**
+ * The password of the published link, as its page form sends it.
+ */
+export type PublishedPasswordForm = PublishedPasswordFormInput;
 
 export type GetAccountData = {
     body?: never;
@@ -4371,15 +4391,15 @@ export type GetPublishedPageData = {
     };
     path: {
         /**
-         * The token of the published link. It is the one part of the address that opens the link.
+         * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
          */
-        token: PublishedTokenValue;
+        token: PublishedSecret;
     };
     query?: {
         /**
          * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
          */
-        ticket?: ReadingTicketValue;
+        ticket?: PublishedSecret;
     };
     url: '/published/{token}';
 };
@@ -4389,10 +4409,6 @@ export type GetPublishedPageErrors = {
      * The request did not match the contract.
      */
     400: ProblemDetails;
-    /**
-     * The link is not available. Every reader operation answers this one shape for a link that never existed, a revoked link, an expired link and a wrong password, so the four causes read alike.
-     */
-    404: PublishedRefusal;
     /**
      * The service failed to complete the request.
      */
@@ -4410,6 +4426,61 @@ export type GetPublishedPageResponses = {
 
 export type GetPublishedPageResponse = GetPublishedPageResponses[keyof GetPublishedPageResponses];
 
+export type OpenPublishedPageData = {
+    /**
+     * The password of the published link, as its page form sends it.
+     */
+    body: PublishedPasswordForm;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
+         */
+        token: PublishedSecret;
+    };
+    query?: never;
+    url: '/published/{token}';
+};
+
+export type OpenPublishedPageErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type OpenPublishedPageError = OpenPublishedPageErrors[keyof OpenPublishedPageErrors];
+
+export type OpenPublishedPageResponses = {
+    /**
+     * The published page, as one HTML document.
+     */
+    200: PublishedDocument;
+};
+
+export type OpenPublishedPageResponse = OpenPublishedPageResponses[keyof OpenPublishedPageResponses];
+
 export type GetPublishedAttachmentData = {
     body?: never;
     headers?: {
@@ -4420,9 +4491,9 @@ export type GetPublishedAttachmentData = {
     };
     path: {
         /**
-         * The token of the published link. It is the one part of the address that opens the link.
+         * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
          */
-        token: PublishedTokenValue;
+        token: PublishedSecret;
         /**
          * Identifier of the file that the operation acts on.
          */
@@ -4436,7 +4507,7 @@ export type GetPublishedAttachmentData = {
         /**
          * The reading ticket of a link that has a password. The reader carries it in the address, because a picture inside a server built page sets no header and the reader path sets no cookie. Leave it out for a link that opens without a password.
          */
-        ticket?: ReadingTicketValue;
+        ticket?: PublishedSecret;
     };
     url: '/published/{token}/attachments/{fileId}/{revisionId}';
 };
@@ -4480,9 +4551,9 @@ export type UnlockPublishedLinkData = {
     };
     path: {
         /**
-         * The token of the published link. It is the one part of the address that opens the link.
+         * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
          */
-        token: PublishedTokenValue;
+        token: PublishedSecret;
     };
     query?: never;
     url: '/published/{token}/unlock';

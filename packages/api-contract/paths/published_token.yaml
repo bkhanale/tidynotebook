@@ -5,9 +5,10 @@ get:
     Answers the published note as one HTML document that the server builds
     with the one sanitized renderer. The operation declares an empty
     security requirement, so no identity hook runs for it and no session
-    reaches it. A link that never existed, a revoked link, an expired link
-    and a link whose password the reader has not given all take the one
-    refusal, so the answer states nothing about the link.
+    reaches it. Every state of a link answers one document: it shows the
+    note, or it says that the link is not available, or it asks for the
+    password. A link that never existed, a revoked link, an expired link
+    and a wrong password therefore read alike.
   tags:
     - published
   security: []
@@ -20,7 +21,38 @@ get:
       $ref: '../components/responses/PublishedPage.yaml'
     '400':
       $ref: '../components/responses/BadRequest.yaml'
-    '404':
-      $ref: '../components/responses/PublishedLinkUnavailable.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+post:
+  operationId: openPublishedPage
+  summary: Give the password of a published link from its page.
+  description: >-
+    Takes the password that the form of the published page carries and
+    answers the page again. A served page holds no script, so the form
+    sends a form encoded body and the answer is a document rather than a
+    program. The right password answers the note, and every address on that
+    page carries the reading ticket. A wrong password answers the same form
+    and the same words as a link that was never opened. The operation
+    declares an empty security requirement, so no identity hook runs for it.
+    The shared attempt limit of the public routes guards the password check.
+  tags:
+    - published
+  security: []
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/PublishedToken.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/PublishedPasswordForm.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/PublishedPage.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'

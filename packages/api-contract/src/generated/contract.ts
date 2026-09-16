@@ -38,6 +38,7 @@ export type OperationId =
   | 'listHistory'
   | 'listPublishedLinks'
   | 'listWorkspaces'
+  | 'openPublishedPage'
   | 'previewPurge'
   | 'purgeFiles'
   | 'requestPasswordReset'
@@ -502,6 +503,11 @@ export const sharedDefinitions: JsonSchema = {
         }
       }
     },
+    "PublishedDocument": {
+      "type": "string",
+      "description": "The published page, as one HTML document. The server builds it from the stored Markdown with the one sanitized renderer, and it holds no script. Its only style sheet is the built style sheet of the application.",
+      "maxLength": 8388608
+    },
     "PublishedFolderScope": {
       "type": "object",
       "description": "A link that opens one folder and every note below it. A folder is a part of a note path, so the scope is a path prefix inside one workspace. A note in the Trash stays outside it.",
@@ -622,12 +628,12 @@ export const sharedDefinitions: JsonSchema = {
         }
       ]
     },
-    "PublishedTokenValue": {
+    "PublishedSecret": {
       "type": "string",
-      "description": "The opaque value that opens one published link. The server draws it at random, so it names no note, no folder and no account. The server keeps only a digest of it, and it appears once, in the address that the owner copies.",
-      "pattern": "^[A-Za-z0-9_-]{22,64}$",
-      "minLength": 22,
-      "maxLength": 64
+      "description": "One secret of a reader, as it travels in the address of a published link. The token is a path segment and the reading ticket is a query value, and the server compares a digest of what it received with a digest at rest. A value of any other shape therefore opens nothing, exactly as an unknown value opens nothing, so this shape stays wide on purpose: a reader that mistypes an address must read the one answer of the reader path and never a refusal that tells it that the shape was wrong. The shape of the value that the server draws is in PublishedTokenValue.",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[^/?#]+$"
     },
     "ReadinessCheck": {
       "type": "object",
@@ -671,13 +677,6 @@ export const sharedDefinitions: JsonSchema = {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared73"
         }
       }
-    },
-    "ReadingTicketValue": {
-      "type": "string",
-      "description": "The value that a reader carries after it gives the password of a link. It is bound to that one link, it lives 12 hours, and a read does not move its expiry. The server keeps only a digest of it.",
-      "pattern": "^[A-Za-z0-9_-]{22,64}$",
-      "minLength": 22,
-      "maxLength": 64
     },
     "Removed": {
       "type": "object",
@@ -1273,7 +1272,7 @@ export const sharedDefinitions: JsonSchema = {
       "type": "object",
       "properties": {
         "ticket": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ReadingTicketValue"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedSecret"
         }
       },
       "additionalProperties": false
@@ -1326,7 +1325,7 @@ export const sharedDefinitions: JsonSchema = {
       "type": "object",
       "properties": {
         "token": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedTokenValue"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedSecret"
         }
       },
       "required": [
@@ -2289,7 +2288,11 @@ export const operations: readonly OperationEntry[] = [
             "token": {
               "allOf": [
                 {
-                  "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedTokenValue"
+                  "type": "string",
+                  "description": "The opaque value that opens one published link. The server draws it at random, so it names no note, no folder and no account. The server keeps only a digest of it, and it appears once, in the address that the owner copies.",
+                  "pattern": "^[A-Za-z0-9_-]{22,64}$",
+                  "minLength": 22,
+                  "maxLength": 64
                 }
               ],
               "readOnly": true,
@@ -4106,7 +4109,7 @@ export const operations: readonly OperationEntry[] = [
         "type": "object",
         "properties": {
           "token": {
-            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedTokenValue"
+            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedSecret"
           },
           "fileId": {
             "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -4248,9 +4251,7 @@ export const operations: readonly OperationEntry[] = [
         "mediaType": "text/html",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "type": "string",
-          "description": "The published page, as one HTML document. The server builds it from the stored Markdown with the one sanitized renderer, and it holds no script. Its only style sheet is the built style sheet of the application.",
-          "maxLength": 8388608
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedDocument"
         }
       },
       {
@@ -4259,14 +4260,6 @@ export const operations: readonly OperationEntry[] = [
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
-        }
-      },
-      {
-        "status": 404,
-        "mediaType": "application/problem+json",
-        "schema": {
-          "$schema": "https://json-schema.org/draft/2020-12/schema",
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedRefusal"
         }
       },
       {
@@ -6006,6 +5999,115 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "openPublishedPage",
+    "method": "post",
+    "path": "/published/{token}",
+    "protocol": null,
+    "security": [],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "token",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared71"
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared2"
+      },
+      "body": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "description": "The one field of the password form of a published page. A served page holds no script, so the browser sends the field in the form encoding of HTML and the server reads one name from it.",
+        "additionalProperties": false,
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "writeOnly": true,
+            "description": "The password that the owner gave the link. Any value is accepted here and a wrong value answers the same page, so the answer states nothing about the link or about the password policy.",
+            "minLength": 1,
+            "maxLength": 512
+          }
+        }
+      },
+      "bodyMediaType": "application/x-www-form-urlencoded"
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "text/html",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/PublishedDocument"
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 413,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 429,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7846,7 +7948,11 @@ export const operations: readonly OperationEntry[] = [
             "ticket": {
               "allOf": [
                 {
-                  "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ReadingTicketValue"
+                  "type": "string",
+                  "description": "The value that a reader carries after it gives the password of a link. It is bound to that one link, it lives 12 hours, and a read does not move its expiry. The server keeps only a digest of it.",
+                  "pattern": "^[A-Za-z0-9_-]{22,64}$",
+                  "minLength": 22,
+                  "maxLength": 64
                 }
               ],
               "readOnly": true,
