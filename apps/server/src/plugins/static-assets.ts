@@ -15,6 +15,11 @@
  *   * A document gets the content policy of its kind, and the installed
  *     application worker gets a policy that lets it reach its own origin.
  *     Everything else keeps the base policy of `security-headers.ts`.
+ *
+ * A fourth rule decides what an address with no file behind it receives. The
+ * web application is one document with a router on the device, so an address
+ * that names a page of that router still gets the shell. An address that names
+ * a file does not. See `servesApplicationShell`.
  */
 import { createHash } from 'node:crypto';
 import { createReadStream, readFileSync, statSync } from 'node:fs';
@@ -44,6 +49,36 @@ export function mimeTypeFor(filePath: string): string {
   if (filePath.endsWith('.woff2')) return 'font/woff2';
   // Source maps are not served (decision 0013), so no `.map` type is mapped.
   return 'application/octet-stream';
+}
+
+/**
+ * Whether one address with no file behind it receives the application shell.
+ *
+ * The router of the application lives on the device, so the server holds no
+ * list of its pages. An address that names no file and no operation is
+ * therefore still a page, and it gets the shell so that the router can read
+ * it. An address that names a file is not a page: the caller asked for a
+ * script, a style, a font, or an image, and the shell is the wrong kind of
+ * bytes. Every answer carries `nosniff`, so a shell that arrives in place of a
+ * script is refused by the browser, and the page then reports a module that
+ * cannot load instead of the file that is missing. Such an address gets 404.
+ *
+ * The address is the one input. The name of the last segment is the only thing
+ * about a request that no hop can change, so the rule holds for a browser, for
+ * an installed worker that asks again on behalf of a page, and for a command
+ * line caller.
+ *
+ * `Sec-Fetch-Dest` is not the key, although it states what the caller will do
+ * with the bytes. It names the immediate caller, and the installed worker of
+ * this application is a legitimate immediate caller: a navigation that the
+ * worker fetches again arrives with `Sec-Fetch-Dest: empty`, and a rule that
+ * read that header refused the page of the person. The `/assets/` prefix is not
+ * the key either, because it names the output directory of one build tool and
+ * misses `/service-worker.js`, `/manifest.webmanifest`, and the icons.
+ */
+export function servesApplicationShell(path: string): boolean {
+  const lastSegment = path.slice(path.lastIndexOf('/') + 1);
+  return !/\.[A-Za-z0-9]+$/.test(lastSegment);
 }
 
 /** A content encoding that the build can prepare in advance. */

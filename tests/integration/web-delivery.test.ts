@@ -269,6 +269,62 @@ await test('a source map is never served, even when it is in the build', async (
   }
 });
 
+await test('a missing asset is 404 and never the application shell', async () => {
+  const directory = await writeBuild();
+  const server = await startTestServer({ webDist: directory });
+  const missing = '/assets/shell-Z9Y8X7W6.js';
+  try {
+    // The shell is the wrong kind of bytes for a script, and every answer
+    // carries `nosniff`, so a shell served here would be refused by the
+    // browser and the page would report a module that cannot load instead of
+    // the file that is missing.
+    const answer = await server.app.inject({ method: 'GET', url: missing });
+    assert.equal(answer.statusCode, 404);
+    assert.notEqual(answer.headers['content-type'], 'text/html; charset=utf-8');
+    assert.equal(answer.body.includes('<!doctype html>'), false);
+
+    // A browser states what it will do with the bytes, and the answer is the
+    // same, because the address decides and not the caller.
+    const stated = await server.app.inject({
+      method: 'GET',
+      url: missing,
+      headers: { 'sec-fetch-dest': 'script', 'sec-fetch-mode': 'cors' },
+    });
+    assert.equal(stated.statusCode, 404);
+    assert.notEqual(stated.headers['content-type'], 'text/html; charset=utf-8');
+
+    // Every other missing address is still a page of the router on the device.
+    const page = await server.app.inject({
+      method: 'GET',
+      url: '/w/one/notes/two',
+      headers: { 'sec-fetch-dest': 'document', 'sec-fetch-mode': 'navigate' },
+    });
+    assert.equal(page.statusCode, 200);
+    assert.equal(page.headers['content-type'], 'text/html; charset=utf-8');
+
+    // The installed worker asks again on behalf of a page it controls, and
+    // that request names the worker as the caller. A page must not depend on
+    // the hop it took, so the same address still receives the shell.
+    const throughWorker = await server.app.inject({
+      method: 'GET',
+      url: '/w/one/notes/two',
+      headers: {
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'navigate',
+        'sec-fetch-site': 'same-origin',
+      },
+    });
+    assert.equal(throughWorker.statusCode, 200);
+    assert.equal(
+      throughWorker.headers['content-type'],
+      'text/html; charset=utf-8',
+    );
+  } finally {
+    await server.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 await test('the service worker is revalidated on every load', async () => {
   const directory = await writeBuild();
   const server = await startTestServer({ webDist: directory });

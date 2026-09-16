@@ -50,7 +50,11 @@ import {
   problemMediaType,
 } from './plugins/problem.ts';
 import { baseSecurityHeaders } from './plugins/security-headers.ts';
-import { sendStaticFile, statFile } from './plugins/static-assets.ts';
+import {
+  sendStaticFile,
+  servesApplicationShell,
+  statFile,
+} from './plugins/static-assets.ts';
 import { attachRequestLogging, redactUrl } from './request-log.ts';
 import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
@@ -275,8 +279,16 @@ export async function createAppWithHandlers(
             });
           }
         }
+        // The file is missing. Only an address that names a page of the
+        // router on the device receives the shell; an address that names a
+        // file receives the not-found problem below, because a script that
+        // arrives as HTML is refused by `nosniff` and hides the real cause.
         const indexPath = resolve(webDist, 'index.html');
-        if (!isSourceMap && statFile(indexPath) !== null) {
+        if (
+          !isSourceMap &&
+          servesApplicationShell(decodedPath ?? rawPath) &&
+          statFile(indexPath) !== null
+        ) {
           return sendStaticFile(request, reply, {
             filePath: indexPath,
             relativePath: 'index.html',
