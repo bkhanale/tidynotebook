@@ -105,4 +105,14 @@ export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
+export { createPublicationCleanup } from './jobs/publication-cleanup.ts';
+export {
+  createPublicationHasher,
+  newPublishedSecret,
+  secretDigest,
+} from './auth/publication-secrets.ts';
+export {
+  publishedDocumentContentPolicy,
+  publishedDocumentHeaders,
+} from './plugins/security-headers.ts';
 export { createSearchHandlers } from './routes/search.ts';
