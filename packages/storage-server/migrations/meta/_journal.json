@@ -29,6 +29,13 @@
       "when": 1789353530280,
       "tag": "0003_fat_ezekiel",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1789530929852,
+      "tag": "0004_abnormal_vampiro",
+      "breakpoints": true
     }
   ]
 }

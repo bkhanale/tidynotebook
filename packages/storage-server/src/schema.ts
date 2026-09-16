@@ -51,6 +51,9 @@ export const attachmentState = pgEnum('attachment_state', [
   'unavailable',
 ]);
 
+/** What one published link opens: one note, or one folder and its notes. */
+export const publicationScope = pgEnum('publication_scope', ['note', 'folder']);
+
 /** The kind of entity that one incremental sync record refers to. */
 export const syncEntityKind = pgEnum('sync_entity_kind', [
   'file',
@@ -646,6 +649,122 @@ export const portableMarkdownMigrationReport = pgTable(
     primaryKey({
       columns: [table.workspaceId, table.sourcePath, table.reference],
     }),
+  ],
+);
+
+/**
+ * One published read-only link over a note or a folder.
+ *
+ * Decision 0030 states the record. The row holds a digest of the opaque token
+ * and never the token, so a read of this table opens nothing. The check
+ * constraint holds that at the database: the column takes a SHA-256 in lower
+ * case hexadecimal and refuses every other shape, including a token.
+ *
+ * The scope is one note, by its identifier, or one folder, by its stored path.
+ * The check constraint keeps exactly one of the two, so no row states both and
+ * no row states neither. `revoked_at` and `expires_at` each carry a partial
+ * index, so the hourly cleanup finds a dead link without a scan.
+ *
+ * The workspace reference cascades, so a workspace deletion removes the links
+ * of that workspace with it, as it removes the migration report.
+ */
+export const publications = pgTable(
+  'publications',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    id: uuid('id').notNull(),
+    /** The account that published the link. The reader path never reads it. */
+    ownerAccountId: uuid('owner_account_id')
+      .notNull()
+      .references(() => accounts.id),
+    tokenDigest: text('token_digest').notNull(),
+    scopeKind: publicationScope('scope_kind').notNull(),
+    scopeFileId: uuid('scope_file_id'),
+    scopePath: text('scope_path'),
+    /** The slow salted hash of the optional password, or null. */
+    passwordDigest: text('password_digest'),
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.id] }),
+    foreignKey({
+      name: 'publications_scope_file_fk',
+      columns: [table.workspaceId, table.scopeFileId],
+      foreignColumns: [files.workspaceId, files.id],
+    }).onDelete('cascade'),
+    // The lookup of every published request. It is unique, so one digest
+    // names at most one link and a repeated digest fails the insert instead
+    // of making a second link that the lookup cannot tell apart.
+    unique('publications_token_key').on(table.tokenDigest),
+    index('publications_workspace_idx').on(table.workspaceId, table.createdAt),
+    index('publications_scope_file_idx').on(
+      table.workspaceId,
+      table.scopeFileId,
+    ),
+    index('publications_expiry_idx')
+      .on(table.expiresAt)
+      .where(sql`${table.expiresAt} is not null`),
+    index('publications_revoked_idx')
+      .on(table.revokedAt)
+      .where(sql`${table.revokedAt} is not null`),
+    check(
+      'publications_scope_check',
+      sql`(${table.scopeKind} = 'note' and ${table.scopeFileId} is not null and ${table.scopePath} is null)
+        or (${table.scopeKind} = 'folder' and ${table.scopePath} is not null and ${table.scopeFileId} is null)`,
+    ),
+    check(
+      'publications_token_digest_check',
+      sql`${table.tokenDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+  ],
+);
+
+/**
+ * One reading ticket of one published link.
+ *
+ * The unlock answer gives a reader the ticket, and the reader carries it in
+ * every published address, as decision 0046 states. The row holds a digest of
+ * that ticket and never the ticket, under the same check constraint as the
+ * token above.
+ *
+ * The expiry is stored, so a read never computes a later one. The runtime role
+ * holds no UPDATE right on this table, so a read cannot move the expiry even
+ * if a caller asked it to, which is the rule of decision 0030.
+ */
+export const readingTickets = pgTable(
+  'reading_tickets',
+  {
+    ticketDigest: text('ticket_digest').primaryKey(),
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id, { onDelete: 'cascade' }),
+    publicationId: uuid('publication_id').notNull(),
+    issuedAt: timestamp('issued_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: 'reading_tickets_publication_fk',
+      columns: [table.workspaceId, table.publicationId],
+      foreignColumns: [publications.workspaceId, publications.id],
+    }).onDelete('cascade'),
+    index('reading_tickets_publication_idx').on(
+      table.workspaceId,
+      table.publicationId,
+    ),
+    index('reading_tickets_expiry_idx').on(table.expiresAt),
+    check(
+      'reading_tickets_digest_check',
+      sql`${table.ticketDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
   ],
 );
 
