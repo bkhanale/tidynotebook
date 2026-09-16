@@ -19,9 +19,11 @@
  * which mark each one takes, and `lib/folder-selection.ts` holds which folder
  * is the parent.
  *
- * The one workspace of the account is an implicit container. It stays in
- * the address so a note keeps a stable link, but nothing on screen names
- * it.
+ * The workspace is an explicit container that the person chooses. The
+ * switcher sits at the top of the sidebar, above the New note action, so it
+ * reads as the container of everything below it, and the workspace stays in
+ * the address so a note keeps a stable link. `./workspaces.tsx` owns it and
+ * record 0049 states why it is there.
  */
 import {
   useCallback,
@@ -73,6 +75,7 @@ import {
   useSession,
   useSyncState,
   useTheme,
+  useWorkspace,
   useWorkspaceSync,
 } from '../app.tsx';
 import {
@@ -134,7 +137,7 @@ import {
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncStateMessage } from '../lib/sync-state.ts';
-import { RequireCurrentWorkspace } from './workspaces.tsx';
+import { RequireCurrentWorkspace, WorkspaceSwitcher } from './workspaces.tsx';
 import {
   DeleteNoticeBar,
   DeleteNoticeProvider,
@@ -627,6 +630,8 @@ function Sidebar({
         />
       </div>
 
+      <WorkspaceSwitcher onNavigate={onClose} />
+
       {session.account !== null ? (
         <div className="flex items-center gap-1 px-2 py-2">
           <NewNoteButton
@@ -979,6 +984,8 @@ function ShellFrame({
   const store = useLocalStore();
   const theme = useTheme();
   const files = useFiles();
+  const workspace = useWorkspace();
+  const openWorkspace = workspace.open;
   const accountId = session.account?.accountId ?? null;
   const sync = useWorkspaceSync(store.store, accountId, workspaceId);
   const persistence = usePersistentStorage(useSavedOnce());
@@ -1139,6 +1146,18 @@ function ShellFrame({
     },
   ];
 
+  // Every workspace the person can move to from here. The open one is absent,
+  // because a row that goes where you already are is noise.
+  const otherWorkspaces = useMemo(
+    () =>
+      workspace.state.status === 'ready'
+        ? workspace.state.workspaces.filter(
+            (entry) => entry.workspaceId !== workspaceId,
+          )
+        : [],
+    [workspace.state, workspaceId],
+  );
+
   const paletteActions = useMemo(
     () => [
       {
@@ -1262,6 +1281,18 @@ function ShellFrame({
           void navigate(`/w/${workspaceId}/published`);
         },
       },
+      // One row per workspace of the account, so a switch is reachable from
+      // the keyboard alone. The note search of the palette stays inside the
+      // open workspace, because isolation is the point of record 0049.
+      ...otherWorkspaces.map((entry) => ({
+        id: `workspace-${entry.workspaceId}`,
+        label: `Go to ${entry.name}`,
+        keywords: 'workspace switch change area',
+        run: (): void => {
+          openWorkspace(entry.workspaceId);
+          void navigate(`/w/${entry.workspaceId}`);
+        },
+      })),
       {
         id: 'settings',
         label: 'Go to Settings',
@@ -1276,6 +1307,8 @@ function ShellFrame({
       navigate,
       newNote.create,
       noteActions,
+      openWorkspace,
+      otherWorkspaces,
       selectedFolder,
       sidebar.toggleCollapsed,
       workspaceId,

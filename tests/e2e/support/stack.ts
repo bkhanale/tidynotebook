@@ -10,7 +10,10 @@ import {
   loadServerConfig,
 } from '@notesapp/server';
 import { openWorkspaceStore } from '@notesapp/storage-server';
-import { createDisposableDatabase } from '../../integration/support/database.ts';
+import {
+  createDisposableDatabase,
+  openSession,
+} from '../../integration/support/database.ts';
 
 export type E2EStack = {
   readonly baseUrl: string;
@@ -26,6 +29,20 @@ export type E2EStack = {
    * not a hook for tests: only the cutoff comes from the journey.
    */
   readonly runPublicationRetention: (cutoff: Date) => Promise<void>;
+  /**
+   * The workspaces of this installation, newest last, as the database holds
+   * them.
+   *
+   * A journey that switches workspace has to prove what the server holds and
+   * not only what the screen shows. The read goes to the database of this
+   * stack, like `runPublicationRetention` above, so no journey writes an HTTP
+   * call of its own.
+   */
+  readonly readWorkspaces: () => Promise<
+    readonly { readonly workspaceId: string; readonly name: string }[]
+  >;
+  /** The live note paths of one workspace, as the database holds them. */
+  readonly readNotePaths: (workspaceId: string) => Promise<readonly string[]>;
 };
 
 /** One independently owned application stack for a browser journey. */
@@ -158,6 +175,38 @@ export async function startE2EStack(
         baseUrl,
         email,
         password,
+        readWorkspaces: async (): Promise<
+          readonly { readonly workspaceId: string; readonly name: string }[]
+        > => {
+          const session = await openSession(database.migrationUrl);
+          try {
+            const rows = await session.query<{ id: string; name: string }>(
+              'select id, name from workspaces order by name',
+            );
+            return rows.map((row) => ({
+              workspaceId: row.id,
+              name: row.name,
+            }));
+          } finally {
+            await session.close();
+          }
+        },
+        readNotePaths: async (
+          workspaceId: string,
+        ): Promise<readonly string[]> => {
+          const session = await openSession(database.migrationUrl);
+          try {
+            // `live_paths` holds the current path of every note that is not
+            // deleted, which is what the note list of the workspace shows.
+            const rows = await session.query<{ path: string }>(
+              'select path from live_paths where workspace_id = $1 order by path',
+              [workspaceId],
+            );
+            return rows.map((row) => row.path);
+          } finally {
+            await session.close();
+          }
+        },
         runPublicationRetention: async (cutoff: Date): Promise<void> => {
           // One connection, opened for the run and closed again, so a stack
           // that never asks for the job holds no pool for it.

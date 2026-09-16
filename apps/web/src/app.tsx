@@ -24,6 +24,7 @@ import {
   updatePreferences,
   type Account,
   type Preferences,
+  type Workspace,
 } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { openLocalStore } from '@notesapp/storage-browser';
@@ -46,6 +47,13 @@ import {
   type Theme,
 } from '@notesapp/ui';
 import { displayNoteName } from './lib/note-name.ts';
+import {
+  chooseWorkspace,
+  isMemberOf,
+  parseCachedWorkspaces,
+  workspaceChoiceKey,
+  workspaceListKey,
+} from './lib/workspace-choice.ts';
 import {
   problemCode,
   problemSentence,
@@ -236,71 +244,83 @@ function useSessionLoader(generation: number): {
   return { status, account, error };
 }
 
-/** Where the one workspace of this account stands. */
+/** Where the workspaces of this account stand. */
 export type WorkspaceState =
   | { readonly status: 'loading' }
   | { readonly status: 'error'; readonly message: string }
-  | { readonly status: 'ready'; readonly workspaceId: string };
+  | {
+      readonly status: 'ready';
+      /** The workspace the person is reading right now. */
+      readonly workspaceId: string;
+      /** Every workspace of the account, as the switcher lists them. */
+      readonly workspaces: readonly Workspace[];
+    };
 
-/** The one workspace with a way to ask for it again. */
+/** The workspaces of the account, the open one, and how to change it. */
 export type WorkspaceValue = {
   readonly state: WorkspaceState;
   readonly reload: () => void;
+  /**
+   * Opens one workspace of the account and remembers it on this device.
+   *
+   * A workspace the account does not hold is ignored, so a stale address
+   * cannot move the choice (record 0049).
+   */
+  readonly open: (workspaceId: string) => void;
 };
 
 const WorkspaceContext = createContext<WorkspaceValue>({
   state: { status: 'loading' },
   reload: () => {},
+  open: () => {},
 });
 
 /**
- * Reads the one workspace of the signed-in account.
+ * Reads the workspaces of the signed-in account.
  *
- * Every screen that needs the workspace reads it here. The list operation
- * runs once for the session instead of once for every screen that mounts.
+ * Every screen that needs a workspace reads it here. The list operation runs
+ * once for the session instead of once for every screen that mounts.
  */
 export function useWorkspace(): WorkspaceValue {
   return useContext(WorkspaceContext);
 }
 
-const cachedWorkspaceKey = 'notesapp.cached-workspace-id:';
-
-/** Reads the last known workspace of one account, for an offline start. */
-function readCachedWorkspaceId(accountId: string): string | null {
+/** Reads one local settings value, for a start with no connection. */
+function readStored(key: string): string | null {
   try {
-    const stored = window.localStorage.getItem(
-      `${cachedWorkspaceKey}${accountId}`,
-    );
+    const stored = window.localStorage.getItem(key);
     return stored === null || stored === '' ? null : stored;
   } catch {
     return null;
   }
 }
 
-function rememberWorkspaceId(accountId: string, workspaceId: string): void {
+function writeStored(key: string, value: string): void {
   try {
-    window.localStorage.setItem(
-      `${cachedWorkspaceKey}${accountId}`,
-      workspaceId,
-    );
+    window.localStorage.setItem(key, value);
   } catch {
     // The live workspace stays usable when cache storage fails.
   }
 }
 
 /**
- * Resolves the one workspace of the signed-in account.
+ * Loads the workspaces of the signed-in account and the one to open.
  *
- * The personal workspace wins when the server answers with more than one, so
- * data that an older installation created cannot hide the notes of the owner.
- * A network failure falls back to the last known workspace of this account,
- * which keeps offline notes reachable after a reload.
+ * `chooseWorkspace` decides which one that is: the choice of this device, then
+ * the personal workspace, then the first the server named. A network failure
+ * falls back to the cached list of this account, which keeps the switcher and
+ * the offline notes reachable after a reload. An empty answer from a server
+ * that did answer is a failed read and not an empty account, because record
+ * 0051 stops an account from reaching that state.
  */
 function useWorkspaceLoader(
   status: SessionStatus,
   accountId: string | null,
   generation: number,
-): WorkspaceState {
+): {
+  readonly state: WorkspaceState;
+  readonly open: (workspaceId: string) => void;
+} {
   const [state, setState] = useState<WorkspaceState>({ status: 'loading' });
 
   useEffect(() => {
@@ -310,31 +330,49 @@ function useWorkspaceLoader(
     }
     const activeAccount = accountId;
     let cancelled = false;
+
+    /** Settles on one list, whether it came from the server or the cache. */
+    const settle = (workspaces: readonly Workspace[]): void => {
+      const chosen = chooseWorkspace(
+        workspaces,
+        readStored(workspaceChoiceKey(activeAccount)),
+      );
+      if (chosen === null) {
+        setState({
+          status: 'error',
+          message: 'Your notes did not open. Try again.',
+        });
+        return;
+      }
+      writeStored(workspaceChoiceKey(activeAccount), chosen.workspaceId);
+      setState({
+        status: 'ready',
+        workspaceId: chosen.workspaceId,
+        workspaces,
+      });
+    };
+
     async function load(): Promise<void> {
       setState({ status: 'loading' });
       const result = await listWorkspaces();
       if (cancelled) return;
       if (result.error !== undefined || result.data === undefined) {
-        const cached = readCachedWorkspaceId(activeAccount);
+        const cached = parseCachedWorkspaces(
+          readStored(workspaceListKey(activeAccount)),
+        );
         const responseStatus = result.response?.status ?? 0;
-        if (cached !== null && (responseStatus === 0 || responseStatus >= 500))
-          setState({ status: 'ready', workspaceId: cached });
+        if (
+          cached.length > 0 &&
+          (responseStatus === 0 || responseStatus >= 500)
+        )
+          settle(cached);
         else
           setState({ status: 'error', message: problemMessage(result.error) });
         return;
       }
       const workspaces = result.data.workspaces;
-      const chosen =
-        workspaces.find((workspace) => workspace.personal) ?? workspaces[0];
-      if (chosen === undefined) {
-        setState({
-          status: 'error',
-          message: 'This account has no notes area yet.',
-        });
-        return;
-      }
-      rememberWorkspaceId(activeAccount, chosen.workspaceId);
-      setState({ status: 'ready', workspaceId: chosen.workspaceId });
+      writeStored(workspaceListKey(activeAccount), JSON.stringify(workspaces));
+      settle(workspaces);
     }
     void load();
     return () => {
@@ -342,7 +380,25 @@ function useWorkspaceLoader(
     };
   }, [status, accountId, generation]);
 
-  return state;
+  const open = useCallback(
+    (workspaceId: string): void => {
+      if (accountId === null) return;
+      setState((current) => {
+        // A workspace the account does not hold never becomes the choice, so
+        // one check answers both the switcher and a stale address.
+        if (
+          current.status !== 'ready' ||
+          !isMemberOf(current.workspaces, workspaceId)
+        )
+          return current;
+        writeStored(workspaceChoiceKey(accountId), workspaceId);
+        return { ...current, workspaceId };
+      });
+    },
+    [accountId],
+  );
+
+  return { state, open };
 }
 
 /** What the sync engine of the open workspace reports and accepts. */
@@ -574,11 +630,14 @@ async function noteNameOf(
 }
 
 /**
- * Runs the foreground sync engine of one workspace.
+ * Runs the foreground sync engine of the workspace the person is reading.
  *
  * Returns the typed sync state. The engine only announces changes, so the
  * returned state stays until the next announcement. The view selects the
  * sentence from the state; no screen reads engine prose.
+ *
+ * This is the one engine that speaks to the person. A workspace that is not
+ * open drains through `useBackgroundSync` below and says nothing.
  */
 export function useWorkspaceSync(
   store: LocalStore | null,
@@ -701,6 +760,104 @@ export function useWorkspaceSync(
   );
 }
 
+/**
+ * Drains every workspace of the account that still holds queued work.
+ *
+ * A save is durable when it reaches the local store and it reaches the server
+ * when the engine of its workspace sends it. A person who writes in one
+ * workspace and switches to another must not leave that save on the device,
+ * so record 0050 keeps an engine running for every workspace with a queue
+ * until the queue drains.
+ *
+ * The open workspace is excluded here, because `useWorkspaceSync` already
+ * serves it. That is the one rule this hook has to hold: two engines on one
+ * workspace in one tab would both submit its queue. The exclusion is done in
+ * one place, over the same identifier the shell opens, so no caller can forget
+ * it.
+ *
+ * A background engine is quiet. It announces nothing to the person, because
+ * the sidebar speaks about the workspace that is open.
+ */
+export function useBackgroundSync(
+  store: LocalStore | null,
+  accountId: string | null,
+  openWorkspaceId: string | null,
+): void {
+  const [queued, setQueued] = useState<readonly string[]>([]);
+  const ownerId = useMemo(syncWorkerId, []);
+
+  // Which workspaces hold work. The local store publishes a queue change on
+  // every enqueue and every acknowledgment, so the set follows the queue
+  // without a poll of its own.
+  useEffect(() => {
+    if (store === null || accountId === null) {
+      setQueued([]);
+      return;
+    }
+    const activeStore = store;
+    const activeAccount = accountId;
+    let cancelled = false;
+    const read = (): void => {
+      void activeStore
+        .queuedWorkspaces(activeAccount)
+        .then((workspaces) => {
+          if (cancelled) return;
+          // The identity of the array decides whether the engines below are
+          // torn down, so an unchanged set keeps the running engines alive.
+          setQueued((current) =>
+            current.length === workspaces.length &&
+            current.every((id) => workspaces.includes(id))
+              ? current
+              : workspaces,
+          );
+        })
+        .catch(() => {
+          // A queue that cannot be read changes nothing the person can act
+          // on. The open workspace reports a real storage failure already.
+        });
+    };
+    const unsubscribe = activeStore.subscribe((change) => {
+      if (change.accountId === activeAccount && change.kind === 'queue') read();
+    });
+    read();
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [store, accountId]);
+
+  const background = useMemo(
+    () => queued.filter((workspaceId) => workspaceId !== openWorkspaceId),
+    [queued, openWorkspaceId],
+  );
+  // The joined key and not the array, so a re-read that answers the same set
+  // does not stop and start every engine.
+  const backgroundKey = background.join(' ');
+
+  useEffect(() => {
+    if (store === null || accountId === null || backgroundKey === '') return;
+    const controller = new AbortController();
+    const engines = backgroundKey.split(' ').map((workspaceId) => {
+      const engine = createSyncEngine(store, accountId, workspaceId, {
+        // A background engine says nothing. The person is reading another
+        // workspace, and a sentence about this one would name a note they
+        // cannot see.
+        announce: () => {},
+        ownerId,
+      });
+      void engine.run(controller.signal).catch(() => {
+        // The workspace keeps its queue and the next pass tries again. The
+        // work is durable in the local store either way.
+      });
+      return engine;
+    });
+    return () => {
+      controller.abort();
+      for (const engine of engines) engine.stop();
+    };
+  }, [store, accountId, backgroundKey, ownerId]);
+}
+
 const SyncContext = createContext<SyncValue>({
   state: startingSyncState,
   noteName: null,
@@ -750,10 +907,19 @@ export function AppProviders({
   const session = useSessionLoader(generation);
   const theme = useThemeLoader(session.account?.preferences ?? null);
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
-  const workspaceState = useWorkspaceLoader(
+  const { state: workspaceState, open: openWorkspace } = useWorkspaceLoader(
     session.status,
     session.account?.accountId ?? null,
     workspaceGeneration,
+  );
+
+  // Record 0050. The drain sits here and not in the shell, so a workspace that
+  // still holds queued work keeps sending while the person reads another
+  // workspace, and while they are on a screen that has no shell at all.
+  useBackgroundSync(
+    storeValue.store,
+    session.account?.accountId ?? null,
+    workspaceState.status === 'ready' ? workspaceState.workspaceId : null,
   );
 
   const refresh = useCallback(() => {
@@ -786,8 +952,9 @@ export function AppProviders({
       reload: () => {
         setWorkspaceGeneration((current) => current + 1);
       },
+      open: openWorkspace,
     }),
-    [workspaceState],
+    [workspaceState, openWorkspace],
   );
 
   const themeValue = useMemo<ThemeValue>(() => theme, [theme]);

@@ -25,17 +25,61 @@ export type MenuItem = {
   readonly disabled?: boolean | undefined;
   /** Draws the row with the danger token. */
   readonly danger?: boolean | undefined;
+  /**
+   * Marks the row as the one in force, for a menu that chooses between
+   * alternatives rather than running actions.
+   *
+   * A menu that sets this on any row states the choice to assistive software:
+   * the marked row carries `menuitemradio` and `aria-checked`, so a person
+   * hears which one is open before they move off it.
+   */
+  readonly selected?: boolean | undefined;
   readonly onSelect: () => void;
 };
 
 /** Where the menu opens relative to its trigger. */
 export type MenuAlign = 'start' | 'end';
 
+/** One row of an open menu, in either region. */
+function MenuRow({
+  item,
+  choosing,
+  onRun,
+}: {
+  readonly item: MenuItem;
+  /** True when any row of this menu states a selection. */
+  readonly choosing: boolean;
+  readonly onRun: (item: MenuItem) => void;
+}): ReactNode {
+  return (
+    <button
+      type="button"
+      role={choosing ? 'menuitemradio' : 'menuitem'}
+      aria-checked={choosing ? item.selected === true : undefined}
+      tabIndex={-1}
+      className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-3 py-2 text-left text-control transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9 ${item.danger === true ? 'text-danger' : 'text-strong'}`}
+      disabled={item.disabled ?? false}
+      onClick={() => onRun(item)}
+    >
+      {item.icon === undefined ? null : (
+        <span className="inline-flex shrink-0 items-center" aria-hidden="true">
+          {item.icon}
+        </span>
+      )}
+      <span className="flex-1 truncate">{item.label}</span>
+      {item.hint === undefined ? null : (
+        <span className="shrink-0 text-control text-muted">{item.hint}</span>
+      )}
+    </button>
+  );
+}
+
 /** A button that opens one menu of actions. */
 export function Menu({
   label,
   icon,
   items,
+  pinned = [],
   align = 'end',
   triggerClassName,
   children,
@@ -44,6 +88,15 @@ export function Menu({
   readonly label: string;
   readonly icon?: ReactNode | undefined;
   readonly items: readonly MenuItem[];
+  /**
+   * Rows that stay in view while `items` scrolls.
+   *
+   * A list that can grow without bound, such as the workspaces of an account,
+   * takes its create action here, so the action does not walk off the bottom
+   * of the menu as the list fills. A pinned row is last in the keyboard order,
+   * because it is last on the screen.
+   */
+  readonly pinned?: readonly MenuItem[] | undefined;
   readonly align?: MenuAlign | undefined;
   readonly triggerClassName?: string | undefined;
   /** Visible trigger text. Omit it for an icon-only trigger. */
@@ -55,7 +108,12 @@ export function Menu({
   const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  const enabled = items.filter((item) => item.disabled !== true);
+  // The arrow keys run over both regions in the order they are on the screen,
+  // so a pinned row is reached by pressing End and never disappears from the
+  // keyboard order when the scrolling list grows.
+  const enabled = [...items, ...pinned].filter(
+    (item) => item.disabled !== true,
+  );
 
   const close = useCallback((restoreFocus: boolean): void => {
     setOpen(false);
@@ -80,7 +138,9 @@ export function Menu({
     if (!open) return;
     window.requestAnimationFrame(() => {
       listRef.current
-        ?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')
+        ?.querySelectorAll<HTMLElement>(
+          '[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])',
+        )
         [activeIndex]?.focus();
     });
     // The effect runs for the open state and for every move of the cursor.
@@ -95,6 +155,16 @@ export function Menu({
   };
 
   const menuId = `${label.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-menu`;
+  // A menu states a selection only when a row claims one, so every menu that
+  // runs actions keeps the plain `menuitem` role it had.
+  const choosing = [...items, ...pinned].some(
+    (item) => item.selected !== undefined,
+  );
+
+  const run = (item: MenuItem): void => {
+    close(true);
+    item.onSelect();
+  };
 
   return (
     <div className="relative" ref={rootRef}>
@@ -108,7 +178,14 @@ export function Menu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        aria-label={children === undefined ? label : undefined}
+        // `label` names the trigger whether or not it also shows text, because
+        // visible text says what the menu is about and not what the control
+        // does. A trigger reading `Personal` is a workspace name; its name has
+        // to say that it opens the workspace menu. The visible text stays
+        // inside the name, so speech input still reaches it.
+        aria-label={label}
+        // A trigger with visible text needs no tooltip. An icon-only one does,
+        // because nothing else on the screen states its purpose.
         title={children === undefined ? label : undefined}
         onClick={() => {
           setActiveIndex(0);
@@ -161,35 +238,28 @@ export function Menu({
             }
           }}
         >
-          {items.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              role="menuitem"
-              tabIndex={-1}
-              className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-3 py-2 text-left text-control transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9 ${item.danger === true ? 'text-danger' : 'text-strong'}`}
-              disabled={item.disabled ?? false}
-              onClick={() => {
-                close(true);
-                item.onSelect();
-              }}
-            >
-              {item.icon === undefined ? null : (
-                <span
-                  className="inline-flex shrink-0 items-center"
-                  aria-hidden="true"
-                >
-                  {item.icon}
-                </span>
-              )}
-              <span className="flex-1 truncate">{item.label}</span>
-              {item.hint === undefined ? null : (
-                <span className="shrink-0 text-control text-muted">
-                  {item.hint}
-                </span>
-              )}
-            </button>
-          ))}
+          <div className="max-h-80 overflow-y-auto">
+            {items.map((item) => (
+              <MenuRow
+                key={item.id}
+                item={item}
+                choosing={choosing}
+                onRun={run}
+              />
+            ))}
+          </div>
+          {pinned.length === 0 ? null : (
+            <div className="mt-1 border-t border-edge-subtle pt-1">
+              {pinned.map((item) => (
+                <MenuRow
+                  key={item.id}
+                  item={item}
+                  choosing={choosing}
+                  onRun={run}
+                />
+              ))}
+            </div>
+          )}
         </div>
       ) : null}
     </div>
