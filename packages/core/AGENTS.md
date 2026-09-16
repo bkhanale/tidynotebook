@@ -7,16 +7,17 @@ this directory. The recipe for a whole feature is in
 ## Purpose
 
 The domain rules that both runtimes share: paths, the revision graph,
-changesets and commits, history, trash, snapshots, search, the role and
-action matrix, and the storage ports that a runtime implements.
+changesets and commits, history, trash, snapshots, search, published links,
+the role and action matrix, and the storage ports that a runtime implements.
 
 ## What lives here and what does not
 
 - `src/files/` holds the path rules, the digest rules, the revision graph,
   the changeset builders, `commit.ts`, and the storage ports.
 - `src/identity/` holds the actor, the role and action matrix, and the UUID
-  helper. `src/history/`, `src/search/`, and `src/workspaces/` hold their own
-  use cases and ports.
+  helper. `src/history/`, `src/search/`, `src/workspaces/`, and
+  `src/publications/` hold their own use cases and ports. The publication port
+  declares read methods only, and no use case of it takes an `Actor`.
 - `src/index.ts` is the only public entry. A name that is not exported there
   is internal. The verified actor marker stays internal, so an actor can be
   built only through `verifyActor`.
@@ -67,11 +68,12 @@ Every test must prove both the accepted path and the refusal, with the exact
 
 ## Key files
 
-| File                    | Purpose                                     |
-| ----------------------- | ------------------------------------------- |
-| `src/index.ts`          | The one public entry point                  |
-| `src/files/ports.ts`    | `WorkspaceStore` and `WorkspaceTransaction` |
-| `src/files/model.ts`    | `Result`, `DomainError`, `ok`, `fail`       |
-| `src/files/commit.ts`   | Changeset commit and rebase rules           |
-| `src/files/path.ts`     | Note path rules and the one `.md` suffix    |
-| `src/identity/actor.ts` | Roles, actions, and `verifyActor`           |
+| File                         | Purpose                                     |
+| ---------------------------- | ------------------------------------------- |
+| `src/index.ts`               | The one public entry point                  |
+| `src/files/ports.ts`         | `WorkspaceStore` and `WorkspaceTransaction` |
+| `src/files/model.ts`         | `Result`, `DomainError`, `ok`, `fail`       |
+| `src/files/commit.ts`        | Changeset commit and rebase rules           |
+| `src/files/path.ts`          | Note path rules and the one `.md` suffix    |
+| `src/identity/actor.ts`      | Roles, actions, and `verifyActor`           |
+| `src/publications/errors.ts` | The one refusal of the reader path          |
