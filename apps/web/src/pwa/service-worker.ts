@@ -22,12 +22,20 @@
  * Old precaches stay installed while old clients remain active. The worker
  * waits to activate until the application asks for the update after local
  * persistence succeeds, so a reload never strands a running tab.
+ *
+ * This worker stays out of a load that started without it. It takes no client
+ * of its own, so the document that installs it stays on the network for its
+ * whole load and the worker controls the next navigation instead. Its precache
+ * takes at most half of the connections that a browser opens to one host, so
+ * the page keeps a share of them for its own modules. See
+ * [decision 0044](../../../../docs/decisions/0044-the-worker-stays-out-of-the-first-load.md).
  */
+import { forEachBounded, isCacheableAsset, servedByWorker } from './routing.ts';
+
 type WorkerScope = {
   readonly location: { readonly origin: string };
   readonly caches: CacheStorage;
   readonly skipWaiting: () => Promise<void>;
-  readonly clients: { readonly claim: () => Promise<void> };
   /** The precache manifest the build injects. Never edited by hand. */
   readonly __WB_MANIFEST: readonly {
     readonly url: string;
@@ -69,10 +77,6 @@ const appCacheName = 'notesapp-app-v1';
 /** Explicitly pinned bytes named by the main thread. */
 const pinnedCacheName = 'notesapp-pinned-v1';
 
-/** Static application assets this worker may store. */
-const assetPattern =
-  /\.(?:js|css|woff2?|ttf|otf|svg|png|ico|webmanifest|html)$/;
-
 /** Messages the main thread may send to this worker. */
 type WorkerMessage =
   | { readonly type: 'NOTESAPP_SKIP_WAITING' }
@@ -92,13 +96,18 @@ function readMessage(value: unknown): WorkerMessage | null {
   return null;
 }
 
-/** Whether a request is a same-origin static asset this worker may keep. */
-function isCacheableAsset(request: Request, origin: string): boolean {
-  if (request.method !== 'GET') return false;
-  const url = new URL(request.url);
-  if (url.origin !== origin) return false;
-  return assetPattern.test(url.pathname);
-}
+/**
+ * How many precache entries this worker fetches at one time.
+ *
+ * A browser opens six connections to one host over HTTP/1.1. The manifest
+ * holds about a hundred entries, so a worker that asks for all of them at once
+ * takes every connection and the page waits behind the worker for its own
+ * modules. The worker therefore takes at most half of them and leaves the
+ * other half to the page. The install then takes longer and costs nothing,
+ * because the six connections carry the same bytes in the same time whatever
+ * the depth of the queue behind them.
+ */
+const precacheConcurrency = 3;
 
 /** Stores every injected precache entry in the versioned asset cache. */
 async function precacheShell(): Promise<void> {
@@ -110,15 +119,17 @@ async function precacheShell(): Promise<void> {
     // so a missing precache must not fail the install.
     return;
   }
-  await Promise.all(
-    self.__WB_MANIFEST.map(async (entry) => {
+  await forEachBounded(
+    self.__WB_MANIFEST,
+    precacheConcurrency,
+    async (entry) => {
       try {
         const response = await fetch(entry.url);
         if (response.ok) await cache.put(entry.url, response.clone());
       } catch {
         // One asset that does not load must not stop the whole precache.
       }
-    }),
+    },
   );
 }
 
@@ -220,24 +231,6 @@ async function handleFetch(event: FetchEvent): Promise<Response> {
   }
 }
 
-/**
- * Whether this worker has an answer of its own for a request.
- *
- * A worker that takes over a request it cannot answer adds one failure path
- * and nothing else: the request then travels through the worker, and a worker
- * that stops, or a network that fails, ends it with a worker error instead of
- * the plain network error the page knows. So the worker stands aside unless
- * it holds the page shell, a static asset, or pinned bytes for the address.
- */
-function servedByWorker(request: Request): boolean {
-  if (request.mode === 'navigate') return true;
-  if (request.method !== 'GET') return false;
-  const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return false;
-  if (isCacheableAsset(request, self.location.origin)) return true;
-  return pinnedUrls.has(url.href);
-}
-
 self.addEventListener('install', (event) => {
   event.waitUntil(precacheShell());
 });
@@ -254,16 +247,23 @@ self.addEventListener('activate', (event) => {
           }),
         );
       } catch {
-        // Cleanup is best effort. The worker still takes over the clients.
+        // Cleanup is best effort. The worker still serves the next
+        // navigation.
       }
       await readPinnedUrls();
-      await self.clients.claim();
+      // This worker claims no client. A document that loaded without it is
+      // already reading every module it needs straight from the network, so
+      // taking that document part way through its load adds one failure path
+      // and gives it nothing: a cache that misses ends the module in a worker
+      // error rather than the plain answer the page was about to receive. The
+      // next navigation is controlled from its first byte, which is where an
+      // offline launch starts anyway (decision 0044).
     })(),
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  if (!servedByWorker(event.request)) return;
+  if (!servedByWorker(event.request, self.location.origin, pinnedUrls)) return;
   event.respondWith(handleFetch(event));
 });
 
@@ -294,5 +294,3 @@ self.addEventListener('message', (event) => {
     })(),
   );
 });
-
-export {};

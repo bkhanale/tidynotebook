@@ -1,0 +1,85 @@
+/**
+ * The decisions of the installed worker of notesapp.
+ *
+ * Every function here reads its inputs and returns an answer. None of them
+ * opens a cache, calls the network, or touches a worker scope, so each rule of
+ * `service-worker.ts` can be proved on its own. The worker holds the effects
+ * and this module holds the choices.
+ */
+
+/** Static application assets the worker may store. */
+const assetPattern =
+  /\.(?:js|css|woff2?|ttf|otf|svg|png|ico|webmanifest|html)$/;
+
+/** What a routing decision reads from one request. */
+export type RoutedRequest = {
+  readonly method: string;
+  readonly mode: string;
+  readonly url: string;
+};
+
+/** Whether a request is a same-origin static asset this worker may keep. */
+export function isCacheableAsset(
+  request: RoutedRequest,
+  origin: string,
+): boolean {
+  if (request.method !== 'GET') return false;
+  const url = new URL(request.url);
+  if (url.origin !== origin) return false;
+  return assetPattern.test(url.pathname);
+}
+
+/**
+ * Whether this worker has an answer of its own for a request.
+ *
+ * A worker that takes over a request it cannot answer adds one failure path
+ * and nothing else: the request then travels through the worker, and a worker
+ * that stops, or a network that fails, ends it with a worker error instead of
+ * the plain network error the page knows. So the worker stands aside unless
+ * it holds the page shell, a static asset, or pinned bytes for the address.
+ *
+ * A navigation is served, because the worker holds the page shell for it: the
+ * navigate branch of `handleFetch` answers a failed network with the stored
+ * shell, which is how an offline launch reaches a screen at all.
+ */
+export function servedByWorker(
+  request: RoutedRequest,
+  origin: string,
+  pinnedUrls: ReadonlySet<string>,
+): boolean {
+  if (request.mode === 'navigate') return true;
+  if (request.method !== 'GET') return false;
+  const url = new URL(request.url);
+  if (url.origin !== origin) return false;
+  if (isCacheableAsset(request, origin)) return true;
+  return pinnedUrls.has(url.href);
+}
+
+/**
+ * Runs one task for each item, with no more than `limit` running at a time.
+ *
+ * The precache of this worker holds about a hundred entries and a browser
+ * opens six connections to one host, so a precache that asks for everything at
+ * once takes every connection and the page waits behind the worker for its own
+ * modules. Each reader below takes the next item, so the whole list is visited
+ * exactly once and the depth of the queue stays bounded.
+ */
+export async function forEachBounded<Item>(
+  items: readonly Item[],
+  limit: number,
+  run: (item: Item) => Promise<void>,
+): Promise<void> {
+  // One shared position, read and raised with no await between the two steps,
+  // so each item is taken by exactly one reader.
+  let next = 0;
+  const reader = async (): Promise<void> => {
+    for (;;) {
+      const item = items[next];
+      next += 1;
+      if (item === undefined) return;
+      await run(item);
+    }
+  };
+  const readers = Math.max(0, Math.min(limit, items.length));
+  await Promise.all(Array.from({ length: readers }, () => reader()));
+}

@@ -73,6 +73,7 @@ and needs no record.
 | [0041](0041-readiness-reads-the-served-pool.md)                | Readiness reads the pool that the deployment serves from  |
 | [0042](0042-the-listening-socket-is-not-the-public-origin.md)  | The listening socket is not the public origin             |
 | [0043](0043-one-decider-of-the-client-address.md)              | One decider of the client address                         |
+| [0044](0044-the-worker-stays-out-of-the-first-load.md)         | The worker stays out of the first load                    |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -138,4 +139,7 @@ configuration, because a proxy separates the public address from the address
 that the process binds, and it refines the last bullet of record 0039. Record
 0043 gives the client address one decider: one named list grants the trust, it
 is empty by default, and Better Auth reads the answer of this server instead of
-a header of the caller.
+a header of the caller. Record 0044 answers issue 85. It keeps the installed
+worker out of a load that started without it: registration waits for the `load`
+event, the worker claims no client, and the precache takes at most half of the
+connections of one host. It refines record 0013.

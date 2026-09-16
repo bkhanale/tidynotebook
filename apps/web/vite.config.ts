@@ -23,8 +23,11 @@ import {
 // manifest below is injected into `src/pwa/service-worker.ts` at build time
 // by workbox-build. Registration takes no clients and performs no skip
 // waiting on its own, so old assets stay installed while old clients remain
-// active and the update applies only after local persistence succeeds.
-// Background Sync is never used; the foreground tab drives sync.
+// active and the update applies only after local persistence succeeds. The
+// worker itself claims no client either, and it registers after the `load`
+// event, so it never competes with the document that installs it; see
+// decision 0044. Background Sync is never used; the foreground tab drives
+// sync.
 //
 // After the build, `tools/precompress-assets.mjs` writes a `.br` and a `.gz`
 // neighbour for every compressible emitted file. The Fastify static handler

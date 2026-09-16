@@ -98,7 +98,13 @@ const httpLibraries = new Set([
 // These files connect maintained protocols or cache static application assets.
 // They remain subject to imports, dependency direction, and package cycle checks.
 const protocolFiles = new Set(['apps/server/src/auth/better-auth.ts']);
-const assetFiles = new Set(['apps/web/src/pwa/service-worker.ts']);
+// The installed worker routes by address, so it reads a URL that no generated
+// operation produced. `routing.ts` holds those decisions and the worker holds
+// their effects.
+const assetFiles = new Set([
+  'apps/web/src/pwa/service-worker.ts',
+  'apps/web/src/pwa/routing.ts',
+]);
 // Build configuration runs in Node during the build and is never shipped to
 // a browser, so it may read the file system and compose paths. Every other
 // rule, including the dependency direction, still applies to it.

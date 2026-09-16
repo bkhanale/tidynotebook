@@ -227,12 +227,31 @@ export async function requestUpdate(
   }
 }
 
-/** Registers the installed worker. Safe to call when none is supported. */
+/**
+ * Registers the installed worker after the document finishes loading.
+ *
+ * Registration starts the install, and the install fetches every entry of the
+ * precache manifest. A browser opens six connections to one host, so a
+ * precache that starts while the document still loads takes the connections
+ * that the document needs for its own modules, and the screen waits behind the
+ * worker. The `load` event is the point where the document has what it asked
+ * for, so the worker starts there and the person sees the screen first. See
+ * [decision 0044](../../../../docs/decisions/0044-the-worker-stays-out-of-the-first-load.md).
+ *
+ * Safe to call where no worker is supported and where there is no document.
+ */
 export function registerServiceWorker(): void {
   if (typeof navigator === 'undefined') return;
   const container = navigator.serviceWorker;
   if (container === undefined) return;
-  void container.register('/service-worker.js').catch(() => undefined);
+  const register = (): void => {
+    void container.register('/service-worker.js').catch(() => undefined);
+  };
+  if (typeof window === 'undefined' || document.readyState === 'complete') {
+    register();
+    return;
+  }
+  window.addEventListener('load', register, { once: true });
 }
 
 /** Revokes the server session through the generated client. */

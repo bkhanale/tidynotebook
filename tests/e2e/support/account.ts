@@ -24,9 +24,9 @@ async function openSignInForm(page: Page, loginUrl: string): Promise<void> {
       .waitFor({ state: 'visible', timeout: 15_000 });
     return;
   } catch {
-    // The first document installs the service worker, and the worker then
-    // claims the page. Firefox can hold the navigation open while that
-    // happens. One reload reaches a page that the worker already controls.
+    // The form did not appear on the first attempt. Firefox can hold a first
+    // document open while the browser still has work of its own to finish, so
+    // the journey asks once more rather than failing on that first document.
   }
   try {
     await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
