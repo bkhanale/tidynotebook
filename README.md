@@ -5,10 +5,10 @@ is the document: a note is a Markdown file with one `.md` suffix, in a folder
 you choose. Typing writes a draft on your device. Save creates one immutable
 version on your server.
 
-**Status:** working toward 0.1.0. There is no release tag yet. See
+**Status:** 0.2.0 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
-[GitHub project board](https://github.com/users/bkhanale/projects/2) for what is
-left before the tag.
+[GitHub project board](https://github.com/users/bkhanale/projects/2) for the
+open work.
 
 ## Features
 
@@ -30,7 +30,9 @@ left before the tag.
 - **Attachments.** Images are validated, deduplicated by digest, and stored
   outside the database.
 - **One user.** First-run setup takes one email address and one password.
-  There is no sharing, no invitation, and no public page.
+  There is no sharing and no invitation.
+- **Published links.** Publish a note or a folder as one read-only address,
+  with an optional password and an optional expiry. Revoke it at any moment.
 - **One Compose file.** Safe defaults, health checks, encrypted backups and a
   tested restore.
 
