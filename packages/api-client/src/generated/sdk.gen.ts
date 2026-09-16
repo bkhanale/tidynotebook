@@ -694,7 +694,7 @@ export const getPublishedPage = <ThrowOnError extends boolean = false>(options: 
 /**
  * Give the password of a published link from its page.
  *
- * Takes the password that the form of the published page carries and answers the page again. A served page holds no script, so the form sends a form encoded body and the answer is a document rather than a program. The right password answers the note, and every address on that page carries the reading ticket. A wrong password answers the same form and the same words as a link that was never opened. The operation declares an empty security requirement, so no identity hook runs for it. The shared attempt limit of the public routes guards the password check.
+ * Takes the password that the form of the published page carries and answers the page again. A served page holds no script, so the form sends a form encoded body and the answer is a document rather than a program. The right password answers the note, and every address on that page carries the reading ticket. A wrong password answers the same form and the same words as a link that was never opened. The operation declares an empty security requirement, so no identity hook runs for it. The attempt limit of this route guards the password check.
  */
 export const openPublishedPage = <ThrowOnError extends boolean = false>(options: Options<OpenPublishedPageData, ThrowOnError>): RequestResult<OpenPublishedPageResponses, OpenPublishedPageErrors, ThrowOnError> => (options.client ?? client).post<OpenPublishedPageResponses, OpenPublishedPageErrors, ThrowOnError>({
     ...urlSearchParamsBodySerializer,
@@ -716,7 +716,7 @@ export const getPublishedAttachment = <ThrowOnError extends boolean = false>(opt
 /**
  * Give the password of a published link.
  *
- * Takes the password of one link and answers a reading ticket that is bound to that link. The reader carries the ticket in the address of every later call to the link, and the server sets no cookie. The operation declares an empty security requirement, so no identity hook runs for it. A wrong password and a link that never existed take one refusal, so a caller cannot walk the tokens. The shared attempt limit of the public routes guards the password check.
+ * Takes the password of one link and answers a reading ticket that is bound to that link. The reader carries the ticket in the address of every later call to the link, and the server sets no cookie. The operation declares an empty security requirement, so no identity hook runs for it. A wrong password and a link that never existed take one refusal, so a caller cannot walk the tokens. The attempt limit of this route guards the password check.
  */
 export const unlockPublishedLink = <ThrowOnError extends boolean = false>(options: Options<UnlockPublishedLinkData, ThrowOnError>): RequestResult<UnlockPublishedLinkResponses, UnlockPublishedLinkErrors, ThrowOnError> => (options.client ?? client).post<UnlockPublishedLinkResponses, UnlockPublishedLinkErrors, ThrowOnError>({
     url: '/published/{token}/unlock',

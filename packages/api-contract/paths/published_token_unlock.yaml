@@ -7,8 +7,8 @@ post:
     every later call to the link, and the server sets no cookie. The
     operation declares an empty security requirement, so no identity hook
     runs for it. A wrong password and a link that never existed take one
-    refusal, so a caller cannot walk the tokens. The shared attempt limit of
-    the public routes guards the password check.
+    refusal, so a caller cannot walk the tokens. The attempt limit of this
+    route guards the password check.
   tags:
     - published
   security: []

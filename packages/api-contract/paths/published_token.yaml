@@ -35,7 +35,7 @@ post:
     page carries the reading ticket. A wrong password answers the same form
     and the same words as a link that was never opened. The operation
     declares an empty security requirement, so no identity hook runs for it.
-    The shared attempt limit of the public routes guards the password check.
+    The attempt limit of this route guards the password check.
   tags:
     - published
   security: []
