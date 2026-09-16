@@ -76,6 +76,7 @@ and needs no record.
 | [0044](0044-the-worker-stays-out-of-the-first-load.md)            | The worker stays out of the first load                    |
 | [0045](0045-the-build-names-the-precache.md)                      | The build names the precache and its cache                |
 | [0046](0046-the-reader-carries-its-credentials-in-the-address.md) | The reader carries its credentials in the address         |
+| [0047](0047-the-published-page-always-answers-a-page.md)          | The published page always answers a page                  |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -153,3 +154,6 @@ the tree, and a cache follows the bytes of its build. It refines record 0013.
 Record 0046 answers issue 74. It settles where the token and the reading
 ticket of a published link sit, because a picture inside a server built page
 sets no header and the reader path sets no cookie. It refines record 0030.
+Record 0047 answers issue 77. It gives the address that a person opens one
+answer for every state of a link, because a problem document shows an error
+code and one status cannot carry two media types. It refines record 0030.
