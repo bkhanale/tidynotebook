@@ -15,41 +15,41 @@ identity store, the attachment bytes, and provisioning.
 - `src/schema.ts` is the schema, `migrations/` holds the applied SQL, and
   `migrations/meta/_journal.json` holds their order.
 - `src/workspace-store/` implements `WorkspaceStore`: `transaction.ts` is the
-  unit of work, `publication-transaction.ts` is the read-only one of the reader
-  path (0031), one repository per context holds the SQL, and `index.ts` is the
-  composition root. `admin.ts`, `identity-store.ts`, `profiles.ts`,
-  `snapshots.ts`, `attachments.ts` and `attachment-row.ts` (0019) own the rest.
+  unit of work, `publication-transaction.ts` the read-only one of the reader
+  path and `publication-unlock.ts` its one write (0031), one repository per
+  context holds the SQL, `index.ts` is the composition root, and `admin.ts`,
+  `identity-store.ts`, `profiles.ts`, `snapshots.ts`, `attachments.ts` and
+  `attachment-row.ts` (0019) own the rest.
 - `src/migrate.ts` runs the migrations and exports `requiredSchemaVersion`.
 - No domain rule and no HTTP route live here. A rule lives in `packages/core`.
 
 ## Allowed imports
 
 `@notesapp/core` and `@notesapp/markdown`, plus `drizzle-orm` and `pg`.
-
 `@notesapp/markdown` is allowed because an accepted index update and a
-published read both parse Markdown. This package is Node only, so it may use a
-Node module. A browser package cannot import it.
+published read both parse Markdown. This package is Node only. A browser
+package cannot import it.
 
 ## How to add a common thing here
 
 - **A port method.** Add the SQL in the repository of that context under
   `src/workspace-store/`, and answer the shape that its port declares.
 - **A schema change.** Edit `src/schema.ts`, run `pnpm db:generate`, review the
-  emitted file, and add it as the next number in `migrations/`. Raise
+  emitted file, add it as the next number in `migrations/`, and raise
   `requiredSchemaVersion` to the new journal entry count in the same change.
-- **A SQL function.** Write it in the migration with its own membership check.
-  Make it `SECURITY DEFINER` only when it must be, and answer one narrow fact.
+- **A SQL function.** Write it in the migration with its own membership check,
+  `SECURITY DEFINER` only when it must be, and one narrow fact as its answer.
 - **A published read.** Narrow the one scoped query of
-  `publications-repository.ts`: it is the only read of a note there.
+  `publications-repository.ts`. A read of bytes takes the token digest.
 
 ## Testing conventions here
 
 A pure module such as `excerpt.ts` or `publication-row.ts` has a `*.test.ts`
 next to it and runs under `pnpm test:unit`. Everything that needs a database is
-an integration test in `tests/integration/`, which makes one disposable
-database per file against the service of `compose.test.yaml`; start it with
-`tools/test-database/ensure-postgres.sh`. A storage test proves the row access
-rule as well as the result: `row-access.test.ts` is the pattern.
+an integration test in `tests/integration/`, which makes one disposable database
+per file against the service of `compose.test.yaml`; start it with
+`tools/test-database/ensure-postgres.sh`. Such a test proves the row access rule
+as well as the result: `row-access.test.ts` is the pattern.
 
 ## Forbidden here
 
@@ -57,16 +57,16 @@ rule as well as the result: `row-access.test.ts` is the pattern.
   sets the actor identity for that transaction only, and takes the workspace
   lock, so the commit ordered cursor cannot skip a late commit.
 - No write and no `Actor` on the reader path. Its transaction is read only, it
-  adopts the owner account of the link that the token digest opened, and every
-  read of a note binds the scope in the SQL (0030, 0031).
+  adopts the owner of the link that the token digest opened, and the SQL binds
+  the scope (0030, 0031). Its one write is `publication-unlock.ts`, which
+  answers no password digest to a route.
 - No raw token and no raw ticket at rest. A digest column takes a SHA-256 in
-  lower case hexadecimal and a check constraint refuses every other shape.
-- No SQL function that reaches workspace data without a membership check, or,
-  on the reader path, without the digest of a secret.
+  lower case hexadecimal and a check constraint refuses another shape.
+- No SQL function that reaches workspace data without a membership check, or
+  the digest of a secret on the reader path.
 - No schema change without a migration file and a raised
-  `requiredSchemaVersion`, and no edit of a migration that is already applied.
-- No superuser and no `BYPASSRLS` on the migration role, no import from a
-  browser package, and no import of this package by one.
+  `requiredSchemaVersion`, and no edit of an applied migration.
+- No superuser and no `BYPASSRLS` on the migration role, and no browser import.
 
 ## Key files
 

@@ -12,6 +12,8 @@ export {
   WorkspaceUnavailableError,
   type DatabaseProbeResult,
   type PublicationCleanupResult,
+  type PublicationUnlockAttempt,
+  type PublicationUnlockResult,
   type PublishedLinkDraft,
   type PublishedLinkStore,
   type WorkspaceStoreHandle,
@@ -21,6 +23,7 @@ export { readOnlyTransactionCode } from './workspace-store/publication-transacti
 export { markdownLimitCode } from './markdown-limits.ts';
 export {
   openAttachmentStore,
+  type AttachmentBytes,
   type AttachmentStore,
   type AttachmentStoreHandle,
   type AttachmentStoreOptions,

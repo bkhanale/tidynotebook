@@ -46,12 +46,21 @@ import {
   type PublicationCleanupResult,
   type PublishedLinkDraft,
 } from './publications-owner.ts';
+import {
+  unlockPublication,
+  type PublicationUnlockAttempt,
+  type PublicationUnlockResult,
+} from './publication-unlock.ts';
 
 export { DatabaseFailure, WorkspaceUnavailableError } from './errors.ts';
 export type {
   PublicationCleanupResult,
   PublishedLinkDraft,
 } from './publications-owner.ts';
+export type {
+  PublicationUnlockAttempt,
+  PublicationUnlockResult,
+} from './publication-unlock.ts';
 
 /**
  * What one readiness read learns about the database behind the pool.
@@ -113,6 +122,18 @@ export type WorkspaceStoreHandle = WorkspaceStore & {
   publications: PublicationStore;
   /** The owner side of published links, which needs a verified actor. */
   publishedLinks: PublishedLinkStore;
+  /**
+   * Turns the password of one link into a reading ticket.
+   *
+   * It is the one write of the published boundary, so it opens a transaction
+   * of its own rather than the read-only unit of work above. The password
+   * digest stays inside this package: the caller passes a callback that
+   * answers whether the password matches, and it receives no digest of any
+   * kind. See `publication-unlock.ts`.
+   */
+  unlockPublication(
+    attempt: PublicationUnlockAttempt,
+  ): Promise<PublicationUnlockResult>;
   /**
    * Removes every link that stopped before `cutoff` and every expired ticket.
    *
@@ -278,6 +299,12 @@ export function openWorkspaceStore(
           publicationsOwnerRepository,
         );
       },
+    },
+
+    unlockPublication(
+      attempt: PublicationUnlockAttempt,
+    ): Promise<PublicationUnlockResult> {
+      return unlockPublication(pool, attempt);
     },
 
     async cleanupPublications(cutoff: Date): Promise<PublicationCleanupResult> {

@@ -53,6 +53,7 @@ function missingAttachmentStore(): AttachmentStore {
     getAttachmentObject: fail,
     finalizeAttachmentObject: fail,
     readAttachmentRevision: fail,
+    readPublishedAttachmentRevision: fail,
     reclaimAttachments: fail,
     temporaryPath: fail,
     immutablePath: fail,

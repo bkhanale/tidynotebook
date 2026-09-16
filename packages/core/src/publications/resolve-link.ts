@@ -25,7 +25,7 @@
  * link record without these four checks.
  */
 import { ok, type Result } from '../files/model.ts';
-import { refuseRead } from './errors.ts';
+import { refuseRead, type ReaderRefusalCause } from './errors.ts';
 import { instantMs, type PublishedLink } from './model.ts';
 import type { PublicationContext, PublicationReader } from './ports.ts';
 import { isTicketUsable } from './ticket.ts';
@@ -43,6 +43,27 @@ export type ReaderCredentials = {
 };
 
 /**
+ * Why the record of this link opens nothing at this instant, or `null`.
+ *
+ * The rule reads the record only, so it needs no transaction and no reader. It
+ * is the one place that states what a stopped link is, and both the read path
+ * below and the unlock of the storage package ask it, so neither can drift
+ * from the other.
+ *
+ * An expiry that cannot be read stops the link. A link that never stops must
+ * hold no expiry at all, so the rule fails closed.
+ */
+export function linkRefusalCause(
+  link: PublishedLink,
+  now: number,
+): ReaderRefusalCause | null {
+  if (link.revokedAt !== null) return 'revoked';
+  if (link.expiresAt === null) return null;
+  const stop = instantMs(link.expiresAt);
+  return stop === null || now >= stop ? 'expired' : null;
+}
+
+/**
  * Opens one link inside an open read.
  *
  * Internal to this context: it is exported for the sibling use cases and it is
@@ -56,14 +77,8 @@ export async function openLink(
   const now = context.clock();
   const link = await reader.linkByTokenDigest(credentials.tokenDigest);
   if (link === null) return refuseRead(context.refusals, 'unknown');
-  if (link.revokedAt !== null) return refuseRead(context.refusals, 'revoked');
-  if (link.expiresAt !== null) {
-    const stop = instantMs(link.expiresAt);
-    // An expiry that cannot be read stops the link. A link that never stops
-    // must hold no expiry at all.
-    if (stop === null || now >= stop)
-      return refuseRead(context.refusals, 'expired');
-  }
+  const stopped = linkRefusalCause(link, now);
+  if (stopped !== null) return refuseRead(context.refusals, stopped);
   if (link.passwordProtected) {
     if (credentials.ticketDigest === null)
       return refuseRead(context.refusals, 'locked');

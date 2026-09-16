@@ -224,7 +224,10 @@ export {
 export type { NewPublishedLink } from './publications/create-link.ts';
 export { planPublishedLink } from './publications/create-link.ts';
 export type { ReaderCredentials } from './publications/resolve-link.ts';
-export { resolvePublishedLink } from './publications/resolve-link.ts';
+export {
+  linkRefusalCause,
+  resolvePublishedLink,
+} from './publications/resolve-link.ts';
 export type { PublishedNoteRead } from './publications/read-note.ts';
 export { readPublishedNote } from './publications/read-note.ts';
 export type { PublishedNoteList } from './publications/list-scope.ts';

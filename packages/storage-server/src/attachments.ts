@@ -72,14 +72,28 @@ export type AttachmentStore = {
     actor: Actor,
     workspaceId: string,
     revisionId: string,
-  ): Promise<{
-    readonly stream: Readable;
-    readonly size: bigint;
-    readonly mediaType: AttachmentMediaType;
-    readonly digest: string;
-    readonly revisionId: string;
-    readonly path: string;
-  } | null>;
+  ): Promise<AttachmentBytes | null>;
+
+  /**
+   * Reads one attachment revision for a reader of a published link.
+   *
+   * A reader has no account, so this call takes no `Actor`. The digest of the
+   * token is what it takes instead: the narrow lookup function of the
+   * migration answers the link of that digest, the call adopts the owner
+   * account of the link for its own read-only transaction, and it reads
+   * nothing outside the workspace of that link. A workspace that the link does
+   * not belong to answers nothing, so a caller cannot widen the read by naming
+   * another one.
+   *
+   * It proves that the address holds a live token, and no more. The scope of
+   * the link and the reference from the note are the rules of
+   * `packages/core`, and `apps/server` proves both before it calls this.
+   */
+  readPublishedAttachmentRevision(
+    tokenDigest: string,
+    workspaceId: string,
+    revisionId: string,
+  ): Promise<AttachmentBytes | null>;
 
   /**
    * Reclaims attachment bytes. This is the only code that deletes them.
@@ -97,6 +111,16 @@ export type AttachmentStore = {
 
   /** Absolute path for finalized attachment content. */
   immutablePath(workspaceId: string, digest: string): string;
+};
+
+/** The bytes of one accepted attachment revision, and what names them. */
+export type AttachmentBytes = {
+  readonly stream: Readable;
+  readonly size: bigint;
+  readonly mediaType: AttachmentMediaType;
+  readonly digest: string;
+  readonly revisionId: string;
+  readonly path: string;
 };
 
 export type AttachmentStoreHandle = AttachmentStore & {
@@ -159,6 +183,59 @@ export function openAttachmentStore(
 
   function immutablePath(workspaceId: string, digest: string): string {
     return join(storageRoot, 'workspaces', workspaceId, 'attachments', digest);
+  }
+
+  /**
+   * The bytes of one accepted revision, inside an open transaction.
+   *
+   * The account path and the reader path of a published link both read the
+   * same row and the same file, so one statement serves both. The caller sets
+   * the identity that the row policies read before it calls.
+   */
+  async function revisionBytes(
+    client: pg.PoolClient,
+    workspaceId: string,
+    revisionId: string,
+  ): Promise<AttachmentBytes | null> {
+    const query = `
+      SELECT r.id AS revision_id, r.deleted, r.content_digest AS digest,
+             r.path,
+             c.size, c.object_id,
+             ao.media_type, ao.state
+      FROM revisions r
+      JOIN contents c ON c.workspace_id = r.workspace_id AND c.digest = r.content_digest
+      JOIN attachment_objects ao ON ao.workspace_id = c.workspace_id AND ao.id = c.object_id
+      WHERE r.workspace_id = $1 AND r.id = $2
+    `;
+    if (!isUuid(revisionId)) return null;
+    const result = await client.query<{
+      revision_id: string;
+      deleted: boolean;
+      digest: string;
+      path: string;
+      size: string;
+      object_id: string;
+      media_type: string;
+      state: string;
+    }>(query, [workspaceId, revisionId]);
+
+    if (result.rowCount === 0) return null;
+    const row = result.rows[0];
+    if (!row || row.deleted || row.state === 'unavailable') return null;
+
+    const target = immutablePath(workspaceId, row.digest);
+    const tmp = temporaryPath(row.object_id);
+    const filePath = existsSync(target) ? target : existsSync(tmp) ? tmp : null;
+    if (!filePath) return null;
+
+    return {
+      stream: createReadStream(filePath),
+      size: BigInt(row.size),
+      mediaType: storedMediaType(row.media_type),
+      digest: row.digest,
+      revisionId: row.revision_id,
+      path: row.path,
+    };
   }
 
   /**
@@ -411,58 +488,66 @@ export function openAttachmentStore(
       actor,
       workspaceId,
       revisionId,
-    ): Promise<{
-      readonly stream: Readable;
-      readonly size: bigint;
-      readonly mediaType: AttachmentMediaType;
-      readonly digest: string;
-      readonly revisionId: string;
-      readonly path: string;
-    } | null> {
-      return withClient(actor, workspaceId, async (client) => {
-        const query = `
-          SELECT r.id AS revision_id, r.deleted, r.content_digest AS digest,
-                 r.path,
-                 c.size, c.object_id,
-                 ao.media_type, ao.state
-          FROM revisions r
-          JOIN contents c ON c.workspace_id = r.workspace_id AND c.digest = r.content_digest
-          JOIN attachment_objects ao ON ao.workspace_id = c.workspace_id AND ao.id = c.object_id
-          WHERE r.workspace_id = $1 AND r.id = $2
-        `;
-        const result = await client.query<{
-          revision_id: string;
-          deleted: boolean;
-          digest: string;
-          path: string;
-          size: string;
-          object_id: string;
-          media_type: string;
-          state: string;
-        }>(query, [workspaceId, revisionId]);
+    ): Promise<AttachmentBytes | null> {
+      return withClient(actor, workspaceId, (client) =>
+        revisionBytes(client, workspaceId, revisionId),
+      );
+    },
 
-        if (result.rowCount === 0) return null;
-        const row = result.rows[0];
-        if (!row || row.deleted || row.state === 'unavailable') return null;
-
-        const target = immutablePath(workspaceId, row.digest);
-        const tmp = temporaryPath(row.object_id);
-        const filePath = existsSync(target)
-          ? target
-          : existsSync(tmp)
-            ? tmp
-            : null;
-        if (!filePath) return null;
-
-        return {
-          stream: createReadStream(filePath),
-          size: BigInt(row.size),
-          mediaType: storedMediaType(row.media_type),
-          digest: row.digest,
-          revisionId: row.revision_id,
-          path: row.path,
-        };
-      });
+    async readPublishedAttachmentRevision(
+      tokenDigest,
+      workspaceId,
+      revisionId,
+    ): Promise<AttachmentBytes | null> {
+      // A digest of another shape is at rest nowhere, so it opens no link.
+      if (!isDigest(tokenDigest) || !isUuid(workspaceId)) return null;
+      let client: pg.PoolClient;
+      try {
+        client = await pool.connect();
+      } catch {
+        throw new OperationalError(
+          'unavailable',
+          'notesapp: database connection refused.',
+        );
+      }
+      try {
+        await client.query('begin');
+        // The reader writes nothing, and the database holds that here as it
+        // holds it for the note of the same page. See decision 0031.
+        await client.query('set transaction read only');
+        const link = await client.query<{
+          workspace_id: string;
+          owner_account_id: string;
+        }>(
+          'select workspace_id, owner_account_id from public.notesapp_publication_by_token($1)',
+          [tokenDigest],
+        );
+        const row = link.rows[0];
+        if (row === undefined || row.workspace_id !== workspaceId) {
+          await client.query('rollback');
+          return null;
+        }
+        // The row policies of the attachment tables read the identity of the
+        // transaction, which is the owner of this one link from here on. The
+        // setting is transaction local, so it reaches no later user of the
+        // pooled connection.
+        await client.query(
+          "select set_config('notesapp.account_id', $1, true)",
+          [row.owner_account_id],
+        );
+        const bytes = await revisionBytes(client, workspaceId, revisionId);
+        await client.query('commit');
+        return bytes;
+      } catch (error) {
+        try {
+          await client.query('rollback');
+        } catch {
+          // The connection is already unusable; report the first failure.
+        }
+        throw error;
+      } finally {
+        client.release();
+      }
     },
 
     async reclaimAttachments(now: Date): Promise<number> {
