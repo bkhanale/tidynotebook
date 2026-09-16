@@ -13,10 +13,15 @@
  * performs the atomic write inside a savepoint, so an expected domain failure
  * leaves the open transaction usable and writes nothing.
  */
+import { createHash, randomUUID } from 'node:crypto';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import type {
   Actor,
+  PublicationReader,
+  PublicationStore,
+  PublishedLink,
+  Result,
   TransactOptions,
   WorkspaceStore,
   WorkspaceTransaction,
@@ -30,8 +35,23 @@ import { historyRepository } from './history-repository.ts';
 import { trashRepository } from './trash-repository.ts';
 import { searchRepository } from './search-repository.ts';
 import { syncRepository } from './sync-repository.ts';
+import {
+  probePublicationWrite,
+  runPublicationRead,
+} from './publication-transaction.ts';
+import { publicationsRepository } from './publications-repository.ts';
+import {
+  publicationsOwnerRepository,
+  runPublicationCleanup,
+  type PublicationCleanupResult,
+  type PublishedLinkDraft,
+} from './publications-owner.ts';
 
 export { DatabaseFailure, WorkspaceUnavailableError } from './errors.ts';
+export type {
+  PublicationCleanupResult,
+  PublishedLinkDraft,
+} from './publications-owner.ts';
 
 /**
  * What one readiness read learns about the database behind the pool.
@@ -57,8 +77,60 @@ export type WorkspaceStoreOptions = {
   readonly statementTimeoutMs?: number;
 };
 
+/**
+ * The links of one workspace, as their owner reads and changes them.
+ *
+ * The owner path holds a verified actor, so each call opens one workspace
+ * transaction with the identity of that actor. The reader path of
+ * `publications` below holds no actor and never reaches these calls.
+ */
+export type PublishedLinkStore = {
+  /** Writes one more link of this workspace, or refuses as the rule decided. */
+  create(
+    actor: Actor,
+    workspaceId: string,
+    draft: PublishedLinkDraft,
+  ): Promise<Result<PublishedLink>>;
+  /** Every link of this workspace, newest first, and no digest of any. */
+  list(actor: Actor, workspaceId: string): Promise<readonly PublishedLink[]>;
+  /** Stops one link of this workspace at `at`. */
+  revoke(
+    actor: Actor,
+    workspaceId: string,
+    publicationId: string,
+    at: Date,
+  ): Promise<Result<PublishedLink>>;
+};
+
 /** A workspace store and the calls that a process needs to manage its pool. */
 export type WorkspaceStoreHandle = WorkspaceStore & {
+  /**
+   * The read-only store of the reader path.
+   *
+   * It is the `PublicationStore` port of `packages/core`. Its transaction is
+   * marked read only and holds no actor, which is refusal 4 of decision 0031.
+   */
+  publications: PublicationStore;
+  /** The owner side of published links, which needs a verified actor. */
+  publishedLinks: PublishedLinkStore;
+  /**
+   * Removes every link that stopped before `cutoff` and every expired ticket.
+   *
+   * The hourly cleanup of `apps/server` calls it. A revoked link and an
+   * expired link stop opening at once, because the resolve rule reads the
+   * record on every request, so this run only takes the dead record away.
+   */
+  cleanupPublications(cutoff: Date): Promise<PublicationCleanupResult>;
+  /**
+   * The SQLSTATE that PostgreSQL answers for a write inside the read-only
+   * publication transaction.
+   *
+   * A guarantee that no test can see is a comment, so this call makes refusal
+   * 4 of decision 0031 observable, as `readPooledIdentity` below makes the
+   * absence of an identity leak observable. The attempted write can leave no
+   * row behind: see `publication-transaction.ts`.
+   */
+  probePublicationWrite(): Promise<string>;
   /**
    * Removes expired snapshots and change records older than the retention.
    *
@@ -133,6 +205,25 @@ export function openWorkspaceStore(
       : { statement_timeout: options.statementTimeoutMs }),
   });
 
+  /** Opens one connection of the pool for a call that is not a transaction. */
+  const withClient = async <T>(
+    run: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> => {
+    let client: pg.PoolClient;
+    try {
+      client = await pool.connect();
+    } catch (error) {
+      throw operational(error);
+    }
+    try {
+      return await run(client);
+    } catch (error) {
+      throw operational(error);
+    } finally {
+      client.release();
+    }
+  };
+
   return {
     async transact<T>(
       actor: Actor,
@@ -150,22 +241,63 @@ export function openWorkspaceStore(
       );
     },
 
+    publications: {
+      read<T>(run: (reader: PublicationReader) => Promise<T>): Promise<T> {
+        return runPublicationRead(pool, run, publicationsRepository);
+      },
+    },
+
+    publishedLinks: {
+      create(actor, workspaceId, draft) {
+        return runTransaction(
+          pool,
+          actor,
+          workspaceId,
+          (owner) => owner.create(draft),
+          {},
+          publicationsOwnerRepository,
+        );
+      },
+      list(actor, workspaceId) {
+        return runTransaction(
+          pool,
+          actor,
+          workspaceId,
+          (owner) => owner.list(),
+          {},
+          publicationsOwnerRepository,
+        );
+      },
+      revoke(actor, workspaceId, publicationId, at) {
+        return runTransaction(
+          pool,
+          actor,
+          workspaceId,
+          (owner) => owner.revoke(publicationId, at),
+          {},
+          publicationsOwnerRepository,
+        );
+      },
+    },
+
+    async cleanupPublications(cutoff: Date): Promise<PublicationCleanupResult> {
+      return withClient((client) => runPublicationCleanup(client, cutoff));
+    },
+
+    async probePublicationWrite(): Promise<string> {
+      return probePublicationWrite(pool, {
+        ticketDigest: createHash('sha256')
+          .update(randomUUID(), 'utf8')
+          .digest('hex'),
+        workspaceId: randomUUID(),
+        publicationId: randomUUID(),
+      });
+    },
+
     async cleanupSync(
       now: Date,
     ): Promise<{ expiredSnapshots: number; oldChanges: number }> {
-      let client: pg.PoolClient;
-      try {
-        client = await pool.connect();
-      } catch (error) {
-        throw operational(error);
-      }
-      try {
-        return await runSyncCleanup(client, now);
-      } catch (error) {
-        throw operational(error);
-      } finally {
-        client.release();
-      }
+      return withClient((client) => runSyncCleanup(client, now));
     },
 
     async readPooledIdentity(): Promise<string | null> {

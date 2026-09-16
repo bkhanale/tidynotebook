@@ -202,9 +202,19 @@ export function domainFailure(
   return null;
 }
 
+/**
+ * Whether a value has the shape of a UUID.
+ *
+ * A caller that answers nothing for an unknown identifier reads this, and a
+ * caller whose transport already validated the value asserts it below.
+ */
+export function isUuid(value: string): boolean {
+  return uuidPattern.test(value);
+}
+
 /** Rejects an identifier that is not a UUID before it reaches SQL. */
 export function assertUuid(value: string, what: string): void {
-  if (!uuidPattern.test(value)) {
+  if (!isUuid(value)) {
     throw new OperationalError(
       'unexpected',
       `notesapp: ${what} is not a UUID; the transport must validate it.`,

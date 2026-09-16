@@ -18,7 +18,6 @@ import {
   type Actor,
   type Result,
   type TransactOptions,
-  type WorkspaceTransaction,
 } from '@notesapp/core';
 import {
   assertUuid,
@@ -27,13 +26,19 @@ import {
   WorkspaceUnavailableError,
 } from './errors.ts';
 
-/** Assembles the port implementation over one open transaction. */
-export type TransactionBuilder = (
+/**
+ * Assembles the repositories of one context over one open transaction.
+ *
+ * The workspace store builds the whole `WorkspaceTransaction` with it. The
+ * owner side of published links builds its own smaller set, so both units of
+ * work keep the one identity, lock, and failure mapping of this file.
+ */
+export type TransactionBuilder<Built> = (
   client: pg.PoolClient,
   db: NodePgDatabase,
   actor: Actor,
   workspaceId: string,
-) => WorkspaceTransaction;
+) => Built;
 
 /**
  * Runs `run` inside one workspace transaction over a pooled connection.
@@ -44,13 +49,13 @@ export type TransactionBuilder = (
  * callback runs. The transaction commits when the callback returns and rolls
  * back when it throws.
  */
-export async function runTransaction<T>(
+export async function runTransaction<Built, T>(
   pool: pg.Pool,
   actor: Actor,
   workspaceId: string,
-  run: (tx: WorkspaceTransaction) => Promise<T>,
+  run: (tx: Built) => Promise<T>,
   options: TransactOptions,
-  build: TransactionBuilder,
+  build: TransactionBuilder<Built>,
 ): Promise<T> {
   assertUuid(actor.accountId, 'the actor account');
   assertUuid(workspaceId, 'the workspace');

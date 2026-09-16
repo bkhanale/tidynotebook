@@ -11,9 +11,13 @@ export {
   openWorkspaceStore,
   WorkspaceUnavailableError,
   type DatabaseProbeResult,
+  type PublicationCleanupResult,
+  type PublishedLinkDraft,
+  type PublishedLinkStore,
   type WorkspaceStoreHandle,
   type WorkspaceStoreOptions,
 } from './workspace-store/index.ts';
+export { readOnlyTransactionCode } from './workspace-store/publication-transaction.ts';
 export { markdownLimitCode } from './markdown-limits.ts';
 export {
   openAttachmentStore,
