@@ -130,9 +130,16 @@ export function updateWorkspace(
 /**
  * Deletes a workspace and every record that belongs to it.
  *
- * Only the owner may do this. The storage call removes the membership rows,
- * so every session loses its access to the workspace. Attachment bytes on the
- * private volume are reclaimed by the cleanup job that owns them.
+ * Only the owner may do this, and an account never deletes its last workspace.
+ * An account with no workspace has nowhere to read or write a note, and no
+ * screen of the product can make one from that state, so the rule is a domain
+ * refusal and not a hidden control (record 0051). The database function
+ * refuses the same call, so a caller that reaches the store without this use
+ * case is refused as well.
+ *
+ * The storage call removes the membership rows, so every session loses its
+ * access to the workspace. Attachment bytes on the private volume are
+ * reclaimed by the cleanup job that owns them.
  */
 export function deleteWorkspace(
   store: WorkspaceAdminStore,
@@ -144,6 +151,11 @@ export function deleteWorkspace(
     const allowed = permit(actor, workspaceId, role, 'purge');
     if (!allowed.ok) return fail<void>(allowed.error.code);
     if (role !== 'owner') return fail<void>('forbidden');
+    // The count is read here and not before the transaction opened, because
+    // this transaction holds the workspace lock. Two tabs that each delete one
+    // of the last two workspaces are therefore ordered, and the second one
+    // reads the count that the first one left.
+    if ((await tx.accountWorkspaceCount()) <= 1) return fail<void>('forbidden');
     // The record of the deletion goes to the account trail, because `destroy`
     // removes every row of this workspace and the actor may have had no other
     // workspace at all.

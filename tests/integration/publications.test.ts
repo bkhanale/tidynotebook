@@ -720,6 +720,9 @@ await test('a workspace deletion takes its links with it', async () => {
   const deleted = randomUUID();
   const accountId = randomUUID();
   await seedWorkspace(database, deleted, [{ accountId, role: 'owner' }]);
+  // An account keeps its last workspace (record 0051), so this account holds a
+  // second one and the deletion below is a legal call.
+  await seedWorkspace(database, randomUUID(), [{ accountId, role: 'owner' }]);
   const actor = memberActor(accountId, deleted);
   const link = await publish(actor, deleted, {
     scope: { kind: 'folder', path: 'notes/trip' },

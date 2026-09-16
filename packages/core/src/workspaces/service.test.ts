@@ -31,10 +31,15 @@ const space = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const other = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 /** Builds a verified actor with every action of the owner in a workspace. */
-function actorFor(accountId: string, workspaceId = space): Actor {
-  const created = verifyActor(accountId, [
-    { workspaceId, actions: ['read', 'history', 'write', 'purge'] },
-  ]);
+function actorFor(accountId: string, ...workspaceIds: string[]): Actor {
+  const granted = workspaceIds.length === 0 ? [space] : workspaceIds;
+  const created = verifyActor(
+    accountId,
+    granted.map((workspaceId) => ({
+      workspaceId,
+      actions: ['read', 'history', 'write', 'purge'],
+    })),
+  );
   if (!created.ok) throw new Error('the test actor was rejected');
   return created.value;
 }
@@ -148,6 +153,8 @@ function createFakeStore(): FakeStore {
         Promise.resolve({ name: value.name, personal: value.personal }),
       role: (accountId: string) =>
         Promise.resolve(value.members.get(accountId) ?? null),
+      accountWorkspaceCount: () =>
+        Promise.resolve(memberships(actor.accountId).length),
       rename: (name: string) => {
         value.name = name;
         return Promise.resolve();
@@ -208,14 +215,53 @@ await test('the owner renames a workspace', async () => {
 await test('only the owner deletes a workspace', async () => {
   const store = createFakeStore();
   store.seed(space, [[alice, 'owner']]);
+  store.seed(other, [[alice, 'owner']]);
   const denied = await deleteWorkspace(store, actorFor(bob), space);
   assert.equal(denied.ok, false);
   const allowed = await deleteWorkspace(store, actorFor(alice), space);
   assert.equal(allowed.ok, true);
   assert.equal(store.spaces.has(space), false);
   // The record of the deletion survives in the account trail, which is not
-  // scoped by a workspace, so it is there even when this was the last one.
+  // scoped by a workspace, so it is there even when the deleted workspace was
+  // the only place the record could have gone.
   assert.deepEqual(store.accountAudit.get(alice), ['workspace.delete']);
+});
+
+await test('an account does not delete its last workspace', async () => {
+  const store = createFakeStore();
+  store.seed(space, [[alice, 'owner']]);
+  const refused = await deleteWorkspace(store, actorFor(alice), space);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.ok ? '' : refused.error.code, 'forbidden');
+  assert.equal(store.spaces.has(space), true);
+  assert.equal(store.space(space).destroyed, false);
+  // The refusal leaves no trail either, because nothing happened.
+  assert.equal(store.accountAudit.get(alice), undefined);
+});
+
+await test('the last workspace rule counts this account only', async () => {
+  const store = createFakeStore();
+  store.seed(space, [[alice, 'owner']]);
+  store.seed(other, [[bob, 'owner']]);
+  // Bob holds a second workspace, so two workspaces exist. Alice still holds
+  // one, and the rule reads her memberships and not the workspace table.
+  const refused = await deleteWorkspace(store, actorFor(alice), space);
+  assert.equal(refused.ok, false);
+  assert.equal(refused.ok ? '' : refused.error.code, 'forbidden');
+  assert.equal(store.spaces.has(space), true);
+});
+
+await test('the personal workspace is not protected while another exists', async () => {
+  const store = createFakeStore();
+  store.seed(space, [[alice, 'owner']]);
+  store.seed(other, [[alice, 'owner']]);
+  store.space(space).personal = true;
+  const alsoOther = actorFor(alice, space, other);
+  const removed = await deleteWorkspace(store, alsoOther, space);
+  assert.equal(removed.ok, true);
+  assert.equal(store.spaces.has(space), false);
+  const renamed = await updateWorkspace(store, alsoOther, other, 'work');
+  assert.equal(renamed.ok, true);
 });
 
 await test('an account sees only its own workspaces', async () => {

@@ -1322,6 +1322,11 @@ await test('a workspace deletion sends its attachment bytes to the reclaim', asy
   await seedWorkspace(database, otherWorkspaceId, [
     { accountId: otherAccountId, role: 'owner' },
   ]);
+  // An account keeps its last workspace (record 0051), so this account holds a
+  // second one and the deletion below is a legal call.
+  await seedWorkspace(database, randomUUID(), [
+    { accountId: otherAccountId, role: 'owner' },
+  ]);
   const actor = memberActor(otherAccountId, otherWorkspaceId);
   const bytes = await uniquePng(130, 140, 150);
   const digest = sha256Hex(bytes);

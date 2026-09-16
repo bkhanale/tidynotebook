@@ -372,6 +372,16 @@ export function openIdentityStore(
         return value === undefined ? null : asRole(value);
       },
 
+      async accountWorkspaceCount(): Promise<number> {
+        // The account comes from the transaction and never from a request, so
+        // one account cannot ask how many workspaces another one holds.
+        const rows = await client.query<{ held: string }>(
+          'select count(*)::text as held from memberships where account_id = $1',
+          [accountId],
+        );
+        return Number(rows.rows[0]?.held ?? '0');
+      },
+
       async rename(name: string): Promise<void> {
         await client.query('update workspaces set name = $2 where id = $1', [
           workspaceId,

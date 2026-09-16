@@ -97,6 +97,14 @@ export type WorkspaceAdminTransaction = {
   describe(): Promise<{ name: string; personal: boolean } | null>;
   /** The current role of one account, or `null` for a stranger. */
   role(accountId: string): Promise<Role | null>;
+  /**
+   * How many workspaces the account of this transaction belongs to.
+   *
+   * The count is read inside the transaction that deletes a workspace, under
+   * the lock that transaction already holds, so two tabs that each delete one
+   * of the last two workspaces cannot both pass the check.
+   */
+  accountWorkspaceCount(): Promise<number>;
   /** Renames the workspace. */
   rename(name: string): Promise<void>;
   /** Deletes the workspace and every record that belongs to it. */
