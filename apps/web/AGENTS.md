@@ -16,7 +16,7 @@ sandboxed diagram frame. It composes the packages and holds no rule of its own.
   `src/features/<feature>/` holds one feature each (notes, editor, history,
   trash, attention, folders, accounts, export). `src/lib/` holds pure helpers.
 - `src/app.tsx`, `src/router.tsx`, and `src/main.tsx` compose the application.
-  `src/pwa/` holds the service worker, `src/diagram/` the Mermaid frame.
+  `src/pwa/` holds the worker and its build step, `src/diagram/` the frame.
 - `src/tailwind.css` is the only application CSS source. It holds Tailwind
   imports, source registration, and the central theme variables only.
 - A domain rule lives in `packages/core`, a Markdown rule in
@@ -28,8 +28,8 @@ sandboxed diagram frame. It composes the packages and holds no rule of its own.
 `@notesapp/sync`, `@notesapp/markdown`, `@notesapp/editor`, `@notesapp/ui`.
 
 This package is browser code. It cannot import a Node built in module, a Node
-only package, or a server only package. `vite.config.ts` is the one exception
-that the boundary checker allows, because it runs in Node during the build.
+only package, or a server only package. The build files `vite.config.ts` and
+`src/pwa/precache.ts` run in Node, and the checker allows those two alone.
 
 ## How to add a common thing here
 

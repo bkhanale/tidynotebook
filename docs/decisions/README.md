@@ -74,6 +74,7 @@ and needs no record.
 | [0042](0042-the-listening-socket-is-not-the-public-origin.md)  | The listening socket is not the public origin             |
 | [0043](0043-one-decider-of-the-client-address.md)              | One decider of the client address                         |
 | [0044](0044-the-worker-stays-out-of-the-first-load.md)         | The worker stays out of the first load                    |
+| [0045](0045-the-build-names-the-precache.md)                   | The build names the precache and its cache                |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -142,4 +143,9 @@ is empty by default, and Better Auth reads the answer of this server instead of
 a header of the caller. Record 0044 answers issue 85. It keeps the installed
 worker out of a load that started without it: registration waits for the `load`
 event, the worker claims no client, and the precache takes at most half of the
-connections of one host. It refines record 0013.
+connections of one host. It refines record 0013. Record 0045 answers issue 34 and
+finding ENG-13 of the
+[tooling audit of 2026-09-10](../audits/2026-09-10/tests-tooling-docs.md). It
+gives the build step of this repository the precache of the worker and the name
+of the cache that holds it, so no second bundler and no Workbox runtime enter
+the tree, and a cache follows the bytes of its build. It refines record 0013.
