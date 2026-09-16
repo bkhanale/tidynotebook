@@ -48,10 +48,10 @@ No workspace package. Only `ajv` and `ajv-formats`.
   description, and a declared tag. Give every parameter `in`, `required`,
   `style`, `explode`, a description, and a schema. Declare the success status,
   `400` and `500`, plus `413` and `415` when it has a request body.
-- **A schema member.** Set `additionalProperties: false` on a write body
-  object. Mark a client only member `writeOnly` and a server only member
-  `readOnly`. Reference the schema, because an orphan component fails
-  generation. A failure answers `ProblemDetails` with a stable `code`.
+- **A schema member.** Set `additionalProperties: false` on a write body object.
+  Mark a client only member `writeOnly` and a server only member `readOnly`.
+  Reference the schema, because an orphan fails generation. A failure answers
+  `ProblemDetails` with a stable `code`, or a closed narrowing of it.
 
 ## Testing conventions here
 

@@ -11,13 +11,17 @@ NotesApp serves one application interface, the HTTP API under `/api`. The web
 application and the browser sync engine are its only callers, and both reach it
 through the operations that `packages/api-client` generates from the contract.
 
+One second surface sits beside it. Every address under `/published/` is the
+reader path of a published read-only link, and no operation there names a
+security scheme. See [The reader path](#the-reader-path).
+
 A remote Model Context Protocol server, an OAuth authorization server, and
 agent tokens were part of an earlier product. Version 0.1 has none of them.
 See [decision 0008](../decisions/0008-remove-the-remote-integration-surface.md).
 
 ## Authentication
 
-The session cookie is the only credential the API accepts.
+The session cookie is the only credential the API under `/api` accepts.
 
 - Better Auth issues the cookie. It is `HttpOnly` and `SameSite`, and a
   deployment that serves HTTPS uses the secure cookie prefix.
@@ -33,10 +37,31 @@ The session cookie is the only credential the API accepts.
   No bearer scheme exists, so such a request is not authenticated through the
   cookie either.
 - The health, readiness, setup, and authentication protocol routes need no
-  session. Every other operation needs one. Each probe answer has a second
-  address at the root of the origin, for a load balancer that probes a fixed
-  path, and both addresses are operations of the contract. See
+  session. Every other operation of `/api` needs one. Each probe answer has a
+  second address at the root of the origin, for a load balancer that probes a
+  fixed path, and both addresses are operations of the contract. See
   [decision 0040](../decisions/0040-a-probe-address-is-a-contract-operation.md).
+
+## The reader path
+
+A published link opens one note, or one folder and every note below it, for a
+person who has no account. The owner operations sit under `/api` and keep the
+session. The reader operations sit under `/published/` and declare an empty
+security requirement, so the identity hook never runs for one and a handler of
+one holds no actor. See
+[decision 0031](../decisions/0031-the-reader-path-is-a-closed-read-only-boundary.md).
+
+A reader carries its credentials in the address: the token is a path segment
+and the reading ticket is the query parameter `ticket`. A picture inside a
+server built page sets no header and runs no script, and the reader path sets
+no cookie, so the address is the one place that both can travel. See
+[decision 0046](../decisions/0046-the-reader-carries-its-credentials-in-the-address.md).
+
+Every reader failure answers one shape. A link that never existed, a revoked
+link, an expired link and a wrong password all answer 404 with the code
+`published_link_unavailable`, and the body names no note, no folder and no
+owner. The `PublishedRefusal` schema of the contract fixes every member of that
+body, so the boundary refuses an answer that carries a distinguishing word.
 
 ## Per call authorization
 
