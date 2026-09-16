@@ -79,8 +79,15 @@ disappears at commit or rollback and cannot reach the next user of a pooled
 connection. An integration test reads that setting on a pooled connection
 outside a transaction to prove the absence of a leak.
 
-Public sharing left the product. No table, function, or policy serves an
-anonymous reader.
+A published link is the one record that a person with no account can reach,
+and records 0030 and 0031 bound it. Its reader starts a transaction with no
+identity, so every policy above hides every row; the digest of the token buys
+one row through `notesapp_publication_by_token`, and the reader then adopts the
+owner account of that link for the rest of the transaction. The transaction is
+read only, so PostgreSQL refuses a write however the layers above fail, and the
+scope of the link is bound in the SQL of the publication repository. The stored
+token and the stored ticket are digests, and a check constraint on each column
+refuses a value of any other shape.
 
 ## Immutability
 
@@ -201,8 +208,10 @@ or dropped through that path.
 
 ## What the schema does not hold
 
-Sharing, conflict branches, invitations, workspace members, agent tokens, and
-the workspace scoped audit trail left the product. No table, function, policy,
-trigger, or enum value for any of them remains. The browser store keeps its own
+Conflict branches, invitations, workspace members, agent tokens, and the
+workspace scoped audit trail left the product. No table, function, policy,
+trigger, or enum value for any of them remains. A published link is not one of
+them: it is a read-only door over a scope, and it holds no member and no
+grant. The browser store keeps its own
 short list of dead structures. See
 [Local drafts and explicit saves](local-storage.md).
