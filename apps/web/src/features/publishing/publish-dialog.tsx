@@ -232,7 +232,7 @@ export function PublishDialog({
                 id={`${fieldId}-address`}
                 label="Link"
                 value={address}
-                autoFocus
+                takeFocus
                 describedBy={`${fieldId}-warning`}
               />
             </div>

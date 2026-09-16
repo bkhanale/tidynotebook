@@ -5,7 +5,7 @@
  * focus, labels, and touch target size come from the platform. Styling uses
  * the central Tailwind theme and a fixed control scale.
  */
-import type { ReactNode, Ref } from 'react';
+import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
 
 /** How a button looks. */
@@ -244,21 +244,31 @@ export function TextField({
  * The field takes no `onChange`, so nothing can write through it, and it
  * reports `readonly` to assistive technology rather than `disabled`, because
  * a disabled control leaves the tab order and the value with it.
+ *
+ * `takeFocus` moves the caret here when the field appears. It calls `focus`
+ * from an effect rather than passing the `autoFocus` attribute, because that
+ * attribute acts while a document loads and this field appears long after
+ * that, inside an open dialog, in answer to an action.
  */
 export function ReadOnlyField({
   id,
   label,
   value,
-  autoFocus,
+  takeFocus,
   describedBy,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
   /** Takes focus when the field appears, for a value shown one time. */
-  readonly autoFocus?: boolean | undefined;
+  readonly takeFocus?: boolean | undefined;
   readonly describedBy?: string | undefined;
 }): ReactNode {
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (takeFocus !== true) return;
+    inputRef.current?.focus();
+  }, [takeFocus]);
   return (
     <div className="mb-3.5">
       <label
@@ -268,12 +278,12 @@ export function ReadOnlyField({
         {label}
       </label>
       <input
+        ref={inputRef}
         id={id}
         className="w-full rounded-lg border border-edge bg-app px-3 py-2 font-mono text-control text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
         type="text"
         value={value}
         readOnly
-        autoFocus={autoFocus ?? false}
         aria-describedby={describedBy}
         onFocus={(event): void => {
           event.currentTarget.select();
