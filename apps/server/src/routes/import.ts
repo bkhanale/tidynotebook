@@ -19,12 +19,14 @@ import {
 import type { AttachmentStore } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { inspectImage } from '../jobs/inspect-image.ts';
+import { watchBodyIdle } from '../plugins/body-idle-timeout.ts';
 import {
   DomainProblemError,
   ForbiddenError,
   InvalidContentError,
   PayloadTooLargeError,
   RequestContractError,
+  RequestTimeoutError,
   UnsupportedMediaTypeError,
 } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
@@ -47,8 +49,20 @@ function busboyHeaders(request: FastifyRequest): { 'content-type': string } {
   return { 'content-type': value };
 }
 
-/** Reads the one archive file in a bounded multipart request. */
-async function archiveBytes(request: FastifyRequest): Promise<Buffer> {
+/**
+ * Reads the one archive file in a bounded multipart request.
+ *
+ * The gap between two chunks is bounded, as it is for an upload. A sender
+ * that stops in the middle used to hold its slot until the total receive
+ * bound fired, and the body limit of this route is four times the limit of
+ * the upload route, so the slot was the more valuable one of the two.
+ * `plugins/body-idle-timeout.ts` states why the bound is the gap and not the
+ * whole: a big archive over a slow link is not an attack.
+ */
+async function archiveBytes(
+  request: FastifyRequest,
+  idleMs: number,
+): Promise<Buffer> {
   const parts: Buffer[] = [];
   let size = 0;
   let received = false;
@@ -82,11 +96,33 @@ async function archiveBytes(request: FastifyRequest): Promise<Buffer> {
   parser.on('partsLimit', () => {
     failure = new PayloadTooLargeError('The import has too many form parts.');
   });
-  await new Promise<void>((resolve, reject) => {
+  let idleReject: (error: Error) => void = () => {};
+  const idle = new Promise<never>((_resolve, reject) => {
+    idleReject = reject;
+  });
+  const parsed = new Promise<void>((resolve, reject) => {
     parser.on('finish', resolve);
     parser.on('error', reject);
     request.raw.pipe(parser);
   });
+  // The bound is armed after the pipe, so no chunk of the body is lost to the
+  // watch, and it is stopped in every exit of the read below.
+  const watch = watchBodyIdle({
+    body: request.raw,
+    idleMs,
+    onIdle: () => {
+      const stopped = new RequestTimeoutError(
+        'The import stopped. Send the archive again.',
+      );
+      failure ??= stopped;
+      idleReject(stopped);
+    },
+  });
+  try {
+    await Promise.race([parsed, idle]);
+  } finally {
+    watch.stop();
+  }
   if (failure !== null) throw failure;
   if (!received || size === 0)
     throw new RequestContractError('body', [
@@ -223,10 +259,17 @@ async function importNotes(
   if (!accepted.ok) throw new DomainProblemError(accepted.error);
 }
 
-/** Builds the portable workspace import handler. */
+/**
+ * Builds the portable workspace import handler.
+ *
+ * @param idleMs the longest gap between two chunks of the archive body, from
+ * `config.limits.uploadIdleTimeoutMs`. One bound serves both bodies that this
+ * server streams, so a deployment states it once.
+ */
 export function createImportHandlers(
   store: WorkspaceStore,
   attachments: AttachmentStore,
+  idleMs: number,
 ): HandlerMap {
   return {
     importWorkspace: async (request): Promise<HandlerResult> => {
@@ -239,9 +282,15 @@ export function createImportHandlers(
         throw new ForbiddenError();
       let entries: readonly UnzipEntry[];
       try {
-        entries = unzipArchive(await archiveBytes(request));
+        entries = unzipArchive(await archiveBytes(request, idleMs));
       } catch (error) {
+        // A body that is too large and a body that stopped are answers of
+        // their own. Only an archive that arrived whole and cannot be read is
+        // invalid content.
         if (error instanceof PayloadTooLargeError) throw error;
+        if (error instanceof RequestTimeoutError) throw error;
+        if (error instanceof RequestContractError) throw error;
+        if (error instanceof UnsupportedMediaTypeError) throw error;
         throw new InvalidContentError(
           error instanceof Error
             ? error.message

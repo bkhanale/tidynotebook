@@ -5064,6 +5064,14 @@ export const operations: readonly OperationEntry[] = [
         }
       },
       {
+        "status": 408,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
         "status": 409,
         "mediaType": "application/problem+json",
         "schema": {

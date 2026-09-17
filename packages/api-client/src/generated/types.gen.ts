@@ -2554,7 +2554,7 @@ export type UploadAttachmentErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -2641,7 +2641,7 @@ export type FinalizeAttachmentErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -2780,7 +2780,7 @@ export type CommitChangesetErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -2976,7 +2976,7 @@ export type CreateFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3063,7 +3063,7 @@ export type DeleteFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3218,7 +3218,7 @@ export type UpdateFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3490,7 +3490,7 @@ export type RestoreRevisionErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3549,6 +3549,10 @@ export type ImportWorkspaceErrors = {
      */
     404: ProblemDetails;
     /**
+     * The request body stopped arriving before the operation could read all of it, so the operation did nothing.
+     */
+    408: ProblemDetails;
+    /**
      * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
      */
     409: ProblemDetails;
@@ -3561,7 +3565,7 @@ export type ImportWorkspaceErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3680,7 +3684,7 @@ export type CreatePublishedLinkErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3803,7 +3807,7 @@ export type PurgeFilesErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -3866,7 +3870,7 @@ export type PreviewPurgeErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -4052,7 +4056,7 @@ export type GetChangesErrors = {
      */
     410: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -4119,7 +4123,7 @@ export type StartSnapshotErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**
@@ -4336,7 +4340,7 @@ export type RestoreFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, or invalid_content.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
      */
     422: ProblemDetails;
     /**

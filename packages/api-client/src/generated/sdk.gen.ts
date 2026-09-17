@@ -460,7 +460,7 @@ export const restoreRevision = <ThrowOnError extends boolean = false>(options: O
 /**
  * Import a portable workspace zip archive.
  *
- * Reads Markdown files and image files at their archive paths. The operation does not rewrite a Markdown reference. Every imported path must be free in the workspace.
+ * Reads Markdown files and image files at their archive paths. The operation does not rewrite a Markdown reference. Every imported path must be free in the workspace. The gap between two chunks of the archive is bounded, so a sender that stops in the middle is answered and does not hold its slot.
  */
 export const importWorkspace = <ThrowOnError extends boolean = false>(options: Options<ImportWorkspaceData, ThrowOnError>): RequestResult<ImportWorkspaceResponses, ImportWorkspaceErrors, ThrowOnError> => (options.client ?? client).post<ImportWorkspaceResponses, ImportWorkspaceErrors, ThrowOnError>({
     ...formDataBodySerializer,

@@ -19,6 +19,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { PassThrough } from 'node:stream';
 import { crc32 } from 'node:zlib';
 import {
   configureClient,
@@ -119,6 +120,15 @@ const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
   poolSize: 4,
 });
 
+/** Reads one property of an unknown value without asserting its shape. */
+function readProperty(value: unknown, key: string): unknown {
+  if (value === null || typeof value !== 'object') return undefined;
+  return Object.fromEntries(Object.entries(value))[key];
+}
+
+/** The idle bound of a streamed body on this test deployment. */
+const bodyIdleTimeoutMs = 1500;
+
 /** The environment of this test deployment. */
 function environment(): Record<string, string> {
   return {
@@ -132,6 +142,9 @@ function environment(): Record<string, string> {
     NOTESAPP_MAX_BODY_BYTES: '8388608',
     NOTESAPP_MAX_HEADER_BYTES: '16384',
     NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
+    // Short enough to keep the slow import test quick, and far longer than
+    // the gap between two chunks of any other body in this file.
+    NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: String(bodyIdleTimeoutMs),
   };
 }
 
@@ -394,6 +407,65 @@ await test('a stranger cannot export a workspace', async () => {
     path: { workspaceId: otherWorkspace },
   });
   assert.equal(responseOf(answer.response).status, 404);
+});
+
+/** One multipart boundary of the hand built import body below. */
+const importBoundary = 'notesappImportBoundary';
+
+await test('an import that stops arriving answers with the declared timeout', async () => {
+  // The defect this covers: the import route read its body with no idle
+  // bound, and its body limit is four times the limit of the upload route. A
+  // sender that stopped in the middle therefore held the more valuable slot
+  // until the total receive bound fired.
+  //
+  // The generated operation cannot express a body that arrives in pieces, so
+  // this drives the real instance through `app.inject`, which is the one
+  // permitted way to send such a request.
+  const body = new PassThrough();
+  body.write(
+    [
+      `--${importBoundary}`,
+      'Content-Disposition: form-data; name="file"; filename="slow.zip"',
+      'Content-Type: application/zip',
+      '',
+      '',
+    ].join('\r\n'),
+  );
+  body.write('PK');
+
+  const started = Date.now();
+  const answer = await server.app.inject({
+    method: 'POST',
+    url: `/api/workspaces/${workspaceId}/import`,
+    headers: {
+      ...browser(cookie),
+      'content-type': `multipart/form-data; boundary=${importBoundary}`,
+    },
+    payload: body,
+  });
+  body.destroy();
+
+  assert.equal(answer.statusCode, 408);
+  assert.equal(
+    answer.headers['content-type'],
+    'application/problem+json; charset=utf-8',
+  );
+  const problem: unknown = JSON.parse(answer.body);
+  assert.equal(readProperty(problem, 'code'), 'request_timeout');
+  assert.equal(
+    readProperty(problem, 'detail'),
+    'The import stopped. Send the archive again.',
+  );
+  // The answer waits for the bound and not for the request bound of the whole
+  // deployment, which is forty times longer.
+  assert.ok(
+    Date.now() - started >= bodyIdleTimeoutMs,
+    'the answer came before the idle bound',
+  );
+  assert.ok(
+    Date.now() - started < 30_000,
+    'the answer waited for the request bound',
+  );
 });
 
 // Teardown

@@ -4,7 +4,9 @@ post:
   description: >-
     Reads Markdown files and image files at their archive paths. The
     operation does not rewrite a Markdown reference. Every imported path
-    must be free in the workspace.
+    must be free in the workspace. The gap between two chunks of the
+    archive is bounded, so a sender that stops in the middle is answered
+    and does not hold its slot.
   tags:
     - files
   parameters:
@@ -23,6 +25,8 @@ post:
       $ref: '../components/responses/Forbidden.yaml'
     '404':
       $ref: '../components/responses/NotFound.yaml'
+    '408':
+      $ref: '../components/responses/RequestTimeout.yaml'
     '409':
       $ref: '../components/responses/Conflict.yaml'
     '413':
