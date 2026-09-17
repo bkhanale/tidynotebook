@@ -123,6 +123,38 @@ test('the last workspace offers no delete action', async ({ page, stack }) => {
   ).toBeVisible();
 });
 
+test('the workspace dialog covers the page, not the sidebar', async ({
+  page,
+  stack,
+}) => {
+  // The sidebar slides, so it carries a transform, and a transform makes its
+  // box the containing block of every fixed descendant. A dialog rendered
+  // inside it is trapped in the width of the sidebar. The frame owns these
+  // dialogs for that reason, and this journey holds that rule.
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  const menu = await openSwitcher(page);
+  await menu.getByRole('menuitemradio', { name: 'New workspace' }).click();
+
+  const panel = page.getByRole('dialog', { name: 'New workspace' });
+  await expect(panel).toBeVisible();
+
+  const viewport = page.viewportSize();
+  const box = await panel.boundingBox();
+  if (viewport === null || box === null)
+    throw new Error('The dialog has no box.');
+  const aside = await sidebar(page).boundingBox();
+  if (aside === null) throw new Error('The sidebar has no box.');
+
+  // Wider than the sidebar, and centred on the viewport rather than pinned
+  // inside the left column.
+  expect(box.width).toBeGreaterThan(aside.width);
+  const centre = box.x + box.width / 2;
+  expect(Math.abs(centre - viewport.width / 2)).toBeLessThan(
+    viewport.width / 10,
+  );
+});
+
 test('a second workspace keeps its notes away from the first', async ({
   page,
   stack,

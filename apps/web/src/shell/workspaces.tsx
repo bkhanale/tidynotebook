@@ -39,7 +39,7 @@ import {
   type MenuItem,
 } from '@notesapp/ui';
 import { problemMessage, useWorkspace } from '../app.tsx';
-import { isMemberOf, workspaceAfterRemoval } from '../lib/workspace-choice.ts';
+import { isMemberOf } from '../lib/workspace-choice.ts';
 
 /** The longest workspace name the contract accepts. */
 const nameLimit = 200;
@@ -199,7 +199,7 @@ function nameProblem(name: string, taken: readonly string[]): string | null {
  * The new workspace starts empty, so the person lands on the empty state of
  * the note list and the one action that fills it.
  */
-function NewWorkspaceDialog({
+export function NewWorkspaceDialog({
   open,
   onClose,
   workspaces,
@@ -286,7 +286,7 @@ function NewWorkspaceDialog({
 }
 
 /** Renames the open workspace. */
-function RenameWorkspaceDialog({
+export function RenameWorkspaceDialog({
   open,
   onClose,
   workspace,
@@ -391,7 +391,7 @@ function RenameWorkspaceDialog({
  * refuses the last workspace of an account whatever this screen shows
  * (record 0051).
  */
-function DeleteWorkspaceDialog({
+export function DeleteWorkspaceDialog({
   open,
   onClose,
   workspace,
@@ -485,10 +485,20 @@ function DeleteWorkspaceDialog({
  * The trigger names the open workspace. The menu lists every workspace of the
  * account and marks the open one, then the actions of that workspace, then the
  * pinned Create workspace row.
+ *
+ * The dialogs of those actions do not live here. The sidebar is a transformed
+ * element, because the drawer slides, and a transform makes its box the
+ * containing block of every `position: fixed` descendant. A dialog rendered
+ * inside it would be trapped in the width of the sidebar instead of covering
+ * the page. So this control raises intent and `shell.tsx` owns the dialogs,
+ * which is what it already does for the folder and publish dialogs.
  */
 export function WorkspaceSwitcher({
   workspaceId,
   onNavigate,
+  onCreate,
+  onRename,
+  onDelete,
 }: {
   /**
    * The workspace of the address, which is the one the shell is showing.
@@ -500,12 +510,12 @@ export function WorkspaceSwitcher({
   readonly workspaceId: string;
   /** Closes the navigation drawer after a switch on a narrow viewport. */
   readonly onNavigate: () => void;
+  readonly onCreate: () => void;
+  readonly onRename: () => void;
+  readonly onDelete: () => void;
 }): ReactNode {
-  const { state, reload, adopt, forget } = useWorkspace();
+  const { state } = useWorkspace();
   const navigate = useNavigate();
-  const [creating, setCreating] = useState(false);
-  const [renaming, setRenaming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const workspaces = state.status === 'ready' ? state.workspaces : [];
   const openWorkspace =
@@ -534,7 +544,7 @@ export function WorkspaceSwitcher({
       id: 'rename-workspace',
       label: 'Rename workspace',
       icon: <PencilIcon size={14} />,
-      onSelect: () => setRenaming(true),
+      onSelect: onRename,
     },
     // Record 0051 keeps the last workspace of an account, so the row is absent
     // rather than present and always refused. The server refuses it either
@@ -546,7 +556,7 @@ export function WorkspaceSwitcher({
             label: 'Delete permanently',
             icon: <TrashIcon size={14} />,
             danger: true,
-            onSelect: (): void => setDeleting(true),
+            onSelect: onDelete,
           },
         ]
       : []),
@@ -554,7 +564,7 @@ export function WorkspaceSwitcher({
       id: 'new-workspace',
       label: 'New workspace',
       icon: <PlusIcon size={14} />,
-      onSelect: () => setCreating(true),
+      onSelect: onCreate,
     },
   ];
 
@@ -564,8 +574,8 @@ export function WorkspaceSwitcher({
         label={`Workspace: ${openWorkspace.name}`}
         items={items}
         pinned={pinned}
-        align="start"
-        triggerClassName="flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-2 text-left text-control text-strong motion-safe:transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-9"
+        matchTrigger
+        triggerClassName="flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-2 py-1.5 text-left text-control text-strong motion-safe:transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-9"
       >
         <span
           className="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-accent-fill text-on-accent"
@@ -583,38 +593,6 @@ export function WorkspaceSwitcher({
           <ChevronDownIcon size={14} />
         </span>
       </Menu>
-
-      <NewWorkspaceDialog
-        open={creating}
-        onClose={() => setCreating(false)}
-        workspaces={workspaces}
-        onCreated={(created) => {
-          // The server answered with the whole workspace, so the list already
-          // holds it before the address names it. There is nothing to wait
-          // for and nothing to hand across the navigation.
-          adopt(created);
-          void navigate(`/w/${created.workspaceId}`);
-          onNavigate();
-        }}
-      />
-      <RenameWorkspaceDialog
-        open={renaming}
-        onClose={() => setRenaming(false)}
-        workspace={openWorkspace}
-        workspaces={workspaces}
-        onRenamed={reload}
-      />
-      <DeleteWorkspaceDialog
-        open={deleting}
-        onClose={() => setDeleting(false)}
-        workspace={openWorkspace}
-        onDeleted={() => {
-          const next = workspaceAfterRemoval(workspaces, workspaceId);
-          forget(workspaceId);
-          if (next !== null) void navigate(`/w/${next.workspaceId}`);
-          onNavigate();
-        }}
-      />
     </div>
   );
 }

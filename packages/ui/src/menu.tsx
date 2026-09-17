@@ -80,6 +80,7 @@ export function Menu({
   icon,
   items,
   pinned = [],
+  matchTrigger = false,
   align = 'end',
   triggerClassName,
   children,
@@ -97,6 +98,14 @@ export function Menu({
    * because it is last on the screen.
    */
   readonly pinned?: readonly MenuItem[] | undefined;
+  /**
+   * Opens the menu at the width of its trigger.
+   *
+   * A trigger that fills its column, such as the workspace switcher, reads as
+   * one control with the list it opens. A menu narrower than its own trigger
+   * lines up with neither edge and looks like a mistake.
+   */
+  readonly matchTrigger?: boolean | undefined;
   readonly align?: MenuAlign | undefined;
   readonly triggerClassName?: string | undefined;
   /** Visible trigger text. Omit it for an icon-only trigger. */
@@ -207,13 +216,25 @@ export function Menu({
             {icon}
           </span>
         )}
-        {children === undefined ? null : <span>{children}</span>}
+        {children === undefined ? null : (
+          // A flex box and not a plain span, because a trigger that shows text
+          // often shows more than text: an icon, a label that has to take the
+          // free width, and a chevron at the far edge. A plain span made those
+          // three one inline box, so the parts could not be laid out at all.
+          <span className="flex min-w-0 flex-1 items-center gap-cluster">
+            {children}
+          </span>
+        )}
       </button>
       {open ? (
         <div
           ref={listRef}
           id={menuId}
-          className={`absolute top-full z-40 mt-1 min-w-56 rounded-xl border border-edge bg-card p-1 shadow-xl ${align === 'end' ? 'right-0' : 'left-0'}`}
+          className={`absolute top-full z-40 mt-1 rounded-xl border border-edge bg-card p-1 shadow-xl ${
+            matchTrigger
+              ? 'inset-x-0'
+              : `min-w-56 ${align === 'end' ? 'right-0' : 'left-0'}`
+          }`}
           role="menu"
           aria-label={label}
           onKeyDown={(event): void => {

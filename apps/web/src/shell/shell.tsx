@@ -122,6 +122,7 @@ import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import { treeRowClassName, treeRowTextClassName } from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { displayNoteName } from '../lib/note-name.ts';
+import { workspaceAfterRemoval } from '../lib/workspace-choice.ts';
 import {
   knownFolderPaths,
   selectedFolderOrRoot,
@@ -137,7 +138,13 @@ import {
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncStateMessage } from '../lib/sync-state.ts';
-import { RequireCurrentWorkspace, WorkspaceSwitcher } from './workspaces.tsx';
+import {
+  DeleteWorkspaceDialog,
+  NewWorkspaceDialog,
+  RenameWorkspaceDialog,
+  RequireCurrentWorkspace,
+  WorkspaceSwitcher,
+} from './workspaces.tsx';
 import {
   DeleteNoticeBar,
   DeleteNoticeProvider,
@@ -472,6 +479,9 @@ function Sidebar({
   onRenameFolder,
   onPublishFolder,
   onNewNoteIn,
+  onNewWorkspace,
+  onRenameWorkspace,
+  onDeleteWorkspace,
   onClose,
 }: {
   readonly workspaceId: string;
@@ -483,6 +493,9 @@ function Sidebar({
   readonly onRenameFolder: (folder: string) => void;
   readonly onPublishFolder: (folder: string) => void;
   readonly onNewNoteIn: (folder: string) => void;
+  readonly onNewWorkspace: () => void;
+  readonly onRenameWorkspace: () => void;
+  readonly onDeleteWorkspace: () => void;
   readonly onClose: () => void;
 }): ReactNode {
   const params = useParams();
@@ -630,7 +643,13 @@ function Sidebar({
         />
       </div>
 
-      <WorkspaceSwitcher workspaceId={workspaceId} onNavigate={onClose} />
+      <WorkspaceSwitcher
+        workspaceId={workspaceId}
+        onNavigate={onClose}
+        onCreate={onNewWorkspace}
+        onRename={onRenameWorkspace}
+        onDelete={onDeleteWorkspace}
+      />
 
       {session.account !== null ? (
         <div className="flex items-center gap-1 px-2 py-2">
@@ -972,6 +991,13 @@ function ShellFrame({
   const [renameFolder, setRenameFolder] = useState<string | null>(null);
   // The folder that the publish dialog opens, or `null` while it is closed.
   const [publishFolder, setPublishFolder] = useState<string | null>(null);
+  // Which workspace dialog is open, or `null` for none. The frame owns these
+  // and not the sidebar: the sidebar is transformed so it slides, and a
+  // transform makes its box the containing block of a `position: fixed` child,
+  // which would trap a dialog inside the width of the sidebar.
+  const [workspaceDialog, setWorkspaceDialog] = useState<
+    'create' | 'rename' | 'delete' | null
+  >(null);
   const [selectedFolder, setSelectedFolder] = useState('');
   const sidebar = useSidebarSize();
   // The frame owns the open folders of the tree, because the New folder
@@ -1145,16 +1171,25 @@ function ShellFrame({
     },
   ];
 
+  // The workspaces of the account, and the one this frame is showing. The
+  // dialogs below take both, so they sit at frame level and not in the
+  // transformed sidebar.
+  const allWorkspaces = useMemo(
+    () =>
+      workspace.state.status === 'ready' ? workspace.state.workspaces : [],
+    [workspace.state],
+  );
+  const openWorkspace = useMemo(
+    () =>
+      allWorkspaces.find((entry) => entry.workspaceId === workspaceId) ?? null,
+    [allWorkspaces, workspaceId],
+  );
+
   // Every workspace the person can move to from here. The open one is absent,
   // because a row that goes where you already are is noise.
   const otherWorkspaces = useMemo(
-    () =>
-      workspace.state.status === 'ready'
-        ? workspace.state.workspaces.filter(
-            (entry) => entry.workspaceId !== workspaceId,
-          )
-        : [],
-    [workspace.state, workspaceId],
+    () => allWorkspaces.filter((entry) => entry.workspaceId !== workspaceId),
+    [allWorkspaces, workspaceId],
   );
 
   const paletteActions = useMemo(
@@ -1423,6 +1458,9 @@ function ShellFrame({
               onRenameFolder={(folder) => setRenameFolder(folder)}
               onPublishFolder={(folder) => setPublishFolder(folder)}
               onNewNoteIn={(folder) => newNote.create(folder)}
+              onNewWorkspace={() => setWorkspaceDialog('create')}
+              onRenameWorkspace={() => setWorkspaceDialog('rename')}
+              onDeleteWorkspace={() => setWorkspaceDialog('delete')}
               onClose={() => setDrawerOpen(false)}
             />
             <SidebarResizer size={sidebar.size} onStep={sidebar.setStep} />
@@ -1475,6 +1513,43 @@ function ShellFrame({
             open={shortcutsOpen}
             onClose={() => setShortcutsOpen(false)}
           />
+          {openWorkspace === null ? null : (
+            <>
+              <NewWorkspaceDialog
+                open={workspaceDialog === 'create'}
+                onClose={() => setWorkspaceDialog(null)}
+                workspaces={allWorkspaces}
+                onCreated={(created) => {
+                  // The server answered with the whole workspace, so the list
+                  // already holds it before the address names it.
+                  workspace.adopt(created);
+                  void navigate(`/w/${created.workspaceId}`);
+                  setDrawerOpen(false);
+                }}
+              />
+              <RenameWorkspaceDialog
+                open={workspaceDialog === 'rename'}
+                onClose={() => setWorkspaceDialog(null)}
+                workspace={openWorkspace}
+                workspaces={allWorkspaces}
+                onRenamed={workspace.reload}
+              />
+              <DeleteWorkspaceDialog
+                open={workspaceDialog === 'delete'}
+                onClose={() => setWorkspaceDialog(null)}
+                workspace={openWorkspace}
+                onDeleted={() => {
+                  const next = workspaceAfterRemoval(
+                    allWorkspaces,
+                    workspaceId,
+                  );
+                  workspace.forget(workspaceId);
+                  if (next !== null) void navigate(`/w/${next.workspaceId}`);
+                  setDrawerOpen(false);
+                }}
+              />
+            </>
+          )}
           <NewFolderDialog
             open={newFolderParent !== null}
             onClose={() => setNewFolderParent(null)}
