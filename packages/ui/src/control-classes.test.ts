@@ -11,6 +11,7 @@ import test from 'node:test';
 import {
   badgeClassName,
   buttonClassName,
+  buttonName,
   type BadgeTone,
   type ButtonVariant,
 } from './control-classes.ts';
@@ -88,4 +89,38 @@ await test('a button names one appearance and one size', () => {
   );
   assert.equal(buttonClassName(), buttonClassName({ variant: 'primary' }));
   assert.ok(buttonClassName({ className: 'mt-2' }).endsWith('mt-2'));
+});
+
+await test('a label reaches a button that has no text', () => {
+  const name = buttonName({ label: 'Close navigation', hasText: false });
+  assert.equal(name.ariaLabel, 'Close navigation');
+  assert.equal(name.title, 'Close navigation');
+});
+
+await test('a label reaches a button that also has text', () => {
+  // The row actions of Trash and of the attention screen each show one word
+  // and act on one note, so the label is the only thing that tells two rows
+  // apart. Dropping it gave every row of the list the same name.
+  const name = buttonName({ label: 'Restore Shopping list', hasText: true });
+  assert.equal(name.ariaLabel, 'Restore Shopping list');
+});
+
+await test('a button with text carries no tooltip of its own', () => {
+  const name = buttonName({ label: 'Restore Shopping list', hasText: true });
+  assert.equal(name.title, undefined);
+});
+
+await test('an explicit title wins over the label', () => {
+  const name = buttonName({
+    label: 'Restore Shopping list',
+    title: 'Restore this note',
+    hasText: true,
+  });
+  assert.equal(name.title, 'Restore this note');
+});
+
+await test('a button with no label names itself by its text alone', () => {
+  const name = buttonName({ hasText: true });
+  assert.equal(name.ariaLabel, undefined);
+  assert.equal(name.title, undefined);
 });

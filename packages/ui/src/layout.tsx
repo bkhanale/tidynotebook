@@ -142,6 +142,11 @@ export function Card({
  *
  * One sentence, one optional hint, and one primary action. A screen never
  * shows two primary actions, so the action here is the only one on it.
+ *
+ * The title is a heading and not a paragraph that looks like one. An empty
+ * state stands where a `Card` stands, under the one page title, so it takes
+ * the same level as the title of that card and a person who moves by heading
+ * reaches it.
  */
 export function EmptyState({
   icon,
@@ -161,7 +166,7 @@ export function EmptyState({
           {icon}
         </p>
       )}
-      <p className="mb-0 mt-3 text-base font-semibold text-strong">{title}</p>
+      <h2 className="mb-0 mt-3 text-base font-semibold text-strong">{title}</h2>
       {description === undefined || description === '' ? null : (
         <p className="mx-auto mb-0 mt-2 max-w-md text-control text-muted">
           {description}

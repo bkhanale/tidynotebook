@@ -9,6 +9,7 @@ import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import {
   badgeClassName,
   buttonClassName,
+  buttonName,
   type BadgeTone,
   type ButtonSize,
   type ButtonVariant,
@@ -52,9 +53,8 @@ export function Button({
     className: extraClassName,
   });
 
-  // WCAG 2.5.3 Label in Name: a visible label is the accessible name. Only
-  // an icon-only button names itself with `aria-label`.
   const hasChildren = children !== undefined && children !== null;
+  const name = buttonName({ label, title, hasText: hasChildren });
 
   return (
     <button
@@ -63,10 +63,10 @@ export function Button({
       className={classes}
       disabled={disabled ?? false}
       onClick={onClick}
-      aria-label={hasChildren ? undefined : label}
+      aria-label={name.ariaLabel}
       aria-controls={ariaControls}
       aria-expanded={ariaExpanded}
-      title={title ?? (hasChildren ? undefined : label)}
+      title={name.title}
     >
       {icon !== undefined ? (
         <span

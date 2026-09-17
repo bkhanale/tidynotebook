@@ -49,3 +49,28 @@ export function treeRowTextClassName(state: TreeRowState = {}): string {
     ? 'text-strong'
     : 'text-muted group-hover:text-strong';
 }
+
+/**
+ * The deepest branch that still steps in.
+ *
+ * Every level used to add its own step, and nothing stopped it. A folder at
+ * the tenth level of a narrow sidebar therefore had no room left for its own
+ * name: the row showed a chevron, a folder mark and nothing else. The steps
+ * stop here, so the name column has a floor. Below this level a branch keeps
+ * its guide line alone, which still says that the rows belong to the folder
+ * above them, and the name stays readable.
+ */
+export const deepestSteppedBranch = 4;
+
+/**
+ * The classes of one child branch of the tree, at `depth`.
+ *
+ * `depth` is 1 for the children of a folder at the top of the tree. Folder and
+ * note rows reserve the same disclosure column, so one compact step for each
+ * level is enough to read the shape of the tree.
+ */
+export function treeBranchClassName(depth: number): string {
+  return depth > deepestSteppedBranch
+    ? 'border-l border-edge-line pl-1'
+    : 'ml-3 border-l border-edge-line pl-1';
+}

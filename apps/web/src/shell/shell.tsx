@@ -120,7 +120,11 @@ import {
   type SidebarSize,
 } from './sidebar-size.ts';
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
-import { treeRowClassName, treeRowTextClassName } from '../lib/tree-row.ts';
+import {
+  treeBranchClassName,
+  treeRowClassName,
+  treeRowTextClassName,
+} from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { displayNoteName } from '../lib/note-name.ts';
 import { workspaceAfterRemoval } from '../lib/workspace-choice.ts';
@@ -207,7 +211,10 @@ function NoteRow({
         <span className="inline-flex shrink-0 items-center" aria-hidden="true">
           <FileTextIcon size={14} />
         </span>
-        <span className="min-w-0 flex-1 truncate">
+        <span
+          className="min-w-0 flex-1 truncate"
+          title={displayNoteName(basename)}
+        >
           {displayNoteName(basename)}
         </span>
         {note.localOnly || note.unsent ? (
@@ -241,15 +248,6 @@ function NoteRow({
 const rowMenuClassName = `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`;
 
 /**
- * The inset of one child branch in the tree.
- *
- * Folder and note rows reserve the same disclosure column. A branch therefore
- * needs only one compact step for each level. The guide line and the inset
- * stay visible without taking the name space of a deep folder.
- */
-const treeBranchClassName = 'ml-3 border-l border-edge-line pl-1';
-
-/**
  * Renders the tree nodes as interactive collapsible lists.
  *
  * A row is a drag source and a folder row is a drop target. The handlers stay
@@ -259,6 +257,7 @@ const treeBranchClassName = 'ml-3 border-l border-edge-line pl-1';
  */
 function TreeView({
   nodes,
+  depth = 1,
   workspaceId,
   activeFileId,
   selectedFolder,
@@ -275,6 +274,8 @@ function TreeView({
   onNavigate,
 }: {
   readonly nodes: readonly TreeNode[];
+  /** How far in this list sits. The list at the top of the tree is 1. */
+  readonly depth?: number | undefined;
   readonly workspaceId: string;
   readonly activeFileId: string | null;
   readonly selectedFolder: string;
@@ -370,7 +371,9 @@ function TreeView({
                     <FolderIcon size={14} />
                   )}
                 </span>
-                <span className="min-w-0 truncate">{node.name}</span>
+                <span className="min-w-0 truncate" title={node.name}>
+                  {node.name}
+                </span>
               </button>
               <Menu
                 label={`Actions for the folder ${node.name}`}
@@ -413,15 +416,16 @@ function TreeView({
             </div>
             {isOpen ? (
               node.children.length === 0 ? (
-                <div className={treeBranchClassName}>
+                <div className={treeBranchClassName(depth + 1)}>
                   <p className="my-1 px-2 py-1 text-control text-muted">
                     This folder is empty.
                   </p>
                 </div>
               ) : (
-                <div className={treeBranchClassName}>
+                <div className={treeBranchClassName(depth + 1)}>
                   <TreeView
                     nodes={node.children}
+                    depth={depth + 1}
                     workspaceId={workspaceId}
                     activeFileId={activeFileId}
                     selectedFolder={selectedFolder}
@@ -537,6 +541,7 @@ function Sidebar({
     if (openNotePath === null) return;
     for (const folder of ancestorFolders(openNotePath)) openFolder(folder);
   }, [openNotePath, openFolder]);
+  const notesPath = `/w/${workspaceId}`;
   const trashPath = `/w/${workspaceId}/trash`;
   const publishedPath = `/w/${workspaceId}/published`;
   const navigate = useNavigate();
@@ -678,6 +683,7 @@ function Sidebar({
           <GroupLabel id="tree-heading">Folders</GroupLabel>
           <div
             className={`group ${treeRowClassName({
+              open: location.pathname === notesPath,
               selected: selectedFolder === '',
               dropTarget: drag.over === '',
             })}`}
@@ -695,14 +701,40 @@ function Sidebar({
               drag.drop('');
             }}
           >
-            <button
-              type="button"
-              className={`flex min-h-11 w-full cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 text-left text-control ${transitionSurface} focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${treeRowTextClassName({ selected: selectedFolder === '' })}`}
-              aria-pressed={selectedFolder === ''}
-              onClick={() => onSelectFolder('')}
+            {/*
+              The root of the tree is a link and not a button, because the
+              workspace screen is the list of all notes and this row names it.
+              It looked inert before: it set the parent of the next create
+              action and took a drop, and neither of those moves the screen, so
+              the one row named `All notes` never opened the screen named
+              `All notes`. It still does both of those, and the selection
+              follows the note that opens, by record 0034.
+            */}
+            <span className="size-11 shrink-0 md:size-8" aria-hidden="true" />
+            <Link
+              className={`flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-lg px-1 text-control no-underline ${transitionSurface} md:min-h-8 ${treeRowTextClassName(
+                {
+                  open: location.pathname === notesPath,
+                  selected: selectedFolder === '',
+                },
+              )}`}
+              to={notesPath}
+              aria-current={
+                location.pathname === notesPath ? 'page' : undefined
+              }
+              onClick={() => {
+                onSelectFolder('');
+                onNavigate();
+              }}
             >
-              All notes
-            </button>
+              <span
+                className="inline-flex shrink-0 items-center"
+                aria-hidden="true"
+              >
+                <FolderIcon size={14} />
+              </span>
+              <span className="min-w-0 flex-1 truncate">All notes</span>
+            </Link>
           </div>
           {files.loading ? (
             <div className="px-2 py-2">

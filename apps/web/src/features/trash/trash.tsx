@@ -351,7 +351,7 @@ export function DeleteNoticeBar(): ReactNode {
           <Button
             variant="ghost"
             size="sm"
-            label="Hide this notice"
+            label="Close this notice"
             onClick={dismiss}
           >
             Close
@@ -652,7 +652,7 @@ function TrashList({
                           size="sm"
                           disabled={busy}
                           icon={<TrashIcon size={14} />}
-                          label={`Delete ${name} permanently`}
+                          label={`Delete permanently: ${name}`}
                           onClick={() => deleteForever(item)}
                         >
                           Delete permanently

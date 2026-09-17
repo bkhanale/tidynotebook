@@ -143,7 +143,7 @@ test('a note that moves into a folder stays there after the next edit', async ({
   await page.getByRole('button', { name: 'Make folder' }).click();
 
   // The note starts at the top, so the move has somewhere to move it from.
-  await navigation.getByRole('button', { name: 'All notes' }).click();
+  await navigation.getByRole('link', { name: 'All notes' }).click();
   await navigation
     .getByRole('button', { name: 'New note', exact: true })
     .click();
@@ -203,7 +203,7 @@ test('a new folder lands inside the folder of the note that is open', async ({
   // is what decides the parent, so the folder below lands next to that note
   // and not at the top. This is the defect the journey covers.
   await openNavigation(page);
-  await navigation.getByRole('button', { name: 'All notes' }).click();
+  await navigation.getByRole('link', { name: 'All notes' }).click();
   await navigation.getByRole('link', { name: noteName }).click();
   await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
 
@@ -244,7 +244,7 @@ test('the folder row makes a folder inside that folder', async ({
   await page.getByRole('button', { name: 'Make folder' }).click();
 
   // The top is selected, so only the menu of the row can name this parent.
-  await navigation.getByRole('button', { name: 'All notes' }).click();
+  await navigation.getByRole('link', { name: 'All notes' }).click();
   await page
     .getByRole('button', { name: `Actions for the folder ${parent}` })
     .click();

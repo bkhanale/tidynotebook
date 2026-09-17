@@ -1,11 +1,13 @@
 /**
- * The class rules of a control, as pure functions.
+ * The rules of a control, as pure functions.
  *
  * A control in `controls.tsx` is JSX, so no unit test can load it. The rules
- * that decide how a control looks are not JSX, and they are the part a rule of
- * this repository holds: the named scale, the palette, and the ban on making a
- * colour at paint time. They live here so `control-classes.test.ts` can read
- * them, and `controls.tsx` renders with them.
+ * that decide how a control looks, and how it names itself to a person who
+ * cannot see it, are not JSX, and they are the part a rule of this repository
+ * holds: the named scale, the palette, the ban on making a colour at paint
+ * time, and the accessible name of every action. They live here so
+ * `control-classes.test.ts` can read them, and `controls.tsx` renders with
+ * them.
  */
 import { transitionSurface } from './motion.ts';
 
@@ -85,4 +87,37 @@ export function badgeClassName(tone: BadgeTone): string {
           ? 'border-danger/30 bg-hover text-danger'
           : 'border-edge-subtle bg-hover text-muted';
   return `inline-flex items-center rounded-full border px-2 py-0.5 text-control font-semibold ${toneClass}`;
+}
+
+/** The accessible name and the tooltip of one button. */
+export type ButtonName = {
+  readonly ariaLabel: string | undefined;
+  readonly title: string | undefined;
+};
+
+/**
+ * How a button names itself.
+ *
+ * A `label` names the button whether or not the button also shows text. One
+ * word on a row of a list, such as `Restore` or `Delete permanently`, names
+ * the action and never the row it acts on, so every row of that list carried
+ * the same name while a label given to a button with text was dropped.
+ *
+ * WCAG 2.5.3 Label in Name still holds, and the caller holds it: a label for
+ * a button that also shows text starts with that exact text, so speech input
+ * reaches the control by the words a person reads on it.
+ *
+ * A tooltip belongs to an icon-only button alone. A button with visible text
+ * already states its purpose on the screen, so a tooltip there repeats it. An
+ * explicit `title` wins, because a caller can have a reason for one.
+ */
+export function buttonName(options: {
+  readonly label?: string | undefined;
+  readonly title?: string | undefined;
+  readonly hasText: boolean;
+}): ButtonName {
+  return {
+    ariaLabel: options.label,
+    title: options.title ?? (options.hasText ? undefined : options.label),
+  };
 }

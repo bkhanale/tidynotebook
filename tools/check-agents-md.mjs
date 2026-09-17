@@ -10,7 +10,12 @@
  *    name order, separated by one blank line.
  * 2. Every directory that owns code has its own `AGENTS.md`, because an agent
  *    reads the guide of a directory before it edits under it. A guide stays
- *    short enough to read in full, so it is capped at 80 lines.
+ *    short enough to read in full, so its rules are capped at 80 lines. The
+ *    cap ends at the `## Key files` heading: that table is an index of the
+ *    directory, not a rule, and its length follows how many files the
+ *    directory holds. Capping the rules is what keeps a guide readable, and a
+ *    directory that grows must still have room for the next rule
+ *    ([decision 0059](../docs/decisions/0059-a-guide-caps-its-rules.md)).
  * 3. The reading list of `tools/agent-context.mjs` runs for every guide, so a
  *    guide cannot point at a file that moved away.
  * 4. Each harness reads the context through its own entry: `CLAUDE.md` holds
@@ -42,8 +47,11 @@ export const guidedDirectories = [
   'tools/sdk-codegen',
 ];
 
-/** How many lines one directory guide may hold. */
+/** How many lines of rules one directory guide may hold. */
 export const maximumGuideLines = 80;
+
+/** The heading that ends the rules of a guide and starts its index. */
+export const keyFilesHeading = '## Key files';
 
 /** The one content that the Claude Code entry file may hold. */
 export const claudeEntry =
@@ -124,6 +132,19 @@ function lineCount(text) {
 }
 
 /**
+ * The rules of one guide: everything above its key file index.
+ *
+ * A guide with no index is all rules, so the whole file counts.
+ *
+ * @param {string} text
+ * @returns {string}
+ */
+export function guideRules(text) {
+  const at = text.indexOf(`\n${keyFilesHeading}`);
+  return at === -1 ? text : text.slice(0, at + 1);
+}
+
+/**
  * Runs the check over one repository tree.
  *
  * @param {string} directory
@@ -181,10 +202,10 @@ export async function main(directory) {
       failures.push(`${guided}/AGENTS.md: missing.`);
       continue;
     }
-    const count = lineCount(text);
+    const count = lineCount(guideRules(text));
     if (count > maximumGuideLines)
       failures.push(
-        `${guided}/AGENTS.md: ${count} lines. Keep it under ${maximumGuideLines}.`,
+        `${guided}/AGENTS.md: ${count} lines of rules. Keep them under ${maximumGuideLines}. The ${keyFilesHeading} index does not count.`,
       );
   }
   if (failures.length > 0) {

@@ -125,12 +125,21 @@ await test('a missing directory guide fails and names the directory', () => {
   assert.match(result.output, /packages\/core\/AGENTS\.md: missing/);
 });
 
-await test('a directory guide over the line budget fails', () => {
+await test('a directory guide over the rule budget fails', () => {
   const result = check({
     'packages/ui/AGENTS.md': guide(maximumGuideLines + 1),
   });
   assert.equal(result.status, 1);
-  assert.match(result.output, /packages\/ui\/AGENTS\.md: 81 lines/);
+  assert.match(result.output, /packages\/ui\/AGENTS\.md: 81 lines of rules/);
+});
+
+await test('the key file index of a guide does not count against the cap', () => {
+  // The index grows with the directory and states no rule, so a directory
+  // that gains a file must not lose room for its next rule.
+  const rules = guide(maximumGuideLines);
+  const index = '## Key files\n\n| File | Purpose |\n| ---- | ------- |\n';
+  const result = check({ 'packages/ui/AGENTS.md': rules + index });
+  assert.equal(result.status, 0, result.output);
 });
 
 await test('a guide that points at a file that is gone fails', () => {

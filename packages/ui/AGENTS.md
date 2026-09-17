@@ -15,17 +15,19 @@ the icons. `src/themes/` is the one place here that holds a colour value.
 - `src/layout.tsx` holds `Page`, `PageHeader`, `Card`, `EmptyState`, `ListRow`,
   `Toolbar`, and `pageGutter`, the one distance from the edge of the screen to
   the content. `src/controls.tsx`, `src/menu.tsx`, `src/dialog.tsx` and
-  `src/notice.tsx` hold the controls, `src/control-classes.ts` their class
-  rules as pure functions, and `src/loading.tsx` the one placeholder of a wait.
-  `src/motion.ts` holds the named transitions and may name a duration, an
+  `src/notice.tsx` hold the controls, `src/control-classes.ts` their class and
+  name rules as pure functions, `src/overlay-position.ts` the place an overlay
+  takes on the screen (0058), and `src/loading.tsx` the one placeholder of a
+  wait. `src/motion.ts` holds the named transitions and may name a duration, an
   easing or a transition, which no other module here may (0054).
 - No screen, no route, no data fetching, and no storage lives here. A control
   takes its data and its callbacks as props.
 
 ## Allowed imports
 
-Nothing from the workspace, only `react`. This package is browser code and
-imports no Node built in module, no Node only package, no server only package.
+Nothing from the workspace, only `react` and `react-dom`. `react-dom` is here
+for `createPortal` alone (0058). This package is browser code and imports no
+Node built in module, no Node only package, no server only package.
 
 ## How to add a common thing here
 
@@ -36,9 +38,14 @@ imports no Node built in module, no Node only package, no server only package.
   and give an icon only action an accessible name and a title. One that moves
   reads a name from `src/motion.ts`, one that stands off its plane reads an
   elevation step, and a fill behind a label reads a palette name (0057).
-- **A menu.** `label` names the trigger even when it shows text. A menu of
+- **A menu.** `label` names the trigger even when it shows text, and it reaches
+  the control whether or not the control also shows text. A menu of
   alternatives sets `selected`, which makes each row a `menuitemradio`, and an
   unbounded list puts its create action in `pinned`.
+- **An overlay.** It opens at the end of the document, so no box that scrolls
+  can cut it. `src/overlay-position.ts` decides the place and `src/menu.tsx`
+  writes it. Those two are the only modules here that hold a position, and they
+  hold nothing else (0058).
 - **A layout primitive.** Add it in `src/layout.tsx` and use it everywhere. A
   frame that cannot use `Page` reads `pageGutter` and never its own padding.
 
@@ -46,8 +53,9 @@ imports no Node built in module, no Node only package, no server only package.
 
 `node --test` through `pnpm test:unit`. `src/theme.test.ts` walks the registry
 and fails with the exact token, surface and theme that misses a contrast rule,
-so a new theme needs no new test. Node loads no `.tsx` file, so a class rule a
-test must read lives in `src/control-classes.ts`.
+so a new theme needs no new test. Node loads no `.tsx` file, so a rule a test
+must read lives in a `.ts` module: `src/control-classes.ts` for a control and
+`src/overlay-position.ts` for an overlay.
 `tests/integration/theme-variables.test.ts` proves the built page and the
 editor read one palette.
 
@@ -73,7 +81,8 @@ editor read one palette.
 | `src/index.ts`            | The one public entry point                  |
 | `src/themes/index.ts`     | The theme registry                          |
 | `src/theme.ts`            | Token names, `applyTheme`, contrast checks  |
-| `src/control-classes.ts`  | The class rules of a button and a badge     |
+| `src/control-classes.ts`  | The class and name rules of a control       |
+| `src/overlay-position.ts` | Where an overlay sits on the screen         |
 | `src/motion.ts`           | The named transitions of the application    |
 | `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow |
 | `src/controls.tsx`        | Buttons, inputs and their wrappers          |

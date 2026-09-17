@@ -55,10 +55,15 @@ export {
 } from './themes/index.ts';
 export type {
   BadgeTone,
+  ButtonName,
   ButtonSize,
   ButtonVariant,
 } from './control-classes.ts';
-export { badgeClassName, buttonClassName } from './control-classes.ts';
+export {
+  badgeClassName,
+  buttonClassName,
+  buttonName,
+} from './control-classes.ts';
 export type { SelectOption } from './controls.tsx';
 export {
   Badge,

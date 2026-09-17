@@ -97,7 +97,7 @@ function ParkedSaveRow({
         <Button
           variant="secondary"
           size="sm"
-          label={`Keep the text of ${save.name} as a new note`}
+          label={`Save as new note from ${save.name}`}
           onClick={() => {
             onSaveAsNew(save);
           }}
@@ -108,7 +108,11 @@ function ParkedSaveRow({
           variant="secondary"
           size="sm"
           icon={<CopyIcon size={14} />}
-          label={`Copy the text of ${save.name}`}
+          label={
+            copied
+              ? `Copied the text of ${save.name}`
+              : `Copy text of ${save.name}`
+          }
           onClick={() => {
             void copyText(save.text).then((ok) => {
               setCopied(ok);
@@ -123,7 +127,7 @@ function ParkedSaveRow({
               variant="danger"
               size="sm"
               icon={<TrashIcon size={14} />}
-              label={`Confirm that the kept text of ${save.name} is discarded`}
+              label={`Confirm discard of the kept text of ${save.name}`}
               onClick={() => {
                 setConfirming(false);
                 onDiscard(save);

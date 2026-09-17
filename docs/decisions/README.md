@@ -87,6 +87,8 @@ and needs no record.
 | [0055](0055-the-note-is-one-centred-column.md)                    | The note is one centred column                             |
 | [0056](0056-the-default-theme-has-no-opinion.md)                  | The default theme has no opinion                           |
 | [0057](0057-a-control-fill-states-its-hover-in-the-palette.md)    | A control fill states its hover in the palette             |
+| [0058](0058-an-overlay-is-placed-on-the-screen.md)                | An overlay is placed on the screen                         |
+| [0059](0059-a-guide-caps-its-rules.md)                            | A directory guide caps its rules and not its index         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -202,3 +204,11 @@ refines record 0016. Record 0057 makes a control fill state its hover in the
 palette, because a hover made with a brightness filter moved every light
 palette toward its page and cost nine variants the contrast minimum of the
 button label. It follows the derived value of record 0053.
+
+Record 0058 puts an overlay at the end of the document and places it in the
+coordinates of the screen, because a menu laid out inside the folder tree was
+cut by the box that scrolls it.
+
+Record 0059 ends the line cap of a directory guide at its key file index,
+because seven of the thirteen guides sat at the cap and a new rule had to
+delete an old one.

@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { treeRowClassName, treeRowTextClassName } from './tree-row.ts';
+import {
+  deepestSteppedBranch,
+  treeBranchClassName,
+  treeRowClassName,
+  treeRowTextClassName,
+} from './tree-row.ts';
 
 /** The classes of one row state, as a list. */
 function classes(state: Parameters<typeof treeRowClassName>[0]): string[] {
@@ -41,4 +46,28 @@ await test('a marked row reads in the strong text colour', () => {
   assert.equal(treeRowTextClassName({ open: true }), 'text-strong');
   assert.equal(treeRowTextClassName({ selected: true }), 'text-strong');
   assert.ok(treeRowTextClassName({}).startsWith('text-muted'));
+});
+
+await test('a branch near the top of the tree steps in', () => {
+  assert.ok(treeBranchClassName(1).split(' ').includes('ml-3'));
+  assert.ok(
+    treeBranchClassName(deepestSteppedBranch).split(' ').includes('ml-3'),
+  );
+});
+
+await test('a deep branch stops stepping in, so the name keeps its room', () => {
+  // The defect this covers: every level added its own step and nothing
+  // stopped it, so a folder ten levels down showed a chevron, a folder mark
+  // and no name at all in a narrow sidebar.
+  const deep = treeBranchClassName(deepestSteppedBranch + 1).split(' ');
+  assert.ok(!deep.includes('ml-3'));
+  assert.ok(deep.includes('border-l'));
+});
+
+await test('every branch keeps the guide line of its folder', () => {
+  for (const depth of [1, 3, 5, 12]) {
+    const classes = treeBranchClassName(depth).split(' ');
+    assert.ok(classes.includes('border-l'), `depth ${String(depth)}`);
+    assert.ok(classes.includes('border-edge-line'), `depth ${String(depth)}`);
+  }
 });

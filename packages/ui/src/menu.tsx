@@ -5,15 +5,28 @@
  * focus, moves it with the arrow keys, Home, and End, activates an item with
  * Enter or Space, and closes on Escape, on a pointer press outside, and
  * after an item runs. Focus always returns to the trigger.
+ *
+ * The list is put at the end of the document and placed on the screen, not
+ * laid out beside the trigger. A trigger can stand in a box that scrolls, and
+ * a box that scrolls on one axis clips on both, so a list laid out inside it
+ * loses every row that reaches past its edge. The row actions of the folder
+ * tree are the case that proves it: a row near the foot of the tree showed
+ * one of its five actions, and a row deep in a narrow sidebar lost its left
+ * edge. `./overlay-position.ts` decides the place and this file is the one
+ * that writes it. See
+ * [decision 0058](../../../docs/decisions/0058-an-overlay-is-placed-on-the-screen.md).
  */
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { transitionRaise, transitionSurface } from './motion.ts';
+import { placeOverlay } from './overlay-position.ts';
 
 /** One row of a menu. */
 export type MenuItem = {
@@ -134,8 +147,11 @@ export function Menu({
     if (!open) return;
     const onPointerDown = (event: MouseEvent): void => {
       const target = event.target;
-      if (target instanceof Node && rootRef.current?.contains(target) === true)
-        return;
+      if (!(target instanceof Node)) return;
+      // The list is not a child of the trigger in the document, so a press
+      // inside it has to be read against both.
+      if (rootRef.current?.contains(target) === true) return;
+      if (listRef.current?.contains(target) === true) return;
       setOpen(false);
     };
     document.addEventListener('mousedown', onPointerDown);
@@ -155,6 +171,54 @@ export function Menu({
     });
     // The effect runs for the open state and for every move of the cursor.
   }, [open, activeIndex]);
+
+  /**
+   * Writes the place of the open list.
+   *
+   * The height bound of the last placement is cleared first, so the list
+   * reports the height it wants and not the height it was given. Nothing else
+   * about the list is written here: its colour, its edge, its radius, its
+   * padding and its depth all stay in the named scales.
+   */
+  const place = useCallback((): void => {
+    const trigger = triggerRef.current;
+    const list = listRef.current;
+    if (trigger === null || list === null) return;
+    list.style.maxHeight = '';
+    const anchor = trigger.getBoundingClientRect();
+    if (matchTrigger) list.style.width = `${String(anchor.width)}px`;
+    const size = list.getBoundingClientRect();
+    const spot = placeOverlay({
+      anchor: {
+        top: anchor.top,
+        left: anchor.left,
+        width: anchor.width,
+        height: anchor.height,
+      },
+      overlay: { width: size.width, height: size.height },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      align,
+    });
+    list.style.top = `${String(spot.top)}px`;
+    list.style.left = `${String(spot.left)}px`;
+    list.style.maxHeight = `${String(spot.maxHeight)}px`;
+  }, [align, matchTrigger]);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    place();
+    const follow = (): void => {
+      place();
+    };
+    window.addEventListener('resize', follow);
+    // The capture phase, because the trigger can sit in a box that scrolls,
+    // such as the folder tree, and a scroll there does not reach the window.
+    window.addEventListener('scroll', follow, true);
+    return () => {
+      window.removeEventListener('resize', follow);
+      window.removeEventListener('scroll', follow, true);
+    };
+  }, [open, place]);
 
   const move = (delta: number): void => {
     setActiveIndex((current) => {
@@ -227,68 +291,68 @@ export function Menu({
           </span>
         )}
       </button>
-      {open ? (
-        <div
-          ref={listRef}
-          id={menuId}
-          className={`absolute top-full z-40 mt-1 rounded-xl border border-edge bg-card p-1 shadow-overlay ${transitionRaise} ${
-            matchTrigger
-              ? 'inset-x-0'
-              : `min-w-56 ${align === 'end' ? 'right-0' : 'left-0'}`
-          }`}
-          role="menu"
-          aria-label={label}
-          onKeyDown={(event): void => {
-            if (event.key === 'Escape') {
-              event.preventDefault();
-              // Escape closes the innermost thing and nothing above it. An
-              // open menu inside the navigation drawer would otherwise close
-              // the drawer as well, because the drawer listens for the key on
-              // the window, and focus would have nowhere to return to.
-              event.stopPropagation();
-              close(true);
-            } else if (event.key === 'ArrowDown') {
-              event.preventDefault();
-              move(1);
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault();
-              move(-1);
-            } else if (event.key === 'Home') {
-              event.preventDefault();
-              setActiveIndex(0);
-            } else if (event.key === 'End') {
-              event.preventDefault();
-              setActiveIndex(Math.max(enabled.length - 1, 0));
-            } else if (event.key === 'Tab') {
-              event.preventDefault();
-              close(true);
-            }
-          }}
-        >
-          <div className="max-h-80 overflow-y-auto">
-            {items.map((item) => (
-              <MenuRow
-                key={item.id}
-                item={item}
-                choosing={choosing}
-                onRun={run}
-              />
-            ))}
-          </div>
-          {pinned.length === 0 ? null : (
-            <div className="mt-1 border-t border-edge-line pt-1">
-              {pinned.map((item) => (
-                <MenuRow
-                  key={item.id}
-                  item={item}
-                  choosing={choosing}
-                  onRun={run}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      ) : null}
+      {open
+        ? createPortal(
+            <div
+              ref={listRef}
+              id={menuId}
+              className={`fixed z-50 flex flex-col rounded-xl border border-edge bg-card p-1 shadow-overlay ${transitionRaise} ${matchTrigger ? '' : 'min-w-56'}`}
+              role="menu"
+              aria-label={label}
+              onKeyDown={(event): void => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  // Escape closes the innermost thing and nothing above it. An
+                  // open menu inside the navigation drawer would otherwise
+                  // close the drawer as well, because the drawer listens for
+                  // the key on the window, and focus would have nowhere to
+                  // return to.
+                  event.stopPropagation();
+                  close(true);
+                } else if (event.key === 'ArrowDown') {
+                  event.preventDefault();
+                  move(1);
+                } else if (event.key === 'ArrowUp') {
+                  event.preventDefault();
+                  move(-1);
+                } else if (event.key === 'Home') {
+                  event.preventDefault();
+                  setActiveIndex(0);
+                } else if (event.key === 'End') {
+                  event.preventDefault();
+                  setActiveIndex(Math.max(enabled.length - 1, 0));
+                } else if (event.key === 'Tab') {
+                  event.preventDefault();
+                  close(true);
+                }
+              }}
+            >
+              <div className="min-h-0 flex-1 overflow-y-auto">
+                {items.map((item) => (
+                  <MenuRow
+                    key={item.id}
+                    item={item}
+                    choosing={choosing}
+                    onRun={run}
+                  />
+                ))}
+              </div>
+              {pinned.length === 0 ? null : (
+                <div className="mt-1 shrink-0 border-t border-edge-line pt-1">
+                  {pinned.map((item) => (
+                    <MenuRow
+                      key={item.id}
+                      item={item}
+                      choosing={choosing}
+                      onRun={run}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
   );
 }
