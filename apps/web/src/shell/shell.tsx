@@ -68,7 +68,6 @@ import {
   SunIcon,
   transitionSurface,
   TrashIcon,
-  WorkspaceIcon,
 } from '@notesapp/ui';
 import {
   SyncProvider,

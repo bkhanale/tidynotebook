@@ -34,7 +34,7 @@ function outlineOfText(source: string): readonly OutlineHeading[] {
  * state worth a sentence, so the panel returns nothing and the section around
  * it never opens. The panel owns that section for the same reason: one place
  * reads the headings, so the section and the list cannot disagree
- * (record 0052).
+ * (record 0055).
  */
 export function OutlinePanel({
   text,

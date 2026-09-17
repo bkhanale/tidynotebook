@@ -20,9 +20,9 @@
  * step. A divider that a person must see, such as the rule between two rows
  * of a list, uses `edge-line`; `edge-subtle` stays for a hairline inside a
  * group that already differs in fill. See
- * [decision 0049](../../../docs/decisions/0049-three-planes-and-one-elevation-scale.md)
+ * [decision 0052](../../../docs/decisions/0052-three-planes-and-one-elevation-scale.md)
  * and
- * [decision 0050](../../../docs/decisions/0050-the-divider-is-derived-from-the-palette.md).
+ * [decision 0053](../../../docs/decisions/0053-the-divider-is-derived-from-the-palette.md).
  */
 import type { ReactNode } from 'react';
 

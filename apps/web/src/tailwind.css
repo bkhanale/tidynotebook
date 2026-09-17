@@ -67,7 +67,7 @@
   --radius-lg: 0.5rem;
 
   /*
-   * The elevation scale of decision 0049.
+   * The elevation scale of decision 0052.
    *
    * The interface has three planes: the chrome plane of the frame header and
    * the sidebar, the page plane of a route, and the raised plane of a card, a
@@ -91,7 +91,7 @@
     0 24px 56px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 28%, transparent);
 
   /*
-   * The motion scale of decision 0051.
+   * The motion scale of decision 0054.
    *
    * Tailwind gives easing a theme namespace and a duration none, so the two
    * halves of one scale cannot live in one place. The easing sits here and
@@ -144,7 +144,7 @@
  * script runs. No other colour value belongs in this file; the registry in
  * `packages/ui/src/themes` owns every palette.
  *
- * `edge-line` is the divider of decision 0050. It is not palette data: the
+ * `edge-line` is the divider of decision 0053. It is not palette data: the
  * registry computes it from the component edge and the page background and
  * writes it with the tokens, so a divider is visible on every palette and a
  * new theme cannot place it wrong. `edge` identifies a control, `edge-line`

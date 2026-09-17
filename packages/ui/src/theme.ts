@@ -22,7 +22,7 @@
  * - The divider is not a token. It is derived from `border` and `background`,
  *   and it lands between `borderSubtle` and `border` in every palette. See
  *   {@link derivedPropertyNames} and
- *   [decision 0050](../../../docs/decisions/0050-the-divider-is-derived-from-the-palette.md).
+ *   [decision 0053](../../../docs/decisions/0053-the-divider-is-derived-from-the-palette.md).
  * - A control fill carries its own label token: `accentOnFill` on
  *   `accentFill`, and `onDanger` on `dangerFill`.
  * - Every syntax colour meets 4.5 to 1 on the page background and on the

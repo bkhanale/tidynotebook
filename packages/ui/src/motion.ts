@@ -13,7 +13,7 @@
  * refuses a transition, a duration, and an easing utility everywhere else.
  *
  * See
- * [decision 0051](../../../docs/decisions/0051-motion-is-a-named-scale-in-one-module.md).
+ * [decision 0054](../../../docs/decisions/0054-motion-is-a-named-scale-in-one-module.md).
  */
 
 /**

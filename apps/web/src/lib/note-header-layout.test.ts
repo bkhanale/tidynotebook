@@ -56,7 +56,7 @@ await test('the note name is the largest text on the note screen', () => {
 
 await test('the name, the text and the footer share one centred column', () => {
   const column = noteColumnClassName().split(' ');
-  // Decision 0052. The measure is the one in the central theme, and the
+  // Decision 0055. The measure is the one in the central theme, and the
   // editor centres its own lines on the same value.
   assert.ok(column.includes('mx-auto'));
   assert.ok(column.includes('w-full'));

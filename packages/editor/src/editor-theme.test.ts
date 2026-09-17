@@ -59,7 +59,7 @@ await test('the reading measure is padding and never a width', () => {
 });
 
 await test('the note column is centred by the padding of the content', () => {
-  // Decision 0052. The padding centres the column, and it is the only place
+  // Decision 0055. The padding centres the column, and it is the only place
   // that can: a centring margin on the line moves every block except a table,
   // because a table row is an internal table box and CSS gives it no margin.
   // The padding never falls under the smallest step, so a narrow screen keeps

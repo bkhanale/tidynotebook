@@ -1,6 +1,6 @@
 # 011: Depth and hierarchy in the interface
 
-Status: active
+Status: complete
 
 This design states why the application reads flat, and what the interface needs
 so that a person sees structure before they read a word. It follows the owner

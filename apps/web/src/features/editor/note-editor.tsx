@@ -1101,7 +1101,7 @@ function NoteEditorBody({
           The name, the text and the footer are one column, so they sit in
           one flex child and the side region is its sibling. A header outside
           this row would centre its column on the whole screen and the name
-          would not line up with the first line of the note (decision 0052).
+          would not line up with the first line of the note (decision 0055).
         */}
         <div className="flex min-h-0 flex-1 gap-6">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
@@ -1137,7 +1137,7 @@ function NoteEditorBody({
             The side region takes no width from the note text. It appears
             only from the extra large width up, where the measure and the
             region both fit, so a note on a laptop keeps its full measure
-            (decision 0052).
+            (decision 0055).
           */}
           <aside
             className="hidden w-56 shrink-0 overflow-y-auto xl:block"

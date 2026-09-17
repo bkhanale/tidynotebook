@@ -1,6 +1,6 @@
 # Plan 011: Depth and hierarchy in the interface
 
-Status: active
+Status: complete
 
 > The live item is [GitHub issue 123](https://github.com/bkhanale/notesapp/issues/123) on the project board.
 

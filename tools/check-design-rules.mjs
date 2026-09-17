@@ -16,10 +16,10 @@
  * - `arbitrary-value`: a Tailwind arbitrary value such as `w-[32rem]`.
  * - `banned-class`: `text-xs`, `text-white`, or `bg-black`.
  * - `raw-elevation`: a built in shadow utility. Depth comes from the three
- *   named steps of decision 0049.
+ *   named steps of decision 0052.
  * - `raw-motion`: a transition, a duration, or an easing utility outside
  *   `packages/ui/src/motion.ts`, which is the one motion scale of decision
- *   0051.
+ *   0054.
  * - `jsx-text`: a `.md` path suffix or a UUID inside text that a person
  *   reads.
  *

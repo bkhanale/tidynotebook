@@ -38,7 +38,6 @@ import {
   themeFamilies,
   themeOfFamily,
   transitionSurface,
-  WorkspaceIcon,
 } from '@notesapp/ui';
 import {
   problemMessage,

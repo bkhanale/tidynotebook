@@ -13,7 +13,7 @@
  * The name, the text and the footer are one centred column of the note
  * measure. `noteColumnClassName` is that column, and the editor centres its
  * own lines on the same measure in `packages/editor/src/editor-theme.ts`. See
- * [decision 0052](../../../../docs/decisions/0052-the-note-is-one-centred-column.md).
+ * [decision 0055](../../../../docs/decisions/0055-the-note-is-one-centred-column.md).
  */
 import { transitionSurface } from '@notesapp/ui';
 

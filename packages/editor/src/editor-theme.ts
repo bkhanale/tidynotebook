@@ -205,7 +205,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // Padding is also the only mechanism that keeps the empty strip left and
     // right of the text inside the editable element, which is why the measure
     // was never a width on this element. A click in that strip still places
-    // the caret. Decision 0052.
+    // the caret. Decision 0055.
     '.cm-content': {
       caretColor: 'var(--notes-focus)',
       width: '100%',

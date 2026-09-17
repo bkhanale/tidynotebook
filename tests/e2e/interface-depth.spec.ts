@@ -2,7 +2,7 @@
  * The interface states its structure before a person reads a word.
  *
  * These journeys hold the parts of
- * [design 010](../../docs/design/010-depth-and-hierarchy.md) that only a real
+ * [design 011](../../docs/design/011-depth-and-hierarchy.md) that only a real
  * browser can prove: the composition of the note screen, the order of the
  * three planes, and whether a divider actually paints. A class name in a unit
  * test proves none of them, which is how the divider of the note list stayed
@@ -47,7 +47,7 @@ test('the note name, the text and the footer share one centred column', async ({
   const line = await boxOf(page, '.cm-line');
   const footer = await boxOf(page, 'footer span');
 
-  // Decision 0052. The three parts of one page start on one left edge.
+  // Decision 0055. The three parts of one page start on one left edge.
   expect(Math.abs(name.left - line.left)).toBeLessThanOrEqual(1);
   expect(Math.abs(footer.left - line.left)).toBeLessThanOrEqual(1);
 
@@ -131,7 +131,7 @@ test('the side region takes no width from the note text', async ({
     name: 'Note outline and inbound links',
   });
 
-  // Decision 0052. At the large width the region shortened every line, so it
+  // Decision 0055. At the large width the region shortened every line, so it
   // is not in the frame until the extra large width.
   await page.setViewportSize({ width: 1200, height: 900 });
   await expect(region).toBeHidden();
@@ -196,7 +196,7 @@ test('the chrome, the page and a raised surface are three planes', async ({
       return found;
     }, hex);
 
-  // Decision 0049. The frame header joins the sidebar on the chrome plane and
+  // Decision 0052. The frame header joins the sidebar on the chrome plane and
   // the route below it sits on the page plane, which is the brighter of the
   // two in every palette of the registry.
   const chrome = await painted(await token('--notes-surface'));
