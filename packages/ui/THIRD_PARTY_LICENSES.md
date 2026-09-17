@@ -3,9 +3,9 @@
 Every borrowed theme in `src/themes/` copies colour values from the published
 palette of an upstream project. The copyright and the license of those values
 belong to the upstream author. This file names the project, the license, and
-the address of each palette, and it records which values notesapp derives. Ink
-is the one exception: it is the signature family of this application, so it
-carries no upstream author and its values are original.
+the address of each palette, and it records which values notesapp derives.
+Default and Ink are the two exceptions: they are families of this application,
+so they carry no upstream author and their values are original.
 
 ## How a palette becomes a theme
 
@@ -27,6 +27,15 @@ palette is made for a text editor and this application paints five surfaces:
 
 `src/theme.test.ts` checks all of this for every theme in the registry, so a
 theme that fails a rule cannot ship.
+
+## Default
+
+- The family a new account starts with. No upstream palette.
+- License: MIT ([this repository](https://github.com/bkhanale/notesapp))
+- Original: every value of both variants. The family states no taste, so its
+  surfaces and its text are neutral and one restrained blue carries the link,
+  the focus ring and the primary button. Every token meets the contrast rules
+  in `src/theme.ts` that `src/theme.test.ts` proves.
 
 ## Ink
 
@@ -119,4 +128,7 @@ theme that fails a rule cannot ship.
 - Derived: the most of any family. Solarized sets its accent colours for a
   low contrast reading surface, so body text, muted text, the accent, the
   success and danger text, the component edge, and every code colour move to
-  reach AA on both variants.
+  reach AA on both variants. In Dark the danger fill and its label move again:
+  no label reached AA on both the published red and the hover state that
+  record 0057 derives from it, so the fill lightens and the label takes the
+  dark value that the accent fill of the same variant already uses.

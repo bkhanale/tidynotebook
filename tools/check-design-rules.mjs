@@ -17,6 +17,9 @@
  * - `banned-class`: `text-xs`, `text-white`, or `bg-black`.
  * - `raw-elevation`: a built in shadow utility. Depth comes from the three
  *   named steps of decision 0052.
+ * - `colour-filter`: a filter utility that changes a colour, such as
+ *   `brightness-110`. A colour comes from the palette, so a hover fill reads a
+ *   derived name of decision 0057 and never a filter.
  * - `raw-motion`: a transition, a duration, or an easing utility outside
  *   `packages/ui/src/motion.ts`, which is the one motion scale of decision
  *   0054.
@@ -54,6 +57,13 @@ export const elevationSteps = ['raised', 'overlay', 'modal'];
 // variant. It never follows a letter, so `transition-shadow` is not a shadow
 // utility and `lease-held` is not an easing.
 const shadowUtility = /(?:^|[\s:])(shadow(?:-[a-z0-9]+)?)(?![\w-])/g;
+// A filter that changes a colour. The palette answers what a colour is, so a
+// screen that reaches for one of these is making a colour the gate cannot
+// read. Decision 0057.
+// A numeric suffix is required where Tailwind also names a variant, so the
+// `contrast-more:` preference variant is not a filter.
+const colourFilter =
+  /(?:^|[\s:])((?:brightness|saturate|contrast|hue-rotate)-\d+|(?:grayscale|invert|sepia)(?:-\d+)?)(?![\w-])/;
 const motionUtility =
   /(?:^|[\s:])((?:transition(?:-[a-z]+)?|duration-[a-z0-9]+|ease-[a-z]+))(?![\w-])/g;
 const markdownSuffix = /\.md\b/;
@@ -98,6 +108,13 @@ export const textRules = {
       return `Shadow utility ${utility} is not a named elevation step. Use shadow-${elevationSteps.join(', shadow-')}.`;
     }
     return null;
+  },
+  /** @param {string} text @returns {string | null} */
+  'colour-filter'(text) {
+    const found = colourFilter.exec(text);
+    return found
+      ? `Filter utility ${found[1]} makes a colour that no contrast rule holds. Read a name from the palette.`
+      : null;
   },
   /** @param {string} text @param {string} path @returns {string | null} */
   'raw-motion'(text, path) {

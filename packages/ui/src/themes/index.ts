@@ -39,11 +39,13 @@ export {
   derivedPropertyNames,
   derivedValue,
   dividerBlend,
+  fillHoverShift,
   mixHexColors,
   parseAppearanceChoice,
   parseHexColor,
   relativeLuminance,
   resolveAppearance,
+  shiftAwayFrom,
   syntaxPropertyName,
   syntaxPropertyNames,
   textContrastMinimum,
@@ -54,6 +56,7 @@ export {
   uiContrastMinimum,
 } from '../theme.ts';
 import { catppuccin } from './catppuccin.ts';
+import { defaultFamily } from './default.ts';
 import { dracula } from './dracula.ts';
 import { github } from './github.ts';
 import { gruvbox } from './gruvbox.ts';
@@ -66,6 +69,7 @@ import { tokyoNight } from './tokyo-night.ts';
 
 /** Every family, in the order the settings screen offers them. */
 export const themeFamilies: readonly ThemeFamily[] = [
+  defaultFamily,
   ink,
   tokyoNight,
   catppuccin,
@@ -83,8 +87,14 @@ export const themes: readonly Theme[] = themeFamilies.flatMap(
   (family) => family.variants,
 );
 
-/** The family a new installation starts with. */
-export const defaultThemeFamilyId = 'ink';
+/**
+ * The family a new installation starts with.
+ *
+ * Default states no taste, so a person who has not chosen meets a neutral
+ * surface. See
+ * [decision 0056](../../../../docs/decisions/0056-the-default-theme-has-no-opinion.md).
+ */
+export const defaultThemeFamilyId = 'default';
 
 /** The family of one identifier, or `null` when nothing matches. */
 export function findThemeFamily(id: string): ThemeFamily | null {

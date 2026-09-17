@@ -30,6 +30,7 @@ export {
   derivedPropertyNames,
   derivedValue,
   dividerBlend,
+  fillHoverShift,
   findTheme,
   findThemeFamily,
   mixHexColors,
@@ -38,6 +39,7 @@ export {
   parseThemeFamilyId,
   relativeLuminance,
   resolveAppearance,
+  shiftAwayFrom,
   syntaxPropertyName,
   syntaxPropertyNames,
   textContrastMinimum,
@@ -51,11 +53,16 @@ export {
   themes,
   uiContrastMinimum,
 } from './themes/index.ts';
-export type { ButtonSize, ButtonVariant, SelectOption } from './controls.tsx';
+export type {
+  BadgeTone,
+  ButtonSize,
+  ButtonVariant,
+} from './control-classes.ts';
+export { badgeClassName, buttonClassName } from './control-classes.ts';
+export type { SelectOption } from './controls.tsx';
 export {
   Badge,
   Button,
-  buttonClassName,
   CollapsibleSection,
   ReadOnlyField,
   SelectField,

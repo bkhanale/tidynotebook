@@ -99,6 +99,20 @@ await test('a shadow outside the elevation scale fails', () => {
   );
 });
 
+await test('a filter that makes a colour fails', () => {
+  assert.notEqual(textRules['colour-filter']('hover:brightness-110'), null);
+  assert.notEqual(
+    textRules['colour-filter']('bg-accent-fill saturate-150'),
+    null,
+  );
+  assert.notEqual(textRules['colour-filter']('grayscale'), null);
+  assert.notEqual(textRules['colour-filter']('hue-rotate-15'), null);
+  assert.equal(textRules['colour-filter']('bg-accent-fill-hover'), null);
+  // The preference variant of Tailwind is not a filter.
+  assert.equal(textRules['colour-filter']('contrast-more:border-edge'), null);
+  assert.equal(textRules['colour-filter']('text-strong'), null);
+});
+
 await test('motion outside the one motion module fails', () => {
   const screen = 'apps/web/src/screen.tsx';
   assert.notEqual(textRules['raw-motion']('transition-colors', screen), null);

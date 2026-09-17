@@ -43,6 +43,13 @@
       "when": 1789617329852,
       "tag": "0005_last_workspace",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789703729852,
+      "tag": "0006_default_theme_family",
+      "breakpoints": true
     }
   ]
 }

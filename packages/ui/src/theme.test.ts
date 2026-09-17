@@ -19,11 +19,13 @@ import {
   derivedPropertyName,
   derivedPropertyNames,
   derivedValue,
+  fillHoverShift,
   mixHexColors,
   parseAppearanceChoice,
   parseHexColor,
   relativeLuminance,
   resolveAppearance,
+  shiftAwayFrom,
   syntaxPropertyName,
   syntaxPropertyNames,
   textContrastMinimum,
@@ -148,6 +150,39 @@ for (const theme of themes) {
     assert.ok(
       contrastRatio(tokens.onDanger, tokens.dangerFill) >= textContrastMinimum,
       `danger fill label in ${name}`,
+    );
+  });
+
+  await test(`${name} the hover fill of a control comes forward`, () => {
+    const tokens = theme.tokens;
+    for (const [fill, hover] of [
+      ['accentFill', 'accentFillHover'],
+      ['dangerFill', 'dangerFillHover'],
+    ] as const) {
+      const resting = tokens[fill];
+      const hovered = derivedValue(tokens, hover);
+      assert.ok(parseHexColor(hovered) !== null, `${hover} in ${name}`);
+      assert.ok(
+        contrastRatio(hovered, tokens.background) >
+          contrastRatio(resting, tokens.background),
+        `${hover} does not stand further from the page than ${fill} in ${name}`,
+      );
+    }
+  });
+
+  await test(`${name} control fill labels pass on the hover fill`, () => {
+    const tokens = theme.tokens;
+    assert.ok(
+      contrastRatio(
+        tokens.accentOnFill,
+        derivedValue(tokens, 'accentFillHover'),
+      ) >= textContrastMinimum,
+      `accent fill label on the hover fill in ${name}`,
+    );
+    assert.ok(
+      contrastRatio(tokens.onDanger, derivedValue(tokens, 'dangerFillHover')) >=
+        textContrastMinimum,
+      `danger fill label on the hover fill in ${name}`,
     );
   });
 
@@ -303,8 +338,8 @@ await test('an unknown family falls back to the default one', () => {
   assert.equal(parseThemeFamilyId('nord'), 'nord');
   assert.equal(findThemeFamily('neon'), null);
   assert.equal(findTheme('neon'), null);
-  assert.equal(defaultThemeFor('dark').id, 'ink');
-  assert.equal(defaultThemeFor('light').id, 'ink-light');
+  assert.equal(defaultThemeFor('dark').id, 'default-dark');
+  assert.equal(defaultThemeFor('light').id, 'default-light');
 });
 
 await test('a blend takes the stated share of the first colour', () => {
@@ -318,6 +353,36 @@ await test('a blend takes the stated share of the first colour', () => {
 await test('a palette with an unreadable edge falls back to the quiet edge', () => {
   const tokens = { ...defaultThemeFor('dark').tokens, border: 'rebeccapurple' };
   assert.equal(derivedValue(tokens, 'borderLine'), tokens.borderSubtle);
+});
+
+await test('a shift moves a colour away from its background', () => {
+  // A light background darkens, a dark background lightens, and the share is
+  // taken out of what is left, so neither direction can leave the range.
+  assert.equal(shiftAwayFrom('#808080', '#ffffff', 0.5), '#404040');
+  assert.equal(shiftAwayFrom('#808080', '#000000', 0.5), '#c0c0c0');
+  assert.equal(shiftAwayFrom('#000000', '#ffffff', 0.5), '#000000');
+  assert.equal(shiftAwayFrom('#ffffff', '#000000', 0.5), '#ffffff');
+  assert.equal(shiftAwayFrom('#808080', '#ffffff', 0), '#808080');
+  assert.equal(shiftAwayFrom('#fff', '#000000', 0.5), null);
+  assert.equal(shiftAwayFrom('#808080', 'white', 0.5), null);
+});
+
+await test('a palette with an unreadable fill keeps that fill on hover', () => {
+  const base = defaultThemeFor('dark').tokens;
+  const tokens = { ...base, accentFill: 'rebeccapurple' };
+  assert.equal(derivedValue(tokens, 'accentFillHover'), 'rebeccapurple');
+});
+
+await test('the hover shift is the one step of every control fill', () => {
+  const tokens = defaultThemeFor('light').tokens;
+  assert.equal(
+    derivedValue(tokens, 'accentFillHover'),
+    shiftAwayFrom(tokens.accentFill, tokens.background, fillHoverShift),
+  );
+  assert.equal(
+    derivedValue(tokens, 'dangerFillHover'),
+    shiftAwayFrom(tokens.dangerFill, tokens.background, fillHoverShift),
+  );
 });
 
 await test('themePropertyName maps every token to one property', () => {
@@ -336,6 +401,14 @@ await test('themePropertyName maps every token to one property', () => {
     seen.add(property);
   }
   assert.equal(derivedPropertyName('borderLine'), '--notes-border-line');
+  assert.equal(
+    derivedPropertyName('accentFillHover'),
+    '--notes-accent-fill-hover',
+  );
+  assert.equal(
+    derivedPropertyName('dangerFillHover'),
+    '--notes-danger-fill-hover',
+  );
   for (const name of derivedPropertyNames) {
     const property = derivedPropertyName(name);
     assert.ok(property.startsWith('--notes-'));

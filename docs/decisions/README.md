@@ -85,6 +85,8 @@ and needs no record.
 | [0053](0053-the-divider-is-derived-from-the-palette.md)           | The divider is derived from the palette                    |
 | [0054](0054-motion-is-a-named-scale-in-one-module.md)             | Motion is a named scale in one module                      |
 | [0055](0055-the-note-is-one-centred-column.md)                    | The note is one centred column                             |
+| [0056](0056-the-default-theme-has-no-opinion.md)                  | The default theme has no opinion                           |
+| [0057](0057-a-control-fill-states-its-hover-in-the-palette.md)    | A control fill states its hover in the palette             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -192,3 +194,11 @@ application in one module, because Tailwind gives a duration no theme
 namespace and a bare number in a class is a value that no rule can hold.
 Record 0055 makes the note name, the note text and the note footer one centred
 column and holds them to one measure, and it refines record 0015.
+
+Records 0056 and 0057 answer the theme audit of 2026-09-17. Record 0056 makes
+the default family a neutral one, because every family in the registry was a
+taste and a person with no preference met a preference on the first screen. It
+refines record 0016. Record 0057 makes a control fill state its hover in the
+palette, because a hover made with a brightness filter moved every light
+palette toward its page and cost nine variants the contrast minimum of the
+button label. It follows the derived value of record 0053.

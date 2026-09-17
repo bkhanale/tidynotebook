@@ -25,6 +25,10 @@
  *   [decision 0053](../../../docs/decisions/0053-the-divider-is-derived-from-the-palette.md).
  * - A control fill carries its own label token: `accentOnFill` on
  *   `accentFill`, and `onDanger` on `dangerFill`.
+ * - The hover state of a control fill is not a token either. It is derived by
+ *   moving the fill away from the page background, and the label of the fill
+ *   still meets 4.5 to 1 on it. See {@link fillHoverShift} and
+ *   [decision 0057](../../../docs/decisions/0057-a-control-fill-states-its-hover-in-the-palette.md).
  * - Every syntax colour meets 4.5 to 1 on the page background and on the
  *   code block fill, which is the hover surface.
  *
@@ -254,6 +258,48 @@ export type ThemePropertyName = (typeof themePropertyNames)[number];
 export const dividerBlend = 0.5;
 
 /**
+ * How far the hover state of a control fill moves off the fill.
+ *
+ * A person who points at a control expects it to come forward, so the hover
+ * fill moves away from the page background: a light page darkens the fill and
+ * a dark page lightens it. The step is stated once, because a fill that a
+ * screen brightens with a filter moves the same way on every palette and is
+ * therefore wrong on half of them.
+ *
+ * `theme.test.ts` proves for every theme in the registry that the hover fill
+ * stands further from the page background than the fill, and that the label of
+ * the fill still meets 4.5 to 1 on it.
+ */
+export const fillHoverShift = 0.12;
+
+/**
+ * Moves one colour away from a background, by a share of what is left.
+ *
+ * A background that is lighter than the colour darkens it, and a background
+ * that is darker lightens it, so the result always stands further from that
+ * background than the colour did. The channels move by arithmetic and no
+ * colour value is named, which is why this module holds the rule and the
+ * registry still holds every colour.
+ *
+ * Returns `null` when either input is not a six digit hex colour.
+ */
+export function shiftAwayFrom(
+  colour: string,
+  background: string,
+  share: number,
+): string | null {
+  const channels = parseHexColor(colour);
+  if (channels === null) return null;
+  const backgroundLuminance = relativeLuminance(background);
+  if (Number.isNaN(backgroundLuminance)) return null;
+  const darken = backgroundLuminance > relativeLuminance(colour);
+  const moved = channels.map((channel) =>
+    darken ? channel * (1 - share) : channel + (1 - channel) * share,
+  );
+  return `#${moved.map(channelHex).join('')}`;
+}
+
+/**
  * The custom properties that are computed from the tokens of a palette.
  *
  * A derived property is not theme data, so a new theme file states none of
@@ -261,7 +307,11 @@ export const dividerBlend = 0.5;
  * tokens, so the central Tailwind theme, the typed editor adapter, and the
  * script that paints before React starts all receive them.
  */
-export const derivedPropertyNames = ['borderLine'] as const;
+export const derivedPropertyNames = [
+  'borderLine',
+  'accentFillHover',
+  'dangerFillHover',
+] as const;
 
 /** One of the derived names of {@link derivedPropertyNames}. */
 export type DerivedPropertyName = (typeof derivedPropertyNames)[number];
@@ -321,6 +371,8 @@ export function syntaxPropertyName(name: SyntaxPropertyName): string {
 /** The stylesheet custom property of each derived name. */
 const derivedProperties: Readonly<Record<DerivedPropertyName, string>> = {
   borderLine: '--notes-border-line',
+  accentFillHover: '--notes-accent-fill-hover',
+  dangerFillHover: '--notes-danger-fill-hover',
 };
 
 /**
@@ -332,11 +384,16 @@ export function derivedPropertyName(name: DerivedPropertyName): string {
   return derivedProperties[name];
 }
 
-/** One channel of a blend, as two hex digits. */
-function mixChannel(from: number, to: number, fraction: number): string {
-  return Math.round((from * fraction + to * (1 - fraction)) * 255)
+/** One channel on a 0 to 1 scale, as two hex digits. */
+function channelHex(channel: number): string {
+  return Math.round(channel * 255)
     .toString(16)
     .padStart(2, '0');
+}
+
+/** One channel of a blend, as two hex digits. */
+function mixChannel(from: number, to: number, fraction: number): string {
+  return channelHex(from * fraction + to * (1 - fraction));
 }
 
 /**
@@ -376,6 +433,12 @@ const derivedValues: Readonly<
   borderLine: (tokens) =>
     mixHexColors(tokens.border, tokens.background, dividerBlend) ??
     tokens.borderSubtle,
+  accentFillHover: (tokens) =>
+    shiftAwayFrom(tokens.accentFill, tokens.background, fillHoverShift) ??
+    tokens.accentFill,
+  dangerFillHover: (tokens) =>
+    shiftAwayFrom(tokens.dangerFill, tokens.background, fillHoverShift) ??
+    tokens.dangerFill,
 };
 
 /** Computes one derived value from the tokens of a palette. */

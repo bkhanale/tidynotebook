@@ -33,8 +33,17 @@ const uuidPattern =
 
 const roles: readonly Role[] = ['owner'];
 
-/** The family a row without a stored choice renders with. */
-const defaultThemeFamily = 'ink';
+/**
+ * The family a row without a stored choice renders with.
+ *
+ * This is the third statement of the same fact. The client registry states it
+ * in `defaultThemeFamilyId`, the `theme_family` column of `schema.ts` states
+ * it as its default, and this constant answers a row that predates the column.
+ * The three cannot read each other, because the server holds the family as an
+ * opaque slug and never a colour (record 0016), so they move together
+ * (record 0056).
+ */
+const defaultThemeFamily = 'default';
 const appearances: readonly AppearanceChoice[] = ['system', 'light', 'dark'];
 
 function isRole(value: string): value is Role {

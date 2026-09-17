@@ -559,8 +559,8 @@ await test('account settings belong to one account', async () => {
     );
     assert.equal(settings.length, 1);
     // The row was inserted without a theme family, so it carries the column
-    // default. Ink is the signature default of this application.
-    assert.equal(settings[0]?.theme_family, 'ink');
+    // default. The default family states no taste (record 0056).
+    assert.equal(settings[0]?.theme_family, 'default');
   } finally {
     await own.close();
   }

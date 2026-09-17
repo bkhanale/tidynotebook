@@ -939,14 +939,16 @@ export const accountAuditEvents = pgTable(
  * The `theme` column holds the appearance choice: system, light, or dark.
  * It keeps its first name, so no stored row has to move. `theme_family`
  * names a palette family of the client theme registry and is an opaque slug
- * here; the server never holds a colour value.
+ * here; the server never holds a colour value. Its default is the family the
+ * client also defaults to (record 0056), which this file cannot read, because
+ * the registry is browser code.
  */
 export const accountPreferences = pgTable('account_preferences', {
   accountId: uuid('account_id')
     .primaryKey()
     .references(() => accounts.id),
   theme: text('theme').notNull().default('system'),
-  themeFamily: text('theme_family').notNull().default('ink'),
+  themeFamily: text('theme_family').notNull().default('default'),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),

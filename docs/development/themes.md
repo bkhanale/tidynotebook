@@ -15,6 +15,13 @@ for and which contrast rule holds it. Read that file rather than a copy here.
 A family groups the light and the dark variant of one palette. A family may
 publish one variant only; it then answers both appearances with that one.
 
+A value that is computed from a palette is not theme data. `derivedPropertyNames`
+in the same file names each one, and `themeProperties` writes it with the
+tokens, so a new theme file states none of them and cannot place one wrong. See
+[decision 0053](../decisions/0053-the-divider-is-derived-from-the-palette.md)
+and
+[decision 0057](../decisions/0057-a-control-fill-states-its-hover-in-the-palette.md).
+
 ## Who reads the registry
 
 - The Tailwind palette, through `applyTheme`, which writes every token as a
@@ -31,7 +38,13 @@ publish one variant only; it then answers both appearances with that one.
 ## The stored preference
 
 An account stores an appearance and a theme family. The appearance selects the
-variant and the family selects the palette. Both are written to the device
+variant and the family selects the palette. An account that has not chosen gets
+the Default family, which states no taste. See
+[decision 0056](../decisions/0056-the-default-theme-has-no-opinion.md). Three
+places state which family that is, because the server holds the family as an
+opaque slug: `defaultThemeFamilyId` in the registry, `defaultThemeFamily` in
+`packages/storage-server/src/identity-store.ts`, and the `theme_family` column
+default in `packages/storage-server/src/schema.ts`. They move together. Both are written to the device
 first and sent to the account in the background, so the choice applies at once
 and survives a failed request. A family the client does not know falls back to
 the default family, so a stored value never leaves the page without colour.

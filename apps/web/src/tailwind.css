@@ -82,13 +82,13 @@
    * a theme change and no shadow holds a colour of its own.
    */
   --shadow-raised: 0 1px 2px
-    color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent);
+    color-mix(in srgb, var(--notes-scrim, #000000) 10%, transparent);
   --shadow-overlay:
-    0 2px 4px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent),
-    0 8px 20px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 18%, transparent);
+    0 2px 4px color-mix(in srgb, var(--notes-scrim, #000000) 10%, transparent),
+    0 8px 20px color-mix(in srgb, var(--notes-scrim, #000000) 18%, transparent);
   --shadow-modal:
-    0 4px 8px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 14%, transparent),
-    0 24px 56px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 28%, transparent);
+    0 4px 8px color-mix(in srgb, var(--notes-scrim, #000000) 14%, transparent),
+    0 24px 56px color-mix(in srgb, var(--notes-scrim, #000000) 28%, transparent);
 
   /*
    * The motion scale of decision 0054.
@@ -140,9 +140,9 @@
  * The palette. These names map the runtime variables that `applyTheme` of
  * the theme registry writes on the document element, so a theme change is
  * one assignment and never a rebuild. The literal fallbacks are the default
- * dark theme, the Ink family, and keep the first paint correct before that
- * script runs. No other colour value belongs in this file; the registry in
- * `packages/ui/src/themes` owns every palette.
+ * dark theme, the Default family, and keep the first paint correct before
+ * that script runs. No other colour value belongs in this file; the registry
+ * in `packages/ui/src/themes` owns every palette.
  *
  * `edge-line` is the divider of decision 0053. It is not palette data: the
  * registry computes it from the component edge and the page background and
@@ -150,26 +150,33 @@
  * new theme cannot place it wrong. `edge` identifies a control, `edge-line`
  * separates two rows a person must tell apart, and `edge-subtle` is a
  * hairline inside a group that already differs in fill.
+ *
+ * `accent-fill-hover` and `danger-fill-hover` are derived in the same way, by
+ * decision 0057. The registry moves each fill away from the page background,
+ * so a hovered control comes forward on every palette and the label of the
+ * fill keeps its minimum. A screen reads the name and never a filter.
  */
 @theme inline {
-  --color-app: var(--notes-bg, #1a1922);
-  --color-surface: var(--notes-surface, #141319);
-  --color-card: var(--notes-surface-card, #232230);
-  --color-hover: var(--notes-surface-hover, #2a2836);
-  --color-active: var(--notes-surface-active, #322f40);
-  --color-ink: var(--notes-text, #d3cfdb);
-  --color-strong: var(--notes-text-strong, #f4f1f8);
-  --color-muted: var(--notes-text-muted, #b0aabf);
-  --color-accent: var(--notes-accent-text, #e0b653);
-  --color-accent-fill: var(--notes-accent-fill, #e0b653);
-  --color-on-accent: var(--notes-accent-on-fill, #201a0a);
-  --color-success: var(--notes-success-text, #94c46b);
-  --color-danger: var(--notes-danger-text, #f58ba0);
-  --color-danger-fill: var(--notes-danger-fill, #f58ba0);
-  --color-on-danger: var(--notes-on-danger, #1a0c10);
-  --color-edge: var(--notes-border, #857f98);
-  --color-edge-line: var(--notes-border-line, #504c5d);
-  --color-edge-subtle: var(--notes-border-subtle, #2c2a38);
-  --color-focus: var(--notes-focus, #e0b653);
-  --color-scrim: var(--notes-scrim, #0b0a0f);
+  --color-app: var(--notes-bg, #191919);
+  --color-surface: var(--notes-surface, #141414);
+  --color-card: var(--notes-surface-card, #222222);
+  --color-hover: var(--notes-surface-hover, #2b2b2b);
+  --color-active: var(--notes-surface-active, #323232);
+  --color-ink: var(--notes-text, #d0cfcc);
+  --color-strong: var(--notes-text-strong, #f5f4f2);
+  --color-muted: var(--notes-text-muted, #a5a39e);
+  --color-accent: var(--notes-accent-text, #6fa8f5);
+  --color-accent-fill: var(--notes-accent-fill, #3b82f0);
+  --color-accent-fill-hover: var(--notes-accent-fill-hover, #5391f2);
+  --color-on-accent: var(--notes-accent-on-fill, #0a0a0a);
+  --color-success: var(--notes-success-text, #59b871);
+  --color-danger: var(--notes-danger-text, #f5817d);
+  --color-danger-fill: var(--notes-danger-fill, #e0524f);
+  --color-danger-fill-hover: var(--notes-danger-fill-hover, #e46764);
+  --color-on-danger: var(--notes-on-danger, #0a0a0a);
+  --color-edge: var(--notes-border, #807e79);
+  --color-edge-line: var(--notes-border-line, #4d4c49);
+  --color-edge-subtle: var(--notes-border-subtle, #2e2e2e);
+  --color-focus: var(--notes-focus, #4a90f0);
+  --color-scrim: var(--notes-scrim, #000000);
 }
