@@ -26,8 +26,8 @@ why the contract emits shared definitions.
 | `packages/api-contract/src/generated/` | The operation index and its validators.     |
 | `packages/api-client/src/generated/`   | The typed operations and the transport.     |
 | `packages/api-client/src/configure.ts` | The one handwritten client configuration.   |
-| `apps/server/src/http/register.ts`     | Route registration and boundary validation. |
-| `apps/server/src/http/handlers.ts`     | One handler per operation id.               |
+| `apps/server/src/plugins/register.ts`  | Route registration and boundary validation. |
+| `apps/server/src/routes/handlers.ts`   | One handler per operation id.               |
 | `tools/sdk-codegen/`                   | The generator and the generated check.      |
 
 ## Steps
@@ -66,7 +66,7 @@ why the contract emits shared definitions.
 
 The rules below exist so that a handler can trust its input and a caller can
 trust its answer. The exact behaviour is in
-`apps/server/src/http/register.ts`.
+`apps/server/src/plugins/register.ts`.
 
 - **Input is validated before a handler runs**, with compiled validators built
   from the contract. The framework's own validator and serializer compilers are

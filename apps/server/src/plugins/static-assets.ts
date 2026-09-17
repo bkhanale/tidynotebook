@@ -26,7 +26,7 @@
  * neither. See `servesBrowserAssets`.
  */
 import { createHash } from 'node:crypto';
-import { createReadStream, readFileSync, statSync } from 'node:fs';
+import { createReadStream, readdirSync, readFileSync, statSync } from 'node:fs';
 import type { Stats } from 'node:fs';
 import { basename } from 'node:path';
 import type { FastifyReply, FastifyRequest } from 'fastify';
@@ -295,6 +295,40 @@ export function documentStylesheetHrefs(
   const hrefs = stylesheetHrefs(readFileSync(filePath, 'utf8'));
   documentStylesheets.set(filePath, { hrefs, mtimeMs: stats.mtimeMs });
   return hrefs;
+}
+
+/**
+ * Every stylesheet that the build emitted, in name order.
+ *
+ * The published page of decision 0031 holds no script, so it cannot load a
+ * stylesheet when it finds that it needs one. The application can and does:
+ * `apps/web/src/lib/markdown.ts` imports the mathematics style with the
+ * module that renders a formula, so the build writes that style as a file of
+ * its own that the shell document does not name. Mathematics on a published
+ * page therefore had no style at all.
+ *
+ * The page takes every emitted stylesheet. It renders the whole Markdown
+ * language of this product, so it needs the whole style of that language, and
+ * the first load of the application is untouched, which is what record 0044
+ * protects. See
+ * [decision 0060](../../../../docs/decisions/0060-the-published-page-takes-every-style.md).
+ */
+export function builtStylesheetHrefs(
+  assetsDirectory: string,
+): readonly string[] {
+  let names: readonly string[];
+  try {
+    names = readdirSync(assetsDirectory);
+  } catch {
+    // A deployment that serves no built assets, which is what a development
+    // run and most tests are, answers no stylesheet. The page is still
+    // readable text.
+    return [];
+  }
+  return names
+    .filter((name) => name.endsWith('.css'))
+    .sort((left, right) => left.localeCompare(right))
+    .map((name) => `/assets/${name}`);
 }
 
 /** The same-origin stylesheet addresses of one HTML document. */

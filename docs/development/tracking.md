@@ -9,8 +9,8 @@ The [GitHub project board](https://github.com/users/bkhanale/projects/2) is the
 single prioritized list of open work. The owner orders the rows. A row near the
 top is more important than a row below it.
 
-The board replaces the old `docs/releases/` lists. The repository no longer
-holds a release list. See
+The board replaces the release lists that this repository used to hold. It
+holds no release list now. See
 [0027, track work on the GitHub board](../decisions/0027-track-work-on-the-github-board.md).
 
 ## The shape of a row

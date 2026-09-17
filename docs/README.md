@@ -15,6 +15,12 @@ backup procedure need the command, so a fenced `sh` block is allowed. A fenced
 block with any other language is refused, except in a file whose status line
 says that it is superseded. That content is frozen, so no check holds it.
 
+A document points at code by path, and that path is checked. A page under
+`development/` or `guide/` states what the product is now, so every
+repository path it names inside a code span must be there. A decision record,
+a design, an audit and a plan state what somebody believed at one moment and
+are never edited again, so a path in one of them is history.
+
 `tools/check-docs.mjs` runs inside `pnpm lint` and holds the rules on this
 page.
 
@@ -104,7 +110,8 @@ measured number, or a restated decision. Link the decision record instead.
 **Header:** the title line, then the sentence that states what the document
 owns.
 
-Keep a page under 150 lines. A page that grows past that is two pages.
+Keep a page under 150 lines. A page that grows past that is two pages, and
+the check refuses it.
 
 ## design/
 

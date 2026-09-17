@@ -8,6 +8,8 @@ import { fileURLToPath } from 'node:url';
 import {
   fenceLanguages,
   isSuperseded,
+  maximumDevelopmentLines,
+  namedPaths,
   placementFailure,
   relativeLinks,
 } from './check-docs.mjs';
@@ -262,4 +264,58 @@ await test('a missing root file fails', () => {
   const result = check({ 'CONTRIBUTING.md': '' });
   assert.equal(result.status, 1);
   assert.match(result.output, /CONTRIBUTING\.md: missing/);
+});
+
+await test('the path reader finds a repository path inside a code span', () => {
+  const found = namedPaths(
+    '# A page\n\nRead `apps/web/src/app.tsx` and `packages/core/`.\n' +
+      'It is not `a phrase` and not `./relative.ts`.\n',
+  );
+  assert.deepEqual(
+    found.map((entry) => entry.path),
+    ['apps/web/src/app.tsx', 'packages/core/'],
+  );
+  assert.equal(found[0]?.line, 3);
+});
+
+await test('the path reader passes over a shape with a placeholder in it', () => {
+  const found = namedPaths('`apps/web/src/features/<feature>/<name>.tsx`\n');
+  assert.deepEqual(found, []);
+});
+
+await test('a development page that names a file which is gone fails', () => {
+  // The defect this covers: a page pointed at two files under a server
+  // directory that a decision moved, and nothing refused the pointer, so the
+  // page told a reader to open a file that is not there.
+  const result = check({
+    'docs/development/architecture.md':
+      '# Architecture\n\nRead `apps/server/src/http/register.ts`.\n',
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /"apps\/server\/src\/http\/register\.ts" names no file/,
+  );
+});
+
+await test('a decision record keeps the path it named when it was accepted', () => {
+  // A record states what somebody believed at one moment and is never edited
+  // again, so a path in one is history and not a claim about the tree today.
+  const result = check({
+    'docs/decisions/0001-a-choice.md':
+      '# 0001. A choice\n\n- Status: Accepted\n- Date: 2026-01-01\n\n' +
+      '## Context\n\nIt named `apps/server/src/http/register.ts`.\n\n' +
+      '## Decision\n\nThe choice.\n\n## Consequences\n\nThe cost.\n',
+  });
+  assert.equal(result.status, 0, result.output);
+});
+
+await test('a development page over the line cap fails', () => {
+  const body = ['# Architecture', ''];
+  while (body.length < maximumDevelopmentLines + 1) body.push('Text.');
+  const result = check({
+    'docs/development/architecture.md': `${body.join('\n')}\n`,
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /151 lines\. A page of development\//);
 });

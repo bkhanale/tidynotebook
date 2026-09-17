@@ -17,6 +17,16 @@
  *    carry the "Decisions" heading that joins the two kinds, and a plan links
  *    into `decisions/` from it.
  * 4. Every relative link resolves, so a move cannot leave a dead pointer.
+ * 5. Every repository path that a living document names inside a code span is
+ *    really there, so a move of a file fails the gate instead of leaving a
+ *    false pointer. A living document is one under `development/` or
+ *    `guide/`: those two state what the product is now. A decision record, a
+ *    design, an audit and a plan state what somebody believed at one moment
+ *    and are never edited again, so a path in one of them is history and not
+ *    a claim about the tree today.
+ * 6. A page under `development/` stays under the line cap that
+ *    `docs/README.md` states, so a page that grew into two pages is split
+ *    rather than left to grow.
  *
  * A separate root permits a disposable negative check without real documents,
  * in the same shape as `tools/check-agents-md.mjs`.
@@ -37,6 +47,29 @@ export const documentKinds = [
 
 /** The kinds whose files carry a status line under the title. */
 export const statusKinds = ['plans', 'design'];
+
+/**
+ * The kinds whose pointers must still be true.
+ *
+ * These two state what the product is now, so a path in one of them is a
+ * claim about the tree today. Every other kind is a record of one moment and
+ * is never edited again.
+ */
+export const livingKinds = ['development', 'guide'];
+
+/** The directories of this repository that a path can start with. */
+export const repositoryRoots = [
+  'apps/',
+  'packages/',
+  'tools/',
+  'tests/',
+  'docs/',
+  'rules/',
+  'docker/',
+];
+
+/** How many lines one page of `development/` may hold. */
+export const maximumDevelopmentLines = 150;
 
 /** The fenced block languages that a reader runs, plus plain text. */
 export const allowedFenceLanguages = [
@@ -249,6 +282,32 @@ export function headerFailures(kind, name, text) {
 }
 
 /**
+ * The repository paths that one document names inside a code span.
+ *
+ * A path is a value in backticks that starts with a directory of this
+ * repository. A directory ends with `/` and a file does not, so both shapes
+ * are answered and the caller checks whichever it finds.
+ *
+ * @param {string} text
+ * @returns {{ path: string; line: number }[]}
+ */
+export function namedPaths(text) {
+  /** @type {{ path: string; line: number }[]} */
+  const found = [];
+  const lines = text.split('\n');
+  for (const [index, line] of lines.entries()) {
+    for (const match of line.matchAll(/`([^`\s]+)`/g)) {
+      const value = match[1] ?? '';
+      if (!repositoryRoots.some((prefix) => value.startsWith(prefix))) continue;
+      // A path with a placeholder in it names a shape and not a file.
+      if (/[<>*]/.test(value)) continue;
+      found.push({ path: value, line: index + 1 });
+    }
+  }
+  return found;
+}
+
+/**
  * Runs the check over one repository tree.
  *
  * @param {string} directory
@@ -277,6 +336,28 @@ export async function main(directory) {
     linked.push({ path, text });
     for (const failure of headerFailures(kind, name, text))
       failures.push(`${path}: ${failure}`);
+    if (livingKinds.includes(kind)) {
+      for (const named of namedPaths(text)) {
+        const target = resolve(directory, named.path);
+        const found = await stat(target).then(
+          () => true,
+          () => false,
+        );
+        if (!found)
+          failures.push(
+            `${path}:${named.line}: the path "${named.path}" names no file. A document points at code by path.`,
+          );
+      }
+    }
+    if (kind === 'development') {
+      const lines = text.endsWith('\n')
+        ? text.split('\n').length - 1
+        : text.split('\n').length;
+      if (lines > maximumDevelopmentLines)
+        failures.push(
+          `${path}: ${String(lines)} lines. A page of development/ stays under ${String(maximumDevelopmentLines)}. A page that grew past it is two pages.`,
+        );
+    }
     // A superseded document is frozen, so nobody can take a copy of code out
     // of it. Every other rule still holds.
     if (isSuperseded(text)) continue;

@@ -115,7 +115,10 @@ export {
   publishedDocumentContentPolicy,
   publishedDocumentHeaders,
 } from './plugins/security-headers.ts';
-export { documentStylesheetHrefs } from './plugins/static-assets.ts';
+export {
+  builtStylesheetHrefs,
+  documentStylesheetHrefs,
+} from './plugins/static-assets.ts';
 export {
   publishedDocument,
   publishedDocumentClasses,

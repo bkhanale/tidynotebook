@@ -89,6 +89,7 @@ and needs no record.
 | [0057](0057-a-control-fill-states-its-hover-in-the-palette.md)    | A control fill states its hover in the palette             |
 | [0058](0058-an-overlay-is-placed-on-the-screen.md)                | An overlay is placed on the screen                         |
 | [0059](0059-a-guide-caps-its-rules.md)                            | A directory guide caps its rules and not its index         |
+| [0060](0060-the-published-page-takes-every-style.md)              | The published page takes every emitted style               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -212,3 +213,6 @@ cut by the box that scrolls it.
 Record 0059 ends the line cap of a directory guide at its key file index,
 because seven of the thirteen guides sat at the cap and a new rule had to
 delete an old one.
+
+Record 0060 gives the published page every stylesheet that the build emitted,
+because the page holds no script and mathematics on it had no style at all.

@@ -53,6 +53,7 @@ import {
 } from './plugins/problem.ts';
 import { baseSecurityHeaders } from './plugins/security-headers.ts';
 import {
+  builtStylesheetHrefs,
   documentStylesheetHrefs,
   sendStaticFile,
   servesApplicationShell,
@@ -499,7 +500,14 @@ async function composeApp(
     if (webDist === null) return [];
     const document = resolve(webDist, 'index.html');
     const stats = statFile(document);
-    return stats === null ? [] : documentStylesheetHrefs(document, stats);
+    const shell =
+      stats === null ? [] : documentStylesheetHrefs(document, stats);
+    // The shell stylesheet comes first, so the theme of the application wins
+    // the cascade, and every other emitted stylesheet follows it. The page
+    // holds no script, so it cannot load one when it finds that it needs one
+    // (record 0060).
+    const emitted = builtStylesheetHrefs(resolve(webDist, 'assets'));
+    return [...shell, ...emitted.filter((href) => !shell.includes(href))];
   };
   // The cause of a reader refusal reaches the operator and reaches no answer.
   // The sink is filled once the instance exists, as the protocol sink below
