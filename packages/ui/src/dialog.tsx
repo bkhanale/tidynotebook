@@ -8,6 +8,7 @@
  * so both palettes dim the page by the same amount.
  */
 import { useEffect, useRef, type ReactNode } from 'react';
+import { transitionRaise } from './motion.ts';
 
 /** How wide a dialog panel is. */
 export type DialogWidth = 'small' | 'medium' | 'large';
@@ -139,7 +140,7 @@ export function Dialog({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-scrim/70 px-gutter ${position}`}
+      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-scrim/70 px-gutter ${position} ${transitionRaise}`}
       data-notes-dialog-root=""
       role="presentation"
       onMouseDown={(event): void => {
@@ -148,7 +149,7 @@ export function Dialog({
     >
       <div
         ref={panelRef}
-        className={`w-full ${measure} overflow-hidden rounded-xl border border-edge bg-card text-ink shadow-xl outline-none`}
+        className={`w-full ${measure} overflow-hidden rounded-xl border border-edge bg-card text-ink shadow-modal outline-none ${transitionRaise}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -159,7 +160,7 @@ export function Dialog({
           className={
             hideTitle
               ? 'sr-only'
-              : 'm-0 border-b border-edge-subtle px-5 py-4 text-base font-semibold text-strong'
+              : 'm-0 border-b border-edge-line px-5 py-4 text-base font-semibold text-strong'
           }
           id={titleId}
         >

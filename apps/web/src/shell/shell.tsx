@@ -45,28 +45,30 @@ import {
   Button,
   ChevronDownIcon,
   ChevronRightIcon,
+  CloseIcon,
   ComputerIcon,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
   LinkIcon,
+  LoadingState,
   Menu,
   MenuIcon,
+  type MenuItem,
   MoonIcon,
   MoreIcon,
-  CloseIcon,
   Notice,
   pageGutter,
   PanelLeftIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
-  LoadingState,
   SettingsIcon,
   SunIcon,
+  transitionSurface,
   TrashIcon,
-  type MenuItem,
+  WorkspaceIcon,
 } from '@notesapp/ui';
 import {
   SyncProvider,
@@ -189,7 +191,7 @@ function NoteRow({
       <span className="size-11 shrink-0 md:size-8" aria-hidden="true" />
       <Link
         ref={revealActive}
-        className={`flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-lg px-1 text-control no-underline motion-safe:transition-colors md:min-h-8 ${treeRowTextClassName({ open: active })}`}
+        className={`flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-lg px-1 text-control no-underline ${transitionSurface} md:min-h-8 ${treeRowTextClassName({ open: active })}`}
         to={`/w/${workspaceId}/notes/${note.fileId}`}
         onClick={onNavigate}
         aria-current={active ? 'page' : undefined}
@@ -238,7 +240,7 @@ function NoteRow({
 
 /** The actions menu of one tree row, which every row shares. */
 const rowMenuClassName =
-  'inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8';
+  `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`;
 
 /**
  * The inset of one child branch in the tree.
@@ -334,7 +336,7 @@ function TreeView({
             >
               <button
                 type="button"
-                className="inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8"
+                className={`inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`}
                 onClick={() => onToggleFolder(node.fullPath)}
                 aria-expanded={isOpen}
                 aria-label={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
@@ -350,7 +352,7 @@ function TreeView({
               </button>
               <button
                 type="button"
-                className={`flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 text-left text-control motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${treeRowTextClassName({ selected: isSelected })}`}
+                className={`flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 text-left text-control ${transitionSurface} focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${treeRowTextClassName({ selected: isSelected })}`}
                 onClick={() => onSelectFolder(node.fullPath)}
                 aria-pressed={isSelected}
                 aria-expanded={isOpen}
@@ -697,7 +699,7 @@ function Sidebar({
           >
             <button
               type="button"
-              className={`flex min-h-11 w-full cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 text-left text-control motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${treeRowTextClassName({ selected: selectedFolder === '' })}`}
+              className={`flex min-h-11 w-full cursor-pointer items-center rounded-lg border-0 bg-transparent px-2 text-left text-control ${transitionSurface} focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${treeRowTextClassName({ selected: selectedFolder === '' })}`}
               aria-pressed={selectedFolder === ''}
               onClick={() => onSelectFolder('')}
             >
@@ -765,7 +767,7 @@ function Sidebar({
             : 'No connection. Your notes stay on this device.'}
         </p>
         <Link
-          className="flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline motion-safe:transition-colors hover:bg-hover hover:text-strong md:min-h-8"
+          className={`flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline ${transitionSurface} hover:bg-hover hover:text-strong md:min-h-8`}
           to={trashPath}
           onClick={onNavigate}
           aria-current={location.pathname === trashPath ? 'page' : undefined}
@@ -779,7 +781,7 @@ function Sidebar({
           <span>Trash</span>
         </Link>
         <Link
-          className="flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline motion-safe:transition-colors hover:bg-hover hover:text-strong md:min-h-8"
+          className={`flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline ${transitionSurface} hover:bg-hover hover:text-strong md:min-h-8`}
           to={publishedPath}
           onClick={onNavigate}
           aria-current={
@@ -1406,7 +1408,7 @@ function ShellFrame({
 
             <button
               type="button"
-              className="mx-auto flex min-h-11 w-full max-w-md min-w-0 cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-3 text-control text-muted motion-safe:transition-colors hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8"
+              className={`mx-auto flex min-h-11 w-full max-w-md min-w-0 cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-3 text-control text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8`}
               onClick={() => setPaletteOpen(true)}
             >
               <span

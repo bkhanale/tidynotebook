@@ -13,6 +13,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { transitionRaise, transitionSurface } from './motion.ts';
 
 /** One row of a menu. */
 export type MenuItem = {
@@ -57,7 +58,7 @@ function MenuRow({
       role={choosing ? 'menuitemradio' : 'menuitem'}
       aria-checked={choosing ? item.selected === true : undefined}
       tabIndex={-1}
-      className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-3 py-2 text-left text-control transition-colors hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9 ${item.danger === true ? 'text-danger' : 'text-strong'}`}
+      className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-3 py-2 text-left text-control ${transitionSurface} hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9 ${item.danger === true ? 'text-danger' : 'text-strong'}`}
       disabled={item.disabled ?? false}
       onClick={() => onRun(item)}
     >
@@ -182,7 +183,7 @@ export function Menu({
         type="button"
         className={
           triggerClassName ??
-          'inline-flex size-11 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-strong transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:size-9'
+          `inline-flex size-11 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-strong ${transitionSurface} hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:size-9`
         }
         aria-haspopup="menu"
         aria-expanded={open}
@@ -230,7 +231,7 @@ export function Menu({
         <div
           ref={listRef}
           id={menuId}
-          className={`absolute top-full z-40 mt-1 rounded-xl border border-edge bg-card p-1 shadow-xl ${
+          className={`absolute top-full z-40 mt-1 rounded-xl border border-edge bg-card p-1 shadow-overlay ${transitionRaise} ${
             matchTrigger
               ? 'inset-x-0'
               : `min-w-56 ${align === 'end' ? 'right-0' : 'left-0'}`
@@ -275,7 +276,7 @@ export function Menu({
             ))}
           </div>
           {pinned.length === 0 ? null : (
-            <div className="mt-1 border-t border-edge-subtle pt-1">
+            <div className="mt-1 border-t border-edge-line pt-1">
               {pinned.map((item) => (
                 <MenuRow
                   key={item.id}

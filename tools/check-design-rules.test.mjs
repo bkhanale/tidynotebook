@@ -5,7 +5,12 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { jsxTextRule, scanSource, textRules } from './check-design-rules.mjs';
+import {
+  jsxTextRule,
+  motionModule,
+  scanSource,
+  textRules,
+} from './check-design-rules.mjs';
 
 // The fixtures below are disposable trees under the system temporary
 // directory. They are never committed as application code.
@@ -74,6 +79,40 @@ await test('a class outside the named scale fails', () => {
   assert.notEqual(textRules['banned-class']('hover:bg-black'), null);
   assert.equal(textRules['banned-class']('text-control'), null);
   assert.equal(textRules['banned-class']('text-xs-legacy'), null);
+});
+
+await test('a shadow outside the elevation scale fails', () => {
+  assert.notEqual(textRules['raw-elevation']('flex shadow-sm'), null);
+  assert.notEqual(textRules['raw-elevation']('hover:shadow-md'), null);
+  assert.notEqual(textRules['raw-elevation']('rounded-xl shadow'), null);
+  assert.notEqual(
+    textRules['raw-elevation']('shadow-raised hover:shadow-xl'),
+    null,
+  );
+  assert.equal(textRules['raw-elevation']('shadow-raised'), null);
+  assert.equal(textRules['raw-elevation']('shadow-overlay rounded-xl'), null);
+  assert.equal(textRules['raw-elevation']('shadow-modal'), null);
+  // The property name of a transition is not a shadow utility.
+  assert.equal(textRules['raw-elevation']('motion-safe:transition-shadow'), null);
+});
+
+await test('motion outside the one motion module fails', () => {
+  const screen = 'apps/web/src/screen.tsx';
+  assert.notEqual(textRules['raw-motion']('transition-colors', screen), null);
+  assert.notEqual(
+    textRules['raw-motion']('motion-safe:transition', screen),
+    null,
+  );
+  assert.notEqual(textRules['raw-motion']('duration-100', screen), null);
+  assert.notEqual(textRules['raw-motion']('ease-quick', screen), null);
+  // The one module that states the scale may name every part of it.
+  assert.equal(
+    textRules['raw-motion']('motion-safe:transition-colors', motionModule),
+    null,
+  );
+  // A word that ends in the name of a utility is not that utility.
+  assert.equal(textRules['raw-motion']('lease-held', screen), null);
+  assert.equal(textRules['raw-motion']('flex items-center', screen), null);
 });
 
 await test('a path suffix or an identifier must not reach the person', () => {

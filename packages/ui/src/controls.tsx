@@ -7,6 +7,7 @@
  */
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
+import { transitionField, transitionSurface } from './motion.ts';
 
 /** How a button looks. */
 export type ButtonVariant =
@@ -41,14 +42,14 @@ export function buttonClassName(
           ? 'border-transparent bg-transparent text-strong hover:bg-hover'
           : variant === 'subtle'
             ? 'border-edge-subtle bg-hover text-strong hover:bg-active'
-            : 'border-accent-fill bg-accent-fill text-on-accent shadow-sm hover:brightness-110';
+            : 'border-accent-fill bg-accent-fill text-on-accent shadow-raised hover:brightness-110';
 
   // Touch pointers get the 44 px minimum. A mouse pointer keeps the compact
   // control scale, so the chrome stays quiet on a desktop screen.
   const sizeClass =
     size === 'sm' ? 'min-h-11 px-2.5 md:min-h-8' : 'min-h-11 px-3 md:min-h-9';
   return [
-    'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium no-underline motion-safe:transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus motion-safe:active:scale-95 disabled:cursor-not-allowed disabled:opacity-50',
+    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium no-underline ${transitionSurface} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50`,
     variantClass,
     sizeClass,
     options.className ?? '',
@@ -205,7 +206,7 @@ export function TextField({
       </label>
       <input
         id={id}
-        className={`w-full rounded-lg border bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:ring-2 focus:ring-focus/25 ${hasError ? 'border-danger focus:border-danger' : 'border-edge focus:border-focus'}`}
+        className={`w-full rounded-lg border bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:ring-2 focus:ring-focus/25 ${hasError ? 'border-danger focus:border-danger' : 'border-edge focus:border-focus'}`}
         type={inputType ?? 'text'}
         value={value}
         autoComplete={autoComplete}
@@ -280,7 +281,7 @@ export function ReadOnlyField({
       <input
         ref={inputRef}
         id={id}
-        className="w-full rounded-lg border border-edge bg-app px-3 py-2 font-mono text-control text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25"
+        className={`w-full rounded-lg border border-edge bg-app px-3 py-2 font-mono text-control text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25`}
         type="text"
         value={value}
         readOnly
@@ -323,7 +324,7 @@ export function SelectField({
       </label>
       <select
         id={id}
-        className="min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9"
+        className={`min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9`}
         value={value}
         onChange={(event): void => {
           onChange(event.target.value);
@@ -364,7 +365,7 @@ export function CollapsibleSection({
       <button
         id={id}
         type="button"
-        className="flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-control font-semibold uppercase tracking-wide text-muted hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8"
+        className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-control font-semibold uppercase tracking-wide text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8`}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={(): void => {

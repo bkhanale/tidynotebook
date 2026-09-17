@@ -44,6 +44,7 @@ import {
   Notice,
   Page,
   PageHeader,
+  transitionRaise,
   TrashIcon,
 } from '@notesapp/ui';
 import {
@@ -328,7 +329,9 @@ export function DeleteNoticeBar(): ReactNode {
   };
 
   return (
-    <div className="fixed bottom-4 left-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-edge-subtle bg-card p-3 shadow-md">
+    <div
+      className={`fixed bottom-4 left-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-edge-subtle bg-card p-3 shadow-overlay ${transitionRaise}`}
+    >
       <div
         className="flex flex-wrap items-center justify-between gap-group"
         role="status"

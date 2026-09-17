@@ -20,6 +20,7 @@ import {
 } from '@notesapp/api-client';
 import type { LocalStore } from '@notesapp/sync';
 import {
+  type AppearanceChoice,
   AppMarkIcon,
   Button,
   Card,
@@ -36,7 +37,8 @@ import {
   TextField,
   themeFamilies,
   themeOfFamily,
-  type AppearanceChoice,
+  transitionSurface,
+  WorkspaceIcon,
 } from '@notesapp/ui';
 import {
   problemMessage,
@@ -180,8 +182,8 @@ export function LoginPage(): ReactNode {
         </span>
         <span>Notesapp</span>
       </div>
-      <div className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-6 shadow-xl sm:p-8">
-        <h1 className="mb-2 mt-0 text-xl font-semibold text-strong">
+      <div className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-6 shadow-raised sm:p-8">
+        <h1 className="mb-2 mt-0 text-xl font-semibold tracking-heading text-strong">
           {status.kind === 'loading' ? 'Notesapp' : title}
         </h1>
         {status.kind === 'loading' ? (
@@ -341,7 +343,7 @@ export function ThemeSettings(): ReactNode {
             const chosen = theme.choice === choice.value;
             return (
               <label
-                className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-control font-medium motion-safe:transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-control font-medium ${transitionSurface} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
                   chosen
                     ? 'border-accent-fill bg-accent-fill text-on-accent'
                     : 'border-edge bg-transparent text-strong hover:bg-hover'
@@ -374,7 +376,7 @@ export function ThemeSettings(): ReactNode {
             const chosen = theme.familyId === family.id;
             return (
               <label
-                className={`inline-flex min-h-11 cursor-pointer items-center gap-cluster rounded-lg border px-3 py-1.5 text-control font-medium motion-safe:transition-colors focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-cluster rounded-lg border px-3 py-1.5 text-control font-medium ${transitionSurface} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
                   chosen
                     ? 'border-accent-fill bg-hover text-strong'
                     : 'border-edge bg-transparent text-strong hover:bg-hover'

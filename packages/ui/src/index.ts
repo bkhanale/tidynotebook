@@ -9,6 +9,7 @@
 export type {
   Appearance,
   AppearanceChoice,
+  DerivedPropertyName,
   SyntaxPropertyName,
   SyntaxTokens,
   Theme,
@@ -25,8 +26,13 @@ export {
   contrastRatio,
   defaultThemeFamilyId,
   defaultThemeFor,
+  derivedPropertyName,
+  derivedPropertyNames,
+  derivedValue,
+  dividerBlend,
   findTheme,
   findThemeFamily,
+  mixHexColors,
   parseAppearanceChoice,
   parseHexColor,
   parseThemeFamilyId,
@@ -68,6 +74,12 @@ export {
   PageHeader,
   Toolbar,
 } from './layout.tsx';
+export {
+  transitionField,
+  transitionPanel,
+  transitionRaise,
+  transitionSurface,
+} from './motion.ts';
 export type { DialogWidth } from './dialog.tsx';
 export { Dialog, DialogBody, DialogFooter } from './dialog.tsx';
 export type { MenuAlign, MenuItem } from './menu.tsx';

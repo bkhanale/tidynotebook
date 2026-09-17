@@ -15,6 +15,9 @@ import { syntaxTokenNames } from '@notesapp/editor';
 import {
   defaultThemeFamilyId,
   defaultThemeFor,
+  derivedPropertyName,
+  derivedPropertyNames,
+  derivedValue,
   syntaxPropertyNames,
   themeFamilies,
   themePropertyNames,
@@ -42,7 +45,9 @@ await test('the inline script carries every theme of the registry', () => {
   assert.equal(inline.fallback, defaultThemeFamilyId);
   assert.equal(
     inline.properties.length,
-    themePropertyNames.length + syntaxPropertyNames.length,
+    themePropertyNames.length +
+      derivedPropertyNames.length +
+      syntaxPropertyNames.length,
   );
   assert.deepEqual(
     Object.keys(inline.families).sort(),
@@ -63,6 +68,25 @@ await test('the inline script carries every theme of the registry', () => {
     }
   }
   assert.equal(counted, themes.length);
+});
+
+await test('the inline script carries the derived divider of every theme', () => {
+  const at = inline.properties.indexOf(derivedPropertyName('borderLine'));
+  assert.ok(at >= 0, 'the divider is missing from the inline script');
+  for (const family of themeFamilies) {
+    const variants = inline.families[family.id];
+    assert.ok(variants !== undefined, family.id);
+    for (const theme of family.variants) {
+      const variant: InlineThemeVariant | undefined =
+        variants[theme.appearance];
+      assert.ok(variant !== undefined, theme.id);
+      assert.equal(
+        variant.values[at],
+        derivedValue(theme.tokens, 'borderLine'),
+        theme.id,
+      );
+    }
+  }
 });
 
 await test('the manifest takes its interface colour from the registry', () => {

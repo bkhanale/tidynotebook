@@ -19,6 +19,10 @@
  *   so a component edge uses `border`. `borderSubtle` is decorative only: it
  *   separates regions that already differ in fill and never identifies a
  *   control.
+ * - The divider is not a token. It is derived from `border` and `background`,
+ *   and it lands between `borderSubtle` and `border` in every palette. See
+ *   {@link derivedPropertyNames} and
+ *   [decision 0050](../../../docs/decisions/0050-the-divider-is-derived-from-the-palette.md).
  * - A control fill carries its own label token: `accentOnFill` on
  *   `accentFill`, and `onDanger` on `dangerFill`.
  * - Every syntax colour meets 4.5 to 1 on the page background and on the
@@ -238,6 +242,30 @@ export const themePropertyNames = [
 /** One of the token names of {@link themePropertyNames}. */
 export type ThemePropertyName = (typeof themePropertyNames)[number];
 
+/**
+ * How much of the component edge a divider takes.
+ *
+ * A divider is the midpoint of the component edge and the page background.
+ * Half is the whole rule: it is loud enough that a person sees the structure
+ * of a list on every palette, and quiet enough that a row of text never reads
+ * as a cell of a table. `theme.test.ts` proves the resulting value lands
+ * between `borderSubtle` and `border` for every theme in the registry.
+ */
+export const dividerBlend = 0.5;
+
+/**
+ * The custom properties that are computed from the tokens of a palette.
+ *
+ * A derived property is not theme data, so a new theme file states none of
+ * them and cannot get one wrong. `themeProperties` writes them with the
+ * tokens, so the central Tailwind theme, the typed editor adapter, and the
+ * script that paints before React starts all receive them.
+ */
+export const derivedPropertyNames = ['borderLine'] as const;
+
+/** One of the derived names of {@link derivedPropertyNames}. */
+export type DerivedPropertyName = (typeof derivedPropertyNames)[number];
+
 /** The syntax token names that `applyTheme` writes, in a fixed order. */
 export const syntaxPropertyNames = [
   'keyword',
@@ -290,6 +318,74 @@ export function syntaxPropertyName(name: SyntaxPropertyName): string {
   return `--notes-syntax-${name}`;
 }
 
+/** The stylesheet custom property of each derived name. */
+const derivedProperties: Readonly<Record<DerivedPropertyName, string>> = {
+  borderLine: '--notes-border-line',
+};
+
+/**
+ * Maps derived names to stylesheet custom property names.
+ *
+ * For example `borderLine` becomes `--notes-border-line`.
+ */
+export function derivedPropertyName(name: DerivedPropertyName): string {
+  return derivedProperties[name];
+}
+
+/** One channel of a blend, as two hex digits. */
+function mixChannel(from: number, to: number, fraction: number): string {
+  return Math.round((from * fraction + to * (1 - fraction)) * 255)
+    .toString(16)
+    .padStart(2, '0');
+}
+
+/**
+ * Blends two six digit hex colours in sRGB.
+ *
+ * `fraction` is how much of `first` the result takes, from 0 to 1. Returns
+ * `null` when either input is not a six digit hex colour, so a caller cannot
+ * turn a broken palette into a value that looks correct.
+ */
+export function mixHexColors(
+  first: string,
+  second: string,
+  fraction: number,
+): string | null {
+  const from = parseHexColor(first);
+  const to = parseHexColor(second);
+  if (from === null || to === null) return null;
+  const [fromRed, fromGreen, fromBlue] = from;
+  const [toRed, toGreen, toBlue] = to;
+  return `#${mixChannel(fromRed, toRed, fraction)}${mixChannel(
+    fromGreen,
+    toGreen,
+    fraction,
+  )}${mixChannel(fromBlue, toBlue, fraction)}`;
+}
+
+/**
+ * How each derived value is computed from the tokens of a palette.
+ *
+ * A palette that states a colour this module cannot read falls back to the
+ * decorative edge, which is always a colour and is never louder than the
+ * value it replaces. `theme.test.ts` refuses such a palette before it ships.
+ */
+const derivedValues: Readonly<
+  Record<DerivedPropertyName, (tokens: ThemeTokens) => string>
+> = {
+  borderLine: (tokens) =>
+    mixHexColors(tokens.border, tokens.background, dividerBlend) ??
+    tokens.borderSubtle,
+};
+
+/** Computes one derived value from the tokens of a palette. */
+export function derivedValue(
+  tokens: ThemeTokens,
+  name: DerivedPropertyName,
+): string {
+  return derivedValues[name](tokens);
+}
+
 /** Every custom property of one theme, as name and value pairs. */
 export function themeProperties(
   theme: Theme,
@@ -297,6 +393,8 @@ export function themeProperties(
   const pairs: (readonly [string, string])[] = [];
   for (const name of themePropertyNames)
     pairs.push([themePropertyName(name), theme.tokens[name]]);
+  for (const name of derivedPropertyNames)
+    pairs.push([derivedPropertyName(name), derivedValue(theme.tokens, name)]);
   for (const name of syntaxPropertyNames)
     pairs.push([syntaxPropertyName(name), theme.syntax[name]]);
   return pairs;

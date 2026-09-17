@@ -30,13 +30,15 @@ import {
   DialogFooter,
   LoadingState,
   Menu,
+  type MenuItem,
   Page,
   PageHeader,
   PencilIcon,
   PlusIcon,
+  transitionField,
+  transitionSurface,
   TrashIcon,
   WorkspaceIcon,
-  type MenuItem,
 } from '@notesapp/ui';
 import { problemMessage, useWorkspace } from '../app.tsx';
 import { isMemberOf } from '../lib/workspace-choice.ts';
@@ -156,7 +158,7 @@ function NameField({
       </label>
       <input
         id={id}
-        className="min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9"
+        className={`min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9`}
         type="text"
         value={value}
         maxLength={nameLimit}
@@ -569,13 +571,13 @@ export function WorkspaceSwitcher({
   ];
 
   return (
-    <div className="border-b border-edge-subtle p-2">
+    <div className="border-b border-edge-line p-2">
       <Menu
         label={`Workspace: ${openWorkspace.name}`}
         items={items}
         pinned={pinned}
         matchTrigger
-        triggerClassName="flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-2 py-1.5 text-left text-control text-strong motion-safe:transition-colors hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-9"
+        triggerClassName={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-2 py-1.5 text-left text-control text-strong ${transitionSurface} hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-9`}
       >
         <span
           className="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-accent-fill text-on-accent"

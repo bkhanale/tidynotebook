@@ -10,6 +10,7 @@
  * The name and the text of the note are one block, so the space under the
  * name stays small. The space above it keeps the row clear of the frame.
  */
+import { transitionSurface } from '@notesapp/ui';
 
 /**
  * The classes of the sticky header row.
@@ -33,5 +34,5 @@ export function noteHeaderRowClassName(): string {
  * never moves when a state changes.
  */
 export function noteTitleClassName(): string {
-  return 'block w-full min-w-0 border-0 border-b-2 border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none motion-safe:transition-colors hover:border-edge-subtle focus:border-focus';
+  return `block w-full min-w-0 border-0 border-b-2 border-transparent bg-transparent px-2 py-1 text-2xl font-semibold text-strong outline-none ${transitionSurface} hover:border-edge-subtle focus:border-focus`;
 }

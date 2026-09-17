@@ -16,6 +16,10 @@ import test from 'node:test';
 import {
   applyTheme,
   contrastRatio,
+  derivedPropertyName,
+  derivedPropertyNames,
+  derivedValue,
+  mixHexColors,
   parseAppearanceChoice,
   parseHexColor,
   relativeLuminance,
@@ -193,6 +197,21 @@ for (const theme of themes) {
     );
   });
 
+  await test(`${name} divider sits between the two edges`, () => {
+    const tokens = theme.tokens;
+    const divider = derivedValue(tokens, 'borderLine');
+    assert.ok(parseHexColor(divider) !== null, `divider colour in ${name}`);
+    const found = contrastRatio(divider, tokens.background);
+    assert.ok(
+      found > contrastRatio(tokens.borderSubtle, tokens.background),
+      `divider is not louder than the decorative edge in ${name}`,
+    );
+    assert.ok(
+      found < contrastRatio(tokens.border, tokens.background),
+      `divider is not quieter than the component edge in ${name}`,
+    );
+  });
+
   await test(`${name} code colours pass on the page and on a code block`, () => {
     const tokens = theme.tokens;
     for (const property of syntaxPropertyNames) {
@@ -212,6 +231,11 @@ for (const theme of themes) {
     for (const property of themePropertyNames)
       assert.ok(
         parseHexColor(theme.tokens[property]) !== null,
+        `${property} in ${name}`,
+      );
+    for (const property of derivedPropertyNames)
+      assert.ok(
+        parseHexColor(derivedValue(theme.tokens, property)) !== null,
         `${property} in ${name}`,
       );
     for (const property of syntaxPropertyNames)
@@ -283,6 +307,19 @@ await test('an unknown family falls back to the default one', () => {
   assert.equal(defaultThemeFor('light').id, 'ink-light');
 });
 
+await test('a blend takes the stated share of the first colour', () => {
+  assert.equal(mixHexColors('#000000', '#ffffff', 0), '#ffffff');
+  assert.equal(mixHexColors('#000000', '#ffffff', 1), '#000000');
+  assert.equal(mixHexColors('#000000', '#ffffff', 0.5), '#808080');
+  assert.equal(mixHexColors('#fff', '#ffffff', 0.5), null);
+  assert.equal(mixHexColors('#ffffff', 'white', 0.5), null);
+});
+
+await test('a palette with an unreadable edge falls back to the quiet edge', () => {
+  const tokens = { ...defaultThemeFor('dark').tokens, border: 'rebeccapurple' };
+  assert.equal(derivedValue(tokens, 'borderLine'), tokens.borderSubtle);
+});
+
 await test('themePropertyName maps every token to one property', () => {
   assert.equal(themePropertyName('surface'), '--notes-surface');
   assert.equal(themePropertyName('background'), '--notes-bg');
@@ -294,6 +331,13 @@ await test('themePropertyName maps every token to one property', () => {
   const seen = new Set<string>();
   for (const name of themePropertyNames) {
     const property = themePropertyName(name);
+    assert.ok(property.startsWith('--notes-'));
+    assert.ok(!seen.has(property), `${property} is written twice`);
+    seen.add(property);
+  }
+  assert.equal(derivedPropertyName('borderLine'), '--notes-border-line');
+  for (const name of derivedPropertyNames) {
+    const property = derivedPropertyName(name);
     assert.ok(property.startsWith('--notes-'));
     assert.ok(!seen.has(property), `${property} is written twice`);
     seen.add(property);
@@ -320,8 +364,14 @@ await test('applying a theme writes every property and both attributes', () => {
   assert.equal(attributes.get('data-theme-id'), theme.id);
   assert.equal(
     properties.size,
-    themePropertyNames.length + syntaxPropertyNames.length,
+    themePropertyNames.length +
+      derivedPropertyNames.length +
+      syntaxPropertyNames.length,
   );
   assert.equal(properties.get('--notes-bg'), theme.tokens.background);
+  assert.equal(
+    properties.get('--notes-border-line'),
+    derivedValue(theme.tokens, 'borderLine'),
+  );
   assert.equal(properties.get('--notes-syntax-comment'), theme.syntax.comment);
 });

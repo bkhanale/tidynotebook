@@ -12,7 +12,13 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LocalStore } from '@notesapp/sync';
-import { Button, Dialog, DialogBody, DialogFooter } from '@notesapp/ui';
+import {
+  Button,
+  Dialog,
+  DialogBody,
+  DialogFooter,
+  transitionField,
+} from '@notesapp/ui';
 import { applyMoves } from './apply-moves.ts';
 import {
   folderMoves,
@@ -61,7 +67,7 @@ function NameField({
       </label>
       <input
         id={id}
-        className="min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none motion-safe:transition-shadow focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9"
+        className={`min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9`}
         type="text"
         value={value}
         autoComplete="off"

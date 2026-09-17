@@ -15,6 +15,11 @@
  *   `packages/ui/src/themes/`, which is the one registry that holds colour.
  * - `arbitrary-value`: a Tailwind arbitrary value such as `w-[32rem]`.
  * - `banned-class`: `text-xs`, `text-white`, or `bg-black`.
+ * - `raw-elevation`: a built in shadow utility. Depth comes from the three
+ *   named steps of decision 0049.
+ * - `raw-motion`: a transition, a duration, or an easing utility outside
+ *   `packages/ui/src/motion.ts`, which is the one motion scale of decision
+ *   0051.
  * - `jsx-text`: a `.md` path suffix or a UUID inside text that a person
  *   reads.
  *
@@ -41,6 +46,16 @@ const rgbColour = /\brgba?\(/;
 // no prefix, and it does not match an index expression, which is not a string.
 const arbitraryValue = /(?:^|\s|:)-?[a-z][a-zA-Z0-9-]*-\[/;
 const bannedClasses = ['text-xs', 'text-white', 'bg-black'];
+/** The one module that may name a duration, an easing, or a transition. */
+export const motionModule = 'packages/ui/src/motion.ts';
+/** The three named elevation steps of the central theme. */
+export const elevationSteps = ['raised', 'overlay', 'modal'];
+// A utility starts a class string, follows a space, or follows the colon of a
+// variant. It never follows a letter, so `transition-shadow` is not a shadow
+// utility and `lease-held` is not an easing.
+const shadowUtility = /(?:^|[\s:])(shadow(?:-[a-z0-9]+)?)(?![\w-])/g;
+const motionUtility =
+  /(?:^|[\s:])((?:transition(?:-[a-z]+)?|duration-[a-z0-9]+|ease-[a-z]+))(?![\w-])/g;
 const markdownSuffix = /\.md\b/;
 const uuid =
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i;
@@ -74,6 +89,24 @@ export const textRules = {
         return `Class ${name} is not part of the named scale.`;
     }
     return null;
+  },
+  /** @param {string} text @returns {string | null} */
+  'raw-elevation'(text) {
+    for (const match of text.matchAll(shadowUtility)) {
+      const utility = match[1] ?? '';
+      if (elevationSteps.some((step) => utility === `shadow-${step}`)) continue;
+      return `Shadow utility ${utility} is not a named elevation step. Use shadow-${elevationSteps.join(', shadow-')}.`;
+    }
+    return null;
+  },
+  /** @param {string} text @param {string} path @returns {string | null} */
+  'raw-motion'(text, path) {
+    if (path === motionModule) return null;
+    const found = motionUtility.exec(text);
+    motionUtility.lastIndex = 0;
+    return found
+      ? `Motion utility ${found[1]} outside ${motionModule}. Read a name from the motion scale.`
+      : null;
   },
 };
 

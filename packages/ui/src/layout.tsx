@@ -14,6 +14,15 @@
  * the same constant. `gap-cluster` and `gap-group` separate controls inside
  * a row. The four values live in the central theme of
  * `apps/web/src/tailwind.css`.
+ *
+ * Depth is decided once too. A page sits on the page plane, and a `Card` and
+ * an `EmptyState` sit on the raised plane above it with the first elevation
+ * step. A divider that a person must see, such as the rule between two rows
+ * of a list, uses `edge-line`; `edge-subtle` stays for a hairline inside a
+ * group that already differs in fill. See
+ * [decision 0049](../../../docs/decisions/0049-three-planes-and-one-elevation-scale.md)
+ * and
+ * [decision 0050](../../../docs/decisions/0050-the-divider-is-derived-from-the-palette.md).
  */
 import type { ReactNode } from 'react';
 
@@ -76,7 +85,10 @@ export function PageHeader({
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-group">
       <div className="min-w-0 grow basis-full sm:basis-0">
-        <h1 className="m-0 text-xl font-semibold text-strong" id={id}>
+        <h1
+          className="m-0 text-xl font-semibold tracking-heading text-strong"
+          id={id}
+        >
           {title}
         </h1>
         {description === undefined || description === '' ? null : (
@@ -115,7 +127,7 @@ export function Card({
       {children}
     </>
   );
-  const classes = `rounded-xl border border-edge-subtle bg-card p-4 ${className ?? ''}`;
+  const classes = `rounded-xl border border-edge-subtle bg-card p-4 shadow-raised ${className ?? ''}`;
   if (title === undefined || titleId === undefined)
     return <div className={classes}>{body}</div>;
   return (
@@ -143,7 +155,7 @@ export function EmptyState({
   readonly action?: ReactNode | undefined;
 }): ReactNode {
   return (
-    <div className="rounded-xl border border-dashed border-edge-subtle bg-card px-gutter-wide py-14 text-center">
+    <div className="rounded-xl border border-dashed border-edge-line bg-card px-gutter-wide py-14 text-center">
       {icon === undefined ? null : (
         <p className="m-0 flex justify-center text-muted" aria-hidden="true">
           {icon}
@@ -177,7 +189,7 @@ export function ListRow({
 }): ReactNode {
   return (
     <li
-      className={`flex min-h-11 items-center gap-group border-b border-edge-subtle px-1 py-2 last:border-b-0 ${className ?? ''}`}
+      className={`flex min-h-11 items-center gap-group border-b border-edge-line px-1 py-2 last:border-b-0 ${className ?? ''}`}
     >
       {children}
     </li>

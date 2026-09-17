@@ -65,6 +65,54 @@
   --radius-md: 0.375rem;
   --radius-lg: 0.5rem;
 
+  /*
+   * The elevation scale of decision 0049.
+   *
+   * The interface has three planes: the chrome plane of the frame header and
+   * the sidebar, the page plane of a route, and the raised plane of a card, a
+   * menu, a dialog and a toast. A plane states where a thing belongs, and one
+   * of these three steps states how far it stands off the plane under it.
+   *
+   * `raised` is a resting card or a sticky frame edge. `overlay` is a menu or
+   * a toast that a person opened. `modal` is a dialog that takes the screen.
+   *
+   * Every step is built from the scrim of the active palette, which
+   * `theme.test.ts` proves is darker than every surface, so a shadow follows
+   * a theme change and no shadow holds a colour of its own.
+   */
+  --shadow-raised:
+    0 1px 2px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent);
+  --shadow-overlay:
+    0 2px 4px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent),
+    0 8px 20px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 18%, transparent);
+  --shadow-modal:
+    0 4px 8px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 14%, transparent),
+    0 24px 56px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 28%, transparent);
+
+  /*
+   * The motion scale of decision 0051.
+   *
+   * Tailwind gives easing a theme namespace and a duration none, so the two
+   * halves of one scale cannot live in one place. The easing sits here and
+   * the durations sit with the named transitions in
+   * `packages/ui/src/motion.ts`, which is the one module that writes either.
+   *
+   * `quick` answers a pointer at once. `soft` carries a thing that enters or
+   * leaves the screen, so it settles instead of stopping.
+   */
+  --ease-quick: cubic-bezier(0.2, 0, 0.38, 0.9);
+  --ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /*
+   * The heading tightening of decision 0015.
+   *
+   * Large type at the default letter spacing reads loose, so each step of the
+   * heading ramp above the body size pulls its letters in. The two named
+   * values are the only tightening in the product.
+   */
+  --tracking-heading: -0.011em;
+  --tracking-display: -0.021em;
+
   --text-note: 1rem;
   --text-note--line-height: 1.65;
   --container-note: 42rem;
@@ -94,6 +142,13 @@
  * dark theme, the Ink family, and keep the first paint correct before that
  * script runs. No other colour value belongs in this file; the registry in
  * `packages/ui/src/themes` owns every palette.
+ *
+ * `edge-line` is the divider of decision 0050. It is not palette data: the
+ * registry computes it from the component edge and the page background and
+ * writes it with the tokens, so a divider is visible on every palette and a
+ * new theme cannot place it wrong. `edge` identifies a control, `edge-line`
+ * separates two rows a person must tell apart, and `edge-subtle` is a
+ * hairline inside a group that already differs in fill.
  */
 @theme inline {
   --color-app: var(--notes-bg, #1a1922);
@@ -112,6 +167,7 @@
   --color-danger-fill: var(--notes-danger-fill, #f58ba0);
   --color-on-danger: var(--notes-on-danger, #1a0c10);
   --color-edge: var(--notes-border, #857f98);
+  --color-edge-line: var(--notes-border-line, #504c5d);
   --color-edge-subtle: var(--notes-border-subtle, #2c2a38);
   --color-focus: var(--notes-focus, #e0b653);
   --color-scrim: var(--notes-scrim, #0b0a0f);
