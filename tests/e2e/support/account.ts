@@ -11,41 +11,47 @@ function hasNavigationDrawer(page: Page): boolean {
 }
 
 /**
- * Opens the sign-in page and waits until its form can take input.
+ * Opens one address and waits for the thing that says the screen is there.
  *
- * Every journey that opens that page reaches it through here. A bare
- * navigation with the default wait timed out once on firefox at 120 seconds,
- * because firefox can leave the navigation promise pending after the document
- * has rendered. This bounds the wait and asks once more.
+ * Firefox can leave the navigation promise pending after the document has
+ * rendered, so a bare `goto` with the default wait has timed out at the full
+ * journey budget of 120 seconds while the screen was on the display the whole
+ * time. Every journey that opens an address of its own reaches it through
+ * here: the navigation commits, the screen decides, and one retry covers a
+ * first document that the browser is still finishing.
  */
+export async function openAddress(
+  page: Page,
+  address: string,
+  ready: () => Locator,
+): Promise<void> {
+  try {
+    await page.goto(address, { waitUntil: 'commit', timeout: 15_000 });
+  } catch {
+    // The pending navigation is harmless; the wait below is the decider.
+  }
+  try {
+    await ready().waitFor({ state: 'visible', timeout: 15_000 });
+    return;
+  } catch {
+    // The screen did not appear on the first attempt. Firefox can hold a
+    // first document open while the browser still has work of its own to
+    // finish, so the journey asks once more rather than failing on it.
+  }
+  try {
+    await page.goto(address, { waitUntil: 'commit', timeout: 15_000 });
+  } catch {
+    // The same pending navigation is harmless.
+  }
+  await ready().waitFor({ state: 'visible', timeout: 30_000 });
+}
+
+/** Opens the sign-in page and waits until its form can take input. */
 export async function openSignInForm(
   page: Page,
   loginUrl: string,
 ): Promise<void> {
-  try {
-    await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
-  } catch {
-    // Firefox can leave the navigation promise pending after the document
-    // has rendered. The form wait below decides whether sign in can go on.
-  }
-  try {
-    await page
-      .getByLabel('Address')
-      .waitFor({ state: 'visible', timeout: 15_000 });
-    return;
-  } catch {
-    // The form did not appear on the first attempt. Firefox can hold a first
-    // document open while the browser still has work of its own to finish, so
-    // the journey asks once more rather than failing on that first document.
-  }
-  try {
-    await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
-  } catch {
-    // The same pending navigation is harmless; the form wait is the decider.
-  }
-  await page
-    .getByLabel('Address')
-    .waitFor({ state: 'visible', timeout: 30_000 });
+  await openAddress(page, loginUrl, () => page.getByLabel('Address'));
 }
 
 /** Signs in through the same form that a person uses. */

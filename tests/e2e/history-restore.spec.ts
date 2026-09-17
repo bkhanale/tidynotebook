@@ -38,10 +38,10 @@ test('an earlier version can be restored from the history', async ({
     page.getByRole('heading', { name: `History of ${name}` }),
   ).toBeVisible();
 
-  // Two versions exist, and the older one is restored.
+  // Two versions exist, and the older one is restored. Each row names the
+  // version it restores, so the two rows are told apart by name.
   const restoreButtons = page.getByRole('button', {
-    name: 'Restore',
-    exact: true,
+    name: /^Restore the version /,
   });
   await expect(restoreButtons).toHaveCount(2);
   await restoreButtons.last().click();

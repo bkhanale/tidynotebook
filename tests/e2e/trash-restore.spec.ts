@@ -35,7 +35,9 @@ test('a note restored from the trash keeps its text', async ({
 
   const row = page.locator('li').filter({ hasText: name });
   await expect(row).toHaveCount(1);
-  await row.getByRole('button', { name: 'Restore', exact: true }).click();
+  // The row names the note it restores, so two rows of the list are told
+  // apart by name alone.
+  await row.getByRole('button', { name: `Restore ${name}` }).click();
 
   // Restore writes a new version and returns to the note. The text is there
   // again, and it stays after a reload because the server accepted it.

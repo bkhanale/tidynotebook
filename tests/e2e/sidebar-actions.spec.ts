@@ -162,14 +162,18 @@ test('every action of the last folder row is on the screen', async ({
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(screen.height);
 
-  // The row really is at the foot of the tree, so this journey proves the
-  // case it claims and not a row with room under it.
+  // This is really the hard case: a menu laid out under this row, inside the
+  // box that scrolls the tree, would have run past the foot of that box and
+  // lost its last rows. That is the defect, stated as the geometry that
+  // produces it.
   const treeBox = await tree.boundingBox();
   const rowBox = await lastRow.boundingBox();
   expect(treeBox).not.toBeNull();
   expect(rowBox).not.toBeNull();
   if (treeBox !== null && rowBox !== null)
-    expect(rowBox.y).toBeGreaterThan(treeBox.y + treeBox.height * 0.75);
+    expect(rowBox.y + rowBox.height + box.height).toBeGreaterThan(
+      treeBox.y + treeBox.height,
+    );
 
   for (const action of folderActions)
     await expect(menu.getByRole('menuitem', { name: action })).toBeVisible();
