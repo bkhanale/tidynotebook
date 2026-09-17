@@ -1042,7 +1042,11 @@ await test('a folder change of 1000 files commits, and 1001 does not', async () 
     },
   });
   assert.equal(responseOf(overLimit.response).status, 422);
-  assert.equal(problemCode(overLimit.error), 'invalid_graph');
+  // The revisions are a valid change of the stored history, and the only
+  // problem is how many of them there are, so the refusal states that. A
+  // person renaming a folder then reads the number of notes as the cause and
+  // not the history of one note.
+  assert.equal(problemCode(overLimit.error), 'too_many_files');
   assert.equal(problemFiles(overLimit.error).length, 1001);
 });
 

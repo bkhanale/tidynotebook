@@ -82,17 +82,28 @@ async function endSessions(serverUrl: string, name: string): Promise<number> {
   try {
     const deadline = Date.now() + sessionCloseTimeoutMs;
     for (;;) {
+      // A row with no user name is a background worker of the server, such as
+      // an autovacuum worker of this database. A role that is not a superuser
+      // may not signal one, and it does not hold the database open either, so
+      // the sessions of a person are the only rows that count here.
       const left = await client.query<{ count: string }>(
-        'select count(*)::text as count from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()',
+        'select count(*)::text as count from pg_stat_activity where datname = $1 and pid <> pg_backend_pid() and usename is not null',
         [name],
       );
       const count = Number(left.rows[0]?.count ?? '0');
       if (count === 0) return 0;
       if (Date.now() >= deadline) return count;
-      await client.query(
-        'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid()',
-        [name],
-      );
+      try {
+        await client.query(
+          'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1 and pid <> pg_backend_pid() and usename is not null',
+          [name],
+        );
+      } catch {
+        // A session that this role may not end stays, and the count above
+        // sends the drop to its forced form. The refusal is not a failure of
+        // the teardown, so it never leaves this call.
+        return count;
+      }
       await new Promise((accept) => setTimeout(accept, 50));
     }
   } finally {

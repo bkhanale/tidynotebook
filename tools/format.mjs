@@ -27,7 +27,12 @@ import process from 'node:process';
 import { resolve } from 'node:path';
 import { root } from './workspace.mjs';
 
-/** The files that git tracks, plus the new ones it would track. */
+/**
+ * The files that git tracks, plus the new ones it would track.
+ *
+ * @param {string} directory
+ * @returns {string[]}
+ */
 export function trackedFiles(directory) {
   const listed = spawnSync(
     'git',
