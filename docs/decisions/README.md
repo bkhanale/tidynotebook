@@ -81,6 +81,10 @@ and needs no record.
 | [0049](0049-a-workspace-is-an-explicit-container.md)              | A workspace is an explicit container that a person chooses |
 | [0050](0050-every-workspace-with-queued-work-keeps-syncing.md)    | Every workspace with queued work keeps syncing             |
 | [0051](0051-an-account-always-keeps-one-workspace.md)             | An account always keeps one workspace                      |
+| [0052](0052-three-planes-and-one-elevation-scale.md)              | Three planes and one elevation scale                       |
+| [0053](0053-the-divider-is-derived-from-the-palette.md)           | The divider is derived from the palette                    |
+| [0054](0054-motion-is-a-named-scale-in-one-module.md)             | Motion is a named scale in one module                      |
+| [0055](0055-the-note-is-one-centred-column.md)                    | The note is one centred column                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -175,3 +179,16 @@ unreachable. Record 0050 keeps a sync engine running for every workspace that
 still holds queued work, because a person who switches away must not leave a
 save on the device. Record 0051 makes the domain rule and the database function
 both refuse the delete of the last workspace of an account.
+
+Records 0052 to 0055 follow
+[design 011](../design/011-depth-and-hierarchy.md), which reads why the
+interface is tidy and still flat. Record 0052 names the three planes of the
+interface and makes elevation a named scale built from the scrim of the
+palette, because the frame header had taken the highest plane of the screen.
+Record 0053 derives the divider from the component edge and the page
+background, because the decorative edge of a palette has no minimum and every
+divider of the product used it. Record 0054 states the motion of the
+application in one module, because Tailwind gives a duration no theme
+namespace and a bare number in a class is a value that no rule can hold.
+Record 0055 makes the note name, the note text and the note footer one centred
+column and holds them to one measure, and it refines record 0015.
