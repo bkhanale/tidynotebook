@@ -681,7 +681,7 @@ export function CheckIcon({ size = 16, className }: IconProps): ReactNode {
 }
 
 /** A workspace / layers icon. */
-export function WorkspaceIcon({ size = 16, className }: IconProps): ReactNode {
+export function AppMarkIcon({ size = 16, className }: IconProps): ReactNode {
   return (
     <svg
       width={size}
@@ -698,6 +698,36 @@ export function WorkspaceIcon({ size = 16, className }: IconProps): ReactNode {
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
       <polyline points="2 17 12 22 22 17" />
       <polyline points="2 12 12 17 22 12" />
+    </svg>
+  );
+}
+
+/**
+ * One workspace: four panes that sit side by side.
+ *
+ * It is deliberately unlike `AppMarkIcon`. The product mark and the workspace
+ * switcher appear on the same screen, a few pixels apart, and one glyph for
+ * both makes the switcher read as a second copy of the logo rather than as a
+ * control that names the area you are in.
+ */
+export function WorkspaceIcon({ size = 16, className }: IconProps): ReactNode {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      className={className}
+    >
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
     </svg>
   );
 }

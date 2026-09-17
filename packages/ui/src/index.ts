@@ -77,6 +77,7 @@ export { Notice } from './notice.tsx';
 export type { IconProps } from './icons.tsx';
 export {
   AlertCircleIcon,
+  AppMarkIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,

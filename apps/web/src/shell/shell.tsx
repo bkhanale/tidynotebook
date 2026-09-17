@@ -41,6 +41,7 @@ import {
   useParams,
 } from 'react-router';
 import {
+  AppMarkIcon,
   Button,
   ChevronDownIcon,
   ChevronRightIcon,
@@ -65,7 +66,6 @@ import {
   SettingsIcon,
   SunIcon,
   TrashIcon,
-  WorkspaceIcon,
   type MenuItem,
 } from '@notesapp/ui';
 import {
@@ -1399,7 +1399,7 @@ function ShellFrame({
                 className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
                 aria-hidden="true"
               >
-                <WorkspaceIcon size={16} />
+                <AppMarkIcon size={16} />
               </span>
               <span className="hidden sm:inline">Notesapp</span>
             </Link>

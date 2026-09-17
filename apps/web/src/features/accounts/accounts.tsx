@@ -20,6 +20,7 @@ import {
 } from '@notesapp/api-client';
 import type { LocalStore } from '@notesapp/sync';
 import {
+  AppMarkIcon,
   Button,
   Card,
   CheckIcon,
@@ -35,7 +36,6 @@ import {
   TextField,
   themeFamilies,
   themeOfFamily,
-  WorkspaceIcon,
   type AppearanceChoice,
 } from '@notesapp/ui';
 import {
@@ -176,7 +176,7 @@ export function LoginPage(): ReactNode {
           className="inline-flex size-8 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
           aria-hidden="true"
         >
-          <WorkspaceIcon size={18} />
+          <AppMarkIcon size={18} />
         </span>
         <span>Notesapp</span>
       </div>
