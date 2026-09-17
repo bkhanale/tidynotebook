@@ -20,6 +20,11 @@ local search, and local backlinks.
   `src/local-search.ts`, and `src/local-backlinks.ts` hold their own rules.
   The last two are pure functions over the rows of `listSearchFiles`, and
   neither keeps an index of its own (record 0037).
+- The lease is one row for the browser profile and not one per workspace. One
+  tab runs one engine for the open workspace and one for every workspace that
+  still holds queued work (record 0050), and every engine of that tab shares
+  its owner identifier, so they renew one lease and a second tab is still
+  excluded. `queuedWorkspaces` on the port names those workspaces.
 - A whole-file action is one port operation, `moveFiles` or `trashFiles`, and
   never a draft that a caller composes. The path and the deletion state live on
   every working copy, so one transaction rewrites them all (record 0032).

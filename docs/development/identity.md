@@ -38,6 +38,12 @@ to one account, and the first-account operation creates the account, its
 settings, its workspace, its usage record, its sync cursor, and its owner row
 in one transaction.
 
+An account can hold several workspaces and creates them itself. The runtime
+role holds no insert right on the workspace table, so `notesapp_create_workspace`
+is the one way one comes into being and it makes the calling account its owner.
+An account never deletes its last workspace: the use case and the SQL function
+each refuse that call.
+
 The workspace owner row stays part of the storage model, because it is what the
 row access policies read. No product operation can add a member, invite an
 address, or move ownership. The role type has one value, and the permission

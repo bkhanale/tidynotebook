@@ -14,7 +14,7 @@
  * The rules of which workspace opens live in `lib/workspace-choice.ts`. The
  * state and the browser storage live in `app.tsx`. This module is the screen.
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useNavigate } from 'react-router';
 import {
   createWorkspace,
@@ -82,11 +82,17 @@ export function WorkspaceHome(): ReactNode {
 /**
  * Opens the workspace that the address names, when the account holds it.
  *
- * An address that names a workspace of this account opens it and becomes the
- * choice of this device, so a link to the second workspace works and a
- * bookmark keeps working. An address that names any other workspace goes to
- * the chosen one, because a person who cannot act on the refusal is better
- * served by their own notes than by an error.
+ * The address is the one thing that says which workspace is open, and this is
+ * the one place that records it as the choice of this device. Every other
+ * screen navigates and lets this decide.
+ *
+ * A workspace the list does not hold is not yet a refusal. The list is a cache
+ * of a server fact and it goes stale, so the address is worth one question to
+ * the server: another device may have made that workspace. The redirect waits
+ * for the answer to that question and not merely for the asking, which is what
+ * `revision` is for. A workspace that is still unknown after the answer sends
+ * the person to the one they chose, because a refusal they cannot act on is
+ * worse than their own notes.
  */
 export function RequireCurrentWorkspace({
   workspaceId,
@@ -95,17 +101,33 @@ export function RequireCurrentWorkspace({
   readonly workspaceId: string;
   readonly children: ReactNode;
 }): ReactNode {
-  const { state, open } = useWorkspace();
-  const member =
-    state.status === 'ready' && isMemberOf(state.workspaces, workspaceId);
+  const { state, remember, reload } = useWorkspace();
+  /** The address that was asked about, and the list revision at that moment. */
+  const [asked, setAsked] = useState<{
+    readonly workspaceId: string;
+    readonly revision: number;
+  } | null>(null);
+
+  const ready = state.status === 'ready';
+  const member = ready && isMemberOf(state.workspaces, workspaceId);
+  const revision = ready ? state.revision : 0;
 
   useEffect(() => {
-    if (member) open(workspaceId);
-  }, [member, workspaceId, open]);
+    if (!ready || member) {
+      if (member) remember(workspaceId);
+      return;
+    }
+    if (asked?.workspaceId === workspaceId) return;
+    setAsked({ workspaceId, revision });
+    reload();
+  }, [ready, member, workspaceId, revision, asked, remember, reload]);
 
-  if (state.status !== 'ready') return children;
-  if (!member) return <Navigate to={`/w/${state.workspaceId}`} replace />;
-  return children;
+  if (!ready) return children;
+  if (member) return children;
+  // The question is still out. Nothing is decided, so nothing moves.
+  if (asked?.workspaceId !== workspaceId || revision <= asked.revision)
+    return children;
+  return <Navigate to={`/w/${state.workspaceId}`} replace />;
 }
 
 /** A labelled name field with its own error line. */
@@ -186,7 +208,7 @@ function NewWorkspaceDialog({
   readonly open: boolean;
   readonly onClose: () => void;
   readonly workspaces: readonly Workspace[];
-  readonly onCreated: (workspaceId: string) => void;
+  readonly onCreated: (workspace: Workspace) => void;
 }): ReactNode {
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +240,7 @@ function NewWorkspaceDialog({
         setError(problemMessage(result.error));
         return;
       }
-      onCreated(result.data.workspaceId);
+      onCreated(result.data);
       onClose();
     })();
   };
@@ -465,51 +487,45 @@ function DeleteWorkspaceDialog({
  * pinned Create workspace row.
  */
 export function WorkspaceSwitcher({
+  workspaceId,
   onNavigate,
 }: {
+  /**
+   * The workspace of the address, which is the one the shell is showing.
+   *
+   * The trigger names this and not the stored choice, because the address is
+   * what every other part of the shell is scoped to. Reading one fact from
+   * one place keeps the name and the notes below it in step.
+   */
+  readonly workspaceId: string;
   /** Closes the navigation drawer after a switch on a narrow viewport. */
   readonly onNavigate: () => void;
 }): ReactNode {
-  const { state, open, reload } = useWorkspace();
+  const { state, reload, adopt, forget } = useWorkspace();
   const navigate = useNavigate();
   const [creating, setCreating] = useState(false);
   const [renaming, setRenaming] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  // The workspace to open once the list has been read again. A create and a
-  // delete both change the list, so the move waits for the answer that holds
-  // the workspace it moves to.
-  const pendingOpen = useRef<string | null>(null);
 
   const workspaces = state.status === 'ready' ? state.workspaces : [];
   const openWorkspace =
-    state.status === 'ready'
-      ? (workspaces.find(
-          (workspace) => workspace.workspaceId === state.workspaceId,
-        ) ?? null)
-      : null;
-
-  useEffect(() => {
-    const wanted = pendingOpen.current;
-    if (wanted === null || state.status !== 'ready') return;
-    if (!isMemberOf(workspaces, wanted)) return;
-    pendingOpen.current = null;
-    open(wanted);
-    void navigate(`/w/${wanted}`);
-  }, [state.status, workspaces, open, navigate]);
+    workspaces.find((workspace) => workspace.workspaceId === workspaceId) ??
+    null;
 
   if (state.status !== 'ready' || openWorkspace === null) return null;
 
-  const switchTo = (workspaceId: string): void => {
-    if (workspaceId === state.workspaceId) return;
-    open(workspaceId);
-    void navigate(`/w/${workspaceId}`);
+  const switchTo = (wanted: string): void => {
+    if (wanted === workspaceId) return;
+    // Only the address moves. The membership check of the route records the
+    // choice, so nothing else writes it.
+    void navigate(`/w/${wanted}`);
     onNavigate();
   };
 
   const items: MenuItem[] = workspaces.map((workspace) => ({
     id: workspace.workspaceId,
     label: workspace.name,
-    selected: workspace.workspaceId === state.workspaceId,
+    selected: workspace.workspaceId === workspaceId,
     onSelect: () => switchTo(workspace.workspaceId),
   }));
 
@@ -572,9 +588,12 @@ export function WorkspaceSwitcher({
         open={creating}
         onClose={() => setCreating(false)}
         workspaces={workspaces}
-        onCreated={(workspaceId) => {
-          pendingOpen.current = workspaceId;
-          reload();
+        onCreated={(created) => {
+          // The server answered with the whole workspace, so the list already
+          // holds it before the address names it. There is nothing to wait
+          // for and nothing to hand across the navigation.
+          adopt(created);
+          void navigate(`/w/${created.workspaceId}`);
           onNavigate();
         }}
       />
@@ -590,9 +609,9 @@ export function WorkspaceSwitcher({
         onClose={() => setDeleting(false)}
         workspace={openWorkspace}
         onDeleted={() => {
-          const next = workspaceAfterRemoval(workspaces, state.workspaceId);
-          if (next !== null) pendingOpen.current = next.workspaceId;
-          reload();
+          const next = workspaceAfterRemoval(workspaces, workspaceId);
+          forget(workspaceId);
+          if (next !== null) void navigate(`/w/${next.workspaceId}`);
           onNavigate();
         }}
       />

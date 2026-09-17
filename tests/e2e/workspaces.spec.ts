@@ -12,6 +12,7 @@ import type { Page } from '@playwright/test';
 import { test, expect } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
+  closeNavigation,
   createNewNote,
   openNavigation,
   openPersonalWorkspace,
@@ -23,9 +24,48 @@ import {
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
+/**
+ * The sidebar, at every width.
+ *
+ * A wide viewport gives it the complementary role. A narrow one opens it as a
+ * modal drawer, which is a dialog. The accessible name is the same either way,
+ * so the journey names the region and lets the role follow the width.
+ */
+function sidebar(page: Page) {
+  return page
+    .getByRole('complementary', { name: 'Notes navigation' })
+    .or(page.getByRole('dialog', { name: 'Notes navigation' }));
+}
+
 /** The switcher trigger, whatever workspace it currently names. */
 function switcher(page: Page) {
   return page.getByRole('button', { name: /^Workspace: / });
+}
+
+/**
+ * Waits until the switcher names one workspace.
+ *
+ * A narrow viewport keeps the sidebar in a closed drawer, and every action of
+ * the switcher closes that drawer, so the drawer has to be brought back before
+ * the trigger can be read. The whole step retries, because the close and the
+ * reopen race on that viewport and neither one is a state the journey can wait
+ * for on its own.
+ */
+async function expectWorkspace(page: Page, name: string): Promise<void> {
+  await expect(async () => {
+    await openNavigation(page);
+    await expect(switcher(page)).toHaveAccessibleName(`Workspace: ${name}`, {
+      timeout: 2_000,
+    });
+  }).toPass({ timeout: 30_000 });
+}
+
+/** The workspace identifier that the address names right now. */
+function workspaceIdOf(page: Page): string {
+  const match = /\/w\/([0-9a-f-]+)/.exec(new URL(page.url()).pathname);
+  if (match?.[1] === undefined)
+    throw new Error('The address names no workspace.');
+  return match[1];
 }
 
 /** Opens the switcher menu and returns it. */
@@ -43,15 +83,12 @@ async function createWorkspace(page: Page, name: string): Promise<string> {
   await menu.getByRole('menuitemradio', { name: 'New workspace' }).click();
   await page.getByLabel('Workspace name').fill(name);
   await page.getByRole('button', { name: 'Make workspace' }).click();
-  // The switcher names the new workspace once the list has been read again,
-  // and the address moves with it.
-  await expect(switcher(page)).toHaveAccessibleName(`Workspace: ${name}`);
-  await page.waitForURL(/\/w\/[0-9a-f-]+$/);
-  const match = /\/w\/([0-9a-f-]+)$/.exec(new URL(page.url()).pathname);
-  const workspaceId = match?.[1];
-  if (workspaceId === undefined)
-    throw new Error('The new workspace has no address.');
-  return workspaceId;
+  // The address moves to the new workspace, and the switcher names it. A
+  // client side move fires no load event, so the address is a state to assert
+  // and not a navigation to wait for.
+  await expect(page).toHaveURL(/\/w\/[0-9a-f-]+$/);
+  await expectWorkspace(page, name);
+  return workspaceIdOf(page);
 }
 
 /** Writes one named note in the open workspace and waits for the server. */
@@ -66,7 +103,7 @@ async function writeNote(page: Page, name: string): Promise<void> {
 async function switchTo(page: Page, name: string): Promise<void> {
   const menu = await openSwitcher(page);
   await menu.getByRole('menuitemradio', { name, exact: true }).click();
-  await expect(switcher(page)).toHaveAccessibleName(`Workspace: ${name}`);
+  await expectWorkspace(page, name);
 }
 
 // This journey runs first on purpose. The stack is owned by the worker and
@@ -92,8 +129,7 @@ test('a second workspace keeps its notes away from the first', async ({
 }) => {
   await signIn(page, stack);
   const personalId = await openPersonalWorkspace(page);
-  await openNavigation(page);
-  await expect(switcher(page)).toHaveAccessibleName('Workspace: Personal');
+  await expectWorkspace(page, 'Personal');
 
   await writeNote(page, 'Personal only note');
 
@@ -104,7 +140,7 @@ test('a second workspace keeps its notes away from the first', async ({
   // The sidebar and the note list each name the empty state, so the check
   // reads the tree and not whichever one the page happened to render first.
   await openNavigation(page);
-  const tree = page.getByRole('complementary', { name: 'Notes navigation' });
+  const tree = sidebar(page);
   await expect(tree.getByText('No notes yet.')).toBeVisible();
   await expect(
     tree.getByRole('link', { name: 'Personal only note', exact: true }),
@@ -113,7 +149,7 @@ test('a second workspace keeps its notes away from the first', async ({
   await writeNote(page, 'Work only note');
 
   await switchTo(page, 'Personal');
-  await page.waitForURL(new RegExp(`/w/${personalId}`));
+  await expect(page).toHaveURL(new RegExp(`/w/${personalId}`));
   await openNavigation(page);
   await expect(
     tree.getByRole('link', { name: 'Personal only note', exact: true }),
@@ -139,9 +175,8 @@ test('the chosen workspace survives a reload', async ({ page, stack }) => {
   await page.goto(`${stack.baseUrl}/`);
   // The root address opens the workspace this device last chose, not the
   // personal one.
-  await page.waitForURL(new RegExp(`/w/${workId}$`));
-  await openNavigation(page);
-  await expect(switcher(page)).toHaveAccessibleName('Workspace: Work sw2');
+  await expect(page).toHaveURL(new RegExp(`/w/${workId}$`));
+  await expectWorkspace(page, 'Work sw2');
 });
 
 test('a workspace is renamed from the switcher', async ({ page, stack }) => {
@@ -154,9 +189,7 @@ test('a workspace is renamed from the switcher', async ({ page, stack }) => {
   await page.getByLabel('Workspace name').fill('Consulting sw3');
   await page.getByRole('button', { name: 'Rename workspace' }).click();
 
-  await expect(switcher(page)).toHaveAccessibleName(
-    'Workspace: Consulting sw3',
-  );
+  await expectWorkspace(page, 'Consulting sw3');
   const listed = (await stack.readWorkspaces()).map((one) => one.name);
   expect(listed).toContain('Consulting sw3');
   expect(listed).not.toContain('Work sw3');
@@ -167,7 +200,7 @@ test('a workspace is deleted and the person lands in another one', async ({
   stack,
 }) => {
   await signIn(page, stack);
-  const personalId = await openPersonalWorkspace(page);
+  await openPersonalWorkspace(page);
   const workId = await createWorkspace(page, 'Work sw4');
   await writeNote(page, 'Note that goes sw4');
 
@@ -178,9 +211,13 @@ test('a workspace is deleted and the person lands in another one', async ({
   await page.getByLabel('Type Work sw4 to confirm').fill('Work sw4');
   await page.getByRole('button', { name: 'Delete permanently' }).click();
 
-  await page.waitForURL(new RegExp(`/w/${personalId}`));
+  // The person lands in the workspace beside the one that went, whichever
+  // that is, and never on the address of the workspace they deleted.
+  await expect(page).toHaveURL(/\/w\/[0-9a-f-]+/);
+  await expect(page).not.toHaveURL(new RegExp(`/w/${workId}`));
   await openNavigation(page);
-  await expect(switcher(page)).toHaveAccessibleName('Workspace: Personal');
+  await expect(switcher(page)).toHaveAccessibleName(/^Workspace: /);
+  await expect(switcher(page)).not.toHaveAccessibleName('Workspace: Work sw4');
 
   // The server took the workspace with it.
   const listed = await stack.readWorkspaces();
@@ -206,7 +243,6 @@ test('a save reaches the server after the person switches away', async ({
   await waitForLocalWrite(page);
 
   await switchTo(page, 'Personal');
-  await expect(switcher(page)).toHaveAccessibleName('Workspace: Personal');
 
   // The person never returns to the other workspace. Its queue drains anyway.
   await expect
@@ -223,6 +259,9 @@ test('the command palette moves between workspaces', async ({
   await createWorkspace(page, 'Work sw6');
   await switchTo(page, 'Personal');
 
+  // The drawer covers the header on a narrow viewport, so it closes before the
+  // palette opens.
+  await closeNavigation(page);
   await page.getByRole('button', { name: /Search notes/ }).click();
   const palette = page.getByRole('dialog', {
     name: 'Search notes and run actions',
@@ -230,6 +269,5 @@ test('the command palette moves between workspaces', async ({
   await palette.getByLabel('Search notes, or type an action').fill('Work sw6');
   await palette.getByRole('option', { name: 'Go to Work sw6' }).click();
 
-  await openNavigation(page);
-  await expect(switcher(page)).toHaveAccessibleName('Workspace: Work sw6');
+  await expectWorkspace(page, 'Work sw6');
 });

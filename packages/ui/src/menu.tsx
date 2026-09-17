@@ -219,6 +219,11 @@ export function Menu({
           onKeyDown={(event): void => {
             if (event.key === 'Escape') {
               event.preventDefault();
+              // Escape closes the innermost thing and nothing above it. An
+              // open menu inside the navigation drawer would otherwise close
+              // the drawer as well, because the drawer listens for the key on
+              // the window, and focus would have nowhere to return to.
+              event.stopPropagation();
               close(true);
             } else if (event.key === 'ArrowDown') {
               event.preventDefault();

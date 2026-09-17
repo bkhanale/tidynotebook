@@ -14,6 +14,7 @@ For the person who writes the notes.
   note.
 - [Notes and folders](notes-and-folders.md) - create, rename, move, and find
   your notes.
+- [Workspaces](workspaces.md) - keep personal notes and work notes apart.
 - [Markdown](markdown.md) - the syntax the editor understands, and how Write
   mode and Read mode differ.
 - [Saving and history](saving-and-history.md) - what Save does, and how to

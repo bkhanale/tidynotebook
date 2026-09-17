@@ -250,29 +250,63 @@ export type WorkspaceState =
   | { readonly status: 'error'; readonly message: string }
   | {
       readonly status: 'ready';
-      /** The workspace the person is reading right now. */
+      /**
+       * The workspace this device chose.
+       *
+       * It is where the root address goes, and nothing else. The workspace a
+       * screen is showing is the one in its address.
+       */
       readonly workspaceId: string;
       /** Every workspace of the account, as the switcher lists them. */
       readonly workspaces: readonly Workspace[];
+      /**
+       * How many times this list has been settled.
+       *
+       * A caller that asks for the list again has to know whether the answer
+       * it is reading arrived before or after its question. Comparing this
+       * number is exact, where comparing the contents is a guess.
+       */
+      readonly revision: number;
     };
 
-/** The workspaces of the account, the open one, and how to change it. */
+/** The workspaces of the account and the ways the list changes. */
 export type WorkspaceValue = {
   readonly state: WorkspaceState;
+  /** Asks the server for the list again. */
   readonly reload: () => void;
   /**
-   * Opens one workspace of the account and remembers it on this device.
+   * Records one workspace of the account as the choice of this device.
+   *
+   * The address is the one thing that says which workspace is open, so this
+   * is called from exactly one place: the membership check that every
+   * workspace route passes through. A screen that wants another workspace
+   * navigates to it and the address does the rest. Two writers of this fact
+   * would race, and one of them would win by accident.
    *
    * A workspace the account does not hold is ignored, so a stale address
    * cannot move the choice (record 0049).
    */
-  readonly open: (workspaceId: string) => void;
+  readonly remember: (workspaceId: string) => void;
+  /**
+   * Takes a workspace that the server has just created into the list.
+   *
+   * The create operation answers with the whole workspace, so throwing that
+   * answer away and asking for the list again would only make the caller wait
+   * for something it already holds, and would leave a window in which the
+   * address names a workspace this device does not know. The list is a cache
+   * of a server fact, and this is that fact.
+   */
+  readonly adopt: (workspace: Workspace) => void;
+  /** Drops a workspace that the server has just deleted, for the same reason. */
+  readonly forget: (workspaceId: string) => void;
 };
 
 const WorkspaceContext = createContext<WorkspaceValue>({
   state: { status: 'loading' },
   reload: () => {},
-  open: () => {},
+  remember: () => {},
+  adopt: () => {},
+  forget: () => {},
 });
 
 /**
@@ -317,10 +351,7 @@ function useWorkspaceLoader(
   status: SessionStatus,
   accountId: string | null,
   generation: number,
-): {
-  readonly state: WorkspaceState;
-  readonly open: (workspaceId: string) => void;
-} {
+): Omit<WorkspaceValue, 'reload'> {
   const [state, setState] = useState<WorkspaceState>({ status: 'loading' });
 
   useEffect(() => {
@@ -345,11 +376,12 @@ function useWorkspaceLoader(
         return;
       }
       writeStored(workspaceChoiceKey(activeAccount), chosen.workspaceId);
-      setState({
+      setState((current) => ({
         status: 'ready',
         workspaceId: chosen.workspaceId,
         workspaces,
-      });
+        revision: (current.status === 'ready' ? current.revision : 0) + 1,
+      }));
     };
 
     async function load(): Promise<void> {
@@ -380,7 +412,7 @@ function useWorkspaceLoader(
     };
   }, [status, accountId, generation]);
 
-  const open = useCallback(
+  const remember = useCallback(
     (workspaceId: string): void => {
       if (accountId === null) return;
       setState((current) => {
@@ -391,6 +423,10 @@ function useWorkspaceLoader(
           !isMemberOf(current.workspaces, workspaceId)
         )
           return current;
+        // The same choice answers the same state. A new object here would be
+        // a new value for every consumer, and a caller that records the
+        // address on each render would never settle.
+        if (current.workspaceId === workspaceId) return current;
         writeStored(workspaceChoiceKey(accountId), workspaceId);
         return { ...current, workspaceId };
       });
@@ -398,7 +434,62 @@ function useWorkspaceLoader(
     [accountId],
   );
 
-  return { state, open };
+  /** Replaces the list with one the caller derived from a server answer. */
+  const replaceList = useCallback(
+    (
+      change: (workspaces: readonly Workspace[]) => readonly Workspace[],
+    ): void => {
+      if (accountId === null) return;
+      setState((current) => {
+        if (current.status !== 'ready') return current;
+        const workspaces = change(current.workspaces);
+        if (workspaces === current.workspaces) return current;
+        const chosen = chooseWorkspace(
+          workspaces,
+          readStored(workspaceChoiceKey(accountId)),
+        );
+        if (chosen === null)
+          return {
+            status: 'error',
+            message: 'Your notes did not open. Try again.',
+          };
+        writeStored(workspaceListKey(accountId), JSON.stringify(workspaces));
+        writeStored(workspaceChoiceKey(accountId), chosen.workspaceId);
+        return {
+          status: 'ready',
+          workspaceId: chosen.workspaceId,
+          workspaces,
+          // The list changed, so a caller waiting on an answer has one.
+          revision: current.revision + 1,
+        };
+      });
+    },
+    [accountId],
+  );
+
+  const adopt = useCallback(
+    (workspace: Workspace): void => {
+      replaceList((workspaces) =>
+        isMemberOf(workspaces, workspace.workspaceId)
+          ? workspaces
+          : [...workspaces, workspace],
+      );
+    },
+    [replaceList],
+  );
+
+  const forget = useCallback(
+    (workspaceId: string): void => {
+      replaceList((workspaces) =>
+        isMemberOf(workspaces, workspaceId)
+          ? workspaces.filter((one) => one.workspaceId !== workspaceId)
+          : workspaces,
+      );
+    },
+    [replaceList],
+  );
+
+  return { state, remember, adopt, forget };
 }
 
 /** What the sync engine of the open workspace reports and accepts. */
@@ -907,7 +998,12 @@ export function AppProviders({
   const session = useSessionLoader(generation);
   const theme = useThemeLoader(session.account?.preferences ?? null);
   const [workspaceGeneration, setWorkspaceGeneration] = useState(0);
-  const { state: workspaceState, open: openWorkspace } = useWorkspaceLoader(
+  const {
+    state: workspaceState,
+    remember: rememberWorkspace,
+    adopt: adoptWorkspace,
+    forget: forgetWorkspace,
+  } = useWorkspaceLoader(
     session.status,
     session.account?.accountId ?? null,
     workspaceGeneration,
@@ -924,6 +1020,12 @@ export function AppProviders({
 
   const refresh = useCallback(() => {
     setGeneration((current) => current + 1);
+  }, []);
+
+  // Stable, because a caller reads it in an effect. A new function on every
+  // render would make that effect run on every render.
+  const reloadWorkspaces = useCallback(() => {
+    setWorkspaceGeneration((current) => current + 1);
   }, []);
 
   const doSignOut = useCallback(() => {
@@ -949,12 +1051,18 @@ export function AppProviders({
   const workspaceValue = useMemo<WorkspaceValue>(
     () => ({
       state: workspaceState,
-      reload: () => {
-        setWorkspaceGeneration((current) => current + 1);
-      },
-      open: openWorkspace,
+      reload: reloadWorkspaces,
+      remember: rememberWorkspace,
+      adopt: adoptWorkspace,
+      forget: forgetWorkspace,
     }),
-    [workspaceState, openWorkspace],
+    [
+      workspaceState,
+      reloadWorkspaces,
+      rememberWorkspace,
+      adoptWorkspace,
+      forgetWorkspace,
+    ],
   );
 
   const themeValue = useMemo<ThemeValue>(() => theme, [theme]);

@@ -630,7 +630,7 @@ function Sidebar({
         />
       </div>
 
-      <WorkspaceSwitcher onNavigate={onClose} />
+      <WorkspaceSwitcher workspaceId={workspaceId} onNavigate={onClose} />
 
       {session.account !== null ? (
         <div className="flex items-center gap-1 px-2 py-2">
@@ -985,7 +985,6 @@ function ShellFrame({
   const theme = useTheme();
   const files = useFiles();
   const workspace = useWorkspace();
-  const openWorkspace = workspace.open;
   const accountId = session.account?.accountId ?? null;
   const sync = useWorkspaceSync(store.store, accountId, workspaceId);
   const persistence = usePersistentStorage(useSavedOnce());
@@ -1289,7 +1288,6 @@ function ShellFrame({
         label: `Go to ${entry.name}`,
         keywords: 'workspace switch change area',
         run: (): void => {
-          openWorkspace(entry.workspaceId);
           void navigate(`/w/${entry.workspaceId}`);
         },
       })),
@@ -1307,7 +1305,6 @@ function ShellFrame({
       navigate,
       newNote.create,
       noteActions,
-      openWorkspace,
       otherWorkspaces,
       selectedFolder,
       sidebar.toggleCollapsed,
