@@ -4,7 +4,6 @@ import type { E2EStack } from './support/stack.ts';
 import { prepareCleanBrowser } from './support/browser-state.ts';
 import {
   createNewNote,
-  openAddress,
   openPersonalWorkspace,
   replaceEditorText,
   signIn,
@@ -62,9 +61,12 @@ test('a note address opens in a browser that never loaded the application', asyn
   // this journey on a page error or a console error, so a module that cannot
   // load is caught here as well as by the assertions below.
   await context.addCookies(shared.session);
-  // The note field is what says this screen is there, and firefox can leave
-  // the navigation promise pending after the document has rendered.
-  await openAddress(page, shared.address, () => page.getByLabel('Note name'));
+  // One navigation and no retry, because this journey asserts a property of
+  // the first document of this browser: a second one would be controlled by
+  // the worker that the first installed. `commit` is what firefox needs,
+  // because it can leave the navigation promise pending after the document
+  // has rendered, and the assertions below decide that the screen is there.
+  await page.goto(shared.address, { waitUntil: 'commit' });
 
   await expect(page.getByLabel('Note name')).toHaveValue(name);
   await expect(page.locator('.cm-content')).toContainText('Opened by address');

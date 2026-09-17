@@ -47,6 +47,19 @@ async function createFolder(page: Page, folder: string): Promise<void> {
   ).toBeVisible();
 }
 
+/**
+ * The Trash link of the sidebar.
+ *
+ * The notice of a deletion carries a link to the same screen, so a plain name
+ * finds two of them while that notice is on the page. This one names the
+ * sidebar, which is the way in that these journeys are about.
+ */
+function trashLink(page: Page): Locator {
+  return page
+    .locator('#notes-sidebar')
+    .getByRole('link', { name: 'Trash', exact: true });
+}
+
 /** Expands one folder row when it is not already open. */
 async function expandFolder(toggle: Locator): Promise<void> {
   if ((await toggle.getAttribute('aria-expanded')) !== 'true')
@@ -106,7 +119,7 @@ test('Delete from a note row moves the note to Trash', async ({
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
 
   await openNavigation(page);
-  await page.getByRole('link', { name: 'Trash' }).click();
+  await trashLink(page).click();
   const trashRow = page.locator('li').filter({ hasText: name });
   await expect(trashRow).toHaveCount(1);
   await expect(trashRow).not.toContainText('waiting to go up');
@@ -143,9 +156,8 @@ test('Delete folder moves every note in it to Trash', async ({
   await expect(tree.getByRole('link', { name: 'Note one' })).toBeVisible();
   await expect(tree.getByRole('link', { name: 'Note two' })).toBeVisible();
 
-  if (!(await page.getByRole('link', { name: 'Trash' }).isVisible()))
-    await openNavigation(page);
-  await page.getByRole('link', { name: 'Trash' }).click();
+  if (!(await trashLink(page).isVisible())) await openNavigation(page);
+  await trashLink(page).click();
   const main = page.locator('main');
   await expect(main.locator('li').filter({ hasText: 'Note one' })).toHaveCount(
     0,
@@ -181,7 +193,7 @@ test('Delete folder moves every note in it to Trash', async ({
   await expect(tree.getByRole('link', { name: 'Note two' })).toHaveCount(0);
 
   await openNavigation(page);
-  await page.getByRole('link', { name: 'Trash' }).click();
+  await trashLink(page).click();
   const trashOne = page.locator('li').filter({ hasText: 'Note one' });
   const trashTwo = page.locator('li').filter({ hasText: 'Note two' });
   await expect(trashOne).toHaveCount(1);
@@ -279,7 +291,7 @@ test('A note deleted permanently leaves the sidebar and the trash', async ({
   await expect(page.getByText(`${name} moved to Trash.`)).toBeVisible();
 
   await openNavigation(page);
-  await page.getByRole('link', { name: 'Trash' }).click();
+  await trashLink(page).click();
   const purgeRow = page.locator('li').filter({ hasText: name });
   await expect(purgeRow).toHaveCount(1);
   await purgeRow.getByRole('button', { name: 'Delete permanently' }).click();
@@ -295,7 +307,7 @@ test('A note deleted permanently leaves the sidebar and the trash', async ({
   await waitForSynced(page);
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
   await openNavigation(page);
-  await page.getByRole('link', { name: 'Trash' }).click();
+  await trashLink(page).click();
   await expect(main.locator('li').filter({ hasText: name })).toHaveCount(0);
 });
 
@@ -534,7 +546,7 @@ test('Delete the open note from its row keeps it in Trash', async ({
   await waitForSynced(page);
   await expect(tree.getByRole('link', { name })).toHaveCount(0);
   await openNavigation(page);
-  await page.getByRole('link', { name: 'Trash' }).click();
+  await trashLink(page).click();
   await expect(
     page.locator('main').locator('li').filter({ hasText: name }),
   ).toHaveCount(1);

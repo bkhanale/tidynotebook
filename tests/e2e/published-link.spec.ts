@@ -168,12 +168,24 @@ test('a reader with no session reads a published note', async ({
 
   // One picture, so the reader proves the attachment address of the page as
   // well as its text. The caret sits at the end of the note after the fill.
+  //
+  // The finalize answer is the edge that this journey waits on. The save
+  // state was already `saved-server` from the text above, so a wait on that
+  // state alone could read the result of the earlier save and publish before
+  // the picture was a revision. The reader then received a page with no
+  // picture in it, which is what happened once on webkit under load.
+  const finalized = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      response.url().includes('/finalize'),
+  );
   const chooser = page.waitForEvent('filechooser');
   await runNoteAction(page, 'Attach an image to this note');
   await (
     await chooser
   ).setFiles({ name: 'pixel.png', mimeType: 'image/png', buffer: pixelPng });
   await expect(page.locator('.cm-content')).toContainText('attachments/');
+  expect((await finalized).ok()).toBe(true);
   await waitForServerSave(page);
 
   const address = await publishOpenNote(page);

@@ -130,25 +130,30 @@ test('every action of the last folder row is on the screen', async ({
   await openPersonalWorkspace(page);
   await narrowTheSidebar(page);
 
-  // Enough folders that the tree fills its own box and the last row sits at
-  // the foot of it. That row is the one whose menu had nowhere to go.
+  // Enough folders that the tree is well past the height of its own box, so
+  // the last row can really sit at the foot of it on every engine.
   const tree = page.locator('#notes-sidebar div.overflow-y-auto').first();
   const names: string[] = [];
-  for (let index = 1; index <= 24; index += 1) {
+  for (let index = 1; index <= 40; index += 1) {
     const name = `Folder ${String(index).padStart(2, '0')}`;
     names.push(name);
     await page.getByRole('link', { name: 'All notes' }).click();
     await createTopFolder(page, name);
     const box = await tree.boundingBox();
     const rows = await tree.evaluate((node) => node.scrollHeight);
-    if (box !== null && rows > box.height) break;
+    if (box !== null && rows > box.height * 1.5) break;
   }
 
+  // The tree scrolls to its end, so the last row is at the foot of the box
+  // and not wherever the least possible scroll would have left it.
+  await tree.evaluate((node) => {
+    node.scrollTop = node.scrollHeight;
+  });
   const last = names.at(-1) ?? '';
   const lastRow = page.getByRole('button', {
     name: `Actions for the folder ${last}`,
   });
-  await lastRow.scrollIntoViewIfNeeded();
+  await expect(lastRow).toBeVisible();
   await lastRow.click();
   const menu = page.getByRole('menu', {
     name: `Actions for the folder ${last}`,
