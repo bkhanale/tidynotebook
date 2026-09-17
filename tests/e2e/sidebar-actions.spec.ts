@@ -144,14 +144,15 @@ test('every action of the last folder row is on the screen', async ({
     if (box !== null && rows > box.height * 1.5) break;
   }
 
-  // The tree scrolls to its end, so the last row is at the foot of the box
-  // and not wherever the least possible scroll would have left it.
-  await tree.evaluate((node) => {
-    node.scrollTop = node.scrollHeight;
-  });
   const last = names.at(-1) ?? '';
   const lastRow = page.getByRole('button', {
     name: `Actions for the folder ${last}`,
+  });
+  // The row itself goes to the foot of the box. Scrolling the tree to its end
+  // is not the same thing: a note row sorts below every folder row, so the
+  // end of the tree holds the notes and the last folder sits above them.
+  await lastRow.evaluate((node) => {
+    node.scrollIntoView({ block: 'end' });
   });
   await expect(lastRow).toBeVisible();
   await lastRow.click();
