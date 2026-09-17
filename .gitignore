@@ -9,6 +9,9 @@ test-results/
 .env.*
 !.env.example
 .DS_Store
+# The Compose file requires every host directory and defaults none of them
+# into this checkout, so nothing writes these any more. They stay listed, so a
+# tree that an older start left behind is still never committed.
 .secrets/
 .storage/
 .data/

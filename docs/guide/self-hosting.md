@@ -152,7 +152,8 @@ sudo chown 10001:10001 /srv/notesapp/storage
 
 The storage directory must belong to uid 10001, which is the `notesapp` user of
 the image. PostgreSQL sets the owner of its own directory. Name both paths in
-`.env` with `NOTESAPP_DATABASE_DIR` and `NOTESAPP_STORAGE_DIR`.
+`.env` with `NOTESAPP_DATABASE_DIR` and `NOTESAPP_STORAGE_DIR`. Both are
+required and neither has a default.
 
 ## Protected configuration
 
@@ -166,11 +167,13 @@ one. One installation serves HTTP or HTTPS, not both, because one cookie policy
 serves all of its origins. An empty list serves `NOTESAPP_ORIGIN` and nothing
 else.
 
-Set `NOTESAPP_SECRETS_DIR` and create the directory it names. The Compose
-default is `./.secrets` inside the repository, which is a convenience for a
-first local start only. Move the directory outside the repository for a real
-installation, so that a checkout, a copy, or a `git clean` cannot carry the
-secrets or delete them. `.env.example` already names
+Set `NOTESAPP_SECRETS_DIR` and create the directory it names. This value is
+required and has no default, as `NOTESAPP_DATABASE_DIR` and
+`NOTESAPP_STORAGE_DIR` are: `docker compose up` stops with a message that
+names the one that is missing. Keep all three outside the repository, so that
+a checkout, a copy, or a `git clean` cannot carry the secrets or delete the
+data, and so that a service that writes its tree as its own user cannot leave
+a directory that you cannot read. `.env.example` already names
 `/etc/notesapp/secrets`.
 
 Create these files with mode `0600` and owner uid 10001, which is

@@ -1,9 +1,16 @@
 # Production Compose file for one NotesApp instance.
 #
-# NOTESAPP_ORIGIN is required and has no default. Every other value has a safe
-# default: the listener is published on the loopback address, the installation
-# serves the configured origin and nothing else, and both services rotate their
-# logs. Copy `.env.example` to `.env` and set the values there.
+# Five values are required and have no default: NOTESAPP_ORIGIN and the three
+# host directories that hold the database, the stored files, and the secrets.
+# A directory has no safe default, because a default inside this checkout is
+# what an installation took when nobody stated one, and the services write
+# those trees as their own users. A directory that the person who runs the
+# repository commands cannot read then breaks every command that reads the
+# tree. Copy `.env.example` to `.env` and set the values there.
+#
+# Every other value has a safe default: the listener is published on the
+# loopback address, the installation serves the configured origin and nothing
+# else, and both services rotate their logs.
 services:
   postgres:
     image: postgres@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
@@ -17,7 +24,7 @@ services:
     volumes:
       # A host directory, not a named volume, so the host encryption check and
       # the backup and restore scripts can name the same path.
-      - ${NOTESAPP_DATABASE_DIR:-./.data/postgres}:/var/lib/postgresql
+      - ${NOTESAPP_DATABASE_DIR:?Set NOTESAPP_DATABASE_DIR in .env. It names the host directory that holds the database, and it belongs outside this checkout.}:/var/lib/postgresql
     networks:
       - database
     logging:
@@ -92,7 +99,7 @@ services:
     volumes:
       # The storage root must belong to uid 10001, which is the notesapp user
       # of the image. See docs/guide/self-hosting.md.
-      - ${NOTESAPP_STORAGE_DIR:-./.storage}:/var/lib/notesapp
+      - ${NOTESAPP_STORAGE_DIR:?Set NOTESAPP_STORAGE_DIR in .env. It names the host directory that holds the stored files, and it belongs outside this checkout.}:/var/lib/notesapp
     networks:
       - database
       - frontend
@@ -161,16 +168,16 @@ networks:
 
 secrets:
   postgres_password:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/postgres_password
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/postgres_password
   migration_database_url:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/migration_database_url
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/migration_database_url
   runtime_database_password:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/runtime_database_password
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/runtime_database_password
   auth_database_password:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/auth_database_password
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/auth_database_password
   runtime_database_url:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/runtime_database_url
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/runtime_database_url
   auth_database_url:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/auth_database_url
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/auth_database_url
   auth_secret:
-    file: ${NOTESAPP_SECRETS_DIR:-./.secrets}/auth_secret
+    file: ${NOTESAPP_SECRETS_DIR:?Set NOTESAPP_SECRETS_DIR in .env. It names the host directory that holds the secrets, and it belongs outside this checkout.}/auth_secret
