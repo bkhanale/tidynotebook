@@ -97,6 +97,16 @@ export type SyncContext = {
   readonly announce: (notice: SyncNotice) => void;
 };
 
+/**
+ * The code of a failure that never reached the server.
+ *
+ * A request that no server answered has no status, so the engine gives it
+ * this code. The interface reads it to tell a lost connection apart from a
+ * refusal, because the two need two different sentences and a browser can
+ * report that it is online while the connection is already dead.
+ */
+export const transportFailedCode = 'transport_failed';
+
 /** How one push run ended. `deferred` means transport failed; retry later. */
 export type PushOutcome = 'done' | 'deferred' | 'paused' | 'access-lost';
 

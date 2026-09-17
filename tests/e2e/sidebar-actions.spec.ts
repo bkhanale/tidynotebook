@@ -9,6 +9,30 @@ import {
 
 test.beforeEach(async ({ context }) => prepareCleanBrowser(context));
 
+/** Below this width the tree lives in the drawer and has no sizing edge. */
+const wideOnly = 768;
+
+/**
+ * Narrows the sidebar to its first step, through the edge a person drags.
+ *
+ * The sidebar is at its widest supply of names on the step it opens with, so
+ * a journey that reads the room a row has must ask for the narrowest step
+ * the product offers. The edge is the real control, so no test-only value
+ * reaches the application.
+ */
+async function narrowTheSidebar(page: Page): Promise<void> {
+  const edge = page.getByRole('separator', { name: 'Sidebar width' });
+  const sidebar = page.locator('#notes-sidebar');
+  await edge.focus();
+  let width = (await sidebar.boundingBox())?.width ?? 0;
+  for (let step = 0; step < 6; step += 1) {
+    await edge.press('ArrowLeft');
+    const next = (await sidebar.boundingBox())?.width ?? 0;
+    if (next === width) break;
+    width = next;
+  }
+}
+
 /** Makes one folder inside another through the row menu of the parent. */
 async function createFolderIn(
   page: Page,
@@ -56,9 +80,14 @@ test('every action of a deep folder row is on the screen', async ({
   // which scrolls, and a box that scrolls on one axis clips on both. The menu
   // of a deep row lost its left edge and the menu of a row near the foot of
   // the tree showed one of its five actions.
+  const viewport = page.viewportSize();
+  test.skip(
+    viewport === null || viewport.width < wideOnly,
+    'The narrow frame has no fixed sidebar to size.',
+  );
   await signIn(page, stack);
   await openPersonalWorkspace(page);
-  await openNavigation(page);
+  await narrowTheSidebar(page);
 
   await createTopFolder(page, 'Engineering');
   await createFolderIn(page, 'Engineering', 'Architecture decisions');
@@ -92,29 +121,35 @@ test('every action of the last folder row is on the screen', async ({
 }) => {
   // The same defect, in the other direction: a row low enough that the menu
   // would reach past the foot of the tree. The menu opens above its row.
+  const viewport = page.viewportSize();
+  test.skip(
+    viewport === null || viewport.width < wideOnly,
+    'The narrow frame has no fixed sidebar to size.',
+  );
   await signIn(page, stack);
   await openPersonalWorkspace(page);
-  await openNavigation(page);
+  await narrowTheSidebar(page);
 
-  const names = [
-    'Recipes',
-    'Travel plans',
-    'Work log',
-    'Reading list',
-    'Ideas',
-    'Receipts',
-    'Meeting notes',
-    'Projects',
-  ];
-  for (const name of names) {
+  // Enough folders that the tree fills its own box and the last row sits at
+  // the foot of it. That row is the one whose menu had nowhere to go.
+  const tree = page.locator('#notes-sidebar div.overflow-y-auto').first();
+  const names: string[] = [];
+  for (let index = 1; index <= 24; index += 1) {
+    const name = `Folder ${String(index).padStart(2, '0')}`;
+    names.push(name);
     await page.getByRole('link', { name: 'All notes' }).click();
     await createTopFolder(page, name);
+    const box = await tree.boundingBox();
+    const rows = await tree.evaluate((node) => node.scrollHeight);
+    if (box !== null && rows > box.height) break;
   }
 
   const last = names.at(-1) ?? '';
-  await page
-    .getByRole('button', { name: `Actions for the folder ${last}` })
-    .click();
+  const lastRow = page.getByRole('button', {
+    name: `Actions for the folder ${last}`,
+  });
+  await lastRow.scrollIntoViewIfNeeded();
+  await lastRow.click();
   const menu = page.getByRole('menu', {
     name: `Actions for the folder ${last}`,
   });
@@ -126,6 +161,15 @@ test('every action of the last folder row is on the screen', async ({
   if (box === null || screen === null) return;
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.y + box.height).toBeLessThanOrEqual(screen.height);
+
+  // The row really is at the foot of the tree, so this journey proves the
+  // case it claims and not a row with room under it.
+  const treeBox = await tree.boundingBox();
+  const rowBox = await lastRow.boundingBox();
+  expect(treeBox).not.toBeNull();
+  expect(rowBox).not.toBeNull();
+  if (treeBox !== null && rowBox !== null)
+    expect(rowBox.y).toBeGreaterThan(treeBox.y + treeBox.height * 0.75);
 
   for (const action of folderActions)
     await expect(menu.getByRole('menuitem', { name: action })).toBeVisible();

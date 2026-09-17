@@ -60,6 +60,12 @@ await test('a built file keeps its declared content type', () => {
     'application/manifest+json; charset=utf-8',
   );
   assert.equal(mimeTypeFor('/dist/icon.svg'), 'image/svg+xml');
+  // Every font kind the build writes states what it is. The mathematics
+  // faces ship as TrueType as well, and those went out as a stream of bytes.
+  assert.equal(mimeTypeFor('/dist/KaTeX_Main-Regular.woff2'), 'font/woff2');
+  assert.equal(mimeTypeFor('/dist/KaTeX_Main-Regular.woff'), 'font/woff');
+  assert.equal(mimeTypeFor('/dist/KaTeX_Main-Regular.ttf'), 'font/ttf');
+  assert.equal(mimeTypeFor('/dist/KaTeX_Main-Regular.otf'), 'font/otf');
   assert.equal(mimeTypeFor('/dist/unknown.bin'), 'application/octet-stream');
 });
 

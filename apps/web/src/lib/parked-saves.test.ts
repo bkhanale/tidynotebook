@@ -121,3 +121,16 @@ await test('a recovered copy never writes over an earlier one', () => {
     'roadmap (recovered) 3',
   );
 });
+
+await test('an over the limit rename names its own cause', () => {
+  // The defect this covers: a move that rewrote more files than one
+  // changeset holds was refused with the invalid graph code, whose sentence
+  // names the history of the note. After a rename the cause is the number of
+  // notes, so the person read the wrong cause and no action that helps.
+  const sentence = parkedSaveReason('save_refused', 'too_many_files');
+  assert.match(sentence, /too many notes/);
+  assert.notEqual(
+    sentence,
+    parkedSaveReason('save_refused', 'invalid_graph'),
+  );
+});

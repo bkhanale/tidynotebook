@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { hostName, requestId } from './app.ts';
+import { closeOpened, hostName, requestId } from './app.ts';
 
 await test('a host name drops its port and its case', () => {
   assert.equal(hostName('Notes.Example:8443'), 'notes.example');
@@ -34,4 +34,43 @@ await test('a usable correlation id is echoed', () => {
 await test('an unusable correlation id becomes a new UUID', () => {
   for (const supplied of [undefined, '', 'not a valid id', 'x'.repeat(129), 42])
     assert.match(requestId(supplied), /^[0-9a-f-]{36}$/);
+});
+
+await test('a failed composition closes what it opened, in reverse', async () => {
+  // The defect this covers: the composition opened the identity pool, the
+  // content pool, the attachment store and the authentication pool, and a
+  // failure after any of them threw with every one of them still held. A
+  // process that never listened kept its connections to the database.
+  const closed: string[] = [];
+  await closeOpened([
+    () => {
+      closed.push('identity');
+      return Promise.resolve();
+    },
+    () => {
+      closed.push('content');
+      return Promise.resolve();
+    },
+    () => {
+      closed.push('attachments');
+      return Promise.resolve();
+    },
+  ]);
+  assert.deepEqual(closed, ['attachments', 'content', 'identity']);
+});
+
+await test('a store that cannot close does not stop the others', async () => {
+  const closed: string[] = [];
+  await closeOpened([
+    () => {
+      closed.push('identity');
+      return Promise.resolve();
+    },
+    () => Promise.reject(new Error('the pool is already ended')),
+    () => {
+      closed.push('attachments');
+      return Promise.resolve();
+    },
+  ]);
+  assert.deepEqual(closed, ['attachments', 'identity']);
 });

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { SyncNotice } from '@notesapp/sync';
+import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
 import {
+  startingSyncState,
   syncNeedsAttention,
   syncStateFileId,
   syncStateMessage,
@@ -111,4 +112,29 @@ await test('a queue count never overwrites a state the person must read', () => 
   assert.deepEqual(syncStateOfQueue(parked, 0), parked);
   const offline: SyncState = { kind: 'waiting' };
   assert.deepEqual(syncStateOfQueue(offline, 0), offline);
+});
+
+await test('a lost connection says that there is no connection', () => {
+  // The defect this covers: every cycle failure mapped to the stopped state,
+  // whose sentence is "Saving to the server stopped." A request that never
+  // reached the server takes that path, so a person whose connection died
+  // while the browser still reported it online read the wrong cause.
+  const state = syncStateOfNotice({
+    kind: 'cycle-error',
+    code: transportFailedCode,
+  });
+  assert.deepEqual(state, { kind: 'waiting' });
+  assert.match(syncStateMessage(state ?? startingSyncState), /No connection/);
+});
+
+await test('a refusal still says that saving stopped', () => {
+  const state = syncStateOfNotice({
+    kind: 'cycle-error',
+    code: 'unexpected_response',
+  });
+  assert.deepEqual(state, { kind: 'stopped' });
+  assert.match(
+    syncStateMessage(state ?? startingSyncState),
+    /Saving to the server stopped/,
+  );
 });

@@ -1048,7 +1048,7 @@ await test('a changeset over the file limit is refused before any query', async 
   const failure = rejected(
     await commitChangeset(store, actor, changeset(revisions), 'd-1'),
   );
-  assert.equal(failure.code, 'invalid_graph');
+  assert.equal(failure.code, 'too_many_files');
   assert.equal(failure.fileIds.length, maxFilesPerChangeset + 1);
   assert.equal(state.accepted.length, 0);
   // The same submission without the last file is accepted.

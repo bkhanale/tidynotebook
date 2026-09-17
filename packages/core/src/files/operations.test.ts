@@ -161,5 +161,81 @@ await test('a folder rename refuses an empty set and one over the limit', async 
     ids,
   });
   assert.equal(over.ok, false);
-  if (!over.ok) assert.equal(over.error.code, 'invalid_graph');
+  // The revisions are a valid change of the stored history; the only problem
+  // is how many of them there are, so the refusal states that and not the
+  // shape of the graph.
+  if (!over.ok) assert.equal(over.error.code, 'too_many_files');
+});
+
+await test('a folder rename accepts a name in decomposed form', async () => {
+  // The defect this covers: the builder compared the stored path with the
+  // given folder as raw text and normalized neither side. A stored path is in
+  // composed form, so a folder name that a client sent in decomposed form
+  // matched no stored path and the whole rename was refused.
+  const composed = 'notes/Ide\u0301es';
+  const decomposed = 'notes/Ide\u0301es'.normalize('NFD');
+  assert.notEqual(composed.normalize('NFC'), decomposed);
+  const stored = {
+    fileId: 'f1',
+    expectedHead: 'h1',
+    revisionId: 'r1',
+    path: `${composed.normalize('NFC')}/1.md`,
+    content: await markdownContent('# 1\n'),
+  };
+  const built = renameFolderChangeset({
+    workspaceId,
+    from: decomposed,
+    to: 'archive/old',
+    files: [stored],
+    message: null,
+    ids,
+  });
+  assert.ok(built.ok);
+  assert.deepEqual(
+    built.value.revisions.map((revision) => revision.path),
+    ['archive/old/1.md'],
+  );
+});
+
+await test('a folder rename leaves a folder whose name only starts the same', async () => {
+  // `notes/trip` and `notes/trips-2026` share eleven characters, so a plain
+  // prefix test would move a folder that nobody named.
+  const neighbour = {
+    fileId: 'f9',
+    expectedHead: 'h9',
+    revisionId: 'r9',
+    path: 'notes/trips-2026/day.md',
+    content: await markdownContent('# Day\n'),
+  };
+  const built = renameFolderChangeset({
+    workspaceId,
+    from: 'notes/trip',
+    to: 'notes/journey',
+    files: [neighbour],
+    message: null,
+    ids,
+  });
+  assert.equal(built.ok, false);
+  if (!built.ok) assert.equal(built.error.code, 'invalid_path');
+});
+
+await test('a folder rename writes every new path in composed form', async () => {
+  const stored = {
+    fileId: 'f1',
+    expectedHead: 'h1',
+    revisionId: 'r1',
+    path: 'notes/1.md',
+    content: await markdownContent('# 1\n'),
+  };
+  const built = renameFolderChangeset({
+    workspaceId,
+    from: 'notes',
+    to: 'archive/Ide\u0301es'.normalize('NFD'),
+    files: [stored],
+    message: null,
+    ids,
+  });
+  assert.ok(built.ok);
+  const written = built.value.revisions[0]?.path ?? '';
+  assert.equal(written, written.normalize('NFC'));
 });

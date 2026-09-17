@@ -84,13 +84,17 @@ export async function main(): Promise<void> {
   try {
     config = loadServerConfig(await loadProtectedEnvironment(process.env));
   } catch (error) {
+    // A configuration error already states one line for each value it
+    // refused, in the words of this server. Anything else is the message of a
+    // library or of the operating system, which names a file, a code, or a
+    // stack, and an operator can act on none of those.
     if (error instanceof ConfigError) {
       process.stderr.write(
         `notesapp: configuration error:\n${error.issues.join('\n')}\n`,
       );
     } else {
       process.stderr.write(
-        `notesapp: configuration failure: ${error instanceof Error ? error.message : String(error)}\n`,
+        'notesapp: the configuration could not be read. Check that every NOTESAPP_ value is set and that each file a _FILE value names exists and can be read.\n',
       );
     }
     process.exit(1);
@@ -103,9 +107,14 @@ export async function main(): Promise<void> {
   let app;
   try {
     app = await createApp(config, { lifecycle });
-  } catch (error) {
+  } catch {
+    // The failure here is a database that refuses a connection, a storage
+    // directory that cannot be written, or a mail transport that will not
+    // build. Each one arrives as the message of a driver, which carries a
+    // code and sometimes a stack, so the operator reads the one sentence that
+    // states where to look instead.
     process.stderr.write(
-      `notesapp: failed to initialize application: ${error instanceof Error ? error.message : String(error)}\n`,
+      'notesapp: the server could not start. Check that the database accepts connections, that NOTESAPP_STORAGE_ROOT exists and can be written, and that the mail settings are complete.\n',
     );
     process.exit(1);
   }

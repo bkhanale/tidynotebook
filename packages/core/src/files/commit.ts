@@ -327,7 +327,7 @@ export async function commitChangeset(
   if (input.revisions.length === 0) return fail('invalid_graph');
   const fileIds = changedFiles(input);
   if (fileIds.length > maxFilesPerChangeset)
-    return fail('invalid_graph', fileIds);
+    return fail('too_many_files', fileIds);
 
   return store.transact<Result<AcceptedChangeset>>(
     actor,

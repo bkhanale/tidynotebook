@@ -6,11 +6,8 @@
  * a note path under decision 0005.
  *
  * The comparison of a folder runs over path segments, never over characters.
- * A folder `notes/trip` and a note `notes/trips-2026/x.md` share the first
- * eleven characters, so a plain prefix test would open a folder that the owner
- * never published. The rule therefore splits both paths at `/` and compares
- * segment by segment. The note also has to sit below the folder, so the folder
- * itself, and a note `notes/trip.md` beside it, stay out.
+ * `isBelowFolder` in `../files/path.ts` holds that rule, and the rename of a
+ * folder reads the same one, so the two can never drift apart.
  *
  * Both paths pass `normalizePath` of `../files/path.ts` first, so the scope
  * reads one spelling of one name. A note path keeps the one `.md` rule, so a
@@ -23,7 +20,7 @@
  * because it does not state it.
  */
 import { fail, ok, type Result } from '../files/model.ts';
-import { normalizePath } from '../files/path.ts';
+import { isBelowFolder, normalizePath } from '../files/path.ts';
 import type { PublicationScope, ScopedNote } from './model.ts';
 
 /**
@@ -71,11 +68,5 @@ export function isNoteInScope(
     return scope.fileId.length > 0 && note.fileId === scope.fileId;
   const folder = normalizePath(scope.path, 'folder');
   if (!folder.ok) return false;
-  const folderSegments = folder.value.split('/');
-  const noteSegments = path.value.split('/');
-  // The note sits below the folder, so it holds one segment more at least.
-  if (noteSegments.length <= folderSegments.length) return false;
-  return folderSegments.every(
-    (segment, index) => noteSegments[index] === segment,
-  );
+  return isBelowFolder(folder.value.split('/'), path.value.split('/'));
 }

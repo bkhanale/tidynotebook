@@ -66,6 +66,7 @@ export {
   sendWithRetry,
   SnapshotRestartNeeded,
   SyncFailedError,
+  transportFailedCode,
 } from './queue.ts';
 export type {
   ChangeRecord,

@@ -44,6 +44,7 @@ import { isLocalStorageError } from './local-port.ts';
 import {
   SyncFailedError,
   pushQueue,
+  transportFailedCode,
   type Problem,
   type PushOutcome,
   type QueueNetwork,
@@ -86,7 +87,7 @@ function toProblem(error: unknown, response: Response | undefined): Problem {
       : status === 401
         ? 'unauthorized'
         : status === 0
-          ? 'transport_failed'
+          ? transportFailedCode
           : 'unexpected_response';
   return { status, code, fileIds: readFileIds(error) };
 }
@@ -269,9 +270,27 @@ export function createSyncEngine(
       wakeRequested = false;
       return true;
     }
+    // The sleep takes a signal of its own, so a wake that wins the race stops
+    // the timer and takes the abort listener off the run signal. The sleep
+    // used to run on to its own end: the web application asks for a pass on
+    // every change of the queue, so a long writing session held one live
+    // timer and one live listener for each early wake.
+    const own = new AbortController();
+    const stopEarly = (): void => {
+      own.abort();
+    };
+    // A signal that already aborted fires no listener, so the run signal is
+    // read as well as listened to. Without that read the sleep would wait on
+    // a signal that never aborts and the run would never return.
+    if (signal.aborted) own.abort();
+    else signal.addEventListener('abort', stopEarly, { once: true });
+    const sleeping = sleep(ms, own.signal);
+    // The loser of the race rejects when `own` aborts below, and nothing
+    // awaits it by then.
+    sleeping.catch(() => undefined);
     try {
       await Promise.race([
-        sleep(ms, signal),
+        sleeping,
         new Promise<void>((resolve) => {
           wake = resolve;
         }),
@@ -282,6 +301,9 @@ export function createSyncEngine(
     } catch (error: unknown) {
       if (signal.aborted) return false;
       throw error;
+    } finally {
+      own.abort();
+      signal.removeEventListener('abort', stopEarly);
     }
   }
 

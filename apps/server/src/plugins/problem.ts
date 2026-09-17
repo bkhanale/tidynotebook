@@ -37,6 +37,7 @@ export type ProblemCode =
   | 'invalid_path'
   | 'invalid_graph'
   | 'invalid_content'
+  | 'too_many_files'
   | 'unrenderable_note'
   | 'quota_exceeded'
   | 'rate_limited'
@@ -83,6 +84,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   invalid_path: 'The path does not follow the workspace path rules.',
   invalid_graph: 'The submitted revisions are not a valid change.',
   invalid_content: 'The submitted content does not match its digest.',
+  too_many_files: 'The change rewrites more files than one request may hold.',
   unrenderable_note: 'The note cannot be read as Markdown.',
   quota_exceeded: 'The workspace has no room left for new content.',
   rate_limited: 'Too many attempts were made in a short time.',
@@ -262,6 +264,7 @@ const domainStatus: Readonly<
   invalid_path: { status: 422, code: 'invalid_path' },
   invalid_graph: { status: 422, code: 'invalid_graph' },
   invalid_content: { status: 422, code: 'invalid_content' },
+  too_many_files: { status: 422, code: 'too_many_files' },
   note_too_large: { status: 422, code: 'unrenderable_note' },
   note_too_deep: { status: 422, code: 'unrenderable_note' },
   published_link_unavailable: {
@@ -290,6 +293,8 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   invalid_graph:
     'The submitted revisions are not a valid change of the stored history.',
   invalid_content: 'Submitted content does not match its declared digest.',
+  too_many_files:
+    'The change rewrites more files than one request may hold. Move fewer files at a time.',
   note_too_large: 'This note is too large to render.',
   note_too_deep: 'This note nests too deeply to render.',
   // The one refusal of the reader path. The word is the word of

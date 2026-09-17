@@ -150,6 +150,13 @@ export type AcceptedChangeset = {
  * `note_too_large` and `note_too_deep` mean that the Markdown of a note is
  * above a fixed limit of the Markdown package, so the note cannot be read as
  * Markdown. Storage reports them when it indexes an accepted revision.
+ *
+ * `too_many_files` means that one changeset would rewrite more files than
+ * `maxFilesPerChangeset` allows. It is its own code and not `invalid_graph`,
+ * because the revisions are a valid change of the stored history and the only
+ * problem is how many of them there are. A folder rename is the operation
+ * that reaches the limit, and the person can act on it by moving fewer notes
+ * at a time.
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -158,6 +165,7 @@ export type DomainErrorCode =
   | 'invalid_path'
   | 'invalid_graph'
   | 'invalid_content'
+  | 'too_many_files'
   | 'quota'
   | 'purged'
   | 'mutation_reused'

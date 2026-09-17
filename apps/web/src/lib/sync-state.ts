@@ -7,7 +7,7 @@
  * change can never break a condition, and no identifier, code, or count of
  * internal objects reaches the person.
  */
-import type { SyncNotice } from '@notesapp/sync';
+import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
 
 /** Where sync stands right now. */
 export type SyncState =
@@ -55,8 +55,15 @@ export function syncStateOfNotice(notice: SyncNotice): SyncState | null {
   if (notice.kind === 'paused') return { kind: 'signed-out' };
   if (notice.kind === 'lease-held') return { kind: 'other-tab' };
   if (notice.kind === 'lease-lost') return { kind: 'waiting' };
-  if (notice.kind === 'access-lost' || notice.kind === 'cycle-error')
-    return { kind: 'stopped' };
+  if (notice.kind === 'access-lost') return { kind: 'stopped' };
+  // A cycle that failed on the way out never reached the server, so it is a
+  // lost connection and not a refusal. A browser reports that it is online
+  // long after the connection died, and the person read that saving had
+  // stopped when all that happened was that the network went away.
+  if (notice.kind === 'cycle-error')
+    return notice.code === transportFailedCode
+      ? { kind: 'waiting' }
+      : { kind: 'stopped' };
   return null;
 }
 

@@ -102,3 +102,25 @@ export function normalizePath(
   }
   return ok(path);
 }
+
+/**
+ * Whether one path sits below one folder.
+ *
+ * Both inputs are the segments of a normalized path, so the caller has
+ * already brought both sides to one spelling. The comparison runs over
+ * segments and never over characters: a folder `notes/trip` and a note
+ * `notes/trips-2026/x.md` share the first eleven characters, so a plain
+ * prefix test would take a note out of a folder that nobody named. The path
+ * has to sit below the folder, so the folder itself and a note beside it stay
+ * out.
+ *
+ * The scope of a published link and the rename of a folder both read this
+ * rule, so the two can never drift apart.
+ */
+export function isBelowFolder(
+  folder: readonly string[],
+  path: readonly string[],
+): boolean {
+  if (path.length <= folder.length) return false;
+  return folder.every((segment, index) => path[index] === segment);
+}

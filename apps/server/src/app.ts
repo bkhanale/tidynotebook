@@ -10,7 +10,7 @@
 import { existsSync } from 'node:fs';
 import { relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import Fastify from 'fastify';
+import Fastify, { LogController } from 'fastify';
 import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ReaderRefusalCause } from '@notesapp/core';
@@ -170,11 +170,17 @@ export async function createAppWithHandlers(
   options: AppOptions,
 ): Promise<FastifyInstance> {
   const app = Fastify({
-    // Request headers are never logged. Fastify's request serializer records
-    // the method, the URL, the host name, and the peer address only, so a
-    // credential in a header cannot reach a log record. Redaction by omission
-    // is stronger than a redaction list, which only covers the header names
-    // that someone remembered to add.
+    // Request headers are never logged. The serializer records the method,
+    // the redacted URL, and the host name, and nothing else, so a credential
+    // in a header cannot reach a log record. Redaction by omission is
+    // stronger than a redaction list, which only covers the header names that
+    // someone remembered to add.
+    //
+    // It records no client address. It used to read a `remoteAddress` member
+    // that a request does not carry, so the field was always empty and the
+    // record claimed something it never held. `./request-log.ts` is the one
+    // request log of this server (record 0020) and it records no address
+    // either, so nothing here decides a privacy question by accident.
     logger:
       config.logLevel === 'silent'
         ? false
@@ -185,7 +191,6 @@ export async function createAppWithHandlers(
                 readonly method?: unknown;
                 readonly url?: unknown;
                 readonly hostname?: unknown;
-                readonly remoteAddress?: unknown;
               }) => ({
                 method:
                   typeof request.method === 'string' ? request.method : '',
@@ -193,10 +198,6 @@ export async function createAppWithHandlers(
                   typeof request.url === 'string' ? redactUrl(request.url) : '',
                 hostname:
                   typeof request.hostname === 'string' ? request.hostname : '',
-                remoteAddress:
-                  typeof request.remoteAddress === 'string'
-                    ? request.remoteAddress
-                    : '',
               }),
             },
             ...(options.logStream === undefined
@@ -231,7 +232,12 @@ export async function createAppWithHandlers(
       ),
     },
     genReqId: (request) => requestId(request.headers['x-request-id']),
-    disableRequestLogging: true,
+    // `./request-log.ts` writes the one request record of this server, so the
+    // framework writes none of its own. The top level `disableRequestLogging`
+    // option that used to say this is deprecated in Fastify 5 and goes in
+    // Fastify 6, and it wrote a deprecation notice to the operator on every
+    // start. Fastify takes an instance here and refuses a class.
+    logController: new LogController({ disableRequestLogging: true }),
   });
 
   await app.register(rateLimit, { global: false });
@@ -410,11 +416,58 @@ export async function createApp(
   config: ServerConfig,
   options?: Partial<AppOptions>,
 ): Promise<FastifyInstance> {
+  // Every store records how to close it the moment it opens, so a failure
+  // further down closes what is already open. The composition used to throw
+  // with the pools still held, and a process that never listened kept its
+  // connections to the database until it was killed.
+  const opened: (() => Promise<void>)[] = [];
+  try {
+    return await composeApp(config, options, opened);
+  } catch (error) {
+    await closeOpened(opened);
+    throw error;
+  }
+}
+
+/**
+ * Closes what a failed composition already opened.
+ *
+ * The order is the reverse of the order they opened in, which is the order of
+ * the `onClose` hook of a running instance, so a store never closes before
+ * one that depends on it. A store that cannot close is passed over: it must
+ * not hide the failure that started the unwind, because that is the one the
+ * operator has to act on.
+ */
+export async function closeOpened(
+  opened: readonly (() => Promise<void>)[],
+): Promise<void> {
+  for (const close of [...opened].reverse()) {
+    try {
+      await close();
+    } catch {
+      // Stated above.
+    }
+  }
+}
+
+/**
+ * Opens every store and builds the instance.
+ *
+ * `opened` collects the close of each store as it opens. `createApp` is the
+ * one caller and it owns the unwind, so nothing here has to remember it.
+ */
+async function composeApp(
+  config: ServerConfig,
+  options: Partial<AppOptions> | undefined,
+  opened: (() => Promise<void>)[],
+): Promise<FastifyInstance> {
   const identity = openIdentityStore(config.databaseUrl);
+  opened.push(() => identity.close());
   // The content store uses the same runtime role. It opens its own pool,
   // because a content transaction holds the workspace lock for the length of a
   // changeset and must not queue behind an identity lookup.
   const content = openWorkspaceStore(config.databaseUrl);
+  opened.push(() => content.close());
   // The database probes read through the pool that serves the workspace
   // traffic, so a probe that an orchestrator repeats forever opens no
   // connection of its own and proves the path that a request takes.
@@ -427,6 +480,7 @@ export async function createApp(
     config.databaseUrl,
     config.storageRoot,
   );
+  opened.push(() => attachments.close());
   const mail = createMailTransport(config.mail);
   // The published page reads the stylesheet of the built shell document, so
   // the page cannot drift from the theme (decision 0031). A deployment that
@@ -449,11 +503,13 @@ export async function createApp(
   // Sign-up is enabled inside the protocol library, but its public route is
   // not mounted. The setup handler calls it only while no account exists.
   const authPool = createAuthPool(config);
+  opened.push(() => authPool.end());
   const auth = createAuth(
     config,
     { mail, allowSignUp: true, log: (record) => sink.write?.(record) },
     authPool,
   );
+  opened.push(() => auth.close());
   const adapter = createIdentityAdapter({
     auth: auth.auth,
     identity,

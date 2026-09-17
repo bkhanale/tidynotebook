@@ -23,6 +23,8 @@ const codeSentences: Readonly<Record<string, string>> = {
   stale_head: 'The note changed on the server after this save was made.',
   deleted_remotely: 'The note was deleted on the server.',
   invalid_graph: 'This save does not fit the saved history of the note.',
+  too_many_files:
+    'This change moves too many notes at one time. Move the notes in smaller groups.',
   invalid_path: 'The note name is not one the server accepts.',
   invalid_content: 'The text of this save did not arrive complete.',
   mutation_reused:

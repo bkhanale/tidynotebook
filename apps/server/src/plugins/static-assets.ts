@@ -51,6 +51,12 @@ export function mimeTypeFor(filePath: string): string {
   if (filePath.endsWith('.ico')) return 'image/x-icon';
   if (filePath.endsWith('.woff')) return 'font/woff';
   if (filePath.endsWith('.woff2')) return 'font/woff2';
+  // The mathematics faces of the build ship as TrueType beside their web font
+  // forms, and about twenty of them went out as a stream of bytes. A browser
+  // renders them all the same, because font loading does not read the type,
+  // but a caller that does read it was told nothing true.
+  if (filePath.endsWith('.ttf')) return 'font/ttf';
+  if (filePath.endsWith('.otf')) return 'font/otf';
   // Source maps are not served (decision 0013), so no `.map` type is mapped.
   return 'application/octet-stream';
 }

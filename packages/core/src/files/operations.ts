@@ -17,6 +17,7 @@ import {
   type RevisionInput,
 } from './model.ts';
 import { maxFilesPerChangeset } from './commit.ts';
+import { isBelowFolder, normalizePath } from './path.ts';
 
 /** The identity and the timestamps that a client assigns to one submission. */
 export type SubmissionIds = {
@@ -163,6 +164,13 @@ export type RenameFolderInput = {
  *
  * The caller supplies the members. It has to, because the set of files under a
  * prefix is a read of accepted state and this builder performs no read.
+ *
+ * Every path here passes `normalizePath` first, and the comparison runs over
+ * segments through `isBelowFolder`. Both matter. A stored path is in composed
+ * form, so a folder name that a client sends in decomposed form matched no
+ * stored path and the whole rename was refused as an invalid path. And a
+ * folder `notes/trip` must not take `notes/trips-2026/x.md` with it, which a
+ * plain prefix test would do.
  */
 export function renameFolderChangeset(
   input: RenameFolderInput,
@@ -170,22 +178,29 @@ export function renameFolderChangeset(
   if (input.files.length === 0) return fail('invalid_graph');
   if (input.files.length > maxFilesPerChangeset)
     return fail(
-      'invalid_graph',
+      'too_many_files',
       input.files.map((member) => member.fileId),
     );
-  if (input.from === '' || input.to === '') return fail('invalid_path');
-  const prefix = `${input.from}/`;
+  const from = normalizePath(input.from, 'folder');
+  if (!from.ok) return from;
+  const to = normalizePath(input.to, 'folder');
+  if (!to.ok) return to;
+  const fromSegments = from.value.split('/');
+  const toSegments = to.value.split('/');
   const revisions: RevisionInput[] = [];
   const expectedHeads: Record<string, string | null> = {};
   for (const member of input.files) {
-    if (!member.path.startsWith(prefix))
+    const path = normalizePath(member.path, 'note');
+    if (!path.ok) return fail('invalid_path', [member.fileId]);
+    const segments = path.value.split('/');
+    if (!isBelowFolder(fromSegments, segments))
       return fail('invalid_path', [member.fileId]);
     expectedHeads[member.fileId] = member.expectedHead;
     revisions.push({
       id: member.revisionId,
       fileId: member.fileId,
       parents: [member.expectedHead],
-      path: `${input.to}/${member.path.slice(prefix.length)}`,
+      path: [...toSegments, ...segments.slice(fromSegments.length)].join('/'),
       deleted: false,
       content: member.content,
       clientTime: input.ids.clientTime,

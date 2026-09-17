@@ -1736,3 +1736,66 @@ await test('the worker lease is exclusive, renewable, and taken over on expiry',
   await releaseWorkerLease(store, 'owner-b');
   assert.equal(store.lease, null);
 });
+
+await test('an early wake stops the sleep that it raced', async () => {
+  // The defect this covers: the engine raced its sleep against the wake and
+  // kept whichever lost. The web application asks for a pass on every change
+  // of the queue, so a long writing session held one live timer and one live
+  // abort listener for each early wake.
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  let pulls = 0;
+  const ops = stubOperations({
+    changes: (cursor) => {
+      pulls += 1;
+      return Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      });
+    },
+  });
+  /** One sleep of the engine, and whether it was stopped. */
+  const sleeps: { stopped: boolean; listeners: number }[] = [];
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-early-wake',
+    operations: ops,
+    pollIntervalMs: 600_000,
+    leaseTtlMs: 1_200_000,
+    sleep: (_ms, signal) =>
+      new Promise<void>((_resolve, reject) => {
+        const record = { stopped: false, listeners: 1 };
+        sleeps.push(record);
+        const stop = (): void => {
+          record.stopped = true;
+          record.listeners -= 1;
+          reject(new DOMException('The sync run stopped.', 'AbortError'));
+        };
+        if (signal.aborted) stop();
+        else signal.addEventListener('abort', stop, { once: true });
+      }),
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => pulls === 1);
+
+  // Three early wakes, which is what a person who writes produces.
+  for (let round = 2; round <= 4; round += 1) {
+    engine.requestSync();
+    await waitFor(() => pulls === round);
+  }
+  await waitFor(() => sleeps.length >= 3);
+
+  // Every sleep that a wake beat is stopped, so no timer and no listener
+  // outlives its own cycle. The last one is still resting.
+  const finished = sleeps.slice(0, -1);
+  assert.ok(finished.length >= 2);
+  for (const record of finished) {
+    assert.equal(record.stopped, true);
+    assert.equal(record.listeners, 0);
+  }
+
+  controller.abort();
+  engine.stop();
+  await running;
+  for (const record of sleeps) assert.equal(record.stopped, true);
+});
