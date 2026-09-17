@@ -140,6 +140,34 @@ test('the side region takes no width from the note text', async ({
   await expect(region).toBeVisible();
 });
 
+test('each part of the side region carries its own name', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  // The defect this covers: the region carried the name of the outline alone
+  // after it gained the panel of inbound links, so a person who moves by
+  // region heard a name that stated one of its two parts.
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await page.getByLabel('Note name').fill('Two parts');
+  await replaceEditorText(page, '# Heading\n\nA line of the note.\n');
+  await waitForServerSave(page);
+  await page.setViewportSize({ width: 1500, height: 900 });
+
+  // The region names what it holds, and not one of the two things in it.
+  const region = page.getByRole('complementary', {
+    name: 'Note outline and inbound links',
+  });
+  await expect(region).toBeVisible();
+
+  // Each part is reachable by its own name as well.
+  await expect(region.getByRole('region', { name: 'Outline' })).toBeVisible();
+  await expect(
+    region.getByRole('region', { name: 'Links to this note' }),
+  ).toBeVisible();
+});
+
 test('a note with no heading shows no outline section', async ({
   checkedPage: page,
   stack,

@@ -326,12 +326,11 @@ export function CollapsibleSection({
         <span className="flex-1">{title}</span>
       </button>
       {open ? (
-        <div
-          id={panelId}
-          className="py-2 pl-2"
-          role="region"
-          aria-label={title}
-        >
+        // The `section` above is already the named region of this group, so
+        // the panel carries the identifier that `aria-controls` names and no
+        // role of its own. It used to carry both, which put two regions with
+        // one name in the list a person moves through.
+        <div id={panelId} className="py-2 pl-2">
           {children}
         </div>
       ) : null}
