@@ -6,7 +6,7 @@
  * carries no save readout; the sidebar footer states the sync progress.
  */
 import type { ReactNode } from 'react';
-import { pageGutter } from '@notesapp/ui';
+import { noteColumnClassName } from '../../lib/note-header-layout.ts';
 
 /** Counts the words of a Markdown buffer. */
 export function wordCount(text: string): number {
@@ -18,12 +18,12 @@ export function wordCount(text: string): number {
 export function NoteFooter({ text }: { readonly text: string }): ReactNode {
   const count = wordCount(text);
   return (
-    <footer
-      className={`flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 border-t border-edge-subtle ${pageGutter} py-2 text-control text-muted`}
-    >
-      <span>
-        {count} {count === 1 ? 'word' : 'words'}
-      </span>
+    <footer className="shrink-0 border-t border-edge-line px-2 py-2 text-control text-muted">
+      <div className={noteColumnClassName()}>
+        <span>
+          {count} {count === 1 ? 'word' : 'words'}
+        </span>
+      </div>
     </footer>
   );
 }

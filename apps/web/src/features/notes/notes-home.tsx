@@ -96,10 +96,17 @@ export function NotesHomeView(): ReactNode {
                 {group.notes.map((note) => {
                   const meta = noteRowMeta(note.path, note.updatedAt, now);
                   return (
-                    <li key={note.fileId}>
+                    // The divider belongs to the row and never to the link
+                    // inside it. A link is the only child of its row, so it is
+                    // always the last child and `last:border-b-0` removed the
+                    // divider of every row, not of the last one.
+                    <li
+                      key={note.fileId}
+                      className="border-b border-edge-line last:border-b-0"
+                    >
                       <Link
                         to={`/w/${workspaceId}/notes/${note.fileId}`}
-                        className={`flex min-h-11 items-center gap-group rounded-lg border-b border-edge-subtle px-2 py-2 text-ink no-underline ${transitionSurface} last:border-b-0 hover:bg-hover`}
+                        className={`flex min-h-11 items-center gap-group rounded-lg px-2 py-2 text-ink no-underline ${transitionSurface} hover:bg-hover`}
                       >
                         <span
                           className="inline-flex shrink-0 items-center text-muted"

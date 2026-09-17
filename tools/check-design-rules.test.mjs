@@ -93,7 +93,10 @@ await test('a shadow outside the elevation scale fails', () => {
   assert.equal(textRules['raw-elevation']('shadow-overlay rounded-xl'), null);
   assert.equal(textRules['raw-elevation']('shadow-modal'), null);
   // The property name of a transition is not a shadow utility.
-  assert.equal(textRules['raw-elevation']('motion-safe:transition-shadow'), null);
+  assert.equal(
+    textRules['raw-elevation']('motion-safe:transition-shadow'),
+    null,
+  );
 });
 
 await test('motion outside the one motion module fails', () => {

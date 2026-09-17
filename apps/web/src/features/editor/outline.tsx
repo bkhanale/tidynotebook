@@ -5,6 +5,7 @@ import {
   previewStructureOf,
   type OutlineHeading,
 } from '@notesapp/editor';
+import { CollapsibleSection } from '@notesapp/ui';
 import { revealInNote, useActiveNote } from './active-note.tsx';
 
 /** The headings of one Markdown source, read from the shared grammar. */
@@ -28,8 +29,22 @@ function outlineOfText(source: string): readonly OutlineHeading[] {
  * The panel reads no server and no store, so it has nothing that can fail and
  * it never states an empty outline for a read that did not answer
  * (record 0038). The host always holds the text of the open note.
+ *
+ * A note with no heading has no outline, and an outline of nothing is not a
+ * state worth a sentence, so the panel returns nothing and the section around
+ * it never opens. The panel owns that section for the same reason: one place
+ * reads the headings, so the section and the list cannot disagree
+ * (record 0052).
  */
-export function OutlinePanel({ text }: { readonly text: string }): ReactNode {
+export function OutlinePanel({
+  text,
+  open,
+  onToggle,
+}: {
+  readonly text: string;
+  readonly open: boolean;
+  readonly onToggle: (open: boolean) => void;
+}): ReactNode {
   // The scope gives a new value when the editor opens, when it closes, and
   // when the text moves on, so the rows below follow the live buffer. The
   // count is the reason to read the buffer again, so the walk of the syntax
@@ -40,34 +55,38 @@ export function OutlinePanel({ text }: { readonly text: string }): ReactNode {
     [view, revision],
   );
   const headings = live ?? outlineOfText(text);
-  if (headings.length === 0)
-    return (
-      <p className="m-0 text-control text-muted">This note has no headings.</p>
-    );
+  if (headings.length === 0) return null;
   const indentation = ['', 'pl-2', 'pl-4', 'pl-6', 'pl-8', 'pl-10'];
   return (
-    <ol className="m-0 list-none space-y-1 p-0 text-control text-muted">
-      {headings.map((heading, index) => (
-        <li key={`${String(index)}:${heading.text}`}>
-          {view !== null ? (
-            <button
-              type="button"
-              className={`block w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit hover:text-strong ${indentation[heading.level - 1] ?? ''}`}
-              onClick={(): void => {
-                revealInNote(view, heading.from);
-              }}
-            >
-              {heading.text}
-            </button>
-          ) : (
-            <span
-              className={`block truncate ${indentation[heading.level - 1] ?? ''}`}
-            >
-              {heading.text}
-            </span>
-          )}
-        </li>
-      ))}
-    </ol>
+    <CollapsibleSection
+      id="notes-outline"
+      title="Outline"
+      open={open}
+      onToggle={onToggle}
+    >
+      <ol className="m-0 list-none space-y-1 p-0 text-control text-muted">
+        {headings.map((heading, index) => (
+          <li key={`${String(index)}:${heading.text}`}>
+            {view !== null ? (
+              <button
+                type="button"
+                className={`block w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit hover:text-strong ${indentation[heading.level - 1] ?? ''}`}
+                onClick={(): void => {
+                  revealInNote(view, heading.from);
+                }}
+              >
+                {heading.text}
+              </button>
+            ) : (
+              <span
+                className={`block truncate ${indentation[heading.level - 1] ?? ''}`}
+              >
+                {heading.text}
+              </span>
+            )}
+          </li>
+        ))}
+      </ol>
+    </CollapsibleSection>
   );
 }

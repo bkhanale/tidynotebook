@@ -76,7 +76,7 @@ await test('the note surface keeps its designed typography', () => {
   assert.match(css, /--text-note:\s*1rem/);
   assert.match(css, /--text-note--line-height:\s*1\.65/);
   assert.match(css, /--container-note:\s*42rem/);
-  assert.match(css, /--text-note-h1:\s*2em/);
+  assert.match(css, /--text-note-h1:\s*1\.75em/);
   assert.match(css, /--text-note-h6:\s*1em/);
   assert.match(css, /--text-note-mono:\s*0\.9em/);
 });

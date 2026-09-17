@@ -56,9 +56,22 @@ await test('the reading measure sits on the line and not on the content', () => 
   assert.equal(rule('.cm-content').marginInline, undefined);
   assert.equal(rule('.cm-content').paddingInline, 'calc(var(--spacing) * 2)');
   assert.equal(rule('.cm-line').maxWidth, 'var(--container-note)');
-  assert.equal(rule('.cm-line').marginInline, '0');
   assert.equal(rule('.cm-np-widget-block').maxWidth, 'var(--container-note)');
-  assert.equal(rule('.cm-np-widget-block').marginInline, '0');
+});
+
+await test('the note column is centred in the space the editor owns', () => {
+  // Decision 0052. A pinned column leaves a band of empty canvas between the
+  // text and the side region of the note screen.
+  assert.equal(rule('.cm-line').marginInline, 'auto');
+  assert.equal(rule('.cm-np-widget-block').marginInline, 'auto');
+});
+
+await test('the heading ramp tightens its letters at the large steps', () => {
+  assert.equal(rule('.cm-np-h1').letterSpacing, 'var(--tracking-display)');
+  assert.equal(rule('.cm-np-h2').letterSpacing, 'var(--tracking-heading)');
+  assert.equal(rule('.cm-np-h3').letterSpacing, 'var(--tracking-heading)');
+  for (const level of [4, 5, 6])
+    assert.equal(rule(`.cm-np-h${String(level)}`).letterSpacing, 'normal');
 });
 
 await test('every heading level keeps the shared line edge', () => {

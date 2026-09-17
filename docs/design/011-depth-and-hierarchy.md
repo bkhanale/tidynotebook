@@ -108,10 +108,11 @@ The first option leaves the column where it is and removes the side region, so
 the band disappears. This is cheap, and it loses the outline.
 
 The second option centres the note column inside the space it owns and holds
-the name, the text and the footer to one column. The side region floats over
-the outer gutter instead of taking a column of its own, and it appears only
-when it has something to say. This costs a change in the typed editor adapter,
-in the header layout module, and in the note screen.
+the name, the text and the footer to one column. The side region stops taking
+width from the measure: it appears one breakpoint later, at the first width
+where the full measure and the region both fit, and its outline section
+appears only when the note has a heading. This costs a change in the typed
+editor adapter, in the header layout module, and in the note screen.
 
 The design takes the second option. The band is not a spacing defect. It is a
 composition defect, and moving the text to the centre of its own space is what

@@ -56,6 +56,8 @@ export const editorThemeVariables: readonly string[] = [
   '--text-note-h6--line-height',
   '--font-weight-note-heading-strong',
   '--font-weight-note-heading',
+  '--tracking-heading',
+  '--tracking-display',
 ];
 
 /** The heading ramp, level by level. */
@@ -68,6 +70,20 @@ const headings: ReadonlyArray<readonly [string, string]> = [
   ['var(--text-note-h6)', 'var(--text-note-h6--line-height)'],
 ];
 
+/**
+ * The letter spacing of one heading level.
+ *
+ * Large type at the default spacing reads loose, and the effect grows with
+ * the size, so the top of the ramp pulls its letters in the most and a
+ * heading near the body size leaves them alone. The two values are named in
+ * the central theme of `apps/web/src/tailwind.css`.
+ */
+function headingTracking(index: number): string {
+  if (index === 0) return 'var(--tracking-display)';
+  if (index < 3) return 'var(--tracking-heading)';
+  return 'normal';
+}
+
 /** The heading rules, one per level. */
 function headingRules(): Record<string, Record<string, string>> {
   const rules: Record<string, Record<string, string>> = {};
@@ -79,6 +95,7 @@ function headingRules(): Record<string, Record<string, string>> {
         index < 3
           ? 'var(--font-weight-note-heading-strong)'
           : 'var(--font-weight-note-heading)',
+      letterSpacing: headingTracking(index),
       color: 'var(--notes-text-strong)',
     };
   });
@@ -180,9 +197,15 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       paddingBlockStart: 'calc(var(--spacing) * 2)',
       paddingBlockEnd: 'calc(var(--spacing) * 6)',
     },
+    // The measure is centred in the space the editor owns, so the note reads
+    // as a page at every width and no band of empty canvas opens between the
+    // text and the side region of the note screen. The centring belongs to
+    // the line, not to the content, for the reason in the doc above: the
+    // strip left and right of the text has to stay inside the editable
+    // element. Decision 0052.
     '.cm-line': {
       maxWidth: 'var(--container-note)',
-      marginInline: '0',
+      marginInline: 'auto',
       paddingInline: '0',
       paddingBlock: 'var(--spacing-note-line)',
     },
@@ -394,7 +417,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-widget-block': {
       display: 'block',
       maxWidth: 'var(--container-note)',
-      marginInline: '0',
+      marginInline: 'auto',
       marginBlock: 'var(--spacing-note-block)',
     },
     '.cm-np-widget-inline': { display: 'inline' },

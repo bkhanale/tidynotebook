@@ -20,8 +20,9 @@
  *
  * The note surface block is the typography of a note: 16 px body text on a
  * 1.65 line height at a measure of about 68 characters, one heading ramp
- * from twice the body size down to body size, one vertical rhythm, and
- * monospaced text at 0.9 em.
+ * from 1.75 times the body size down to body size, one vertical rhythm, and
+ * monospaced text at 0.9 em. The ramp stops under the note name, which is
+ * the largest text on the note screen (decision 0015).
  */
 @theme static {
   --font-sans:
@@ -80,8 +81,8 @@
    * `theme.test.ts` proves is darker than every surface, so a shadow follows
    * a theme change and no shadow holds a colour of its own.
    */
-  --shadow-raised:
-    0 1px 2px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent);
+  --shadow-raised: 0 1px 2px
+    color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent);
   --shadow-overlay:
     0 2px 4px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 10%, transparent),
     0 8px 20px color-mix(in srgb, var(--notes-scrim, #0b0a0f) 18%, transparent);
@@ -119,7 +120,7 @@
   --spacing-note-line: var(--spacing);
   --spacing-note-block: calc(var(--spacing) * 2);
   --text-note-mono: 0.9em;
-  --text-note-h1: 2em;
+  --text-note-h1: 1.75em;
   --text-note-h1--line-height: 1.25;
   --text-note-h2: 1.6em;
   --text-note-h2--line-height: 1.25;

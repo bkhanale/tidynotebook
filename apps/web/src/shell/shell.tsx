@@ -239,8 +239,7 @@ function NoteRow({
 }
 
 /** The actions menu of one tree row, which every row shares. */
-const rowMenuClassName =
-  `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`;
+const rowMenuClassName = `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`;
 
 /**
  * The inset of one child branch in the tree.
@@ -632,7 +631,7 @@ function Sidebar({
 
   return (
     <>
-      <div className="flex h-header shrink-0 items-center justify-between gap-cluster border-b border-edge-subtle px-2 md:hidden">
+      <div className="flex h-header shrink-0 items-center justify-between gap-cluster border-b border-edge-line px-2 md:hidden">
         <span className="text-ui font-semibold text-strong">Notes</span>
         <Button
           variant="ghost"
@@ -760,7 +759,7 @@ function Sidebar({
         )}
       </div>
 
-      <div className="border-t border-edge-subtle p-2">
+      <div className="border-t border-edge-line p-2">
         <p className="m-0 px-2 pb-1 text-control text-muted">
           {online
             ? syncStateMessage(sync.state, sync.noteName)
@@ -1361,7 +1360,7 @@ function ShellFrame({
           </a>
 
           <header
-            className={`z-30 flex h-header shrink-0 items-center gap-group border-b border-edge-subtle bg-card ${pageGutter}`}
+            className={`z-30 flex h-header shrink-0 items-center gap-group border-b border-edge-line bg-surface ${pageGutter}`}
           >
             <Button
               buttonRef={menuButtonRef}

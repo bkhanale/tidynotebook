@@ -22,9 +22,12 @@ note measure. The editor adapter centres a line and a block widget in the space
 the editor owns, and the header and the footer hold their content to the same
 measure and centre it the same way.
 
-The outline and the inbound links are not a column of the frame. They float
-over the outer gutter of the note screen from the extra large width up, and
-they are in the frame only when the note has an outline or an inbound link.
+The side region of the outline and the inbound links never takes width from
+the measure. It appears from the extra large width up, which is the first
+width where the full measure and the region both fit, and not from the large
+width, where the region shortened every line of the note. The outline section
+inside it appears only when the note has a heading, and the panel that reads
+the headings owns that section, so the two cannot disagree.
 
 This refines [decision 0015](0015-the-note-surface-is-the-design.md), which
 states that the note surface is the design, and it keeps
@@ -34,10 +37,12 @@ that one surface reads and writes the note.
 ## Consequences
 
 - The note reads as a page at every width, and the empty band is gone.
-- The side region no longer takes width from the text at the large width, so
-  the measure is reached on more screens.
-- A person who wants the outline on a narrow screen reaches it through the
-  command palette, not through a column that never fits.
+- The note reaches its full measure on every screen below the extra large
+  width, because the side region is not there to shorten it.
+- A note with no heading shows no outline section and no sentence about it. An
+  outline of nothing is not a state worth a line.
+- The side region names both of its parts, which answers
+  [issue 114](https://github.com/bkhanale/notesapp/issues/114).
 - `tests/e2e/note-surface.spec.ts` proves that the name, the first line and the
-  footer share one column, and that the side region is absent when the note has
-  no outline and no inbound link.
+  footer share one centred column, and that the side region is absent at the
+  large width.

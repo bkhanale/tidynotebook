@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  noteColumnClassName,
   noteHeaderRowClassName,
   noteTitleClassName,
 } from './note-header-layout.ts';
@@ -24,7 +25,7 @@ await test('the note name carries no box at rest', () => {
   assert.ok(classes.includes('bg-transparent'));
   assert.ok(!classes.includes('rounded-lg'));
   assert.ok(!classes.some((name) => name.startsWith('focus:ring')));
-  assert.ok(classes.includes('hover:border-edge-subtle'));
+  assert.ok(classes.includes('hover:border-edge-line'));
   assert.ok(classes.includes('focus:border-focus'));
 });
 
@@ -42,4 +43,27 @@ await test('the header row stays at the top while the note scrolls', () => {
   assert.ok(classes.includes('sticky'));
   assert.ok(classes.includes('top-0'));
   assert.ok(classes.includes('shrink-0'));
+});
+
+await test('the note name is the largest text on the note screen', () => {
+  const classes = noteTitleClassName().split(' ');
+  // Decision 0015. The top of the note heading ramp is 1.75 times the body
+  // size, which is 28 px, and this step is 30 px, so the name wins whatever
+  // the note opens with.
+  assert.ok(classes.includes('text-3xl'));
+  assert.ok(classes.includes('tracking-display'));
+});
+
+await test('the name, the text and the footer share one centred column', () => {
+  const column = noteColumnClassName().split(' ');
+  // Decision 0052. The measure is the one in the central theme, and the
+  // editor centres its own lines on the same value.
+  assert.ok(column.includes('mx-auto'));
+  assert.ok(column.includes('w-full'));
+  assert.ok(column.includes('max-w-note'));
+  // The row around the column pads by the same amount as the editor content,
+  // so the name lands on the same left edge as the first line of the text.
+  const row = noteHeaderRowClassName().split(' ');
+  assert.ok(row.includes('px-2'));
+  assert.ok(!row.some((name) => name.startsWith('sm:px-')));
 });

@@ -9,6 +9,7 @@
  */
 import { useRef, type ReactNode } from 'react';
 import {
+  noteColumnClassName,
   noteHeaderRowClassName,
   noteTitleClassName,
 } from '../../lib/note-header-layout.ts';
@@ -35,33 +36,31 @@ export function NoteHeader({
 
   return (
     <header className={noteHeaderRowClassName()}>
-      <input
-        ref={nameInputRef ?? fallbackRef}
-        id={`notes-path-${fileId}`}
-        className={noteTitleClassName()}
-        type="text"
-        value={name}
-        aria-label="Note name"
-        aria-invalid={nameError !== ''}
-        aria-describedby={nameError === '' ? undefined : errorId}
-        placeholder="Note name"
-        onChange={(event): void => onNameChange(event.target.value)}
-        onBlur={onNameCommit}
-        onKeyDown={(event): void => {
-          if (event.key !== 'Enter') return;
-          event.preventDefault();
-          onNameCommit();
-        }}
-      />
-      {nameError === '' ? null : (
-        <p
-          className="m-0 px-2 text-control text-danger"
-          id={errorId}
-          role="alert"
-        >
-          {nameError}
-        </p>
-      )}
+      <div className={noteColumnClassName()}>
+        <input
+          ref={nameInputRef ?? fallbackRef}
+          id={`notes-path-${fileId}`}
+          className={noteTitleClassName()}
+          type="text"
+          value={name}
+          aria-label="Note name"
+          aria-invalid={nameError !== ''}
+          aria-describedby={nameError === '' ? undefined : errorId}
+          placeholder="Note name"
+          onChange={(event): void => onNameChange(event.target.value)}
+          onBlur={onNameCommit}
+          onKeyDown={(event): void => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            onNameCommit();
+          }}
+        />
+        {nameError === '' ? null : (
+          <p className="m-0 text-control text-danger" id={errorId} role="alert">
+            {nameError}
+          </p>
+        )}
+      </div>
     </header>
   );
 }

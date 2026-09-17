@@ -1056,15 +1056,6 @@ function NoteEditorBody({
       className="flex h-full min-h-0 min-w-0 flex-col"
       data-save-state={saveState}
     >
-      <NoteHeader
-        fileId={fileId}
-        name={name}
-        nameError={pathError}
-        nameInputRef={nameInputRef}
-        onNameChange={applyName}
-        onNameCommit={commitName}
-      />
-
       <div className={`flex min-h-0 flex-1 flex-col ${pageGutter}`}>
         {editorNotice === '' ? null : (
           <div className="mt-4">
@@ -1106,8 +1097,22 @@ function NoteEditorBody({
           </div>
         ) : null}
 
-        <div className="flex min-h-0 flex-1 gap-6 pb-4">
+        {/*
+          The name, the text and the footer are one column, so they sit in
+          one flex child and the side region is its sibling. A header outside
+          this row would centre its column on the whole screen and the name
+          would not line up with the first line of the note (decision 0052).
+        */}
+        <div className="flex min-h-0 flex-1 gap-6">
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <NoteHeader
+              fileId={fileId}
+              name={name}
+              nameError={pathError}
+              nameInputRef={nameInputRef}
+              onNameChange={applyName}
+              onNameCommit={commitName}
+            />
             <div
               ref={containerRef}
               className="min-h-0 flex-1 overflow-hidden"
@@ -1126,19 +1131,23 @@ function NoteEditorBody({
                 }
               }}
             />
+            <NoteFooter text={bufferText} />
           </div>
+          {/*
+            The side region takes no width from the note text. It appears
+            only from the extra large width up, where the measure and the
+            region both fit, so a note on a laptop keeps its full measure
+            (decision 0052).
+          */}
           <aside
-            className="hidden w-56 shrink-0 overflow-y-auto lg:block"
-            aria-label="Note outline"
+            className="hidden w-56 shrink-0 overflow-y-auto xl:block"
+            aria-label="Note outline and inbound links"
           >
-            <CollapsibleSection
-              id="notes-outline"
-              title="Outline"
+            <OutlinePanel
+              text={bufferText}
               open={outlineOpen}
               onToggle={setOutlineOpen}
-            >
-              <OutlinePanel text={bufferText} />
-            </CollapsibleSection>
+            />
             <CollapsibleSection
               id="notes-backlinks"
               title="Links to this note"
@@ -1155,8 +1164,6 @@ function NoteEditorBody({
           </aside>
         </div>
       </div>
-
-      <NoteFooter text={bufferText} />
     </div>
   );
 }
