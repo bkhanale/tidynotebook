@@ -61,6 +61,61 @@ test('the note name, the text and the footer share one centred column', async ({
   expect(before).toBeGreaterThan(0);
 });
 
+test('every block of a note starts on the one column', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await signIn(page, stack);
+  await openPersonalWorkspace(page);
+  await createNewNote(page);
+  await page.getByLabel('Note name').fill('Every construct');
+  await replaceEditorText(
+    page,
+    [
+      '# Heading one',
+      '',
+      'A plain paragraph of the note.',
+      '',
+      '- A bullet item',
+      '',
+      '> A block quote.',
+      '',
+      '| Area | Owner |',
+      '| :--- | ----: |',
+      '| Web | Ada |',
+      '',
+      '```js',
+      'const answer = 42;',
+      '```',
+      '',
+      '$$',
+      'a^2 + b^2 = c^2',
+      '$$',
+      '',
+    ].join('\n'),
+  );
+  await page.locator('.cm-content').press('Control+End');
+  await waitForServerSave(page);
+
+  // A table row is a `display: table-row` box and CSS gives it no margin, so
+  // a centring margin on the line moved every block of the note except the
+  // table and left the table a hundred pixels to the left. The measure is
+  // therefore the padding of the content, which every block inherits.
+  const lefts = await page.evaluate(() => {
+    const content = document.querySelector('.cm-content');
+    if (content === null) return [];
+    const found = new Set();
+    for (const child of content.children) {
+      const rect = child.getBoundingClientRect();
+      if (rect.width === 0 && rect.height === 0) continue;
+      found.add(Math.round(rect.left));
+    }
+    return [...found];
+  });
+  expect(lefts).toHaveLength(1);
+});
+
 test('the side region takes no width from the note text', async ({
   checkedPage: page,
   stack,

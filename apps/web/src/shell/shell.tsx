@@ -248,7 +248,7 @@ const rowMenuClassName = `inline-flex size-11 shrink-0 cursor-pointer items-cent
  * needs only one compact step for each level. The guide line and the inset
  * stay visible without taking the name space of a deep folder.
  */
-const treeBranchClassName = 'ml-3 border-l border-edge-subtle pl-1';
+const treeBranchClassName = 'ml-3 border-l border-edge-line pl-1';
 
 /**
  * Renders the tree nodes as interactive collapsible lists.

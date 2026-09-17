@@ -142,7 +142,7 @@ export function InlineDiff({
         const afterCount = entry.hunk.after.length;
         return (
           <li
-            className="overflow-hidden rounded-lg border border-edge-subtle"
+            className="overflow-hidden rounded-lg border border-edge-line"
             key={`${idPrefix}-hunk-${String(index)}`}
           >
             <h4 className="m-0 bg-hover px-3 py-2 text-control font-semibold text-strong">
@@ -654,7 +654,7 @@ function HistoryDetail({
                     </ListRow>
                     {selected ? (
                       <li
-                        className="border-b border-edge-subtle px-1 py-3 last:border-b-0"
+                        className="border-b border-edge-line px-1 py-3 last:border-b-0"
                         id={panelId}
                       >
                         <RevisionPanel
@@ -727,7 +727,7 @@ function RevisionPanel({
   if (kind === 'attachment')
     return preview !== null && previewRevisionId === detail.item.revisionId ? (
       <img
-        className="max-h-96 rounded-lg border border-edge-subtle"
+        className="max-h-96 rounded-lg border border-edge-line"
         src={preview.url}
         alt={`${name} as it was in this version`}
       />

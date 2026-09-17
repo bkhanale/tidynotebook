@@ -49,21 +49,36 @@ await test('the scroller stretches its content over its full height', () => {
   assert.equal(rule('.cm-content').width, '100%');
 });
 
-await test('the reading measure sits on the line and not on the content', () => {
-  // A measure on `.cm-content` leaves the strip left and right of the text
+await test('the reading measure is padding and never a width', () => {
+  // A width on `.cm-content` leaves the strip left and right of the text
   // outside the editable element, and a click in that strip places no caret.
   assert.equal(rule('.cm-content').maxWidth, undefined);
-  assert.equal(rule('.cm-content').marginInline, undefined);
-  assert.equal(rule('.cm-content').paddingInline, 'calc(var(--spacing) * 2)');
+  assert.equal(rule('.cm-content').width, '100%');
   assert.equal(rule('.cm-line').maxWidth, 'var(--container-note)');
   assert.equal(rule('.cm-np-widget-block').maxWidth, 'var(--container-note)');
 });
 
-await test('the note column is centred in the space the editor owns', () => {
-  // Decision 0052. A pinned column leaves a band of empty canvas between the
-  // text and the side region of the note screen.
-  assert.equal(rule('.cm-line').marginInline, 'auto');
-  assert.equal(rule('.cm-np-widget-block').marginInline, 'auto');
+await test('the note column is centred by the padding of the content', () => {
+  // Decision 0052. The padding centres the column, and it is the only place
+  // that can: a centring margin on the line moves every block except a table,
+  // because a table row is an internal table box and CSS gives it no margin.
+  // The padding never falls under the smallest step, so a narrow screen keeps
+  // a strip to click on.
+  assert.equal(
+    rule('.cm-content').paddingInline,
+    'max(calc(var(--spacing) * 2), calc((100% - var(--container-note)) / 2))',
+  );
+  assert.equal(rule('.cm-line').marginInline, '0');
+  assert.equal(rule('.cm-np-widget-block').marginInline, '0');
+});
+
+await test('a table row carries no margin, so none decides its column', () => {
+  // The regression this holds: the table was the one construct that a
+  // centring margin could not move, so it sat a hundred pixels left of every
+  // other block of the note.
+  assert.equal(rule('.cm-np-table-line').display, 'table-row');
+  assert.equal(rule('.cm-np-table-line').marginInline, undefined);
+  assert.equal(rule('.cm-np-table-line').marginLeft, undefined);
 });
 
 await test('the heading ramp tightens its letters at the large steps', () => {

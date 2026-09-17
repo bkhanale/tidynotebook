@@ -160,12 +160,16 @@ export function editorTheme(theme: 'light' | 'dark'): Extension {
  * would put that same strip outside the editable element, and a click under
  * the last line would then place no caret and lose every keystroke after it.
  *
- * The reading measure belongs to `.cm-line` and to a block widget, not to
- * `.cm-content`. The content element therefore keeps the full width of the
- * scroller, so the empty strip left and right of the text still belongs to
- * the editable element and a click there places the caret on that line. A
- * measure on `.cm-content` would put both strips outside the text and a
- * click in them would do nothing.
+ * The reading measure is the inline padding of `.cm-content`, never a width
+ * on it. The content element therefore keeps the full width of the scroller,
+ * so the empty strip left and right of the text still belongs to the editable
+ * element and a click there places the caret on that line. A measure as a
+ * width would put both strips outside the text and a click in them would do
+ * nothing.
+ *
+ * The padding centres the column as well, and it is the only place that can.
+ * A centring margin on `.cm-line` moves every block except a table, because
+ * a table row is an internal table box and CSS gives it no margin.
  */
 export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
   return {
@@ -190,22 +194,33 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // text and the two read as one page. The space under the last line stays
     // large, so there is always a strip of the editable element to click on
     // below the text.
+    //
+    // The inline padding carries the measure and centres it. It cannot be a
+    // margin on the line: a table row is a `display: table-row` box, and CSS
+    // gives an internal table box no margin, so a centring margin would move
+    // every block of the note except a table and leave the table alone on the
+    // left. Padding belongs to the containing block instead, so the anonymous
+    // table box that the rows form lands on the same column as every line.
+    //
+    // Padding is also the only mechanism that keeps the empty strip left and
+    // right of the text inside the editable element, which is why the measure
+    // was never a width on this element. A click in that strip still places
+    // the caret. Decision 0052.
     '.cm-content': {
       caretColor: 'var(--notes-focus)',
       width: '100%',
-      paddingInline: 'calc(var(--spacing) * 2)',
+      paddingInline:
+        'max(calc(var(--spacing) * 2), calc((100% - var(--container-note)) / 2))',
       paddingBlockStart: 'calc(var(--spacing) * 2)',
       paddingBlockEnd: 'calc(var(--spacing) * 6)',
     },
-    // The measure is centred in the space the editor owns, so the note reads
-    // as a page at every width and no band of empty canvas opens between the
-    // text and the side region of the note screen. The centring belongs to
-    // the line, not to the content, for the reason in the doc above: the
-    // strip left and right of the text has to stay inside the editable
-    // element. Decision 0052.
+    // The measure caps the line as well, so a line can never grow past the
+    // column that the padding of the content already sets. The line takes no
+    // margin of its own: the padding above centres every block of the note,
+    // including a table, which can carry no margin at all.
     '.cm-line': {
       maxWidth: 'var(--container-note)',
-      marginInline: 'auto',
+      marginInline: '0',
       paddingInline: '0',
       paddingBlock: 'var(--spacing-note-line)',
     },
@@ -417,7 +432,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-widget-block': {
       display: 'block',
       maxWidth: 'var(--container-note)',
-      marginInline: 'auto',
+      marginInline: '0',
       marginBlock: 'var(--spacing-note-block)',
     },
     '.cm-np-widget-inline': { display: 'inline' },

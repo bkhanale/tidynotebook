@@ -188,7 +188,7 @@ export function DialogFooter({
   readonly children: ReactNode;
 }): ReactNode {
   return (
-    <div className="flex flex-wrap justify-end gap-cluster border-t border-edge-subtle px-5 py-3">
+    <div className="flex flex-wrap justify-end gap-cluster border-t border-edge-line px-5 py-3">
       {children}
     </div>
   );

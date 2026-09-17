@@ -119,13 +119,18 @@ const pageClasses = 'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
  * The markup comes from the sanitized renderer, so no class attribute of this
  * server reaches it. A descendant variant is the utility that does, and every
  * value below is a named step of the central theme: the note type scale, the
- * standard spacing scale, and the semantic colours of the theme registry.
+ * standard spacing scale, the tracking scale, and the semantic colours of the
+ * theme registry.
+ *
+ * This page is the second renderer of one note, so its structure reads the
+ * same as the editor of `packages/editor`: the same heading tightening, the
+ * same quote bar, and a divider that a person can see on every palette.
  */
 const noteBodyClasses = [
   'text-note',
-  '[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-note-h1 [&_h1]:font-note-heading-strong [&_h1]:text-strong',
-  '[&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:text-note-h2 [&_h2]:font-note-heading [&_h2]:text-strong',
-  '[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-note-h3 [&_h3]:font-note-heading [&_h3]:text-strong',
+  '[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-note-h1 [&_h1]:font-note-heading-strong [&_h1]:tracking-display [&_h1]:text-strong',
+  '[&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:text-note-h2 [&_h2]:font-note-heading [&_h2]:tracking-heading [&_h2]:text-strong',
+  '[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-note-h3 [&_h3]:font-note-heading [&_h3]:tracking-heading [&_h3]:text-strong',
   '[&_h4]:mt-6 [&_h4]:mb-2 [&_h4]:text-note-h4 [&_h4]:font-note-heading [&_h4]:text-strong',
   '[&_h5]:mt-4 [&_h5]:mb-2 [&_h5]:text-note-h5 [&_h5]:font-note-heading [&_h5]:text-strong',
   '[&_h6]:mt-4 [&_h6]:mb-2 [&_h6]:text-note-h6 [&_h6]:font-note-heading [&_h6]:text-strong',
@@ -135,19 +140,20 @@ const noteBodyClasses = [
   '[&_li]:my-1',
   '[&_a]:text-accent [&_a]:underline',
   '[&_strong]:font-note-heading-strong',
-  '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge-subtle [&_blockquote]:pl-4 [&_blockquote]:text-muted',
+  '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge [&_blockquote]:pl-4 [&_blockquote]:text-muted',
   '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-card [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-note-mono',
   '[&_code]:font-mono [&_code]:text-note-mono',
   '[&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-md',
-  '[&_hr]:my-8 [&_hr]:border-edge-subtle',
+  '[&_hr]:my-8 [&_hr]:border-edge-line',
   '[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse',
-  '[&_th]:border [&_th]:border-edge-subtle [&_th]:p-2 [&_th]:text-left',
-  '[&_td]:border [&_td]:border-edge-subtle [&_td]:p-2',
+  '[&_th]:border [&_th]:border-edge-line [&_th]:p-2 [&_th]:text-left',
+  '[&_td]:border [&_td]:border-edge-line [&_td]:p-2',
   '[&_input]:mr-2',
 ].join(' ');
 
 /** The classes of the one heading that this server writes. */
-const pageHeadingClasses = 'mb-4 text-2xl font-semibold text-strong';
+const pageHeadingClasses =
+  'mb-4 text-2xl font-semibold tracking-heading text-strong';
 
 /** The classes of one link that this server writes. */
 const linkClasses = 'text-accent underline';

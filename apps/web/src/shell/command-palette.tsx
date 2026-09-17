@@ -202,7 +202,7 @@ export function CommandPalette({
       hideTitle
       width="medium"
     >
-      <div className="flex items-center gap-group border-b border-edge-subtle px-gutter">
+      <div className="flex items-center gap-group border-b border-edge-line px-gutter">
         <span className="text-muted" aria-hidden="true">
           <SearchIcon size={18} />
         </span>
@@ -245,7 +245,7 @@ export function CommandPalette({
         </kbd>
       </div>
       {content.offline ? (
-        <p className="m-0 border-b border-edge-subtle px-gutter py-2 text-control text-muted">
+        <p className="m-0 border-b border-edge-line px-gutter py-2 text-control text-muted">
           No connection. These results come from this device.
         </p>
       ) : null}
