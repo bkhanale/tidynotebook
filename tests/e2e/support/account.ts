@@ -10,8 +10,18 @@ function hasNavigationDrawer(page: Page): boolean {
   return viewport !== null && viewport.width < navigationBreakpoint;
 }
 
-/** Opens the sign-in page and waits until its form can take input. */
-async function openSignInForm(page: Page, loginUrl: string): Promise<void> {
+/**
+ * Opens the sign-in page and waits until its form can take input.
+ *
+ * Every journey that opens that page reaches it through here. A bare
+ * navigation with the default wait timed out once on firefox at 120 seconds,
+ * because firefox can leave the navigation promise pending after the document
+ * has rendered. This bounds the wait and asks once more.
+ */
+export async function openSignInForm(
+  page: Page,
+  loginUrl: string,
+): Promise<void> {
   try {
     await page.goto(loginUrl, { waitUntil: 'commit', timeout: 15_000 });
   } catch {

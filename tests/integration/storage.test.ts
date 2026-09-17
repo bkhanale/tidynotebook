@@ -476,6 +476,48 @@ await test('pooled identity: keeps no identity on a released connection', async 
   }
 });
 
+await test('a full pool refuses rather than waits without bound', async () => {
+  // The defect this covers: the pool was built with no connection timeout, so
+  // the driver waited without bound both for a free slot and for the
+  // connection itself. A request behind a full pool held its slot until the
+  // whole request bound fired, and every request behind it waited as well.
+  const { workspaceId, accountId } = await newWorkspace();
+  const actor = memberActor(accountId, workspaceId);
+  const tight = openWorkspaceStore(database.runtimeUrl, {
+    poolSize: 1,
+    connectionTimeoutMs: 250,
+  });
+  let release = (): void => {};
+  const held = new Promise<void>((accept) => {
+    release = accept;
+  });
+  try {
+    // One transaction holds the only connection of this pool.
+    const holding = tight.transact(actor, workspaceId, async (tx) => {
+      await tx.role(accountId);
+      await held;
+      return null;
+    });
+    // A second caller finds no connection. It is refused inside the bound and
+    // does not wait for the transaction above.
+    const startedAt = Date.now();
+    await assert.rejects(
+      () => tight.transact(actor, workspaceId, (tx) => tx.role(accountId)),
+      (error: unknown) =>
+        isOperationalError(error) && error.kind === 'unavailable',
+    );
+    assert.ok(
+      Date.now() - startedAt < 4000,
+      'the refusal took longer than the bound',
+    );
+    release();
+    await holding;
+  } finally {
+    release();
+    await tight.close();
+  }
+});
+
 await test('quota: rejects new content and keeps the earlier state', async () => {
   const quota = (1n << 20n) + 2000n;
   const { workspaceId, accountId } = await newWorkspace(quota);

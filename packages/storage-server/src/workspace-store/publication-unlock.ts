@@ -34,7 +34,12 @@ import {
 } from '@notesapp/core';
 import { isSecretDigest, parsePublicationRow } from './publication-row.ts';
 import type { PublicationLookupRow } from './publication-row.ts';
-import { assertUuid, operational, postgresFailure } from './errors.ts';
+import {
+  assertUuid,
+  operational,
+  postgresFailure,
+  unreachable,
+} from './errors.ts';
 
 /** What one unlock attempt carries. */
 export type PublicationUnlockAttempt = {
@@ -88,7 +93,7 @@ export async function unlockPublication(
   try {
     client = await pool.connect();
   } catch (error) {
-    throw operational(error);
+    throw unreachable(error);
   }
   try {
     await client.query('begin');

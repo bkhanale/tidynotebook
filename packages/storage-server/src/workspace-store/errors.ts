@@ -221,3 +221,27 @@ export function assertUuid(value: string, what: string): void {
     );
   }
 }
+
+/**
+ * Wraps a failure to take a connection of the pool.
+ *
+ * A connection that never opened has no SQLSTATE: the pool answers a plain
+ * timeout when it waited out `connectionTimeoutMillis`, and a socket failure
+ * carries a Node code and not a PostgreSQL one. Both mean the same thing to a
+ * caller, which is that the database cannot be reached right now, so both
+ * report `unavailable` and never `unexpected`. A caller can act on that: the
+ * request can be sent again, and an operator can look at the database and at
+ * the size of the pool.
+ */
+export function unreachable(value: unknown): OperationalError {
+  if (value instanceof OperationalError) return value;
+  const failure = postgresFailure(value);
+  const kind = failure === null ? 'unavailable' : failureKind(failure.code);
+  return new OperationalError(
+    kind === 'unexpected' ? 'unavailable' : kind,
+    'notesapp: the workspace store could not take a connection.',
+    {
+      cause: new DatabaseFailure(failure, `a ${failureName(value)} was thrown`),
+    },
+  );
+}

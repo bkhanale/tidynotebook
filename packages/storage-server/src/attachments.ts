@@ -20,7 +20,10 @@ import type {
 import { OperationalError } from '@notesapp/core';
 import { storedAttachmentState, storedMediaType } from './attachment-row.ts';
 import { attachmentObjects } from './schema.ts';
-import { WorkspaceUnavailableError } from './workspace-store/index.ts';
+import {
+  defaultConnectionTimeoutMs,
+  WorkspaceUnavailableError,
+} from './workspace-store/index.ts';
 
 export type AttachmentStore = {
   /** Saves metadata for an uploaded temporary attachment object. */
@@ -172,6 +175,9 @@ export function openAttachmentStore(
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max: options.poolSize ?? 10,
+    // Every pool of this server takes the same bound, for the reason stated
+    // beside `defaultConnectionTimeoutMs`.
+    connectionTimeoutMillis: defaultConnectionTimeoutMs,
     ...(options.statementTimeoutMs === undefined
       ? {}
       : { statement_timeout: options.statementTimeoutMs }),

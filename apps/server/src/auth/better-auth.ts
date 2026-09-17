@@ -36,6 +36,7 @@ import {
   authSession,
   authUser,
   authVerification,
+  defaultConnectionTimeoutMs,
 } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import type { ProblemCode } from '../plugins/problem.ts';
@@ -296,7 +297,13 @@ export function createAuth(
  * so all auth work uses one connection set.
  */
 export function createAuthPool(config: ServerConfig): pg.Pool {
-  return new pg.Pool({ connectionString: config.authDatabaseUrl, max: 5 });
+  // The bound of every pool of this server, stated once in
+  // `@notesapp/storage-server`. A pool with no bound waits without end.
+  return new pg.Pool({
+    connectionString: config.authDatabaseUrl,
+    max: 5,
+    connectionTimeoutMillis: defaultConnectionTimeoutMs,
+  });
 }
 
 /** Header names that never travel to the protocol handler. */

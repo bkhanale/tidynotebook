@@ -19,7 +19,12 @@
 import { drizzle, type NodePgDatabase } from 'drizzle-orm/node-postgres';
 import type pg from 'pg';
 import { OperationalError } from '@notesapp/core';
-import { assertUuid, operational, postgresFailure } from './errors.ts';
+import {
+  assertUuid,
+  operational,
+  postgresFailure,
+  unreachable,
+} from './errors.ts';
 
 /** The SQLSTATE that PostgreSQL answers for a write in a read-only transaction. */
 export const readOnlyTransactionCode = '25006';
@@ -84,7 +89,7 @@ export async function runPublicationRead<Built, T>(
   try {
     client = await pool.connect();
   } catch (error) {
-    throw operational(error);
+    throw unreachable(error);
   }
   try {
     await client.query('begin');

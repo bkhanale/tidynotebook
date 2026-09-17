@@ -27,7 +27,7 @@ import type {
   WorkspaceTransaction,
 } from '@notesapp/core';
 import { runSyncCleanup } from '../snapshots.ts';
-import { operational } from './errors.ts';
+import { operational, unreachable } from './errors.ts';
 import { runTransaction } from './transaction.ts';
 import { membershipRepository } from './membership-repository.ts';
 import { notesRepository } from './notes-repository.ts';
@@ -84,7 +84,31 @@ export type WorkspaceStoreOptions = {
   readonly poolSize?: number;
   /** Statement timeout of every pooled connection, in milliseconds. */
   readonly statementTimeoutMs?: number;
+  /**
+   * How long a caller waits for a free connection, in milliseconds.
+   *
+   * Defaults to {@link defaultConnectionTimeoutMs}.
+   */
+  readonly connectionTimeoutMs?: number;
 };
+
+/**
+ * How long a caller waits for a connection of the pool.
+ *
+ * The pool used to wait without bound, both for a free slot and for the
+ * connection itself. A request behind a full pool, or behind a host that
+ * accepts nothing, therefore held its slot until the whole request bound
+ * fired, which is ten seconds by default and longer for an upload. Every
+ * request behind it waited as well, so one unreachable database turned into a
+ * queue that the deployment could not drain.
+ *
+ * Five seconds is longer than any healthy wait. A connection to a database on
+ * the same host opens in single milliseconds, and a pool that is busy hands
+ * over a slot as soon as one transaction ends, which is bounded by the
+ * statement timeout. A wait longer than this means the database is not there
+ * or the pool is full, and both of those are answered and not waited out.
+ */
+export const defaultConnectionTimeoutMs = 5000;
 
 /**
  * The links of one workspace, as their owner reads and changes them.
@@ -221,6 +245,8 @@ export function openWorkspaceStore(
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max: options.poolSize ?? 10,
+    connectionTimeoutMillis:
+      options.connectionTimeoutMs ?? defaultConnectionTimeoutMs,
     ...(options.statementTimeoutMs === undefined
       ? {}
       : { statement_timeout: options.statementTimeoutMs }),
@@ -234,7 +260,7 @@ export function openWorkspaceStore(
     try {
       client = await pool.connect();
     } catch (error) {
-      throw operational(error);
+      throw unreachable(error);
     }
     try {
       return await run(client);

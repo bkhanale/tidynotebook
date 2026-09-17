@@ -8,6 +8,7 @@
  */
 export {
   DatabaseFailure,
+  defaultConnectionTimeoutMs,
   openWorkspaceStore,
   WorkspaceUnavailableError,
   type DatabaseProbeResult,

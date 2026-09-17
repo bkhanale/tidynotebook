@@ -5,6 +5,7 @@ import {
   openPersonalWorkspace,
   replaceEditorText,
   runNoteAction,
+  openSignInForm,
   signIn,
   waitForServerSave,
 } from './support/account.ts';
@@ -15,7 +16,7 @@ test('login has loaded theme and layout styles', async ({
   checkedPage: page,
   stack,
 }) => {
-  await page.goto(`${stack.baseUrl}/login`);
+  await openSignInForm(page, `${stack.baseUrl}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   const style = await page
     .getByRole('heading', { name: 'Sign in' })

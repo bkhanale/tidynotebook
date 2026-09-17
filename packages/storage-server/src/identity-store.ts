@@ -26,7 +26,10 @@ import type {
 import { isThemeFamilyId, OperationalError } from '@notesapp/core';
 import pg from 'pg';
 import { defaultQuotaBytes } from './provision.ts';
-import { WorkspaceUnavailableError } from './workspace-store/index.ts';
+import {
+  defaultConnectionTimeoutMs,
+  WorkspaceUnavailableError,
+} from './workspace-store/index.ts';
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -156,6 +159,10 @@ export function openIdentityStore(
   const pool = new pg.Pool({
     connectionString: databaseUrl,
     max: options.poolSize ?? 10,
+    // Every pool of this server takes the same bound. A pool with no bound
+    // waits for a free slot and for the connection itself without end, so one
+    // unreachable database turns into a queue of held request slots.
+    connectionTimeoutMillis: defaultConnectionTimeoutMs,
   });
 
   /** Runs one transaction with the account identity of the actor. */

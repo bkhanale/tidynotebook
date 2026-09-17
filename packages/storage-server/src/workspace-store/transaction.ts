@@ -23,6 +23,7 @@ import {
   assertUuid,
   operational,
   postgresFailure,
+  unreachable,
   WorkspaceUnavailableError,
 } from './errors.ts';
 
@@ -60,12 +61,14 @@ export async function runTransaction<Built, T>(
   assertUuid(actor.accountId, 'the actor account');
   assertUuid(workspaceId, 'the workspace');
   // A refused connection must not escape as a driver error: its message
-  // repeats the host, the port, and the role of the connection URL.
+  // repeats the host, the port, and the role of the connection URL. It is
+  // also not an unexpected fault: the pool is full or the database is not
+  // there, and both say that the store cannot be reached right now.
   let client: pg.PoolClient;
   try {
     client = await pool.connect();
   } catch (error) {
-    throw operational(error);
+    throw unreachable(error);
   }
   try {
     const db = drizzle({ client });

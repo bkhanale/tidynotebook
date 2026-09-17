@@ -5,6 +5,7 @@ import {
   createNewNote,
   openNavigation,
   openPersonalWorkspace,
+  openSignInForm,
   signIn,
 } from './support/account.ts';
 
@@ -33,7 +34,7 @@ test('every button accessible name contains its visible label', async ({
   checkedPage: page,
   stack,
 }) => {
-  await page.goto(`${stack.baseUrl}/login`);
+  await openSignInForm(page, `${stack.baseUrl}/login`);
   await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
   expect(await labelInNameViolations(page)).toEqual([]);
 
