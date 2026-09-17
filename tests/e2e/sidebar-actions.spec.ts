@@ -130,8 +130,12 @@ test('every action of the last folder row is on the screen', async ({
   await openPersonalWorkspace(page);
   await narrowTheSidebar(page);
 
-  // Enough folders that the tree is well past the height of its own box, so
-  // the last row can really sit at the foot of it on every engine.
+  // A short screen, so the box that scrolls the tree is shorter than the menu
+  // of a folder row. Every row of the tree is then a row whose menu would run
+  // past the foot of that box, whichever engine lays the tree out and
+  // whatever else the tree already holds.
+  await page.setViewportSize({ width: 1024, height: 560 });
+
   const tree = page.locator('#notes-sidebar div.overflow-y-auto').first();
   const names: string[] = [];
   for (let index = 1; index <= 40; index += 1) {
@@ -148,7 +152,7 @@ test('every action of the last folder row is on the screen', async ({
   const lastRow = page.getByRole('button', {
     name: `Actions for the folder ${last}`,
   });
-  // The row itself goes to the foot of the box. Scrolling the tree to its end
+  // The row goes as far down the box as it can. Scrolling the tree to its end
   // is not the same thing: a note row sorts below every folder row, so the
   // end of the tree holds the notes and the last folder sits above them.
   await lastRow.evaluate((node) => {
