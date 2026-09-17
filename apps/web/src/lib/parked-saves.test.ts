@@ -129,8 +129,5 @@ await test('an over the limit rename names its own cause', () => {
   // notes, so the person read the wrong cause and no action that helps.
   const sentence = parkedSaveReason('save_refused', 'too_many_files');
   assert.match(sentence, /too many notes/);
-  assert.notEqual(
-    sentence,
-    parkedSaveReason('save_refused', 'invalid_graph'),
-  );
+  assert.notEqual(sentence, parkedSaveReason('save_refused', 'invalid_graph'));
 });

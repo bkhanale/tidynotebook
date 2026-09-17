@@ -56,7 +56,8 @@ anything a person sees, and it is the only place that proves it.
 on each rule below.
 
 - No `fetch`, no `XMLHttpRequest`, no request URL. Call a generated operation;
-  `features/publishing/publishing.ts` alone names the reader address (0031).
+  `lib/reader-path.ts` alone names the reader path, which the owner surface and
+  the installed worker both read (0031).
 - No handwritten CSS, CSS module, style sheet or `style=` attribute, no colour
   value outside the theme tokens, no off-scale utility such as `text-xs` or
   `w-[32rem]`, no built in shadow utility (0052), no duration, easing or

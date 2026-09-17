@@ -68,6 +68,7 @@ import { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 import { createPublicationCleanup } from './jobs/publication-cleanup.ts';
 import { createSyncCleanup } from './jobs/sync-cleanup.ts';
 import { createServerLogger, errorName } from './logging.ts';
+import { SharedAttemptStore } from './plugins/attempt-store.ts';
 
 /**
  * Accepted shape of a caller supplied correlation id. It matches the contract
@@ -240,7 +241,14 @@ export async function createAppWithHandlers(
     logController: new LogController({ disableRequestLogging: true }),
   });
 
-  await app.register(rateLimit, { global: false });
+  // The children of the shipped store hold a counter each, so two routes of
+  // one attempt group counted apart although the key of an attempt already
+  // names the group. This store shares one counter map with every child, so a
+  // group is one bucket. See `./attempt-store.ts`.
+  await app.register(rateLimit, {
+    global: false,
+    store: SharedAttemptStore,
+  });
   const logger = createServerLogger(app.log);
 
   attachRequestLogging(app);

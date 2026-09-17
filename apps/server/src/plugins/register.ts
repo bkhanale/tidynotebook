@@ -488,13 +488,11 @@ export function checkRegistration(
  * The attempt limit group of one operation, or `null` for no limit.
  *
  * A name here turns the limit on for that operation, and the plugin appends
- * the name to the attempt key. The name does not join two operations today.
- * The plugin builds one child store for each route that carries a limit, and
- * a child holds a counter of its own, so each operation counts apart whatever
- * name it returns. The two operations that take the password of a published
- * link are therefore two buckets over one password, and a caller that moves
- * between them gets the attempts of both. Issue #113 holds that defect and
- * the fix, which belongs to the limiter and not to this list.
+ * the name to the attempt key, so two operations of one name ask about one
+ * key. `../plugins/attempt-store.ts` is the store that answers that key from
+ * one counter, whichever route asked, so a name here is one bucket. The two
+ * operations that take the password of a published link share theirs, and so
+ * do the two of the setup screen.
  */
 function throttleGroup(id: OperationId): string | null {
   if (id === 'getSetupStatus' || id === 'createOwner') return 'setup';

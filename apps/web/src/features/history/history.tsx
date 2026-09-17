@@ -66,6 +66,12 @@ import {
 } from './diff-worker.ts';
 import { rowChangeOf, rowChangeText } from '../../lib/history-rows.ts';
 import { relativeTime } from '../../lib/relative-time.ts';
+import {
+  attachmentPreviewFailedMessage,
+  attachmentPreviewView,
+  idleAttachmentPreview,
+  type AttachmentPreview,
+} from './attachment-preview.ts';
 
 /** How many history entries one page requests. */
 const historyPageSize = 50;
@@ -300,10 +306,12 @@ function HistoryDetail({
   const [actionMessage, setActionMessage] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState<LoadedAttachment | null>(null);
-  const [previewRevisionId, setPreviewRevisionId] = useState<string | null>(
-    null,
+  const [preview, setPreview] = useState<AttachmentPreview>(
+    idleAttachmentPreview,
   );
+  // The loaded object lives beside the state, because only it can revoke its
+  // own address and the state is a plain value that a test can hold.
+  const loadedRef = useRef<LoadedAttachment | null>(null);
   const generationRef = useRef(0);
 
   /** Loads the file head once per file. */
@@ -401,13 +409,20 @@ function HistoryDetail({
     };
   }, [items, head]);
 
-  /** Revokes the attachment preview when it closes or changes. */
+  /** Revokes the attachment preview when the screen closes. */
   useEffect(
     () => () => {
-      preview?.dispose();
+      loadedRef.current?.dispose();
+      loadedRef.current = null;
     },
-    [preview],
+    [],
   );
+
+  /** Drops the loaded picture and its address, before another one loads. */
+  function releasePreview(): void {
+    loadedRef.current?.dispose();
+    loadedRef.current = null;
+  }
 
   /** Reloads the history pages from the start. */
   async function reloadHistory(): Promise<void> {
@@ -449,9 +464,12 @@ function HistoryDetail({
     setDetail({ status: 'loading' });
     setDiff({ status: 'loading' });
     setActionError(null);
-    preview?.dispose();
-    setPreview(null);
-    setPreviewRevisionId(null);
+    releasePreview();
+    setPreview(
+      head.status === 'ready' && head.kind === 'attachment'
+        ? { status: 'loading', revisionId: item.revisionId }
+        : idleAttachmentPreview,
+    );
 
     let text = item.text ?? '';
     if (item.text === null && !item.deleted && item.objectId === null) {
@@ -498,10 +516,17 @@ function HistoryDetail({
           loaded.dispose();
           return;
         }
-        setPreview(loaded);
-        setPreviewRevisionId(item.revisionId);
+        loadedRef.current = loaded;
+        setPreview({
+          status: 'ready',
+          revisionId: item.revisionId,
+          url: loaded.url,
+        });
       } catch {
-        if (generation === generationRef.current) setPreview(null);
+        // A read that failed is not a version without a picture. Decision
+        // 0038 refuses the shape where the two read the same.
+        if (generation === generationRef.current)
+          setPreview({ status: 'failed', revisionId: item.revisionId });
       }
     }
   }
@@ -662,7 +687,6 @@ function HistoryDetail({
                           diff={diff}
                           kind={head.kind}
                           preview={preview}
-                          previewRevisionId={previewRevisionId}
                           name={name}
                           newest={item.revisionId === head.headRevisionId}
                         />
@@ -707,15 +731,13 @@ function RevisionPanel({
   diff,
   kind,
   preview,
-  previewRevisionId,
   name,
   newest,
 }: {
   readonly detail: RevisionDetail | null;
   readonly diff: DiffState;
   readonly kind: 'note' | 'attachment';
-  readonly preview: LoadedAttachment | null;
-  readonly previewRevisionId: string | null;
+  readonly preview: AttachmentPreview;
   readonly name: string;
   /** True when this version is the newest one, so it has no comparison. */
   readonly newest: boolean;
@@ -724,18 +746,20 @@ function RevisionPanel({
     return <LoadingState label="This version is loading." />;
   if (detail.status === 'error')
     return <Notice tone="problem" message={detail.message} />;
-  if (kind === 'attachment')
-    return preview !== null && previewRevisionId === detail.item.revisionId ? (
-      <img
-        className="max-h-96 rounded-lg border border-edge-line"
-        src={preview.url}
-        alt={`${name} as it was in this version`}
-      />
-    ) : (
-      <p className="m-0 text-control text-muted">
-        This version has no picture on this device.
-      </p>
-    );
+  if (kind === 'attachment') {
+    const view = attachmentPreviewView(preview, detail.item.revisionId);
+    if (view.kind === 'picture')
+      return (
+        <img
+          className="max-h-96 rounded-lg border border-edge-line"
+          src={view.url}
+          alt={`${name} as it was in this version`}
+        />
+      );
+    if (view.kind === 'failed')
+      return <Notice tone="problem" message={attachmentPreviewFailedMessage} />;
+    return <LoadingState label="The picture of this version is loading." />;
+  }
   return (
     <div className="space-y-3">
       <h3 className="m-0 text-control font-semibold uppercase tracking-wide text-muted">

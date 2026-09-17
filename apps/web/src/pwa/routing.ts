@@ -6,6 +6,7 @@
  * `service-worker.ts` can be proved on its own. The worker holds the effects
  * and this module holds the choices.
  */
+import { isReaderPath } from '../lib/reader-path.ts';
 
 /** Static application assets the worker may store. */
 const assetPattern =
@@ -41,16 +42,24 @@ export function isCacheableAsset(
  * A navigation is served, because the worker holds the page shell for it: the
  * navigate branch of `handleFetch` answers a failed network with the stored
  * shell, which is how an offline launch reaches a screen at all.
+ *
+ * A published address is the one navigation that this worker refuses. The
+ * shell is this application and the reader page is not, so a device that holds
+ * the application and has no connection answered a published address with the
+ * application and its not found screen. The reader has no connection either in
+ * that case, so nothing would work; the message was still the wrong one. The
+ * worker stands aside and the browser reports the lost connection itself.
  */
 export function servedByWorker(
   request: RoutedRequest,
   origin: string,
   pinnedUrls: ReadonlySet<string>,
 ): boolean {
-  if (request.mode === 'navigate') return true;
-  if (request.method !== 'GET') return false;
   const url = new URL(request.url);
   if (url.origin !== origin) return false;
+  if (isReaderPath(url.pathname)) return false;
+  if (request.mode === 'navigate') return true;
+  if (request.method !== 'GET') return false;
   if (isCacheableAsset(request, origin)) return true;
   return pinnedUrls.has(url.href);
 }

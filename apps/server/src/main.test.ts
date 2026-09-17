@@ -46,6 +46,9 @@ await test('a configuration that cannot be read states where to look', async () 
   const line = source
     .split('\n')
     .find((text) => text.includes('the configuration could not be read'));
-  assert.ok(line !== undefined, 'no message covers an unreadable configuration');
+  assert.ok(
+    line !== undefined,
+    'no message covers an unreadable configuration',
+  );
   assert.match(line, /NOTESAPP_/);
 });

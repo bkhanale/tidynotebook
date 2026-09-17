@@ -11,13 +11,14 @@
  * folder dialog states reads that same rule, so the sentence a person confirms
  * and the notes the server later serves cannot disagree.
  *
- * `publishedLinkAddress` is the one place in this application that names the
- * reader path. The client needs the whole address, because the person copies
- * it and pastes it somewhere else, and no operation of the contract answers
+ * `publishedLinkAddress` is the one place in this application that builds the
+ * address a person copies. The client needs the whole address, because the
+ * person pastes it somewhere else, and no operation of the contract answers
  * one. The clean home for that value is the create answer of the contract, and
  * until it holds one this function keeps the knowledge in a single tested
  * function rather than in a screen. The application never calls the address:
- * it is text that a person copies.
+ * it is text that a person copies. The path itself comes from
+ * `lib/reader-path.ts`, which the installed worker reads as well.
  */
 import {
   isNoteInScope,
@@ -25,6 +26,7 @@ import {
   type PublicationScope,
 } from '@notesapp/core';
 import { problemSentence } from '../../lib/problem-text.ts';
+import { readerPathPrefix } from '../../lib/reader-path.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 import { minPasswordLength } from '../../lib/password-policy.ts';
 import { relativeTime } from '../../lib/relative-time.ts';
@@ -36,9 +38,6 @@ import { relativeTime } from '../../lib/relative-time.ts';
  * shell names the screen without loading it.
  */
 export const publishedLinksTitle = 'Published links';
-
-/** The one path under which a reader opens a published link. */
-export const readerPathPrefix = '/published/';
 
 /**
  * The address that the owner copies, once.

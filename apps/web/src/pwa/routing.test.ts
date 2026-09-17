@@ -141,3 +141,50 @@ await test('a bounded run takes no reader it cannot use', async () => {
     throw new Error('An empty list must run no task.');
   });
 });
+
+await test('the worker answers no published address', () => {
+  // The defect this covers: the navigate branch tried the network and fell
+  // back to the stored shell, so a device that holds the application and has
+  // no connection answered a published address with the application and its
+  // not found screen, rather than with the reader page.
+  assert.equal(
+    servedByWorker(
+      asked(`${origin}/published/abc`, 'navigate'),
+      origin,
+      new Set(),
+    ),
+    false,
+  );
+  assert.equal(
+    servedByWorker(
+      asked(`${origin}/published/abc?note=1`, 'navigate'),
+      origin,
+      new Set(),
+    ),
+    false,
+  );
+});
+
+await test('the worker still answers every address of the application', () => {
+  assert.equal(
+    servedByWorker(asked(`${origin}/w/abc`, 'navigate'), origin, new Set()),
+    true,
+  );
+  // A path that only starts with the same letters is the application.
+  assert.equal(
+    servedByWorker(
+      asked(`${origin}/publishedxyz`, 'navigate'),
+      origin,
+      new Set(),
+    ),
+    true,
+  );
+  assert.equal(
+    servedByWorker(
+      asked(`${origin}/w/abc/published`, 'navigate'),
+      origin,
+      new Set(),
+    ),
+    true,
+  );
+});

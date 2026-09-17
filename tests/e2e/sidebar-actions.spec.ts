@@ -191,9 +191,7 @@ test('the root row opens the screen that it names', async ({
   await page
     .getByRole('button', { name: 'Actions for the folder Engineering' })
     .click();
-  await page
-    .getByRole('menuitem', { name: 'New note in this folder' })
-    .click();
+  await page.getByRole('menuitem', { name: 'New note in this folder' }).click();
   await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
 
   await openNavigation(page);

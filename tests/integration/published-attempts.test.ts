@@ -4,9 +4,10 @@
  * Two operations take that password: the form of the page, which a browser
  * sends, and the unlock, which answers a reading ticket to a program. A
  * password that a stranger may try is a password that a stranger may guess,
- * so the boundary bounds both of them. This file proves that each one stops
- * answering after the configured number of attempts, and that the refusal of
- * the limit names no link.
+ * so the boundary bounds both of them, and it bounds them together: the two
+ * are one attempt group, so a caller that moves between the paths gets the
+ * attempts of the group and not the attempts of both. This file proves that,
+ * and that the refusal of the limit names no link.
  *
  * The limit itself is the shared plugin of the board row that owns it, and
  * `rate-limit.test.ts` proves its setup and account paths. This file is the
@@ -32,6 +33,7 @@ import {
   listWorkspaces,
   openPublishedPage,
   signInWithPassword,
+  unlockPublishedLink,
 } from '@notesapp/api-client';
 import { bootstrapOwner, createApp, loadServerConfig } from '@notesapp/server';
 import { createDisposableDatabase } from './support/database.ts';
@@ -128,33 +130,52 @@ const link = await createPublishedLink({
 const token = link.data?.token ?? '';
 assert.match(token, /^[A-Za-z0-9_-]{22,}$/);
 
-await test('the password of a page stops answering after its attempts', async () => {
-  // The page is the entry point that a browser uses, because a served
-  // document holds no script and its form is the way in. `throttleGroup` of
-  // `apps/server/src/plugins/register.ts` declares the same group and the
-  // same bound for the unlock, which is the entry point of a program.
+await test('the two paths to one password share one bucket of attempts', async () => {
+  // Two operations take the password of a link: the form of the page, which a
+  // browser sends because a served document holds no script, and the unlock,
+  // which answers a reading ticket to a program. `throttleGroup` of
+  // `apps/server/src/plugins/register.ts` puts them in one group, so the two
+  // together get the attempts of this deployment and not the attempts of both.
   //
-  // The form takes the attempts of this deployment. Each one answers the page
-  // again, with the same words as a link that nobody has opened, because the
-  // answer states nothing about the password.
-  for (const attempt of [1, 2]) {
-    const answer = await openPublishedPage({
-      path: { token },
-      body: { password: 'not the password' },
-    });
-    const response = responseOf(answer.response);
-    assert.equal(response.status, 200, `attempt ${String(attempt)}`);
-    assert.ok(String(answer.data).includes('This link needs a password.'));
-  }
-  // The next attempt is refused by the limit, and the refusal names no link
-  // and no note, as every refusal of this path does.
-  const refused = await openPublishedPage({
+  // The defect this covers: the limit plugin built a child store for each
+  // route and the store it shipped gave each child a counter of its own, so
+  // one caller had four attempts at one password by moving between the paths.
+  //
+  // The first attempt goes to the form. It answers the page again, with the
+  // same words as a link that nobody has opened, because the answer states
+  // nothing about the password.
+  const page = await openPublishedPage({
     path: { token },
     body: { password: 'not the password' },
   });
-  assert.equal(responseOf(refused.response).status, 429);
-  assert.equal(readProperty(refused.error, 'code'), 'rate_limited');
-  assert.ok(!JSON.stringify(refused.error).includes(token));
+  assert.equal(responseOf(page.response).status, 200);
+  assert.ok(String(page.data).includes('This link needs a password.'));
+
+  // The second goes to the unlock, which refuses the password itself.
+  const unlock = await unlockPublishedLink({
+    path: { token },
+    body: { password: 'not the password' },
+  });
+  assert.equal(responseOf(unlock.response).status, 404);
+
+  // Two attempts is the bound of this deployment, and the two paths spent it
+  // between them. Both are now refused by the limit, and the refusal names no
+  // link and no note, as every refusal of this path does.
+  const refusedUnlock = await unlockPublishedLink({
+    path: { token },
+    body: { password: 'not the password' },
+  });
+  assert.equal(responseOf(refusedUnlock.response).status, 429);
+  assert.equal(readProperty(refusedUnlock.error, 'code'), 'rate_limited');
+  assert.ok(!JSON.stringify(refusedUnlock.error).includes(token));
+
+  const refusedPage = await openPublishedPage({
+    path: { token },
+    body: { password: 'not the password' },
+  });
+  assert.equal(responseOf(refusedPage.response).status, 429);
+  assert.equal(readProperty(refusedPage.error, 'code'), 'rate_limited');
+  assert.ok(!JSON.stringify(refusedPage.error).includes(token));
 });
 
 await app.close();
