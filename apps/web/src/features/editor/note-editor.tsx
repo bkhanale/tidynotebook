@@ -897,7 +897,16 @@ function NoteEditorBody({
     );
   };
 
-  /** Reports the typed name and applies it when every rule holds. */
+  /**
+   * Reports the typed name and applies it when every rule holds.
+   *
+   * A new name starts both timers, exactly as a keystroke in the note does.
+   * It used to start the draft timer alone, and a draft is recovery data of
+   * this device: it never reaches the server. The new name therefore stopped
+   * at the local store, the save state stayed at `saved-local` for good, and
+   * every other device kept reading the old name. The path is part of what a
+   * version states, so `shouldCheckpoint` writes one for a rename.
+   */
   const applyName = (nextName: string): void => {
     setName(nextName);
     const cleaned = cleanNoteBaseName(nextName);
@@ -915,6 +924,14 @@ function NoteEditorBody({
       saveTimerRef.current = null;
       void saveDraftNow.current();
     }, draftSaveDelayMs);
+    // A pause after a rename creates a version, as a pause in typing does.
+    // The timer resets on every keystroke, so one rename becomes one version.
+    if (versionTimerRef.current !== null)
+      window.clearTimeout(versionTimerRef.current);
+    versionTimerRef.current = window.setTimeout(() => {
+      versionTimerRef.current = null;
+      void checkpointNow.current();
+    }, versionPauseMs);
   };
 
   /**
@@ -923,6 +940,11 @@ function NoteEditorBody({
    * Edge spaces go, and a typed `.md` suffix disappears, so one note never
    * carries two names on screen. This runs when the field loses focus and
    * when the person presses Enter.
+   *
+   * It writes no version of its own. `applyName` above already started the
+   * pause that creates one, and a flush here would also fire on the blur that
+   * happens when a person leaves the name field of a note they have not
+   * written yet, which would store a version of an empty note.
    */
   const commitName = (): void => {
     const cleaned = cleanNoteBaseName(name);

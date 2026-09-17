@@ -51,8 +51,10 @@ test('create, save, reload, rename, and delete use durable note state', async ({
   await expect(page.getByLabel('Note name')).toHaveValue(path);
 
   await page.getByLabel('Note name').fill(renamed);
-  // A rename is a draft until a version is created, so make one on purpose.
-  await saveVersion(page);
+  // A rename creates its own version, exactly as a pause in typing does, so
+  // this journey asks for no Save of its own.
+  await page.getByLabel('Note name').press('Enter');
+  await waitForServerSave(page);
   await openNavigation(page);
   await expect(page.getByRole('link', { name: renamed }).first()).toBeVisible();
 
@@ -124,4 +126,55 @@ test('a save made during the first sync keeps its parent', async ({
     releaseFirstRequest();
     await context.close();
   }
+});
+
+test('renaming a saved note reaches the server', async ({
+  checkedPage: page,
+  stack,
+}) => {
+  // The defect this covers: the name field started the draft timer alone, and
+  // a draft is recovery data of this device that never reaches the server.
+  // The new name therefore stopped at the local store, the save state stayed
+  // at `saved-local` for good, and a second device kept reading the old name.
+  //
+  // Naming a note right after the create action always worked, which is why
+  // every other journey passed: each one fills the name of a note the create
+  // action just focused. This one renames a note that is already on the
+  // server, and it reads the server to decide.
+  await signIn(page, stack);
+  const workspaceId = await openPersonalWorkspace(page);
+  await createNewNote(page);
+
+  const first = `saved-${Date.now().toString()}`;
+  const second = `${first}-renamed`;
+  await page.getByLabel('Note name').fill(first);
+  await replaceEditorText(page, '# A note that is already saved\n');
+  await saveVersion(page);
+  await expect
+    .poll(async () => await stack.readNotePaths(workspaceId))
+    .toContain(`${first}.md`);
+
+  // The person leaves the note and opens it again, so nothing about the
+  // create action is still in play.
+  await openNavigation(page);
+  await page.getByRole('link', { name: 'All notes' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'All notes', level: 1 }),
+  ).toBeVisible();
+  await openNavigation(page);
+  await page.getByRole('link', { name: first }).first().click();
+  await page.waitForURL(/\/notes\/[0-9a-f-]+$/);
+  await expect(page.getByLabel('Note name')).toHaveValue(first);
+
+  // The rename itself, with no Save of its own.
+  await page.getByLabel('Note name').fill(second);
+  await page.getByLabel('Note name').press('Enter');
+
+  await waitForServerSave(page);
+  await expect
+    .poll(async () => await stack.readNotePaths(workspaceId), {
+      timeout: 30_000,
+    })
+    .toContain(`${second}.md`);
+  expect(await stack.readNotePaths(workspaceId)).not.toContain(`${first}.md`);
 });
