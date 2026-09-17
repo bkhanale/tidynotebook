@@ -1,6 +1,6 @@
 # Plan 010: Workspaces as an explicit container
 
-Status: active
+Status: complete
 
 > The live prioritized list is the
 > [GitHub project board](https://github.com/users/bkhanale/projects/2).

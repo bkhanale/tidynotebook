@@ -1,6 +1,6 @@
 # 010: Workspaces as an explicit container
 
-Status: active
+Status: complete
 
 This design states how a person keeps separate areas of notes in one account,
 and how they move between those areas. It reopens the choice that
