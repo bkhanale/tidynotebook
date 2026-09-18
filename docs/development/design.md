@@ -84,7 +84,12 @@ no screen writes its own (record 0065).
 - `fieldClassName`: a text field, a select and a read only field. 32 px,
   `edge-line` at rest, `border-focus` with a ring when active, `border-danger`
   in error. The label sits above the field in `text-control font-medium`.
-- `kbdClassName`: a keyboard hint in `text-kbd font-mono` with `edge-line`.
+- `kbdClassName`: one key cap in `text-kbd font-mono` with `edge-line`. A key
+  combination is one cap for each key, from `KeyHint` in
+  `apps/web/src/shell/key-hint.tsx`, and `apps/web/src/shell/modifier-key.ts`
+  decides the cap of the device: the Command, Shift and Option signs on an
+  Apple device, the words Ctrl, Shift and Alt elsewhere, the Return sign for
+  Enter and Esc for Escape. A screen reader gets the full key name.
 
 Focus is one treatment: a two pixel outline in the focus colour, offset outward
 on a control and inward on a row inside a scroller. Never `focus:` for a

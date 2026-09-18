@@ -47,7 +47,9 @@ records 0061 to 0065 into ordered work. The system that the work builds is
    `apps/web/src/shell/workspaces.tsx`, the Search and New note rows, the
    Folders label with New folder, the tree rows in `apps/web/src/lib/tree-row.ts`
    with no guide lines, and the footer rows. Give every row of the command
-   palette in `apps/web/src/shell/command-palette.tsx` its icon. Update
+   palette in `apps/web/src/shell/command-palette.tsx` its icon. Make `KeyHint`
+   in `apps/web/src/shell/key-hint.tsx` draw one key cap for each key with the
+   signs of the device from `apps/web/src/shell/modifier-key.ts`. Update
    `apps/web/AGENTS.md` and the browser journeys that reach these names (0064).
 5. The note. Set the note in Geist through `packages/editor/src/editor-theme.ts`
    with muted list markers, a drawn task box, `edge-line` on a quote, a
