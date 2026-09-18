@@ -5,6 +5,19 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.2 - 2026-09-18
+
+This hotfix repairs the installed application update flow.
+
+### Fixed
+
+- Update now recognizes the sync lease of the current tab. It no longer says
+  that another tab blocks the update when the current tab holds the lease.
+- Update now stores the open draft and stops all sync work before it closes
+  local storage.
+- The page now waits for the new service worker to become active before it
+  reloads. The update notice also follows a worker while it installs.
+
 ## 0.2.1 - 2026-09-18
 
 This intermediate release separates notes into workspaces, gives the interface
