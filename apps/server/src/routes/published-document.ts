@@ -140,20 +140,26 @@ const noteBodyClasses = [
   '[&_li]:my-1',
   '[&_a]:text-accent [&_a]:underline',
   '[&_strong]:font-semibold',
-  '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge [&_blockquote]:pl-4 [&_blockquote]:text-muted',
-  '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-card [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-note-mono',
+  '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge-line [&_blockquote]:pl-4 [&_blockquote]:text-muted',
+  '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-card [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-note-mono',
   '[&_code]:font-mono [&_code]:text-note-mono',
-  '[&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-md',
+  '[&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg',
   '[&_hr]:my-8 [&_hr]:border-edge-line',
   '[&_table]:my-4 [&_table]:w-full [&_table]:border-collapse',
-  '[&_th]:border [&_th]:border-edge-line [&_th]:p-2 [&_th]:text-left',
+  '[&_th]:border [&_th]:border-edge-line [&_th]:bg-surface [&_th]:p-2 [&_th]:text-left [&_th]:font-medium [&_th]:text-strong',
   '[&_td]:border [&_td]:border-edge-line [&_td]:p-2',
   '[&_input]:mr-2',
 ].join(' ');
 
-/** The classes of the one heading that this server writes. */
+/**
+ * The classes of the one heading that this server writes.
+ *
+ * It is the largest text of a published page, which is what the name of a
+ * note is in the application, so it takes the step and the tracking of that
+ * name (decision 0015).
+ */
 const pageHeadingClasses =
-  'mb-4 text-2xl font-semibold tracking-heading text-strong';
+  'mb-6 text-3xl font-semibold tracking-display text-strong';
 
 /** The classes of one link that this server writes. */
 const linkClasses = 'text-accent underline';
@@ -164,13 +170,32 @@ const listClasses = 'my-4 flex flex-col gap-2';
 /** The classes of the password form. */
 const formClasses = 'my-4 flex flex-col gap-2';
 
-/** The classes of one action that a person reads as a control. */
-const controlClasses =
-  'rounded-md bg-accent-fill px-4 py-2 text-control font-medium text-on-accent';
+/** The classes of the label above the password field. */
+const labelClasses = 'text-control font-medium text-strong';
 
-/** The classes of the password field. */
-const fieldClasses =
-  'rounded-md border border-edge bg-surface px-3 py-2 text-ui text-ink';
+/**
+ * The classes of the one button of this page, and of its one field.
+ *
+ * They are the primary button and the field of
+ * `packages/ui/src/control-classes.ts`, written out. This server runs in Node
+ * and `@notesapp/ui` is browser code that imports React, so the boundary of
+ * `tools/check-boundaries.mjs` refuses the import and the strings have to be
+ * written twice. Two copies of one fact drift, so
+ * `tests/integration/published-styles.test.ts` reads both and holds this copy
+ * to the recipe, class for class.
+ *
+ * The one difference the test allows is the motion scale. Decision 0054 keeps
+ * every transition, duration and easing in `packages/ui/src/motion.ts`, and
+ * `tools/check-design-rules.mjs` refuses one anywhere else, including here, so
+ * this page states no motion and the test subtracts the named transition
+ * before it compares.
+ */
+export const publishedButtonClasses =
+  'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 bg-accent-fill text-on-accent hover:bg-accent-fill-hover min-h-11 px-3 md:min-h-8';
+
+/** The classes of the password field. See {@link publishedButtonClasses}. */
+export const publishedFieldClasses =
+  'w-full min-h-11 rounded-md border bg-app px-3 text-ui text-strong outline-none focus-visible:ring-2 focus-visible:ring-focus/25 md:min-h-8 border-edge-line focus-visible:border-focus';
 
 /** The classes of the document frame, which the shell document also writes. */
 const bodyClasses =
@@ -185,8 +210,9 @@ export const publishedDocumentClasses: readonly string[] = [
   linkClasses,
   listClasses,
   formClasses,
-  controlClasses,
-  fieldClasses,
+  labelClasses,
+  publishedButtonClasses,
+  publishedFieldClasses,
 ].flatMap((group) => group.split(' '));
 
 /** The `<title>` of one state of the page. */
@@ -241,9 +267,9 @@ function passwordForm(action: string): string {
   return [
     `<p>${escapeText(lockedSentence)}</p>`,
     `<form class="${formClasses}" method="post" action="${escapeAttribute(action)}">`,
-    '<label for="published-password">Password</label>',
-    `<input class="${fieldClasses}" id="published-password" name="password" type="password" autocomplete="off" required maxlength="512">`,
-    `<button class="${controlClasses}" type="submit">Open</button>`,
+    `<label class="${labelClasses}" for="published-password">Password</label>`,
+    `<input class="${publishedFieldClasses}" id="published-password" name="password" type="password" autocomplete="off" required maxlength="512">`,
+    `<button class="${publishedButtonClasses}" type="submit">Open</button>`,
     '</form>',
   ].join('\n');
 }

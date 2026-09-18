@@ -120,8 +120,10 @@ export {
   documentStylesheetHrefs,
 } from './plugins/static-assets.ts';
 export {
+  publishedButtonClasses,
   publishedDocument,
   publishedDocumentClasses,
+  publishedFieldClasses,
   type PublishedPageView,
 } from './routes/published-document.ts';
 export { createSearchHandlers } from './routes/search.ts';

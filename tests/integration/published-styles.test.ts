@@ -8,6 +8,13 @@
  * been a second output of the build that describes the same fact. This file
  * holds both halves of that choice.
  *
+ * This file also holds the one copy that the published page cannot avoid. The
+ * server is Node code and `@notesapp/ui` is browser code that imports React,
+ * so `tools/check-boundaries.mjs` refuses the import and the class string of
+ * the one button and the one field of the page is written twice. This tree is
+ * the top of the dependency graph, so it reads both and holds the copy to the
+ * recipe of decision 0065.
+ *
  * The first half is the artefact: the built shell names exactly one stylesheet
  * and the resolver of the server finds it. The second half is the emission:
  * Tailwind writes a utility only when a source file uses it, and the class
@@ -25,8 +32,16 @@ import { fileURLToPath } from 'node:url';
 import {
   builtStylesheetHrefs,
   documentStylesheetHrefs,
+  publishedButtonClasses,
   publishedDocumentClasses,
+  publishedFieldClasses,
 } from '@notesapp/server';
+import {
+  buttonClassName,
+  fieldClassName,
+  transitionField,
+  transitionSurface,
+} from '@notesapp/ui';
 import { loadCompiler, webRequire } from './support/tailwind.ts';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
@@ -137,4 +152,37 @@ await test('a class that no source names is not emitted', async () => {
   // this case proves that the compilation is narrow.
   const css = await buildCss(['zz-not-a-utility']);
   assert.ok(!css.includes('zz-not-a-utility'));
+});
+
+/** The classes of one string, as a set, so the order of two copies is free. */
+function classesOf(value: string): Set<string> {
+  return new Set(value.split(' ').filter((name) => name !== ''));
+}
+
+/** The same set with the classes of one named transition removed. */
+function withoutMotion(names: Set<string>, transition: string): Set<string> {
+  const motion = classesOf(transition);
+  return new Set([...names].filter((name) => !motion.has(name)));
+}
+
+await test('the button of the published page is the primary recipe', () => {
+  // The page holds no script and no style sheet of its own, so its button is
+  // the primary button of the application or it is a second answer to what
+  // the one action of a screen looks like (decision 0065). The motion scale
+  // is the one part it cannot carry: decision 0054 keeps every transition in
+  // packages/ui/src/motion.ts, and the design gate refuses one in this file.
+  assert.deepEqual(
+    classesOf(publishedButtonClasses),
+    withoutMotion(
+      classesOf(buttonClassName({ variant: 'primary' })),
+      transitionSurface,
+    ),
+  );
+});
+
+await test('the field of the published page is the field recipe', () => {
+  assert.deepEqual(
+    classesOf(publishedFieldClasses),
+    withoutMotion(classesOf(fieldClassName()), transitionField),
+  );
 });
