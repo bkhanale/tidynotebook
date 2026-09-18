@@ -41,6 +41,7 @@ import {
 } from '@notesapp/ui';
 import { problemMessage, useWorkspace } from '../app.tsx';
 import { isMemberOf } from '../lib/workspace-choice.ts';
+import { initialOf } from '../lib/initial.ts';
 import { actionIcon } from './action-icons.tsx';
 
 /** The longest workspace name the contract accepts. */
@@ -537,7 +538,7 @@ export function WorkspaceSwitcher({
           className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-active text-kbd font-semibold text-strong"
           aria-hidden="true"
         >
-          {[...openWorkspace.name][0]?.toUpperCase() ?? ''}
+          {initialOf(openWorkspace.name)}
         </span>
         <span className="min-w-0 flex-1 truncate font-semibold text-strong">
           {openWorkspace.name}

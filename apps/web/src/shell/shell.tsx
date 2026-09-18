@@ -129,6 +129,7 @@ import {
 } from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { baseNameOf, displayNoteName } from '../lib/note-name.ts';
+import { initialOf } from '../lib/initial.ts';
 import { workspaceAfterRemoval } from '../lib/workspace-choice.ts';
 import {
   knownFolderPaths,
@@ -1423,7 +1424,7 @@ function ShellFrame({
   // holds the whole name: a control whose visible text is one letter has to
   // keep that letter inside its name (WCAG 2.5.3).
   const accountName = session.account?.name ?? session.account?.email ?? '';
-  const accountInitial = [...accountName][0]?.toUpperCase() ?? '';
+  const accountInitial = initialOf(accountName);
   const accountLabel =
     accountName === '' ? 'Account' : `Account: ${accountName}`;
 
