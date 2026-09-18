@@ -216,3 +216,21 @@ delete an old one.
 
 Record 0060 gives the published page every stylesheet that the build emitted,
 because the page holds no script and mathematics on it had no style at all.
+
+Records 0061 to 0065 come from
+[design 012](../design/012-a-finished-interface.md), which reads why the
+interface was tidy and still looked like a template, and which states the one
+system in [the design guide](../development/design.md). Record 0061 sets the
+whole application in one vendored family and its monospace sibling, because
+the product rendered in whatever face the device had. Record 0062 makes the
+default action ink and leaves the blue to a link, a focus ring, a caret and a
+selection, because the accent fill painted five things that were not actions.
+It finishes record 0056. Record 0063 makes the derived divider the resting edge
+of a control and reserves the component edge for a control whose state has no
+text, because every field and every secondary button read as a cage. Record
+0064 makes the frame header the context of the route, with a breadcrumb, the
+actions of the route and the account, because the header stated nothing about
+where the person was. It refines record 0015. Record 0065 puts every control
+recipe in one module and every icon on one grid, and makes the gate a design
+gate, because twenty three controls wrote their own classes and icons rendered
+at six sizes.
