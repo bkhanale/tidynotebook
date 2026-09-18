@@ -1,6 +1,6 @@
 # 0036. The browser gate runs in parallel workers
 
-- Status: Accepted
+- Status: Superseded by [0066](0066-the-browser-suite-is-retired.md)
 - Date: 2026-09-15
 
 ## Context

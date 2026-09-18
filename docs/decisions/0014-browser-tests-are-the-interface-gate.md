@@ -1,6 +1,6 @@
 # 0014. Browser tests are the interface gate
 
-- Status: Accepted
+- Status: Superseded by [0066](0066-the-browser-suite-is-retired.md)
 - Date: 2026-09-10
 
 ## Context

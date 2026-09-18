@@ -54,10 +54,10 @@ the account, and the sidebar becomes the drawer of record 0035.
 - A person reads where they are and what they can do from one bar.
 - The primary action of a screen lives in the screen, so the sidebar shows no
   filled button, and record 0062 holds.
-- The browser journeys that reach the header search, the account menu, the new
-  note action and the tree rows follow the new names. Every journey drives the
-  interface through roles and accessible names, so the change is in the names
-  and not in the mechanism.
+- The header search, the account menu, the new note action and every tree row
+  keep an accessible name. The pure modules of `apps/web/src/lib/` decide the
+  breadcrumb rows and the tree rows, and their unit tests hold the new names,
+  so the change is in the names and not in the mechanism.
 - `HeaderSlot` is a context in `apps/web/src/shell/`. It moves no boundary and
   it adds no package.
 - This refines record 0015, whose header is now 44 px and whose one primary

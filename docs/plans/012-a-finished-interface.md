@@ -50,7 +50,8 @@ records 0061 to 0065 into ordered work. The system that the work builds is
    palette in `apps/web/src/shell/command-palette.tsx` its icon. Make `KeyHint`
    in `apps/web/src/shell/key-hint.tsx` draw one key cap for each key with the
    signs of the device from `apps/web/src/shell/modifier-key.ts`. Update
-   `apps/web/AGENTS.md` and the browser journeys that reach these names (0064).
+   `apps/web/AGENTS.md` and the unit tests of the breadcrumb and the tree row
+   modules of `apps/web/src/lib/` (0064).
 5. The note. Set the note in Geist through `packages/editor/src/editor-theme.ts`
    with muted list markers, a drawn task box, `edge-line` on a quote, a
    `rounded-lg` code block and no active line fill. Hold the heading ramp under
@@ -67,15 +68,19 @@ records 0061 to 0065 into ordered work. The system that the work builds is
    dialogs of `folders.tsx` on one `TextField`, and every error page on `Page`
    and `PageHeader`. Give `apps/server/src/routes/published-document.ts` the
    same class strings (0062, 0063, 0065).
-7. Verification. Run `pnpm verify` and the browser matrix. Add the journeys of
-   record 0062 and 0064: one primary button on the home screen, the breadcrumb
-   names the open note, the route actions sit in the header, the tree rows carry
-   no ring. Take a screenshot of every screen in light and in dark and read
-   each one against the guide. Set this plan to complete and design 012 to
-   complete.
+7. Verification. Run `pnpm verify`. Prove records 0062 and 0064 in the pure
+   modules: the one primary variant in
+   `packages/ui/src/control-classes.test.ts`, the breadcrumb of the open note
+   in `apps/web/src/lib/breadcrumb.test.ts`, and the row with no ring in
+   `apps/web/src/lib/tree-row.test.ts`. Take a screenshot of every screen in
+   light and in dark, and let the owner read each one against the guide. Set
+   this plan to complete and design 012 to complete.
 
 ## Verification
 
 Run `pnpm test:unit` while the work is in progress. Run `pnpm verify` before
-the change is ready. Run the full browser matrix, because the frame, the
-navigation, the note surface and the editor rendering all change.
+the change is ready. No browser suite exists, so the frame, the navigation, the
+note surface and the editor rendering rest on the pure modules, on the
+integration tests of the built stylesheet and the served document, and on a
+screenshot of every screen in light and in dark that the owner reads. See
+[record 0066](../decisions/0066-the-browser-suite-is-retired.md).

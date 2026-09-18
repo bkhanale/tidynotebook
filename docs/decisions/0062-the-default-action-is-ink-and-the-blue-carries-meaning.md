@@ -48,5 +48,6 @@ person chose is a taste the person asked for.
 - `tests/integration/theme-variables.test.ts` holds the literal fallbacks in
   `apps/web/src/tailwind.css` to the Default dark palette of the registry, so
   the copy that keeps the first paint correct cannot drift from the registry.
-- A browser journey in `tests/e2e/interface-depth.spec.ts` proves that one
-  primary button is on the home screen.
+- `packages/ui/src/control-classes.test.ts` holds the ink fill to the one
+  primary variant of `buttonClassName`, so one recipe decides the one filled
+  control of a screen. A screenshot of the home screen holds the count of one.

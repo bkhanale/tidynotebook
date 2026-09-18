@@ -234,3 +234,9 @@ where the person was. It refines record 0015. Record 0065 puts every control
 recipe in one module and every icon on one grid, and makes the gate a design
 gate, because twenty three controls wrote their own classes and icons rendered
 at six sizes.
+
+Record 0066 retires the browser suite, because a full matrix started a build, a
+server, a database and a browser for each worker of five projects, and it stood
+in front of every landing. `pnpm verify` is the whole gate now. A pure module
+proves what a person sees and an integration test reads the built or served
+result. It supersedes records 0014 and 0036.
