@@ -17,8 +17,18 @@ completion, paste conversion, and the unified diff for History.
 - `live-preview.ts` holds the decorations. `widgets.ts` holds the block
   widgets. `outline.ts` reads the same syntax tree.
 - `editor-theme.ts` is the typed CodeMirror adapter. It is the one place in
-  this package that sets presentation in TypeScript, and it reads the central
-  `--notes-*` variables.
+  this package that sets presentation in TypeScript. It reads the named steps
+  of `apps/web/src/tailwind.css`, which `editorThemeVariables` lists for the
+  integration test, and the runtime `--notes-*` palette.
+- The rhythm of a note comes from the note: a blank line of the source is a
+  line at the full height, so `.cm-line` adds no block padding and a heading
+  adds the one step that groups it with its own text. Strong text, a heading
+  and a table head read `--font-weight-note-heading`, so the note and the
+  published page agree.
+- The task box is drawn from the theme (record 0033), and it is the one thing
+  here that reads `--notes-border`, the edge record 0063 keeps for a control
+  whose state a person reads with no text. Every other edge of a note is
+  `--notes-border-line` or `--notes-border-subtle`.
 - No Markdown grammar lives here. `packages/markdown` owns the language.
   Navigation leaves through injected callbacks, so no route and no endpoint
   lives here either.

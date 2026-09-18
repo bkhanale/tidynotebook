@@ -108,10 +108,16 @@
  *
  * The note surface block is the typography of a note: 16 px body text on a
  * 1.65 line height at a measure of 40 rem, one heading ramp from 1.5 times the
- * body size down to body size, one vertical rhythm, and monospaced text at
- * 0.9 em. Every heading of a note takes one weight, because the name of the
- * note is the only larger text on the screen and the ramp states the level by
- * its size alone (decisions 0015 and 0065).
+ * body size down to body size, and monospaced text at 0.9 em. Every heading of
+ * a note takes one weight, because the name of the note is the only larger
+ * text on the screen and the ramp states the level by its size alone
+ * (decisions 0015 and 0065).
+ *
+ * The block holds no space for one line of a note. A person separates two
+ * blocks of Markdown with a blank line, and the live preview renders that
+ * line at the full line height, so the space is already there and a step on
+ * every line drew it a second time. `--spacing-note-block` is the space of a
+ * block that has no line of its own, such as an image or a diagram.
  */
 @theme static {
   --font-sans:
@@ -210,7 +216,6 @@
   --text-note: 1rem;
   --text-note--line-height: 1.65;
   --container-note: 40rem;
-  --spacing-note-line: var(--spacing);
   --spacing-note-block: calc(var(--spacing) * 2);
   --text-note-mono: 0.9em;
   --text-note-h1: 1.5em;

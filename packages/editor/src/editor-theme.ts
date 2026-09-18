@@ -8,10 +8,19 @@
  * invents a color, a size, or a radius.
  *
  * The note surface is the design. Body text is 16 px on a 1.65 line height
- * at a measure of about 68 characters, headings run on one clear ramp from
- * twice the body size down to body size at level six, blocks breathe with
- * one shared vertical rhythm, and monospaced text sits at 0.9 em so a code
- * span keeps the line height of the paragraph around it.
+ * at a measure of 40 rem, headings run on one clear ramp from one and a half
+ * times the body size down to body size at level six, and monospaced text
+ * sits at 0.9 em so a code span keeps the line height of the paragraph around
+ * it.
+ *
+ * The vertical rhythm of the note comes from the note itself. A person who
+ * writes Markdown separates two blocks with a blank line, and the live
+ * preview renders that blank line at the full line height, so the space is
+ * already on the screen. A line therefore adds no padding of its own: every
+ * step the adapter added to a line was a second copy of that space, and a
+ * paragraph stood two line heights from the next. A heading adds the one
+ * distance the source cannot state, a little more space above its own text
+ * than below it, so it groups with the text it titles.
  *
  * `editorThemeVariables` lists every custom property this module reads. A
  * unit test asserts that the built stylesheet declares all of them, which is
@@ -39,7 +48,6 @@ export const editorThemeVariables: readonly string[] = [
   '--text-note',
   '--text-note--line-height',
   '--container-note',
-  '--spacing-note-line',
   '--spacing-note-block',
   '--text-note-mono',
   '--text-note-h1',
@@ -102,7 +110,7 @@ function headingRules(): Record<string, Record<string, string>> {
 }
 
 /** The width of one quote bar. */
-const quoteBarWidth = 'calc(var(--spacing) * 1)';
+const quoteBarWidth = 'calc(var(--spacing) * 0.5)';
 
 /** The distance from one quote bar to the next, and to the quoted text. */
 const quoteBarStep = 4;
@@ -119,15 +127,18 @@ const quoteBarStep = 4;
  * into one continuous bar. One flat line element cannot hold a nested
  * element, so a quote inside a quote adds one more stripe one step further
  * in, and the reader counts one bar for each level. Each stripe is a solid
- * background layer in the theme border color; the layer list, the layer
- * size, and the layer position are the only way to put a stripe at an
- * offset without a second element.
+ * background layer in the divider color of the palette, which record 0063
+ * makes every rule of the product; the layer list, the layer size, and the
+ * layer position are the only way to put a stripe at an offset without a
+ * second element.
  */
 function quoteLevel(level: number): Record<string, string> {
   const layers: string[] = [];
   const positions: string[] = [];
   for (let index = 0; index < level; index += 1) {
-    layers.push('linear-gradient(var(--notes-border), var(--notes-border))');
+    layers.push(
+      'linear-gradient(var(--notes-border-line), var(--notes-border-line))',
+    );
     positions.push(`calc(var(--spacing) * ${String(index * quoteBarStep)}) 0`);
   }
   return {
@@ -217,29 +228,28 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // column that the padding of the content already sets. The line takes no
     // margin of its own: the padding above centres every block of the note,
     // including a table, which can carry no margin at all.
+    //
+    // It takes no block padding either. The blank line of the source is a line
+    // of the note at the full line height, so it is the space between two
+    // blocks, and padding on every line drew that space a second time.
     '.cm-line': {
       maxWidth: 'var(--container-note)',
       marginInline: '0',
       paddingInline: '0',
-      paddingBlock: 'var(--spacing-note-line)',
+      paddingBlock: '0',
     },
     '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--notes-focus)' },
     '&.cm-focused': { outline: 'none' },
-    // The hover surface of the palette, which is the quietest tint the
-    // theme owns. The line the caret sits on is findable, and the note
-    // still reads as one page of text instead of a banded table.
+    // The line the caret sits on takes no fill. A band across the text makes
+    // the note read as a table of rows, and the caret already states where a
+    // person is. A code block is the one place that marks the line, with the
+    // focus outline of the block below, because the block has a fill of its
+    // own and a caret inside it is easy to lose.
     //
-    // The fill stops at the content box. A line carries the vertical rhythm
-    // of its block as padding, because CodeMirror measures a line by its
-    // padding box and a margin would put the height map out of step with the
-    // screen. That padding is the space between two blocks and not a part of
-    // the line, so a heading with five steps of space above it would show a
-    // tall empty band over its own text. Clipping the fill to the content box
-    // makes the mark one text line high at every block kind.
-    '.cm-activeLine': {
-      backgroundColor: 'var(--notes-surface-hover)',
-      backgroundClip: 'content-box',
-    },
+    // The declaration stays, and it is not dead: `highlightActiveLine` of
+    // CodeMirror ships a base theme with a fill of its own, which is a color
+    // from outside the palette, so the adapter has to turn it off by name.
+    '.cm-activeLine': { backgroundColor: 'transparent' },
     '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection':
       {
         backgroundColor:
@@ -250,8 +260,14 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // A heading needs more space above than below, so it separates from the
     // block before it and groups with the text it introduces. This is the
     // one shared heading rhythm; the ramp above sets only size and weight.
+    //
+    // The blank line that the person wrote above the heading already carries
+    // one line height of space, so the padding here is the step that makes
+    // the space above larger than the space below and nothing more. A
+    // heading with no blank line under it keeps the smaller step, so the
+    // title never sits on the first word of its own text.
     '.cm-np-heading': {
-      paddingTop: 'calc(var(--spacing) * 5)',
+      paddingTop: 'calc(var(--spacing) * 3)',
       paddingBottom: 'calc(var(--spacing) * 1)',
     },
     // The first line of a note has no block above it to separate from, and
@@ -260,7 +276,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // what every reader expects of a title line.
     '.cm-line:first-child': { paddingBlockStart: '0' },
 
-    '.cm-np-bold': { fontWeight: '700', color: 'var(--notes-text-strong)' },
+    // Strong text and a heading read one weight. The editor and the published
+    // page both take it from this name, so the two cannot drift apart.
+    '.cm-np-bold': {
+      fontWeight: 'var(--font-weight-note-heading)',
+      color: 'var(--notes-text-strong)',
+    },
     '.cm-np-italic': { fontStyle: 'italic' },
     '.cm-np-strike': {
       textDecoration: 'line-through',
@@ -268,33 +289,53 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     },
     '.cm-np-marker': { color: 'var(--notes-text-muted)', opacity: '0.6' },
 
+    // A code span is a word inside a sentence, so it takes the quietest tint
+    // of the palette, the small radius of a keyboard hint, and just enough
+    // padding to clear the letters around it.
     '.cm-np-code': {
       fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-note-mono)',
       backgroundColor: 'var(--notes-surface-hover)',
       borderRadius: 'var(--radius-sm)',
-      paddingInline: 'calc(var(--spacing) * 1)',
-      paddingBlock: 'calc(var(--spacing) * 0.5)',
+      paddingInline: 'calc(var(--spacing) * 1.5)',
+      paddingBlock: 'calc(var(--spacing) * 0.25)',
     },
-    // The fill of a code line is the block, not the caret, so it covers the
-    // whole line box and overrides the content box clip of the active line.
+    // A code block is one card of the note: the chrome fill, the hairline of
+    // a raised surface and the card radius. CodeMirror gives each line of the
+    // block its own element and no element wraps them, so the fill and the
+    // two side edges belong to every line, and the first and the last line
+    // close the box with the top and the bottom edge and the radius. The two
+    // classes come from `live-preview.ts`, which reads the block from the
+    // syntax tree and knows which line opens it and which line closes it.
     '.cm-np-code-block-line': {
       fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-note-mono)',
-      backgroundColor: 'var(--notes-surface-hover)',
-      backgroundClip: 'border-box',
-      paddingInline: 'calc(var(--spacing) * 3)',
+      backgroundColor: 'var(--notes-surface)',
+      borderInline: '1px solid var(--notes-border-subtle)',
+      paddingInline: 'calc(var(--spacing) * 4)',
+    },
+    '.cm-np-code-block-open': {
+      borderTop: '1px solid var(--notes-border-subtle)',
+      borderStartStartRadius: 'var(--radius-lg)',
+      borderStartEndRadius: 'var(--radius-lg)',
+      paddingBlockStart: 'calc(var(--spacing) * 3)',
+    },
+    '.cm-np-code-block-close': {
+      borderBottom: '1px solid var(--notes-border-subtle)',
+      borderEndStartRadius: 'var(--radius-lg)',
+      borderEndEndRadius: 'var(--radius-lg)',
+      paddingBlockEnd: 'calc(var(--spacing) * 3)',
     },
     '.cm-activeLine.cm-np-code-block-line': {
       outline: '1px solid var(--notes-focus)',
       outlineOffset: '-1px',
     },
+    // The language of a fence is a value and not a label, so it keeps the
+    // code face and the quiet color and takes no capitals and no tracking.
     '.cm-np-code-info': {
       fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-control)',
       color: 'var(--notes-text-muted)',
-      textTransform: 'uppercase',
-      letterSpacing: '0.06em',
     },
     '.cm-np-front-matter': {
       fontFamily: 'var(--font-mono)',
@@ -309,42 +350,84 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // level replaces the layers of the level above it.
     //
     // A bar is a background layer, so it must reach both edges of the line
-    // box. The clip is therefore restored here, and it applies to the fill of
-    // the active line on the same element: a quote keeps one continuous bar
-    // whether the caret is on it or not.
+    // box, which is where a background paints by default. A quote therefore
+    // keeps one continuous bar whether the caret is on it or not.
     '.cm-np-quote': {
       color: 'var(--notes-text-muted)',
-      backgroundClip: 'border-box',
     },
     '.cm-np-quote-1': quoteLevel(1),
     '.cm-np-quote-2': quoteLevel(2),
     '.cm-np-quote-3': quoteLevel(3),
     '.cm-np-quote-4': quoteLevel(4),
 
-    '.cm-np-bullet': {
-      color: 'var(--notes-accent-fill)',
-      fontWeight: '700',
-    },
-    '.cm-np-list-number': {
-      color: 'var(--notes-text-muted)',
-      fontWeight: '600',
-    },
-    '.cm-np-task': {
+    // A list marker is notation and not an action, so it reads in the quiet
+    // text color of the palette and never in the accent. The accent marks a
+    // link, the caret and the selection, which carry a meaning no shape
+    // states (record 0062).
+    '.cm-np-bullet': { color: 'var(--notes-text-muted)' },
+    '.cm-np-list-number': { color: 'var(--notes-text-muted)' },
+
+    // The task box is a drawn control (record 0033). The native box paints
+    // the accent of the operating system and nothing in the palette reaches
+    // it, so the appearance is removed and the box is drawn again from the
+    // theme: the component edge that record 0063 reserves for a control whose
+    // state a person reads with no text, the page fill at rest, and the ink
+    // fill with its own label color when the task is done.
+    //
+    // The box stays a native checkbox, so the role, the state, the tab order
+    // and the disabled state come from the platform. The check mark is the
+    // sibling element that `live-preview.ts` puts next to it, because an
+    // input can hold no child and a generated `::before` does not render on
+    // an input in every browser. The mark appears through the sibling
+    // selector below, so nothing has to write it a second time.
+    '.cm-np-task-box': {
+      position: 'relative',
+      display: 'inline-flex',
       width: 'calc(var(--spacing) * 4)',
       height: 'calc(var(--spacing) * 4)',
-      margin: '0',
-      marginInlineEnd: 'calc(var(--spacing) * 1)',
+      marginInlineEnd: 'calc(var(--spacing) * 1.5)',
       // `text-bottom` sets the foot of the box on the foot of the text, so
       // the box sits on the writing line instead of floating above it.
       verticalAlign: 'text-bottom',
-      accentColor: 'var(--notes-accent-fill)',
+    },
+    '.cm-np-task': {
+      appearance: 'none',
+      width: '100%',
+      height: '100%',
+      margin: '0',
+      borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--notes-border)',
+      backgroundColor: 'var(--notes-bg)',
       cursor: 'pointer',
     },
+    '.cm-np-task:checked': {
+      backgroundColor: 'var(--notes-accent-fill)',
+      borderColor: 'var(--notes-accent-fill)',
+    },
+    '.cm-np-task:disabled': { cursor: 'default' },
+    '.cm-np-task:focus-visible': {
+      outline: '2px solid var(--notes-focus)',
+      outlineOffset: '2px',
+    },
+    '.cm-np-task-mark': {
+      position: 'absolute',
+      inset: '0',
+      display: 'none',
+      color: 'var(--notes-accent-on-fill)',
+      pointerEvents: 'none',
+    },
+    '.cm-np-task:checked + .cm-np-task-mark': { display: 'block' },
 
+    // A link states itself with the accent text color and a quiet underline.
+    // The underline at full strength competes with the word, so it takes a
+    // share of the same color, which is one value derived from the palette
+    // and never a color of its own.
     '.cm-np-link': {
       color: 'var(--notes-accent-text)',
-      textDecoration: 'underline',
-      textUnderlineOffset: '2px',
+      textDecorationLine: 'underline',
+      textDecorationColor:
+        'color-mix(in srgb, var(--notes-accent-text) 35%, transparent)',
+      textUnderlineOffset: '3px',
     },
     '.cm-np-footnote': {
       color: 'var(--notes-accent-text)',
@@ -366,7 +449,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       display: 'inline-block',
       width: '100%',
       verticalAlign: 'middle',
-      borderTop: '1px solid var(--notes-border)',
+      borderTop: '1px solid var(--notes-border-line)',
     },
 
     // A table reads as a table. Each line of the table is a table row and
@@ -380,20 +463,27 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       fontSize: 'var(--text-note-mono)',
       paddingBlock: '0',
     },
+    // A cell keeps its space to the right of its own text and none to the
+    // left, so the first column starts on the same edge as every other line
+    // of the note. The rule under the header row states where the head of the
+    // table ends, the hairline between two rows separates them, and no line
+    // runs down the columns: the space between them already does that.
     '.cm-np-table-cell': {
       display: 'table-cell',
-      paddingInline: 'calc(var(--spacing) * 2)',
-      paddingBlock: 'calc(var(--spacing) * 1)',
+      paddingInlineStart: '0',
+      paddingInlineEnd: 'calc(var(--spacing) * 3)',
+      paddingBlock: 'calc(var(--spacing) * 1.5)',
       verticalAlign: 'top',
       borderBottom: '1px solid var(--notes-border-subtle)',
     },
     '.cm-np-table-head': {
       display: 'table-cell',
-      paddingInline: 'calc(var(--spacing) * 2)',
-      paddingBlock: 'calc(var(--spacing) * 1)',
+      paddingInlineStart: '0',
+      paddingInlineEnd: 'calc(var(--spacing) * 3)',
+      paddingBlock: 'calc(var(--spacing) * 1.5)',
       verticalAlign: 'top',
-      borderBottom: '1px solid var(--notes-border)',
-      fontWeight: '700',
+      borderBottom: '1px solid var(--notes-border-line)',
+      fontWeight: 'var(--font-weight-note-heading)',
       color: 'var(--notes-text-strong)',
     },
     // The cell separators of a table carry no meaning once the columns show
@@ -420,7 +510,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-align-right': { textAlign: 'right' },
 
     '.cm-np-hard-break': {
-      borderBottom: '1px dotted var(--notes-border)',
+      borderBottom: '1px dotted var(--notes-border-line)',
     },
     '.cm-np-html': {
       fontFamily: 'var(--font-mono)',
@@ -449,16 +539,19 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       fontSize: 'var(--text-note-mono)',
       whiteSpace: 'pre-wrap',
     },
+    // The action of a widget, such as the one that shows the source of a
+    // diagram that did not draw. It is a control, so it rests on the divider
+    // and carries the radius of a control (records 0063 and 0065).
     '.cm-np-widget-action': {
       font: 'inherit',
       fontSize: 'var(--text-control)',
       marginInlineStart: 'calc(var(--spacing) * 2)',
       paddingInline: 'calc(var(--spacing) * 2)',
-      minHeight: 'calc(var(--spacing) * 6)',
+      minHeight: 'calc(var(--spacing) * 7)',
       color: 'var(--notes-accent-text)',
-      backgroundColor: 'var(--notes-surface-hover)',
-      border: '1px solid var(--notes-border)',
-      borderRadius: 'var(--radius-sm)',
+      backgroundColor: 'var(--notes-surface-card)',
+      border: '1px solid var(--notes-border-line)',
+      borderRadius: 'var(--radius-md)',
       cursor: 'pointer',
     },
     '.cm-np-math-display': {

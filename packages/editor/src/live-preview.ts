@@ -178,6 +178,40 @@ class RuleWidget extends WidgetType {
   }
 }
 
+/** The namespace every element of a drawing belongs to. */
+const svgNamespace = 'http://www.w3.org/2000/svg';
+
+/**
+ * The check mark inside a task box that is done.
+ *
+ * The box is a native checkbox with its own appearance removed, so the mark
+ * is an element beside it: an input can hold no child, and a generated
+ * `::before` does not render on an input in every browser. The adapter shows
+ * this element while the box beside it is checked and paints it in the label
+ * colour of the ink fill.
+ *
+ * The drawing follows the one grid of the icon set: the 24 viewport and the
+ * stroke of 1.5 of `packages/ui/src/icon-grid.ts`, and the same line as
+ * `CheckIcon` there. The editor builds plain DOM and reads no React
+ * component, so the two hold one glyph in two places; the clean fix is one
+ * exported geometry in `packages/ui`, which this change does not own.
+ */
+function taskCheckMark(): SVGElement {
+  const mark = document.createElementNS(svgNamespace, 'svg');
+  mark.setAttribute('class', 'cm-np-task-mark');
+  mark.setAttribute('viewBox', '0 0 24 24');
+  mark.setAttribute('fill', 'none');
+  mark.setAttribute('stroke', 'currentColor');
+  mark.setAttribute('stroke-width', '1.5');
+  mark.setAttribute('stroke-linecap', 'round');
+  mark.setAttribute('stroke-linejoin', 'round');
+  mark.setAttribute('aria-hidden', 'true');
+  const line = document.createElementNS(svgNamespace, 'polyline');
+  line.setAttribute('points', '20 6 9 17 4 12');
+  mark.append(line);
+  return mark;
+}
+
 /**
  * A real checkbox for one task item.
  *
@@ -185,6 +219,12 @@ class RuleWidget extends WidgetType {
  * toggles the task it belongs to and never the task of the current
  * selection. A pointer, a touch, and the keyboard all reach the same
  * command.
+ *
+ * The box is a drawn control (record 0033): the native box paints the accent
+ * of the operating system and nothing in the palette reaches it, so the
+ * appearance is removed and `editor-theme.ts` draws the box and its mark from
+ * the theme. The input itself stays, so the role, the state, the tab order
+ * and the read only state all come from the platform.
  */
 class TaskCheckboxWidget extends WidgetType {
   readonly position: number;
@@ -225,7 +265,10 @@ class TaskCheckboxWidget extends WidgetType {
     box.addEventListener('keydown', (event: KeyboardEvent): void => {
       if (event.key === ' ' || event.key === 'Enter') toggle(event);
     });
-    return box;
+    const shell = document.createElement('span');
+    shell.className = 'cm-np-task-box';
+    shell.append(box, taskCheckMark());
+    return shell;
   }
 }
 
@@ -357,6 +400,24 @@ export function buildPreview(
       if (line.to >= to || line.number >= doc.lines) break;
       pos = line.to + 1;
     }
+  };
+  /**
+   * Marks the lines of one block, and names the first and the last of them.
+   *
+   * A code block is one card on the note, and CodeMirror gives each of its
+   * lines an element of its own with nothing around them. The two edge
+   * classes are how the first line can carry the top of that card and the
+   * last line the bottom of it. The syntax tree states where the block starts
+   * and ends, so no rule reads the text to find out.
+   */
+  const blockLines = (from: number, to: number, className: string): void => {
+    lineClass(from, to, className);
+    lineClass(from, from, `${className}-open`);
+    // A block that ends on the first offset of a line ends on the line above
+    // it, so the bottom of the card never lands on the empty line after the
+    // block.
+    const last = to > from && doc.lineAt(to).from === to ? to - 1 : to;
+    lineClass(last, last, `${className}-close`);
   };
 
   const tree = syntaxTree(state);
@@ -528,7 +589,7 @@ export function buildPreview(
             })()
           : '';
       structure.push({ kind: 'code-block', info });
-      lineClass(node.from, node.to, 'cm-np-code-block-line');
+      blockLines(node.from, node.to, 'cm-np-code-block-line');
       return true;
     }
 

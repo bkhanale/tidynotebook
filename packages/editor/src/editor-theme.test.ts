@@ -104,22 +104,123 @@ await test('the note body reads in the strong text color', () => {
   assert.equal(rule('&').color, 'var(--notes-text-strong)');
 });
 
-await test('the caret mark is one text line high at every block kind', () => {
-  // A line holds the space between two blocks as padding, because CodeMirror
-  // measures a line by its padding box. That space belongs to the block and
-  // not to the line, so the mark of the caret stops at the content box and a
-  // heading never shows a tall empty band over its own text.
-  assert.equal(rule('.cm-activeLine').backgroundClip, 'content-box');
-  // A fill that states the block itself covers the whole line box.
-  assert.equal(rule('.cm-np-code-block-line').backgroundClip, 'border-box');
-  assert.equal(rule('.cm-np-quote').backgroundClip, 'border-box');
+await test('the line the caret sits on takes no fill', () => {
+  // A band across the text makes the note read as a table of rows. The
+  // declaration stays, because `highlightActiveLine` of CodeMirror ships a
+  // fill of its own from outside the palette and only a name turns it off.
+  assert.equal(rule('.cm-activeLine').backgroundColor, 'transparent');
+  assert.equal(rule('.cm-activeLine').backgroundClip, undefined);
+});
+
+await test('the rhythm of the note comes from the blank lines of the note', () => {
+  // The defect this holds: a line carried one step of padding at the top and
+  // one at the bottom, and the blank line between two paragraphs carried both
+  // as well, so one paragraph stood two line heights from the next.
+  assert.equal(rule('.cm-line').paddingBlock, '0');
 });
 
 await test('the first line of a note starts at the top of the text', () => {
   // There is no block above the first line, so the heading rhythm would only
   // push the title of a note away from the name that titles it.
   assert.equal(rule('.cm-line:first-child').paddingBlockStart, '0');
-  assert.equal(rule('.cm-np-heading').paddingTop, 'calc(var(--spacing) * 5)');
+  // A heading keeps more space above its own text than below it, so it
+  // groups with the text it titles. The blank line of the source carries the
+  // rest of that space.
+  const heading = rule('.cm-np-heading');
+  assert.equal(heading.paddingTop, 'calc(var(--spacing) * 3)');
+  assert.equal(heading.paddingBottom, 'calc(var(--spacing) * 1)');
+});
+
+await test('a code block is one card with a closed edge', () => {
+  // Each line of the block is an element of its own and nothing wraps them,
+  // so the fill and the two side edges belong to every line and the first and
+  // the last line close the box.
+  const line = rule('.cm-np-code-block-line');
+  assert.equal(line.backgroundColor, 'var(--notes-surface)');
+  assert.equal(line.borderInline, '1px solid var(--notes-border-subtle)');
+  assert.equal(
+    rule('.cm-np-code-block-open').borderStartStartRadius,
+    'var(--radius-lg)',
+  );
+  assert.equal(
+    rule('.cm-np-code-block-close').borderEndEndRadius,
+    'var(--radius-lg)',
+  );
+});
+
+await test('the task box is drawn from the theme and never by the system', () => {
+  // Record 0033. The native box paints the accent of the operating system,
+  // which no palette reaches, so the appearance is removed and the box, its
+  // fill and its mark all read theme names.
+  const box = rule('.cm-np-task');
+  assert.equal(box.appearance, 'none');
+  assert.equal(box.border, '1px solid var(--notes-border)');
+  assert.equal(box.backgroundColor, 'var(--notes-bg)');
+  assert.equal(box.borderRadius, 'var(--radius-sm)');
+  assert.equal(
+    rule('.cm-np-task:checked').backgroundColor,
+    'var(--notes-accent-fill)',
+  );
+  assert.equal(rule('.cm-np-task-mark').color, 'var(--notes-accent-on-fill)');
+  assert.equal(rule('.cm-np-task-mark').display, 'none');
+  assert.equal(rule('.cm-np-task:checked + .cm-np-task-mark').display, 'block');
+});
+
+await test('a list marker is quiet and never the accent', () => {
+  // Record 0062. The accent marks a link, the caret and the selection, and
+  // a bullet states none of those.
+  assert.equal(rule('.cm-np-bullet').color, 'var(--notes-text-muted)');
+  assert.equal(rule('.cm-np-bullet').fontWeight, undefined);
+  assert.equal(rule('.cm-np-list-number').color, 'var(--notes-text-muted)');
+});
+
+await test('strong text and a heading read one weight', () => {
+  // One name for one fact, so the note and the published page cannot drift.
+  assert.equal(
+    rule('.cm-np-bold').fontWeight,
+    'var(--font-weight-note-heading)',
+  );
+  assert.equal(
+    rule('.cm-np-table-head').fontWeight,
+    'var(--font-weight-note-heading)',
+  );
+  for (let level = 1; level <= 6; level += 1)
+    assert.equal(
+      rule(`.cm-np-h${String(level)}`).fontWeight,
+      'var(--font-weight-note-heading)',
+    );
+});
+
+await test('a link states itself with the accent and a quiet underline', () => {
+  const link = rule('.cm-np-link');
+  assert.equal(link.color, 'var(--notes-accent-text)');
+  assert.equal(link.textDecorationLine, 'underline');
+  assert.equal(
+    link.textDecorationColor,
+    'color-mix(in srgb, var(--notes-accent-text) 35%, transparent)',
+  );
+  assert.equal(link.textUnderlineOffset, '3px');
+});
+
+await test('a table rules its header row and never its columns', () => {
+  const head = rule('.cm-np-table-head');
+  const cell = rule('.cm-np-table-cell');
+  assert.equal(head.borderBottom, '1px solid var(--notes-border-line)');
+  assert.equal(cell.borderBottom, '1px solid var(--notes-border-subtle)');
+  for (const box of [head, cell]) {
+    assert.equal(box.borderInline, undefined);
+    assert.equal(box.borderInlineStart, undefined);
+    assert.equal(box.borderInlineEnd, undefined);
+    // The first column starts on the same edge as every other line.
+    assert.equal(box.paddingInlineStart, '0');
+  }
+});
+
+await test('the language of a fence is a value and not a label', () => {
+  const info = rule('.cm-np-code-info');
+  assert.equal(info.textTransform, undefined);
+  assert.equal(info.letterSpacing, undefined);
+  assert.equal(info.fontFamily, 'var(--font-mono)');
 });
 
 await test('the active code line has a focus outline', () => {
@@ -171,12 +272,16 @@ await test('each quote level adds one bar from the theme palette', () => {
     const quote = rule(`.cm-np-quote-${String(level)}`);
     const layers = text(quote, 'backgroundImage');
     assert.equal(layers.split('linear-gradient').length - 1, level);
-    assert.ok(layers.includes('var(--notes-border)'));
+    // The bar is the one divider of record 0063 and not the component edge,
+    // which the product keeps for a control whose state a person reads.
+    assert.ok(layers.includes('var(--notes-border-line)'));
     // Every color of the adapter is a palette variable, so a literal here
     // would put a color outside the theme registry.
     assert.ok(!/#[0-9a-fA-F]{3}|rgba?\(/.test(layers));
     assert.equal(text(quote, 'backgroundPosition').split(',').length, level);
-    assert.equal(quote.backgroundSize, 'calc(var(--spacing) * 1) 100%');
+    // Two pixels of bar. A quote is quiet text with a mark beside it, not a
+    // block with a rail.
+    assert.equal(quote.backgroundSize, 'calc(var(--spacing) * 0.5) 100%');
     assert.equal(quote.backgroundRepeat, 'no-repeat');
     // The text clears the last bar by the same step that separates two bars.
     assert.equal(
