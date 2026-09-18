@@ -48,8 +48,9 @@ those two alone.
 
 `node --test` through `pnpm test:unit`. A test file is `*.test.ts` next to its
 module. There is no DOM unit framework, so a test covers a pure module only and
-proves the rule and its refusal. A Playwright journey in `tests/e2e` proves
-anything a person sees, and it is the only place that proves it.
+proves the rule and its refusal. What a person sees is proved by the pure
+module that decides it, in `src/lib/`, and by an integration test of the built
+result (0066). Drive the screen and read it in light and in dark first.
 
 ## Forbidden here
 
