@@ -5,6 +5,27 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.1 - 2026-09-18
+
+This patch release corrects the note loader, the folder tree marks, and the
+note name field. It also gives the product one neutral mark.
+
+### Changed
+
+- The install icon and the application mark use one neutral N with an
+  underline. The application renders all installed icons from the one vector
+  source.
+
+### Fixed
+
+- The note screen shows no text from another note. A loader result reaches the
+  editor only when it names the open account, the open workspace, and the open
+  note.
+- The note name field no longer requests stored personal data. It tells the
+  browser that the name is application content.
+- The All notes row, a selected folder, and the open note no longer touch the
+  marked row below them as one band. One spacing step now separates each pair.
+
 ## 0.3.0 - 2026-09-18
 
 This release gives the interface one face, one accent, one edge and one recipe
