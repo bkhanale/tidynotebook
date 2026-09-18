@@ -46,16 +46,20 @@ function workspaceHome(workspaceId: string): string {
  *
  * A note inside a folder yields one part for each folder above it, so the
  * person reads the whole path and can reach every level of it. A route that
- * names no note yields the workspace and the page, which is the shortest
- * breadcrumb the header ever shows.
+ * names no note yields the workspace and the page. A part carries a word or
+ * it is absent, so the header never shows a link with nothing in it.
  */
 export function breadcrumbParts(
   route: BreadcrumbRoute,
 ): readonly BreadcrumbPart[] {
   const home = workspaceHome(route.workspaceId);
-  const parts: BreadcrumbPart[] = [
-    { label: route.workspaceName, to: home, folder: '' },
-  ];
+  const parts: BreadcrumbPart[] = [];
+  // The workspace list is a cache that a device fills after the first paint,
+  // so the name can be missing for one render. A part with no word is a link
+  // that a person cannot see and a screen reader cannot name, so there is no
+  // part at all until the name arrives.
+  if (route.workspaceName !== '')
+    parts.push({ label: route.workspaceName, to: home, folder: '' });
   const segments =
     route.notePath === null ? [] : route.notePath.split('/').slice(0, -1);
   let walked = '';

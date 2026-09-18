@@ -61,6 +61,7 @@ import {
   type MenuItem,
   MoreIcon,
   focusOutline,
+  focusOutlineInset,
   Notice,
   pageGutter,
   PanelLeftIcon,
@@ -1128,7 +1129,7 @@ function SidebarResizer({
       aria-valuemin={sidebarWidthPx('narrow')}
       aria-valuemax={sidebarWidthPx('widest')}
       tabIndex={0}
-      className="absolute bottom-0 right-0 top-0 z-10 hidden w-2 translate-x-1 cursor-col-resize focus-visible:outline-2 focus-visible:outline-focus md:block"
+      className={`absolute bottom-0 right-0 top-0 z-10 hidden w-2 translate-x-1 cursor-col-resize md:block ${focusOutlineInset}`}
       onPointerDown={(event) => {
         event.preventDefault();
         setDragging(true);

@@ -11,6 +11,11 @@
  * overlay does, so nothing inside it stays in the tab order. The widths come
  * from `./sidebar-size.ts`.
  *
+ * The panel is the chrome plane, and its right edge is the hairline of a
+ * group that already differs in fill (decision 0063). Its text is the ink of
+ * the page, because every row inside it reads the one row recipe and states
+ * its own colour.
+ *
  * The rule lives here so a unit test can hold it: a closed overlay must leave
  * the tab order and the accessibility tree, not only move off the screen.
  */
@@ -25,7 +30,7 @@ import { sidebarWidthClass, type SidebarSize } from './sidebar-size.ts';
  * overlay ignores: a phone reaches the tree through the overlay alone.
  */
 export function drawerClassName(open: boolean, size: SidebarSize): string {
-  const base = `fixed bottom-0 left-0 top-0 z-50 flex ${sidebarWidthClass(size.step)} flex-col border-r border-edge-line bg-surface text-muted ${transitionPanel} md:top-header md:z-40`;
+  const base = `fixed bottom-0 left-0 top-0 z-50 flex ${sidebarWidthClass(size.step)} flex-col border-r border-edge-subtle bg-surface text-ink ${transitionPanel} md:top-header md:z-40`;
   // `invisible` and not only `-translate-x-full`: a panel that stays visible
   // keeps every link inside it reachable by keyboard and by a screen reader,
   // so the person would walk into a drawer that is not on the screen.

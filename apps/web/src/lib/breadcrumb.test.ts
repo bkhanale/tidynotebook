@@ -85,3 +85,14 @@ await test('a path with a repeated separator yields no empty part', () => {
     ['Personal', 'Work', 'Roadmap'],
   );
 });
+
+await test('a workspace with no name yet yields no part of its own', () => {
+  // The workspace list fills after the first paint, and a link with no word
+  // is one that nobody can read and nobody can name.
+  const parts = breadcrumbParts(route({ workspaceName: '' }));
+  assert.deepEqual(parts, [{ label: 'All notes', to: null, folder: null }]);
+  for (const part of breadcrumbParts(
+    route({ workspaceName: '', notePath: 'Work/Note.md', leaf: 'Note' }),
+  ))
+    assert.notEqual(part.label, '');
+});
