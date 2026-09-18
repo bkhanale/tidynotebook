@@ -121,8 +121,9 @@ the footer rows. The wordmark appears on the sign in and setup screens only.
 - An empty state is an icon at 20 px, a title in `text-ui font-semibold`, one
   sentence in `text-control text-muted`, and one action. No box.
 - A notice is a tone surface, `bg-accent-surface`, `bg-success-surface` or
-  `bg-danger-surface`, a mark in the tone colour and text in `text-ink`. No
-  edge. One notice for one cause.
+  `bg-danger-surface`, a mark in the tone colour and text in `text-strong`. No
+  edge. One notice for one cause. A tone surface is a fill and not the page, so
+  it takes the strong text, as every other fill of the product does.
 - A loading state is the placeholder in `packages/ui/src/loading.tsx`.
 - A toast is `Toast` in `packages/ui`, a raised surface at the bottom of the
   screen with one sentence and one action.

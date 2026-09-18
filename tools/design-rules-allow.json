@@ -20,6 +20,21 @@
       "file": "apps/web/src/shell/shortcuts.tsx",
       "rule": "arbitrary-value",
       "reason": "The shortcut list is a two column grid where the key column is content sized: grid-cols-[1fr_auto]. Tailwind names only equal column counts, so no named value expresses it."
+    },
+    {
+      "file": "packages/ui/src/controls.tsx",
+      "rule": "stateful-edge",
+      "reason": "The box of the Checkbox is one of the five controls that decision 0063 reserves the component edge for. A person reads the state of a checkbox from its shape alone, so its edge must meet the 3 to 1 non text minimum that theme.test.ts holds `border` to."
+    },
+    {
+      "file": "apps/web/src/lib/tree-row.ts",
+      "rule": "stateful-edge",
+      "reason": "The drop target of the folder tree is named by decision 0063. While a row is dragged over a folder, the edge is the whole message, so it must meet the 3 to 1 non text minimum."
+    },
+    {
+      "file": "packages/editor/src/widgets.ts",
+      "rule": "inner-html",
+      "reason": "The mathematics widget writes the markup that `renderMath` in @notesapp/markdown returned, which strips every element and every attribute outside the KaTeX drawing set first. The editor builds its own DOM, so no React node can carry that markup."
     }
   ]
 }

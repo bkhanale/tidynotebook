@@ -6,9 +6,14 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
+  bannedClasses,
+  colourTokens,
+  fileRules,
+  iconSizes,
   jsxTextRule,
   motionModule,
   scanSource,
+  stylesheet,
   textRules,
 } from './check-design-rules.mjs';
 
@@ -19,14 +24,53 @@ const checker = fileURLToPath(
 );
 
 /**
+ * The palette that a disposable tree declares.
+ *
+ * The colour rule reads the tokens of the one stylesheet, so a fixture tree
+ * needs one. These are the names of the real stylesheet and no value, because
+ * the rule reads names alone.
+ */
+const fixtureStylesheet = `@theme inline {
+  --color-app: var(--notes-bg);
+  --color-surface: var(--notes-surface);
+  --color-card: var(--notes-surface-card);
+  --color-hover: var(--notes-surface-hover);
+  --color-active: var(--notes-surface-active);
+  --color-ink: var(--notes-text);
+  --color-strong: var(--notes-text-strong);
+  --color-muted: var(--notes-text-muted);
+  --color-accent: var(--notes-accent-text);
+  --color-accent-fill: var(--notes-accent-fill);
+  --color-accent-fill-hover: var(--notes-accent-fill-hover);
+  --color-on-accent: var(--notes-accent-on-fill);
+  --color-accent-surface: var(--notes-accent-surface);
+  --color-success: var(--notes-success-text);
+  --color-success-surface: var(--notes-success-surface);
+  --color-danger: var(--notes-danger-text);
+  --color-danger-fill: var(--notes-danger-fill);
+  --color-danger-fill-hover: var(--notes-danger-fill-hover);
+  --color-danger-surface: var(--notes-danger-surface);
+  --color-on-danger: var(--notes-on-danger);
+  --color-edge: var(--notes-border);
+  --color-edge-line: var(--notes-border-line);
+  --color-edge-subtle: var(--notes-border-subtle);
+  --color-focus: var(--notes-focus);
+  --color-scrim: var(--notes-scrim);
+}
+`;
+
+/**
  * @param {Record<string, string>} files
+ * @param {{ stylesheet?: boolean }} [options]
  * @returns {{ status: number; output: string }}
  */
-function check(files) {
+function check(files, options) {
   const directory = mkdtempSync(join(tmpdir(), 'notesapp-design-'));
   try {
     mkdirSync(join(directory, 'apps/web/src'), { recursive: true });
     mkdirSync(join(directory, 'packages/ui/src'), { recursive: true });
+    if (options?.stylesheet !== false)
+      writeFileSync(join(directory, stylesheet), fixtureStylesheet);
     for (const [name, content] of Object.entries(files)) {
       const file = join(directory, name);
       mkdirSync(dirname(file), { recursive: true });
@@ -44,9 +88,14 @@ function check(files) {
   }
 }
 
+/** The tokens of the real stylesheet, for a rule that needs them. */
+const tokens = { colourTokens: colourTokens(fixtureStylesheet) };
+
 /** @param {string} source @returns {string[]} */
 const rulesOf = (source) =>
-  scanSource('apps/web/src/screen.tsx', source).map((issue) => issue.rule);
+  scanSource('apps/web/src/screen.tsx', source, tokens).map(
+    (issue) => issue.rule,
+  );
 
 await test('a colour value outside the theme registry fails', () => {
   assert.equal(
@@ -79,6 +128,238 @@ await test('a class outside the named scale fails', () => {
   assert.notEqual(textRules['banned-class']('hover:bg-black'), null);
   assert.equal(textRules['banned-class']('text-control'), null);
   assert.equal(textRules['banned-class']('text-xs-legacy'), null);
+});
+
+await test('every class of the banned list fails, and its neighbours pass', () => {
+  // One negative case for each entry, so a name added to the list without a
+  // working pattern cannot pass this test.
+  for (const [name, instead] of Object.entries(bannedClasses)) {
+    const message = textRules['banned-class'](`flex ${name} items-center`);
+    assert.notEqual(message, null, name);
+    assert.ok(message?.includes(instead), name);
+  }
+});
+
+await test('a text size, a radius and a weight off the scale fail', () => {
+  for (const name of [
+    'text-sm',
+    'text-lg',
+    'text-2xl',
+    'text-4xl',
+    'text-5xl',
+    'text-6xl',
+    'font-bold',
+    'font-extrabold',
+    'font-black',
+    'rounded',
+    'rounded-none',
+    'rounded-2xl',
+    'rounded-3xl',
+    'uppercase',
+    'tracking-wide',
+    'tracking-wider',
+    'tracking-widest',
+    'border-dashed',
+  ])
+    assert.notEqual(textRules['banned-class'](`p-2 ${name}`), null, name);
+  // The named steps and the names that only start the same way all pass.
+  for (const name of [
+    'text-kbd',
+    'text-control',
+    'text-ui',
+    'text-base',
+    'text-xl',
+    'text-3xl',
+    'font-medium',
+    'font-semibold',
+    'rounded-sm',
+    'rounded-md',
+    'rounded-lg',
+    'rounded-xl',
+    'rounded-full',
+    'tracking-heading',
+    'tracking-display',
+    'border-solid',
+    'text-sm-legacy',
+    'roundedish',
+  ])
+    assert.equal(textRules['banned-class'](`p-2 ${name}`), null, name);
+});
+
+await test('a control that shrinks under a press fails', () => {
+  assert.notEqual(textRules['banned-class']('active:scale-95'), null);
+  assert.notEqual(textRules['banned-class']('scale-90'), null);
+  assert.notEqual(textRules['banned-class']('hover:scale-105'), null);
+  assert.notEqual(textRules['banned-class']('scale-x-95'), null);
+  // A filter that ends in the same letters is not the transform.
+  assert.equal(textRules['banned-class']('grayscale-50'), null);
+  assert.equal(textRules['banned-class']('size-11'), null);
+});
+
+await test('a colour class that names no token fails', () => {
+  // `bg-surface-hover` is the case that proves the rule: it reads as a
+  // palette name, Tailwind emits nothing for it, and no other check sees it.
+  const screen = 'apps/web/src/screen.tsx';
+  const message = textRules['colour-token']('bg-surface-hover', screen, tokens);
+  assert.ok(message?.includes('--color-surface-hover'), String(message));
+  for (const name of [
+    'hover:bg-active-hover',
+    'border-edge-loud',
+    'bg-danger-soft',
+    'md:text-muted-strong',
+  ])
+    assert.notEqual(
+      textRules['colour-token'](name, screen, tokens),
+      null,
+      name,
+    );
+});
+
+await test('a colour class that names a token passes', () => {
+  const screen = 'apps/web/src/screen.tsx';
+  for (const name of [
+    'bg-app',
+    'bg-surface',
+    'bg-card',
+    'hover:bg-hover',
+    'text-strong',
+    'border-edge-line',
+    'focus-visible:outline-focus',
+    'focus-visible:ring-focus/25',
+    'bg-transparent',
+    'text-center',
+    'border-transparent',
+    'text-control',
+    'rounded-md',
+  ])
+    assert.equal(textRules['colour-token'](name, screen, tokens), null, name);
+});
+
+await test('the colour rule is quiet when no stylesheet was read', () => {
+  // The scan reads the tokens once. A caller that passes none, such as a
+  // rule test of another rule, must not turn every colour class into a
+  // failure, and `main` refuses a tree with no stylesheet at all.
+  assert.equal(
+    textRules['colour-token']('bg-surface-hover', 'apps/web/src/screen.tsx'),
+    null,
+  );
+});
+
+await test('the component edge fails outside a control with a drawn state', () => {
+  assert.notEqual(
+    textRules['stateful-edge']('rounded-md border border-edge'),
+    null,
+  );
+  assert.notEqual(textRules['stateful-edge']('ring-1 ring-edge'), null);
+  assert.notEqual(textRules['stateful-edge']('hover:border-edge'), null);
+  // The divider and the hairline are the resting edges, and they pass.
+  assert.equal(textRules['stateful-edge']('border border-edge-line'), null);
+  assert.equal(textRules['stateful-edge']('border-edge-subtle'), null);
+  assert.equal(textRules['stateful-edge']('ring-edge-line'), null);
+});
+
+await test('a focus variant fails except on the edge and the ring of a field', () => {
+  assert.notEqual(textRules['pointer-focus']('focus:outline-2'), null);
+  assert.notEqual(textRules['pointer-focus']('focus:bg-hover'), null);
+  assert.notEqual(textRules['pointer-focus']('focus:translate-y-0'), null);
+  assert.equal(textRules['pointer-focus']('focus:border-focus'), null);
+  assert.equal(textRules['pointer-focus']('focus:ring-2'), null);
+  assert.equal(textRules['pointer-focus']('focus-visible:outline-2'), null);
+});
+
+await test('a family name outside the stylesheet fails', () => {
+  const screen = 'apps/web/src/screen.tsx';
+  assert.notEqual(textRules['font-family']('font-family: Geist', screen), null);
+  assert.notEqual(
+    textRules['font-family']("'Geist Mono', monospace", screen),
+    null,
+  );
+  assert.notEqual(
+    textRules['font-family']('-apple-system, sans-serif', screen),
+    null,
+  );
+  assert.notEqual(textRules['font-family']('Inter, Arial', screen), null);
+  // The one file that declares the face may name it, and every module reads
+  // the variable instead.
+  assert.equal(
+    textRules['font-family']('font-family: Geist', stylesheet),
+    null,
+  );
+  assert.equal(textRules['font-family']('var(--font-sans)', screen), null);
+  assert.equal(textRules['font-family']('var(--font-mono)', screen), null);
+  // A word that holds the name of a face is not that face.
+  assert.equal(textRules['font-family']('setInterval', screen), null);
+  assert.equal(textRules['font-family']('createInterface', screen), null);
+});
+
+await test('an element that writes an icon attribute fails', () => {
+  // The grid lives in one module and one frame spreads it, so an element
+  // that states a viewport or a stroke has a second answer to what an icon
+  // is. This is the rule that makes reading the grid the only way to draw.
+  for (const attribute of [
+    'viewBox="0 0 24 24"',
+    'strokeWidth="2"',
+    'strokeLinecap="round"',
+    'strokeLinejoin="round"',
+  ]) {
+    const found = fileRules['icon-attribute'](`<svg ${attribute} />`, 'a.tsx');
+    assert.equal(found.length, 1, attribute);
+    assert.ok(
+      found[0]?.message.includes('icon-grid.ts'),
+      found[0]?.message ?? '',
+    );
+  }
+});
+
+await test('a module that reads the grid writes no attribute', () => {
+  // The grid module states the same names as object properties, and a frame
+  // spreads them, so neither one writes an attribute.
+  for (const source of [
+    "export const iconAttributes = { viewBox: '0 0 24 24', strokeWidth: 1.5 };",
+    '<svg width={size} {...iconAttributes} />',
+  ])
+    assert.deepEqual(fileRules['icon-attribute'](source, 'a.tsx'), [], source);
+});
+
+await test('an icon at a size off the grid fails', () => {
+  const found = fileRules['icon-size'](
+    '<TrashIcon size={14} />\n<HistoryIcon size={24} />\n',
+    'apps/web/src/screen.tsx',
+  );
+  assert.equal(found.length, 2);
+  assert.ok(found[0]?.message.includes('TrashIcon'), found[0]?.message ?? '');
+  assert.ok(found[1]?.message.includes('HistoryIcon'), found[1]?.message ?? '');
+});
+
+await test('an icon at one of the two sizes passes', () => {
+  for (const size of iconSizes) {
+    assert.deepEqual(
+      fileRules['icon-size'](
+        `<TrashIcon size={${String(size)}} />`,
+        'apps/web/src/screen.tsx',
+      ),
+      [],
+      String(size),
+    );
+  }
+  // A size the icon takes from a variable cannot be read here, and a module
+  // that is not JSX holds no icon at all.
+  assert.deepEqual(
+    fileRules['icon-size']('<TrashIcon size={size} />', 'a/b.tsx'),
+    [],
+  );
+  assert.deepEqual(
+    fileRules['icon-size']('<TrashIcon size={14} />', 'a/b.ts'),
+    [],
+  );
+});
+
+await test('the colour tokens are read from the stylesheet text', () => {
+  const found = colourTokens(fixtureStylesheet);
+  assert.ok(found.has('app'));
+  assert.ok(found.has('edge-line'));
+  assert.ok(!found.has('surface-hover'));
+  assert.equal(colourTokens('body { color: red }').size, 0);
 });
 
 await test('a shadow outside the elevation scale fails', () => {
@@ -241,6 +522,65 @@ await test('an allowlist entry accepts one file and one rule only', () => {
     }).status,
     1,
   );
+});
+
+await test('a tree with no stylesheet cannot answer the colour rule', () => {
+  // The palette names come from one file. Skipping the rule when that file is
+  // missing would turn a broken tree into a passing check.
+  const result = check(
+    {
+      'apps/web/src/screen.tsx':
+        'export function Screen() {\n  return <p className="text-control">Open today</p>;\n}\n',
+    },
+    { stylesheet: false },
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.output, /tailwind\.css is missing/);
+});
+
+await test('the editor tree and the published page are checked too', () => {
+  // Decision 0065 widens the scan: the editor adapter writes presentation in
+  // TypeScript, and one file of the server writes the published page.
+  const result = check({
+    'packages/editor/src/theme.ts': "export const heading = 'text-2xl';\n",
+    'apps/server/src/routes/published-document.ts':
+      "export const body = 'uppercase';\n",
+  });
+  assert.equal(result.status, 1);
+  assert.match(
+    result.output,
+    /packages\/editor\/src\/theme\.ts:1: banned-class/,
+  );
+  assert.match(
+    result.output,
+    /apps\/server\/src\/routes\/published-document\.ts:1: banned-class/,
+  );
+});
+
+await test('a screen that follows every new rule passes the command', () => {
+  const result = check({
+    'apps/web/src/screen.tsx': [
+      "import { CheckIcon, TrashIcon } from '@notesapp/ui';",
+      '',
+      'export function Screen() {',
+      '  return (',
+      '    <div className="rounded-md border border-edge-line bg-card text-strong">',
+      '      <button',
+      '        type="button"',
+      '        className="rounded-md bg-accent-fill text-on-accent hover:bg-accent-fill-hover focus-visible:outline-2 focus-visible:outline-focus"',
+      '      >',
+      '        <CheckIcon size={16} />',
+      '        Save',
+      '      </button>',
+      '      <TrashIcon size={20} />',
+      '      <input className="border-edge-line focus:border-focus focus:ring-2" />',
+      '    </div>',
+      '  );',
+      '}',
+      '',
+    ].join('\n'),
+  });
+  assert.equal(result.status, 0, result.output);
 });
 
 await test('a test file is not checked', () => {

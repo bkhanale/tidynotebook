@@ -6,15 +6,34 @@
  * person who reads a screen. This check makes those rules fail `pnpm lint`
  * instead of a review.
  *
- * It parses `.ts` and `.tsx` under `apps/web/src` and `packages/ui/src`,
- * excluding test files, and reports:
+ * It parses `.ts` and `.tsx` under `apps/web/src`, `packages/ui/src` and
+ * `packages/editor/src`, plus the one file of the server that writes the
+ * published page, excluding test files, and reports:
  *
  * - `inline-style`: a `style` JSX attribute.
  * - `inner-html`: `dangerouslySetInnerHTML`, or an assignment to `innerHTML`.
  * - `colour-literal`: a hex colour or an `rgb(` value in a string, outside
  *   `packages/ui/src/themes/`, which is the one registry that holds colour.
+ * - `colour-token`: a colour class that begins with a palette word and names
+ *   no `--color-*` token of `apps/web/src/tailwind.css`. A class such as
+ *   `bg-surface-hover` renders nothing at all, and nothing else sees it.
  * - `arbitrary-value`: a Tailwind arbitrary value such as `w-[32rem]`.
- * - `banned-class`: `text-xs`, `text-white`, or `bg-black`.
+ * - `banned-class`: a class outside the named scales: a text size, a radius,
+ *   a weight, a tracking step, `uppercase`, `border-dashed` and a press
+ *   scale, each named in {@link bannedClasses} with the step to use instead.
+ * - `icon-size`: an icon rendered at a size other than 16 or 20 (decision
+ *   0065).
+ * - `icon-attribute`: a `viewBox`, a `strokeWidth` or a line end written on an
+ *   element. `packages/ui/src/icon-grid.ts` states the grid of every icon and
+ *   one frame spreads it (decision 0065).
+ * - `stateful-edge`: `border-edge` or `ring-edge` outside the controls whose
+ *   state a person reads with no text. Every other control rests on
+ *   `edge-line` (decision 0063).
+ * - `pointer-focus`: a `focus:` variant on anything but the edge and the ring
+ *   of a field. `focus-visible:` is the one focus treatment of decision 0065.
+ * - `font-family`: a family name or a `font-family` declaration outside
+ *   `apps/web/src/tailwind.css`, which is the one file that declares the face
+ *   of the product (decision 0061).
  * - `raw-elevation`: a built in shadow utility. Depth comes from the three
  *   named steps of decision 0052.
  * - `colour-filter`: a filter utility that changes a colour, such as
@@ -37,10 +56,32 @@ import { relative, resolve, sep } from 'node:path';
 import { parseSync } from 'oxc-parser';
 import { filesIn, root } from './workspace.mjs';
 
-/** The trees this check reads. */
-export const scanned = ['apps/web/src', 'packages/ui/src'];
+/**
+ * The trees this check reads.
+ *
+ * The editor adapter writes presentation in TypeScript, so it is design code
+ * and it is held to the design rules (decision 0065).
+ */
+export const scannedDirectories = [
+  'apps/web/src',
+  'packages/ui/src',
+  'packages/editor/src',
+];
+
+/**
+ * The files this check reads outside those trees.
+ *
+ * The published page of decision 0031 is a document that one file of the
+ * server writes, and it reads the class strings of the application, so it is
+ * design code as well. Nothing else of the server is.
+ */
+export const scannedFiles = ['apps/server/src/routes/published-document.ts'];
+
 /** The one directory that may hold a colour value. */
 export const themeDirectory = 'packages/ui/src/themes/';
+
+/** The one file that declares the face and the palette names. */
+export const stylesheet = 'apps/web/src/tailwind.css';
 
 const hexColour = /#[0-9a-fA-F]{3}(?:[0-9a-fA-F]{3}(?:[0-9a-fA-F]{2})?)?\b/;
 const rgbColour = /\brgba?\(/;
@@ -48,7 +89,100 @@ const rgbColour = /\brgba?\(/;
 // shape does not match a CSS selector such as `[role="menuitem"]`, which has
 // no prefix, and it does not match an index expression, which is not a string.
 const arbitraryValue = /(?:^|\s|:)-?[a-z][a-zA-Z0-9-]*-\[/;
-const bannedClasses = ['text-xs', 'text-white', 'bg-black'];
+/**
+ * Every class outside the named scales, with what to use instead.
+ *
+ * The type steps, the radius scale and the two chrome weights live in
+ * `apps/web/src/tailwind.css` and in the design guide. A class here is one a
+ * screen reached for instead of a named step, and each one is the mark of a
+ * generated page rather than a decision somebody made (decision 0065).
+ */
+export const bannedClasses = {
+  'text-xs': 'text-kbd is the smallest step.',
+  'text-sm': 'text-control is a control and a label. text-ui is body text.',
+  'text-lg': 'text-base titles a card. text-xl titles a page.',
+  'text-2xl': 'text-xl titles a page. text-3xl names a note.',
+  'text-4xl': 'text-3xl is the largest step.',
+  'text-5xl': 'text-3xl is the largest step.',
+  'text-6xl': 'text-3xl is the largest step.',
+  'text-white': 'A colour comes from the palette.',
+  'bg-black': 'A colour comes from the palette.',
+  uppercase: 'Every label is sentence case.',
+  'tracking-wide': 'Large type tightens with tracking-heading.',
+  'tracking-wider': 'Large type tightens with tracking-heading.',
+  'tracking-widest': 'Large type tightens with tracking-heading.',
+  'font-bold': 'The chrome has two weights: font-medium and font-semibold.',
+  'font-extrabold': 'The chrome has two weights.',
+  'font-black': 'The chrome has two weights.',
+  'border-dashed': 'An empty state has no box at all.',
+  rounded: 'Name the step: rounded-sm, md, lg or xl.',
+  'rounded-none': 'A square corner is not on the radius scale.',
+  'rounded-2xl': 'rounded-xl is the largest step, and it is a dialog.',
+  'rounded-3xl': 'rounded-xl is the largest step, and it is a dialog.',
+};
+
+// A press that shrinks the control moves the target a person is aiming at,
+// and `scale-9*` is the utility every generated page reaches for.
+const pressScale = /(?:^|[\s:])(?:scale|scale-x|scale-y)-\d+(?![\w-])/;
+
+/**
+ * A colour class: a utility that paints, then a palette word.
+ *
+ * The second group is the first word of every colour token of the stylesheet,
+ * so `bg-surface-hover` matches and `bg-transparent` does not. An opacity
+ * modifier is stripped before the token is looked up.
+ */
+const colourClass =
+  /(?:^|[\s:])(?:bg|text|border|ring|outline|fill|stroke|decoration|placeholder|caret|accent|divide|shadow|from|via|to)-(app|surface|card|hover|active|ink|strong|muted|accent|success|danger|edge|focus|scrim|on)((?:-[a-z]+)*)(?:\/\d+)?(?![\w-])/g;
+
+/** The component edge, which only a control with a drawn state may name. */
+const statefulEdge = /(?:^|[\s:])(?:border|ring)-edge(?![\w-])/;
+
+/** A `focus:` variant, and the two utilities a field may put behind one. */
+const pointerFocus = /(?:^|[\s:])focus:([a-z][\w-]*)/g;
+const fieldFocusUtilities = /^(?:border|ring)-/;
+
+/**
+ * A family name, or a declaration of one.
+ *
+ * `apps/web/src/tailwind.css` declares the face and names the two families,
+ * and every module reads `var(--font-sans)` or `var(--font-mono)` instead
+ * (decision 0061). A module that names a family has a second answer to what
+ * the product is set in.
+ */
+const familyName =
+  /font-family|\b(?:Geist|Inter|Helvetica|Arial|Roboto|Menlo|Consolas|Segoe UI|BlinkMacSystemFont|SFMono-Regular|Cascadia Code|system-ui|ui-sans-serif|ui-monospace|sans-serif|monospace)\b/;
+
+/** An icon rendered at a numeric size, and the two sizes it may take. */
+const iconSize = /<([A-Z]\w*Icon)\b[^>]*?\bsize=\{(\d+)\}/g;
+
+/**
+ * An SVG presentation attribute written on an element.
+ *
+ * `packages/ui/src/icon-grid.ts` states the viewport, the stroke and the line
+ * ends of every icon, and one frame in `packages/ui/src/icons.tsx` spreads
+ * them. An element that writes one of these has a second answer to what the
+ * grid of an icon is, and the same glyph then draws as a hairline at one size
+ * and as a heavy mark at the other, which is the fault decision 0065 answers.
+ */
+const iconAttribute = /\b(viewBox|strokeWidth|strokeLinecap|strokeLinejoin)=/g;
+
+/** The two sizes an icon renders at (decision 0065). */
+export const iconSizes = [16, 20];
+
+/**
+ * The colour tokens that one stylesheet declares.
+ *
+ * @param {string} css
+ * @returns {Set<string>}
+ */
+export function colourTokens(css) {
+  /** @type {Set<string>} */
+  const tokens = new Set();
+  for (const match of css.matchAll(/--color-([a-z][a-z0-9-]*)\s*:/g))
+    tokens.add(match[1] ?? '');
+  return tokens;
+}
 /** The one module that may name a duration, an easing, or a transition. */
 export const motionModule = 'packages/ui/src/motion.ts';
 /** The three named elevation steps of the central theme. */
@@ -73,7 +207,11 @@ const uuid =
 /**
  * The rules that read one piece of text.
  *
- * Each returns a message, or `null` when the text passes.
+ * Each returns a message, or `null` when the text passes. A rule that needs
+ * more than the text reads it from the third argument, which the scan fills
+ * once per run.
+ *
+ * @typedef {{ colourTokens?: Set<string> | undefined }} RuleContext
  */
 export const textRules = {
   /** @param {string} text @param {string} path @returns {string | null} */
@@ -85,6 +223,23 @@ export const textRules = {
       return 'Colour value rgb( outside the theme registry.';
     return null;
   },
+  /**
+   * @param {string} text
+   * @param {string} _path
+   * @param {RuleContext} [context]
+   * @returns {string | null}
+   */
+  'colour-token'(text, _path, context) {
+    const tokens = context?.colourTokens;
+    if (tokens === undefined) return null;
+    for (const match of text.matchAll(colourClass)) {
+      const name = `${match[1] ?? ''}${match[2] ?? ''}`;
+      if (tokens.has(name)) continue;
+      const written = match[0].trim().replace(/^:/, '');
+      return `Colour class ${written} names no --color-${name} token of ${stylesheet}.`;
+    }
+    return null;
+  },
   /** @param {string} text @returns {string | null} */
   'arbitrary-value'(text) {
     const found = arbitraryValue.exec(text);
@@ -94,11 +249,36 @@ export const textRules = {
   },
   /** @param {string} text @returns {string | null} */
   'banned-class'(text) {
-    for (const name of bannedClasses) {
+    for (const [name, instead] of Object.entries(bannedClasses)) {
       if (new RegExp(`(?:^|[\\s:])${name}(?![\\w-])`).test(text))
-        return `Class ${name} is not part of the named scale.`;
+        return `Class ${name} is not part of the named scale. ${instead}`;
+    }
+    if (pressScale.test(text))
+      return 'Nothing scales when a person presses it.';
+    return null;
+  },
+  /** @param {string} text @returns {string | null} */
+  'stateful-edge'(text) {
+    return statefulEdge.test(text)
+      ? 'The resting edge of a control is edge-line. edge is a task box, a checkbox, a radio, a switch track and a drop target.'
+      : null;
+  },
+  /** @param {string} text @returns {string | null} */
+  'pointer-focus'(text) {
+    for (const match of text.matchAll(pointerFocus)) {
+      const utility = match[1] ?? '';
+      if (fieldFocusUtilities.test(utility)) continue;
+      return `focus:${utility} answers a pointer press as well. Use focus-visible:.`;
     }
     return null;
+  },
+  /** @param {string} text @param {string} path @returns {string | null} */
+  'font-family'(text, path) {
+    if (path === stylesheet) return null;
+    const found = familyName.exec(text);
+    return found
+      ? `Family name ${found[0]} outside ${stylesheet}. Read var(--font-sans) or var(--font-mono).`
+      : null;
   },
   /** @param {string} text @returns {string | null} */
   'raw-elevation'(text) {
@@ -141,6 +321,51 @@ export function jsxTextRule(text) {
   return null;
 }
 
+/**
+ * The rules that read one whole source file.
+ *
+ * A `size` on an icon is a JSX attribute and not a string, so no rule that
+ * reads a piece of text can see it. Each rule answers a list of findings with
+ * the offset that names the line.
+ */
+export const fileRules = {
+  /**
+   * @param {string} text
+   * @param {string} [_path]
+   * @returns {{ message: string; offset: number }[]}
+   */
+  'icon-attribute'(text, _path) {
+    /** @type {{ message: string; offset: number }[]} */
+    const found = [];
+    for (const match of text.matchAll(iconAttribute)) {
+      found.push({
+        message: `${match[1] ?? ''} is stated once, in packages/ui/src/icon-grid.ts, and one frame spreads it.`,
+        offset: match.index,
+      });
+    }
+    return found;
+  },
+  /**
+   * @param {string} text
+   * @param {string} path
+   * @returns {{ message: string; offset: number }[]}
+   */
+  'icon-size'(text, path) {
+    if (!path.endsWith('.tsx')) return [];
+    /** @type {{ message: string; offset: number }[]} */
+    const found = [];
+    for (const match of text.matchAll(iconSize)) {
+      const size = Number(match[2]);
+      if (iconSizes.includes(size)) continue;
+      found.push({
+        message: `${match[1] ?? 'An icon'} renders at ${String(size)} px. An icon is ${iconSizes.join(' px in a control and ')} px in an empty state.`,
+        offset: match.index,
+      });
+    }
+    return found;
+  },
+};
+
 /** @param {unknown} value @returns {Record<string, unknown>} */
 function record(value) {
   if (value === null || typeof value !== 'object' || Array.isArray(value))
@@ -177,9 +402,10 @@ function attributeName(node) {
  *
  * @param {string} path Repository relative path, with forward slashes.
  * @param {string} text
+ * @param {RuleContext} [context] What a rule needs beyond the text.
  * @returns {{ path: string; line: number; rule: string; message: string }[]}
  */
-export function scanSource(path, text) {
+export function scanSource(path, text, context) {
   /** @type {{ path: string; line: number; rule: string; message: string }[]} */
   const found = [];
   const lineStarts = [0];
@@ -200,6 +426,10 @@ export function scanSource(path, text) {
   /** @param {string} rule @param {string} message @param {unknown} offset */
   const report = (rule, message, offset) =>
     found.push({ path, line: lineOf(offset), rule, message });
+
+  for (const [rule, check] of Object.entries(fileRules))
+    for (const finding of check(text, path))
+      report(rule, finding.message, finding.offset);
 
   const parsed = parseSync(path, text);
   for (const error of parsed.errors)
@@ -254,7 +484,7 @@ export function scanSource(path, text) {
     }
     if (value === null || value.trim() === '') return;
     for (const [rule, check] of Object.entries(textRules)) {
-      const message = check(value, path);
+      const message = check(value, path, context);
       if (message !== null) report(rule, message, node.start);
     }
     if (isJsxText) {
@@ -296,11 +526,33 @@ export async function readAllowlist(directory) {
  */
 export async function main(directory) {
   const allowed = await readAllowlist(directory);
+  // The palette names come from the one stylesheet, so the colour rule reads
+  // the same list that the build compiles. A missing stylesheet is a broken
+  // tree and not a reason to stop checking colour.
+  const css = await readFile(resolve(directory, stylesheet), 'utf8').catch(
+    () => null,
+  );
+  if (css === null) {
+    process.stderr.write(
+      `Design rule check failed: ${stylesheet} is missing, so no colour token can be read.\n`,
+    );
+    return 1;
+  }
+  const context = { colourTokens: colourTokens(css) };
+  const named = await Promise.all(
+    scannedFiles.map(async (file) => {
+      const full = resolve(directory, file);
+      return (await readFile(full, 'utf8').catch(() => null)) === null
+        ? []
+        : [full];
+    }),
+  );
   const files = (
     await Promise.all(
-      scanned.map((folder) => filesIn(resolve(directory, folder))),
+      scannedDirectories.map((folder) => filesIn(resolve(directory, folder))),
     )
   )
+    .concat(named)
     .flat()
     .filter((file) => /\.tsx?$/.test(file) && !/\.test\.tsx?$/.test(file));
   /** @type {{ path: string; line: number; rule: string; message: string }[]} */
@@ -308,7 +560,7 @@ export async function main(directory) {
   for (const file of files) {
     const path = relative(directory, file).split(sep).join('/');
     const text = await readFile(file, 'utf8');
-    for (const issue of scanSource(path, text)) {
+    for (const issue of scanSource(path, text, context)) {
       if (
         allowed.some(
           (entry) => entry.file === issue.path && entry.rule === issue.rule,
