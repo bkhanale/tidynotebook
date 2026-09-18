@@ -147,8 +147,9 @@ export function Card({
  * admin template, and the state is not a thing a person acts on, so it needs
  * no plane of its own.
  *
- * The icon renders at 20 px, the one size an icon takes outside a control,
- * and the caller passes it with no size of its own.
+ * The caller passes the icon at 20 px, the one size an icon takes outside a
+ * control, and the `icon-size` rule of `tools/check-design-rules.mjs` refuses
+ * any other size.
  *
  * The title is a heading and not a paragraph that looks like one. An empty
  * state stands where a `Card` stands, under the one page title, so a person
