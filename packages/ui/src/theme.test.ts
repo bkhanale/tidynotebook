@@ -31,6 +31,7 @@ import {
   textContrastMinimum,
   themePropertyName,
   themePropertyNames,
+  toneSurfaceBlend,
   uiContrastMinimum,
   type Theme,
   type ThemeTokens,
@@ -137,6 +138,28 @@ for (const theme of themes) {
         contrastRatio(tokens.dangerText, surface) >= textContrastMinimum,
         `danger text on the ${surfaceName} in ${name}`,
       );
+    }
+  });
+
+  await test(`${name} every tone is readable on its own surface`, () => {
+    // A notice paints the surface of its tone and writes on it (record 0065).
+    // A tone surface is a fill and not the page, so a notice sets the strong
+    // text on it, as every other fill of the product does. The tone itself is
+    // there too, in the mark of the notice.
+    const tokens = theme.tokens;
+    for (const [tone, surfaceName] of [
+      ['accentText', 'accentSurface'],
+      ['successText', 'successSurface'],
+      ['dangerText', 'dangerSurface'],
+    ] as const) {
+      const surface = derivedValue(tokens, surfaceName);
+      assert.ok(parseHexColor(surface) !== null, `${surfaceName} in ${name}`);
+      for (const label of [tone, 'textStrong', 'textMuted'] as const) {
+        assert.ok(
+          contrastRatio(tokens[label], surface) >= textContrastMinimum,
+          `${label} on the ${surfaceName} in ${name}`,
+        );
+      }
     }
   });
 
@@ -385,6 +408,40 @@ await test('the hover shift is the one step of every control fill', () => {
   );
 });
 
+await test('the tone blend is the one step of every tone surface', () => {
+  const tokens = defaultThemeFor('light').tokens;
+  for (const [tone, surface] of [
+    ['accentText', 'accentSurface'],
+    ['successText', 'successSurface'],
+    ['dangerText', 'dangerSurface'],
+  ] as const) {
+    assert.equal(
+      derivedValue(tokens, surface),
+      mixHexColors(tokens[tone], tokens.background, toneSurfaceBlend),
+    );
+  }
+});
+
+await test('a palette with an unreadable tone keeps the page behind it', () => {
+  const base = defaultThemeFor('dark').tokens;
+  const tokens = { ...base, dangerText: 'rebeccapurple' };
+  assert.equal(derivedValue(tokens, 'dangerSurface'), tokens.background);
+});
+
+await test('the default action is ink and the blue carries meaning', () => {
+  // Decision 0062. The fill of the one action is near black on the light page
+  // and near white on the dark page, and the blue stays where colour states a
+  // meaning that no shape states: the link and the focus ring.
+  const light = defaultThemeFor('light').tokens;
+  const dark = defaultThemeFor('dark').tokens;
+  assert.ok(relativeLuminance(light.accentFill) < 0.05, 'the light ink fill');
+  assert.ok(relativeLuminance(dark.accentFill) > 0.8, 'the dark ink fill');
+  assert.notEqual(light.accentFill, light.focus);
+  assert.notEqual(dark.accentFill, dark.focus);
+  assert.equal(light.accentText, '#1a63c4');
+  assert.equal(dark.accentText, '#6fa8f5');
+});
+
 await test('themePropertyName maps every token to one property', () => {
   assert.equal(themePropertyName('surface'), '--notes-surface');
   assert.equal(themePropertyName('background'), '--notes-bg');
@@ -409,6 +466,12 @@ await test('themePropertyName maps every token to one property', () => {
     derivedPropertyName('dangerFillHover'),
     '--notes-danger-fill-hover',
   );
+  assert.equal(derivedPropertyName('accentSurface'), '--notes-accent-surface');
+  assert.equal(
+    derivedPropertyName('successSurface'),
+    '--notes-success-surface',
+  );
+  assert.equal(derivedPropertyName('dangerSurface'), '--notes-danger-surface');
   for (const name of derivedPropertyNames) {
     const property = derivedPropertyName(name);
     assert.ok(property.startsWith('--notes-'));

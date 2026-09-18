@@ -1,11 +1,31 @@
 # Third party licenses of `@notesapp/ui`
 
+This file records two kinds of borrowed work: the type faces that the
+application is set in, and the palettes that the theme registry borrows.
+
 Every borrowed theme in `src/themes/` copies colour values from the published
 palette of an upstream project. The copyright and the license of those values
 belong to the upstream author. This file names the project, the license, and
 the address of each palette, and it records which values notesapp derives.
 Default and Ink are the two exceptions: they are families of this application,
 so they carry no upstream author and their values are original.
+
+## Geist and Geist Mono
+
+- Upstream: [Geist by Vercel](https://github.com/vercel/geist-font)
+- License: SIL Open Font License 1.1
+  ([full text](https://github.com/vercel/geist-font/blob/main/LICENSE.TXT))
+- Used files: the latin and the latin extended subsets that Google Fonts
+  publishes, served as published with no change to the bytes.
+  `apps/web/public/fonts/` holds `geist-latin.woff2`,
+  `geist-latin-italic.woff2`, `geist-latin-ext.woff2`,
+  `geist-latin-ext-italic.woff2`, `geist-mono-latin.woff2` and
+  `geist-mono-latin-ext.woff2`. Each file carries the variable weight axis
+  from 100 to 900.
+- Derived: nothing. `apps/web/src/tailwind.css` declares each face with the
+  `unicode-range` of its subset, as the upstream publishes it, and names the
+  two families in `--font-sans` and `--font-mono`. Decision 0061 states why
+  the product serves them itself.
 
 ## How a palette becomes a theme
 
@@ -33,9 +53,13 @@ theme that fails a rule cannot ship.
 - The family a new account starts with. No upstream palette.
 - License: MIT ([this repository](https://github.com/bkhanale/notesapp))
 - Original: every value of both variants. The family states no taste, so its
-  surfaces and its text are neutral and one restrained blue carries the link,
-  the focus ring and the primary button. Every token meets the contrast rules
-  in `src/theme.ts` that `src/theme.test.ts` proves.
+  surfaces and its text are neutral. The fill of the one action is ink, near
+  black under a white label on the light page and near white under a near
+  black label on the dark page, and one restrained blue carries the link, the
+  focus ring, the caret and the text selection (decision 0062). Neither ink
+  fill needed a move along its lightness: both meet every contrast rule in
+  `src/theme.ts` as published, and the hover that record 0057 derives from
+  each one keeps the label of the fill above 4.5 to 1.
 
 ## Ink
 

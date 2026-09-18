@@ -18,6 +18,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { editorThemeVariables } from '@notesapp/editor';
+import { defaultThemeFor, themeProperties } from '@notesapp/ui';
 import { loadCompiler, webRequire } from './support/tailwind.ts';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
@@ -47,6 +48,7 @@ async function buildCss(): Promise<string> {
 }
 
 const css = await buildCss();
+const stylesheetSource = await readFile(stylesheet, 'utf8');
 
 await test('no shipped document holds a colour value of its own', async () => {
   // The theme registry of `@notesapp/ui` is the only place a colour value
@@ -75,8 +77,69 @@ await test('the built stylesheet declares every variable the editor reads', () =
 await test('the note surface keeps its designed typography', () => {
   assert.match(css, /--text-note:\s*1rem/);
   assert.match(css, /--text-note--line-height:\s*1\.65/);
-  assert.match(css, /--container-note:\s*42rem/);
-  assert.match(css, /--text-note-h1:\s*1\.75em/);
+  assert.match(css, /--container-note:\s*40rem/);
+  assert.match(css, /--text-note-h1:\s*1\.5em/);
   assert.match(css, /--text-note-h6:\s*1em/);
   assert.match(css, /--text-note-mono:\s*0\.9em/);
+  assert.match(css, /--font-weight-note-heading:\s*600/);
+});
+
+await test('the named steps of the interface reach the stylesheet', () => {
+  // Decision 0065 adds the keyboard step, the dialog radius, the 44 px header
+  // and the note measure to the central theme. A utility that reads a step
+  // the stylesheet never declares renders nothing at all.
+  assert.match(css, /--text-kbd:\s*0\.6875rem/);
+  assert.match(css, /--text-kbd--line-height:\s*1rem/);
+  assert.match(css, /--radius-xl:\s*0\.75rem/);
+  assert.match(css, /--spacing-header:\s*2\.75rem/);
+});
+
+await test('the one vendored face is declared and its files are served', async () => {
+  // Decision 0061. The stylesheet is the one file that may declare a face, so
+  // a missing declaration or a missing file leaves the product in the system
+  // stack on every device and nothing else would report it.
+  assert.match(css, /--font-sans:\s*'Geist',/);
+  assert.match(css, /--font-mono:\s*'Geist Mono',/);
+  const faces = [...css.matchAll(/@font-face\s*\{[^}]*\}/g)].map(
+    (found) => found[0],
+  );
+  assert.equal(faces.length, 6, 'the count of declared faces');
+  const files = new Set<string>();
+  for (const face of faces) {
+    assert.match(face, /font-display:\s*swap/, face);
+    assert.match(face, /font-weight:\s*100 900/, face);
+    assert.match(face, /unicode-range:/, face);
+    const source = /url\('(\/fonts\/[^']+)'\)/.exec(face);
+    assert.ok(source !== null, face);
+    files.add(source[1] ?? '');
+  }
+  assert.equal(files.size, 6, 'one file per declared face');
+  for (const file of files) {
+    const bytes = await readFile(resolve(root, 'apps/web/public', `.${file}`));
+    assert.ok(bytes.byteLength > 0, file);
+  }
+});
+
+await test('every palette fallback of the stylesheet is the registry value', () => {
+  // Decision 0062. The literal fallbacks keep the first paint correct before
+  // the inline script runs, so they are a second copy of the Default dark
+  // palette. This test is what stops that copy from drifting.
+  const registry = new Map(themeProperties(defaultThemeFor('dark')));
+  const block = /@theme inline \{([\s\S]*?)\n\}/.exec(stylesheetSource);
+  assert.ok(block !== null, 'the stylesheet states no inline theme block');
+  const declarations = [
+    ...(block[1] ?? '').matchAll(
+      /--color-[a-z-]+:\s*var\((--notes-[a-z-]+),\s*(#[0-9a-f]{6})\);/g,
+    ),
+  ];
+  assert.ok(declarations.length > 0, 'no palette fallback was read');
+  for (const [, property, fallback] of declarations) {
+    const expected = registry.get(property ?? '');
+    assert.ok(expected !== undefined, `${property ?? ''} is not a token`);
+    assert.equal(fallback, expected, property ?? '');
+  }
+  // Every palette name of the block carries a fallback, so none of them can
+  // slip past the check above by stating no value at all.
+  const named = [...(block[1] ?? '').matchAll(/var\((--notes-[a-z-]+)/g)];
+  assert.equal(named.length, declarations.length, 'a fallback is missing');
 });

@@ -54,7 +54,6 @@ export const editorThemeVariables: readonly string[] = [
   '--text-note-h5--line-height',
   '--text-note-h6',
   '--text-note-h6--line-height',
-  '--font-weight-note-heading-strong',
   '--font-weight-note-heading',
   '--tracking-heading',
   '--tracking-display',
@@ -91,10 +90,10 @@ function headingRules(): Record<string, Record<string, string>> {
     rules[`.cm-np-h${String(index + 1)}`] = {
       fontSize: size,
       lineHeight,
-      fontWeight:
-        index < 3
-          ? 'var(--font-weight-note-heading-strong)'
-          : 'var(--font-weight-note-heading)',
+      // One weight for every level. The size of the step states the level,
+      // and the note name above it is the only larger text on the screen
+      // (decision 0065).
+      fontWeight: 'var(--font-weight-note-heading)',
       letterSpacing: headingTracking(index),
       color: 'var(--notes-text-strong)',
     };

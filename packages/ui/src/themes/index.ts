@@ -53,6 +53,7 @@ export {
   themeProperties,
   themePropertyName,
   themePropertyNames,
+  toneSurfaceBlend,
   uiContrastMinimum,
 } from '../theme.ts';
 import { catppuccin } from './catppuccin.ts';

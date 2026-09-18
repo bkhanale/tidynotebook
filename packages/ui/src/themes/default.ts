@@ -4,9 +4,15 @@
  * Data only. Default is the family a new account starts with, so it states no
  * taste (decision 0056). The light variant is a white page with near black
  * text and one quiet warm grey for the chrome. The dark variant is neutral
- * grey with light text. One restrained blue carries the link, the focus ring,
- * the caret, the text selection and the primary button, because a link that a
- * reader tells apart by its underline alone is harder to find.
+ * grey with light text.
+ *
+ * The accent splits by what the colour does (decision 0062). `accentFill` is
+ * ink: near black under a white label on the light page, near white under a
+ * near black label on the dark page, so the one filled control of a screen is
+ * the one action and no block of colour competes with it. `accentText` and
+ * `focus` keep one restrained blue, because a link, the focus ring, the caret
+ * and the text selection carry a meaning that no shape states. The hover of
+ * the ink fill is derived by decision 0057 and needs no value here.
  *
  * The code colours are the one place the family holds a hue, because a fenced
  * block is read by its shape and a single colour would remove that. They stay
@@ -38,7 +44,7 @@ const variants: readonly Theme[] = [
       textStrong: '#191917',
       textMuted: '#67655f',
       accentText: '#1a63c4',
-      accentFill: '#2563c9',
+      accentFill: '#1a1917',
       accentOnFill: '#ffffff',
       successText: '#1c6f37',
       dangerText: '#c02b3a',
@@ -77,8 +83,8 @@ const variants: readonly Theme[] = [
       textStrong: '#f5f4f2',
       textMuted: '#a5a39e',
       accentText: '#6fa8f5',
-      accentFill: '#3b82f0',
-      accentOnFill: '#0a0a0a',
+      accentFill: '#ececea',
+      accentOnFill: '#141414',
       successText: '#59b871',
       dangerText: '#f5817d',
       dangerFill: '#e0524f',

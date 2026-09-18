@@ -29,6 +29,10 @@
  *   moving the fill away from the page background, and the label of the fill
  *   still meets 4.5 to 1 on it. See {@link fillHoverShift} and
  *   [decision 0057](../../../docs/decisions/0057-a-control-fill-states-its-hover-in-the-palette.md).
+ * - The surface of a tone is derived as well, from the tone text and the page
+ *   background. `textStrong`, `textMuted` and the tone text all meet 4.5 to 1
+ *   on it, so a notice can state its tone with a fill and still be read. See
+ *   {@link toneSurfaceBlend}.
  * - Every syntax colour meets 4.5 to 1 on the page background and on the
  *   code block fill, which is the hover surface.
  *
@@ -273,6 +277,24 @@ export const dividerBlend = 0.5;
 export const fillHoverShift = 0.12;
 
 /**
+ * How much of a tone the surface behind that tone takes.
+ *
+ * A notice states its tone with a fill as well as with a colour, so a person
+ * who does not separate the hues still reads it. The fill is a small share of
+ * the tone text blended into the page background.
+ *
+ * Eight parts in a hundred is enough to read as a fill and small enough that
+ * `textStrong`, `textMuted` and the tone itself all keep 4.5 to 1 on it in
+ * every palette of the registry. A tone surface is a fill and not the page,
+ * so a notice sets `textStrong` on it, the same way a sidebar row does: `text`
+ * is the body colour of the page background and the card alone, and three
+ * borrowed palettes hold it at barely over the minimum there, so any tint of
+ * the page would take it under. `theme.test.ts` proves the rule for every
+ * theme.
+ */
+export const toneSurfaceBlend = 0.08;
+
+/**
  * Moves one colour away from a background, by a share of what is left.
  *
  * A background that is lighter than the colour darkens it, and a background
@@ -311,6 +333,9 @@ export const derivedPropertyNames = [
   'borderLine',
   'accentFillHover',
   'dangerFillHover',
+  'accentSurface',
+  'successSurface',
+  'dangerSurface',
 ] as const;
 
 /** One of the derived names of {@link derivedPropertyNames}. */
@@ -373,6 +398,9 @@ const derivedProperties: Readonly<Record<DerivedPropertyName, string>> = {
   borderLine: '--notes-border-line',
   accentFillHover: '--notes-accent-fill-hover',
   dangerFillHover: '--notes-danger-fill-hover',
+  accentSurface: '--notes-accent-surface',
+  successSurface: '--notes-success-surface',
+  dangerSurface: '--notes-danger-surface',
 };
 
 /**
@@ -439,6 +467,15 @@ const derivedValues: Readonly<
   dangerFillHover: (tokens) =>
     shiftAwayFrom(tokens.dangerFill, tokens.background, fillHoverShift) ??
     tokens.dangerFill,
+  accentSurface: (tokens) =>
+    mixHexColors(tokens.accentText, tokens.background, toneSurfaceBlend) ??
+    tokens.background,
+  successSurface: (tokens) =>
+    mixHexColors(tokens.successText, tokens.background, toneSurfaceBlend) ??
+    tokens.background,
+  dangerSurface: (tokens) =>
+    mixHexColors(tokens.dangerText, tokens.background, toneSurfaceBlend) ??
+    tokens.background,
 };
 
 /** Computes one derived value from the tokens of a palette. */

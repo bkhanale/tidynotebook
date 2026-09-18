@@ -180,6 +180,9 @@ importers:
       '@notesapp/sync':
         specifier: workspace:*
         version: link:packages/sync
+      '@notesapp/ui':
+        specifier: workspace:*
+        version: link:packages/ui
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0

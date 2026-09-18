@@ -128,7 +128,7 @@ const pageClasses = 'mx-auto max-w-note px-gutter py-8 sm:px-gutter-wide';
  */
 const noteBodyClasses = [
   'text-note',
-  '[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-note-h1 [&_h1]:font-note-heading-strong [&_h1]:tracking-display [&_h1]:text-strong',
+  '[&_h1]:mt-8 [&_h1]:mb-4 [&_h1]:text-note-h1 [&_h1]:font-note-heading [&_h1]:tracking-display [&_h1]:text-strong',
   '[&_h2]:mt-8 [&_h2]:mb-3 [&_h2]:text-note-h2 [&_h2]:font-note-heading [&_h2]:tracking-heading [&_h2]:text-strong',
   '[&_h3]:mt-6 [&_h3]:mb-2 [&_h3]:text-note-h3 [&_h3]:font-note-heading [&_h3]:tracking-heading [&_h3]:text-strong',
   '[&_h4]:mt-6 [&_h4]:mb-2 [&_h4]:text-note-h4 [&_h4]:font-note-heading [&_h4]:text-strong',
@@ -139,7 +139,7 @@ const noteBodyClasses = [
   '[&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6',
   '[&_li]:my-1',
   '[&_a]:text-accent [&_a]:underline',
-  '[&_strong]:font-note-heading-strong',
+  '[&_strong]:font-semibold',
   '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge [&_blockquote]:pl-4 [&_blockquote]:text-muted',
   '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-md [&_pre]:bg-card [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-note-mono',
   '[&_code]:font-mono [&_code]:text-note-mono',

@@ -51,6 +51,7 @@ export {
   themePropertyName,
   themePropertyNames,
   themes,
+  toneSurfaceBlend,
   uiContrastMinimum,
 } from './themes/index.ts';
 export type {

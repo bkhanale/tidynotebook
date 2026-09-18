@@ -16,8 +16,8 @@ product. See [design 012](../design/012-a-finished-interface.md).
 
 ## Decision
 
-The resting edge of a control is `edge-line`, the derived divider of record
-0053. A secondary button, a text field, a select, a read only field, a
+The resting edge of a control is `edge-line`, the divider that record 0053
+derives. A secondary button, a text field, a select, a read only field, a
 switcher trigger, a card, a menu, a dialog and a toast take it. A raised
 surface takes `edge-subtle` and an elevation step instead, so a light palette
 shows the shadow and a dark palette shows the edge.
