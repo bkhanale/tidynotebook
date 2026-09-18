@@ -1454,9 +1454,9 @@ function ShellFrame({
               <span className="min-w-0 flex-1 truncate text-left">
                 Search notes
               </span>
-              <kbd className="hidden shrink-0 rounded border border-edge bg-hover px-1.5 text-control text-muted sm:inline">
+              <span className="hidden shrink-0 sm:inline">
                 <KeyHint keys="Cmd or Ctrl + P" />
-              </kbd>
+              </span>
             </button>
 
             <div className="flex shrink-0 items-center gap-1">
