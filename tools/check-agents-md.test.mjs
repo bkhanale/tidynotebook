@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { coreReadingList } from './agent-context.mjs';
+import { areaReadingList, coreReadingList } from './agent-context.mjs';
 import {
   claudeEntry,
   composeRootGuide,
@@ -64,6 +64,8 @@ function check(overrides, options = {}) {
     const files = { 'AGENTS.md': composeRootGuide(rules) };
     for (const rule of rules) files[`rules/${rule.name}`] = rule.text;
     for (const [file] of coreReadingList)
+      if (!(file in files)) files[file] = '# Fixture\n';
+    for (const [, file] of areaReadingList)
       if (!(file in files)) files[file] = '# Fixture\n';
     files['CLAUDE.md'] = claudeEntry;
     files[skillFile] = skill;

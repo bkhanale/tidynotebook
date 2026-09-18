@@ -22,6 +22,24 @@ export const coreReadingList = [
   ['docs/development/tracking.md', 'Where the work is tracked.'],
 ];
 
+/**
+ * The guide of one area, read whenever a path touches that area.
+ *
+ * A directory guide links the design guide, but a link is a pointer an agent
+ * can skip. Everything a person sees lives under these paths, so the design
+ * guide joins the list by construction for each of them, right after the core
+ * list and before the guide of the directory.
+ *
+ * @type {[RegExp, string, string][]}
+ */
+export const areaReadingList = [
+  [
+    /^(?:apps\/web|packages\/ui|packages\/editor)(?:\/|$)|^apps\/server\/src\/routes\/published-document\.ts$/,
+    'docs/development/design.md',
+    'The one system of everything a person sees.',
+  ],
+];
+
 /** @param {string} file @returns {Promise<boolean>} */
 async function exists(file) {
   return (await stat(file).catch(() => null)) !== null;
@@ -92,6 +110,13 @@ export async function readingList(directory, paths) {
   /** @type {Map<string, string>} */
   const list = new Map();
   for (const [file, purpose] of coreReadingList) list.set(file, purpose);
+  for (const path of paths) {
+    const normalised = relative(resolve(directory), resolve(directory, path))
+      .split(sep)
+      .join('/');
+    for (const [area, file, purpose] of areaReadingList)
+      if (area.test(normalised) && !list.has(file)) list.set(file, purpose);
+  }
   for (const guide of guides) {
     const owner = dirname(guide);
     if (list.has(guide)) continue;

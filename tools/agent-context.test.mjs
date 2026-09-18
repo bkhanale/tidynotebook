@@ -5,7 +5,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { coreReadingList, keyFiles } from './agent-context.mjs';
+import {
+  areaReadingList,
+  coreReadingList,
+  keyFiles,
+} from './agent-context.mjs';
 
 // The fixtures below are disposable trees under the system temporary
 // directory. They are never committed as application code.
@@ -35,6 +39,7 @@ function run(overrides, paths) {
     for (const name of ['src/index.ts', 'src/model.ts'])
       files[`packages/core/${name}`] = 'export {};\n';
     files['apps/web/AGENTS.md'] = '# apps/web\n';
+    for (const [, file] of areaReadingList) files[file] = '# Fixture\n';
     for (const [name, content] of Object.entries({ ...files, ...overrides })) {
       if (content === '') continue;
       const file = join(directory, name);
@@ -79,6 +84,26 @@ await test('a path lists the core files, its guide, then the key files', () => {
     'packages/core/src/index.ts',
     'packages/core/src/model.ts',
   ]);
+});
+
+await test('a path under an area lists the guide of that area', () => {
+  const result = run({}, ['apps/web/src/features/notes/notes-home.tsx']);
+  assert.equal(result.status, 0, result.output);
+  const listed = result.output
+    .split('\n')
+    .filter((line) => /^ {2}\d+\. /.test(line))
+    .map((line) => line.replace(/^ {2}\d+\. /, '').split(':')[0]);
+  assert.deepEqual(listed, [
+    ...coreReadingList.map(([file]) => file),
+    'docs/development/design.md',
+    'apps/web/AGENTS.md',
+  ]);
+});
+
+await test('a path outside every area lists no area guide', () => {
+  const result = run({}, ['packages/core/src/model.ts']);
+  assert.equal(result.status, 0, result.output);
+  assert.doesNotMatch(result.output, /docs\/development\/design\.md/);
 });
 
 await test('no path lists every nested guide', () => {
