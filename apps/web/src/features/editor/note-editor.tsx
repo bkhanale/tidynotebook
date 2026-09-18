@@ -93,6 +93,12 @@ import {
 } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
 import { Backlinks } from './backlinks.tsx';
+import {
+  noteLoadStatusFor,
+  type NoteLoadIdentity,
+  type NoteLoadState,
+  type NoteLoadStatus,
+} from '../../lib/note-load-state.ts';
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
@@ -1231,22 +1237,6 @@ function NoteEditorBody({
   );
 }
 
-/** The loading states of one note before its editor mounts. */
-type LoaderStatus =
-  | { readonly kind: 'loading' }
-  | { readonly kind: 'unknown' }
-  | { readonly kind: 'purged' }
-  | { readonly kind: 'deleted'; readonly path: string }
-  | { readonly kind: 'unavailable'; readonly message: string }
-  | {
-      readonly kind: 'ready';
-      readonly path: string;
-      readonly text: string;
-      readonly headRevisionId: string | null;
-      readonly workingCopyId?: string | undefined;
-      readonly sequence: number;
-    };
-
 /**
  * Loads one note and mounts its editor.
  *
@@ -1271,11 +1261,25 @@ export function NoteEditorLoader({
 }): ReactNode {
   const navigate = useNavigate();
   const location = useLocation();
-  const [status, setStatus] = useState<LoaderStatus>({ kind: 'loading' });
+  const identity: NoteLoadIdentity = { accountId, workspaceId, fileId };
+  const [loadState, setLoadState] = useState<NoteLoadState>(() => ({
+    identity,
+    status: { kind: 'loading' },
+  }));
+  const status = noteLoadStatusFor(loadState, identity);
+  const setStatus = useCallback(
+    (next: NoteLoadStatus): void => {
+      setLoadState({
+        identity: { accountId, workspaceId, fileId },
+        status: next,
+      });
+    },
+    [accountId, workspaceId, fileId],
+  );
   // A restore brings a deleted note back. The loader then reads the note once
   // more, so the screen leaves the deleted state without a reload.
   const [reloadToken, setReloadToken] = useState(0);
-  const statusKind = useRef<LoaderStatus['kind']>(status.kind);
+  const statusKind = useRef<NoteLoadStatus['kind']>(status.kind);
   statusKind.current = status.kind;
   const [linkNotice, setLinkNotice] = useState('');
   const routeState: unknown = location.state;
@@ -1366,7 +1370,7 @@ export function NoteEditorLoader({
     return () => {
       cancelled = true;
     };
-  }, [store, accountId, workspaceId, fileId, reloadToken]);
+  }, [store, accountId, workspaceId, fileId, reloadToken, setStatus]);
 
   // A restore can reach this device while the note screen shows it as deleted.
   // The loader then reads the note again. The open editor keeps its instance,
@@ -1412,7 +1416,7 @@ export function NoteEditorLoader({
       cancelled = true;
       unsubscribe();
     };
-  }, [store, accountId, workspaceId, fileId]);
+  }, [store, accountId, workspaceId, fileId, setStatus]);
 
   if (status.kind === 'loading')
     return (

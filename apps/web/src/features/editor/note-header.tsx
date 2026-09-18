@@ -13,6 +13,7 @@ import {
   noteHeaderRowClassName,
   noteTitleClassName,
 } from '../../lib/note-header-layout.ts';
+import { noteNameInputPolicy } from '../../lib/note-name-input.ts';
 
 /** The sticky header of one open note. */
 export function NoteHeader({
@@ -43,6 +44,7 @@ export function NoteHeader({
           className={noteTitleClassName()}
           type="text"
           value={name}
+          {...noteNameInputPolicy()}
           aria-label="Note name"
           aria-invalid={nameError !== ''}
           aria-describedby={nameError === '' ? undefined : errorId}
