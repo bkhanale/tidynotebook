@@ -1,15 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <title>Notesapp install icon</title>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="#1a1b26"/>
-  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#7aa2f7" stroke-width="24"/>
-  <g stroke="#c0caf5" stroke-width="28" stroke-linecap="round">
-    <line x1="148" y1="176" x2="364" y2="176"/>
-    <line x1="148" y1="256" x2="364" y2="256"/>
-    <line x1="148" y1="336" x2="300" y2="336"/>
-  </g>
-  <circle cx="356" cy="336" r="40" fill="#9ece6a"/>
-  <g stroke="#1a1b26" stroke-width="24" stroke-linecap="round">
-    <line x1="336" y1="336" x2="376" y2="336"/>
-    <line x1="356" y1="316" x2="356" y2="356"/>
+  <!-- Tile is Default light accentFill (#1a1917) and the mark is Default dark
+    textStrong (#f5f4f2). The registry in packages/ui/src/themes owns both
+    values. This file copies them because an install icon cannot read CSS. -->
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#1a1917"/>
+  <g stroke="#f5f4f2" stroke-linecap="round" fill="none">
+    <g stroke-width="44">
+      <line x1="178" y1="148" x2="178" y2="340"/>
+      <line x1="334" y1="148" x2="334" y2="340"/>
+      <line x1="178" y1="148" x2="334" y2="340"/>
+    </g>
+    <line x1="178" y1="404" x2="334" y2="404" stroke-width="32"/>
   </g>
 </svg>

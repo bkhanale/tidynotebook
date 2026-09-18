@@ -386,13 +386,14 @@ export function CheckIcon(props: IconProps): ReactNode {
   );
 }
 
-/** The product mark: three stacked layers. */
+/** The product mark: an N with an underline, the same mark as the install icon. */
 export function AppMarkIcon(props: IconProps): ReactNode {
   return (
     <IconFrame {...props}>
-      <polygon points="12 2 2 7 12 12 22 7 12 2" />
-      <polyline points="2 17 12 22 22 17" />
-      <polyline points="2 12 12 17 22 12" />
+      <path d="M7 17V5" />
+      <path d="M17 5V17" />
+      <path d="M7 5L17 17" />
+      <path d="M7 20.5H17" />
     </IconFrame>
   );
 }
