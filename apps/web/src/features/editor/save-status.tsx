@@ -14,6 +14,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -30,11 +31,15 @@ export type NoteSaveReport = NoteSaveFacts & {
 type NoteSaveChannel = {
   readonly report: NoteSaveReport | null;
   readonly publish: (report: NoteSaveReport | null) => void;
+  readonly flushDraft: () => Promise<void>;
+  readonly registerDraftFlush: (flush: () => Promise<void>) => () => void;
 };
 
 const NoteSaveContext = createContext<NoteSaveChannel>({
   report: null,
   publish: () => {},
+  flushDraft: () => Promise.resolve(),
+  registerDraftFlush: () => () => {},
 });
 
 /**
@@ -50,12 +55,24 @@ export function NoteSaveScope({
   readonly children: ReactNode;
 }): ReactNode {
   const [report, setReport] = useState<NoteSaveReport | null>(null);
+  const draftFlush = useRef<() => Promise<void>>(() => Promise.resolve());
   const publish = useCallback((next: NoteSaveReport | null): void => {
     setReport(next);
   }, []);
+  const flushDraft = useCallback((): Promise<void> => draftFlush.current(), []);
+  const registerDraftFlush = useCallback(
+    (flush: () => Promise<void>): (() => void) => {
+      draftFlush.current = flush;
+      return () => {
+        if (draftFlush.current === flush)
+          draftFlush.current = () => Promise.resolve();
+      };
+    },
+    [],
+  );
   const value = useMemo<NoteSaveChannel>(
-    () => ({ report, publish }),
-    [report, publish],
+    () => ({ report, publish, flushDraft, registerDraftFlush }),
+    [report, publish, flushDraft, registerDraftFlush],
   );
   return (
     <NoteSaveContext.Provider value={value}>
@@ -67,6 +84,17 @@ export function NoteSaveScope({
 /** Reads the save facts of the open note, or `null` on another screen. */
 export function useNoteSave(): NoteSaveReport | null {
   return useContext(NoteSaveContext).report;
+}
+
+/** Writes the open editor buffer to the local draft store. */
+export function useFlushNoteDraft(): () => Promise<void> {
+  return useContext(NoteSaveContext).flushDraft;
+}
+
+/** Registers the local draft write of the open editor. */
+export function useRegisterNoteDraftFlush(flush: () => Promise<void>): void {
+  const { registerDraftFlush } = useContext(NoteSaveContext);
+  useEffect(() => registerDraftFlush(flush), [registerDraftFlush, flush]);
 }
 
 /** Publishes the save facts of the open note while that screen is mounted. */

@@ -68,6 +68,7 @@ import {
 } from './lib/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 import { webLogger } from './logging.ts';
+import { createSyncSession, type SyncSession } from './pwa/sync-session.ts';
 
 /**
  * Turns a generated failure into one plain sentence for the person.
@@ -184,6 +185,16 @@ function syncWorkerId(): string {
   } catch {
     return generateUUID();
   }
+}
+
+const SyncSessionContext = createContext<SyncSession | null>(null);
+
+/** Reads the shared sync identity and running engines of this browser tab. */
+export function useSyncSession(): SyncSession {
+  const session = useContext(SyncSessionContext);
+  if (session === null)
+    throw new Error('The sync session provider is not available.');
+  return session;
 }
 
 /** Reads the current session value. */
@@ -737,7 +748,7 @@ export function useWorkspaceSync(
 ): SyncValue {
   const [state, setState] = useState<SyncState>(startingSyncState);
   const [noteName, setNoteName] = useState<string | null>(null);
-  const ownerId = useMemo(syncWorkerId, []);
+  const syncSession = useSyncSession();
   const wake = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -769,7 +780,7 @@ export function useWorkspaceSync(
     };
     const engine = createSyncEngine(store, accountId, workspaceId, {
       announce: onNotice,
-      ownerId,
+      ownerId: syncSession.ownerId,
     });
     const requestSync = (): void => {
       engine.requestSync();
@@ -827,10 +838,19 @@ export function useWorkspaceSync(
     window.addEventListener('focus', requestSync);
     document.addEventListener('visibilitychange', onVisible);
     readQueue();
-    void engine.run(controller.signal).catch(() => {
+    const running = engine.run(controller.signal);
+    const unregister = syncSession.register({
+      stop: () => {
+        controller.abort();
+        engine.stop();
+      },
+      finished: running,
+    });
+    void running.catch(() => {
       setState({ kind: 'stopped' });
     });
     return () => {
+      unregister();
       unsubscribe();
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
@@ -840,7 +860,7 @@ export function useWorkspaceSync(
       engine.stop();
       wake.current = () => {};
     };
-  }, [store, accountId, workspaceId, ownerId]);
+  }, [store, accountId, workspaceId, syncSession]);
 
   const requestSync = useCallback((): void => {
     wake.current();
@@ -873,9 +893,9 @@ export function useBackgroundSync(
   store: LocalStore | null,
   accountId: string | null,
   openWorkspaceId: string | null,
+  syncSession: SyncSession,
 ): void {
   const [queued, setQueued] = useState<readonly string[]>([]);
-  const ownerId = useMemo(syncWorkerId, []);
 
   // Which workspaces hold work. The local store publishes a queue change on
   // every enqueue and every acknowledgment, so the set follows the queue
@@ -928,25 +948,35 @@ export function useBackgroundSync(
   useEffect(() => {
     if (store === null || accountId === null || backgroundKey === '') return;
     const controller = new AbortController();
-    const engines = backgroundKey.split(' ').map((workspaceId) => {
+    const runs = backgroundKey.split(' ').map((workspaceId) => {
       const engine = createSyncEngine(store, accountId, workspaceId, {
         // A background engine says nothing. The person is reading another
         // workspace, and a sentence about this one would name a note they
         // cannot see.
         announce: () => {},
-        ownerId,
+        ownerId: syncSession.ownerId,
       });
-      void engine.run(controller.signal).catch(() => {
+      const finished = engine.run(controller.signal).catch(() => {
         // The workspace keeps its queue and the next pass tries again. The
         // work is durable in the local store either way.
       });
-      return engine;
+      return { engine, finished };
+    });
+    const unregister = syncSession.register({
+      stop: () => {
+        controller.abort();
+        for (const run of runs) run.engine.stop();
+      },
+      finished: Promise.all(runs.map((run) => run.finished)).then(
+        () => undefined,
+      ),
     });
     return () => {
+      unregister();
       controller.abort();
-      for (const engine of engines) engine.stop();
+      for (const run of runs) run.engine.stop();
     };
-  }, [store, accountId, backgroundKey, ownerId]);
+  }, [store, accountId, backgroundKey, syncSession]);
 }
 
 const SyncContext = createContext<SyncValue>({
@@ -993,6 +1023,7 @@ export function AppProviders({
   readonly children: ReactNode;
 }): ReactNode {
   const origin = useMemo(() => window.location.origin, []);
+  const syncSession = useMemo(() => createSyncSession(syncWorkerId()), []);
   const storeValue = useStoreLoader(origin);
   const [generation, setGeneration] = useState(0);
   const session = useSessionLoader(generation);
@@ -1016,6 +1047,7 @@ export function AppProviders({
     storeValue.store,
     session.account?.accountId ?? null,
     workspaceState.status === 'ready' ? workspaceState.workspaceId : null,
+    syncSession,
   );
 
   const refresh = useCallback(() => {
@@ -1072,11 +1104,13 @@ export function AppProviders({
       <StoreContext.Provider value={storeValue}>
         <SessionContext.Provider value={sessionValue}>
           <WorkspaceContext.Provider value={workspaceValue}>
-            <SessionScope
-              accountKey={session.account?.accountId ?? 'signed-out'}
-            >
-              {children}
-            </SessionScope>
+            <SyncSessionContext.Provider value={syncSession}>
+              <SessionScope
+                accountKey={session.account?.accountId ?? 'signed-out'}
+              >
+                {children}
+              </SessionScope>
+            </SyncSessionContext.Provider>
           </WorkspaceContext.Provider>
         </SessionContext.Provider>
       </StoreContext.Provider>

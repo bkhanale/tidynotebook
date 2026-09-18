@@ -149,8 +149,6 @@ export type UpdateHooks = {
   readonly flushDrafts: () => Promise<void>;
   /** Stops the sync engine and gives up queue writes. */
   readonly stopQueue: () => Promise<void>;
-  /** The worker identity of this tab, for the lease check. */
-  readonly ownerId?: string;
   /** Milliseconds since the Unix epoch. Defaults to the system clock. */
   readonly clock?: () => number;
 };
@@ -178,6 +176,7 @@ function announceUpdateClosing(): void {
  */
 export async function prepareForUpdate(
   store: LocalStore,
+  ownerId: string,
   hooks: UpdateHooks,
 ): Promise<void> {
   await hooks.flushDrafts();
@@ -187,11 +186,83 @@ export async function prepareForUpdate(
   if (
     lease !== null &&
     !isLeaseExpired(lease.expiresAt, now) &&
-    (hooks.ownerId === undefined || lease.ownerId !== hooks.ownerId)
+    lease.ownerId !== ownerId
   )
     throw new SignOutBlockedError('update-blocked', blockedUpgradeInstructions);
   announceUpdateClosing();
   await store.close();
+}
+
+/** The waiting worker and events that one update needs. */
+export type WaitingUpdateWorker = {
+  readonly state: () => ServiceWorkerState;
+  readonly postMessage: (message: { readonly type: string }) => void;
+  readonly onStateChange: (listener: () => void) => () => void;
+};
+
+/** The part of a worker registration that the update action needs. */
+export type UpdateRegistration = {
+  readonly waiting: WaitingUpdateWorker | null;
+  readonly update: () => Promise<void>;
+};
+
+/** Adapts the browser registration to the small update port. */
+function updateRegistration(
+  registration: ServiceWorkerRegistration,
+): UpdateRegistration {
+  const worker = registration.waiting;
+  return {
+    waiting:
+      worker === null
+        ? null
+        : {
+            state: () => worker.state,
+            postMessage: (message) => worker.postMessage(message),
+            onStateChange: (listener) => {
+              worker.addEventListener('statechange', listener);
+              return () => worker.removeEventListener('statechange', listener);
+            },
+          },
+    update: () => registration.update().then(() => undefined),
+  };
+}
+
+/** Reads the current browser registration through the update port. */
+async function currentUpdateRegistration(): Promise<UpdateRegistration | null> {
+  if (typeof navigator === 'undefined') return null;
+  const container = navigator.serviceWorker;
+  if (container === undefined) return null;
+  const registration = await container.getRegistration().catch(() => undefined);
+  return registration === undefined ? null : updateRegistration(registration);
+}
+
+/** Waits until the worker that received skip waiting is active. */
+function activateWaitingWorker(worker: WaitingUpdateWorker): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    let remove = (): void => {};
+    const settle = (): void => {
+      const state = worker.state();
+      if (state === 'activated') {
+        remove();
+        resolve();
+      } else if (state === 'redundant') {
+        remove();
+        reject(
+          new Error(
+            'The new version could not start. Keep this tab open and try again.',
+          ),
+        );
+      }
+    };
+    remove = worker.onStateChange(settle);
+    try {
+      worker.postMessage({ type: 'NOTESAPP_SKIP_WAITING' });
+      settle();
+    } catch (failure: unknown) {
+      remove();
+      reject(failure);
+    }
+  });
 }
 
 /**
@@ -203,18 +274,14 @@ export async function prepareForUpdate(
  * path reads the current registration.
  */
 export async function requestUpdate(
-  registration?: ServiceWorkerRegistration | null,
+  registration?: UpdateRegistration | null,
 ): Promise<void> {
-  let target: ServiceWorkerRegistration | null | undefined = registration;
-  if (target === undefined && typeof navigator !== 'undefined') {
-    const container = navigator.serviceWorker;
-    if (container !== undefined)
-      target = await container.getRegistration().catch(() => null);
-  }
-  if (target?.waiting !== undefined && target.waiting !== null) {
-    target.waiting.postMessage({ type: 'NOTESAPP_SKIP_WAITING' });
-    return;
-  }
+  const target =
+    registration === undefined
+      ? await currentUpdateRegistration()
+      : registration;
+  if (target?.waiting !== null && target?.waiting !== undefined)
+    return activateWaitingWorker(target.waiting);
   await target?.update().catch(() => undefined);
 }
 

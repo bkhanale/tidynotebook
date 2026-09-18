@@ -74,6 +74,7 @@ import {
   useLocalStore,
   useRequestSync,
   useSession,
+  useSyncSession,
   useSyncState,
   useTheme,
   useWorkspace,
@@ -137,6 +138,7 @@ import { folderOf } from '../lib/relative-time.ts';
 import { UpdateNotice, usePersistentStorage } from './pwa-notices.tsx';
 import {
   NoteSaveScope,
+  useFlushNoteDraft,
   useNoteSave,
   useOnline,
 } from '../features/editor/save-status.tsx';
@@ -1045,6 +1047,8 @@ function ShellFrame({
   const workspace = useWorkspace();
   const accountId = session.account?.accountId ?? null;
   const sync = useWorkspaceSync(store.store, accountId, workspaceId);
+  const syncSession = useSyncSession();
+  const flushNoteDraft = useFlushNoteDraft();
   const persistence = usePersistentStorage(useSavedOnce());
   const newNote = useCreateNote(store.store, accountId, workspaceId);
   const noteActions = useNoteActions();
@@ -1507,7 +1511,9 @@ function ShellFrame({
             >
               <UpdateNotice
                 store={store.store}
-                onFlushDrafts={() => Promise.resolve()}
+                ownerId={syncSession.ownerId}
+                onFlushDrafts={flushNoteDraft}
+                onStopQueue={syncSession.stop}
               />
               {session.error === null ? null : (
                 <Notice tone="info" message={session.error} />

@@ -26,23 +26,38 @@ export function useWaitingUpdate(): boolean {
     if (container === undefined) return;
     let cancelled = false;
     let registration: ServiceWorkerRegistration | null = null;
+    let removeInstalling = (): void => {};
     const check = (): void => {
       if (cancelled) return;
       setWaiting(registration?.waiting != null);
+    };
+    const watchInstalling = (): void => {
+      removeInstalling();
+      const installing = registration?.installing;
+      if (installing === undefined || installing === null) {
+        removeInstalling = (): void => {};
+        check();
+        return;
+      }
+      installing.addEventListener('statechange', check);
+      removeInstalling = () =>
+        installing.removeEventListener('statechange', check);
+      check();
     };
     void container
       .getRegistration()
       .then((found) => {
         if (cancelled) return;
         registration = found ?? null;
-        check();
-        registration?.addEventListener('updatefound', check);
+        watchInstalling();
+        registration?.addEventListener('updatefound', watchInstalling);
       })
       .catch(() => undefined);
     container.addEventListener('controllerchange', check);
     return () => {
       cancelled = true;
-      registration?.removeEventListener('updatefound', check);
+      removeInstalling();
+      registration?.removeEventListener('updatefound', watchInstalling);
       container.removeEventListener('controllerchange', check);
     };
   }, []);
@@ -59,10 +74,14 @@ export function useWaitingUpdate(): boolean {
  */
 export function UpdateNotice({
   store,
+  ownerId,
   onFlushDrafts,
+  onStopQueue,
 }: {
   readonly store: LocalStore | null;
+  readonly ownerId: string;
   readonly onFlushDrafts: () => Promise<void>;
+  readonly onStopQueue: () => Promise<void>;
 }): ReactNode {
   const waiting = useWaitingUpdate();
   const [problem, setProblem] = useState<string | null>(null);
@@ -73,9 +92,9 @@ export function UpdateNotice({
     void (async (): Promise<void> => {
       try {
         if (store !== null)
-          await prepareForUpdate(store, {
+          await prepareForUpdate(store, ownerId, {
             flushDrafts: onFlushDrafts,
-            stopQueue: () => Promise.resolve(),
+            stopQueue: onStopQueue,
           });
         await requestUpdate();
         window.location.reload();
@@ -88,7 +107,7 @@ export function UpdateNotice({
         );
       }
     })();
-  }, [store, onFlushDrafts]);
+  }, [store, ownerId, onFlushDrafts, onStopQueue]);
 
   if (!waiting) return null;
   if (problem !== null) return <Notice tone="problem" message={problem} />;

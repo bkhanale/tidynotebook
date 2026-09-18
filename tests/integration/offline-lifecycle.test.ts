@@ -40,8 +40,10 @@ import {
   isReadyOffline,
   isRecoveryVisible as isRecordVisible,
   prepareForUpdate,
+  requestUpdate,
   signOut,
   SignOutBlockedError,
+  type UpdateRegistration,
 } from '../../apps/web/src/pwa/lifecycle.ts';
 
 const origin = 'https://notes.example.test';
@@ -493,7 +495,7 @@ await test('an update waits while another tab holds a live lease', async () => {
   let flushed = false;
   let stopped = false;
   await assert.rejects(
-    prepareForUpdate(store, {
+    prepareForUpdate(store, 'this-tab', {
       flushDrafts: () => {
         flushed = true;
         return Promise.resolve();
@@ -502,7 +504,6 @@ await test('an update waits while another tab holds a live lease', async () => {
         stopped = true;
         return Promise.resolve();
       },
-      ownerId: 'this-tab',
       clock: () => now,
     }),
     (error: unknown) =>
@@ -514,12 +515,74 @@ await test('an update waits while another tab holds a live lease', async () => {
   // After expiry the same tab may take over and the update closes the store.
   now += 60_000;
   const storeOptions = backend.options();
-  await prepareForUpdate(store, {
+  await prepareForUpdate(store, 'this-tab', {
     flushDrafts: () => Promise.resolve(),
     stopQueue: () => Promise.resolve(),
-    ownerId: 'this-tab',
     clock: () => now,
   });
   const reopened = await openLocalStore(origin, storeOptions);
   await reopened.close();
+});
+
+await test('an update accepts the live lease of this tab', async () => {
+  const backend = createBackend('update-own-lease');
+  const store = await openLocalStore(origin, backend.options());
+  const now = 1_000_000;
+  const held = await store.acquireLease('this-tab', now + 30_000);
+  assert.equal(held, true);
+
+  let flushed = false;
+  let stopped = false;
+  const storeOptions = backend.options();
+  await prepareForUpdate(store, 'this-tab', {
+    flushDrafts: () => {
+      flushed = true;
+      return Promise.resolve();
+    },
+    stopQueue: () => {
+      stopped = true;
+      return Promise.resolve();
+    },
+    clock: () => now,
+  });
+
+  assert.equal(flushed, true);
+  assert.equal(stopped, true);
+  const reopened = await openLocalStore(origin, storeOptions);
+  await reopened.close();
+});
+
+await test('an update waits for the new worker to activate', async () => {
+  let state: ServiceWorkerState = 'installed';
+  let stateListener = (): void => {};
+  let posted = false;
+  let updated = false;
+  const registration: UpdateRegistration = {
+    waiting: {
+      state: () => state,
+      postMessage: () => {
+        posted = true;
+        state = 'activating';
+        queueMicrotask(() => {
+          state = 'activated';
+          stateListener();
+        });
+      },
+      onStateChange: (listener) => {
+        stateListener = listener;
+        return () => {
+          stateListener = (): void => {};
+        };
+      },
+    },
+    update: () => {
+      updated = true;
+      return Promise.resolve();
+    },
+  };
+
+  await requestUpdate(registration);
+  assert.equal(posted, true);
+  assert.equal(state, 'activated');
+  assert.equal(updated, false);
 });

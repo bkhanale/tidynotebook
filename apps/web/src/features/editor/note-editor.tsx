@@ -87,6 +87,7 @@ import {
   resolveSaveState,
   useBlockUnsafeReload,
   usePublishNoteSave,
+  useRegisterNoteDraftFlush,
   type SaveState,
 } from './save-status.tsx';
 import { createDocumentWorkQueue } from './document-work.ts';
@@ -422,6 +423,22 @@ function NoteEditorBody({
       return false;
     }
   };
+
+  const flushDraftForUpdate = useCallback(async (): Promise<void> => {
+    if (saveTimerRef.current !== null) {
+      window.clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    if (versionTimerRef.current !== null) {
+      window.clearTimeout(versionTimerRef.current);
+      versionTimerRef.current = null;
+    }
+    if (!(await saveDraftNow.current()))
+      throw new Error(
+        'The open draft could not be stored. Keep this tab open and try again.',
+      );
+  }, []);
+  useRegisterNoteDraftFlush(flushDraftForUpdate);
 
   /**
    * Creates one immutable checkpoint from the current buffer.
