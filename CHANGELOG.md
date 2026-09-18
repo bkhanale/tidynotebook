@@ -5,6 +5,67 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.2.1 - 2026-09-18
+
+This intermediate release separates notes into workspaces, gives the interface
+clear depth, and fixes the main faults found after 0.2.0. It closes 10 rows of
+the 0.2.1 milestone.
+
+Before an existing installation starts this release, set
+`NOTESAPP_DATABASE_DIR`, `NOTESAPP_STORAGE_DIR` and `NOTESAPP_SECRETS_DIR`.
+These values no longer have defaults. Each value must point at the directory
+that holds the installation data now. Do not point an upgrade at new empty
+directories. The database migrations run in the application container, as
+before.
+
+### Added
+
+- **Workspaces.** Keep personal notes and work notes in separate workspaces.
+  The workspace control in the sidebar lets you switch, make, rename and
+  delete a workspace. Search, Trash, History and published links each show the
+  workspace that is open. An account always keeps one workspace, and a save
+  continues to sync when you switch to another workspace.
+- **A clear interface depth.** The application uses three surface planes,
+  named elevation and motion, stronger dividers and one centred note column.
+  The note name is the main heading of the note screen again.
+- **A neutral default theme.** A new preference starts with the neutral
+  Default family. A stored theme choice does not change.
+
+### Changed
+
+- The database, stored files and secrets must use host directories that the
+  operator names. Compose stops with a clear message when one of the three
+  directory values is missing. This keeps service-owned data outside the
+  checkout and keeps repository commands able to read the checkout.
+- A menu opens on the screen instead of inside the box that holds its trigger.
+  A row menu can stay visible at the edge of a long folder tree.
+
+### Fixed
+
+- Renaming a saved note now creates a version, so the new name reaches the
+  server and the other devices.
+- A deep folder name keeps usable space, and a menu near the edge of the
+  screen is no longer cut off.
+- A table now follows the same centred measure as the other note content.
+- A published page loads the style for mathematics and serves its font files
+  with the correct type.
+- An offline application no longer answers a published link with the private
+  application screen.
+- History tells a failed picture read apart from a version that has no
+  picture.
+- A failed server start closes the resources that it opened and gives the
+  operator one message that names the settings to check.
+- Database connection waits and an idle import body now stop after their
+  bounds, so they do not hold a request without limit.
+- Rows, empty states and note side regions now have names that assistive
+  technology can tell apart.
+
+### Security
+
+- The page form and the unlock operation of one published link now share one
+  attempt bucket, so changing the operation does not give more password
+  attempts.
+
 ## 0.2.0 - 2026-09-16
 
 This release opens the first path that serves a reader with no account, brings
