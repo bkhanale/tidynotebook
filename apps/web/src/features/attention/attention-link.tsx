@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import type { LocalStore, RecoveryRecord } from '@notesapp/sync';
+import { rowClassName } from '@notesapp/ui';
 import { parkedSaves, type ParkedSave } from '../../lib/parked-saves.ts';
 
 /** The heading and the link text of the screen. */
@@ -91,10 +92,7 @@ export function AttentionLink({
   if (count <= 0) return null;
   return (
     <Link
-      className={
-        className ??
-        'flex min-h-11 items-center rounded-lg px-2 text-control font-medium text-danger no-underline hover:bg-hover focus-visible:outline-2 focus-visible:outline-focus md:min-h-8'
-      }
+      className={className ?? rowClassName({ danger: true, inset: false })}
       to={`/w/${workspaceId}/attention`}
     >
       {attentionTitle} ({count})

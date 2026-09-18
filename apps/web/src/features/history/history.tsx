@@ -44,7 +44,7 @@ import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
   buttonClassName,
-  Card,
+  ChevronLeftIcon,
   EmptyState,
   HistoryIcon,
   ListRow,
@@ -52,6 +52,7 @@ import {
   Notice,
   Page,
   PageHeader,
+  rowClassName,
 } from '@notesapp/ui';
 import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import {
@@ -148,16 +149,21 @@ export function InlineDiff({
         const afterCount = entry.hunk.after.length;
         return (
           <li
-            className="overflow-hidden rounded-lg border border-edge-line"
+            className="overflow-hidden rounded-lg border border-edge-subtle"
             key={`${idPrefix}-hunk-${String(index)}`}
           >
-            <h4 className="m-0 bg-hover px-3 py-2 text-control font-semibold text-strong">
+            <h4 className="m-0 bg-surface px-3 py-2 text-control font-medium text-strong">
               {`Hunk ${String(index + 1)}: ${oldLabel} from line ${String(entry.hunk.beforeStart)} (${String(beforeCount)} lines), ${newLabel} from line ${String(entry.hunk.afterStart)} (${String(afterCount)} lines)`}
             </h4>
             <ol className="m-0 list-none p-0 font-mono text-control">
               {entry.rows.map((row, rowIndex) => (
                 <li
-                  className={`flex gap-cluster px-3 py-0.5 ${row.kind === 'removed' ? 'bg-danger/10 text-danger' : row.kind === 'added' ? 'bg-success/10 text-success' : 'text-muted'}`}
+                  // The tone of a changed line is a fill from the palette and
+                  // never a fade of a text colour (decisions 0057 and 0065).
+                  // The text on a tone surface is the strong text, which the
+                  // contrast test holds on each of the three surfaces, and
+                  // the sign in front of the line states the change as well.
+                  className={`flex gap-cluster px-3 py-0.5 ${row.kind === 'removed' ? 'bg-danger-surface text-strong' : row.kind === 'added' ? 'bg-success-surface text-strong' : 'text-muted'}`}
                   key={`${idPrefix}-hunk-${String(index)}-row-${String(rowIndex)}`}
                 >
                   <span>
@@ -266,7 +272,7 @@ function HistoryNotice({
     <Page width="wide">
       <PageHeader title="History" />
       <EmptyState
-        icon={<HistoryIcon size={24} />}
+        icon={<HistoryIcon size={20} />}
         title={title}
         description={description}
         action={
@@ -605,10 +611,13 @@ function HistoryDetail({
         description="Restore brings a version back as the newest one. Nothing is lost, and the text on this device stays as it is."
         actions={
           <Link
-            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
             to={`/w/${workspaceId}/notes/${fileId}`}
           >
-            Back to the note
+            <span className="inline-flex items-center" aria-hidden="true">
+              <ChevronLeftIcon />
+            </span>
+            <span>Back to the note</span>
           </Link>
         }
       />
@@ -624,12 +633,18 @@ function HistoryDetail({
         )}
         {items.length === 0 && historyError === null ? (
           <EmptyState
-            icon={<HistoryIcon size={24} />}
+            icon={<HistoryIcon size={20} />}
             title="No version yet"
             description="Save this note once and its first version appears here."
           />
         ) : (
-          <Card title="Versions" titleId="history-versions">
+          <section aria-labelledby="history-versions">
+            <h2
+              className="mb-1 px-2 text-control font-medium text-muted"
+              id="history-versions"
+            >
+              Versions
+            </h2>
             <ol className="m-0 list-none p-0">
               {items.map((item, index) => {
                 const when = relativeTime(item.serverTime, now);
@@ -644,10 +659,14 @@ function HistoryDetail({
                 const label = when === '' ? 'Saved' : `Saved ${when}`;
                 return (
                   <Fragment key={item.revisionId}>
-                    <ListRow>
+                    <ListRow className="flex-wrap">
                       <button
                         type="button"
-                        className="min-w-0 flex-1 cursor-pointer rounded-lg border-0 bg-transparent px-2 py-1 text-left hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
+                        className={rowClassName({
+                          selected,
+                          inset: false,
+                          className: 'min-w-0 flex-1 py-1',
+                        })}
                         aria-expanded={selected}
                         aria-controls={panelId}
                         onClick={() => {
@@ -658,11 +677,13 @@ function HistoryDetail({
                           void openRevision(item);
                         }}
                       >
-                        <span className="block truncate text-ui font-medium text-strong">
-                          {label}
-                        </span>
-                        <span className="block truncate text-control text-muted">
-                          {rowChangeText(change)}
+                        <span className="flex min-w-0 flex-1 flex-col text-left">
+                          <span className="truncate text-ui text-strong">
+                            {label}
+                          </span>
+                          <span className="truncate text-control text-muted">
+                            {rowChangeText(change)}
+                          </span>
                         </span>
                       </button>
                       <Button
@@ -678,10 +699,7 @@ function HistoryDetail({
                       </Button>
                     </ListRow>
                     {selected ? (
-                      <li
-                        className="border-b border-edge-line px-1 py-3 last:border-b-0"
-                        id={panelId}
-                      >
+                      <li className="px-2 pb-4 pt-1" id={panelId}>
                         <RevisionPanel
                           detail={detail}
                           diff={diff}
@@ -697,7 +715,7 @@ function HistoryDetail({
               })}
             </ol>
             {nextCursor === null ? null : (
-              <div className="mt-4">
+              <div className="mt-4 px-2">
                 <Button
                   variant="secondary"
                   size="sm"
@@ -712,7 +730,7 @@ function HistoryDetail({
                 </Button>
               </div>
             )}
-          </Card>
+          </section>
         )}
       </div>
     </Page>
@@ -762,7 +780,7 @@ function RevisionPanel({
   }
   return (
     <div className="space-y-3">
-      <h3 className="m-0 text-control font-semibold uppercase tracking-wide text-muted">
+      <h3 className="m-0 text-control font-medium text-muted">
         {newest
           ? 'This is the newest version'
           : 'Changes to the newest version'}

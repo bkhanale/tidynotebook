@@ -37,14 +37,15 @@ import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
   buttonClassName,
-  Card,
+  ChevronLeftIcon,
+  CloseIcon,
   EmptyState,
   ListRow,
   LoadingState,
   Notice,
   Page,
   PageHeader,
-  transitionRaise,
+  Toast,
   TrashIcon,
 } from '@notesapp/ui';
 import {
@@ -260,9 +261,12 @@ export function useDeleteNotice(): DeleteNoticeValue {
 /**
  * The notice that one note went to the trash, with one chance to restore it.
  *
- * The region announces itself, and the button is an ordinary button in the
- * document order, so the offer is there for a reader and for the keyboard. It
- * goes away by itself after a few seconds; the note stays in the trash.
+ * It is the one `Toast` of the package: a raised surface at the foot of the
+ * window that owns the live region, the measure and the arrival, so this
+ * screen writes no width and no plane of its own. The button is an ordinary
+ * button in the document order, so the offer is there for a reader and for
+ * the keyboard. It goes away by itself after a few seconds; the note stays in
+ * the trash.
  */
 export function DeleteNoticeBar(): ReactNode {
   const { notice, dismiss } = useDeleteNotice();
@@ -329,41 +333,27 @@ export function DeleteNoticeBar(): ReactNode {
   };
 
   return (
-    <div
-      className={`fixed bottom-4 left-1/2 z-50 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 rounded-xl border border-edge-subtle bg-card p-3 shadow-overlay ${transitionRaise}`}
-    >
-      <div
-        className="flex flex-wrap items-center justify-between gap-group"
-        role="status"
-        aria-live="polite"
+    // One message for one cause: a restore that did not work replaces the
+    // sentence of the deletion, so the toast never stacks a general message
+    // and a detailed one, and Restore stays on offer.
+    <Toast message={failure ?? message}>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy}
+        title={restoreLabel}
+        onClick={restore}
       >
-        <p className="m-0 min-w-0 text-control text-strong">{message}</p>
-        <div className="flex items-center gap-cluster">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={busy}
-            title={restoreLabel}
-            onClick={restore}
-          >
-            {busy ? 'Restoring' : 'Restore'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            label="Close this notice"
-            onClick={dismiss}
-          >
-            Close
-          </Button>
-        </div>
-      </div>
-      {failure === null ? null : (
-        <p className="mb-0 mt-2 text-control text-danger" role="alert">
-          {failure}
-        </p>
-      )}
-    </div>
+        {busy ? 'Restoring' : 'Restore'}
+      </Button>
+      <Button
+        variant="ghost"
+        size="sm"
+        label="Close this notice"
+        icon={<CloseIcon />}
+        onClick={dismiss}
+      />
+    </Toast>
   );
 }
 
@@ -381,7 +371,7 @@ export function TrashView(): ReactNode {
       <Page>
         <PageHeader title="Trash" />
         <EmptyState
-          icon={<TrashIcon size={24} />}
+          icon={<TrashIcon size={20} />}
           title="This address names no trash"
           description="Open your notes and choose Trash in the sidebar."
         />
@@ -573,10 +563,13 @@ function TrashList({
         description="Restore puts a note back with your notes. Delete permanently removes the note and its versions for good."
         actions={
           <Link
-            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
             to={`/w/${workspaceId}`}
           >
-            Back to your notes
+            <span className="inline-flex items-center" aria-hidden="true">
+              <ChevronLeftIcon />
+            </span>
+            <span>Back to your notes</span>
           </Link>
         }
       />
@@ -587,12 +580,18 @@ function TrashList({
           <LoadingState shape="list" rows={4} label="The trash is loading." />
         ) : items.length === 0 ? (
           <EmptyState
-            icon={<TrashIcon size={24} />}
+            icon={<TrashIcon size={20} />}
             title="The trash is empty"
             description="A note you delete waits here until you restore it or delete it for good."
           />
         ) : (
-          <Card title="Deleted notes" titleId="trash-heading">
+          <section aria-labelledby="trash-heading">
+            <h2
+              className="mb-1 px-2 text-control font-medium text-muted"
+              id="trash-heading"
+            >
+              Deleted notes
+            </h2>
             <ul className="m-0 list-none p-0">
               {items.map((item) => {
                 const name = displayNoteName(item.path);
@@ -608,7 +607,7 @@ function TrashList({
                 return (
                   <ListRow key={item.fileId} className="flex-wrap">
                     <div className="min-w-0 flex-1">
-                      <p className="m-0 truncate text-ui font-medium text-strong">
+                      <p className="m-0 truncate text-ui text-strong">
                         {folder === null ? name : name.slice(folder.length + 1)}
                       </p>
                       <p className="m-0 truncate text-control text-muted">
@@ -631,7 +630,7 @@ function TrashList({
                             variant="danger"
                             size="sm"
                             disabled={busy}
-                            icon={<TrashIcon size={14} />}
+                            icon={<TrashIcon />}
                             label={`Confirm that ${name} is deleted permanently`}
                             onClick={() => deleteForever(item)}
                           >
@@ -651,7 +650,7 @@ function TrashList({
                           variant="ghost"
                           size="sm"
                           disabled={busy}
-                          icon={<TrashIcon size={14} />}
+                          icon={<TrashIcon />}
                           label={`Delete permanently: ${name}`}
                           onClick={() => deleteForever(item)}
                         >
@@ -663,7 +662,7 @@ function TrashList({
                 );
               })}
             </ul>
-          </Card>
+          </section>
         )}
       </div>
     </Page>

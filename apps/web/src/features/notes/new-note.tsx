@@ -5,17 +5,15 @@
  * opens the editor with the handoff state. The first Save submits the
  * creation. Until then the note lives only on this device, and the tree marks
  * it as such. The rules of the draft itself live in `new-note-draft.ts`.
+ *
+ * This module holds the hook and no button. The one action of a screen sits in
+ * the screen and appears once (decision 0062), so the note list renders its own
+ * primary button and the sidebar renders a row.
  */
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { generateUUID } from '@notesapp/core';
 import { isLocalStorageError, type LocalStore } from '@notesapp/sync';
-import {
-  Button,
-  PlusIcon,
-  type ButtonSize,
-  type ButtonVariant,
-} from '@notesapp/ui';
 import { freeNotePath, newNoteDraft } from '../../lib/new-note-draft.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 
@@ -74,49 +72,4 @@ export function useCreateNote(
   );
 
   return { create, error };
-}
-
-/** The button that creates a new note in the selected folder and opens it. */
-export function NewNoteButton({
-  store,
-  accountId,
-  workspaceId,
-  folder,
-  disabled,
-  variant = 'primary',
-  size = 'md',
-  className,
-  children,
-}: {
-  readonly store: LocalStore | null;
-  readonly accountId: string;
-  readonly workspaceId: string;
-  readonly folder?: string | undefined;
-  readonly disabled?: boolean | undefined;
-  readonly variant?: ButtonVariant | undefined;
-  readonly size?: ButtonSize | undefined;
-  readonly className?: string | undefined;
-  readonly children?: ReactNode | undefined;
-}): ReactNode {
-  const { create, error } = useCreateNote(store, accountId, workspaceId);
-
-  return (
-    <div className={className}>
-      <Button
-        className="w-full"
-        variant={variant}
-        size={size}
-        icon={<PlusIcon />}
-        disabled={disabled ?? store === null}
-        onClick={() => create(folder)}
-      >
-        {children ?? 'New note'}
-      </Button>
-      {error === null ? null : (
-        <p className="mt-1 text-control text-danger" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
-  );
 }

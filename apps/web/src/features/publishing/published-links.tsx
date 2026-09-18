@@ -16,6 +16,10 @@
  * slow down the one action that a person wants to be immediate. The step back
  * is to publish again, which costs one dialog.
  *
+ * A row shows the name of what the link opens and the first two facts about
+ * it. The rest go to the tooltip of the line, because a row states one name
+ * and a small number of facts and never a joined sentence of four.
+ *
  * Every rule of the rows lives in `publishing.ts` with its unit test. Every
  * server call is a generated operation.
  */
@@ -35,7 +39,7 @@ import {
 import {
   Button,
   buttonClassName,
-  Card,
+  ChevronLeftIcon,
   EmptyState,
   LinkIcon,
   ListRow,
@@ -48,10 +52,11 @@ import { problemMessage } from '../../app.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { useFiles } from '../../shell/files.tsx';
 import {
-  linkDetail,
+  linkFacts,
   linkTitle,
   notesInScope,
   publishedLinksTitle,
+  shownLinkFacts,
   sortLinks,
 } from './publishing.ts';
 
@@ -77,7 +82,7 @@ export function PublishedLinksView(): ReactNode {
       <Page>
         <PageHeader title={publishedLinksTitle} />
         <EmptyState
-          icon={<LinkIcon size={24} />}
+          icon={<LinkIcon size={20} />}
           title="This address names no workspace"
           description="Open your notes and select Published links in the sidebar."
         />
@@ -165,10 +170,13 @@ function PublishedLinksList({
         description={publishedLinksDescription}
         actions={
           <Link
-            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
             to={`/w/${workspaceId}`}
           >
-            Back to your notes
+            <span className="inline-flex items-center" aria-hidden="true">
+              <ChevronLeftIcon />
+            </span>
+            <span>Back to your notes</span>
           </Link>
         }
       />
@@ -189,23 +197,43 @@ function PublishedLinksList({
           </Notice>
         ) : rows.length === 0 ? (
           <EmptyState
-            icon={<LinkIcon size={24} />}
+            icon={<LinkIcon size={20} />}
             title="No published links"
             description="Open a note or a folder and select Publish. You get one link that opens it for a person who has no account."
           />
         ) : (
-          <Card title="Your links" titleId="published-links-heading">
+          <section aria-labelledby="published-links-heading">
+            <h2
+              className="mb-1 px-2 text-control font-medium text-muted"
+              id="published-links-heading"
+            >
+              Your links
+            </h2>
             <ul className="m-0 list-none p-0">
               {rows.map((link) => {
                 const name = linkTitle(link.scope, notes);
+                const facts = linkFacts(
+                  link,
+                  notesInScope(link.scope, notes),
+                  now,
+                );
                 return (
                   <ListRow key={link.publicationId} className="flex-wrap">
+                    <span
+                      className="inline-flex shrink-0 items-center text-muted"
+                      aria-hidden="true"
+                    >
+                      <LinkIcon />
+                    </span>
                     <div className="min-w-0 flex-1">
-                      <p className="m-0 truncate text-ui font-medium text-strong">
-                        {name}
-                      </p>
-                      <p className="m-0 truncate text-control text-muted">
-                        {linkDetail(link, notesInScope(link.scope, notes), now)}
+                      <p className="m-0 truncate text-ui text-strong">{name}</p>
+                      <p
+                        className="m-0 flex flex-wrap gap-cluster text-control text-muted"
+                        title={facts.join(', ')}
+                      >
+                        {facts.slice(0, shownLinkFacts).map((fact) => (
+                          <span key={fact}>{fact}</span>
+                        ))}
                       </p>
                     </div>
                     <div className="flex shrink-0 items-center gap-cluster">
@@ -213,7 +241,7 @@ function PublishedLinksList({
                         variant="secondary"
                         size="sm"
                         disabled={busy !== null}
-                        title={`Revoke the link to ${name}`}
+                        label={`Revoke the link to ${name}`}
                         onClick={() => revoke(link, name)}
                       >
                         Revoke
@@ -223,7 +251,7 @@ function PublishedLinksList({
                 );
               })}
             </ul>
-          </Card>
+          </section>
         )}
       </div>
     </Page>

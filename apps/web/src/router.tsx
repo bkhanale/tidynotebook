@@ -9,7 +9,13 @@
  */
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Link, RouterProvider, createBrowserRouter } from 'react-router';
-import { LoadingState, pageGutter } from '@notesapp/ui';
+import {
+  buttonClassName,
+  ChevronLeftIcon,
+  LoadingState,
+  Page,
+  PageHeader,
+} from '@notesapp/ui';
 import {
   AccountSettingsPage,
   LoginPage,
@@ -47,9 +53,9 @@ function deferred(element: ReactNode): ReactNode {
   return (
     <Suspense
       fallback={
-        <main className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <Page>
           <LoadingState label="The screen is loading." />
-        </main>
+        </Page>
       }
     >
       {element}
@@ -57,19 +63,27 @@ function deferred(element: ReactNode): ReactNode {
   );
 }
 
-/** Shown for an address that names no route. */
+/**
+ * Shown for an address that names no route.
+ *
+ * It is a page of the application and not a bare sentence: the one page
+ * frame, the one page title, one sentence and the one way out.
+ */
 function NotFoundPage(): ReactNode {
   useDocumentTitle('Page not found');
   return (
-    <main className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
-      <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
-        Page not found
-      </h1>
-      <p>The address names no page of this application.</p>
-      <p>
-        <Link to="/">Back to your notes.</Link>
+    <Page>
+      <PageHeader title="Page not found" />
+      <p className="mb-6 mt-0 text-control text-muted">
+        The address names no page of this application.
       </p>
-    </main>
+      <Link className={buttonClassName({ variant: 'secondary' })} to="/">
+        <span className="inline-flex items-center" aria-hidden="true">
+          <ChevronLeftIcon />
+        </span>
+        <span>Back to your notes</span>
+      </Link>
+    </Page>
   );
 }
 

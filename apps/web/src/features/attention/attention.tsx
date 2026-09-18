@@ -20,10 +20,11 @@ import { Link, useParams } from 'react-router';
 import { generateUUID } from '@notesapp/core';
 import { type Draft } from '@notesapp/sync';
 import {
-  AlertCircleIcon,
   Button,
   buttonClassName,
-  Card,
+  CheckIcon,
+  ChevronLeftIcon,
+  CopyIcon,
   EmptyState,
   ListRow,
   LoadingState,
@@ -32,7 +33,6 @@ import {
   PageHeader,
   StatusRegion,
   TrashIcon,
-  CopyIcon,
 } from '@notesapp/ui';
 import { attentionTitle, useParkedSaves } from './attention-link.tsx';
 import { useLocalStore, useSession } from '../../app.tsx';
@@ -64,9 +64,7 @@ function ParkedSaveRow({
   return (
     <ListRow className="flex-col items-stretch py-3">
       <div className="min-w-0">
-        <p className="m-0 truncate text-ui font-medium text-strong">
-          {save.name}
-        </p>
+        <p className="m-0 truncate text-ui text-strong">{save.name}</p>
         <p className="m-0 text-control text-muted">
           {save.reason} The text stays on this device{' '}
           {parkedSaveTime(save.createdAt, now)}.
@@ -107,7 +105,7 @@ function ParkedSaveRow({
         <Button
           variant="secondary"
           size="sm"
-          icon={<CopyIcon size={14} />}
+          icon={<CopyIcon />}
           label={
             copied
               ? `Copied the text of ${save.name}`
@@ -126,7 +124,7 @@ function ParkedSaveRow({
             <Button
               variant="danger"
               size="sm"
-              icon={<TrashIcon size={14} />}
+              icon={<TrashIcon />}
               label={`Confirm discard of the kept text of ${save.name}`}
               onClick={() => {
                 setConfirming(false);
@@ -150,7 +148,7 @@ function ParkedSaveRow({
           <Button
             variant="ghost"
             size="sm"
-            icon={<TrashIcon size={14} />}
+            icon={<TrashIcon />}
             label={`Discard the kept text of ${save.name}`}
             onClick={() => {
               setConfirming(true);
@@ -319,10 +317,13 @@ export function AttentionRoute(): ReactNode {
         description="Notesapp keeps text here when it cannot complete a save. Retry the save, or create a new note from its text."
         actions={
           <Link
-            className={buttonClassName({ variant: 'secondary', size: 'sm' })}
+            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
             to={`/w/${activeWorkspace}`}
           >
-            Back to your notes
+            <span className="inline-flex items-center" aria-hidden="true">
+              <ChevronLeftIcon />
+            </span>
+            <span>Back to your notes</span>
           </Link>
         }
       />
@@ -331,13 +332,21 @@ export function AttentionRoute(): ReactNode {
         {failure === null ? null : <Notice tone="problem" message={failure} />}
         {notice === '' ? null : <StatusRegion message={notice} />}
         {saves.length === 0 ? (
+          // Nothing waits here, which is the good state, so the mark is the
+          // check and not the alert of a screen that reports a problem.
           <EmptyState
-            icon={<AlertCircleIcon size={24} />}
+            icon={<CheckIcon size={20} />}
             title="No save needs attention"
             description="There is no kept text for you to review."
           />
         ) : (
-          <Card title="Text to review" titleId="attention-heading">
+          <section aria-labelledby="attention-heading">
+            <h2
+              className="mb-1 px-2 text-control font-medium text-muted"
+              id="attention-heading"
+            >
+              Text to review
+            </h2>
             <ul className="m-0 list-none p-0">
               {saves.map((save) => (
                 <ParkedSaveRow
@@ -350,7 +359,7 @@ export function AttentionRoute(): ReactNode {
                 />
               ))}
             </ul>
-          </Card>
+          </section>
         )}
       </div>
     </Page>

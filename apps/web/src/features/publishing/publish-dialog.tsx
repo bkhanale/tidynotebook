@@ -176,7 +176,7 @@ export function PublishDialog({
           <DialogBody>
             <div className="space-y-3" id={scopeId}>
               {sentences.map((sentence) => (
-                <p className="m-0 text-ui text-ink" key={sentence}>
+                <p className="m-0 text-control text-muted" key={sentence}>
                   {sentence}
                 </p>
               ))}
@@ -224,7 +224,7 @@ export function PublishDialog({
       ) : (
         <>
           <DialogBody>
-            <p className="m-0 text-ui font-semibold text-strong" id={scopeId}>
+            <p className="m-0 text-ui text-strong" id={scopeId}>
               {copyNow}
             </p>
             <div className="mt-4">
@@ -252,19 +252,22 @@ export function PublishDialog({
             ) : null}
           </DialogBody>
           <DialogFooter>
+            {/*
+              The pair is fixed. Copy link is the second action of this state
+              and Done is the one that confirms it, whether or not the dialog
+              has asked its question, so a variant never moves under a person
+              who is reaching for a control. Only the word of the confirming
+              action changes, and the notice above states why.
+            */}
             <Button
-              variant={asking ? 'primary' : 'secondary'}
+              variant="secondary"
               size="sm"
-              icon={<CopyIcon size={14} />}
+              icon={<CopyIcon />}
               onClick={copy}
             >
               {copied ? 'Copied' : 'Copy link'}
             </Button>
-            <Button
-              variant={asking ? 'ghost' : 'primary'}
-              size="sm"
-              onClick={requestClose}
-            >
+            <Button variant="primary" size="sm" onClick={requestClose}>
               {asking ? 'Close anyway' : 'Done'}
             </Button>
           </DialogFooter>

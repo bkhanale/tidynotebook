@@ -13,8 +13,15 @@
  * The layout frame lives in `shell.tsx`.
  */
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react';
-import { useParams } from 'react-router';
-import { LoadingState, Page, pageGutter, PageHeader } from '@notesapp/ui';
+import { Link, useParams } from 'react-router';
+import {
+  buttonClassName,
+  ChevronLeftIcon,
+  LoadingState,
+  Page,
+  pageGutter,
+  PageHeader,
+} from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useFiles } from '../../shell/files.tsx';
 import { MoveNoteDialog } from '../folders/folders.tsx';
@@ -52,10 +59,19 @@ export function NoteView(): ReactNode {
     return (
       <Page>
         <PageHeader title="Note not found" />
-        <p className="m-0">
+        <p className="mb-6 mt-0 text-control text-muted">
           This address does not match a note. The note may be deleted, or the
           link may be wrong.
         </p>
+        <Link
+          className={buttonClassName({ variant: 'secondary' })}
+          to={workspaceId === null ? '/' : `/w/${workspaceId}`}
+        >
+          <span className="inline-flex items-center" aria-hidden="true">
+            <ChevronLeftIcon />
+          </span>
+          <span>Back to your notes</span>
+        </Link>
       </Page>
     );
 

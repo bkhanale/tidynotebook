@@ -37,8 +37,9 @@ those two alone.
 ## How to add a common thing here
 
 - **A screen.** Add `src/features/<feature>/<name>.tsx` from the `@notesapp/ui`
-  primitives, add the route in `src/router.tsx`, and read and write through a
-  generated operation. A palette action goes in `lib/palette-items.ts`.
+  primitives, with one primary button and a `Page` for every state, including
+  not found (0062). Route it in `src/router.tsx`, read and write through a
+  generated operation, and put a palette action in `lib/palette-items.ts`.
 - **Testable logic.** Add a pure `src/lib/<name>.ts` and its `.test.ts`. A file
   that imports React is not `lib`; it stays with its feature.
 - **A move or a deletion.** Call `applyMoves` in `features/folders/` or
@@ -68,8 +69,7 @@ on each rule below.
   `fieldClassName`, `kbdClassName` and `focusOutline` from `@notesapp/ui`
   (0065). No `uppercase`, no `tracking-wide` or wider, no `font-bold` or
   heavier, no `border-dashed`, no off-scale radius, no bare `rounded`, and
-  nothing scales on press. No colour class that names no `--color-*` token of
-  `src/tailwind.css`: a class such as `bg-surface-hover` renders nothing.
+  nothing scales on press. No colour class that names no `--color-*` token.
 - No icon `size` other than 16 or 20 (0065). No `border-edge` or `ring-edge`
   outside the drop target of `lib/tree-row.ts` (0063). No `focus:` except the
   edge and the ring of a field; `focus-visible:` is the treatment. No family

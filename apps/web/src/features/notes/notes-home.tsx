@@ -1,10 +1,18 @@
 /**
  * The note list of one open area.
  *
- * The route view groups the notes of the workspace by how recently they
- * changed, and it offers the create action both in the header and in the
- * empty state, so the one job of the screen is always one click away. The
- * layout frame lives in `shell.tsx`; this file owns the note list screen only.
+ * The screen has one job and one primary button for it. New note sits in the
+ * page header, where the one action of a route belongs (decision 0062), and
+ * the sidebar holds a row instead of a second filled button.
+ *
+ * The notes group by how recently they changed. A group label is a quiet
+ * heading in sentence case, and the rows under it separate by space and by
+ * fill and never by a rule (decision 0063). Each row is the one row recipe of
+ * the product, so a note of this list, a note of the tree and a row of a menu
+ * are one size, one radius and one focus treatment (decision 0065).
+ *
+ * The layout frame lives in `shell.tsx`; this file owns the note list screen
+ * only.
  */
 import { useMemo, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
@@ -13,10 +21,11 @@ import {
   EmptyState,
   FileTextIcon,
   LoadingState,
+  Notice,
   Page,
   PageHeader,
   PlusIcon,
-  transitionSurface,
+  rowClassName,
 } from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
@@ -24,6 +33,10 @@ import { useFiles } from '../../shell/files.tsx';
 import { useCreateNote } from './new-note.tsx';
 import { groupNotesByRecency } from '../../lib/note-groups.ts';
 import { noteRowMeta } from '../../lib/note-row.ts';
+
+/** The quiet heading of one time band of the list. */
+const groupLabelClassName =
+  'px-2 pb-1 pt-4 text-control font-medium text-muted';
 
 /** The note list of the open area. */
 export function NotesHomeView(): ReactNode {
@@ -51,8 +64,7 @@ export function NotesHomeView(): ReactNode {
         description={`${String(total)} ${total === 1 ? 'note' : 'notes'}`}
         actions={
           <Button
-            size="sm"
-            icon={<PlusIcon size={14} />}
+            icon={<PlusIcon />}
             disabled={store.store === null}
             onClick={() => newNote.create()}
           >
@@ -61,20 +73,18 @@ export function NotesHomeView(): ReactNode {
         }
       />
       {newNote.error === null ? null : (
-        <p className="mb-3 text-control text-danger" role="alert">
-          {newNote.error}
-        </p>
+        <Notice className="mb-4" tone="problem" message={newNote.error} />
       )}
       {files.loading ? (
         <LoadingState shape="list" rows={6} label="Your notes are loading." />
       ) : total === 0 ? (
         <EmptyState
-          icon={<FileTextIcon size={32} />}
-          title="No notes yet."
+          icon={<FileTextIcon size={20} />}
+          title="No notes yet"
           description="Write your first note to fill this space."
           action={
             <Button
-              icon={<PlusIcon size={16} />}
+              icon={<PlusIcon />}
               disabled={store.store === null}
               onClick={() => newNote.create()}
             >
@@ -83,46 +93,41 @@ export function NotesHomeView(): ReactNode {
           }
         />
       ) : (
-        <div className="space-y-6">
+        <div>
           {groups.map((group) => (
             <section key={group.label} aria-labelledby={`group-${group.label}`}>
-              <h2
-                className="mb-1 px-2 text-control font-semibold uppercase tracking-wide text-muted"
-                id={`group-${group.label}`}
-              >
+              <h2 className={groupLabelClassName} id={`group-${group.label}`}>
                 {group.label}
               </h2>
               <ul className="m-0 list-none p-0">
                 {group.notes.map((note) => {
                   const meta = noteRowMeta(note.path, note.updatedAt, now);
                   return (
-                    // The divider belongs to the row and never to the link
-                    // inside it. A link is the only child of its row, so it is
-                    // always the last child and `last:border-b-0` removed the
-                    // divider of every row, not of the last one.
-                    <li
-                      key={note.fileId}
-                      className="border-b border-edge-line last:border-b-0"
-                    >
+                    // The list item stays a list item and the router link
+                    // fills it, the shape that `ListRow` renders for a plain
+                    // address. This row needs the router and not the
+                    // platform, so it reads the row recipe directly.
+                    <li className="flex" key={note.fileId}>
                       <Link
+                        className={rowClassName({
+                          inset: false,
+                          className: 'min-w-0 flex-1',
+                        })}
                         to={`/w/${workspaceId}/notes/${note.fileId}`}
-                        className={`flex min-h-11 items-center gap-group rounded-lg px-2 py-2 text-ink no-underline ${transitionSurface} hover:bg-hover`}
+                        aria-label={
+                          meta.folder === null
+                            ? meta.name
+                            : `${meta.name}, in ${meta.folder}`
+                        }
                       >
                         <span
                           className="inline-flex shrink-0 items-center text-muted"
                           aria-hidden="true"
                         >
-                          <FileTextIcon size={16} />
+                          <FileTextIcon />
                         </span>
-                        <span className="flex min-w-0 flex-1 flex-col">
-                          <span className="truncate text-ui font-medium text-strong">
-                            {meta.name}
-                          </span>
-                          {meta.folder === null ? null : (
-                            <span className="truncate text-control text-muted">
-                              {meta.folder}
-                            </span>
-                          )}
+                        <span className="min-w-0 flex-1 truncate text-ui text-strong">
+                          {meta.name}
                         </span>
                         <span className="shrink-0 text-control text-muted">
                           {meta.when}

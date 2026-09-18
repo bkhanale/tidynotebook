@@ -12,11 +12,6 @@
       "reason": "The sandboxed diagram frame writes the SVG that the isolated Mermaid renderer produced. The frame runs on a sandboxed origin, so the markup never reaches the application origin. Decision record 0013."
     },
     {
-      "file": "apps/web/src/features/trash/trash.tsx",
-      "rule": "arbitrary-value",
-      "reason": "The undo toast is fixed and centred, so its width must clamp to the smaller of the reading width and the viewport less a gutter: w-[min(28rem,calc(100vw-2rem))]. No named width expresses a clamp."
-    },
-    {
       "file": "packages/ui/src/controls.tsx",
       "rule": "stateful-edge",
       "reason": "The box of the Checkbox is one of the five controls that decision 0063 reserves the component edge for. A person reads the state of a checkbox from its shape alone, so its edge must meet the 3 to 1 non text minimum that theme.test.ts holds `border` to."

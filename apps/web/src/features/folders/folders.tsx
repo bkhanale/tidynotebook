@@ -9,15 +9,23 @@
  * with a separator in it. New folder therefore writes nothing. It names a
  * folder that this device remembers until a note is made or moved into it,
  * so making a folder never makes a note.
+ *
+ * Every field here is the one `TextField` of `@notesapp/ui` and every row of
+ * the folder picker is the one row recipe, so no dialog of this feature writes
+ * the classes of a control (decision 0065). Each dialog is a form, so Enter
+ * confirms it the way the platform confirms a form.
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
+  CheckIcon,
   Dialog,
   DialogBody,
   DialogFooter,
-  transitionField,
+  Notice,
+  rowClassName,
+  TextField,
 } from '@notesapp/ui';
 import { applyMoves } from './apply-moves.ts';
 import {
@@ -39,62 +47,46 @@ import {
   rewriteFolder,
 } from '../../lib/note-name.ts';
 
-/** A labelled field with its own error line, shared by the dialogs below. */
-function NameField({
-  id,
+/**
+ * One row of the folder picker.
+ *
+ * The radio is the control and the row is what a person sees, so the input is
+ * visually hidden inside the label and the row reads the one row recipe with
+ * its `selected` mark (decisions 0062 and 0065). A hidden input still takes
+ * the focus and the arrow keys of a radio group, so the row states that focus
+ * with `focus-within`: `focus-visible` on the label would never match.
+ */
+function FolderChoice({
   label,
-  help,
-  value,
-  error,
-  onChange,
-  onEnter,
+  chosen,
+  onChoose,
 }: {
-  readonly id: string;
   readonly label: string;
-  readonly help?: string | undefined;
-  readonly value: string;
-  readonly error: string | null;
-  readonly onChange: (value: string) => void;
-  readonly onEnter?: (() => void) | undefined;
+  readonly chosen: boolean;
+  readonly onChoose: () => void;
 }): ReactNode {
   return (
-    <div>
-      <label
-        className="mb-1.5 block text-control font-semibold text-strong"
-        htmlFor={id}
-      >
-        {label}
-      </label>
+    <label
+      className={rowClassName({
+        selected: chosen,
+        className:
+          'text-ui focus-within:outline-2 focus-within:-outline-offset-2 focus-within:outline-focus',
+      })}
+    >
       <input
-        id={id}
-        className={`min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9`}
-        type="text"
-        value={value}
-        autoComplete="off"
-        aria-invalid={error !== null}
-        aria-describedby={error === null ? `${id}-help` : `${id}-error`}
-        onChange={(event): void => onChange(event.target.value)}
-        onKeyDown={(event): void => {
-          if (event.key !== 'Enter' || onEnter === undefined) return;
-          event.preventDefault();
-          onEnter();
-        }}
+        className="sr-only"
+        type="radio"
+        name="move-target"
+        checked={chosen}
+        onChange={onChoose}
       />
-      {help === undefined ? null : (
-        <p className="mb-0 mt-1 text-control text-muted" id={`${id}-help`}>
-          {help}
-        </p>
-      )}
-      {error === null ? null : (
-        <p
-          className="mb-0 mt-1 text-control text-danger"
-          id={`${id}-error`}
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
-    </div>
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {chosen ? (
+        <span className="inline-flex shrink-0 items-center" aria-hidden="true">
+          <CheckIcon />
+        </span>
+      ) : null}
+    </label>
   );
 }
 
@@ -176,17 +168,17 @@ export function NewFolderDialog({
         }}
       >
         <DialogBody>
-          <NameField
+          <TextField
             id="new-folder-name"
             label="Folder name"
-            help={
+            hint={
               parent === ''
                 ? 'The folder goes at the top and starts empty. Use New note in this folder to fill it.'
                 : `The folder goes inside ${parent} and starts empty. Use New note in this folder to fill it.`
             }
             value={name}
-            error={error}
-            onEnter={create}
+            error={error ?? undefined}
+            autoFocus
             onChange={(value) => {
               nameRef.current = value;
               setName(value);
@@ -195,7 +187,7 @@ export function NewFolderDialog({
           />
         </DialogBody>
         <DialogFooter>
-          <Button variant="secondary" type="button" onClick={onClose}>
+          <Button variant="ghost" type="button" onClick={onClose}>
             Cancel
           </Button>
           <Button variant="primary" type="submit">
@@ -285,76 +277,65 @@ export function MoveNoteDialog({
       titleId="move-note-title"
       width="small"
     >
-      <DialogBody>
-        <fieldset className="m-0 border-0 p-0">
-          <legend className="mb-2 text-control font-semibold text-strong">
-            Move {displayNoteName(baseNameOf(path))} to
-          </legend>
-          <ul className="m-0 max-h-64 list-none overflow-y-auto p-0">
-            {['', ...folders].map((folder) => (
-              <li key={folder === '' ? 'root' : folder}>
-                <label className="flex min-h-11 cursor-pointer items-center gap-cluster rounded-lg px-2 text-ui text-ink hover:bg-hover">
-                  <input
-                    type="radio"
-                    name="move-target"
-                    className="size-4 accent-accent-fill"
-                    checked={target === folder}
-                    onChange={() => {
+      <form
+        onSubmit={(event): void => {
+          event.preventDefault();
+          move();
+        }}
+      >
+        <DialogBody>
+          <fieldset className="m-0 border-0 p-0">
+            <legend className="mb-2 text-control font-medium text-strong">
+              Move {displayNoteName(baseNameOf(path))} to
+            </legend>
+            <ul className="m-0 max-h-64 list-none overflow-y-auto p-0">
+              {['', ...folders, null].map((folder) => (
+                <li key={folder ?? 'new'}>
+                  <FolderChoice
+                    label={
+                      folder === null
+                        ? 'A new folder'
+                        : folder === ''
+                          ? 'All notes, at the top'
+                          : folder
+                    }
+                    chosen={target === folder}
+                    onChoose={() => {
                       setTarget(folder);
                       setError(null);
                     }}
                   />
-                  <span>
-                    {folder === '' ? 'All notes, at the top' : folder}
-                  </span>
-                </label>
-              </li>
-            ))}
-            <li>
-              <label className="flex min-h-11 cursor-pointer items-center gap-cluster rounded-lg px-2 text-ui text-ink hover:bg-hover">
-                <input
-                  type="radio"
-                  name="move-target"
-                  className="size-4 accent-accent-fill"
-                  checked={target === null}
-                  onChange={() => {
-                    setTarget(null);
-                    setError(null);
-                  }}
-                />
-                <span>A new folder</span>
-              </label>
-            </li>
-          </ul>
-        </fieldset>
-        {target === null ? (
-          <div className="mt-3">
-            <NameField
-              id="move-note-folder"
-              label="New folder name"
-              value={custom}
-              error={null}
-              onChange={(value) => {
-                setCustom(value);
-                setError(null);
-              }}
-            />
-          </div>
-        ) : null}
-        {error === null ? null : (
-          <p className="mb-0 mt-3 text-control text-danger" role="alert">
-            {error}
-          </p>
-        )}
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" onClick={move}>
-          Move note
-        </Button>
-      </DialogFooter>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+          {target === null ? (
+            <div className="mt-3">
+              <TextField
+                id="move-note-folder"
+                label="New folder name"
+                value={custom}
+                autoFocus
+                onChange={(value) => {
+                  setCustom(value);
+                  setError(null);
+                }}
+              />
+            </div>
+          ) : null}
+          {error === null ? null : (
+            <Notice className="mt-3" tone="problem" message={error} />
+          )}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit">
+            Move note
+          </Button>
+        </DialogFooter>
+      </form>
     </Dialog>
   );
 }
@@ -466,31 +447,39 @@ export function RenameFolderDialog({
       titleId="rename-folder-title"
       width="small"
     >
-      <DialogBody>
-        <NameField
-          id="rename-folder-name"
-          label="Folder name"
-          help={
-            count === 0
-              ? 'This folder holds no note yet.'
-              : `This changes the name of ${String(count)} ${count === 1 ? 'note' : 'notes'}.`
-          }
-          value={name}
-          error={error}
-          onChange={(value) => {
-            setName(value);
-            setError(null);
-          }}
-        />
-      </DialogBody>
-      <DialogFooter>
-        <Button variant="secondary" onClick={onClose}>
-          Cancel
-        </Button>
-        <Button variant="primary" disabled={busy} onClick={rename}>
-          Rename folder
-        </Button>
-      </DialogFooter>
+      <form
+        onSubmit={(event): void => {
+          event.preventDefault();
+          rename();
+        }}
+      >
+        <DialogBody>
+          <TextField
+            id="rename-folder-name"
+            label="Folder name"
+            hint={
+              count === 0
+                ? 'This folder holds no note yet.'
+                : `This changes the name of ${String(count)} ${count === 1 ? 'note' : 'notes'}.`
+            }
+            value={name}
+            error={error ?? undefined}
+            autoFocus
+            onChange={(value) => {
+              setName(value);
+              setError(null);
+            }}
+          />
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" type="button" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button variant="primary" type="submit" disabled={busy}>
+            Rename folder
+          </Button>
+        </DialogFooter>
+      </form>
     </Dialog>
   );
 }

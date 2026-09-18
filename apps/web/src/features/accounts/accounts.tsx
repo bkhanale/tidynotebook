@@ -1,9 +1,18 @@
 /**
  * Account screens: first-run setup, login, and settings.
  *
+ * The sign in screen and the setup screen are the two screens that carry the
+ * wordmark, which is a monochrome mark and the product name (decisions 0062
+ * and 0064). Both are one centred column on the chrome plane with one raised
+ * panel, so a first run meets a neutral surface and the one filled control on
+ * it is the one action.
+ *
  * Settings is the one place for the profile, the palette, offline
- * availability, and sign-out. Theme changes apply locally first and sync in
- * the background through the provider in `app.tsx`.
+ * availability, and sign-out. It reads as sections and not as a stack of
+ * cards: each section states its name and its sentence in a column of its own
+ * and holds its controls beside them, and a hairline separates one from the
+ * next. Theme changes apply locally first and sync in the background through
+ * the provider in `app.tsx`.
  */
 import {
   useCallback,
@@ -24,20 +33,24 @@ import {
   AppMarkIcon,
   Button,
   Card,
+  Checkbox,
   CheckIcon,
   ChevronLeftIcon,
   ComputerIcon,
+  DownloadIcon,
   LoadingState,
   MoonIcon,
   Notice,
   Page,
   pageGutter,
   PageHeader,
+  SignOutIcon,
   SunIcon,
   TextField,
   themeFamilies,
   themeOfFamily,
   transitionSurface,
+  UploadIcon,
 } from '@notesapp/ui';
 import {
   problemMessage,
@@ -170,18 +183,18 @@ export function LoginPage(): ReactNode {
   const title = setup ? 'Create your account' : 'Sign in';
   return (
     <div
-      className={`flex min-h-dvh flex-col items-center justify-center ${pageGutter} py-10`}
+      className={`flex min-h-dvh flex-col items-center justify-center bg-surface ${pageGutter} py-10`}
     >
-      <div className="mb-5 flex items-center gap-2.5 text-lg font-semibold text-strong">
+      <div className="mb-5 flex items-center gap-2.5 text-ui font-semibold text-strong">
         <span
-          className="inline-flex size-8 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
+          className="inline-flex size-7 items-center justify-center rounded-md bg-active text-strong"
           aria-hidden="true"
         >
-          <AppMarkIcon size={18} />
+          <AppMarkIcon />
         </span>
         <span>Notesapp</span>
       </div>
-      <div className="w-full max-w-md rounded-xl border border-edge-subtle bg-card p-6 shadow-raised sm:p-8">
+      <Card className="w-full max-w-sm sm:p-6">
         <h1 className="mb-2 mt-0 text-xl font-semibold tracking-heading text-strong">
           {status.kind === 'loading' ? 'Notesapp' : title}
         </h1>
@@ -243,16 +256,14 @@ export function LoginPage(): ReactNode {
                   onChange={setConfirmation}
                 />
               ) : null}
-              <label className="mb-4 flex min-h-11 items-center gap-cluster text-control text-strong md:min-h-9">
-                <input
-                  type="checkbox"
+              <div className="mb-4">
+                <Checkbox
+                  id="login-reveal"
+                  label="Show the password"
                   checked={reveal}
-                  onChange={(event): void => {
-                    setReveal(event.target.checked);
-                  }}
+                  onChange={setReveal}
                 />
-                Show the password
-              </label>
+              </div>
               {error === '' ? null : (
                 <Notice className="mb-4" tone="problem" message={error} />
               )}
@@ -268,7 +279,7 @@ export function LoginPage(): ReactNode {
             </form>
           </>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
@@ -279,9 +290,9 @@ const appearanceChoices: readonly {
   readonly label: string;
   readonly icon: ReactNode;
 }[] = [
-  { value: 'system', label: 'System', icon: <ComputerIcon size={14} /> },
-  { value: 'light', label: 'Light', icon: <SunIcon size={14} /> },
-  { value: 'dark', label: 'Dark', icon: <MoonIcon size={14} /> },
+  { value: 'system', label: 'System', icon: <ComputerIcon /> },
+  { value: 'light', label: 'Light', icon: <SunIcon /> },
+  { value: 'dark', label: 'Dark', icon: <MoonIcon /> },
 ];
 
 /**
@@ -305,7 +316,7 @@ function FamilySwatch({ familyId }: { readonly familyId: string }): ReactNode {
   return (
     <span
       aria-hidden="true"
-      className="inline-flex overflow-hidden rounded-sm border border-edge"
+      className="inline-flex overflow-hidden rounded-sm border border-edge-line"
     >
       {colours.map((colour) => (
         <span
@@ -319,33 +330,79 @@ function FamilySwatch({ familyId }: { readonly familyId: string }): ReactNode {
 }
 
 /**
+ * One section of the settings screen.
+ *
+ * A section is not a card. From the medium width it is two columns: the name
+ * of the section and its sentence on the left, the controls on the right, so
+ * a person scans the names of every section in one pass. A hairline separates
+ * one section from the next, which is the one place a rule is drawn here,
+ * because a person counts the sections of a list they scroll (decision 0063).
+ */
+function SettingsSection({
+  title,
+  titleId,
+  description,
+  children,
+}: {
+  readonly title: string;
+  readonly titleId: string;
+  readonly description?: string | undefined;
+  readonly children: ReactNode;
+}): ReactNode {
+  return (
+    <section
+      className="border-t border-edge-subtle py-6"
+      aria-labelledby={titleId}
+    >
+      <div className="md:grid md:grid-cols-3 md:gap-group">
+        <div className="md:col-span-1">
+          <h2 className="m-0 text-ui font-semibold text-strong" id={titleId}>
+            {title}
+          </h2>
+          {description === undefined ? null : (
+            <p className="mb-0 mt-1 text-control text-muted">{description}</p>
+          )}
+        </div>
+        <div className="mt-3 min-w-0 md:col-span-2 md:mt-0">{children}</div>
+      </div>
+    </section>
+  );
+}
+
+/**
  * Appearance settings: local first, synced without delaying the change.
  *
- * The appearance choices and the theme families are radio buttons in two
- * groups, so each whole set is visible at once, the arrow keys move through
- * it, and the choice in force is readable without opening anything. A
+ * The appearance choices are a segmented control: one radio group in one
+ * track, so the whole set is visible, the arrow keys move through it and the
+ * choice in force is the raised segment. The theme families are radio buttons
+ * as well, one chip each, and the chosen chip takes the strong edge and a
+ * ring of the same colour and never the accent fill (decision 0062). A
  * selection applies at once, which is why the swatch of every family shows
  * the variant of the appearance in force.
+ *
+ * Both groups carry their focus treatment with `focus-within`, because the
+ * radio a person reaches is visually hidden and the label around it is what
+ * they see. `focus-visible` on the label would never match.
  */
 export function ThemeSettings(): ReactNode {
   const theme = useTheme();
   return (
-    <Card title="Appearance" titleId="theme-heading">
-      <p className="m-0 text-control text-muted">
-        System follows the device. The choice applies at once on this device and
-        goes to your account in the background.
-      </p>
-      <fieldset className="m-0 mt-3 border-0 p-0">
+    <SettingsSection
+      title="Appearance"
+      titleId="theme-heading"
+      description="System follows the device. The choice applies at once on this device and goes to your account in the background."
+    >
+      <fieldset className="m-0 border-0 p-0">
         <legend className="sr-only">Appearance</legend>
-        <div className="flex flex-wrap gap-cluster">
+        <div className="inline-flex rounded-md border border-edge-subtle bg-surface p-0.5 focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus">
           {appearanceChoices.map((choice) => {
             const chosen = theme.choice === choice.value;
             return (
               <label
-                className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-control font-medium ${transitionSurface} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-sm px-2.5 text-control ${transitionSurface} md:min-h-7 ${
                   chosen
-                    ? 'border-accent-fill bg-accent-fill text-on-accent'
-                    : 'border-edge bg-transparent text-strong hover:bg-hover'
+                    ? 'bg-card font-medium text-strong shadow-raised'
+                    : 'text-muted hover:text-strong'
                 }`}
                 key={choice.value}
               >
@@ -369,16 +426,18 @@ export function ThemeSettings(): ReactNode {
         </div>
       </fieldset>
       <fieldset className="m-0 mt-4 border-0 p-0">
-        <legend className="mb-2 p-0 text-control text-muted">Theme</legend>
+        <legend className="mb-2 p-0 text-control font-medium text-strong">
+          Theme
+        </legend>
         <div className="flex flex-wrap gap-cluster">
           {themeFamilies.map((family) => {
             const chosen = theme.familyId === family.id;
             return (
               <label
-                className={`inline-flex min-h-11 cursor-pointer items-center gap-cluster rounded-lg border px-3 py-1.5 text-control font-medium ${transitionSurface} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-9 ${
+                className={`inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-md border bg-card px-2.5 text-control text-strong ${transitionSurface} focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-focus md:min-h-8 ${
                   chosen
-                    ? 'border-accent-fill bg-hover text-strong'
-                    : 'border-edge bg-transparent text-strong hover:bg-hover'
+                    ? 'border-strong ring-1 ring-strong'
+                    : 'border-edge-line hover:bg-hover'
                 }`}
                 key={family.id}
               >
@@ -394,16 +453,20 @@ export function ThemeSettings(): ReactNode {
                 />
                 <FamilySwatch familyId={family.id} />
                 <span>{family.name}</span>
-                {chosen ? <CheckIcon size={14} /> : null}
+                {chosen ? (
+                  <span className="inline-flex items-center" aria-hidden="true">
+                    <CheckIcon />
+                  </span>
+                ) : null}
               </label>
             );
           })}
         </div>
       </fieldset>
       {theme.syncError === null ? null : (
-        <p className="m-0 mt-3 text-control text-danger">{theme.syncError}</p>
+        <Notice className="mt-4" tone="problem" message={theme.syncError} />
       )}
-    </Card>
+    </SettingsSection>
   );
 }
 
@@ -643,95 +706,100 @@ export function AccountSettingsPage(): ReactNode {
       <PageHeader
         title="Settings"
         actions={
+          // The frame header carries the breadcrumb of every route under the
+          // workspace, and this route renders outside that frame, so it keeps
+          // one quiet way back. It is the browser step back where there is
+          // one, so a person returns to the note they were reading.
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
             onClick={handleBack}
-            label="Back"
-            icon={<ChevronLeftIcon size={14} />}
+            icon={<ChevronLeftIcon />}
           >
-            Back
+            Back to your notes
           </Button>
         }
       />
-      <div className="space-y-4">
+      <div>
         <ThemeSettings />
 
-        <Card title="Available offline" titleId="offline-heading">
-          <p className="m-0 text-control text-muted">
-            Your notes are always kept on this device. Images and older versions
-            take more space, so you choose whether to keep them too.
-          </p>
+        <SettingsSection
+          title="Available offline"
+          titleId="offline-heading"
+          description="Your notes are always kept on this device. Images and older versions take more space, so you choose whether to keep them too."
+        >
           {offline.status === 'failed' ? (
             <Notice
-              className="mt-3"
               tone="problem"
               message="This device cannot say what it keeps offline. Open Settings again to read it."
             />
-          ) : null}
-          <div className="mt-3 space-y-1">
-            <label className="flex min-h-11 items-center gap-cluster text-control text-strong md:min-h-9">
-              <input
-                type="checkbox"
+          ) : offline.status === 'loading' ? (
+            // A choice that nothing has read yet is not a choice that is off
+            // (record 0038), and the `Checkbox` primitive states no waiting
+            // state, so the section shows the shape of the two rows instead.
+            <LoadingState
+              shape="list"
+              rows={2}
+              label="What this device keeps offline is loading."
+            />
+          ) : (
+            <div className="flex flex-col">
+              <Checkbox
+                id="offline-images"
+                label="Keep images on this device"
                 checked={offline.choices.images}
-                disabled={offline.status !== 'ready'}
-                onChange={(event): void => {
-                  offline.setChoice('images', event.target.checked);
+                onChange={(keep) => {
+                  offline.setChoice('images', keep);
                 }}
               />
-              Keep images on this device
-            </label>
-            <label className="flex min-h-11 items-center gap-cluster text-control text-strong md:min-h-9">
-              <input
-                type="checkbox"
+              <Checkbox
+                id="offline-history"
+                label="Keep older versions on this device"
                 checked={offline.choices.history}
-                disabled={offline.status !== 'ready'}
-                onChange={(event): void => {
-                  offline.setChoice('history', event.target.checked);
+                onChange={(keep) => {
+                  offline.setChoice('history', keep);
                 }}
               />
-              Keep older versions on this device
-            </label>
-          </div>
-        </Card>
-
-        <Card title="Export" titleId="export-heading">
-          <p className="m-0 text-control text-muted">
-            Download every note and image as a zip. The files keep their folders
-            and need no application to be read again.
-          </p>
-          {exportError === '' ? null : (
-            <Notice className="mt-3" tone="problem" message={exportError} />
+            </div>
           )}
-          <div className="mt-3 flex flex-wrap gap-cluster">
-            <Button
-              variant="secondary"
-              disabled={exporting || workspaceId === null}
-              onClick={() => {
-                if (workspaceId === null) return;
-                setExportError('');
-                setExporting(true);
-                void downloadAll(workspaceId)
-                  .catch((failure: unknown) => {
-                    setExportError(problemMessage(failure));
-                  })
-                  .finally(() => {
-                    setExporting(false);
-                  });
-              }}
-            >
-              {exporting ? 'Preparing the download' : 'Export all notes'}
-            </Button>
-          </div>
-        </Card>
+        </SettingsSection>
 
-        <Card title="Import" titleId="import-heading">
-          <p className="m-0 text-control text-muted">
-            Import a zip of Markdown files and images. The files keep their
-            paths and links.
-          </p>
+        <SettingsSection
+          title="Export"
+          titleId="export-heading"
+          description="Download every note and image as a zip. The files keep their folders and need no application to be read again."
+        >
+          {exportError === '' ? null : (
+            <Notice className="mb-3" tone="problem" message={exportError} />
+          )}
+          <Button
+            variant="secondary"
+            icon={<DownloadIcon />}
+            disabled={exporting || workspaceId === null}
+            onClick={() => {
+              if (workspaceId === null) return;
+              setExportError('');
+              setExporting(true);
+              void downloadAll(workspaceId)
+                .catch((failure: unknown) => {
+                  setExportError(problemMessage(failure));
+                })
+                .finally(() => {
+                  setExporting(false);
+                });
+            }}
+          >
+            {exporting ? 'Preparing the download' : 'Export all notes'}
+          </Button>
+        </SettingsSection>
+
+        <SettingsSection
+          title="Import"
+          titleId="import-heading"
+          description="Import a zip of Markdown files and images. The files keep their paths and links."
+        >
           {importNotice === '' ? null : (
-            <Notice className="mt-3" tone="info" message={importNotice} />
+            <Notice className="mb-3" tone="info" message={importNotice} />
           )}
           <input
             ref={importInput}
@@ -760,48 +828,46 @@ export function AccountSettingsPage(): ReactNode {
                 });
             }}
           />
-          <div className="mt-3 flex flex-wrap gap-cluster">
-            <Button
-              variant="secondary"
-              disabled={importing || workspaceId === null}
-              onClick={() => importInput.current?.click()}
-            >
-              {importing ? 'Importing files' : 'Import workspace'}
-            </Button>
-          </div>
-        </Card>
+          <Button
+            variant="secondary"
+            icon={<UploadIcon />}
+            disabled={importing || workspaceId === null}
+            onClick={() => importInput.current?.click()}
+          >
+            {importing ? 'Importing files' : 'Import workspace'}
+          </Button>
+        </SettingsSection>
 
-        <Card title="Account" titleId="profile-heading">
+        <SettingsSection
+          title="Account"
+          titleId="profile-heading"
+          description="This installation has one account, and it owns every note."
+        >
           <p className="m-0 text-ui text-strong">
             {account.email ?? 'No address linked'}
           </p>
-          <p className="mb-0 mt-1 text-control text-muted">
-            This installation has one account, and it owns every note.
-          </p>
-        </Card>
+        </SettingsSection>
 
-        <Card title="Sign out" titleId="signout-heading">
-          {pending.kind === 'loading' ? null : unsent ? (
-            <p className="m-0 text-control text-muted">
-              Some saves have not reached the server yet. Keep them on this
-              device for the next sign-in, or remove them now.
-            </p>
-          ) : pending.kind === 'failed' ? (
-            <p className="m-0 text-control text-muted">
-              This device cannot say what is still waiting to reach the server.
-              Sign out keeps your work on this device.
-            </p>
-          ) : (
-            <p className="m-0 text-control text-muted">
-              Every save on this device reached the server.
-            </p>
-          )}
+        <SettingsSection
+          title="Sign out"
+          titleId="signout-heading"
+          description={
+            pending.kind === 'loading'
+              ? undefined
+              : unsent
+                ? 'Some saves have not reached the server yet. Keep them on this device for the next sign-in, or remove them now.'
+                : pending.kind === 'failed'
+                  ? 'This device cannot say what is still waiting to reach the server. Sign out keeps your work on this device.'
+                  : 'Every save on this device reached the server.'
+          }
+        >
           {signOutError === '' ? null : (
-            <Notice className="mt-3" tone="problem" message={signOutError} />
+            <Notice className="mb-3" tone="problem" message={signOutError} />
           )}
-          <div className="mt-3 flex flex-wrap gap-cluster">
+          <div className="flex flex-wrap gap-cluster">
             <Button
               variant="secondary"
+              icon={<SignOutIcon />}
               onClick={() => {
                 endSignOut(false);
               }}
@@ -819,7 +885,7 @@ export function AccountSettingsPage(): ReactNode {
               </Button>
             ) : null}
           </div>
-        </Card>
+        </SettingsSection>
       </div>
     </Page>
   );

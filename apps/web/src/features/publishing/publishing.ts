@@ -176,17 +176,22 @@ export function linkTitle(
 }
 
 /**
- * The quiet line under the name of one link.
+ * The facts about one link, in the order the row states them.
  *
  * It carries what the link opens, whether a password guards it, when it
  * stops, and when the owner made it. No instant reaches the person as it is
  * stored: every one of them is how long ago, or how long from now.
+ *
+ * They are separate facts and not one joined sentence, because a row shows
+ * one name and a small number of facts, and a screen that reads four of them
+ * joined by a middle dot is reading a string that nothing can lay out. The
+ * screen shows the first two and keeps the rest for the tooltip of the row.
  */
-export function linkDetail(
+export function linkFacts(
   link: OwnedLink,
   noteCount: number,
   now: number,
-): string {
+): readonly string[] {
   const parts: string[] = [
     link.scope.kind === 'folder'
       ? `Folder with ${noteCountPhrase(noteCount)}`
@@ -196,8 +201,11 @@ export function linkDetail(
   parts.push(expiryPhrase(link.expiresAt, now));
   const made = relativeTime(link.createdAt, now);
   if (made !== '') parts.push(`published ${made}`);
-  return parts.join(' \u00b7 ');
+  return parts;
 }
+
+/** How many facts of a link one row shows before the rest go to its tooltip. */
+export const shownLinkFacts = 2;
 
 /** When a link stops, in words. */
 export function expiryPhrase(expiresAt: string | null, now: number): string {

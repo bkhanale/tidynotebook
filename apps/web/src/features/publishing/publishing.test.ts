@@ -4,7 +4,7 @@ import {
   expiryInstant,
   expiryPhrase,
   folderScopeSentences,
-  linkDetail,
+  linkFacts,
   linkPasswordRule,
   linkTitle,
   noteCountPhrase,
@@ -12,6 +12,7 @@ import {
   parseExpiryChoice,
   publishedLinkAddress,
   publishFailureSentence,
+  shownLinkFacts,
   sortLinks,
   type OwnedLink,
 } from './publishing.ts';
@@ -124,7 +125,7 @@ await test('an expiry that cannot be read never opens the link for ever by name'
   assert.equal(expiryPhrase('not an instant', now), 'No expiry');
 });
 
-await test('the row line states the reach, the password, the expiry and the age', () => {
+await test('the row facts state the reach, the password, the expiry and the age', () => {
   const link: OwnedLink = {
     publicationId: 'p1',
     scope: { kind: 'folder', path: 'trip' },
@@ -132,10 +133,12 @@ await test('the row line states the reach, the password, the expiry and the age'
     expiresAt: '2026-09-23T12:00:00.000Z',
     passwordProtected: true,
   };
-  assert.equal(
-    linkDetail(link, 3, now),
-    'Folder with 3 notes · Password · Stops in 7 days · published 2 days ago',
-  );
+  assert.deepEqual(linkFacts(link, 3, now), [
+    'Folder with 3 notes',
+    'Password',
+    'Stops in 7 days',
+    'published 2 days ago',
+  ]);
 });
 
 await test('a note link with no password and no expiry reads plainly', () => {
@@ -146,10 +149,27 @@ await test('a note link with no password and no expiry reads plainly', () => {
     expiresAt: null,
     passwordProtected: false,
   };
-  assert.equal(
-    linkDetail(link, 1, now),
-    'One note · No expiry · published just now',
-  );
+  assert.deepEqual(linkFacts(link, 1, now), [
+    'One note',
+    'No expiry',
+    'published just now',
+  ]);
+});
+
+await test('a row shows the first two facts and keeps the rest', () => {
+  const link: OwnedLink = {
+    publicationId: 'p3',
+    scope: { kind: 'note', fileId: 'a' },
+    createdAt: '2026-09-14T12:00:00.000Z',
+    expiresAt: null,
+    passwordProtected: true,
+  };
+  const facts = linkFacts(link, 1, now);
+  assert.deepEqual(facts.slice(0, shownLinkFacts), ['One note', 'Password']);
+  assert.deepEqual(facts.slice(shownLinkFacts), [
+    'No expiry',
+    'published 2 days ago',
+  ]);
 });
 
 await test('the newest link comes first and a tie keeps a stable order', () => {
