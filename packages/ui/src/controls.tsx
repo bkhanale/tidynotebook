@@ -12,6 +12,7 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
+  iconOnlyClassName,
   fieldClassName,
   focusOutline,
   type ButtonSize,
@@ -23,12 +24,6 @@ import { transitionSurface } from './motion.ts';
 
 /** The label above a field, and the label beside a checkbox. */
 const fieldLabelClassName = 'mb-1.5 block text-control font-medium text-strong';
-
-/** The one square shape of an icon only button, per size. */
-const iconOnlyClassName: Readonly<Record<ButtonSize, string>> = {
-  md: 'size-11 px-0 md:size-8',
-  sm: 'size-11 px-0 md:size-7',
-};
 
 /**
  * A labeled push button.
@@ -73,7 +68,7 @@ export function Button({
     variant,
     size,
     tone,
-    className: [hasChildren ? '' : iconOnlyClassName[size], extraClassName]
+    className: [hasChildren ? '' : iconOnlyClassName(size), extraClassName]
       .filter(Boolean)
       .join(' '),
   });

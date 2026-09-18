@@ -116,6 +116,18 @@ export function buttonClassName(
 }
 
 /**
+ * The one square shape of an icon only button, per size.
+ *
+ * A button with no text is a square of its own height, so its icon sits in the
+ * middle and a row of them lines up. `Button` applies it when it has no
+ * children, and a trigger or an anchor that a screen builds from
+ * `buttonClassName` passes it as the `className`.
+ */
+export function iconOnlyClassName(size: ButtonSize = 'md'): string {
+  return size === 'sm' ? 'size-11 px-0 md:size-7' : 'size-11 px-0 md:size-8';
+}
+
+/**
  * The appearance of a clickable row, as classes.
  *
  * One recipe for every row a person can press: a tree row, a list row, a menu
