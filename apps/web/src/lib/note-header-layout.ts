@@ -15,21 +15,26 @@
  * own lines on the same measure in `packages/editor/src/editor-theme.ts`. See
  * [decision 0055](../../../../docs/decisions/0055-the-note-is-one-centred-column.md).
  */
-import { transitionSurface } from '@notesapp/ui';
+import { focusOutline, transitionSurface } from '@notesapp/ui';
 
 /**
  * The classes of the sticky header row.
  *
+ * The row draws no rule under itself. A rule belongs where a person must see
+ * the boundary of a region they scroll, and the name of a note is the title of
+ * the text under it and not the head of a region: space states that, and a
+ * line only cut the page in two (record 0064 and the design guide).
+ *
  * The bottom space is smaller than the top space on purpose: the name titles
  * the text under it, so the two group together and the note reads as one
- * page. The editor column and the note surface add the rest of the space, so
- * this row keeps its own part of it short.
+ * page. The space above the name is the air that the name of a page needs
+ * under the frame header.
  *
  * The inline padding matches the inline padding of the editor content, so the
  * column inside this row lands on the same measure as the text.
  */
 export function noteHeaderRowClassName(): string {
-  return 'sticky top-0 z-20 flex shrink-0 flex-col border-b border-edge-line bg-app px-2 pb-1.5 pt-3';
+  return 'sticky top-0 z-20 flex shrink-0 flex-col bg-app px-2 pb-2 pt-8';
 }
 
 /**
@@ -46,16 +51,18 @@ export function noteColumnClassName(): string {
 /**
  * The classes of the inline editable note name.
  *
- * The name is a title, not a form field. At rest it carries no box and no
- * border, so the screen opens on the note and not on a control. A quiet
- * underline appears under the pointer and the accent underline marks
- * keyboard focus. The transparent underline is always there, so the text
- * never moves when a state changes.
+ * The name is a title, not a form field. It carries no box and no line at
+ * rest, under the pointer, or while a person types, so the screen opens on
+ * the note and not on a control. The pointer gets the hover fill of the
+ * palette, which says the words can be changed and moves nothing on the
+ * screen, and the keyboard gets the one focus treatment of the product
+ * (record 0065). The underline that used to mark both states was a second
+ * edge under the name and a second focus treatment beside the outline.
  *
  * It is the largest text on the note screen, which is what decision 0015
  * states, so it sits one step above the top of the note heading ramp in
  * `apps/web/src/tailwind.css`.
  */
 export function noteTitleClassName(): string {
-  return `block w-full min-w-0 border-0 border-b-2 border-transparent bg-transparent py-1 text-3xl font-semibold tracking-display text-strong outline-none ${transitionSurface} hover:border-edge-line focus:border-focus`;
+  return `block w-full min-w-0 rounded-md border-0 bg-transparent py-1 text-3xl font-semibold tracking-display text-strong outline-none ${transitionSurface} hover:bg-hover ${focusOutline}`;
 }

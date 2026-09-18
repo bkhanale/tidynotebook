@@ -8,11 +8,15 @@
  *
  * The panel never reports an empty list for a read that did not happen
  * (record 0038). With no answer at all it says so and offers one action.
+ *
+ * Every row is the one clickable row of the product, from `rowClassName`, so
+ * a link to a note here hovers, marks and focuses like a row of the folder
+ * tree (record 0065).
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { listBacklinks } from '@notesapp/api-client';
 import { localBacklinks, type LocalStore } from '@notesapp/sync';
-import { Button } from '@notesapp/ui';
+import { Button, rowClassName } from '@notesapp/ui';
 import { Link } from 'react-router';
 import { displayNoteName } from '../../lib/note-name.ts';
 import {
@@ -120,14 +124,16 @@ export function Backlinks({
           These links come from this device.
         </p>
       ) : null}
-      <ul className="m-0 list-none space-y-1 p-0">
+      <ul className="m-0 list-none p-0">
         {state.rows.map((item) => (
           <li key={item.fileId}>
             <Link
-              className="block rounded-md px-2 py-1 text-control text-strong hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-focus"
+              className={rowClassName()}
               to={`/w/${workspaceId}/notes/${item.fileId}`}
             >
-              {displayNoteName(item.path)}
+              <span className="min-w-0 flex-1 truncate">
+                {displayNoteName(item.path)}
+              </span>
             </Link>
           </li>
         ))}

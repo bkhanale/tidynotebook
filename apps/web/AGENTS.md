@@ -24,7 +24,7 @@ screens, the worker and the diagram frame. It composes and holds no rule.
   a control and the one divider, `border-edge-subtle` a hairline inside a
   group (0053, 0063). A hovered fill reads `bg-accent-fill-hover`, never a
   filter or a fade (0057). The name, the text and the word count of a note are
-  one centred column (0055). The header states the route (0064).
+  one centred column (0055). The note route fills the header (0064).
 
 ## Allowed imports
 
@@ -80,16 +80,17 @@ on each rule below.
 
 ## Key files
 
-| File                                  | Purpose                         |
-| ------------------------------------- | ------------------------------- |
-| `src/app.tsx`                         | Application shell and stores    |
-| `src/tailwind.css`                    | CSS source and the named scales |
-| `src/shell/shell.tsx`                 | Frame, tree, sidebar size       |
-| `src/shell/header-slot.tsx`           | Where a route fills the header  |
-| `src/shell/action-icons.tsx`          | The one glyph of every action   |
-| `src/shell/workspaces.tsx`            | The workspace switcher          |
-| `src/lib/workspace-choice.ts`         | Which workspace opens           |
-| `src/lib/breadcrumb.ts`               | Where a person is, as parts     |
-| `src/features/editor/note-editor.tsx` | The editor host and editor view |
-| `vite.config.ts`                      | Build, theme assets, worker     |
-| `src/logging.ts`                      | Browser sink for log events     |
+| File                                          | Purpose                         |
+| --------------------------------------------- | ------------------------------- |
+| `src/app.tsx`                                 | Application shell and stores    |
+| `src/tailwind.css`                            | CSS source and the named scales |
+| `src/shell/shell.tsx`                         | Frame, tree, sidebar size       |
+| `src/shell/header-slot.tsx`                   | Where a route fills the header  |
+| `src/shell/action-icons.tsx`                  | The one glyph of every action   |
+| `src/shell/workspaces.tsx`                    | The workspace switcher          |
+| `src/lib/workspace-choice.ts`                 | Which workspace opens           |
+| `src/lib/breadcrumb.ts`                       | Where a person is, as parts     |
+| `src/features/editor/note-editor.tsx`         | The editor host and editor view |
+| `src/features/editor/note-header-actions.tsx` | The actions of the note route   |
+| `vite.config.ts`                              | Build, theme assets, worker     |
+| `src/logging.ts`                              | Browser sink for log events     |

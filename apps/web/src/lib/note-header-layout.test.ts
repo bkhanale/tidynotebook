@@ -15,27 +15,35 @@ await test('the note name takes the full width of the header', () => {
   assert.ok(classes.includes('min-w-0'));
 });
 
-await test('the note name carries no box at rest', () => {
+await test('the note name carries no box and no line in any state', () => {
   const classes = noteTitleClassName().split(' ');
-  // A title, not a form field: nothing frames it until the pointer or the
-  // keyboard reaches it.
+  // A title, not a form field: nothing frames it at rest, under the pointer
+  // or while a person types. The pointer gets the hover fill and the keyboard
+  // gets the one focus treatment of the product.
   assert.ok(classes.includes('border-0'));
-  assert.ok(classes.includes('border-b-2'));
-  assert.ok(classes.includes('border-transparent'));
+  assert.ok(!classes.some((name) => name.startsWith('border-b')));
   assert.ok(classes.includes('bg-transparent'));
-  assert.ok(!classes.includes('rounded-lg'));
-  assert.ok(!classes.some((name) => name.startsWith('focus:ring')));
-  assert.ok(classes.includes('hover:border-edge-line'));
-  assert.ok(classes.includes('focus:border-focus'));
+  assert.ok(classes.includes('hover:bg-hover'));
+  assert.ok(!classes.some((name) => name.startsWith('focus:')));
+  assert.ok(classes.includes('focus-visible:outline-2'));
+  assert.ok(classes.includes('focus-visible:outline-focus'));
 });
 
 await test('the header row keeps the name close to the note text', () => {
   const classes = noteHeaderRowClassName().split(' ');
   // The name titles the text under it, so the space below the name is
   // smaller than the space above it and the note reads as one page.
-  assert.ok(classes.includes('pt-3'));
-  assert.ok(classes.includes('pb-1.5'));
+  assert.ok(classes.includes('pt-8'));
+  assert.ok(classes.includes('pb-2'));
   assert.ok(!classes.some((name) => name.startsWith('py-')));
+});
+
+await test('the note screen draws no rule around its name', () => {
+  // Record 0064 and the design guide: a rule marks the boundary of a region
+  // a person scrolls. The name of a note is the title of the text under it,
+  // so space separates the two and nothing else does.
+  const classes = noteHeaderRowClassName().split(' ');
+  assert.ok(!classes.some((name) => name.startsWith('border')));
 });
 
 await test('the header row stays at the top while the note scrolls', () => {

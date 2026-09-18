@@ -68,6 +68,7 @@ import {
 } from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader } from './note-header.tsx';
+import { NoteHeaderActions } from './note-header-actions.tsx';
 import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
 import {
   baseNameOf,
@@ -1054,6 +1055,18 @@ function NoteEditorBody({
     fileInputRef.current?.click();
   }, []);
 
+  /**
+   * Moves the caret into the note name.
+   *
+   * Renaming a note is writing its name, and the name is on the screen, so
+   * the action takes the person to it instead of opening a dialog that asks
+   * for the same words in another box.
+   */
+  const renameNote = useCallback((): void => {
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
+  }, []);
+
   /** Saves the open note as one Markdown file on this device. */
   const exportMarkdown = useCallback((): void => {
     void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
@@ -1095,6 +1108,17 @@ function NoteEditorBody({
       className="flex h-full min-h-0 min-w-0 flex-col"
       data-save-state={saveState}
     >
+      <NoteHeaderActions
+        workspaceId={workspaceId}
+        fileId={fileId}
+        onRename={renameNote}
+        onMoveToFolder={onMoveToFolder}
+        onDuplicate={duplicateNote}
+        onAttachImage={attachImage}
+        onExport={exportMarkdown}
+        onPublish={onPublish}
+        onDelete={deleteNoteAndLeave}
+      />
       <div className={`flex min-h-0 flex-1 flex-col ${pageGutter}`}>
         {editorNotice === '' ? null : (
           <div className="mt-4">

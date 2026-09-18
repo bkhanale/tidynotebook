@@ -1,12 +1,28 @@
-/** The note outline panel, which reads the live buffer and moves the caret. */
+/**
+ * The note outline panel, which reads the live buffer and moves the caret.
+ *
+ * Every row is the one clickable row of the product, from `rowClassName`, so
+ * the outline hovers, marks and focuses like the folder tree and the command
+ * palette (record 0065).
+ */
 import { useMemo, type ReactNode } from 'react';
 import {
   outlineOf,
   previewStructureOf,
   type OutlineHeading,
 } from '@notesapp/editor';
-import { CollapsibleSection } from '@notesapp/ui';
+import { CollapsibleSection, rowClassName } from '@notesapp/ui';
 import { revealInNote, useActiveNote } from './active-note.tsx';
+
+/**
+ * The inset of one outline row, one step for each level under the first.
+ *
+ * The step is the same distance at every level, so a deep heading is read by
+ * how far it sits from the left and never by a guide line, which is what the
+ * folder tree does as well (record 0064).
+ */
+const outlineIndent = (level: number): string =>
+  ['', 'pl-3', 'pl-6', 'pl-9', 'pl-12', 'pl-15'][level - 1] ?? '';
 
 /** The headings of one Markdown source, read from the shared grammar. */
 function outlineOfText(source: string): readonly OutlineHeading[] {
@@ -56,7 +72,6 @@ export function OutlinePanel({
   );
   const headings = live ?? outlineOfText(text);
   if (headings.length === 0) return null;
-  const indentation = ['', 'pl-2', 'pl-4', 'pl-6', 'pl-8', 'pl-10'];
   return (
     <CollapsibleSection
       id="notes-outline"
@@ -64,24 +79,29 @@ export function OutlinePanel({
       open={open}
       onToggle={onToggle}
     >
-      <ol className="m-0 list-none space-y-1 p-0 text-control text-muted">
+      <ol className="m-0 list-none p-0">
         {headings.map((heading, index) => (
           <li key={`${String(index)}:${heading.text}`}>
             {view !== null ? (
               <button
                 type="button"
-                className={`block w-full cursor-pointer truncate border-0 bg-transparent p-0 text-left text-inherit hover:text-strong ${indentation[heading.level - 1] ?? ''}`}
+                className={rowClassName({
+                  className: `w-full text-left ${outlineIndent(heading.level)}`,
+                })}
                 onClick={(): void => {
                   revealInNote(view, heading.from);
                 }}
               >
-                {heading.text}
+                <span className="min-w-0 flex-1 truncate">{heading.text}</span>
               </button>
             ) : (
               <span
-                className={`block truncate ${indentation[heading.level - 1] ?? ''}`}
+                className={rowClassName({
+                  interactive: false,
+                  className: outlineIndent(heading.level),
+                })}
               >
-                {heading.text}
+                <span className="min-w-0 flex-1 truncate">{heading.text}</span>
               </span>
             )}
           </li>
