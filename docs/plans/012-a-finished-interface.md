@@ -2,6 +2,8 @@
 
 Status: active
 
+> The live items are [GitHub issues 129 to 135](https://github.com/bkhanale/notesapp/issues?q=is%3Aissue+%22Interface+012%22) on the project board.
+
 This plan turns [design 012](../design/012-a-finished-interface.md) and decision
 records 0061 to 0065 into ordered work. The system that the work builds is
 [the design guide](../development/design.md).
