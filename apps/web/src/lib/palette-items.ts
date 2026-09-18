@@ -9,6 +9,9 @@
  *
  * The content matches arrive already ranked, the server first and this device
  * after it, so this module keeps the order it was given.
+ *
+ * Every action names its glyph here, and the palette, the sidebar and the
+ * menus draw that one glyph, so one action never shows two marks.
  */
 import type { ExcerptPart } from '@notesapp/core';
 
@@ -97,12 +100,51 @@ export function rankNotes(
   return [...byName, ...byContent].slice(0, limit);
 }
 
+/**
+ * The name of the glyph that one action carries.
+ *
+ * An action shows the same glyph wherever it appears: in the sidebar, in a
+ * menu and in the command palette (decision 0065). The name is the one fact
+ * that decides it, so this list is the name of every action glyph of the
+ * application and `shell/action-icons.tsx` draws each one. A name and not a
+ * component, because this module is pure and holds no JSX.
+ */
+export const actionIconNames = [
+  'delete',
+  'duplicate',
+  'export',
+  'history',
+  'image',
+  'keyboard',
+  'move',
+  'new-folder',
+  'new-note',
+  'publish',
+  'published-links',
+  'rename',
+  'settings',
+  'sidebar',
+  'sign-out',
+  'theme-dark',
+  'theme-light',
+  'theme-system',
+  'trash',
+  'workspace',
+] as const;
+
+/** One glyph of {@link actionIconNames}. */
+export type ActionIconName = (typeof actionIconNames)[number];
+
 /** One action the palette can run. */
 export type PaletteAction = {
   readonly id: string;
   readonly label: string;
   /** Extra words that also find this action, such as "palette" or "dark". */
   readonly keywords?: string | undefined;
+  /** The glyph of this action, which every other surface shows as well. */
+  readonly icon: ActionIconName;
+  /** The key line of this action, when a key runs it as well. */
+  readonly keys?: string | undefined;
   readonly run: () => void;
 };
 

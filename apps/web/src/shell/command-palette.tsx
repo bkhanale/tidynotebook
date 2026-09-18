@@ -13,6 +13,12 @@
  * A content match shows the part of the note that matched. The excerpt is a
  * list of plain parts, so the marked words are real elements and no markup
  * from a note is ever put into the page.
+ *
+ * Every row reads `rowClassName`, the one recipe of a row, and every action
+ * carries the glyph it carries in the sidebar and in the menus, from
+ * `./action-icons.tsx` (decision 0065). A note row states its folder as a
+ * quiet fact at the end of the row, so two notes with one name are told
+ * apart.
  */
 import {
   Fragment,
@@ -25,13 +31,11 @@ import {
 import { useNavigate } from 'react-router';
 import { searchFiles as searchRemote } from '@notesapp/api-client';
 import { searchLocal, type LocalStore } from '@notesapp/sync';
-import {
-  ChevronRightIcon,
-  Dialog,
-  FileTextIcon,
-  SearchIcon,
-} from '@notesapp/ui';
+import { Dialog, FileTextIcon, rowClassName, SearchIcon } from '@notesapp/ui';
 import { displayNoteName } from '../lib/note-name.ts';
+import { folderOf } from '../lib/relative-time.ts';
+import { actionIcon } from './action-icons.tsx';
+import { KeyHint } from './key-hint.tsx';
 import {
   mergeHits,
   rankActions,
@@ -202,14 +206,14 @@ export function CommandPalette({
       hideTitle
       width="medium"
     >
-      <div className="flex items-center gap-group border-b border-edge-line px-gutter">
-        <span className="text-muted" aria-hidden="true">
-          <SearchIcon size={18} />
+      <div className="flex items-center gap-cluster border-b border-edge-line px-gutter">
+        <span className="shrink-0 text-muted" aria-hidden="true">
+          <SearchIcon />
         </span>
         <input
           ref={inputRef}
           type="text"
-          className="min-w-0 flex-1 border-0 bg-transparent py-4 text-base text-strong outline-none placeholder:text-muted"
+          className="min-w-0 flex-1 border-0 bg-transparent py-3 text-ui text-strong outline-none placeholder:text-muted"
           value={query}
           placeholder="Search notes, or type an action"
           aria-label="Search notes, or type an action"
@@ -240,9 +244,9 @@ export function CommandPalette({
             }
           }}
         />
-        <kbd className="hidden rounded border border-edge bg-hover px-1.5 py-0.5 text-control text-muted sm:inline">
-          Esc
-        </kbd>
+        <span className="hidden shrink-0 sm:inline">
+          <KeyHint keys="Escape" />
+        </span>
       </div>
       {content.offline ? (
         <p className="m-0 border-b border-edge-line px-gutter py-2 text-control text-muted">
@@ -261,7 +265,7 @@ export function CommandPalette({
             {index === firstNote ? (
               <li
                 role="presentation"
-                className="px-3 pb-1 pt-2 text-control font-semibold uppercase tracking-wide text-muted first:pt-1"
+                className="px-2 pb-1 pt-2 text-control font-medium text-muted first:pt-1"
               >
                 Notes
               </li>
@@ -269,7 +273,7 @@ export function CommandPalette({
             {index === firstAction ? (
               <li
                 role="presentation"
-                className="px-3 pb-1 pt-2 text-control font-semibold uppercase tracking-wide text-muted first:pt-1"
+                className="px-2 pb-1 pt-2 text-control font-medium text-muted first:pt-1"
               >
                 Actions
               </li>
@@ -278,7 +282,10 @@ export function CommandPalette({
               id={row.id}
               role="option"
               aria-selected={index === selected}
-              className={`flex min-h-11 cursor-pointer items-center gap-group rounded-lg px-3 py-2 ${index === selected ? 'bg-active text-strong' : 'text-ink hover:bg-hover'}`}
+              className={rowClassName({
+                selected: index === selected,
+                className: 'md:min-h-8',
+              })}
               onMouseEnter={() => setSelected(index)}
               onMouseDown={(event): void => {
                 event.preventDefault();
@@ -290,37 +297,51 @@ export function CommandPalette({
                 aria-hidden="true"
               >
                 {row.kind === 'note' ? (
-                  <FileTextIcon size={16} />
+                  <FileTextIcon />
                 ) : (
-                  <ChevronRightIcon size={16} />
+                  actionIcon(row.action.icon)
                 )}
               </span>
               {row.kind === 'note' ? (
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-ui font-medium">
-                    {displayNoteName(row.match.path)}
+                <>
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate">
+                      {displayNoteName(row.match.path)}
+                    </span>
+                    {row.match.excerpt === null ? null : (
+                      <span className="truncate text-muted">
+                        {row.match.excerpt.map((part, at) =>
+                          part.marked ? (
+                            <mark
+                              key={at}
+                              className="bg-transparent font-medium text-accent"
+                            >
+                              {part.text}
+                            </mark>
+                          ) : (
+                            <span key={at}>{part.text}</span>
+                          ),
+                        )}
+                      </span>
+                    )}
                   </span>
-                  {row.match.excerpt === null ? null : (
-                    <span className="truncate text-control text-muted">
-                      {row.match.excerpt.map((part, at) =>
-                        part.marked ? (
-                          <mark
-                            key={at}
-                            className="bg-transparent font-semibold text-accent"
-                          >
-                            {part.text}
-                          </mark>
-                        ) : (
-                          <span key={at}>{part.text}</span>
-                        ),
-                      )}
+                  {folderOf(row.match.path) === null ? null : (
+                    <span className="shrink-0 truncate text-muted">
+                      {folderOf(row.match.path)}
                     </span>
                   )}
-                </span>
+                </>
               ) : (
-                <span className="min-w-0 flex-1 truncate text-ui">
-                  {row.action.label}
-                </span>
+                <>
+                  <span className="min-w-0 flex-1 truncate">
+                    {row.action.label}
+                  </span>
+                  {row.action.keys === undefined ? null : (
+                    <span className="shrink-0">
+                      <KeyHint keys={row.action.keys} />
+                    </span>
+                  )}
+                </>
               )}
             </li>
           </Fragment>

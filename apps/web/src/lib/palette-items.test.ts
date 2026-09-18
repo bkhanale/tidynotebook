@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  actionIconNames,
   mergeHits,
   rankActions,
   rankNotes,
@@ -89,9 +90,15 @@ await test('a content match keeps the rank of the search that gave it', () => {
 });
 
 const actions: readonly PaletteAction[] = [
-  { id: 'new', label: 'New note', run: () => {} },
-  { id: 'theme', label: 'Toggle theme', keywords: 'dark light', run: () => {} },
-  { id: 'trash', label: 'Go to Trash', run: () => {} },
+  { id: 'new', label: 'New note', icon: 'new-note', run: () => {} },
+  {
+    id: 'theme',
+    label: 'Toggle theme',
+    keywords: 'dark light',
+    icon: 'theme-light',
+    run: () => {},
+  },
+  { id: 'trash', label: 'Go to Trash', icon: 'trash', run: () => {} },
 ];
 
 await test('an empty query keeps every action', () => {
@@ -108,4 +115,26 @@ await test('an action is found by its label and by its keywords', () => {
     ['trash'],
   );
   assert.deepEqual(rankActions('nothing here', actions), []);
+});
+
+await test('every action names one glyph of the one list', () => {
+  // The type holds this for the application, and this holds it for the list
+  // itself: a name that no action can write is a glyph nobody draws, and a
+  // name written twice is one action with two marks.
+  for (const action of actions)
+    assert.ok(
+      actionIconNames.includes(action.icon),
+      `${action.id} names no glyph`,
+    );
+  assert.equal(new Set(actionIconNames).size, actionIconNames.length);
+  for (const name of actionIconNames)
+    assert.match(name, /^[a-z]+(?:-[a-z]+)*$/);
+});
+
+await test('a ranked action keeps the glyph it named', () => {
+  const ranked = rankActions('dark', actions);
+  assert.deepEqual(
+    ranked.map((action) => action.icon),
+    ['theme-light'],
+  );
 });

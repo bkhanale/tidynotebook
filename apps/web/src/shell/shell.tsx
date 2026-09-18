@@ -46,28 +46,19 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
-  ComputerIcon,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
-  FolderPlusIcon,
-  LinkIcon,
   LoadingState,
   Menu,
   MenuIcon,
   type MenuItem,
-  MoonIcon,
   MoreIcon,
   Notice,
   pageGutter,
   PanelLeftIcon,
-  PencilIcon,
-  PlusIcon,
   SearchIcon,
-  SettingsIcon,
-  SunIcon,
   transitionSurface,
-  TrashIcon,
 } from '@notesapp/ui';
 import {
   SyncProvider,
@@ -142,9 +133,11 @@ import {
   useNoteSave,
   useOnline,
 } from '../features/editor/save-status.tsx';
+import { actionIcon } from './action-icons.tsx';
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncStateMessage } from '../lib/sync-state.ts';
+import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   DeleteWorkspaceDialog,
   NewWorkspaceDialog,
@@ -230,13 +223,13 @@ function NoteRow({
       </Link>
       <Menu
         label={`Actions for the note ${displayNoteName(basename)}`}
-        icon={<MoreIcon size={14} />}
+        icon={<MoreIcon className="text-muted" />}
         triggerClassName={rowMenuClassName}
         items={[
           {
             id: 'delete-note',
             label: 'Delete',
-            icon: <TrashIcon size={14} />,
+            icon: actionIcon('delete'),
             danger: true,
             onSelect: onDelete,
           },
@@ -245,6 +238,12 @@ function NoteRow({
     </div>
   );
 }
+
+/** The key line that shows or hides the sidebar, as the table writes it. */
+const sidebarKeys = 'Cmd or Ctrl + \\';
+
+/** The key line that opens the command palette. */
+const paletteKeys = 'Cmd or Ctrl + P';
 
 /** The actions menu of one tree row, which every row shares. */
 const rowMenuClassName = `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`;
@@ -379,37 +378,37 @@ function TreeView({
               </button>
               <Menu
                 label={`Actions for the folder ${node.name}`}
-                icon={<MoreIcon size={14} />}
+                icon={<MoreIcon className="text-muted" />}
                 triggerClassName={rowMenuClassName}
                 items={[
                   {
                     id: 'new-note',
                     label: 'New note in this folder',
-                    icon: <PlusIcon size={14} />,
+                    icon: actionIcon('new-note'),
                     onSelect: () => onNewNoteIn(node.fullPath),
                   },
                   {
                     id: 'new-folder',
                     label: 'New folder in this folder',
-                    icon: <FolderPlusIcon size={14} />,
+                    icon: actionIcon('new-folder'),
                     onSelect: () => onNewFolderIn(node.fullPath),
                   },
                   {
                     id: 'rename',
                     label: 'Rename folder',
-                    icon: <PencilIcon size={14} />,
+                    icon: actionIcon('rename'),
                     onSelect: () => onRenameFolder(node.fullPath),
                   },
                   {
                     id: 'publish',
                     label: 'Publish folder',
-                    icon: <LinkIcon size={14} />,
+                    icon: actionIcon('publish'),
                     onSelect: () => onPublishFolder(node.fullPath),
                   },
                   {
                     id: 'delete-folder',
                     label: 'Delete folder',
-                    icon: <TrashIcon size={14} />,
+                    icon: actionIcon('delete'),
                     danger: true,
                     onSelect: () => onDeleteFolder(node.fullPath),
                   },
@@ -674,7 +673,7 @@ function Sidebar({
             className="size-11 shrink-0"
             label="New folder"
             title="New folder"
-            icon={<FolderPlusIcon size={18} />}
+            icon={actionIcon('new-folder')}
             onClick={() => onNewFolderIn(selectedFolder)}
           />
         </div>
@@ -808,7 +807,7 @@ function Sidebar({
             className="inline-flex shrink-0 items-center"
             aria-hidden="true"
           >
-            <TrashIcon size={14} />
+            {actionIcon('trash')}
           </span>
           <span>Trash</span>
         </Link>
@@ -824,7 +823,7 @@ function Sidebar({
             className="inline-flex shrink-0 items-center"
             aria-hidden="true"
           >
-            <LinkIcon size={14} />
+            {actionIcon('published-links')}
           </span>
           <span>{publishedLinksTitle}</span>
         </Link>
@@ -1172,25 +1171,27 @@ function ShellFrame({
         ? 'Light'
         : 'Dark';
 
-  const menuItems: readonly MenuItem[] = [
+  // The glyph of the theme states which appearance is in force, so the menu
+  // row and the palette row read one name and show one mark.
+  const themeIconName: ActionIconName =
+    theme.choice === 'system'
+      ? 'theme-system'
+      : theme.choice === 'light'
+        ? 'theme-light'
+        : 'theme-dark';
+
+  const accountItems: readonly MenuItem[] = [
     {
       id: 'theme',
       label: 'Theme',
       hint: themeName,
-      icon:
-        theme.choice === 'system' ? (
-          <ComputerIcon size={14} />
-        ) : theme.choice === 'light' ? (
-          <SunIcon size={14} />
-        ) : (
-          <MoonIcon size={14} />
-        ),
+      icon: actionIcon(themeIconName),
       onSelect: cycleTheme,
     },
     {
       id: 'settings',
       label: 'Settings',
-      icon: <SettingsIcon size={14} />,
+      icon: actionIcon('settings'),
       onSelect: () => {
         void navigate('/settings');
       },
@@ -1198,11 +1199,18 @@ function ShellFrame({
     {
       id: 'shortcuts',
       label: 'Keyboard shortcuts',
+      icon: actionIcon('keyboard'),
       onSelect: () => setShortcutsOpen(true),
     },
+  ];
+
+  // Sign out is the one row that ends the session, so it sits below the
+  // others with space between, which is what a pinned row of a menu is.
+  const signOutItem: readonly MenuItem[] = [
     {
       id: 'sign-out',
       label: 'Sign out',
+      icon: actionIcon('sign-out'),
       onSelect: () => session.signOut(),
     },
   ];
@@ -1234,30 +1242,36 @@ function ShellFrame({
         id: 'new-note',
         label: 'New note',
         keywords: 'create add',
+        icon: 'new-note' as const,
         run: () => newNote.create(selectedFolder),
       },
       {
         id: 'new-folder',
         label: 'New folder',
         keywords: 'create add group',
+        icon: 'new-folder' as const,
         run: () => setNewFolderParent(selectedFolder),
       },
       {
         id: 'toggle-sidebar',
         label: 'Show or hide the sidebar',
         keywords: 'sidebar panel collapse expand navigation tree',
+        icon: 'sidebar' as const,
+        keys: sidebarKeys,
         run: sidebar.toggleCollapsed,
       },
       {
         id: 'toggle-theme',
         label: 'Toggle theme',
         keywords: 'dark light system palette',
+        icon: themeIconName,
         run: cycleTheme,
       },
       {
         id: 'shortcuts',
         label: 'Show keyboard shortcuts',
         keywords: 'keys help',
+        icon: 'keyboard' as const,
         run: () => setShortcutsOpen(true),
       },
       ...(noteActions === null
@@ -1267,6 +1281,7 @@ function ShellFrame({
               id: 'history',
               label: 'Open the history of this note',
               keywords: 'versions revisions',
+              icon: 'history' as const,
               run: (): void => {
                 void navigate(
                   `/w/${workspaceId}/notes/${noteActions.fileId}/history`,
@@ -1280,6 +1295,7 @@ function ShellFrame({
                     id: 'move-note',
                     label: 'Move this note to a folder',
                     keywords: 'move folder organize relocate',
+                    icon: 'move' as const,
                     run: noteActions.moveToFolder,
                   },
                 ]),
@@ -1291,6 +1307,7 @@ function ShellFrame({
                     label: 'Attach an image to this note',
                     keywords:
                       'insert add embed image picture photo upload file',
+                    icon: 'image' as const,
                     run: noteActions.attachImage,
                   },
                 ]),
@@ -1301,6 +1318,7 @@ function ShellFrame({
                     id: 'export-note',
                     label: 'Export this note as Markdown',
                     keywords: 'export download save file markdown',
+                    icon: 'export' as const,
                     run: noteActions.exportMarkdown,
                   },
                 ]),
@@ -1311,6 +1329,7 @@ function ShellFrame({
                     id: 'publish-note',
                     label: 'Publish this note',
                     keywords: 'publish link share read only reader',
+                    icon: 'publish' as const,
                     run: noteActions.publish,
                   },
                 ]),
@@ -1321,6 +1340,7 @@ function ShellFrame({
                     id: 'duplicate-note',
                     label: 'Duplicate this note',
                     keywords: 'duplicate copy clone',
+                    icon: 'duplicate' as const,
                     run: noteActions.duplicate,
                   },
                 ]),
@@ -1331,6 +1351,7 @@ function ShellFrame({
                     id: 'delete-note',
                     label: 'Delete this note',
                     keywords: 'delete trash remove',
+                    icon: 'delete' as const,
                     run: noteActions.deleteAndLeave,
                   },
                 ]),
@@ -1339,6 +1360,7 @@ function ShellFrame({
         id: 'trash',
         label: 'Go to Trash',
         keywords: 'deleted restore',
+        icon: 'trash' as const,
         run: () => {
           void navigate(`/w/${workspaceId}/trash`);
         },
@@ -1347,6 +1369,7 @@ function ShellFrame({
         id: 'published-links',
         label: `Go to ${publishedLinksTitle}`,
         keywords: 'publish link share revoke reader',
+        icon: 'published-links' as const,
         run: () => {
           void navigate(`/w/${workspaceId}/published`);
         },
@@ -1358,6 +1381,7 @@ function ShellFrame({
         id: `workspace-${entry.workspaceId}`,
         label: `Go to ${entry.name}`,
         keywords: 'workspace switch change area',
+        icon: 'workspace' as const,
         run: (): void => {
           void navigate(`/w/${entry.workspaceId}`);
         },
@@ -1366,6 +1390,7 @@ function ShellFrame({
         id: 'settings',
         label: 'Go to Settings',
         keywords: 'account theme sign out',
+        icon: 'settings' as const,
         run: () => {
           void navigate('/settings');
         },
@@ -1379,6 +1404,7 @@ function ShellFrame({
       otherWorkspaces,
       selectedFolder,
       sidebar.toggleCollapsed,
+      themeIconName,
       workspaceId,
     ],
   );
@@ -1455,7 +1481,7 @@ function ShellFrame({
                 Search notes
               </span>
               <span className="hidden shrink-0 sm:inline">
-                <KeyHint keys="Cmd or Ctrl + P" />
+                <KeyHint keys={paletteKeys} />
               </span>
             </button>
 
@@ -1463,7 +1489,8 @@ function ShellFrame({
               <Menu
                 label="More actions"
                 icon={<MoreIcon size={18} />}
-                items={menuItems}
+                items={accountItems}
+                pinned={signOutItem}
               />
             </div>
           </header>
