@@ -45,6 +45,7 @@ const actionIcons: Readonly<Record<ActionIconName, ReactNode>> = {
   move: <MoveIcon />,
   'new-folder': <FolderPlusIcon />,
   'new-note': <PlusIcon />,
+  'new-workspace': <PlusIcon />,
   publish: <LinkIcon />,
   'published-links': <LinkIcon />,
   rename: <PencilIcon />,

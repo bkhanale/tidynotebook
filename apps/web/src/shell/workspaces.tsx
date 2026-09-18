@@ -7,9 +7,12 @@
  * published links each answer for one workspace, so two workspaces keep two
  * sets of notes apart without a rule in any of those surfaces.
  *
- * The switcher sits at the top of the sidebar, above the New note action, so
- * it reads as the container of everything below it. Create workspace is a
- * pinned row of its menu, so it stays in view as the list grows.
+ * The switcher is the first row of the sidebar, so it reads as the container
+ * of everything below it: the initial of the workspace in a small square, the
+ * name, and the mark of a control that moves between alternatives. It is a
+ * row of the sidebar and not a box of its own (decision 0064). Create
+ * workspace is a pinned row of its menu, so it stays in view as the list
+ * grows.
  *
  * The rules of which workspace opens live in `lib/workspace-choice.ts`. The
  * state and the browser storage live in `app.tsx`. This module is the screen.
@@ -24,7 +27,7 @@ import {
 } from '@notesapp/api-client';
 import {
   Button,
-  ChevronDownIcon,
+  ChevronsUpDownIcon,
   Dialog,
   DialogBody,
   DialogFooter,
@@ -33,15 +36,12 @@ import {
   type MenuItem,
   Page,
   PageHeader,
-  PencilIcon,
-  PlusIcon,
-  transitionField,
-  transitionSurface,
-  TrashIcon,
-  WorkspaceIcon,
+  rowClassName,
+  TextField,
 } from '@notesapp/ui';
 import { problemMessage, useWorkspace } from '../app.tsx';
 import { isMemberOf } from '../lib/workspace-choice.ts';
+import { actionIcon } from './action-icons.tsx';
 
 /** The longest workspace name the contract accepts. */
 const nameLimit = 200;
@@ -132,59 +132,6 @@ export function RequireCurrentWorkspace({
   return <Navigate to={`/w/${state.workspaceId}`} replace />;
 }
 
-/** A labelled name field with its own error line. */
-function NameField({
-  id,
-  label,
-  help,
-  value,
-  error,
-  onChange,
-}: {
-  readonly id: string;
-  readonly label: string;
-  readonly help?: string | undefined;
-  readonly value: string;
-  readonly error: string | null;
-  readonly onChange: (value: string) => void;
-}): ReactNode {
-  return (
-    <div>
-      <label
-        className="mb-1.5 block text-control font-semibold text-strong"
-        htmlFor={id}
-      >
-        {label}
-      </label>
-      <input
-        id={id}
-        className={`min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9`}
-        type="text"
-        value={value}
-        maxLength={nameLimit}
-        autoComplete="off"
-        aria-invalid={error !== null}
-        aria-describedby={error === null ? `${id}-help` : `${id}-error`}
-        onChange={(event): void => onChange(event.target.value)}
-      />
-      {help === undefined ? null : (
-        <p className="mb-0 mt-1 text-control text-muted" id={`${id}-help`}>
-          {help}
-        </p>
-      )}
-      {error === null ? null : (
-        <p
-          className="mb-0 mt-1 text-control text-danger"
-          id={`${id}-error`}
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
 /** What a workspace name has to be before the dialog sends it. */
 function nameProblem(name: string, taken: readonly string[]): string | null {
   if (name === '') return 'Give the workspace a name.';
@@ -262,12 +209,13 @@ export function NewWorkspaceDialog({
         }}
       >
         <DialogBody>
-          <NameField
+          <TextField
             id="new-workspace-name"
             label="Workspace name"
-            help="The workspace starts empty and keeps its notes apart from every other workspace."
+            hint="The workspace starts empty and keeps its notes apart from every other workspace."
             value={name}
-            error={error}
+            error={error ?? undefined}
+            autoComplete="off"
             onChange={(value) => {
               setName(value);
               setError(null);
@@ -360,12 +308,13 @@ export function RenameWorkspaceDialog({
         }}
       >
         <DialogBody>
-          <NameField
+          <TextField
             id="rename-workspace-name"
             label="Workspace name"
-            help="The notes of the workspace do not change."
+            hint="The notes of the workspace do not change."
             value={name}
-            error={error}
+            error={error ?? undefined}
+            autoComplete="off"
             onChange={(value) => {
               setName(value);
               setError(null);
@@ -453,11 +402,12 @@ export function DeleteWorkspaceDialog({
             Every note, version and published link of {workspace.name} goes. You
             cannot get them back.
           </p>
-          <NameField
+          <TextField
             id="delete-workspace-name"
             label={`Type ${workspace.name} to confirm`}
             value={confirmation}
-            error={error}
+            error={error ?? undefined}
+            autoComplete="off"
             onChange={(value) => {
               setConfirmation(value);
               setError(null);
@@ -537,6 +487,7 @@ export function WorkspaceSwitcher({
   const items: MenuItem[] = workspaces.map((workspace) => ({
     id: workspace.workspaceId,
     label: workspace.name,
+    icon: actionIcon('workspace'),
     selected: workspace.workspaceId === workspaceId,
     onSelect: () => switchTo(workspace.workspaceId),
   }));
@@ -545,7 +496,7 @@ export function WorkspaceSwitcher({
     {
       id: 'rename-workspace',
       label: 'Rename workspace',
-      icon: <PencilIcon size={14} />,
+      icon: actionIcon('rename'),
       onSelect: onRename,
     },
     // Record 0051 keeps the last workspace of an account, so the row is absent
@@ -556,7 +507,7 @@ export function WorkspaceSwitcher({
           {
             id: 'delete-workspace',
             label: 'Delete permanently',
-            icon: <TrashIcon size={14} />,
+            icon: actionIcon('delete'),
             danger: true,
             onSelect: onDelete,
           },
@@ -565,34 +516,37 @@ export function WorkspaceSwitcher({
     {
       id: 'new-workspace',
       label: 'New workspace',
-      icon: <PlusIcon size={14} />,
+      icon: actionIcon('new-workspace'),
       onSelect: onCreate,
     },
   ];
 
   return (
-    <div className="border-b border-edge-line p-2">
+    <div className="px-2 pt-2">
       <Menu
         label={`Workspace: ${openWorkspace.name}`}
         items={items}
         pinned={pinned}
         matchTrigger
-        triggerClassName={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-2 py-1.5 text-left text-control text-strong ${transitionSurface} hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-9`}
+        triggerClassName={rowClassName({
+          inset: false,
+          className: 'w-full text-left md:min-h-8',
+        })}
       >
         <span
-          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md bg-accent-fill text-on-accent"
+          className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm bg-active text-kbd font-semibold text-strong"
           aria-hidden="true"
         >
-          <WorkspaceIcon size={14} />
+          {[...openWorkspace.name][0]?.toUpperCase() ?? ''}
         </span>
-        <span className="min-w-0 flex-1 truncate font-semibold">
+        <span className="min-w-0 flex-1 truncate font-semibold text-strong">
           {openWorkspace.name}
         </span>
         <span
           className="inline-flex shrink-0 items-center text-muted"
           aria-hidden="true"
         >
-          <ChevronDownIcon size={14} />
+          <ChevronsUpDownIcon />
         </span>
       </Menu>
     </div>

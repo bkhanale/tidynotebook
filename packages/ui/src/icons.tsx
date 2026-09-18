@@ -341,6 +341,22 @@ export function ChevronDownIcon(props: IconProps): ReactNode {
   );
 }
 
+/**
+ * Two chevrons, one up and one down, for a switcher.
+ *
+ * A chevron down states that something opens below the control. A switcher
+ * moves between alternatives, and the person can leave it on any one of
+ * them, so its mark points both ways.
+ */
+export function ChevronsUpDownIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <polyline points="7 15 12 20 17 15" />
+      <polyline points="7 9 12 4 17 9" />
+    </IconFrame>
+  );
+}
+
 /** A copy text clipboard icon. */
 export function CopyIcon(props: IconProps): ReactNode {
   return (
@@ -384,10 +400,9 @@ export function AppMarkIcon(props: IconProps): ReactNode {
 /**
  * One workspace: four panes that sit side by side.
  *
- * It is deliberately unlike `AppMarkIcon`. The product mark and the workspace
- * switcher appear on the same screen, a few pixels apart, and one glyph for
- * both makes the switcher read as a second copy of the logo rather than as a
- * control that names the area you are in.
+ * It is deliberately unlike `AppMarkIcon`, which is the product mark of the
+ * sign in screen. One glyph for both would make a workspace read as a copy of
+ * the logo rather than as the area a person works in.
  */
 export function WorkspaceIcon(props: IconProps): ReactNode {
   return (

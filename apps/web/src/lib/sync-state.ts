@@ -6,6 +6,11 @@
  * plain sentence. Nothing in the interface reads engine prose, so a copy
  * change can never break a condition, and no identifier, code, or count of
  * internal objects reaches the person.
+ *
+ * The sidebar footer states the same fact twice: as one short sentence and as
+ * one dot of three colours, so a person reads where the work stands before
+ * they read a word. Both readings come from this module, so they cannot
+ * disagree.
  */
 import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
 
@@ -144,4 +149,46 @@ export function syncNeedsAttention(state: SyncState): boolean {
 export function syncStateFileId(state: SyncState): string | null {
   if (state.kind === 'attention') return state.fileId ?? null;
   return null;
+}
+
+/** What the dot of the sidebar footer states. */
+export type SyncDot =
+  /** Everything a person wrote is on the server. */
+  | 'saved'
+  /** Something is on its way, or it waits for a connection. */
+  | 'pending'
+  /** The person has to act before the work reaches the server. */
+  | 'attention';
+
+/**
+ * Which dot one state shows.
+ *
+ * A device with no connection is pending and not a failure: the saves are on
+ * the device and they go up when the connection returns. A save that another
+ * device superseded is saved, because the text of this device is the latest
+ * version and the other one is in History.
+ */
+export function syncDot(state: SyncState, online: boolean): SyncDot {
+  if (syncNeedsAttention(state)) return 'attention';
+  if (!online) return 'pending';
+  return state.kind === 'in-step' || state.kind === 'superseded'
+    ? 'saved'
+    : 'pending';
+}
+
+/**
+ * The classes of that dot.
+ *
+ * Six pixels of the tone, and no text of its own: the sentence beside it
+ * carries the meaning, so a person who does not separate the hues loses
+ * nothing. Every tone is a token of the palette that `theme.test.ts` holds.
+ */
+export function syncDotClassName(dot: SyncDot): string {
+  const fill =
+    dot === 'saved'
+      ? 'bg-success'
+      : dot === 'attention'
+        ? 'bg-danger'
+        : 'bg-muted';
+  return `size-1.5 shrink-0 rounded-full ${fill}`;
 }

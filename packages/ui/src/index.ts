@@ -113,6 +113,7 @@ export {
   ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  ChevronsUpDownIcon,
   CloseIcon,
   ComputerIcon,
   CopyIcon,

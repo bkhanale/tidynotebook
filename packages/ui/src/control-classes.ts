@@ -119,6 +119,14 @@ export function buttonClassName(
  * actions inside it, passes false: it keeps the size, the radius and the
  * spacing of a row and drops the pointer, the hover and the focus treatment,
  * so the cursor never promises an action the row does not have.
+ *
+ * `danger` is a row that destroys something, such as Delete in a menu, or a
+ * row that reports work a person has to rescue. The tone is part of the
+ * recipe and not a class a caller adds, because two colour utilities on one
+ * element are decided by the order of the stylesheet and not by the order of
+ * the string: `text-danger` appended to this recipe lost to the `text-ink` of
+ * the recipe itself, so every Delete row of the product was the colour of
+ * every other row.
  */
 export function rowClassName(
   options: {
@@ -126,18 +134,29 @@ export function rowClassName(
     readonly current?: boolean | undefined;
     readonly inset?: boolean | undefined;
     readonly interactive?: boolean | undefined;
+    readonly danger?: boolean | undefined;
     readonly className?: string | undefined;
   } = {},
 ): string {
   const marked = options.selected === true || options.current === true;
   const interactive = options.interactive ?? true;
+  // A row with a tone keeps that tone in every state, so the mark and the
+  // hover of a toned row change the fill alone. One colour utility for one
+  // element, because two of them are decided by the order of the stylesheet
+  // and not by the order of the string.
+  const toned = options.danger === true;
+  const colour = toned ? 'text-danger' : 'text-ink';
   const state = marked
-    ? 'bg-active text-strong font-medium'
+    ? toned
+      ? 'bg-active font-medium'
+      : 'bg-active text-strong font-medium'
     : interactive
-      ? 'hover:bg-hover hover:text-strong'
+      ? toned
+        ? 'hover:bg-hover'
+        : 'hover:bg-hover hover:text-strong'
       : '';
   return [
-    `flex min-h-11 items-center gap-2 rounded-md px-2 text-control text-ink no-underline ${transitionSurface} md:min-h-7`,
+    `flex min-h-11 items-center gap-2 rounded-md px-2 text-control ${colour} no-underline ${transitionSurface} md:min-h-7`,
     interactive ? 'cursor-pointer' : '',
     interactive
       ? options.inset === false

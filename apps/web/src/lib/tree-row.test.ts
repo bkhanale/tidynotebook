@@ -4,7 +4,7 @@ import {
   deepestSteppedBranch,
   treeBranchClassName,
   treeRowClassName,
-  treeRowTextClassName,
+  treeRowNameClassName,
 } from './tree-row.ts';
 
 /** The classes of one row state, as a list. */
@@ -26,48 +26,79 @@ await test('the open note and the selected folder do not look the same', () => {
   const selected = treeRowClassName({ selected: true });
   assert.notEqual(open, selected);
   assert.ok(open.includes('bg-active'));
+  assert.ok(open.includes('text-strong'));
   assert.ok(selected.includes('bg-hover'));
-  assert.ok(selected.includes('ring-edge'));
+  assert.ok(!selected.includes('bg-active'));
 });
 
-await test('a marked row keeps an edge of its own', () => {
-  // Two marked rows can sit next to each other, so each states where it
-  // ends. The edge carries that, not the fill.
-  for (const state of [{ open: true }, { selected: true }])
-    assert.ok(classes(state).includes('ring-inset'));
+await test('the open note keeps its mark while a folder is selected', () => {
+  // A person can select a folder and open a note inside it at the same time.
+  // The row of the note is then the stronger of the two marks.
+  const both = classes({ open: true, selected: true });
+  assert.ok(both.includes('bg-active'));
+  assert.ok(!both.includes('bg-hover'));
+});
+
+await test('no row of the tree takes a ring, and none names the edge', () => {
+  // Decision 0064. The open note took a ring, the selected folder took a
+  // second one, and the tree read as a cage of boxes.
+  for (const state of [{}, { open: true }, { selected: true }]) {
+    const one = treeRowClassName(state);
+    assert.ok(!one.includes('ring-'), one);
+    assert.ok(!one.includes('edge'), one);
+  }
 });
 
 await test('a drop target is marked over whatever the row already is', () => {
-  for (const state of [{}, { open: true }, { selected: true }])
-    assert.ok(classes({ ...state, dropTarget: true }).includes('ring-focus'));
+  // The drop target is the one ring of the tree: while a row is dragged over
+  // a folder the edge is the whole message, and it carries no text.
+  for (const state of [{}, { open: true }, { selected: true }]) {
+    const one = classes({ ...state, dropTarget: true });
+    assert.ok(one.includes('ring-focus'));
+    assert.ok(one.includes('ring-2'));
+    assert.ok(one.includes('ring-inset'));
+  }
 });
 
-await test('a marked row reads in the strong text colour', () => {
-  assert.equal(treeRowTextClassName({ open: true }), 'text-strong');
-  assert.equal(treeRowTextClassName({ selected: true }), 'text-strong');
-  assert.ok(treeRowTextClassName({}).startsWith('text-muted'));
+await test('a row is the group that its hover actions read', () => {
+  assert.ok(classes({}).includes('group'));
 });
 
-await test('a branch near the top of the tree steps in', () => {
-  assert.ok(treeBranchClassName(1).split(' ').includes('ml-3'));
-  assert.ok(
-    treeBranchClassName(deepestSteppedBranch).split(' ').includes('ml-3'),
-  );
+await test('the name control inherits the colour of its row', () => {
+  // The row states the text colour of every state, so the control inside it
+  // states none: two answers to one colour is how a marked row kept a muted
+  // name.
+  assert.ok(treeRowNameClassName.includes('text-inherit'));
+  assert.ok(!treeRowNameClassName.includes('text-muted'));
+  assert.ok(!treeRowNameClassName.includes('text-strong'));
+});
+
+await test('the name control shows its focus inside the row', () => {
+  // The tree is a box that scrolls, and a box that scrolls clips an outline
+  // drawn outside the control.
+  assert.ok(treeRowNameClassName.includes('focus-visible:outline-2'));
+  assert.ok(treeRowNameClassName.includes('focus-visible:-outline-offset-2'));
+  assert.ok(!treeRowNameClassName.includes('focus:'));
+});
+
+await test('a branch near the top of the tree steps in by one step', () => {
+  assert.equal(treeBranchClassName(1), 'pl-3');
+  assert.equal(treeBranchClassName(deepestSteppedBranch), 'pl-3');
 });
 
 await test('a deep branch stops stepping in, so the name keeps its room', () => {
   // The defect this covers: every level added its own step and nothing
   // stopped it, so a folder ten levels down showed a chevron, a folder mark
   // and no name at all in a narrow sidebar.
-  const deep = treeBranchClassName(deepestSteppedBranch + 1).split(' ');
-  assert.ok(!deep.includes('ml-3'));
-  assert.ok(deep.includes('border-l'));
+  assert.equal(treeBranchClassName(deepestSteppedBranch + 1), '');
+  assert.equal(treeBranchClassName(12), '');
 });
 
-await test('every branch keeps the guide line of its folder', () => {
+await test('no branch of the tree draws a guide line', () => {
+  // Decision 0064. A line down every branch is the mark of a file manager
+  // and not of a note list; the step states the level.
   for (const depth of [1, 3, 5, 12]) {
-    const classes = treeBranchClassName(depth).split(' ');
-    assert.ok(classes.includes('border-l'), `depth ${String(depth)}`);
-    assert.ok(classes.includes('border-edge-line'), `depth ${String(depth)}`);
+    const one = treeBranchClassName(depth);
+    assert.ok(!one.includes('border'), `depth ${String(depth)}`);
   }
 });

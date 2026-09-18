@@ -1,29 +1,34 @@
 /**
  * The application shell: one frame for every signed in screen.
  *
- * The header is one row of 48 px with three zones. Left: the drawer toggle
- * below `md`, the sidebar toggle from `md` up, then the product mark. Centre:
- * one search affordance that opens the command palette at every width. Right:
- * one overflow menu. Every distance in that row comes from the layout scale
- * of `apps/web/src/tailwind.css`, through `pageGutter` and the cluster and
- * group gaps, so the header lines up with every page under it.
+ * The header is one row of 44 px and it is the context of the route
+ * (decision 0064). Left: the drawer toggle below `md`, the sidebar toggle
+ * from `md` up, then the breadcrumb of `lib/breadcrumb.ts`. Then the actions
+ * of the route, through the one `HeaderSlot` of `./header-slot.tsx`, which
+ * the screen below fills. Right: Search, which opens the command palette at
+ * every width, and the account avatar. The wordmark is not here: it belongs
+ * to the sign in and setup screens, and the workspace name is the identity a
+ * person works under. Every distance in that row comes from the layout scale
+ * of `apps/web/src/tailwind.css`.
  *
- * The sidebar holds the only primary action of the shell, the folder tree,
- * and a quiet footer. Its width and its collapse state belong to the person
- * and live in browser settings; `./sidebar-size.ts` holds the steps and
- * `./drawer.ts` turns one state into classes. Every route below owns exactly
- * one `main` landmark.
+ * The sidebar is a column of rows: the workspace switcher, Search, New note,
+ * the Folders label with its New folder action, the tree and the footer. No
+ * row of it is a filled button, because the one action of a screen lives in
+ * the screen (decision 0062). Its width and its collapse state belong to the
+ * person and live in browser settings; `./sidebar-size.ts` holds the steps
+ * and `./drawer.ts` turns one state into classes. Every route below owns
+ * exactly one `main` landmark.
  *
  * The tree marks two things at once: the note the screen shows, and the
  * folder that a create action uses as its parent. `lib/tree-row.ts` holds
  * which mark each one takes, and `lib/folder-selection.ts` holds which folder
- * is the parent.
+ * is the parent. Both marks are fills and neither is an edge.
  *
  * The workspace is an explicit container that the person chooses. The
- * switcher sits at the top of the sidebar, above the New note action, so it
- * reads as the container of everything below it, and the workspace stays in
- * the address so a note keeps a stable link. `./workspaces.tsx` owns it and
- * record 0049 states why it is there.
+ * switcher is the first row of the sidebar, so it reads as the container of
+ * everything below it, and the workspace stays in the address so a note keeps
+ * a stable link. `./workspaces.tsx` owns it and record 0049 states why it is
+ * there.
  */
 import {
   useCallback,
@@ -41,6 +46,7 @@ import {
   useParams,
 } from 'react-router';
 import {
+  Badge,
   Button,
   buttonClassName,
   ChevronDownIcon,
@@ -58,6 +64,7 @@ import {
   Notice,
   pageGutter,
   PanelLeftIcon,
+  rowClassName,
   SearchIcon,
   transitionSurface,
 } from '@notesapp/ui';
@@ -88,7 +95,7 @@ import {
   NewFolderDialog,
   RenameFolderDialog,
 } from '../features/folders/folders.tsx';
-import { NewNoteButton, useCreateNote } from '../features/notes/new-note.tsx';
+import { useCreateNote } from '../features/notes/new-note.tsx';
 import { PublishDialog } from '../features/publishing/publish-dialog.tsx';
 import { publishedLinksTitle } from '../features/publishing/publishing.ts';
 import {
@@ -117,7 +124,7 @@ import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import {
   treeBranchClassName,
   treeRowClassName,
-  treeRowTextClassName,
+  treeRowNameClassName,
 } from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
 import { baseNameOf, displayNoteName } from '../lib/note-name.ts';
@@ -139,7 +146,11 @@ import { actionIcon } from './action-icons.tsx';
 import { HeaderSlot, HeaderSlotProvider } from './header-slot.tsx';
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
-import { syncStateMessage } from '../lib/sync-state.ts';
+import {
+  syncDot,
+  syncDotClassName,
+  syncStateMessage,
+} from '../lib/sync-state.ts';
 import type { ActionIconName } from '../lib/palette-items.ts';
 import { breadcrumbParts, type BreadcrumbPart } from '../lib/breadcrumb.ts';
 import {
@@ -189,11 +200,11 @@ function NoteRow({
     [active],
   );
   return (
-    <div className={`group ${treeRowClassName({ open: active })}`}>
-      <span className="size-11 shrink-0 md:size-8" aria-hidden="true" />
+    <div className={treeRowClassName({ open: active })}>
+      <span className={rowSpacerClassName} aria-hidden="true" />
       <Link
         ref={revealActive}
-        className={`flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-lg px-1 text-control no-underline ${transitionSurface} md:min-h-8 ${treeRowTextClassName({ open: active })}`}
+        className={treeRowNameClassName}
         to={`/w/${workspaceId}/notes/${note.fileId}`}
         onClick={onNavigate}
         aria-current={active ? 'page' : undefined}
@@ -208,7 +219,7 @@ function NoteRow({
         onDragEnd={() => drag?.end()}
       >
         <span className="inline-flex shrink-0 items-center" aria-hidden="true">
-          <FileTextIcon size={14} />
+          <FileTextIcon />
         </span>
         <span
           className="min-w-0 flex-1 truncate"
@@ -217,18 +228,15 @@ function NoteRow({
           {displayNoteName(basename)}
         </span>
         {note.localOnly || note.unsent ? (
-          <span
-            className="shrink-0 rounded-full border border-edge px-1.5 text-control text-muted"
-            title="On this device only"
-          >
-            Local
+          <span className="shrink-0" title="On this device only">
+            <Badge>Local</Badge>
           </span>
         ) : null}
       </Link>
       <Menu
         label={`Actions for the note ${displayNoteName(basename)}`}
         icon={<MoreIcon className="text-muted" />}
-        triggerClassName={rowMenuClassName}
+        triggerClassName={rowActionClassName}
         items={[
           {
             id: 'delete-note',
@@ -255,8 +263,31 @@ const sidebarKeys = 'Cmd or Ctrl + \\';
 /** The key line that opens the command palette. */
 const paletteKeys = 'Cmd or Ctrl + P';
 
-/** The actions menu of one tree row, which every row shares. */
-const rowMenuClassName = `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`;
+/**
+ * One icon action that sits on a row: the chevron and the row menu.
+ *
+ * A ghost control of the one recipe, square, and as small as a row allows on
+ * a desktop while it keeps the 44 px touch target under the medium width.
+ */
+const rowActionClassName = buttonClassName({
+  variant: 'ghost',
+  size: 'sm',
+  className: 'size-11 shrink-0 px-0 md:size-7',
+});
+
+/** The column that a row with no chevron keeps for one, so names line up. */
+const rowSpacerClassName = 'size-11 shrink-0 md:size-7';
+
+/**
+ * One row of the sidebar that is the whole control, such as Search.
+ *
+ * It stands in the column above the tree, which does not scroll, so it takes
+ * the outward focus outline of every other control.
+ */
+const sidebarRowClassName = rowClassName({
+  inset: false,
+  className: 'w-full text-left',
+});
 
 /**
  * Renders the tree nodes as interactive collapsible lists.
@@ -326,10 +357,10 @@ function TreeView({
         return (
           <li key={`folder:${node.fullPath}`}>
             <div
-              className={`group ${treeRowClassName({
+              className={treeRowClassName({
                 selected: isSelected,
                 dropTarget: isTarget,
-              })}`}
+              })}
               onDragOver={(event) => {
                 if (!drag.accepts(node.fullPath)) return;
                 event.preventDefault();
@@ -346,23 +377,19 @@ function TreeView({
             >
               <button
                 type="button"
-                className={`inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-lg border-0 bg-transparent text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:size-8`}
+                className={rowActionClassName}
                 onClick={() => onToggleFolder(node.fullPath)}
                 aria-expanded={isOpen}
                 aria-label={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
                 title={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
               >
-                <span className="inline-flex" aria-hidden="true">
-                  {isOpen ? (
-                    <ChevronDownIcon size={14} />
-                  ) : (
-                    <ChevronRightIcon size={14} />
-                  )}
+                <span className="inline-flex text-muted" aria-hidden="true">
+                  {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
                 </span>
               </button>
               <button
                 type="button"
-                className={`flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded-lg border-0 bg-transparent px-1 text-left text-control ${transitionSurface} focus-visible:outline-2 focus-visible:outline-focus md:min-h-8 ${treeRowTextClassName({ selected: isSelected })}`}
+                className={treeRowNameClassName}
                 onClick={() => onSelectFolder(node.fullPath)}
                 aria-pressed={isSelected}
                 aria-expanded={isOpen}
@@ -376,11 +403,7 @@ function TreeView({
                   className="inline-flex shrink-0 items-center"
                   aria-hidden="true"
                 >
-                  {isOpen ? (
-                    <FolderOpenIcon size={14} />
-                  ) : (
-                    <FolderIcon size={14} />
-                  )}
+                  {isOpen ? <FolderOpenIcon /> : <FolderIcon />}
                 </span>
                 <span className="min-w-0 truncate" title={node.name}>
                   {node.name}
@@ -389,7 +412,7 @@ function TreeView({
               <Menu
                 label={`Actions for the folder ${node.name}`}
                 icon={<MoreIcon className="text-muted" />}
-                triggerClassName={rowMenuClassName}
+                triggerClassName={rowActionClassName}
                 items={[
                   {
                     id: 'new-note',
@@ -428,7 +451,7 @@ function TreeView({
             {isOpen ? (
               node.children.length === 0 ? (
                 <div className={treeBranchClassName(depth + 1)}>
-                  <p className="my-1 px-2 py-1 text-control text-muted">
+                  <p className="m-0 px-3 py-1 text-control text-muted">
                     This folder is empty.
                   </p>
                 </div>
@@ -462,7 +485,16 @@ function TreeView({
   );
 }
 
-/** A quiet group label inside the sidebar. */
+/**
+ * A quiet group label inside the sidebar, with one action at its end.
+ *
+ * The heading and the action are two elements of one row and not one inside
+ * the other, because the section of the tree is named by this heading: an
+ * action inside it would put the word New folder into the name of the region.
+ *
+ * The action appears on hover and on focus on a desktop, and it stays on the
+ * screen under the medium width, where there is no pointer to hover with.
+ */
 function GroupLabel({
   id,
   children,
@@ -473,13 +505,12 @@ function GroupLabel({
   readonly action?: ReactNode | undefined;
 }): ReactNode {
   return (
-    <h2
-      className="mb-1 flex min-h-8 items-center justify-between gap-cluster px-2 text-control font-semibold uppercase tracking-wide text-muted"
-      id={id}
-    >
-      <span>{children}</span>
+    <div className="group flex items-center justify-between gap-cluster px-2 pb-1 pt-3">
+      <h2 className="m-0 text-control font-medium text-muted" id={id}>
+        {children}
+      </h2>
       {action}
-    </h2>
+    </div>
   );
 }
 
@@ -540,13 +571,22 @@ function Breadcrumb({
   );
 }
 
-/** The sidebar: the new note action, the folder tree, a footer. */
+/**
+ * The sidebar: a column of rows on the chrome plane.
+ *
+ * The switcher, then Search and New note, then the Folders label with its
+ * New folder action, then the tree, then the footer rows (decision 0064). No
+ * row of it is a filled button: the one action of a screen lives in the
+ * screen (decision 0062).
+ */
 function Sidebar({
   workspaceId,
   selectedFolder,
   folders,
+  newNoteProblem,
   onSelectFolder,
   onNavigate,
+  onSearch,
   onNewFolderIn,
   onRenameFolder,
   onPublishFolder,
@@ -559,8 +599,11 @@ function Sidebar({
   readonly workspaceId: string;
   readonly selectedFolder: string;
   readonly folders: OpenFoldersControl;
+  /** Why the last New note did not happen, when one did not. */
+  readonly newNoteProblem: string | null;
   readonly onSelectFolder: (folder: string) => void;
   readonly onNavigate: () => void;
+  readonly onSearch: () => void;
   readonly onNewFolderIn: (folder: string) => void;
   readonly onRenameFolder: (folder: string) => void;
   readonly onPublishFolder: (folder: string) => void;
@@ -612,6 +655,12 @@ function Sidebar({
   const notesPath = `/w/${workspaceId}`;
   const trashPath = `/w/${workspaceId}/trash`;
   const publishedPath = `/w/${workspaceId}/published`;
+  const attentionPath = `/w/${workspaceId}/attention`;
+  // One short sentence for the state of the work, beside the dot that states
+  // the same thing without a word.
+  const syncLine = online
+    ? syncStateMessage(sync.state, sync.noteName)
+    : 'No connection. Your notes stay on this device.';
   const navigate = useNavigate();
   const { announce } = useDeleteNotice();
   const requestSync = useRequestSync();
@@ -703,7 +752,7 @@ function Sidebar({
 
   return (
     <>
-      <div className="flex h-header shrink-0 items-center justify-between gap-cluster border-b border-edge-line px-2 md:hidden">
+      <div className="flex h-header shrink-0 items-center justify-between gap-cluster border-b border-edge-subtle px-2 md:hidden">
         <span className="text-ui font-semibold text-strong">Notes</span>
         <Button
           variant="ghost"
@@ -711,7 +760,7 @@ function Sidebar({
           className="size-11"
           label="Close navigation"
           title="Close navigation"
-          icon={<CloseIcon size={18} />}
+          icon={<CloseIcon />}
           onClick={onClose}
         />
       </div>
@@ -724,37 +773,67 @@ function Sidebar({
         onDelete={onDeleteWorkspace}
       />
 
-      {session.account !== null ? (
-        <div className="flex items-center gap-1 px-2 py-2">
-          <NewNoteButton
-            store={store.store}
-            accountId={session.account.accountId}
-            workspaceId={workspaceId}
-            folder={selectedFolder}
-            variant="primary"
-            className="min-w-0 flex-1"
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            className="size-11 shrink-0"
-            label="New folder"
-            title="New folder"
-            icon={actionIcon('new-folder')}
-            onClick={() => onNewFolderIn(selectedFolder)}
-          />
-        </div>
-      ) : null}
+      <div className="px-2 pt-1">
+        <button
+          type="button"
+          className={sidebarRowClassName}
+          onClick={onSearch}
+        >
+          <span
+            className="inline-flex shrink-0 items-center text-muted"
+            aria-hidden="true"
+          >
+            <SearchIcon />
+          </span>
+          <span className="min-w-0 flex-1 truncate">Search</span>
+          <span className="shrink-0">
+            <KeyHint keys={paletteKeys} />
+          </span>
+        </button>
+        <button
+          type="button"
+          className={sidebarRowClassName}
+          onClick={() => onNewNoteIn(selectedFolder)}
+        >
+          <span
+            className="inline-flex shrink-0 items-center text-muted"
+            aria-hidden="true"
+          >
+            {actionIcon('new-note')}
+          </span>
+          <span className="min-w-0 flex-1 truncate">New note</span>
+        </button>
+        {newNoteProblem === null ? null : (
+          <p className="my-1 px-2 text-control text-danger" role="alert">
+            {newNoteProblem}
+          </p>
+        )}
+      </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
         <section aria-labelledby="tree-heading">
-          <GroupLabel id="tree-heading">Folders</GroupLabel>
+          <GroupLabel
+            id="tree-heading"
+            action={
+              <Button
+                variant="ghost"
+                size="sm"
+                className="size-11 shrink-0 px-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 md:size-7"
+                label="New folder"
+                title="New folder"
+                icon={actionIcon('new-folder')}
+                onClick={() => onNewFolderIn(selectedFolder)}
+              />
+            }
+          >
+            Folders
+          </GroupLabel>
           <div
-            className={`group ${treeRowClassName({
+            className={treeRowClassName({
               open: location.pathname === notesPath,
               selected: selectedFolder === '',
               dropTarget: drag.over === '',
-            })}`}
+            })}
             onDragOver={(event) => {
               if (!drag.accepts('')) return;
               event.preventDefault();
@@ -778,14 +857,9 @@ function Sidebar({
               `All notes`. It still does both of those, and the selection
               follows the note that opens, by record 0034.
             */}
-            <span className="size-11 shrink-0 md:size-8" aria-hidden="true" />
+            <span className={rowSpacerClassName} aria-hidden="true" />
             <Link
-              className={`flex min-h-11 min-w-0 flex-1 items-center gap-cluster rounded-lg px-1 text-control no-underline ${transitionSurface} md:min-h-8 ${treeRowTextClassName(
-                {
-                  open: location.pathname === notesPath,
-                  selected: selectedFolder === '',
-                },
-              )}`}
+              className={treeRowNameClassName}
               to={notesPath}
               aria-current={
                 location.pathname === notesPath ? 'page' : undefined
@@ -799,9 +873,9 @@ function Sidebar({
                 className="inline-flex shrink-0 items-center"
                 aria-hidden="true"
               >
-                <FolderIcon size={14} />
+                <FolderIcon />
               </span>
-              <span className="min-w-0 flex-1 truncate">All notes</span>
+              <span className="min-w-0 flex-1 truncate">{allNotesTitle}</span>
             </Link>
           </div>
           {files.loading ? (
@@ -858,14 +932,21 @@ function Sidebar({
         )}
       </div>
 
-      <div className="border-t border-edge-line p-2">
-        <p className="m-0 px-2 pb-1 text-control text-muted">
-          {online
-            ? syncStateMessage(sync.state, sync.noteName)
-            : 'No connection. Your notes stay on this device.'}
-        </p>
+      <div className="border-t border-edge-subtle p-2">
+        <div className={rowClassName({ interactive: false })}>
+          <span
+            className={syncDotClassName(syncDot(sync.state, online))}
+            aria-hidden="true"
+          />
+          <span className="min-w-0 flex-1 truncate text-muted" title={syncLine}>
+            {syncLine}
+          </span>
+        </div>
         <Link
-          className={`flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline ${transitionSurface} hover:bg-hover hover:text-strong md:min-h-8`}
+          className={rowClassName({
+            current: location.pathname === trashPath,
+            inset: false,
+          })}
           to={trashPath}
           onClick={onNavigate}
           aria-current={location.pathname === trashPath ? 'page' : undefined}
@@ -876,10 +957,13 @@ function Sidebar({
           >
             {actionIcon('trash')}
           </span>
-          <span>Trash</span>
+          <span className="min-w-0 flex-1 truncate">{trashTitle}</span>
         </Link>
         <Link
-          className={`flex min-h-11 items-center gap-cluster rounded-lg px-2 text-control text-muted no-underline ${transitionSurface} hover:bg-hover hover:text-strong md:min-h-8`}
+          className={rowClassName({
+            current: location.pathname === publishedPath,
+            inset: false,
+          })}
           to={publishedPath}
           onClick={onNavigate}
           aria-current={
@@ -892,9 +976,17 @@ function Sidebar({
           >
             {actionIcon('published-links')}
           </span>
-          <span>{publishedLinksTitle}</span>
+          <span className="min-w-0 flex-1 truncate">{publishedLinksTitle}</span>
         </Link>
-        <AttentionLink workspaceId={workspaceId} count={attentionCount} />
+        <AttentionLink
+          workspaceId={workspaceId}
+          count={attentionCount}
+          className={rowClassName({
+            current: location.pathname === attentionPath,
+            inset: false,
+            danger: true,
+          })}
+        />
         {store.error !== null ? (
           <p className="my-1 px-2 text-control text-danger" role="alert">
             {store.error}
@@ -1629,8 +1721,10 @@ function ShellFrame({
               workspaceId={workspaceId}
               selectedFolder={selectedFolder}
               folders={folders}
+              newNoteProblem={newNote.error}
               onSelectFolder={setSelectedFolder}
               onNavigate={() => setDrawerOpen(false)}
+              onSearch={() => setPaletteOpen(true)}
               onNewFolderIn={(folder) => setNewFolderParent(folder)}
               onRenameFolder={(folder) => setRenameFolder(folder)}
               onPublishFolder={(folder) => setPublishFolder(folder)}

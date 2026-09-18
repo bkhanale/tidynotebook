@@ -15,11 +15,11 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
 - `src/control-classes.ts` is the one recipe of a control, as pure functions,
   and nothing in the product writes the classes of a control anywhere else
   (0065): `buttonClassName` with four variants, `rowClassName` for a clickable
-  row, `fieldClassName`, `kbdClassName` for one key cap, `badgeClassName`, and
-  `focusOutline` with `focusOutlineInset`, the one focus treatment.
+  row and its tone, `fieldClassName`, `kbdClassName`, `badgeClassName`, and
+  `focusOutline` with `focusOutlineInset`, the one focus treatment. A tone is
+  part of a recipe, because one element takes one colour class.
   `src/icon-grid.ts` is the one grid of an icon: a 24 viewport, a stroke of
-  1.5, the sizes 16 and 20, and the attributes that `src/icons.tsx` spreads in
-  one frame, so no icon states one of its own.
+  1.5, the sizes 16 and 20, and the attributes `src/icons.tsx` spreads.
 - `src/layout.tsx` holds the page frame and `pageGutter`, the one distance
   from the screen edge to the content. `controls.tsx`, `menu.tsx`,
   `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised

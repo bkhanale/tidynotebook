@@ -80,7 +80,10 @@ no screen writes its own (record 0065).
   both 44 px under touch.
 - `rowClassName`: every clickable row, in the tree, a list, a menu, the palette
   and the sidebar footer. 28 px on a desktop, `rounded-md`, `hover:bg-hover`.
-  The open or chosen row is `bg-active text-strong font-medium`. No ring.
+  The open or chosen row is `bg-active text-strong font-medium`. No ring. A row
+  that destroys something takes the danger tone from the recipe, because two
+  colour classes on one element are decided by the stylesheet and not by the
+  caller.
 - `fieldClassName`: a text field, a select and a read only field. 32 px,
   `edge-line` at rest, `border-focus` with a ring when active, `border-danger`
   in error. The label sits above the field in `text-control font-medium`.

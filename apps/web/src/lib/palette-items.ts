@@ -119,6 +119,7 @@ export const actionIconNames = [
   'move',
   'new-folder',
   'new-note',
+  'new-workspace',
   'publish',
   'published-links',
   'rename',

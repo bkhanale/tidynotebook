@@ -3,6 +3,8 @@ import test from 'node:test';
 import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
 import {
   startingSyncState,
+  syncDot,
+  syncDotClassName,
   syncNeedsAttention,
   syncStateFileId,
   syncStateMessage,
@@ -137,4 +139,43 @@ await test('a refusal still says that saving stopped', () => {
     syncStateMessage(state ?? startingSyncState),
     /Saving to the server stopped/,
   );
+});
+
+await test('the dot of the footer states where the work stands', () => {
+  assert.equal(syncDot({ kind: 'in-step' }, true), 'saved');
+  assert.equal(syncDot({ kind: 'superseded', path: 'a.md' }, true), 'saved');
+  assert.equal(syncDot({ kind: 'starting' }, true), 'pending');
+  assert.equal(syncDot({ kind: 'sending' }, true), 'pending');
+  assert.equal(syncDot({ kind: 'waiting' }, true), 'pending');
+  assert.equal(syncDot({ kind: 'other-tab' }, true), 'pending');
+  assert.equal(syncDot({ kind: 'attention', fileId: 'f' }, true), 'attention');
+  assert.equal(syncDot({ kind: 'signed-out' }, true), 'attention');
+  assert.equal(syncDot({ kind: 'stopped' }, true), 'attention');
+  assert.equal(
+    syncDot({ kind: 'delete-refused', path: 'a.md' }, true),
+    'attention',
+  );
+});
+
+await test('a device with no connection is pending and not a failure', () => {
+  // The saves are on this device and they go up when the connection returns,
+  // so the dot must not say that the person has to act.
+  assert.equal(syncDot({ kind: 'in-step' }, false), 'pending');
+  assert.equal(syncDot({ kind: 'starting' }, false), 'pending');
+  // A state that does need the person keeps its tone offline as well.
+  assert.equal(syncDot({ kind: 'signed-out' }, false), 'attention');
+});
+
+await test('every dot is one size and one token of the palette', () => {
+  const fills = new Set<string>();
+  for (const dot of ['saved', 'pending', 'attention'] as const) {
+    const classes = syncDotClassName(dot).split(' ');
+    assert.ok(classes.includes('size-1.5'));
+    assert.ok(classes.includes('rounded-full'));
+    const fill = classes.find((one) => one.startsWith('bg-'));
+    assert.ok(fill !== undefined, dot);
+    fills.add(fill);
+  }
+  // Three states, three fills: a dot that repeats a colour states nothing.
+  assert.equal(fills.size, 3);
 });

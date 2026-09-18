@@ -319,3 +319,30 @@ await test('a button with no label names itself by its text alone', () => {
   assert.equal(name.ariaLabel, undefined);
   assert.equal(name.title, undefined);
 });
+
+await test('a row that destroys something reads in the danger tone', () => {
+  // The defect this covers: a caller appended `text-danger` to this recipe,
+  // and the stylesheet puts `text-danger` before `text-ink`, so the recipe
+  // won and every Delete row of the product read like every other row. The
+  // tone is part of the recipe now, and it replaces the colour instead of
+  // competing with it.
+  const danger = rowClassName({ danger: true }).split(' ');
+  assert.ok(danger.includes('text-danger'), 'the danger tone');
+  assert.ok(!danger.includes('text-ink'), 'one colour for one row');
+  assert.ok(!danger.includes('text-strong'), 'the tone survives the hover');
+  assert.ok(!danger.includes('hover:text-strong'), 'the tone survives a hover');
+  // A marked danger row keeps its fill and its weight.
+  const marked = rowClassName({ danger: true, current: true }).split(' ');
+  assert.ok(marked.includes('bg-active'), 'the mark of the open route');
+  assert.ok(marked.includes('font-medium'), 'the weight of a marked row');
+  assert.ok(marked.includes('text-danger'), 'the tone of the row');
+});
+
+await test('a row with no tone reads in the ink and marks in the strong text', () => {
+  const quiet = rowClassName().split(' ');
+  assert.ok(quiet.includes('text-ink'), 'the resting colour');
+  assert.ok(quiet.includes('hover:text-strong'), 'the hover colour');
+  const marked = rowClassName({ selected: true }).split(' ');
+  assert.ok(marked.includes('text-strong'), 'the colour of a marked row');
+  assert.ok(marked.includes('bg-active'), 'the fill of a marked row');
+});

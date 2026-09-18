@@ -81,7 +81,9 @@ function MenuRow({
       tabIndex={-1}
       className={rowClassName({
         selected: item.selected,
-        className: `w-full text-left disabled:cursor-not-allowed disabled:opacity-50 md:min-h-8 ${item.danger === true ? 'text-danger' : ''}`,
+        danger: item.danger,
+        className:
+          'w-full text-left disabled:cursor-not-allowed disabled:opacity-50 md:min-h-8',
       })}
       disabled={item.disabled ?? false}
       onClick={() => onRun(item)}
