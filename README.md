@@ -58,13 +58,6 @@ tools/test-database/ensure-postgres.sh
 pnpm verify
 ```
 
-Browser tests:
-
-```bash
-pnpm exec playwright install
-pnpm test:e2e
-```
-
 [CONTRIBUTING.md](CONTRIBUTING.md) has the complete setup path, the command
 list, the branch workflow and the commit style.
 
@@ -85,7 +78,7 @@ list, the branch workflow and the commit style.
 | `packages/ui`              | Shared interface components, icons, and theme        |
 | `docker`                   | Container entry point and health check               |
 | `docs`                     | Guide, development, decision, and audit documents    |
-| `tests`                    | Integration and browser tests                        |
+| `tests`                    | Integration tests over a real database and server    |
 | `tools`                    | Checkers, code generation, and operator scripts      |
 
 ## API generation

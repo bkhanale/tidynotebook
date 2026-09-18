@@ -36,8 +36,8 @@ The npm entry sets an increasing versioning strategy, so Dependabot writes a new
 exact version into a manifest that already holds one. No range reaches a
 manifest, and `tools/check-versions.mjs` accepts the change. Dependabot reaches
 a version that a manifest states, and a person bumps a catalog version by hand.
-Review a bump like any other change. Run `pnpm verify` on the branch, and run
-the browser matrix when it touches the editor, the router, or a storage library.
+Review a bump like any other change. Run `pnpm verify` on the branch, and open
+the screens that a bump of the editor or the router can change.
 
 Two pins stay manual, and the configuration says why.
 

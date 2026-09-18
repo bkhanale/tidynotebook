@@ -79,9 +79,10 @@ still gets the core list, so read it.
 
 ## c. Verify what you claim
 
-- **Test at each level that applies.** A unit test beside the module, an
-  integration test against the real service, a browser journey for what a
-  person sees. State which levels you added, and why you skipped one.
+- **Test at each level that applies.** A unit test beside the module for the
+  pure rule, and an integration test against the real service for the served
+  result. What a person sees is proved by the module that decides it. State
+  which levels you added, and why you skipped one.
 - **Prove the test fails before the fix.** Restore the old behaviour, run the
   test, read the failure, then put the fix back. A regression test that never
   failed proves nothing. Say in the report that you confirmed it.
@@ -94,8 +95,9 @@ still gets the core list, so read it.
   because the root reference counted as a use. When a check passes, know why.
 - **Never weaken the gate.** Do not weaken an assertion, do not add a fixed
   delay, do not raise a timeout, and do not skip a failing test.
-- Run `pnpm verify` before the change is ready. Run the browser matrix when
-  navigation, persistence, keyboard behaviour or editor rendering changes.
+- Run `pnpm verify` before the change is ready. It is the whole gate. No
+  browser test exists, so take a screenshot of each screen that the change
+  touches in light and in dark, and read it against the design guide.
 
 ## d. Report it honestly
 

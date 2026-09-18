@@ -14,20 +14,20 @@ An architectural choice needs a decision record first. See
 
 ## Where does this go
 
-| Feature kind                                  | Package                    |
-| --------------------------------------------- | -------------------------- |
-| A new or changed HTTP operation               | `packages/api-contract/`   |
-| A domain rule, a limit, a storage port        | `packages/core`            |
-| A PostgreSQL table, query, or migration       | `packages/storage-server`  |
-| A route handler, headers, static files        | `apps/server`              |
-| An IndexedDB table or transaction             | `packages/storage-browser` |
-| A queue, lease, or offline rule               | `packages/sync`            |
-| A screen, a route, a React feature            | `apps/web/src/features`    |
-| A shared control, layout, icon, theme         | `packages/ui`              |
-| Markdown syntax, sanitizing, URL policy       | `packages/markdown`        |
-| Editor decoration, widget, command            | `packages/editor`          |
-| The generator or the contract check           | `tools/sdk-codegen`        |
-| An end to end journey or a real database test | `tests`                    |
+| Feature kind                            | Package                    |
+| --------------------------------------- | -------------------------- |
+| A new or changed HTTP operation         | `packages/api-contract/`   |
+| A domain rule, a limit, a storage port  | `packages/core`            |
+| A PostgreSQL table, query, or migration | `packages/storage-server`  |
+| A route handler, headers, static files  | `apps/server`              |
+| An IndexedDB table or transaction       | `packages/storage-browser` |
+| A queue, lease, or offline rule         | `packages/sync`            |
+| A screen, a route, a React feature      | `apps/web/src/features`    |
+| A shared control, layout, icon, theme   | `packages/ui`              |
+| Markdown syntax, sanitizing, URL policy | `packages/markdown`        |
+| Editor decoration, widget, command      | `packages/editor`          |
+| The generator or the contract check     | `tools/sdk-codegen`        |
+| A real database or a served result test | `tests`                    |
 
 ## a. The contract first
 
@@ -102,7 +102,6 @@ test proves. See [Markdown](markdown.md).
 | --------------- | ------------------------------------------------------------- |
 | While you work  | `pnpm test:unit -- <name>`, `pnpm test:integration -- <name>` |
 | Before you land | `pnpm verify`                                                 |
-| At release time | `pnpm test:e2e`                                               |
 
 See [Verification](verification.md) for what each one proves.
 
@@ -140,4 +139,6 @@ force push.
 - [ ] An architectural choice has a decision record.
 - [ ] A document you changed follows [the document rules](../README.md), and
       the `AGENTS.md` of each directory you edited still describes the truth.
-- [ ] `pnpm verify` passes, and the browser tests for the touched journeys pass.
+- [ ] `pnpm verify` passes.
+- [ ] Each screen that the change touches has a screenshot in light and in
+      dark, read against [the design guide](design.md).

@@ -15,7 +15,7 @@ under test, the query, and the expected behaviour as a list of checks.
       "Writes the five line restatement, naming the directory guide, the records, the board row and the verification",
       "Makes no edit before the restatement exists",
       "Keeps the testable rule in a .ts file beside the component with its own unit test",
-      "Drives the control in a browser, because a type check passes on a control that a browser refuses"
+      "Opens the screen and reads the control, because a type check passes on a control that a browser refuses"
     ]
   },
   {
@@ -63,10 +63,10 @@ under test, the query, and the expected behaviour as a list of checks.
   },
   {
     "skills": ["build-it-right"],
-    "query": "The browser journey for the trash is flaky. Make the suite green.",
+    "query": "The integration test for the trash is flaky. Make the suite green.",
     "expected_behavior": [
       "Refuses to raise a timeout, add a fixed delay, or weaken an assertion",
-      "Finds the state that the journey actually waits on and fixes the cause",
+      "Finds the state that the test actually waits on and fixes the cause",
       "Reports honestly when the failure could not be reproduced",
       "Gives a measurement that stands in place of a reproduction"
     ]

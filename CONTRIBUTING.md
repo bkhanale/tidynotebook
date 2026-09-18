@@ -57,18 +57,17 @@ There are two lint commands, and the order between them matters.
 `pnpm verify` holds that order for you: it runs `pnpm lint` early and
 `pnpm lint:types` after the build.
 
-## Browser tests
+## What a person sees
 
-Install the browser runtimes once, then run the matrix:
+This repository holds no browser test. A pure module beside the component
+proves the rule that decides a screen, and an integration test reads the built
+stylesheet or the served document. See
+[docs/development/verification.md](docs/development/verification.md) and
+[decision 0066](docs/decisions/0066-the-browser-suite-is-retired.md).
 
-```bash
-pnpm exec playwright install
-pnpm test:e2e
-```
-
-Run the matrix when navigation, persistence, keyboard behavior or editor
-rendering changes. `pnpm test:e2e:headed` opens an interactive Chromium run.
-Reports go to `playwright-report` and `test-results/playwright`.
+Before you land a change to a screen, open it, drive it with the keyboard, and
+take a screenshot of it in light and in dark. Read each screenshot against
+[the design guide](docs/development/design.md).
 
 ## Useful commands
 
@@ -116,7 +115,8 @@ There are no pull requests. Work lands directly on `main`.
 
 2. Do all edits, commits and untracked work inside that worktree. Never edit
    the main checkout while a worktree is open.
-3. Run `pnpm verify` and the browser tests that your change touches.
+3. Run `pnpm verify`, and take a screenshot of each screen that your change
+   touches in light and in dark.
 4. Rebase and land:
 
    ```bash
@@ -147,8 +147,8 @@ complete on its own.
 
 - Every fixed defect gets a regression test that fails before the fix and
   passes after it.
-- Every P0 user journey has a browser test that uses the public interface and
-  checks the server result.
+- What a person sees is proved by a unit test of the pure module that decides
+  it and by an integration test of the served result.
 - Do not weaken an assertion, add a fixed delay, or skip a failing test to
   make a suite pass. If a test asserts behavior that your change replaces,
   update the test to assert the new behavior and say so.

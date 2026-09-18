@@ -23,8 +23,8 @@ explicit message; it never claims that tests passed.
 
 Unit test discovery covers `.ts` and `.mjs` test files only, because Node
 cannot strip JSX. A React component is therefore proved by a unit test over the
-pure functions behind it and by the browser gate, never by a component test
-runner.
+pure functions behind it and by an integration test of the served result, never
+by a component test runner.
 
 ## Coverage
 
@@ -43,36 +43,28 @@ Turn the report off for a short result while you work:
 NOTESAPP_COVERAGE=off pnpm test:unit
 ```
 
-## The browser gate
+## What a person sees
 
-`pnpm test:e2e` is the gate for the user interface. See
-[decision 0014](../decisions/0014-browser-tests-are-the-interface-gate.md).
+No browser test exists. See
+[decision 0066](../decisions/0066-the-browser-suite-is-retired.md). Two levels
+prove the interface, and a person closes the rest.
 
-The gate starts the production web build and the real server against a unique
-database and storage directory for each worker, and it creates the session
-through the visible login form. The tests use the real IndexedDB store, the
-generated client, and the sync engine, so nothing is stubbed below the
-interface.
+The pure module that decides a thing carries a unit test beside it. A class
+recipe is `packages/ui/src/control-classes.ts`. A layout rule is a module of
+`apps/web/src/lib/`. A derived colour is `packages/ui/src/theme.ts`. Each holds
+its own rule, so a wrong class or a wrong row fails `pnpm test:unit`.
 
-Several workers run at the same time, and each one owns its whole stack. See
-[decision 0036](../decisions/0036-the-browser-gate-runs-in-parallel-workers.md).
-The order of the files across the workers can change, so a journey must not
-depend on what another file wrote.
+An integration test reads what the build and the server produce.
+`tests/integration/theme-variables.test.ts` and
+`tests/integration/published-styles.test.ts` read the built stylesheet.
+`tests/integration/web-delivery.test.ts` and
+`tests/integration/published-page.test.ts` read the served document.
 
-`playwright.config.ts` defines the projects: the desktop browsers plus emulated
-phone and tablet viewports. An emulated viewport verifies responsive layout and
-touch settings. **It is not evidence from a physical device.**
-
-Install the browser runtimes and their host packages once:
-
-```sh
-pnpm exec playwright install
-pnpm exec playwright install-deps
-```
-
-Failed and retried runs write traces, screenshots, and videos, and the machine
-readable result sits next to the HTML report under `test-results/`. Read the
-count of checks from that report, not from a document.
+Four things have no automatic proof: keyboard behaviour in a real browser, the
+offline path of the service worker, editor rendering, and the layout at a phone
+width. Before a branch lands, open each screen that the change touches, drive
+it with the keyboard, and take a screenshot of it in light and in dark. Read
+each screenshot against [the design guide](design.md).
 
 ## What each area proves
 
@@ -89,6 +81,7 @@ count of checks from that report, not from a document.
 | Cleanup and purge races         | The attachment and history tests over reference locks, retries, and late writes.     |
 | One Markdown grammar            | `tests/integration/markdown-equivalence.test.ts` over the shared corpus.             |
 | Documents                       | `tools/check-docs.mjs` over the rules in [the document index](../README.md).         |
+| Design rules                    | `tools/check-design-rules.mjs` and `tools/check-design-rules.test.mjs`.              |
 | Parallel migrations             | `tests/integration/concurrent-migrations.test.ts` over two databases of one cluster. |
 
 ## Performance
@@ -114,7 +107,7 @@ same names, so a browser profile can be compared with them.
 
 ## Evidence limits
 
-The automated matrix is not physical-device evidence. A release assessment must
+The automated gate is not physical-device evidence. A release assessment must
 still sample the supported physical devices, persistent storage behaviour,
 accessibility tools, security controls, and the restore procedure in the target
 environment. The restore test is the one that a backup depends on: see

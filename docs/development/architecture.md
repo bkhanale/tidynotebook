@@ -140,6 +140,7 @@ validated against the contract at the HTTP boundary. See
 
 ## Verification
 
-`pnpm verify` is the gate and `pnpm test:e2e` is the interface gate. See
+`pnpm verify` is the whole gate. A pure module proves what a person sees, and
+an integration test reads the built or served result. See
 [Verification](verification.md) and
-[decision 0014](../decisions/0014-browser-tests-are-the-interface-gate.md).
+[decision 0066](../decisions/0066-the-browser-suite-is-retired.md).

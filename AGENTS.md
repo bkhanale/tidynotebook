@@ -25,8 +25,7 @@ Edit files in `rules/` and run `rules/link.sh`.
   `item 1`, `(2)`, or a plain list. Use `#NNNN` only for a real pull request or
   issue.
 - Work happens in a git worktree on a short-lived branch.
-- Before a branch lands, `pnpm verify` and the relevant browser tests must
-  pass.
+- Before a branch lands, `pnpm verify` must pass.
 - To land a branch, rebase it onto `main`, fast-forward merge it, then delete
   it. Pull requests are not required.
 - Stay inside the active worktree. All edits, commits, and untracked files
@@ -102,14 +101,12 @@ Edit files in `rules/` and run `rules/link.sh`.
 # Verification
 
 - Add a regression test for each fixed defect.
-- Cover every P0 user journey with a browser test that uses the public
-  interface and checks the server result.
-- A first-user test must start with an empty database and must use the real
-  setup screen. Do not create its account through a test-only bootstrap route.
+- Prove what a person sees through the pure module that decides it and through
+  an integration test of the served result.
+- Take a screenshot of each changed screen in light and in dark before a
+  landing.
 - Run focused tests while work is in progress. Run `pnpm verify` before a
   change is ready to merge.
-- Run the browser matrix when navigation, persistence, keyboard behavior, or
-  editor rendering changes.
 - Do not weaken assertions, add fixed delays, or skip a failing test to make a
   suite pass.
 
