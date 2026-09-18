@@ -1,78 +1,82 @@
 # packages/ui
 
-Read the root [AGENTS.md](../../AGENTS.md) first, then
-[the feature workflow](../../docs/development/feature-workflow.md). This package
-holds the theme registry, the layout primitives, the accessible controls and
-the icons. `src/themes/` is the one place here that holds a colour value.
+Read the root [AGENTS.md](../../AGENTS.md), then the
+[feature workflow](../../docs/development/feature-workflow.md) and the
+[design guide](../../docs/development/design.md), the system this holds.
 
 ## What lives here and what does not
 
-- `src/themes/` holds one file per theme family and `src/themes/index.ts` is
-  the registry. `default.ts` is the family a new account starts with (0056).
-  `src/theme.ts` declares `ThemeTokens` and `SyntaxTokens`, `applyTheme`, the
-  contrast helpers, and `derivedPropertyNames`, the values a palette does not
-  state: the divider (0053) and the hover of a control fill (0057).
-- `src/layout.tsx` holds `Page`, `PageHeader`, `Card`, `EmptyState`, `ListRow`,
-  `Toolbar`, and `pageGutter`, the one distance from the edge of the screen to
-  the content. `src/controls.tsx`, `src/menu.tsx`, `src/dialog.tsx` and
-  `src/notice.tsx` hold the controls, `src/control-classes.ts` their class and
-  name rules as pure functions, `src/overlay-position.ts` the place an overlay
-  takes on the screen (0058), and `src/loading.tsx` the one placeholder of a
-  wait. `src/motion.ts` holds the named transitions and may name a duration, an
-  easing or a transition, which no other module here may (0054).
+- `src/themes/` holds one file per family, `src/themes/index.ts` is the
+  registry, and it is the one place here with a colour value. `default.ts` is
+  the family a new account starts with: its action fill is ink and its blue
+  carries meaning (0056, 0062). `src/theme.ts` declares the tokens,
+  `applyTheme`, the contrast helpers, and `derivedPropertyNames`: the divider
+  (0053), the hover of a control fill (0057) and the tone surfaces (0065).
+- `src/control-classes.ts` is the one recipe of a control, as pure functions,
+  and nothing in the product writes the classes of a control anywhere else
+  (0065): `buttonClassName` with four variants, `rowClassName` for a clickable
+  row, `fieldClassName`, `kbdClassName` for one key cap, `badgeClassName`, and
+  `focusOutline` with `focusOutlineInset`, the one focus treatment.
+  `src/icon-grid.ts` is the one grid of an icon: a 24 viewport, a stroke of
+  1.5, the sizes 16 and 20, and the attributes that `src/icons.tsx` spreads in
+  one frame, so no icon states one of its own.
+- `src/layout.tsx` holds the page frame and `pageGutter`, the one distance
+  from the screen edge to the content. `controls.tsx`, `menu.tsx`,
+  `dialog.tsx`, `notice.tsx` and `toast.tsx` hold the controls and the raised
+  surfaces, `overlay-position.ts` the place an overlay takes (0058),
+  `loading.tsx` the placeholder of a wait, and `motion.ts` the named
+  transitions, which no other module here may name (0054).
 - No screen, no route, no data fetching, and no storage lives here. A control
   takes its data and its callbacks as props.
 
 ## Allowed imports
 
-Nothing from the workspace, only `react` and `react-dom`. `react-dom` is here
-for `createPortal` alone (0058). This package is browser code and imports no
-Node built in module, no Node only package, no server only package.
+Nothing from the workspace, only `react` and `react-dom`, the second for
+`createPortal` alone (0058). This is browser code: no Node built in module, no
+Node only package, no server only package.
 
 ## How to add a common thing here
 
-- **A theme.** Copy a file in `src/themes`, fill in the family, the source and
-  the variants, register it in `src/themes/index.ts`, record the licence in
-  `THIRD_PARTY_LICENSES.md`, and read [themes.md](../../docs/development/themes.md).
-- **A control.** Add it in `src/controls.tsx`, export it from `src/index.ts`,
-  and give an icon only action an accessible name and a title. One that moves
-  reads a name from `src/motion.ts`, one that stands off its plane reads an
-  elevation step, and a fill behind a label reads a palette name (0057).
-- **A menu.** `label` names the trigger even when it shows text, and it reaches
-  the control whether or not the control also shows text. A menu of
-  alternatives sets `selected`, which makes each row a `menuitemradio`, and an
-  unbounded list puts its create action in `pinned`.
-- **An overlay.** It opens at the end of the document, so no box that scrolls
-  can cut it. `src/overlay-position.ts` decides the place and `src/menu.tsx`
-  writes it. Those two are the only modules here that hold a position, and they
-  hold nothing else (0058).
-- **A layout primitive.** Add it in `src/layout.tsx` and use it everywhere. A
-  frame that cannot use `Page` reads `pageGutter` and never its own padding.
+- **A theme.** Copy a file in `src/themes`, register it in
+  `src/themes/index.ts`, record the licence in `THIRD_PARTY_LICENSES.md`, and
+  read [themes.md](../../docs/development/themes.md). A failing token moves
+  along its lightness until `theme.test.ts` passes, noted in that file.
+- **A control.** Add it in `src/controls.tsx`, read its classes from
+  `src/control-classes.ts`, export it, and give an icon only action an
+  accessible name and a title. A control that needs a class of its own needs a
+  recipe: add it to `control-classes.ts` and prove it in its test.
+- **An icon.** Add it in `src/icons.tsx` inside `IconFrame`, draw it on the 24
+  grid with no attribute of its own, export it, and delete an unused one.
+- **A menu.** `label` names the trigger even when it shows text, a menu of
+  alternatives sets `selected`, and an unbounded list pins its create action.
 
 ## Testing conventions here
 
 `node --test` through `pnpm test:unit`. `src/theme.test.ts` walks the registry
-and fails with the exact token, surface and theme that misses a contrast rule,
-so a new theme needs no new test. Node loads no `.tsx` file, so a rule a test
-must read lives in a `.ts` module: `src/control-classes.ts` for a control and
-`src/overlay-position.ts` for an overlay.
-`tests/integration/theme-variables.test.ts` proves the built page and the
-editor read one palette.
+and names the exact token, surface and theme that misses a contrast rule, so a
+new theme needs no new test. Node loads no `.tsx` file, so a rule a test must
+read lives in a `.ts` module: `control-classes.ts`, `icon-grid.ts`,
+`overlay-position.ts`. `src/icons.test.ts` reads `src/icons.tsx` as text, the
+only way to see an attribute an icon states for itself, and
+`tests/integration/theme-variables.test.ts` holds the built page, the editor
+and the stylesheet fallbacks to one registry.
 
 ## Forbidden here
 
 `tools/check-design-rules.mjs` fails `pnpm lint` on each of these.
 
-- No colour value outside `src/themes/`: no hex value, no `rgb(`, and no named
-  colour utility such as `text-white` or `bg-black`.
-- No arbitrary value such as `w-[32rem]`, and no `style=` attribute. No
-  `text-xs`: `text-control` is the smallest. No `dangerouslySetInnerHTML`.
-- No built in shadow utility: depth is `shadow-raised`, `shadow-overlay` and
-  `shadow-modal` (0052). No duration, easing or transition outside
-  `src/motion.ts` (0054). No colour filter such as `brightness-110` (0057).
-- No network call, storage, router, or workspace dependency, and no theme that
-  misses a contrast rule. Move a failing token along its own lightness until
-  `theme.test.ts` passes, and note it in the licence file.
+- No colour value outside `src/themes/`, no utility such as `text-white`, no
+  colour class that names no `--color-*` token of the stylesheet, and no
+  family name or `font-family`: the face is declared in it alone (0061).
+- No arbitrary value, no `style=`, no `dangerouslySetInnerHTML`, no `text-xs`
+  or `text-sm`, no off-scale radius, no bare `rounded`, no `uppercase`, no
+  `tracking-wide` or wider, no `font-bold` or heavier, no `border-dashed`, and
+  nothing scales on press.
+- No icon `size` other than 16 or 20 (0065). No `border-edge` or `ring-edge`
+  except a checkbox, a task box and a drop target (0063). No `focus:` where
+  `focus-visible:` is meant. No built in shadow utility (0052), no duration,
+  easing or transition outside `src/motion.ts` (0054), no colour filter (0057).
+- No network call, storage, router or workspace dependency.
 
 ## Key files
 
@@ -81,7 +85,9 @@ editor read one palette.
 | `src/index.ts`            | The one public entry point                  |
 | `src/themes/index.ts`     | The theme registry                          |
 | `src/theme.ts`            | Token names, `applyTheme`, contrast checks  |
-| `src/control-classes.ts`  | The class and name rules of a control       |
+| `src/control-classes.ts`  | The one recipe of every control             |
+| `src/icon-grid.ts`        | The one grid and the two sizes of an icon   |
+| `src/icons.tsx`           | The one icon set                            |
 | `src/overlay-position.ts` | Where an overlay sits on the screen         |
 | `src/motion.ts`           | The named transitions of the application    |
 | `src/layout.tsx`          | Page, PageHeader, Card, EmptyState, ListRow |

@@ -6,6 +6,13 @@
  * Enter or Space, and closes on Escape, on a pointer press outside, and
  * after an item runs. Focus always returns to the trigger.
  *
+ * Every class the menu renders comes from `./control-classes.ts`: the trigger
+ * is a ghost button and each row is `rowClassName` (decision 0065). The
+ * surface is a raised plane: the card fill, the subtle edge and the overlay
+ * step (decisions 0052 and 0063). `hint` is the quiet value on the right of a
+ * row, such as the theme that is in force; a keyboard hint is a key cap from
+ * `kbdClassName` and the screen that owns the keys draws it.
+ *
  * The list is put at the end of the document and placed on the screen, not
  * laid out beside the trigger. A trigger can stand in a box that scrolls, and
  * a box that scrolls on one axis clips on both, so a list laid out inside it
@@ -25,7 +32,8 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { transitionRaise, transitionSurface } from './motion.ts';
+import { buttonClassName, rowClassName } from './control-classes.ts';
+import { transitionRaise } from './motion.ts';
 import { placeOverlay } from './overlay-position.ts';
 
 /** One row of a menu. */
@@ -71,7 +79,10 @@ function MenuRow({
       role={choosing ? 'menuitemradio' : 'menuitem'}
       aria-checked={choosing ? item.selected === true : undefined}
       tabIndex={-1}
-      className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-3 py-2 text-left text-control ${transitionSurface} hover:bg-hover focus-visible:bg-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50 md:min-h-9 ${item.danger === true ? 'text-danger' : 'text-strong'}`}
+      className={rowClassName({
+        selected: item.selected,
+        className: `w-full text-left disabled:cursor-not-allowed disabled:opacity-50 md:min-h-8 ${item.danger === true ? 'text-danger' : ''}`,
+      })}
       disabled={item.disabled ?? false}
       onClick={() => onRun(item)}
     >
@@ -247,7 +258,10 @@ export function Menu({
         type="button"
         className={
           triggerClassName ??
-          `inline-flex size-11 cursor-pointer items-center justify-center rounded-lg border border-transparent bg-transparent text-strong ${transitionSurface} hover:bg-hover focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:size-9`
+          buttonClassName({
+            variant: 'ghost',
+            className: 'size-11 px-0 md:size-8',
+          })
         }
         aria-haspopup="menu"
         aria-expanded={open}
@@ -296,7 +310,7 @@ export function Menu({
             <div
               ref={listRef}
               id={menuId}
-              className={`fixed z-50 flex flex-col rounded-xl border border-edge bg-card p-1 shadow-overlay ${transitionRaise} ${matchTrigger ? '' : 'min-w-56'}`}
+              className={`fixed z-50 flex flex-col rounded-lg border border-edge-subtle bg-card p-1 shadow-overlay ${transitionRaise} ${matchTrigger ? '' : 'min-w-56'}`}
               role="menu"
               aria-label={label}
               onKeyDown={(event): void => {
@@ -338,7 +352,7 @@ export function Menu({
                 ))}
               </div>
               {pinned.length === 0 ? null : (
-                <div className="mt-1 shrink-0 border-t border-edge-line pt-1">
+                <div className="mt-1 shrink-0 border-t border-edge-subtle pt-1">
                   {pinned.map((item) => (
                     <MenuRow
                       key={item.id}

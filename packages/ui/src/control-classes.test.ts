@@ -5,6 +5,9 @@
  * surface it renders on. It cannot see a colour that a screen makes at paint
  * time with a filter or with an opacity modifier, and that was the fault
  * decision 0057 answers. These tests refuse both forms coming back.
+ *
+ * They also hold the recipes of decision 0065 to one focus treatment, one
+ * radius, one size scale, and to the resting edge of decision 0063.
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -12,7 +15,12 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
-  type BadgeTone,
+  fieldClassName,
+  focusOutline,
+  focusOutlineInset,
+  kbdClassName,
+  rowClassName,
+  type ButtonSize,
   type ButtonVariant,
 } from './control-classes.ts';
 
@@ -20,13 +28,30 @@ import {
 const variants: readonly ButtonVariant[] = [
   'primary',
   'secondary',
-  'danger',
   'ghost',
-  'subtle',
+  'danger',
 ];
 
-/** Every badge tone. */
-const tones: readonly BadgeTone[] = ['default', 'accent', 'success', 'danger'];
+/** Every button size. */
+const sizes: readonly ButtonSize[] = ['sm', 'md'];
+
+/** Every recipe of the module, with the name a failure message reads. */
+const recipes: readonly (readonly [string, string])[] = [
+  ...variants.map(
+    (variant) => [`${variant} button`, buttonClassName({ variant })] as const,
+  ),
+  ...sizes.map(
+    (size) => [`${size} button`, buttonClassName({ size })] as const,
+  ),
+  ['row', rowClassName()],
+  ['selected row', rowClassName({ selected: true })],
+  ['current row', rowClassName({ current: true })],
+  ['container row', rowClassName({ interactive: false })],
+  ['field', fieldClassName()],
+  ['invalid field', fieldClassName({ invalid: true })],
+  ['key cap', kbdClassName()],
+  ['badge', badgeClassName()],
+];
 
 /** A filter utility that makes a colour out of another colour. */
 const colourFilter =
@@ -36,25 +61,114 @@ const colourFilter =
 const fadedFill = /(?:^|:)bg-[a-z-]+\/\d+$/;
 
 await test('no control makes a colour with a filter', () => {
-  for (const variant of variants) {
-    for (const part of buttonClassName({ variant }).split(' '))
-      assert.ok(!colourFilter.test(part), `${part} of the ${variant} button`);
-  }
-  for (const tone of tones) {
-    for (const part of badgeClassName(tone).split(' '))
-      assert.ok(!colourFilter.test(part), `${part} of the ${tone} badge`);
+  for (const [name, classes] of recipes) {
+    for (const part of classes.split(' '))
+      assert.ok(!colourFilter.test(part), `${part} of the ${name}`);
   }
 });
 
 await test('a label never sits on a fill that is faded', () => {
-  for (const variant of variants) {
-    for (const part of buttonClassName({ variant }).split(' '))
-      assert.ok(!fadedFill.test(part), `${part} of the ${variant} button`);
+  for (const [name, classes] of recipes) {
+    for (const part of classes.split(' '))
+      assert.ok(!fadedFill.test(part), `${part} of the ${name}`);
   }
-  for (const tone of tones) {
-    for (const part of badgeClassName(tone).split(' '))
-      assert.ok(!fadedFill.test(part), `${part} of the ${tone} badge`);
+});
+
+await test('no recipe names the component edge', () => {
+  // Decision 0063 reserves `edge` for a control whose state a person must
+  // read with no text: a task box, a checkbox, a radio, a switch track and a
+  // drop target. A recipe of this module is none of those.
+  for (const [name, classes] of recipes) {
+    for (const part of classes.split(' ')) {
+      assert.ok(
+        !/(?:^|:)(?:border|ring|outline)-edge$/.test(part),
+        `${part} of the ${name}`,
+      );
+    }
   }
+});
+
+await test('no recipe draws a ring except the focus ring of a field', () => {
+  for (const [name, classes] of recipes) {
+    for (const part of classes.split(' ')) {
+      if (!part.includes('ring-')) continue;
+      assert.ok(
+        name.endsWith('field') && part.startsWith('focus-visible:'),
+        `${part} of the ${name}`,
+      );
+    }
+  }
+});
+
+await test('every recipe takes one radius of the named scale', () => {
+  for (const [name, classes] of recipes) {
+    const found = classes
+      .split(' ')
+      .filter((part) => /(?:^|:)rounded(?:-|$)/.test(part));
+    assert.equal(found.length, 1, `${name} names ${String(found.length)}`);
+    assert.ok(
+      ['rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl'].includes(
+        found[0] ?? '',
+      ),
+      `${found[0] ?? ''} of the ${name}`,
+    );
+  }
+});
+
+await test('nothing scales when a person presses it', () => {
+  for (const [name, classes] of recipes) {
+    for (const part of classes.split(' '))
+      assert.ok(!/scale-/.test(part), `${part} of the ${name}`);
+  }
+});
+
+await test('the focus treatment is one outline of the focus colour', () => {
+  assert.equal(
+    focusOutline,
+    'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus',
+  );
+  assert.equal(
+    focusOutlineInset,
+    'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus',
+  );
+  for (const variant of variants)
+    assert.ok(buttonClassName({ variant }).includes(focusOutline), variant);
+});
+
+await test('no recipe answers focus with the pointer prefix', () => {
+  // `focus:` fires for a pointer press as well, so it leaves a ring on a
+  // control a person already clicked. `focus-visible:` is the treatment.
+  for (const [name, classes] of recipes) {
+    for (const part of classes.split(' ')) {
+      assert.ok(
+        !/(?:^|\s)focus:/.test(part),
+        `${part} of the ${name} uses focus: instead of focus-visible:`,
+      );
+    }
+  }
+});
+
+await test('every button variant states its own fill and label', () => {
+  assert.ok(
+    buttonClassName({ variant: 'primary' }).includes(
+      'bg-accent-fill text-on-accent hover:bg-accent-fill-hover',
+    ),
+  );
+  assert.ok(
+    buttonClassName({ variant: 'secondary' }).includes(
+      'border border-edge-line bg-card text-strong shadow-raised hover:bg-hover',
+    ),
+  );
+  assert.ok(
+    buttonClassName({ variant: 'ghost' }).includes(
+      'bg-transparent text-strong hover:bg-hover',
+    ),
+  );
+  assert.ok(
+    buttonClassName({ variant: 'danger' }).includes(
+      'bg-danger-fill text-on-danger hover:bg-danger-fill-hover',
+    ),
+  );
 });
 
 await test('a filled button states the hover fill of its own fill', () => {
@@ -72,9 +186,15 @@ await test('a filled button states the hover fill of its own fill', () => {
   );
 });
 
-await test('every badge tone sits on a surface the contrast test holds', () => {
-  for (const tone of tones)
-    assert.ok(badgeClassName(tone).includes('bg-hover'), `the ${tone} badge`);
+await test('only the secondary button carries an edge', () => {
+  for (const variant of variants) {
+    const classes = buttonClassName({ variant });
+    assert.equal(
+      classes.split(' ').includes('border'),
+      variant === 'secondary',
+      variant,
+    );
+  }
 });
 
 await test('a button names one appearance and one size', () => {
@@ -84,11 +204,86 @@ await test('a button names one appearance and one size', () => {
     assert.ok(!seen.has(classes), `${variant} repeats another appearance`);
     seen.add(classes);
   }
-  assert.ok(
-    buttonClassName({ size: 'sm' }) !== buttonClassName({ size: 'md' }),
-  );
   assert.equal(buttonClassName(), buttonClassName({ variant: 'primary' }));
   assert.ok(buttonClassName({ className: 'mt-2' }).endsWith('mt-2'));
+});
+
+await test('a button is 32 px on a desktop and 28 px when it is small', () => {
+  const medium = buttonClassName({ size: 'md' }).split(' ');
+  assert.ok(medium.includes('min-h-11'), 'the touch minimum');
+  assert.ok(medium.includes('md:min-h-8'), 'the desktop control height');
+  const small = buttonClassName({ size: 'sm' }).split(' ');
+  assert.ok(small.includes('min-h-11'), 'the touch minimum');
+  assert.ok(small.includes('md:min-h-7'), 'the small desktop height');
+});
+
+await test('a row is 28 px on a desktop and 44 px under touch', () => {
+  const parts = rowClassName().split(' ');
+  assert.ok(parts.includes('min-h-11'), 'the touch minimum');
+  assert.ok(parts.includes('md:min-h-7'), 'the desktop row height');
+  assert.ok(parts.includes('rounded-md'), 'the row radius');
+  assert.ok(parts.includes('px-2'), 'the row inset');
+});
+
+await test('a row offsets its outline inward unless it is told not to', () => {
+  assert.ok(rowClassName().includes(focusOutlineInset), 'the default row');
+  assert.ok(
+    !rowClassName().includes('focus-visible:outline-offset-2'),
+    'the default row takes no outward offset',
+  );
+  assert.ok(
+    rowClassName({ inset: false }).includes(focusOutline),
+    'a row that stands on its own',
+  );
+});
+
+await test('a marked row states one mark for a choice and for a route', () => {
+  const selected = rowClassName({ selected: true });
+  const current = rowClassName({ current: true });
+  assert.equal(selected, current);
+  assert.ok(selected.includes('bg-active text-strong font-medium'));
+  // A marked row has nothing left to say on hover, so it states no hover.
+  assert.ok(!selected.includes('hover:'), 'a marked row repeats its own mark');
+  assert.ok(rowClassName().includes('hover:bg-hover hover:text-strong'));
+});
+
+await test('a row that only holds actions promises none of its own', () => {
+  const container = rowClassName({ interactive: false });
+  assert.ok(!container.includes('cursor-pointer'), 'the pointer');
+  assert.ok(!container.includes('hover:'), 'the hover fill');
+  assert.ok(!container.includes('focus-visible:'), 'the focus outline');
+  assert.ok(container.includes('min-h-11'), 'the size of a row');
+});
+
+await test('a field rests on the divider and answers focus on it', () => {
+  const field = fieldClassName();
+  assert.ok(field.includes('border-edge-line'), 'the resting edge');
+  assert.ok(field.includes('focus-visible:border-focus'), 'the active edge');
+  assert.ok(field.includes('focus-visible:ring-2'), 'the focus ring');
+  assert.ok(field.includes('focus-visible:ring-focus/25'), 'the ring strength');
+  assert.ok(field.includes('bg-app'), 'the field fill');
+  assert.ok(field.includes('min-h-11'), 'the touch minimum');
+  assert.ok(field.includes('md:min-h-8'), 'the desktop field height');
+});
+
+await test('an invalid field states the error on its edge alone', () => {
+  const invalid = fieldClassName({ invalid: true });
+  assert.ok(invalid.includes('border-danger'), 'the error edge');
+  assert.ok(!invalid.includes('border-edge-line'), 'the resting edge is gone');
+  assert.ok(!invalid.includes('bg-danger'), 'an error is not a fill');
+});
+
+await test('a key cap is the quietest step in the code face', () => {
+  const cap = kbdClassName();
+  assert.ok(cap.includes('text-kbd'), 'the keyboard step');
+  assert.ok(cap.includes('font-mono'), 'the code face');
+  assert.ok(cap.includes('border-edge-line'), 'the resting edge');
+  assert.ok(cap.includes('rounded-sm'), 'the smallest radius');
+});
+
+await test('a badge sits on a surface the contrast test holds', () => {
+  assert.ok(badgeClassName().includes('bg-hover'));
+  assert.ok(badgeClassName().includes('text-muted'));
 });
 
 await test('a label reaches a button that has no text', () => {

@@ -2,9 +2,9 @@
  * Public entry point of the notesapp UI package.
  *
  * It owns the theme registry, appearance helpers, layout primitives,
- * accessible controls, and lightweight SVG icons. It runs in the browser and
- * imports nothing but React, so it stays out of storage, sync, and network
- * decisions.
+ * accessible controls, the one recipe of a control, and one icon set on one
+ * grid. It runs in the browser and imports nothing but React, so it stays out
+ * of storage, sync, and network decisions.
  */
 export type {
   Appearance,
@@ -55,7 +55,6 @@ export {
   uiContrastMinimum,
 } from './themes/index.ts';
 export type {
-  BadgeTone,
   ButtonName,
   ButtonSize,
   ButtonVariant,
@@ -64,11 +63,18 @@ export {
   badgeClassName,
   buttonClassName,
   buttonName,
+  fieldClassName,
+  focusOutline,
+  focusOutlineInset,
+  kbdClassName,
+  rowClassName,
 } from './control-classes.ts';
+export { defaultIconSize, iconAttributes, iconGrid } from './icon-grid.ts';
 export type { SelectOption } from './controls.tsx';
 export {
   Badge,
   Button,
+  Checkbox,
   CollapsibleSection,
   ReadOnlyField,
   SelectField,
@@ -85,7 +91,6 @@ export {
   Page,
   pageGutter,
   PageHeader,
-  Toolbar,
 } from './layout.tsx';
 export {
   transitionField,
@@ -99,6 +104,7 @@ export type { MenuAlign, MenuItem } from './menu.tsx';
 export { Menu } from './menu.tsx';
 export type { NoticeTone } from './notice.tsx';
 export { Notice } from './notice.tsx';
+export { Toast } from './toast.tsx';
 export type { IconProps } from './icons.tsx';
 export {
   AlertCircleIcon,
@@ -108,29 +114,29 @@ export {
   ChevronLeftIcon,
   ChevronRightIcon,
   CloseIcon,
-  CloudCheckIcon,
-  CloudOffIcon,
-  CloudUploadIcon,
   ComputerIcon,
   CopyIcon,
+  DownloadIcon,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
   FolderPlusIcon,
   HistoryIcon,
-  ImageIcon,
+  InfoIcon,
+  KeyboardIcon,
   LinkIcon,
   MenuIcon,
   MoonIcon,
   MoreIcon,
+  MoveIcon,
   PanelLeftIcon,
-  PanelRightIcon,
   PencilIcon,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
+  SignOutIcon,
   SunIcon,
   TrashIcon,
-  UserIcon,
+  UploadIcon,
   WorkspaceIcon,
 } from './icons.tsx';

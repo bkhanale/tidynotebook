@@ -1,19 +1,45 @@
 /**
- * The rules of a control, as pure functions.
+ * The one recipe of every control, as pure functions.
  *
  * A control in `controls.tsx` is JSX, so no unit test can load it. The rules
  * that decide how a control looks, and how it names itself to a person who
  * cannot see it, are not JSX, and they are the part a rule of this repository
  * holds: the named scale, the palette, the ban on making a colour at paint
  * time, and the accessible name of every action. They live here so
- * `control-classes.test.ts` can read them, and `controls.tsx` renders with
- * them.
+ * `control-classes.test.ts` can read them, and every control of the product
+ * renders with them.
+ *
+ * Nothing outside this module writes the classes of a button, a clickable
+ * row, a field or a keyboard hint. See
+ * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
-import { transitionSurface } from './motion.ts';
+import { transitionField, transitionSurface } from './motion.ts';
+
+/**
+ * The focus treatment of a control with room around it.
+ *
+ * One treatment for the whole product: two pixels of the focus colour, which
+ * `theme.test.ts` holds to the 3 to 1 non text minimum on every surface. The
+ * outline sits outside the control, so it never covers the label.
+ *
+ * `focus-visible` and never `focus`, so a pointer press does not leave a ring
+ * behind on a control a person already clicked.
+ */
+export const focusOutline =
+  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus';
+
+/**
+ * The focus treatment of a control inside a box that scrolls.
+ *
+ * The same two pixels, drawn inside the edge of the control. A tree row, a
+ * menu row and a list row sit in a box that clips its children, and an
+ * outline offset outward is the part that box cuts off first.
+ */
+export const focusOutlineInset =
+  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-focus';
 
 /** How a button looks. */
-export type ButtonVariant =
-  'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle';
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 /** How large a button is. */
 export type ButtonSize = 'sm' | 'md';
@@ -26,10 +52,18 @@ export type ButtonSize = 'sm' | 'md';
  * the application owns that anchor, so this function hands out the same
  * appearance to it and every action button of a screen looks the same.
  *
+ * `primary` is the one action of a screen. `secondary` is every other button:
+ * the card fill, the resting divider as its edge (decision 0063) and one
+ * elevation step, so a light palette shows the shadow and a dark palette
+ * shows the edge. `ghost` is an icon only action and a Cancel, and it draws
+ * nothing until a pointer or the keyboard reaches it. `danger` confirms a
+ * destructive action.
+ *
  * A filled button reads its hover fill from the palette (decision 0057). The
  * registry moves that fill away from the page background, so the control comes
  * forward on a light palette and on a dark one, and the contrast test holds
- * the label of the fill on it.
+ * the label of the fill on it. Nothing scales on press: a control that moves
+ * under the pointer moves the target a person is aiming at.
  */
 export function buttonClassName(
   options: {
@@ -42,21 +76,20 @@ export function buttonClassName(
   const size = options.size ?? 'md';
   const variantClass =
     variant === 'secondary'
-      ? 'border-edge bg-transparent text-strong hover:bg-hover'
-      : variant === 'danger'
-        ? 'border-danger-fill bg-danger-fill text-on-danger hover:border-danger-fill-hover hover:bg-danger-fill-hover'
-        : variant === 'ghost'
-          ? 'border-transparent bg-transparent text-strong hover:bg-hover'
-          : variant === 'subtle'
-            ? 'border-edge-subtle bg-hover text-strong hover:bg-active'
-            : 'border-accent-fill bg-accent-fill text-on-accent shadow-raised hover:border-accent-fill-hover hover:bg-accent-fill-hover';
+      ? 'border border-edge-line bg-card text-strong shadow-raised hover:bg-hover'
+      : variant === 'ghost'
+        ? 'bg-transparent text-strong hover:bg-hover'
+        : variant === 'danger'
+          ? 'bg-danger-fill text-on-danger hover:bg-danger-fill-hover'
+          : 'bg-accent-fill text-on-accent hover:bg-accent-fill-hover';
 
   // Touch pointers get the 44 px minimum. A mouse pointer keeps the compact
-  // control scale, so the chrome stays quiet on a desktop screen.
+  // control scale, so the chrome stays quiet on a desktop screen: 32 px for a
+  // button and 28 px for a small one.
   const sizeClass =
-    size === 'sm' ? 'min-h-11 px-2.5 md:min-h-8' : 'min-h-11 px-3 md:min-h-9';
+    size === 'sm' ? 'min-h-11 px-2.5 md:min-h-7' : 'min-h-11 px-3 md:min-h-8';
   return [
-    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-lg border py-1.5 text-control font-medium no-underline ${transitionSurface} focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus disabled:cursor-not-allowed disabled:opacity-50`,
+    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline ${transitionSurface} ${focusOutline} disabled:cursor-not-allowed disabled:opacity-50`,
     variantClass,
     sizeClass,
     options.className ?? '',
@@ -65,28 +98,118 @@ export function buttonClassName(
     .join(' ');
 }
 
-/** Which state a badge reports. */
-export type BadgeTone = 'default' | 'accent' | 'success' | 'danger';
+/**
+ * The appearance of a clickable row, as classes.
+ *
+ * One recipe for every row a person can press: a tree row, a list row, a menu
+ * row, a row of the command palette and a footer row of the sidebar. A row is
+ * 28 px on a desktop and 44 px under touch, it separates from its neighbour
+ * by space and by fill and never by a rule, and it takes no ring.
+ *
+ * `selected` is the choice a person made, for example the folder that a new
+ * note goes into. `current` is the route that is open, which a row states to
+ * assistive software with `aria-current`. Both read as one mark, because a
+ * person reads one list and needs one answer to "which row is mine".
+ *
+ * `inset` is true by default, because almost every row of the product sits in
+ * a box that scrolls and clips. A row that stands on its own passes false and
+ * takes the outward outline of every other control.
+ *
+ * `interactive` is true by default. A row that is only a container, with the
+ * actions inside it, passes false: it keeps the size, the radius and the
+ * spacing of a row and drops the pointer, the hover and the focus treatment,
+ * so the cursor never promises an action the row does not have.
+ */
+export function rowClassName(
+  options: {
+    readonly selected?: boolean | undefined;
+    readonly current?: boolean | undefined;
+    readonly inset?: boolean | undefined;
+    readonly interactive?: boolean | undefined;
+    readonly className?: string | undefined;
+  } = {},
+): string {
+  const marked = options.selected === true || options.current === true;
+  const interactive = options.interactive ?? true;
+  const state = marked
+    ? 'bg-active text-strong font-medium'
+    : interactive
+      ? 'hover:bg-hover hover:text-strong'
+      : '';
+  return [
+    `flex min-h-11 items-center gap-2 rounded-md px-2 text-control text-ink no-underline ${transitionSurface} md:min-h-7`,
+    interactive ? 'cursor-pointer' : '',
+    interactive
+      ? options.inset === false
+        ? focusOutline
+        : focusOutlineInset
+      : '',
+    state,
+    options.className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * The appearance of a field, as classes.
+ *
+ * A text field, a select and a read only field all read this, so the three
+ * copies of one field are one field. The resting edge is the derived divider
+ * (decision 0063): a field is identified by its label above it, by its fill
+ * and by the ring it takes when it is active, and the component edge on a
+ * field read as a cage around every form of the product. Record 0063 states
+ * the trade, so nobody reports it as a defect.
+ *
+ * The active state is the focus colour on the edge and a ring at a quarter of
+ * its strength. `focus-visible` carries it, not `focus`: a browser always
+ * matches `:focus-visible` on a control a person types into, however the
+ * focus arrived, so one prefix covers the whole product and a pointer press
+ * on a button still leaves no ring behind.
+ *
+ * `invalid` is the error state, and it is the one other edge a field changes.
+ */
+export function fieldClassName(
+  options: {
+    readonly invalid?: boolean | undefined;
+    readonly className?: string | undefined;
+  } = {},
+): string {
+  return [
+    `w-full min-h-11 rounded-md border bg-app px-3 text-ui text-strong outline-none ${transitionField} focus-visible:ring-2 focus-visible:ring-focus/25 md:min-h-8`,
+    options.invalid === true
+      ? 'border-danger'
+      : 'border-edge-line focus-visible:border-focus',
+    options.className ?? '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+/**
+ * The appearance of one key cap of a keyboard hint, as classes.
+ *
+ * A hint is the quietest text of the product, so it has a named step of its
+ * own, `text-kbd`, and it is set in the code face because a key name is a
+ * value and not prose. One cap holds one key; a combination is one cap for
+ * each key.
+ */
+export function kbdClassName(): string {
+  return 'inline-flex items-center rounded-sm border border-edge-line bg-surface px-1.5 font-mono text-kbd text-muted';
+}
 
 /**
  * The appearance of a badge, as classes.
  *
- * Every tone sits on the hover surface, which is one of the five fills that
- * the contrast test holds the accent, success and danger text to. A fill that
- * a screen mixes from the tone itself moves with its own label, so the two
- * close on each other and the label loses its minimum (decision 0057). The
- * tone stays in the text and in the edge, which carries no text.
+ * A badge states one fact about the row it sits on, for example that a note
+ * exists on this device alone. It is not a tone: a fill that a screen mixes
+ * from a tone moves with its own label, so the two close on each other and
+ * the label loses its minimum (decision 0057). The badge therefore takes the
+ * hover surface, which the contrast test holds the muted text to, and it
+ * states its meaning in its word.
  */
-export function badgeClassName(tone: BadgeTone): string {
-  const toneClass =
-    tone === 'accent'
-      ? 'border-accent/30 bg-hover text-accent'
-      : tone === 'success'
-        ? 'border-success/30 bg-hover text-success'
-        : tone === 'danger'
-          ? 'border-danger/30 bg-hover text-danger'
-          : 'border-edge-subtle bg-hover text-muted';
-  return `inline-flex items-center rounded-full border px-2 py-0.5 text-control font-semibold ${toneClass}`;
+export function badgeClassName(): string {
+  return 'inline-flex items-center rounded-sm bg-hover px-1.5 text-kbd font-medium text-muted';
 }
 
 /** The accessible name and the tooltip of one button. */

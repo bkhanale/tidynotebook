@@ -10,7 +10,12 @@ import { useCallback, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { generateUUID } from '@notesapp/core';
 import { isLocalStorageError, type LocalStore } from '@notesapp/sync';
-import { Button, PlusIcon } from '@notesapp/ui';
+import {
+  Button,
+  PlusIcon,
+  type ButtonSize,
+  type ButtonVariant,
+} from '@notesapp/ui';
 import { freeNotePath, newNoteDraft } from '../../lib/new-note-draft.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 
@@ -88,9 +93,8 @@ export function NewNoteButton({
   readonly workspaceId: string;
   readonly folder?: string | undefined;
   readonly disabled?: boolean | undefined;
-  readonly variant?:
-    'primary' | 'secondary' | 'danger' | 'ghost' | 'subtle' | undefined;
-  readonly size?: 'sm' | 'md' | undefined;
+  readonly variant?: ButtonVariant | undefined;
+  readonly size?: ButtonSize | undefined;
   readonly className?: string | undefined;
   readonly children?: ReactNode | undefined;
 }): ReactNode {
@@ -102,7 +106,7 @@ export function NewNoteButton({
         className="w-full"
         variant={variant}
         size={size}
-        icon={<PlusIcon size={size === 'sm' ? 14 : 16} />}
+        icon={<PlusIcon />}
         disabled={disabled ?? store === null}
         onClick={() => create(folder)}
       >

@@ -2,22 +2,40 @@
  * Accessible application controls.
  *
  * Every control is a thin wrapper over a native element, so keyboard use,
- * focus, labels, and touch target size come from the platform. Styling uses
- * the central Tailwind theme and a fixed control scale.
+ * focus, labels, and touch target size come from the platform. Every class it
+ * renders comes from `./control-classes.ts`, which is the one recipe of a
+ * control (decision 0065). No control here writes a class of its own except
+ * the distances inside itself.
  */
 import { useEffect, useRef, type ReactNode, type Ref } from 'react';
 import {
   badgeClassName,
   buttonClassName,
   buttonName,
-  type BadgeTone,
+  fieldClassName,
+  focusOutline,
   type ButtonSize,
   type ButtonVariant,
 } from './control-classes.ts';
-import { ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
-import { transitionField, transitionSurface } from './motion.ts';
+import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
+import { transitionSurface } from './motion.ts';
 
-/** A labeled push button. */
+/** The label above a field, and the label beside a checkbox. */
+const fieldLabelClassName = 'mb-1.5 block text-control font-medium text-strong';
+
+/** The one square shape of an icon only button, per size. */
+const iconOnlyClassName: Readonly<Record<ButtonSize, string>> = {
+  md: 'size-11 px-0 md:size-8',
+  sm: 'size-11 px-0 md:size-7',
+};
+
+/**
+ * A labeled push button.
+ *
+ * A button with no children is an icon only button, so it takes the square
+ * shape of its size here rather than at every call site. It needs a `label`,
+ * which names it and becomes its tooltip.
+ */
 export function Button({
   type,
   variant = 'primary',
@@ -47,13 +65,15 @@ export function Button({
   readonly ariaControls?: string | undefined;
   readonly ariaExpanded?: boolean | undefined;
 }): ReactNode {
+  const hasChildren = children !== undefined && children !== null;
   const classes = buttonClassName({
     variant,
     size,
-    className: extraClassName,
+    className: [hasChildren ? '' : iconOnlyClassName[size], extraClassName]
+      .filter(Boolean)
+      .join(' '),
   });
 
-  const hasChildren = children !== undefined && children !== null;
   const name = buttonName({ label, title, hasText: hasChildren });
 
   return (
@@ -76,22 +96,23 @@ export function Button({
           {icon}
         </span>
       ) : null}
-      {children === undefined || children === null ? null : (
-        <span>{children}</span>
-      )}
+      {hasChildren ? <span>{children}</span> : null}
     </button>
   );
 }
 
-/** A small status badge pill. */
+/**
+ * One fact about the row it sits on, as a small pill.
+ *
+ * A badge states a fact and never an action, so it is not a control and it
+ * carries no tone. The word is the meaning.
+ */
 export function Badge({
   children,
-  variant = 'default',
 }: {
   readonly children: ReactNode;
-  readonly variant?: BadgeTone | undefined;
 }): ReactNode {
-  return <span className={badgeClassName(variant)}>{children}</span>;
+  return <span className={badgeClassName()}>{children}</span>;
 }
 
 /**
@@ -142,15 +163,12 @@ export function TextField({
     .join(' ');
   return (
     <div className="mb-3.5">
-      <label
-        className="mb-1.5 block text-control font-semibold text-strong"
-        htmlFor={id}
-      >
+      <label className={fieldLabelClassName} htmlFor={id}>
         {label}
       </label>
       <input
         id={id}
-        className={`w-full rounded-lg border bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:ring-2 focus:ring-focus/25 ${hasError ? 'border-danger focus:border-danger' : 'border-edge focus:border-focus'}`}
+        className={fieldClassName({ invalid: hasError })}
         type={inputType ?? 'text'}
         value={value}
         autoComplete={autoComplete}
@@ -216,16 +234,13 @@ export function ReadOnlyField({
   }, [takeFocus]);
   return (
     <div className="mb-3.5">
-      <label
-        className="mb-1.5 block text-control font-semibold text-strong"
-        htmlFor={id}
-      >
+      <label className={fieldLabelClassName} htmlFor={id}>
         {label}
       </label>
       <input
         ref={inputRef}
         id={id}
-        className={`w-full rounded-lg border border-edge bg-app px-3 py-2 font-mono text-control text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25`}
+        className={fieldClassName({ className: 'font-mono' })}
         type="text"
         value={value}
         readOnly
@@ -260,15 +275,12 @@ export function SelectField({
 }): ReactNode {
   return (
     <div className="mb-3.5">
-      <label
-        className="mb-1.5 block text-control font-semibold text-strong"
-        htmlFor={id}
-      >
+      <label className={fieldLabelClassName} htmlFor={id}>
         {label}
       </label>
       <select
         id={id}
-        className={`min-h-11 w-full rounded-lg border border-edge bg-app px-3 py-2 text-ui text-strong outline-none ${transitionField} focus:border-focus focus:ring-2 focus:ring-focus/25 md:min-h-9`}
+        className={fieldClassName()}
         value={value}
         onChange={(event): void => {
           onChange(event.target.value);
@@ -281,6 +293,55 @@ export function SelectField({
         ))}
       </select>
     </div>
+  );
+}
+
+/**
+ * A checkbox with its label beside it.
+ *
+ * The box is a native input, so the space key, the label click and the
+ * reported state all come from the platform. Its own appearance is removed
+ * and drawn again from the theme, because a native box paints the accent of
+ * the operating system and nothing in the palette can reach it.
+ *
+ * The box carries the component edge, `edge`, which is one of the five
+ * controls that decision 0063 reserves it for: a person reads the state of a
+ * checkbox from its shape alone, so the edge has to meet the 3 to 1 non text
+ * minimum that `theme.test.ts` holds it to.
+ */
+export function Checkbox({
+  id,
+  label,
+  checked,
+  onChange,
+  describedBy,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+  readonly describedBy?: string | undefined;
+}): ReactNode {
+  return (
+    <label
+      className="inline-flex min-h-11 cursor-pointer items-center gap-2 text-control text-strong md:min-h-8"
+      htmlFor={id}
+    >
+      <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+        <input
+          id={id}
+          type="checkbox"
+          className={`peer size-4 cursor-pointer appearance-none rounded-sm border border-edge bg-app ${transitionSurface} checked:border-accent-fill checked:bg-accent-fill ${focusOutline}`}
+          checked={checked}
+          aria-describedby={describedBy}
+          onChange={(event): void => {
+            onChange(event.target.checked);
+          }}
+        />
+        <CheckIcon className="pointer-events-none absolute inset-0 hidden text-on-accent peer-checked:block" />
+      </span>
+      <span>{label}</span>
+    </label>
   );
 }
 
@@ -309,7 +370,11 @@ export function CollapsibleSection({
       <button
         id={id}
         type="button"
-        className={`flex min-h-11 w-full cursor-pointer items-center gap-cluster rounded-lg border-0 bg-transparent px-2 py-1.5 text-left text-control font-semibold uppercase tracking-wide text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-focus md:min-h-8`}
+        className={buttonClassName({
+          variant: 'ghost',
+          size: 'sm',
+          className: 'w-full justify-start text-muted',
+        })}
         aria-expanded={open}
         aria-controls={panelId}
         onClick={(): void => {
@@ -317,13 +382,9 @@ export function CollapsibleSection({
         }}
       >
         <span className="inline-flex items-center" aria-hidden="true">
-          {open ? (
-            <ChevronDownIcon size={14} />
-          ) : (
-            <ChevronRightIcon size={14} />
-          )}
+          {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
         </span>
-        <span className="flex-1">{title}</span>
+        <span className="flex-1 text-left">{title}</span>
       </button>
       {open ? (
         // The `section` above is already the named region of this group, so

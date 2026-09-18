@@ -1,11 +1,22 @@
 /**
- * Lightweight accessible SVG icons.
+ * The one icon set of the product.
  *
- * All icons render inline SVGs with standard 24x24 viewports and inherit the
- * text color of their parent element. They hide from assistive technology
- * by default because the calling button or link supplies the text label.
+ * Every icon is drawn on the 24 by 24 grid of `./icon-grid.ts` at a stroke of
+ * 1.5, and renders at 16 px in a control, a row or a label, and at 20 px in an
+ * empty state. No other size exists. One frame component spreads the shared
+ * attributes, so no icon states a stroke, a viewport or a line join of its
+ * own, and `icons.test.ts` proves that none of them does.
+ *
+ * An icon inherits the text colour of its parent and hides from assistive
+ * software, because the button or the link around it carries the name. An
+ * icon that no screen uses is deleted; the test that pairs this file with
+ * `./index.ts` is what keeps the set and its exports in step.
+ *
+ * See
+ * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
 import type { ReactNode } from 'react';
+import { defaultIconSize, iconAttributes } from './icon-grid.ts';
 
 /** Common properties for all icons. */
 export type IconProps = {
@@ -13,285 +24,47 @@ export type IconProps = {
   readonly className?: string | undefined;
 };
 
-/** A note or document icon. */
-export function FileTextIcon({ size = 16, className }: IconProps): ReactNode {
+/** The one frame that every icon of the set draws in. */
+function IconFrame({
+  size = defaultIconSize,
+  className,
+  children,
+}: IconProps & { readonly children: ReactNode }): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <svg width={size} height={size} className={className} {...iconAttributes}>
+      {children}
+    </svg>
+  );
+}
+
+/** A note or document icon. */
+export function FileTextIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
       <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
       <polyline points="14 2 14 8 20 8" />
       <line x1="16" y1="13" x2="8" y2="13" />
       <line x1="16" y1="17" x2="8" y2="17" />
       <line x1="10" y1="9" x2="8" y2="9" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A closed folder icon. */
-export function FolderIcon({ size = 16, className }: IconProps): ReactNode {
+export function FolderIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** An open folder icon. */
-export function FolderOpenIcon({ size = 16, className }: IconProps): ReactNode {
+export function FolderOpenIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2" />
-    </svg>
-  );
-}
-
-/** A search magnifying glass icon. */
-export function SearchIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <circle cx="11" cy="11" r="8" />
-      <line x1="21" y1="21" x2="16.65" y2="16.65" />
-    </svg>
-  );
-}
-
-/** A plus add icon. */
-export function PlusIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <line x1="12" y1="5" x2="12" y2="19" />
-      <line x1="5" y1="12" x2="19" y2="12" />
-    </svg>
-  );
-}
-
-/** A trash remove icon. */
-export function TrashIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M3 6h18" />
-      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-      <line x1="10" y1="11" x2="10" y2="17" />
-      <line x1="14" y1="11" x2="14" y2="17" />
-    </svg>
-  );
-}
-
-/** A history clock icon. */
-export function HistoryIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-      <path d="M3 3v5h5" />
-      <path d="M12 7v5l4 2" />
-    </svg>
-  );
-}
-
-/** A three dot overflow icon for a menu button. */
-export function MoreIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <circle cx="12" cy="5" r="1.5" />
-      <circle cx="12" cy="12" r="1.5" />
-      <circle cx="12" cy="19" r="1.5" />
-    </svg>
-  );
-}
-
-/** A side panel icon for the navigation sidebar on the left. */
-export function PanelLeftIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <line x1="9" y1="4" x2="9" y2="20" />
-    </svg>
-  );
-}
-
-/** A side panel icon for the outline rail. */
-export function PanelRightIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <line x1="15" y1="4" x2="15" y2="20" />
-    </svg>
-  );
-}
-
-/** A disconnected cloud icon for the offline state. */
-export function CloudOffIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M6.5 19A4.5 4.5 0 0 1 6 10.03" />
-      <path d="M9.5 5.7A6 6 0 0 1 18 10h.5a3.5 3.5 0 0 1 2.6 5.83" />
-      <line x1="3" y1="3" x2="21" y2="21" />
-      <line x1="7" y1="19" x2="17" y2="19" />
-    </svg>
-  );
-}
-
-/** A pencil icon for a rename action. */
-export function PencilIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M12 20h9" />
-      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
-    </svg>
-  );
-}
-
-/** A picture icon for the attach image action. */
-export function ImageIcon({ size = 16, className }: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <circle cx="8.5" cy="9.5" r="1.5" />
-      <path d="m21 16-5-5-4 4-2-2-4 4" />
-    </svg>
+    </IconFrame>
   );
 }
 
@@ -299,66 +72,172 @@ export function ImageIcon({ size = 16, className }: IconProps): ReactNode {
  * A folder with a plus, for the new folder action.
  *
  * The folder body is the same path as `FolderIcon`, so the glyph fills the
- * 24 by 24 viewport to the same extent as the other icons. The plus sits in
- * the centre of the body.
+ * viewport to the same extent as the other icons. The plus sits in the centre
+ * of the body.
  */
-export function FolderPlusIcon({ size = 16, className }: IconProps): ReactNode {
+export function FolderPlusIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
       <line x1="12" y1="10" x2="12" y2="16" />
       <line x1="9" y1="13" x2="15" y2="13" />
-    </svg>
+    </IconFrame>
+  );
+}
+
+/** A search magnifying glass icon. */
+export function SearchIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <circle cx="11" cy="11" r="8" />
+      <line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </IconFrame>
+  );
+}
+
+/** A plus add icon. */
+export function PlusIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </IconFrame>
+  );
+}
+
+/** A trash icon, for Trash and for the move to trash action. */
+export function TrashIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+      <line x1="10" y1="11" x2="10" y2="17" />
+      <line x1="14" y1="11" x2="14" y2="17" />
+    </IconFrame>
+  );
+}
+
+/** A clock that turns back, for History and for a relative time. */
+export function HistoryIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
+      <path d="M12 7v5l4 2" />
+    </IconFrame>
+  );
+}
+
+/** A three dot overflow icon for a menu button. */
+export function MoreIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <circle cx="12" cy="5" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <circle cx="12" cy="19" r="1.5" />
+    </IconFrame>
+  );
+}
+
+/** A side panel icon for the navigation sidebar on the left. */
+export function PanelLeftIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+    </IconFrame>
+  );
+}
+
+/** A pencil icon for a rename action. */
+export function PencilIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </IconFrame>
+  );
+}
+
+/** Four arrows from one centre, for a move action. */
+export function MoveIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <polyline points="5 9 2 12 5 15" />
+      <polyline points="9 5 12 2 15 5" />
+      <polyline points="15 19 12 22 9 19" />
+      <polyline points="19 9 22 12 19 15" />
+      <line x1="2" y1="12" x2="22" y2="12" />
+      <line x1="12" y1="2" x2="12" y2="22" />
+    </IconFrame>
+  );
+}
+
+/** A tray with an arrow into it, for an export or a download. */
+export function DownloadIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </IconFrame>
+  );
+}
+
+/** A tray with an arrow out of it, for an import or an upload. */
+export function UploadIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="17 8 12 3 7 8" />
+      <line x1="12" y1="3" x2="12" y2="15" />
+    </IconFrame>
   );
 }
 
 /** A settings gear icon. */
-export function SettingsIcon({ size = 16, className }: IconProps): ReactNode {
+export function SettingsIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-    </svg>
+    </IconFrame>
+  );
+}
+
+/** A keyboard, for the list of keyboard shortcuts. */
+export function KeyboardIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="M6 9h.01" />
+      <path d="M10 9h.01" />
+      <path d="M14 9h.01" />
+      <path d="M18 9h.01" />
+      <path d="M8 13h.01" />
+      <path d="M12 13h.01" />
+      <path d="M16 13h.01" />
+      <path d="M7 16.5h10" />
+    </IconFrame>
+  );
+}
+
+/** A door with an arrow out of it, for the sign out action. */
+export function SignOutIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </IconFrame>
   );
 }
 
 /** A sun light theme icon. */
-export function SunIcon({ size = 16, className }: IconProps): ReactNode {
+export function SunIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <circle cx="12" cy="12" r="5" />
       <line x1="12" y1="1" x2="12" y2="3" />
       <line x1="12" y1="21" x2="12" y2="23" />
@@ -368,337 +247,137 @@ export function SunIcon({ size = 16, className }: IconProps): ReactNode {
       <line x1="21" y1="12" x2="23" y2="12" />
       <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
       <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A moon dark theme icon. */
-export function MoonIcon({ size = 16, className }: IconProps): ReactNode {
+export function MoonIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A computer display device icon for system theme. */
-export function ComputerIcon({ size = 16, className }: IconProps): ReactNode {
+export function ComputerIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
       <line x1="8" y1="21" x2="16" y2="21" />
       <line x1="12" y1="17" x2="12" y2="21" />
-    </svg>
+    </IconFrame>
   );
 }
 
-/** A cloud check synchronized icon. */
-export function CloudCheckIcon({ size = 16, className }: IconProps): ReactNode {
+/** A circle with a mark, for the problem tone of a notice. */
+export function AlertCircleIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9" />
-      <polyline points="9 15 12 18 20 10" />
-    </svg>
-  );
-}
-
-/** A cloud upload saving icon. */
-export function CloudUploadIcon({
-  size = 16,
-  className,
-}: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z" />
-      <polyline points="12 11 12 17" />
-      <polyline points="9 14 12 11 15 14" />
-    </svg>
-  );
-}
-
-/** An alert circle icon for errors or conflicts. */
-export function AlertCircleIcon({
-  size = 16,
-  className,
-}: IconProps): ReactNode {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <circle cx="12" cy="12" r="10" />
       <line x1="12" y1="8" x2="12" y2="12" />
       <line x1="12" y1="16" x2="12.01" y2="16" />
-    </svg>
+    </IconFrame>
   );
 }
 
-/** A user profile icon. */
-export function UserIcon({ size = 16, className }: IconProps): ReactNode {
+/** A circle with an i, for the plain tone of a notice. */
+export function InfoIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-      <circle cx="12" cy="7" r="4" />
-    </svg>
+    <IconFrame {...props}>
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="16" x2="12" y2="12" />
+      <line x1="12" y1="8" x2="12.01" y2="8" />
+    </IconFrame>
   );
 }
 
 /** A navigation menu hamburger icon. */
-export function MenuIcon({ size = 16, className }: IconProps): ReactNode {
+export function MenuIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <line x1="3" y1="12" x2="21" y2="12" />
       <line x1="3" y1="6" x2="21" y2="6" />
       <line x1="3" y1="18" x2="21" y2="18" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A close cross icon. */
-export function CloseIcon({ size = 16, className }: IconProps): ReactNode {
+export function CloseIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <line x1="18" y1="6" x2="6" y2="18" />
       <line x1="6" y1="6" x2="18" y2="18" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A chevron left icon. */
-export function ChevronLeftIcon({
-  size = 16,
-  className,
-}: IconProps): ReactNode {
+export function ChevronLeftIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <polyline points="15 18 9 12 15 6" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A chevron right icon. */
-export function ChevronRightIcon({
-  size = 16,
-  className,
-}: IconProps): ReactNode {
+export function ChevronRightIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <polyline points="9 18 15 12 9 6" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A chevron down icon. */
-export function ChevronDownIcon({
-  size = 16,
-  className,
-}: IconProps): ReactNode {
+export function ChevronDownIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <polyline points="6 9 12 15 18 9" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A copy text clipboard icon. */
-export function CopyIcon({ size = 16, className }: IconProps): ReactNode {
+export function CopyIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
       <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A chain link icon, for a published link. */
-export function LinkIcon({ size = 16, className }: IconProps): ReactNode {
+export function LinkIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
       <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-    </svg>
+    </IconFrame>
   );
 }
 
 /** A check mark icon. */
-export function CheckIcon({ size = 16, className }: IconProps): ReactNode {
+export function CheckIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <polyline points="20 6 9 17 4 12" />
-    </svg>
+    </IconFrame>
   );
 }
 
-/** A workspace / layers icon. */
-export function AppMarkIcon({ size = 16, className }: IconProps): ReactNode {
+/** The product mark: three stacked layers. */
+export function AppMarkIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <polygon points="12 2 2 7 12 12 22 7 12 2" />
       <polyline points="2 17 12 22 22 17" />
       <polyline points="2 12 12 17 22 12" />
-    </svg>
+    </IconFrame>
   );
 }
 
@@ -710,24 +389,13 @@ export function AppMarkIcon({ size = 16, className }: IconProps): ReactNode {
  * both makes the switcher read as a second copy of the logo rather than as a
  * control that names the area you are in.
  */
-export function WorkspaceIcon({ size = 16, className }: IconProps): ReactNode {
+export function WorkspaceIcon(props: IconProps): ReactNode {
   return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      className={className}
-    >
+    <IconFrame {...props}>
       <rect x="3" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="3" width="7" height="7" rx="1.5" />
       <rect x="14" y="14" width="7" height="7" rx="1.5" />
       <rect x="3" y="14" width="7" height="7" rx="1.5" />
-    </svg>
+    </IconFrame>
   );
 }

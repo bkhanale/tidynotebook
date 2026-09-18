@@ -10,6 +10,9 @@
  * live region and it is read out without a focus move. The region also
  * carries `aria-busy`, so a screen reader knows the screen is not ready yet.
  *
+ * Every bar takes one radius, `rounded-md`, the radius of a control and a
+ * row, because a placeholder stands for a control or a row (decision 0065).
+ *
  * The pulse runs only when the device accepts motion.
  */
 import type { ReactNode } from 'react';
@@ -88,8 +91,8 @@ export function LoadingState({
             <div
               className={
                 shape === 'note'
-                  ? 'h-8 w-1/2 rounded-lg bg-hover'
-                  : 'h-6 w-1/3 rounded-lg bg-hover'
+                  ? 'h-8 w-1/2 rounded-md bg-hover'
+                  : 'h-6 w-1/3 rounded-md bg-hover'
               }
             />
             <Lines count={rows} />

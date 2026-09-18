@@ -6,6 +6,15 @@
  * restore to the element that opened it, and `inert` on the page behind it
  * where the browser supports that property. The scrim uses the theme token,
  * so both palettes dim the page by the same amount.
+ *
+ * The panel is the largest radius of the named scale, the card fill, the
+ * subtle edge and the modal elevation step. Its three parts separate by space
+ * and not by a rule: three rules across one small panel is the look of a
+ * generated form, and the title, the body and the footer already differ in
+ * type and in alignment. See
+ * [decision 0063](../../../docs/decisions/0063-the-resting-edge-of-a-control-is-the-divider.md)
+ * and
+ * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
 import { useEffect, useRef, type ReactNode } from 'react';
 import { transitionRaise } from './motion.ts';
@@ -140,7 +149,7 @@ export function Dialog({
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-scrim/70 px-gutter ${position} ${transitionRaise}`}
+      className={`fixed inset-0 z-50 flex justify-center overflow-y-auto bg-scrim/40 px-gutter ${position} ${transitionRaise}`}
       data-notes-dialog-root=""
       role="presentation"
       onMouseDown={(event): void => {
@@ -149,7 +158,7 @@ export function Dialog({
     >
       <div
         ref={panelRef}
-        className={`w-full ${measure} overflow-hidden rounded-xl border border-edge bg-card text-ink shadow-modal outline-none ${transitionRaise}`}
+        className={`w-full ${measure} overflow-hidden rounded-xl border border-edge-subtle bg-card text-ink shadow-modal outline-none ${transitionRaise}`}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
@@ -160,7 +169,7 @@ export function Dialog({
           className={
             hideTitle
               ? 'sr-only'
-              : 'm-0 border-b border-edge-line px-5 py-4 text-base font-semibold text-strong'
+              : 'm-0 px-5 pb-1 pt-4 text-ui font-semibold text-strong'
           }
           id={titleId}
         >
@@ -178,17 +187,23 @@ export function DialogBody({
 }: {
   readonly children: ReactNode;
 }): ReactNode {
-  return <div className="px-5 py-4">{children}</div>;
+  return <div className="px-5 py-3">{children}</div>;
 }
 
-/** The action row at the bottom of a dialog. */
+/**
+ * The action row at the bottom of a dialog.
+ *
+ * The buttons sit at the end of the row, because the confirming action is the
+ * last thing a person reads and the closest to where their pointer already
+ * is. There is no rule above them: the space is the separation.
+ */
 export function DialogFooter({
   children,
 }: {
   readonly children: ReactNode;
 }): ReactNode {
   return (
-    <div className="flex flex-wrap justify-end gap-cluster border-t border-edge-line px-5 py-3">
+    <div className="flex flex-wrap justify-end gap-cluster px-5 pb-4 pt-2">
       {children}
     </div>
   );

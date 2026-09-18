@@ -1,12 +1,12 @@
 /**
  * Layout primitives of the application.
  *
- * Every screen frames itself with `Page` and titles itself with
- * `PageHeader`, so spacing, measure, and the heading ramp are decided once.
- * The heading ramp is: the note title is the largest item on the note
- * screen, a page title is `text-xl`, a section title is `text-base`, and a
- * quiet group label is `text-control`. There is no smaller size than
- * `text-control`.
+ * Every screen frames itself with `Page` and titles itself with `PageHeader`,
+ * so spacing, measure, and the heading ramp are decided once. The heading ramp
+ * of the chrome is: a page title is `text-xl`, a card or section title is
+ * `text-base`, a list row title is `text-ui`, and a quiet group label is
+ * `text-control`. There is no smaller size than `text-kbd`, which is a
+ * keyboard hint and nothing else.
  *
  * Distance is decided once as well. `pageGutter` below is the one distance
  * from the edge of the screen to the content of a page, and every frame that
@@ -15,16 +15,18 @@
  * a row. The four values live in the central theme of
  * `apps/web/src/tailwind.css`.
  *
- * Depth is decided once too. A page sits on the page plane, and a `Card` and
- * an `EmptyState` sit on the raised plane above it with the first elevation
- * step. A divider that a person must see, such as the rule between two rows
- * of a list, uses `edge-line`; `edge-subtle` stays for a hairline inside a
- * group that already differs in fill. See
- * [decision 0052](../../../docs/decisions/0052-three-planes-and-one-elevation-scale.md)
+ * Depth is decided once too. A page sits on the page plane and a `Card` sits
+ * on the raised plane above it with the first elevation step, the subtle edge
+ * and the card fill, so a light palette shows the shadow and a dark palette
+ * shows the edge. An `EmptyState` is not a surface at all: it is an icon, a
+ * title, one sentence and one action on the page, with no box around it. See
+ * [decision 0052](../../../docs/decisions/0052-three-planes-and-one-elevation-scale.md),
+ * [decision 0063](../../../docs/decisions/0063-the-resting-edge-of-a-control-is-the-divider.md)
  * and
- * [decision 0053](../../../docs/decisions/0053-the-divider-is-derived-from-the-palette.md).
+ * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
 import type { ReactNode } from 'react';
+import { rowClassName } from './control-classes.ts';
 
 /**
  * The distance from the edge of the screen to the content of a page.
@@ -102,7 +104,7 @@ export function PageHeader({
   );
 }
 
-/** A quiet surface that groups related content. */
+/** A raised surface that groups related content. */
 export function Card({
   children,
   title,
@@ -127,7 +129,7 @@ export function Card({
       {children}
     </>
   );
-  const classes = `rounded-xl border border-edge-subtle bg-card p-4 shadow-raised ${className ?? ''}`;
+  const classes = `rounded-lg border border-edge-subtle bg-card p-4 shadow-raised ${className ?? ''}`;
   if (title === undefined || titleId === undefined)
     return <div className={classes}>{body}</div>;
   return (
@@ -140,13 +142,17 @@ export function Card({
 /**
  * The state of a screen that holds nothing yet.
  *
- * One sentence, one optional hint, and one primary action. A screen never
- * shows two primary actions, so the action here is the only one on it.
+ * An icon, a title, one sentence and one action, on the page and in no box. A
+ * dashed box around an empty state is the most recognised mark of a generated
+ * admin template, and the state is not a thing a person acts on, so it needs
+ * no plane of its own.
+ *
+ * The icon renders at 20 px, the one size an icon takes outside a control,
+ * and the caller passes it with no size of its own.
  *
  * The title is a heading and not a paragraph that looks like one. An empty
- * state stands where a `Card` stands, under the one page title, so it takes
- * the same level as the title of that card and a person who moves by heading
- * reaches it.
+ * state stands where a `Card` stands, under the one page title, so a person
+ * who moves by heading reaches it.
  */
 export function EmptyState({
   icon,
@@ -160,20 +166,20 @@ export function EmptyState({
   readonly action?: ReactNode | undefined;
 }): ReactNode {
   return (
-    <div className="rounded-xl border border-dashed border-edge-line bg-card px-gutter-wide py-14 text-center">
+    <div className="py-10 text-center">
       {icon === undefined ? null : (
         <p className="m-0 flex justify-center text-muted" aria-hidden="true">
           {icon}
         </p>
       )}
-      <h2 className="mb-0 mt-3 text-base font-semibold text-strong">{title}</h2>
+      <h2 className="mb-0 mt-3 text-ui font-semibold text-strong">{title}</h2>
       {description === undefined || description === '' ? null : (
-        <p className="mx-auto mb-0 mt-2 max-w-md text-control text-muted">
+        <p className="mx-auto mb-0 mt-1 max-w-sm text-control text-muted">
           {description}
         </p>
       )}
       {action === undefined ? null : (
-        <div className="mt-5 flex justify-center">{action}</div>
+        <div className="mt-4 flex justify-center">{action}</div>
       )}
     </div>
   );
@@ -182,42 +188,74 @@ export function EmptyState({
 /**
  * One row of a list of things.
  *
- * The row is a container only. The caller puts a link or a button inside it,
- * so the interactive element stays native and keeps its own accessible name.
+ * The row reads `rowClassName`, the one recipe of a row (decision 0065), so a
+ * list row, a tree row and a menu row are one size, one radius and one focus
+ * treatment. Rows separate by space and by fill and never by a rule.
+ *
+ * A row is a container by default: the caller puts a link or a button inside
+ * it, the interactive element stays native and keeps its own accessible name,
+ * and the row itself promises nothing. `href` or `onClick` makes the whole row
+ * the control, which is what a tree row and a footer row of the sidebar need.
+ * `selected` is a choice a person made and `current` is the route that is
+ * open; both read as one mark.
  */
 export function ListRow({
   children,
   className,
-}: {
-  readonly children: ReactNode;
-  readonly className?: string | undefined;
-}): ReactNode {
-  return (
-    <li
-      className={`flex min-h-11 items-center gap-group border-b border-edge-line px-1 py-2 last:border-b-0 ${className ?? ''}`}
-    >
-      {children}
-    </li>
-  );
-}
-
-/** A horizontal group of controls with one accessible name. */
-export function Toolbar({
+  selected,
+  current,
+  href,
+  onClick,
   label,
-  children,
-  className,
 }: {
-  readonly label: string;
   readonly children: ReactNode;
   readonly className?: string | undefined;
+  readonly selected?: boolean | undefined;
+  readonly current?: boolean | undefined;
+  /** Makes the whole row a link to this address. */
+  readonly href?: string | undefined;
+  /** Makes the whole row a button that runs this. */
+  readonly onClick?: (() => void) | undefined;
+  /** The accessible name of the row, when its text is not the whole name. */
+  readonly label?: string | undefined;
 }): ReactNode {
-  return (
-    <div
-      className={`flex flex-wrap items-center gap-cluster ${className ?? ''}`}
-      role="toolbar"
-      aria-label={label}
-    >
-      {children}
-    </div>
-  );
+  const interactive = href !== undefined || onClick !== undefined;
+  const classes = rowClassName({
+    selected,
+    current,
+    interactive,
+    className,
+  });
+  // The list item stays a list item, and the control inside it takes the whole
+  // row. `display: contents` would have done the same with one element fewer,
+  // and it drops the item out of the list that assistive software counts.
+  const filling = `${classes} min-w-0 flex-1`;
+  if (href !== undefined)
+    return (
+      <li className="flex">
+        <a
+          className={filling}
+          href={href}
+          aria-current={current === true ? 'page' : undefined}
+          aria-label={label}
+        >
+          {children}
+        </a>
+      </li>
+    );
+  if (onClick !== undefined)
+    return (
+      <li className="flex">
+        <button
+          type="button"
+          className={filling}
+          aria-current={current === true ? 'page' : undefined}
+          aria-label={label}
+          onClick={onClick}
+        >
+          {children}
+        </button>
+      </li>
+    );
+  return <li className={classes}>{children}</li>;
 }
