@@ -41,8 +41,8 @@ import {
   useParams,
 } from 'react-router';
 import {
-  AppMarkIcon,
   Button,
+  buttonClassName,
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
@@ -54,6 +54,7 @@ import {
   MenuIcon,
   type MenuItem,
   MoreIcon,
+  focusOutline,
   Notice,
   pageGutter,
   PanelLeftIcon,
@@ -72,6 +73,7 @@ import {
   useWorkspaceSync,
 } from '../app.tsx';
 import {
+  attentionTitle,
   AttentionLink,
   useAttentionCount,
 } from '../features/attention/attention-link.tsx';
@@ -118,7 +120,7 @@ import {
   treeRowTextClassName,
 } from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
-import { displayNoteName } from '../lib/note-name.ts';
+import { baseNameOf, displayNoteName } from '../lib/note-name.ts';
 import { workspaceAfterRemoval } from '../lib/workspace-choice.ts';
 import {
   knownFolderPaths,
@@ -134,10 +136,12 @@ import {
   useOnline,
 } from '../features/editor/save-status.tsx';
 import { actionIcon } from './action-icons.tsx';
+import { HeaderSlot, HeaderSlotProvider } from './header-slot.tsx';
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncStateMessage } from '../lib/sync-state.ts';
 import type { ActionIconName } from '../lib/palette-items.ts';
+import { breadcrumbParts, type BreadcrumbPart } from '../lib/breadcrumb.ts';
 import {
   DeleteWorkspaceDialog,
   NewWorkspaceDialog,
@@ -238,6 +242,12 @@ function NoteRow({
     </div>
   );
 }
+
+/** The name of the screen that lists every note of the workspace. */
+const allNotesTitle = 'All notes';
+
+/** The name of the screen that holds the notes a person deleted. */
+const trashTitle = 'Trash';
 
 /** The key line that shows or hides the sidebar, as the table writes it. */
 const sidebarKeys = 'Cmd or Ctrl + \\';
@@ -470,6 +480,63 @@ function GroupLabel({
       <span>{children}</span>
       {action}
     </h2>
+  );
+}
+
+/**
+ * Where the person is, as one line of the header.
+ *
+ * The workspace, then the folders of the open note, then the name of the note
+ * or the page (decision 0064). Every part but the last one is a link, and the
+ * last one is the name of the route, so it is the one part that never moves
+ * anywhere. `lib/breadcrumb.ts` decides which parts a route yields.
+ *
+ * Below the medium width only the last part stays. A phone header holds the
+ * drawer toggle, the actions of the route and the account, and the whole
+ * path of a note does not fit beside them.
+ */
+function Breadcrumb({
+  parts,
+  onSelectFolder,
+}: {
+  readonly parts: readonly BreadcrumbPart[];
+  readonly onSelectFolder: (folder: string) => void;
+}): ReactNode {
+  return (
+    <nav className="min-w-0 flex-1" aria-label="Where you are">
+      <ol className="m-0 flex min-w-0 list-none items-center gap-1 p-0 text-ui">
+        {parts.map((part, index) =>
+          part.to === null ? (
+            <li
+              className="flex min-w-0 items-center"
+              key={`${String(index)}:${part.label}`}
+            >
+              <span className="truncate font-medium text-strong">
+                {part.label}
+              </span>
+            </li>
+          ) : (
+            <li
+              className="flex shrink-0 items-center gap-1 max-md:hidden"
+              key={`${String(index)}:${part.label}`}
+            >
+              <Link
+                className={`max-w-32 truncate rounded-md text-muted no-underline hover:text-strong ${transitionSurface} ${focusOutline}`}
+                to={part.to}
+                onClick={() => {
+                  if (part.folder !== null) onSelectFolder(part.folder);
+                }}
+              >
+                {part.label}
+              </Link>
+              <span className="text-muted" aria-hidden="true">
+                /
+              </span>
+            </li>
+          ),
+        )}
+      </ol>
+    </nav>
   );
 }
 
@@ -992,12 +1059,16 @@ export function Shell(): ReactNode {
   // the frame reads what the open note screen registers. The screen mounts in
   // the Outlet below the frame and writes into these scopes; the frame reads
   // them to build the command palette and to time the persistence prompt.
+  // HeaderSlotProvider wraps both the header and the routes under it, so the
+  // actions a route places reach the one slot of the frame (record 0064).
   return (
     <RequireCurrentWorkspace workspaceId={workspaceId}>
       <FilesProvider workspaceId={workspaceId}>
         <NoteSaveScope>
           <NoteActionsScope>
-            <ShellFrame workspaceId={workspaceId} />
+            <HeaderSlotProvider>
+              <ShellFrame workspaceId={workspaceId} />
+            </HeaderSlotProvider>
           </NoteActionsScope>
         </NoteSaveScope>
       </FilesProvider>
@@ -1236,6 +1307,33 @@ function ShellFrame({
     [allWorkspaces, workspaceId],
   );
 
+  // The name of the page or the note that the route shows, which is the last
+  // part of the breadcrumb. Every other part comes from the workspace and
+  // from the path of the open note.
+  const noteName =
+    openNotePath === null ? null : displayNoteName(baseNameOf(openNotePath));
+  const onHistory = location.pathname.endsWith('/history');
+  const routeName =
+    typeof params.fileId === 'string'
+      ? onHistory
+        ? `History of ${noteName ?? 'this note'}`
+        : (noteName ?? 'Note')
+      : location.pathname === `/w/${workspaceId}/trash`
+        ? trashTitle
+        : location.pathname === `/w/${workspaceId}/published`
+          ? publishedLinksTitle
+          : location.pathname === `/w/${workspaceId}/attention`
+            ? attentionTitle
+            : allNotesTitle;
+
+  // The avatar shows the first letter of the person, so the accessible name
+  // holds the whole name: a control whose visible text is one letter has to
+  // keep that letter inside its name (WCAG 2.5.3).
+  const accountName = session.account?.name ?? session.account?.email ?? '';
+  const accountInitial = [...accountName][0]?.toUpperCase() ?? '';
+  const accountLabel =
+    accountName === '' ? 'Account' : `Account: ${accountName}`;
+
   const paletteActions = useMemo(
     () => [
       {
@@ -1414,14 +1512,19 @@ function ShellFrame({
       <DeleteNoticeProvider>
         <div className="flex h-dvh flex-col bg-app text-ink">
           <a
-            className="fixed left-2 top-2 z-50 -translate-y-20 rounded-lg bg-accent-fill px-3 py-2 text-on-accent focus:translate-y-0"
+            className={buttonClassName({
+              variant: 'primary',
+              size: 'sm',
+              className:
+                'fixed left-2 top-2 z-50 -translate-y-20 focus-visible:translate-y-0',
+            })}
             href="#notes-content"
           >
             Skip to content
           </a>
 
           <header
-            className={`z-30 flex h-header shrink-0 items-center gap-group border-b border-edge-line bg-surface ${pageGutter}`}
+            className={`z-30 flex h-header shrink-0 items-center gap-cluster border-b border-edge-subtle bg-surface ${pageGutter}`}
           >
             <Button
               buttonRef={menuButtonRef}
@@ -1430,7 +1533,7 @@ function ShellFrame({
               className="size-11 shrink-0 md:hidden"
               label="Open navigation"
               title="Open navigation"
-              icon={<MenuIcon size={18} />}
+              icon={<MenuIcon />}
               ariaControls="notes-sidebar"
               ariaExpanded={drawerOpen}
               onClick={() => {
@@ -1440,59 +1543,70 @@ function ShellFrame({
             <Button
               variant="ghost"
               size="sm"
-              className="size-11 shrink-0 max-md:hidden"
+              className="size-11 shrink-0 max-md:hidden md:size-7"
               label={
                 sidebar.size.collapsed ? 'Show the sidebar' : 'Hide the sidebar'
               }
               title={
                 sidebar.size.collapsed ? 'Show the sidebar' : 'Hide the sidebar'
               }
-              icon={<PanelLeftIcon size={18} />}
+              icon={<PanelLeftIcon />}
               ariaControls="notes-sidebar"
               ariaExpanded={!sidebar.size.collapsed}
               onClick={sidebar.toggleCollapsed}
             />
 
-            <Link
-              className="flex shrink-0 items-center gap-cluster text-ui font-semibold text-strong no-underline"
-              to="/"
-            >
-              <span
-                className="inline-flex size-7 items-center justify-center rounded-lg bg-accent-fill text-on-accent"
-                aria-hidden="true"
-              >
-                <AppMarkIcon size={16} />
-              </span>
-              <span className="hidden sm:inline">Notesapp</span>
-            </Link>
+            <Breadcrumb
+              parts={breadcrumbParts({
+                workspaceId,
+                workspaceName: openWorkspace?.name ?? '',
+                notePath: openNotePath,
+                leaf: routeName,
+              })}
+              onSelectFolder={(folder) => {
+                folders.openFolder(folder);
+                setSelectedFolder(folder);
+              }}
+            />
+
+            <HeaderSlot className="flex shrink-0 items-center gap-cluster empty:hidden" />
 
             <button
               type="button"
-              className={`mx-auto flex min-h-11 w-full max-w-md min-w-0 cursor-pointer items-center gap-cluster rounded-lg border border-edge bg-app px-3 text-control text-muted ${transitionSurface} hover:bg-hover hover:text-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus md:min-h-8`}
+              className={buttonClassName({
+                variant: 'ghost',
+                size: 'sm',
+                className: 'min-w-11 shrink-0',
+              })}
               onClick={() => setPaletteOpen(true)}
             >
               <span
                 className="inline-flex shrink-0 items-center"
                 aria-hidden="true"
               >
-                <SearchIcon size={15} />
+                <SearchIcon />
               </span>
-              <span className="min-w-0 flex-1 truncate text-left">
-                Search notes
-              </span>
-              <span className="hidden shrink-0 sm:inline">
+              <span className="sr-only md:not-sr-only">Search</span>
+              <span className="max-lg:hidden">
                 <KeyHint keys={paletteKeys} />
               </span>
             </button>
 
-            <div className="flex shrink-0 items-center gap-1">
-              <Menu
-                label="More actions"
-                icon={<MoreIcon size={18} />}
-                items={accountItems}
-                pinned={signOutItem}
-              />
-            </div>
+            <Menu
+              label={accountLabel}
+              icon={
+                <span className="inline-flex size-6 items-center justify-center rounded-full bg-active text-kbd font-semibold text-strong">
+                  {accountInitial}
+                </span>
+              }
+              items={accountItems}
+              pinned={signOutItem}
+              triggerClassName={buttonClassName({
+                variant: 'ghost',
+                size: 'sm',
+                className: 'size-11 shrink-0 px-0 md:size-8 md:min-h-8',
+              })}
+            />
           </header>
 
           <div

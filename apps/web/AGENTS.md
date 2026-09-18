@@ -7,13 +7,13 @@ screens, the worker and the diagram frame. It composes and holds no rule.
 
 ## What lives here and what does not
 
-- `src/shell/` is the app frame: the layout, the sidebar with its switcher,
-  tree, width and drawer, the command palette, and the frame notices.
-  `workspaces.tsx` owns the switcher (0049) and `lib/workspace-choice.ts`
-  decides which workspace opens. `src/features/<feature>/` holds one feature
-  each, `src/lib/` is pure, `src/app.tsx`, `src/router.tsx` and `src/main.tsx`
-  compose the application, `src/pwa/` holds the worker, `src/diagram/` the
-  frame.
+- `src/shell/` is the app frame: the 44 px header, the sidebar of rows, the
+  palette and the frame notices. `header-slot.tsx` is where a route puts its
+  actions, `lib/breadcrumb.ts` states the parts of the header (0064), and
+  `action-icons.tsx` draws the one glyph of an action (0065). `workspaces.tsx`
+  owns the switcher (0049). `src/features/<feature>/` holds one feature each,
+  `src/lib/` is pure, `src/app.tsx`, `src/router.tsx` and `src/main.tsx`
+  compose the application, `src/pwa/` the worker, `src/diagram/` the frame.
 - `src/tailwind.css` is the only application CSS source: Tailwind imports,
   source registration, the one `@font-face` block (0061), and the central
   scales of type, spacing, radius, elevation, easing, tracking and colour. A
@@ -24,8 +24,7 @@ screens, the worker and the diagram frame. It composes and holds no rule.
   a control and the one divider, `border-edge-subtle` a hairline inside a
   group (0053, 0063). A hovered fill reads `bg-accent-fill-hover`, never a
   filter or a fade (0057). The name, the text and the word count of a note are
-  one centred column (0055). The header is the context of the route through
-  `shell/header-slot.tsx` (0064).
+  one centred column (0055). The header states the route (0064).
 
 ## Allowed imports
 
@@ -85,7 +84,11 @@ on each rule below.
 | `src/app.tsx`                         | Application shell and stores    |
 | `src/tailwind.css`                    | CSS source and the named scales |
 | `src/shell/shell.tsx`                 | Frame, tree, sidebar size       |
+| `src/shell/header-slot.tsx`           | Where a route fills the header  |
+| `src/shell/action-icons.tsx`          | The one glyph of every action   |
 | `src/shell/workspaces.tsx`            | The workspace switcher          |
+| `src/lib/workspace-choice.ts`         | Which workspace opens           |
+| `src/lib/breadcrumb.ts`               | Where a person is, as parts     |
 | `src/features/editor/note-editor.tsx` | The editor host and editor view |
 | `vite.config.ts`                      | Build, theme assets, worker     |
 | `src/logging.ts`                      | Browser sink for log events     |
