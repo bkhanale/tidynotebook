@@ -61,14 +61,25 @@ export function treeRowClassName(state: TreeRowState = {}): string {
 }
 
 /**
+ * The disclosure column and the name control of one row.
+ *
+ * They share one group with no gap. The disclosure control keeps its full
+ * pointer target, and the two icons use the free space inside that target as
+ * their separation instead of adding the row gap as well.
+ */
+export const treeRowLeadingClassName = 'flex min-w-0 flex-1 items-center';
+
+/**
  * The classes of the name control inside one tree row.
  *
  * The row decides the colour of the text, so the control inherits it and
  * states no colour of its own: a link in a browser paints itself until
  * something says otherwise. The control takes the inward focus outline,
- * because the tree is a box that scrolls and clips.
+ * because the tree is a box that scrolls and clips. It has no left padding,
+ * so the disclosure target and the name do not add two spacing steps between
+ * their icons.
  */
-export const treeRowNameClassName = `flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 truncate rounded-md border-0 bg-transparent px-1 text-left text-inherit no-underline ${focusOutlineInset}`;
+export const treeRowNameClassName = `flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 truncate rounded-md border-0 bg-transparent pr-1 text-left text-inherit no-underline ${focusOutlineInset}`;
 
 /** The deepest branch that still steps in. */
 export const deepestSteppedBranch = 4;
@@ -81,5 +92,16 @@ export const deepestSteppedBranch = 4;
  * note rows reserve the same disclosure column.
  */
 export function treeBranchClassName(depth: number): string {
-  return depth > deepestSteppedBranch ? '' : 'pl-3';
+  return depth > deepestSteppedBranch ? 'mt-1' : 'mt-1 pl-3';
 }
+
+/**
+ * The separation between the All notes row and the top of the folder tree.
+ *
+ * The All notes row sits outside the list that holds every folder, so the
+ * spacing inside that list never reaches it. One step of the numeric scale
+ * separates the two, which is the same step that separates an open folder
+ * from its first row. It is space and not a divider: two rows separate by
+ * space and by fill and never by a rule.
+ */
+export const treeListClassName = 'mt-1';

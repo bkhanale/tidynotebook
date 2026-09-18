@@ -124,7 +124,9 @@ import {
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import {
   treeBranchClassName,
+  treeListClassName,
   treeRowClassName,
+  treeRowLeadingClassName,
   treeRowNameClassName,
 } from '../lib/tree-row.ts';
 import { deleteNotes } from '../features/editor/note-delete.ts';
@@ -203,38 +205,43 @@ function NoteRow({
   );
   return (
     <div className={treeRowClassName({ open: active })}>
-      <span className={rowSpacerClassName} aria-hidden="true" />
-      <Link
-        ref={revealActive}
-        className={treeRowNameClassName}
-        to={`/w/${workspaceId}/notes/${note.fileId}`}
-        onClick={onNavigate}
-        aria-current={active ? 'page' : undefined}
-        draggable={drag !== undefined}
-        onDragStart={(event) => {
-          drag?.begin(event, {
-            kind: 'note',
-            fileId: note.fileId,
-            path: note.path,
-          });
-        }}
-        onDragEnd={() => drag?.end()}
-      >
-        <span className="inline-flex shrink-0 items-center" aria-hidden="true">
-          <FileTextIcon />
-        </span>
-        <span
-          className="min-w-0 flex-1 truncate"
-          title={displayNoteName(basename)}
+      <div className={treeRowLeadingClassName}>
+        <span className={rowSpacerClassName} aria-hidden="true" />
+        <Link
+          ref={revealActive}
+          className={treeRowNameClassName}
+          to={`/w/${workspaceId}/notes/${note.fileId}`}
+          onClick={onNavigate}
+          aria-current={active ? 'page' : undefined}
+          draggable={drag !== undefined}
+          onDragStart={(event) => {
+            drag?.begin(event, {
+              kind: 'note',
+              fileId: note.fileId,
+              path: note.path,
+            });
+          }}
+          onDragEnd={() => drag?.end()}
         >
-          {displayNoteName(basename)}
-        </span>
-        {note.localOnly || note.unsent ? (
-          <span className="shrink-0" title="On this device only">
-            <Badge>Local</Badge>
+          <span
+            className="inline-flex shrink-0 items-center"
+            aria-hidden="true"
+          >
+            <FileTextIcon />
           </span>
-        ) : null}
-      </Link>
+          <span
+            className="min-w-0 flex-1 truncate"
+            title={displayNoteName(basename)}
+          >
+            {displayNoteName(basename)}
+          </span>
+          {note.localOnly || note.unsent ? (
+            <span className="shrink-0" title="On this device only">
+              <Badge>Local</Badge>
+            </span>
+          ) : null}
+        </Link>
+      </div>
       <Menu
         label={`Actions for the note ${displayNoteName(basename)}`}
         icon={<MoreIcon className="text-muted" />}
@@ -377,40 +384,45 @@ function TreeView({
                 drag.drop(node.fullPath);
               }}
             >
-              <button
-                type="button"
-                className={rowActionClassName}
-                onClick={() => onToggleFolder(node.fullPath)}
-                aria-expanded={isOpen}
-                aria-label={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
-                title={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
-              >
-                <span className="inline-flex text-muted" aria-hidden="true">
-                  {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
-                </span>
-              </button>
-              <button
-                type="button"
-                className={treeRowNameClassName}
-                onClick={() => onSelectFolder(node.fullPath)}
-                aria-pressed={isSelected}
-                aria-expanded={isOpen}
-                draggable
-                onDragStart={(event) => {
-                  drag.begin(event, { kind: 'folder', folder: node.fullPath });
-                }}
-                onDragEnd={() => drag.end()}
-              >
-                <span
-                  className="inline-flex shrink-0 items-center"
-                  aria-hidden="true"
+              <div className={treeRowLeadingClassName}>
+                <button
+                  type="button"
+                  className={rowActionClassName}
+                  onClick={() => onToggleFolder(node.fullPath)}
+                  aria-expanded={isOpen}
+                  aria-label={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
+                  title={`${isOpen ? 'Collapse' : 'Expand'} folder ${node.name}`}
                 >
-                  {isOpen ? <FolderOpenIcon /> : <FolderIcon />}
-                </span>
-                <span className="min-w-0 truncate" title={node.name}>
-                  {node.name}
-                </span>
-              </button>
+                  <span className="inline-flex text-muted" aria-hidden="true">
+                    {isOpen ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className={treeRowNameClassName}
+                  onClick={() => onSelectFolder(node.fullPath)}
+                  aria-pressed={isSelected}
+                  aria-expanded={isOpen}
+                  draggable
+                  onDragStart={(event) => {
+                    drag.begin(event, {
+                      kind: 'folder',
+                      folder: node.fullPath,
+                    });
+                  }}
+                  onDragEnd={() => drag.end()}
+                >
+                  <span
+                    className="inline-flex shrink-0 items-center"
+                    aria-hidden="true"
+                  >
+                    {isOpen ? <FolderOpenIcon /> : <FolderIcon />}
+                  </span>
+                  <span className="min-w-0 truncate" title={node.name}>
+                    {node.name}
+                  </span>
+                </button>
+              </div>
               <Menu
                 label={`Actions for the folder ${node.name}`}
                 icon={<MoreIcon className="text-muted" />}
@@ -859,26 +871,28 @@ function Sidebar({
               `All notes`. It still does both of those, and the selection
               follows the note that opens, by record 0034.
             */}
-            <span className={rowSpacerClassName} aria-hidden="true" />
-            <Link
-              className={treeRowNameClassName}
-              to={notesPath}
-              aria-current={
-                location.pathname === notesPath ? 'page' : undefined
-              }
-              onClick={() => {
-                onSelectFolder('');
-                onNavigate();
-              }}
-            >
-              <span
-                className="inline-flex shrink-0 items-center"
-                aria-hidden="true"
+            <div className={treeRowLeadingClassName}>
+              <span className={rowSpacerClassName} aria-hidden="true" />
+              <Link
+                className={treeRowNameClassName}
+                to={notesPath}
+                aria-current={
+                  location.pathname === notesPath ? 'page' : undefined
+                }
+                onClick={() => {
+                  onSelectFolder('');
+                  onNavigate();
+                }}
               >
-                <FolderIcon />
-              </span>
-              <span className="min-w-0 flex-1 truncate">{allNotesTitle}</span>
-            </Link>
+                <span
+                  className="inline-flex shrink-0 items-center"
+                  aria-hidden="true"
+                >
+                  <FolderIcon />
+                </span>
+                <span className="min-w-0 flex-1 truncate">{allNotesTitle}</span>
+              </Link>
+            </div>
           </div>
           {files.loading ? (
             <div className="px-2 py-2">
@@ -891,26 +905,28 @@ function Sidebar({
           ) : tree.length === 0 ? (
             <p className="my-1 px-2 text-control text-muted">No notes yet.</p>
           ) : (
-            <TreeView
-              nodes={tree}
-              workspaceId={workspaceId}
-              activeFileId={fileId}
-              selectedFolder={selectedFolder}
-              openFolders={openFolders}
-              drag={drag}
-              onToggleFolder={toggleFolder}
-              onSelectFolder={(folder) => {
-                openFolder(folder);
-                onSelectFolder(folder);
-              }}
-              onRenameFolder={onRenameFolder}
-              onDeleteFolder={deleteFolderNow}
-              onPublishFolder={onPublishFolder}
-              onNewNoteIn={onNewNoteIn}
-              onNewFolderIn={onNewFolderIn}
-              onDeleteNote={deleteNoteNow}
-              onNavigate={onNavigate}
-            />
+            <div className={treeListClassName}>
+              <TreeView
+                nodes={tree}
+                workspaceId={workspaceId}
+                activeFileId={fileId}
+                selectedFolder={selectedFolder}
+                openFolders={openFolders}
+                drag={drag}
+                onToggleFolder={toggleFolder}
+                onSelectFolder={(folder) => {
+                  openFolder(folder);
+                  onSelectFolder(folder);
+                }}
+                onRenameFolder={onRenameFolder}
+                onDeleteFolder={deleteFolderNow}
+                onPublishFolder={onPublishFolder}
+                onNewNoteIn={onNewNoteIn}
+                onNewFolderIn={onNewFolderIn}
+                onDeleteNote={deleteNoteNow}
+                onNavigate={onNavigate}
+              />
+            </div>
           )}
           {files.limitNotice === null ? null : (
             <p
