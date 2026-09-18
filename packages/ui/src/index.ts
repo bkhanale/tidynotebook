@@ -57,6 +57,7 @@ export {
 export type {
   ButtonName,
   ButtonSize,
+  ButtonTone,
   ButtonVariant,
 } from './control-classes.ts';
 export {

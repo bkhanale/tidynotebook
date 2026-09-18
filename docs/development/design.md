@@ -76,8 +76,9 @@ no screen writes its own (record 0065).
 - `buttonClassName`: `primary` is the one action of a screen, ink on the page.
   `secondary` is every other button, `bg-card` with `edge-line` and
   `shadow-raised`. `ghost` is an icon only action and a Cancel. `danger` is a
-  destructive confirmation. Sizes: `md` is 32 px on a desktop, `sm` is 28 px,
-  both 44 px under touch.
+  destructive confirmation. A ghost or a secondary button that starts a
+  destructive action takes `tone: 'danger'` from the recipe. Sizes: `md` is
+  32 px on a desktop, `sm` is 28 px, both 44 px under touch.
 - `rowClassName`: every clickable row, in the tree, a list, a menu, the palette
   and the sidebar footer. 28 px on a desktop, `rounded-md`, `hover:bg-hover`.
   The open or chosen row is `bg-active text-strong font-medium`. No ring. A row

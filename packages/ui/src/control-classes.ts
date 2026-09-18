@@ -45,6 +45,17 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md';
 
 /**
+ * The tone of a quiet button.
+ *
+ * `danger` marks a ghost or a secondary button that starts a destructive
+ * action, such as Delete permanently on a trash row, before the filled
+ * `danger` variant confirms it. The tone is part of the recipe and never a
+ * class a caller adds, because two colour utilities on one element are decided
+ * by the stylesheet and not by the caller (decision 0065).
+ */
+export type ButtonTone = 'danger';
+
+/**
  * The appearance of a button, as classes.
  *
  * A control that navigates is an anchor and never a button, so the platform
@@ -69,16 +80,22 @@ export function buttonClassName(
   options: {
     readonly variant?: ButtonVariant | undefined;
     readonly size?: ButtonSize | undefined;
+    readonly tone?: ButtonTone | undefined;
     readonly className?: string | undefined;
   } = {},
 ): string {
   const variant = options.variant ?? 'primary';
   const size = options.size ?? 'md';
+  const danger = options.tone === 'danger';
   const variantClass =
     variant === 'secondary'
-      ? 'border border-edge-line bg-card text-strong shadow-raised hover:bg-hover'
+      ? danger
+        ? 'border border-edge-line bg-card text-danger shadow-raised hover:bg-danger-surface'
+        : 'border border-edge-line bg-card text-strong shadow-raised hover:bg-hover'
       : variant === 'ghost'
-        ? 'bg-transparent text-strong hover:bg-hover'
+        ? danger
+          ? 'bg-transparent text-danger hover:bg-danger-surface'
+          : 'bg-transparent text-strong hover:bg-hover'
         : variant === 'danger'
           ? 'bg-danger-fill text-on-danger hover:bg-danger-fill-hover'
           : 'bg-accent-fill text-on-accent hover:bg-accent-fill-hover';

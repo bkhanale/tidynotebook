@@ -148,6 +148,20 @@ await test('no recipe answers focus with the pointer prefix', () => {
   }
 });
 
+await test('a quiet button takes the danger tone from the recipe', () => {
+  const ghost = buttonClassName({ variant: 'ghost', tone: 'danger' });
+  assert.ok(ghost.includes('text-danger hover:bg-danger-surface'));
+  assert.ok(!ghost.includes('text-strong'));
+  const secondary = buttonClassName({ variant: 'secondary', tone: 'danger' });
+  assert.ok(secondary.includes('text-danger'));
+  assert.ok(!secondary.includes('text-strong'));
+  // The filled variants carry their own label colour and ignore the tone.
+  assert.equal(
+    buttonClassName({ variant: 'primary', tone: 'danger' }),
+    buttonClassName({ variant: 'primary' }),
+  );
+});
+
 await test('every button variant states its own fill and label', () => {
   assert.ok(
     buttonClassName({ variant: 'primary' }).includes(

@@ -148,6 +148,7 @@ function ParkedSaveRow({
           <Button
             variant="ghost"
             size="sm"
+            tone="danger"
             icon={<TrashIcon />}
             label={`Discard the kept text of ${save.name}`}
             onClick={() => {

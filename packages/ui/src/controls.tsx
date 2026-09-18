@@ -15,6 +15,7 @@ import {
   fieldClassName,
   focusOutline,
   type ButtonSize,
+  type ButtonTone,
   type ButtonVariant,
 } from './control-classes.ts';
 import { CheckIcon, ChevronDownIcon, ChevronRightIcon } from './icons.tsx';
@@ -40,6 +41,7 @@ export function Button({
   type,
   variant = 'primary',
   size = 'md',
+  tone,
   disabled,
   onClick,
   children,
@@ -54,6 +56,7 @@ export function Button({
   readonly type?: 'button' | 'submit' | undefined;
   readonly variant?: ButtonVariant | undefined;
   readonly size?: ButtonSize | undefined;
+  readonly tone?: ButtonTone | undefined;
   readonly disabled?: boolean | undefined;
   readonly onClick?: (() => void) | undefined;
   readonly children?: ReactNode | undefined;
@@ -69,6 +72,7 @@ export function Button({
   const classes = buttonClassName({
     variant,
     size,
+    tone,
     className: [hasChildren ? '' : iconOnlyClassName[size], extraClassName]
       .filter(Boolean)
       .join(' '),

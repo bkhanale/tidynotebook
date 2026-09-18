@@ -649,6 +649,7 @@ function TrashList({
                         <Button
                           variant="ghost"
                           size="sm"
+                          tone="danger"
                           disabled={busy}
                           icon={<TrashIcon />}
                           label={`Delete permanently: ${name}`}
