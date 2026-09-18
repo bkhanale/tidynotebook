@@ -5,6 +5,63 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0 - 2026-09-18
+
+This release gives the interface one face, one accent, one edge and one recipe
+for every control, so it reads as a finished product on every device. It
+closes the seven interface rows of the 0.3.0 milestone. The fixed rows that
+this milestone also lists shipped in 0.2.1 and 0.2.2 and are recorded there.
+
+### Added
+
+- **One typeface.** The application is set in Geist, with Geist Mono for code
+  and keyboard hints. Both are served by the application itself, so the
+  product looks the same on every device and makes no request to a third
+  party.
+- **A header that knows where you are.** The frame header shows the workspace,
+  the folder and the open note as a breadcrumb, the actions of the open screen
+  (History, Publish and a menu of the rest for a note), Search with its key
+  hint, and your account. The wordmark now appears on the sign in screen only.
+- **Key caps.** Every keyboard hint draws one cap for each key, with the
+  Command, Shift and Option signs on an Apple device and Ctrl, Shift and Alt
+  elsewhere.
+- **A design guide and a design gate.** `docs/development/design.md` states the
+  system every screen follows, and `pnpm lint` refuses a control that leaves
+  it: an icon off the grid, a label in capitals, a dashed edge, an off scale
+  size or radius, a colour class that names no token, a hand written control.
+
+### Changed
+
+- The default theme paints the one action of a screen in ink and keeps its
+  blue for a link, the focus ring, the caret and the selection. The app mark
+  and the avatars are monochrome. A screen has one primary button.
+- The sidebar is a column of rows: the workspace switcher, Search, New note,
+  the Folders label with its New folder action, the tree without guide lines
+  or rings, and the footer rows with the sync state as a dot.
+- Every button, row, field and keyboard hint reads one recipe, with one focus
+  treatment. A field and a secondary button wear the soft divider as their
+  edge. The dark component edge marks a checkbox, a task box and a drop
+  target only.
+- The note surface: muted list markers, a drawn task box, a quiet quote bar,
+  a code block as one card, a link with a soft underline, a table with one
+  rule, no active line fill, and no rules around the name or the word count.
+  The heading ramp stops under the note name.
+- The command palette gives every action the same icon as the sidebar and the
+  menus. The account menu gives every row an icon.
+- Empty states have no box. A notice takes a tone surface and a mark. Settings
+  is a page of sections with a segmented appearance control. The undo bar of
+  the trash is one toast primitive. The published page reads the same classes
+  as the application.
+- Icons are drawn at a stroke of 1.5 and render at 16 px in a control and
+  20 px in an empty state. Six unused icons are gone.
+
+### Removed
+
+- **The browser test suite.** The Playwright journeys, their configuration and
+  their CI job are retired. The gate is `pnpm verify`: the unit tests beside
+  each module, the integration tests against a real database and server, the
+  design gate, typecheck, lint, format and the build. See decision record 0066.
+
 ## 0.2.2 - 2026-09-18
 
 This hotfix repairs the installed application update flow.
