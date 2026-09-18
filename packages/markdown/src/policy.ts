@@ -12,6 +12,7 @@
  * generated API operations.
  */
 import type { Options as SanitizeSchema } from 'rehype-sanitize';
+import { alertTones } from './alerts.ts';
 
 /**
  * Shape of a canonical identifier, as written in stored Markdown.
@@ -171,7 +172,13 @@ const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
  *
  * Additions over the plain CommonMark set are the GFM table elements, the
  * disabled task-list checkbox, the footnote section with its back references,
- * and the placeholder elements for math and diagrams.
+ * the alert attributes of a block quote, and the placeholder elements for
+ * math and diagrams.
+ *
+ * An image source accepts `http` and `https` as well as an internal path,
+ * because decision 0067 loads an external picture. An image element runs no
+ * script, and every other scheme, `javascript:` and `data:` among them, is
+ * still refused.
  *
  * Math renders through `./math.ts`, which sanitizes KaTeX HTML on its own
  * and inserts it after this schema ran. The main pipeline therefore keeps
@@ -206,10 +213,10 @@ export const sanitizeSchema: SanitizeSchema = {
   clobberPrefix: '',
   protocols: {
     href: ['http', 'https', 'mailto'],
-    // An image source is always an internal attachment path, which carries no
-    // scheme. An external image becomes a placeholder before this stage.
-    src: [],
-    dataExternalImage: ['http', 'https'],
+    // An image source is an internal attachment path, which carries no
+    // scheme, or the external address that decision 0067 keeps. Every other
+    // scheme, `javascript:` and `data:` first, is refused here.
+    src: ['http', 'https'],
   },
   ancestors: {
     input: ['li'],
@@ -254,6 +261,10 @@ export const sanitizeSchema: SanitizeSchema = {
     'ul',
   ],
   attributes: {
+    blockquote: [
+      ['className', 'notes-alert'],
+      ['dataAlert', ...alertTones],
+    ],
     a: [
       'href',
       'title',
@@ -275,7 +286,13 @@ export const sanitizeSchema: SanitizeSchema = {
     h4: [['id', namespacedId]],
     h5: [['id', namespacedId]],
     h6: [['id', namespacedId]],
-    img: ['alt', 'src', 'title'],
+    img: [
+      'alt',
+      'src',
+      'title',
+      ['loading', 'lazy'],
+      ['referrerPolicy', 'no-referrer'],
+    ],
     input: [
       ['type', 'checkbox'],
       ['disabled', true],
@@ -286,6 +303,7 @@ export const sanitizeSchema: SanitizeSchema = {
       ['id', namespacedId],
     ],
     ol: ['start', ['className', 'contains-task-list']],
+    p: [['className', 'notes-alert-title']],
     pre: [
       ['dataDiagram', 'mermaid'],
       ['dataFrontmatter', 'yaml'],
@@ -299,7 +317,6 @@ export const sanitizeSchema: SanitizeSchema = {
     span: [
       ['dataMath', 'inline', 'display'],
       ['dataBlocked', 'link', 'image'],
-      'dataExternalImage',
       'ariaHidden',
       [
         'className',

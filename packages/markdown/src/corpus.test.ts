@@ -49,19 +49,31 @@ await test('an external link is marked and opens no named window', () => {
   assert.ok(!html.includes('target='));
 });
 
-await test('only an attachment image survives as an image element', () => {
+await test('an attachment image and an external image both render', () => {
   assert.ok(
     html.includes(
       '<img src="/attachments/0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d" alt="diagram attachment">',
     ),
   );
+  // Decision 0067: an external picture keeps its address, sends no referrer,
+  // and loads when the reader reaches it.
   assert.ok(
     html.includes(
-      '<span data-external-image="https://example.com/photo.png">external picture</span>',
+      '<img src="https://example.com/photo.png" alt="external picture" loading="lazy" referrerpolicy="no-referrer">',
     ),
   );
   assert.ok(html.includes('<span data-blocked="image">bad image</span>'));
-  assert.equal(html.match(/<img /g)?.length, 1);
+  assert.equal(html.match(/<img /g)?.length, 2);
+});
+
+await test('an alert states its tone and loses its marker', () => {
+  assert.ok(
+    html.includes(
+      '<blockquote class="notes-alert" data-alert="warning"><p class="notes-alert-title">Warning</p>',
+    ),
+  );
+  assert.ok(html.includes('An alert states its tone and hides its marker.'));
+  assert.ok(!html.includes('[!WARNING]'));
 });
 
 await test('the corpus renders a GFM table with alignment', () => {
@@ -145,14 +157,19 @@ await test('a block quote nests and carries no presentation', () => {
   // reference HTML carries the structure only, so a class or a style here
   // would be a second presentation of the same construct.
   const opening = html.match(/<blockquote[^>]*>/g) ?? [];
-  assert.equal(opening.length, 3);
-  for (const tag of opening) assert.equal(tag, '<blockquote>');
-  assert.equal((html.match(/<\/blockquote>/g) ?? []).length, 3);
+  assert.equal(opening.length, 4);
+  // The alert of the corpus is the one quote that carries an attribute, and
+  // it carries the tone alone.
+  assert.deepEqual(
+    opening.filter((tag) => tag !== '<blockquote>'),
+    ['<blockquote class="notes-alert" data-alert="warning">'],
+  );
+  assert.equal((html.match(/<\/blockquote>/g) ?? []).length, 4);
   // The corpus quotes one quote inside another, so the reference path must
   // report two levels, exactly as the live preview reports two bars.
   let depth = 0;
   let deepest = 0;
-  for (const tag of html.match(/<\/?blockquote>/g) ?? []) {
+  for (const tag of html.match(/<\/?blockquote[^>]*>/g) ?? []) {
     depth += tag.startsWith('</') ? -1 : 1;
     deepest = Math.max(deepest, depth);
   }

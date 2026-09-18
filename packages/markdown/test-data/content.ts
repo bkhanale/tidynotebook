@@ -33,7 +33,7 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * external image, a blocked image, raw HTML including a script element and an
  * `onerror` attribute, both inline math pairs, display math, a Mermaid fence,
  * a hard line break, six ATX heading levels, both setext heading levels, an ordered list
- * with a start number, both thematic break forms, an indented code block,
+ * with a start number, an alert quote, both thematic break forms, an indented code block,
  * pointy, bare, and email autolinks, a nested block quote, and an unclosed
  * code fence at the end.
  */
@@ -62,6 +62,9 @@ and this line follows it.
 | cell b   |     2 |
 
 > A quote with a footnote[^one] and a [[Bracket Title]] run of text.
+
+> [!WARNING]
+> An alert states its tone and hides its marker.
 
 [^one]: The footnote text with a [second note](/notes/${noteIdB}).
 

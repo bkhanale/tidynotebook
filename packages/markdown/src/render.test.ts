@@ -248,6 +248,26 @@ await test('an attachment resolver that answers nothing blocks the picture', asy
   assert.ok(!html.includes('<img'));
 });
 
+await test('an image source accepts the two web schemes and no other', async () => {
+  // Decision 0067 widened the image source. Every other scheme must still
+  // lose the picture and keep the alt text.
+  const web = await renderMarkdown(
+    '![a](https://example.com/a.png)\n\n![b](http://example.com/b.png)\n',
+  );
+  assert.equal(web.match(/<img /g)?.length, 2);
+  for (const source of [
+    'javascript:alert(1)',
+    'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
+    'vbscript:msgbox(1)',
+    'file:///etc/passwd',
+    '//example.com/a.png',
+  ]) {
+    const html = await renderMarkdown(`![alt](${source})\n`);
+    assert.ok(!html.includes('<img'), source);
+    assert.ok(html.includes('<span data-blocked="image">alt</span>'), source);
+  }
+});
+
 await test('a mermaid fence stays a placeholder on the server path', async () => {
   // Decision 0031. The diagram frame belongs to the shell, so the server
   // renders the source as text and no diagram engine runs here.

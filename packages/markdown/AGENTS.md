@@ -16,7 +16,8 @@ The editor, the server index, and Read mode all read a note through it.
   sanitized HTML. `links.ts` extracts note links and attachment references.
 - `policy.ts` classifies a URL. `limits.ts` holds the size and depth limits
   and `MarkdownLimitError`. `math.ts` and `math-syntax.ts` hold the math
-  rules and delimiters.
+  rules and delimiters. `alerts.ts` holds the alert marker of a block quote,
+  which the live preview reads as well.
 - `test-data/content.ts` is the corpus document that both render paths must
   agree on.
 - No input and no output of any kind happens here. No attachment is fetched
@@ -73,5 +74,6 @@ through the editor path, so both surfaces must agree on structure.
 | `src/parse.ts`         | The parser and its extension set            |
 | `src/render.ts`        | `renderMarkdown` and heading slugs          |
 | `src/policy.ts`        | The sanitizer schema and the URL policy     |
+| `src/alerts.ts`        | The alert marker and the five tones          |
 | `src/limits.ts`        | Size and depth limits, `MarkdownLimitError` |
 | `test-data/content.ts` | The equivalence corpus                      |

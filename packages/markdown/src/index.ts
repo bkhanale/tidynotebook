@@ -13,6 +13,13 @@
  * input or output of any kind.
  */
 export type { Root } from 'mdast';
+export type { AlertTone } from './alerts.ts';
+export {
+  alertMarkerLength,
+  alertTitle,
+  alertToneOf,
+  alertTones,
+} from './alerts.ts';
 export { parseMarkdown } from './parse.ts';
 export type { AttachmentRef, NoteLink, SourceRange } from './links.ts';
 export { extractAttachmentRefs, extractLinks } from './links.ts';

@@ -11,14 +11,19 @@
  *   `allowDangerousHtml` off, so an `html` node is dropped with its content.
  *   A `<script>` block, an `onerror` attribute, and an inline `<b>` all
  *   disappear; the text around them stays.
- * - It never fetches anything. An internal reference stays a path that the
- *   caller resolves through the generated API operations, and an external
- *   image becomes a placeholder that needs an explicit user action.
+ * - It never fetches anything itself. An internal reference stays a path that
+ *   the caller resolves through the generated API operations. An external
+ *   image keeps its address, so the browser of the reader loads it and the
+ *   host of that image learns of the reader (decision 0067).
  * - It never evaluates front matter. The parser keeps the YAML text in its
  *   own syntax node, and the Markdown to HTML stage emits it as escaped text
  *   in one metadata block.
  * - It never runs unbounded work. `./limits.ts` bounds the document before the
  *   parser sees it and bounds the parsed tree afterwards.
+ *
+ * A block quote that opens with an alert marker, for example `[!NOTE]`,
+ * becomes an alert: the marker leaves the text and the quote states its tone.
+ * `./alerts.ts` holds that one rule, and the live preview reads it as well.
  *
  * Math and Mermaid are handled differently. Math sources render through
  * `./math.ts` into sanitized KaTeX after the main sanitizer ran, so KaTeX
@@ -34,6 +39,7 @@ import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import remarkRehype from 'remark-rehype';
 import { visit } from 'unist-util-visit';
+import { alertMarkerLength, alertTitle, alertToneOf } from './alerts.ts';
 import { createMarkdownProcessor, parseMarkdown } from './parse.ts';
 import { renderMath } from './math.ts';
 import { classifyUrl, sanitizeSchema } from './policy.ts';
@@ -279,17 +285,67 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
         node.properties = title === null ? { src, alt } : { src, alt, title };
         return;
       }
-      // The design requires an explicit user action before an external image
-      // loads, so the renderer emits a placeholder and never an `img` element.
+      // An external picture is content, so it renders as a picture (decision
+      // 0067). The sanitizer keeps `http` and `https` on an image source and
+      // nothing else, and an image element runs no script, so the cost is the
+      // request that the reader makes to the host of the picture.
       if (target.kind === 'external') {
-        replaceWith(node, 'span', { dataExternalImage: target.href }, [
-          { type: 'text', value: alt },
-        ]);
+        const title = stringProperty(node, 'title');
+        // The referrer never leaves with the request, so the host of the
+        // picture learns that somebody asked for it and never which note
+        // holds it. The picture loads when the reader reaches it.
+        node.properties = {
+          src: target.href,
+          alt,
+          ...(title === null ? {} : { title }),
+          loading: 'lazy',
+          referrerPolicy: 'no-referrer',
+        };
         return;
       }
       replaceWith(node, 'span', { dataBlocked: 'image' }, [
         { type: 'text', value: alt },
       ]);
+    });
+  };
+}
+
+/**
+ * Turns a block quote that opens with an alert marker into an alert.
+ *
+ * The marker is not content. It states the tone of the quote, so it leaves
+ * the text and becomes one attribute and one title. A reader of the published
+ * page then sees the same construct the note surface draws, and the marker
+ * never reaches the page as literal text.
+ *
+ * A quote whose first line is not a marker is untouched, so an ordinary quote
+ * keeps every character the author wrote.
+ */
+function applyAlerts() {
+  return (tree: HastRoot): undefined => {
+    visit(tree, 'element', (node) => {
+      if (node.tagName !== 'blockquote') return;
+      const first = node.children.find((child) => child.type === 'element');
+      if (first === undefined || first.tagName !== 'p') return;
+      const opening = first.children[0];
+      if (opening === undefined || opening.type !== 'text') return;
+      const tone = alertToneOf(opening.value);
+      if (tone === null) return;
+      opening.value = opening.value.slice(alertMarkerLength(opening.value));
+      node.properties = {
+        className: ['notes-alert'],
+        dataAlert: tone,
+      };
+      // A quote that holds the marker alone keeps no empty paragraph, so the
+      // alert is its title and nothing else.
+      const body =
+        opening.value === '' && first.children.length === 1
+          ? node.children.filter((child) => child !== first)
+          : node.children;
+      node.children = [
+        textElement('p', { className: 'notes-alert-title' }, alertTitle(tone)),
+        ...body,
+      ];
     });
   };
 }
@@ -398,6 +454,7 @@ function buildRenderProcessor(options: RenderMarkdownOptions = {}) {
       },
     })
     .use(addHeadingIdentifiers)
+    .use(applyAlerts)
     .use(applyUrlPolicy, options)
     .use(rehypeSanitize, sanitizeSchema)
     .use(rehypeStringify)

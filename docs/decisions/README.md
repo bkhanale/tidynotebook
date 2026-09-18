@@ -90,6 +90,14 @@ and needs no record.
 | [0058](0058-an-overlay-is-placed-on-the-screen.md)                | An overlay is placed on the screen                         |
 | [0059](0059-a-guide-caps-its-rules.md)                            | A directory guide caps its rules and not its index         |
 | [0060](0060-the-published-page-takes-every-style.md)              | The published page takes every emitted style               |
+| [0061](0061-the-application-is-set-in-one-vendored-family.md)     | The application is set in one vendored family              |
+| [0062](0062-the-default-action-is-ink-and-the-blue-carries-meaning.md) | The default action is ink and the blue carries meaning |
+| [0063](0063-the-resting-edge-of-a-control-is-the-divider.md)      | The resting edge of a control is the divider               |
+| [0064](0064-the-frame-header-is-the-context-of-the-route.md)      | The frame header is the context of the route               |
+| [0065](0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md) | One recipe for a control and one grid for an icon          |
+| [0066](0066-the-browser-suite-is-retired.md)                      | The browser suite is retired                               |
+| [0067](0067-an-external-picture-loads-by-itself.md)               | An external picture loads by itself                        |
+| [0068](0068-a-soft-line-break-joins-its-paragraph.md)             | A soft line break joins its paragraph in the preview       |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -234,6 +242,13 @@ where the person was. It refines record 0015. Record 0065 puts every control
 recipe in one module and every icon on one grid, and makes the gate a design
 gate, because twenty three controls wrote their own classes and icons rendered
 at six sizes.
+
+Records 0067 and 0068 answer the reading report of 2026-09-18. Record 0067
+loads an external picture, because a note that names a picture by address
+showed a grey box with a Load control and the owner asked for the picture.
+Record 0068 joins a soft line break in the live preview, because the note
+surface and the published page read one paragraph two different ways, which
+record 0025 does not allow.
 
 Record 0066 retires the browser suite, because a full matrix started a build, a
 server, a database and a browser for each worker of five projects, and it stood
