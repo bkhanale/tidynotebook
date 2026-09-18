@@ -1,6 +1,6 @@
 # 012: A finished interface
 
-Status: active
+Status: complete
 
 This design states why the interface reads as unfinished after design 011
 landed, and what it takes to make it read as a product that somebody chose. It

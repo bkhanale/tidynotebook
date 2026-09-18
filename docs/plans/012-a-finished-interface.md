@@ -1,6 +1,6 @@
 # Plan 012: A finished interface
 
-Status: active
+Status: complete
 
 > The live items are [GitHub issues 129 to 135](https://github.com/bkhanale/notesapp/issues?q=is%3Aissue+%22Interface+012%22) on the project board.
 
