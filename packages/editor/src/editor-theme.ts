@@ -365,7 +365,14 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // link, the caret and the selection, which carry a meaning no shape
     // states (record 0062).
     '.cm-np-bullet': { color: 'var(--notes-text-muted)' },
-    '.cm-np-list-number': { color: 'var(--notes-text-muted)' },
+    // The number of an ordered item stands upright. The code highlighter of
+    // `language.ts` gives the meta tag of a language the italic of a comment,
+    // and the Markdown grammar marks a list number with that same tag, so the
+    // number of every ordered item leaned until this rule set it back.
+    '.cm-np-list-number': {
+      color: 'var(--notes-text-muted)',
+      fontStyle: 'normal',
+    },
 
     // The task box is a drawn control (record 0033). The native box paints
     // the accent of the operating system and nothing in the palette reaches
@@ -490,10 +497,23 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // it, so they keep their box and lose their ink. They come back on the
     // row that the selection touches, and the box never changes, so the
     // columns do not move while a person edits a row.
+    //
+    // A separator carries the rule of its row as well. The rule of a table is
+    // drawn cell by cell, because the rows form an anonymous table and no
+    // element of the row exists to carry one, so a separator that drew no
+    // rule left a gap in the line between every two columns.
     '.cm-np-table-pipe': {
       display: 'table-cell',
-      color: 'var(--notes-text-muted)',
-      opacity: '0',
+      // The ink goes and the box stays. It cannot go by opacity: that fades
+      // the whole element, so the separator took the rule of its row with it
+      // and left a gap in the line at every column.
+      color: 'transparent',
+    },
+    '.cm-np-table-cell-pipe': {
+      borderBottom: '1px solid var(--notes-border-subtle)',
+    },
+    '.cm-np-table-head-pipe': {
+      borderBottom: '1px solid var(--notes-border-line)',
     },
     '.cm-np-table-rule': {
       display: 'table-cell',
@@ -501,7 +521,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       color: 'var(--notes-text-muted)',
       opacity: '0.45',
     },
-    '.cm-np-table-shown': { opacity: '0.45' },
+    '.cm-np-table-shown': {
+      color: 'var(--notes-text-muted)',
+      opacity: '0.45',
+    },
     '.cm-np-table-align': { color: 'var(--notes-text-muted)' },
     // The delimiter row that stepped aside keeps no height of its own.
     '.cm-np-table-closed': { fontSize: '0', lineHeight: '0' },

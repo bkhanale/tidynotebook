@@ -214,6 +214,15 @@ await test('a table rules its header row and never its columns', () => {
     // The first column starts on the same edge as every other line.
     assert.equal(box.paddingInlineStart, '0');
   }
+  // The rule of a table is drawn cell by cell, so the separator between two
+  // columns carries the rule of its own row, and it hides its ink with the
+  // colour and never with the opacity, which would fade that rule with it.
+  // Without both, the line under the header row was a row of dashes with a
+  // gap at every column.
+  assert.equal(rule('.cm-np-table-head-pipe').borderBottom, head.borderBottom);
+  assert.equal(rule('.cm-np-table-cell-pipe').borderBottom, cell.borderBottom);
+  assert.equal(rule('.cm-np-table-pipe').color, 'transparent');
+  assert.equal(rule('.cm-np-table-pipe').opacity, undefined);
 });
 
 await test('the language of a fence is a value and not a label', () => {

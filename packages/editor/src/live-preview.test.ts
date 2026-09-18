@@ -418,16 +418,19 @@ await test('every row of a table carries the same boxes', () => {
   // outside a cell and the delimiter row is cut the same way.
   const doc = '| a | bbbb |\n| :- | ---: |\n| cc |  d  |\n';
   const found = describe(doc);
+  const boxKinds = [
+    'cm-np-table-head',
+    'cm-np-table-cell',
+    'cm-np-table-pipe',
+    'cm-np-table-rule',
+  ];
   const boxes = (from: number, to: number): number =>
     found.filter(
       (item) =>
         item.kind === 'mark' &&
         item.from >= from &&
         item.to <= to &&
-        (item.value.startsWith('cm-np-table-head') ||
-          item.value.startsWith('cm-np-table-cell') ||
-          item.value === 'cm-np-table-pipe' ||
-          item.value === 'cm-np-table-rule'),
+        item.value.split(' ').some((name) => boxKinds.includes(name)),
     ).length;
   const header = doc.indexOf('\n');
   const delimiter = doc.indexOf('\n', header + 1);

@@ -135,7 +135,15 @@ export const codeHighlightSpecs = [
     color: syntaxColour('string'),
   },
   {
-    tag: [tags.comment, tags.lineComment, tags.blockComment, tags.meta],
+    // `tags.meta` is not here, and it cannot be. The Markdown grammar marks
+    // every marker of a note, the list mark, the quote mark, the emphasis
+    // mark and the table separator, with `tags.processingInstruction`, which
+    // `@lezer/highlight` defines as a child of `tags.meta`, and a highlight
+    // style paints a child through its parent. One entry for the meta token
+    // of a language therefore painted every marker of every note in the
+    // comment colour and leaned it, in a span inside the decoration, where no
+    // rule of the adapter could reach it.
+    tag: [tags.comment, tags.lineComment, tags.blockComment],
     color: syntaxColour('comment'),
     fontStyle: 'italic',
   },

@@ -34,6 +34,21 @@ await test('the code style never paints a Markdown construct', () => {
     );
 });
 
+await test('the code style never paints a marker of a note', () => {
+  // Every marker of a note carries `tags.processingInstruction`, which
+  // `@lezer/highlight` defines as a child of `tags.meta`, and a highlight
+  // style paints a child through its parent. One entry for the meta token of
+  // a language therefore painted the list mark, the quote mark and the table
+  // separator of every note, in a span inside the decoration that styles
+  // them, so no rule of the theme adapter could take the colour back.
+  const painted = styledTags();
+  for (const markerTag of [tags.meta, tags.processingInstruction])
+    assert.ok(
+      !painted.includes(markerTag),
+      'the code highlight style must not carry a marker tag',
+    );
+});
+
 await test('the code style still paints the code constructs', () => {
   const painted = styledTags();
   for (const codeTag of [

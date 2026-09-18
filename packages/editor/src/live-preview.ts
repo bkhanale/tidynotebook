@@ -718,10 +718,16 @@ export function buildPreview(
       const header = name === 'TableHeader';
       // A separator keeps its box at every moment and only changes how
       // visible it is, so the columns never move when a row shows its
-      // source.
-      const pipeClass = touchesLines(node.from, node.to)
-        ? 'cm-np-table-pipe cm-np-table-shown'
-        : 'cm-np-table-pipe';
+      // source. It carries the rule of its row as well, because the rule of a
+      // table is drawn cell by cell and a separator that drew none left a gap
+      // in the line between two columns.
+      const pipeClass = [
+        'cm-np-table-pipe',
+        header ? 'cm-np-table-head-pipe' : 'cm-np-table-cell-pipe',
+        touchesLines(node.from, node.to) ? 'cm-np-table-shown' : '',
+      ]
+        .filter((part) => part !== '')
+        .join(' ');
       let column = 0;
       let at = node.from;
       for (
