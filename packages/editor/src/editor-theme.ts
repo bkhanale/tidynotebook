@@ -136,8 +136,10 @@ function quoteLevel(level: number): Record<string, string> {
   const layers: string[] = [];
   const positions: string[] = [];
   for (let index = 0; index < level; index += 1) {
+    // The bar reads one colour name, so an alert repaints every bar of its
+    // quote by setting that name and nothing else.
     layers.push(
-      'linear-gradient(var(--notes-border-line), var(--notes-border-line))',
+      'linear-gradient(var(--cm-np-quote-bar, var(--notes-border-line)), var(--cm-np-quote-bar, var(--notes-border-line)))',
     );
     positions.push(`calc(var(--spacing) * ${String(index * quoteBarStep)}) 0`);
   }
@@ -360,6 +362,27 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-quote-3': quoteLevel(3),
     '.cm-np-quote-4': quoteLevel(4),
 
+    // An alert is a block quote that states a tone (decision 0067 of the
+    // renderer and `alerts.ts` of `@notesapp/markdown`). It is content and not
+    // a quotation, so it takes the ink of the note back, and its bar and its
+    // title take the one colour of the tone.
+    //
+    // The palette names three tones, an accent, a success and a danger, so the
+    // five alerts of GitHub map onto those three and the title word states
+    // which one a person is reading.
+    '.cm-np-alert': { color: 'var(--notes-text)' },
+    '.cm-np-alert-note': { '--cm-np-quote-bar': 'var(--notes-accent-text)' },
+    '.cm-np-alert-important': {
+      '--cm-np-quote-bar': 'var(--notes-accent-text)',
+    },
+    '.cm-np-alert-tip': { '--cm-np-quote-bar': 'var(--notes-success-text)' },
+    '.cm-np-alert-warning': { '--cm-np-quote-bar': 'var(--notes-danger-text)' },
+    '.cm-np-alert-caution': { '--cm-np-quote-bar': 'var(--notes-danger-text)' },
+    '.cm-np-alert-title': {
+      color: 'var(--cm-np-quote-bar)',
+      fontWeight: 'var(--font-weight-note-heading)',
+    },
+
     // A list marker is notation and not an action, so it reads in the quiet
     // text color of the palette and never in the accent. The accent marks a
     // link, the caret and the selection, which carry a meaning no shape
@@ -475,6 +498,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // of the note. The rule under the header row states where the head of the
     // table ends, the hairline between two rows separates them, and no line
     // runs down the columns: the space between them already does that.
+    //
+    // A cell breaks between words and never inside one. The editor wraps every
+    // line of a note, and that wrap broke a word of a narrow column into two,
+    // so a wide table squashed into the measure and read as rubble. A cell
+    // that keeps its words whole keeps the table its own shape, and the note
+    // scrolls sideways to reach the last column.
     '.cm-np-table-cell': {
       display: 'table-cell',
       paddingInlineStart: '0',
@@ -482,6 +511,8 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       paddingBlock: 'calc(var(--spacing) * 1.5)',
       verticalAlign: 'top',
       borderBottom: '1px solid var(--notes-border-subtle)',
+      overflowWrap: 'normal',
+      wordBreak: 'normal',
     },
     '.cm-np-table-head': {
       display: 'table-cell',
@@ -492,6 +523,25 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderBottom: '1px solid var(--notes-border-line)',
       fontWeight: 'var(--font-weight-note-heading)',
       color: 'var(--notes-text-strong)',
+      overflowWrap: 'normal',
+      wordBreak: 'normal',
+    },
+    // What stands between the start of a line and the start of its row: the
+    // indentation of a list item and the marks of a quote. A row is a
+    // `display: table-row` box and takes no padding, so this cell is where the
+    // inset of a nested table lives. `live-preview.ts` marks the range.
+    '.cm-np-table-lead': { display: 'table-cell', padding: '0' },
+    '.cm-np-table-quoted-1': {
+      paddingInlineStart: `calc(var(--spacing) * ${String(quoteBarStep)})`,
+    },
+    '.cm-np-table-quoted-2': {
+      paddingInlineStart: `calc(var(--spacing) * ${String(quoteBarStep * 2)})`,
+    },
+    '.cm-np-table-quoted-3': {
+      paddingInlineStart: `calc(var(--spacing) * ${String(quoteBarStep * 3)})`,
+    },
+    '.cm-np-table-quoted-4': {
+      paddingInlineStart: `calc(var(--spacing) * ${String(quoteBarStep * 4)})`,
     },
     // The cell separators of a table carry no meaning once the columns show
     // it, so they keep their box and lose their ink. They come back on the

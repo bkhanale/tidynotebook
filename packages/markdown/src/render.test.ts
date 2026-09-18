@@ -248,14 +248,13 @@ await test('an attachment resolver that answers nothing blocks the picture', asy
   assert.ok(!html.includes('<img'));
 });
 
-await test('an image source accepts the two web schemes and no other', async () => {
-  // Decision 0067 widened the image source. Every other scheme must still
-  // lose the picture and keep the alt text.
-  const web = await renderMarkdown(
-    '![a](https://example.com/a.png)\n\n![b](http://example.com/b.png)\n',
-  );
-  assert.equal(web.match(/<img /g)?.length, 2);
+await test('an image source accepts HTTPS and no other scheme', async () => {
+  // Decision 0067 widened the image source to one scheme. Every other scheme,
+  // plain HTTP among them, must still lose the picture and keep the alt text.
+  const web = await renderMarkdown('![a](https://example.com/a.png)\n');
+  assert.equal(web.match(/<img /g)?.length, 1);
   for (const source of [
+    'http://example.com/b.png',
     'javascript:alert(1)',
     'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=',
     'vbscript:msgbox(1)',

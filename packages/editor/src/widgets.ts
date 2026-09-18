@@ -45,10 +45,11 @@ import {
   WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
+import { allowsExternalImage, classifyUrl } from '@notesapp/markdown';
 
 /** The kinds of region that render as a widget. */
 export type RichWidgetKind =
-  'image' | 'image-external' | 'math-inline' | 'math-display' | 'diagram';
+  'image' | 'math-inline' | 'math-display' | 'diagram';
 
 /** One region with its exact source range. */
 export type RichWidget = {
@@ -140,13 +141,17 @@ export type RichWidgetResolvers = {
 };
 
 /**
- * The external images the reader chose to load in this session.
+ * Whether a destination is a picture on another host.
  *
- * An external image is never fetched on its own. Once the reader presses
- * Load, the choice survives a rebuild of the widget so the picture does not
- * blink away on the next keystroke.
+ * The one URL policy of `@notesapp/markdown` answers it, so the note surface
+ * and the reference renderer agree on what counts as external.
  */
-const allowedExternalImages = new Set<string>();
+export function isExternalImage(destination: string): boolean {
+  return (
+    classifyUrl(destination).kind === 'external' &&
+    allowsExternalImage(destination)
+  );
+}
 
 /** The text of one whole-line range, used to place a block widget. */
 function lineRange(
@@ -238,14 +243,15 @@ export function findRichRegions(state: EditorState): readonly RichWidget[] {
         const alone =
           line.text.trim() === slice(node.from, node.to).trim() &&
           doc.lineAt(node.to).number === line.number;
+        if (attachment === null && !isExternalImage(destination)) return false;
         found.push({
           from: alone ? line.from : node.from,
           to: alone ? line.to : node.to,
-          kind: attachment === null ? 'image-external' : 'image',
+          kind: 'image',
           source: slice(node.from, node.to),
           content: alt,
           destination,
-          block: attachment !== null && alone,
+          block: alone,
         });
         return false;
       }
@@ -269,12 +275,6 @@ export type WidgetView =
       readonly alt: string;
       readonly external: boolean;
     }
-  | {
-      readonly kind: 'image-placeholder';
-      readonly label: string;
-      readonly action: string;
-      readonly actionLabel: string;
-    }
   | { readonly kind: 'math'; readonly html: string; readonly display: boolean }
   | { readonly kind: 'element'; readonly element: HTMLElement }
   | {
@@ -286,15 +286,13 @@ export type WidgetView =
 /**
  * Decides what one region shows.
  *
- * `isLoaded` reports whether the reader already pressed Load for an
- * external destination. Everything that can fail, an oversized region, a
- * missing attachment, a resolver that is still loading, and a resolver that
- * throws, ends in the `source` view, so the source is never lost.
+ * Everything that can fail, an oversized region, a missing attachment, a
+ * resolver that is still loading, and a resolver that throws, ends in the
+ * `source` view, so the source is never lost.
  */
 export function widgetView(
   widget: RichWidget,
   resolvers: RichWidgetResolvers,
-  isLoaded: (destination: string) => boolean,
 ): WidgetView {
   const source = (message: string): WidgetView => ({
     kind: 'source',
@@ -304,29 +302,19 @@ export function widgetView(
   if (shouldPreserveAsSource(widget))
     return source('This block is large, so it stays source.');
   if (widget.kind === 'image') {
-    const id = attachmentIdOf(widget.destination);
-    const url =
-      id === null
-        ? null
-        : (resolvers.resolveAttachment?.(widget.destination) ?? null);
-    if (url === null) return source('The attachment is not ready yet.');
-    return { kind: 'image', url, alt: widget.content, external: false };
-  }
-  if (widget.kind === 'image-external') {
-    if (isLoaded(widget.destination))
+    // A picture on another host keeps its address and loads by itself
+    // (decision 0067). A picture of this workspace waits for the bytes that
+    // the resolver holds.
+    if (attachmentIdOf(widget.destination) === null)
       return {
         kind: 'image',
         url: widget.destination,
         alt: widget.content,
         external: true,
       };
-    const alt = widget.content === '' ? 'image' : widget.content;
-    return {
-      kind: 'image-placeholder',
-      label: `${alt} \u00b7 ${widget.destination}`,
-      action: 'Load',
-      actionLabel: `Load the external image ${alt}`,
-    };
+    const url = resolvers.resolveAttachment?.(widget.destination) ?? null;
+    if (url === null) return source('The attachment is not ready yet.');
+    return { kind: 'image', url, alt: widget.content, external: false };
   }
   if (widget.kind === 'math-inline' || widget.kind === 'math-display') {
     const render = resolvers.renderMath;
@@ -350,7 +338,6 @@ export function widgetView(
 /** The accessible label of one widget kind. */
 function widgetLabel(kind: RichWidgetKind): string {
   if (kind === 'image') return 'Image';
-  if (kind === 'image-external') return 'External image';
   if (kind === 'math-inline') return 'Inline formula';
   if (kind === 'math-display') return 'Formula';
   return 'Diagram';
@@ -434,9 +421,7 @@ class RichWidgetType extends WidgetType {
 
   /** Renders one view model into `parent`. */
   private fill(parent: HTMLElement): void {
-    const view = widgetView(this.widget, this.resolvers, (destination) =>
-      allowedExternalImages.has(destination),
-    );
+    const view = widgetView(this.widget, this.resolvers);
     if (view.kind === 'source') {
       const note = document.createElement('span');
       note.className = 'cm-np-widget-note';
@@ -453,39 +438,23 @@ class RichWidgetType extends WidgetType {
       image.className = 'cm-np-widget-image';
       image.src = view.url;
       image.alt = view.alt;
-      if (view.external)
+      if (view.external) {
+        // The host of the picture learns that somebody asked for it and never
+        // which note holds it.
+        image.referrerPolicy = 'no-referrer';
+        image.loading = 'lazy';
         image.addEventListener('error', (): void => {
           parent.textContent = '';
           const failed = document.createElement('span');
           failed.className = 'cm-np-widget-note cm-np-widget-error';
-          failed.textContent = `This image did not load: ${view.url}`;
+          failed.textContent =
+            view.alt === ''
+              ? 'This picture did not load.'
+              : `This picture did not load: ${view.alt}`;
           parent.appendChild(failed);
         });
+      }
       parent.appendChild(image);
-      return;
-    }
-    if (view.kind === 'image-placeholder') {
-      const label = document.createElement('span');
-      label.className = 'cm-np-widget-note';
-      label.textContent = view.label;
-      parent.appendChild(label);
-      const load = document.createElement('button');
-      load.type = 'button';
-      load.className = 'cm-np-widget-action';
-      load.textContent = view.action;
-      load.setAttribute('aria-label', view.actionLabel);
-      load.addEventListener('mousedown', (event: Event): void => {
-        event.preventDefault();
-        event.stopPropagation();
-      });
-      load.addEventListener('click', (event: Event): void => {
-        event.preventDefault();
-        event.stopPropagation();
-        allowedExternalImages.add(this.widget.destination);
-        parent.textContent = '';
-        this.fill(parent);
-      });
-      parent.appendChild(load);
       return;
     }
     if (view.kind === 'math') {
@@ -536,6 +505,13 @@ export function buildRichWidgets(
     items.push(decoration.range(widget.from, widget.to));
     atomicItems.push(decoration.range(widget.from, widget.to));
   }
+  for (const join of findSoftBreaks(state)) {
+    if (join.to <= join.from) continue;
+    if (touches(join.paragraphFrom, join.paragraphTo)) continue;
+    const joined = Decoration.replace({ widget: new SoftBreakWidget() });
+    items.push(joined.range(join.from, join.to));
+    atomicItems.push(joined.range(join.from, join.to));
+  }
   for (const underline of findSetextUnderlines(state)) {
     if (touches(underline.headingFrom, underline.headingTo)) continue;
     const hide = Decoration.replace({});
@@ -555,6 +531,92 @@ export function buildRichWidgets(
     decorations: Decoration.set(items, true),
     atomic: RangeSet.of(atomicItems, true),
   };
+}
+
+/**
+ * One joined soft line break of a paragraph.
+ *
+ * `from` and `to` cover the line break and whatever opens the next line, the
+ * quote marks and the indentation of a list item, so the two source lines
+ * become one run of text. `paragraphFrom` and `paragraphTo` are the range the
+ * selection must touch to bring the source back.
+ */
+type SoftBreak = {
+  readonly from: number;
+  readonly to: number;
+  readonly paragraphFrom: number;
+  readonly paragraphTo: number;
+};
+
+/** What opens a continuation line: indentation and the quote marks. */
+const continuationPrefix = /^[ \t]*(?:>[ \t]*)*/;
+
+/**
+ * The soft line breaks of every paragraph of one document.
+ *
+ * CommonMark joins two lines of one paragraph, and the reference renderer
+ * does exactly that, so the note surface joins them too (decision 0068). A
+ * line that ends with a hard break keeps its break: a hard break is content
+ * and the author wrote it on purpose.
+ *
+ * The ranges come from the syntax tree. A paragraph node states where the
+ * paragraph starts and ends, and a `HardBreak` child states which of its
+ * lines the author ended deliberately.
+ */
+function findSoftBreaks(state: EditorState): readonly SoftBreak[] {
+  const doc = state.doc;
+  const found: SoftBreak[] = [];
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (node.name !== 'Paragraph') return true;
+      const hard = new Set<number>();
+      syntaxTree(state).iterate({
+        from: node.from,
+        to: node.to,
+        enter: (inner) => {
+          if (inner.name === 'HardBreak')
+            hard.add(doc.lineAt(inner.from).number);
+          return true;
+        },
+      });
+      let line = doc.lineAt(node.from);
+      while (line.to < node.to && line.number < doc.lines) {
+        const next = doc.line(line.number + 1);
+        if (!hard.has(line.number)) {
+          const lead = continuationPrefix.exec(next.text)?.[0].length ?? 0;
+          found.push({
+            from: line.to,
+            to: Math.min(next.from + lead, node.to),
+            paragraphFrom: node.from,
+            paragraphTo: node.to,
+          });
+        }
+        line = next;
+      }
+      return true;
+    },
+  });
+  return found;
+}
+
+/**
+ * The one space that a joined soft line break leaves behind.
+ *
+ * CommonMark turns a soft break into one space, so the two words on either
+ * side of it never run together. The space is breakable, so the joined
+ * paragraph wraps at the measure of the note like any other text.
+ */
+class SoftBreakWidget extends WidgetType {
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-np-soft-break';
+    span.textContent = ' ';
+    return span;
+  }
+
+  override eq(): boolean {
+    return true;
+  }
 }
 
 /**

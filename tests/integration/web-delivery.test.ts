@@ -160,7 +160,7 @@ await test('the shell names its inline script by hash and forbids inline script'
       policy,
     );
     assert.doesNotMatch(policy, /script-src[^;]*'unsafe-inline'/);
-    assert.match(policy, /img-src 'self' blob: data:/);
+    assert.match(policy, /img-src 'self' blob: data: https:/);
     assert.match(policy, /frame-ancestors 'none'/);
     assert.equal(answer.headers['cache-control'], 'no-cache');
     assert.equal(answer.headers['x-frame-options'], 'DENY');

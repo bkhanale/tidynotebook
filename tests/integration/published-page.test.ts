@@ -361,20 +361,19 @@ await test('the page loads the one built application stylesheet', async () => {
   assert.equal(page.html.split('rel="stylesheet"').length - 1, 1);
 });
 
-await test('a script, an event attribute and an external image never travel', async () => {
+await test('a script and an event attribute never travel, a picture does', async () => {
   const page = await readPage(folder.token, { note: dayOneId });
   // The one sanitized renderer drops every raw HTML node with its attributes,
   // so no element and no attribute of the source reaches the reader.
   assert.ok(!page.html.includes('<script'));
   assert.ok(!page.html.includes('onerror'));
   assert.ok(!page.html.includes('src="x"'));
-  // An external image needs an explicit action, so the renderer writes a
-  // placeholder with its words. No element of the page fetches it, and the
-  // content policy of the page permits no image of another origin either.
-  assert.ok(!page.html.includes('<img src="https://'));
+  // Decision 0067. An external picture over HTTPS keeps its address, sends no
+  // referrer and loads when the reader reaches it. The content policy of the
+  // page names the same one scheme.
   assert.ok(
     page.html.includes(
-      '<span data-external-image="https://elsewhere.invalid/tracker.png">Outside</span>',
+      '<img src="https://elsewhere.invalid/tracker.png" alt="Outside" loading="lazy" referrerpolicy="no-referrer">',
     ),
   );
   // The words around a dropped element stay, so nothing of the author is lost.

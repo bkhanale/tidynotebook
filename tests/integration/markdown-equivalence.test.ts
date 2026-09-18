@@ -27,7 +27,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { previewStructureOf } from '@notesapp/editor';
 import type { PreviewNode } from '@notesapp/editor';
-import { renderMarkdown } from '@notesapp/markdown';
+import { alertTones, renderMarkdown, type AlertTone } from '@notesapp/markdown';
 import { corpusMarkdown } from '../../packages/markdown/test-data/content.ts';
 
 /** One HTML tag, as the scanner below sees it. */
@@ -77,6 +77,13 @@ function textOf(html: string): string {
     .trim();
 }
 
+/** The alert tone one block quote states, or null. */
+function toneOf(tag: Tag): AlertTone | null {
+  const value = attribute(tag, 'data-alert');
+  if (value === null) return null;
+  return alertTones.find((tone) => tone === value) ?? null;
+}
+
 /** The value of one attribute of a tag, or null. */
 function attribute(tag: Tag, name: string): string | null {
   const match = new RegExp(`(?:^|\\s)${name}(?:="([^"]*)")?`).exec(
@@ -123,7 +130,7 @@ function renderedStructure(html: string): readonly PreviewNode[] {
       if (tag.closing) quoteDepth -= 1;
       else {
         quoteDepth += 1;
-        found.push({ kind: 'quote', depth: quoteDepth });
+        found.push({ kind: 'quote', depth: quoteDepth, tone: toneOf(tag) });
       }
       continue;
     }

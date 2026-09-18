@@ -13,8 +13,8 @@
  *   disappear; the text around them stays.
  * - It never fetches anything itself. An internal reference stays a path that
  *   the caller resolves through the generated API operations. An external
- *   image keeps its address, so the browser of the reader loads it and the
- *   host of that image learns of the reader (decision 0067).
+ *   image over HTTPS keeps its address, so the browser of the reader loads it
+ *   and the host of that image learns of the reader (decision 0067).
  * - It never evaluates front matter. The parser keeps the YAML text in its
  *   own syntax node, and the Markdown to HTML stage emits it as escaped text
  *   in one metadata block.
@@ -42,7 +42,7 @@ import { visit } from 'unist-util-visit';
 import { alertMarkerLength, alertTitle, alertToneOf } from './alerts.ts';
 import { createMarkdownProcessor, parseMarkdown } from './parse.ts';
 import { renderMath } from './math.ts';
-import { classifyUrl, sanitizeSchema } from './policy.ts';
+import { allowsExternalImage, classifyUrl, sanitizeSchema } from './policy.ts';
 
 /** Builds a text-only HTML element. */
 function textElement(
@@ -289,7 +289,7 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
       // 0067). The sanitizer keeps `http` and `https` on an image source and
       // nothing else, and an image element runs no script, so the cost is the
       // request that the reader makes to the host of the picture.
-      if (target.kind === 'external') {
+      if (target.kind === 'external' && allowsExternalImage(target.href)) {
         const title = stringProperty(node, 'title');
         // The referrer never leaves with the request, so the host of the
         // picture learns that somebody asked for it and never which note

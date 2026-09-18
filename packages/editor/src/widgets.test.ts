@@ -61,29 +61,32 @@ await test('an image inside a sentence stays an inline region', () => {
   assert.equal(region?.block, false);
 });
 
-await test('an external image is its own kind and never loads by itself', () => {
+await test('an external picture loads by itself and needs no resolver', () => {
+  // Decision 0067. The picture is the content, so it needs no action of the
+  // reader and no attachment resolver.
   const doc = '![alt](https://example.invalid/x.png)\n';
   const [region] = findRichRegions(stateOf(doc, 0));
-  assert.equal(region?.kind, 'image-external');
+  assert.equal(region?.kind, 'image');
+  assert.equal(region?.block, true);
   assert.ok(region !== undefined);
-  const view = widgetView(region, {}, () => false);
-  assert.equal(view.kind, 'image-placeholder');
-  if (view.kind === 'image-placeholder') {
-    assert.ok(view.label.includes('https://example.invalid/x.png'));
-    assert.equal(view.action, 'Load');
-  }
-});
-
-await test('an external image renders once the reader pressed Load', () => {
-  const doc = '![alt](https://example.invalid/x.png)\n';
-  const [region] = findRichRegions(stateOf(doc, 0));
-  assert.ok(region !== undefined);
-  const view = widgetView(region, {}, () => true);
+  const view = widgetView(region, {});
   assert.equal(view.kind, 'image');
   if (view.kind === 'image') {
     assert.equal(view.url, 'https://example.invalid/x.png');
     assert.equal(view.external, true);
+    assert.equal(view.alt, 'alt');
   }
+});
+
+await test('a picture with a refused destination is no region at all', () => {
+  // A blocked scheme never becomes a picture, so the source stays on screen
+  // exactly as the author wrote it.
+  for (const source of [
+    '![alt](javascript:alert(1))',
+    '![alt](data:image/png;base64,AAAA)',
+    '![alt](//example.invalid/x.png)',
+  ])
+    assert.deepEqual(findRichRegions(stateOf(`${source}\n`, 0)), [], source);
 });
 
 await test('a mermaid fence is a diagram region and other fences are not', () => {
@@ -225,11 +228,7 @@ await test('an oversized region stays source with a message', () => {
     block: true,
   };
   assert.equal(shouldPreserveAsSource(widget), true);
-  const view = widgetView(
-    widget,
-    { renderMath: () => '<span></span>' },
-    () => false,
-  );
+  const view = widgetView(widget, { renderMath: () => '<span></span>' });
   assert.equal(view.kind, 'source');
 });
 
@@ -243,15 +242,11 @@ await test('math that throws keeps its source instead of a broken preview', () =
     destination: '',
     block: false,
   };
-  const view = widgetView(
-    widget,
-    {
-      renderMath: () => {
-        throw new Error('refused');
-      },
+  const view = widgetView(widget, {
+    renderMath: () => {
+      throw new Error('refused');
     },
-    () => false,
-  );
+  });
   assert.equal(view.kind, 'source');
   if (view.kind === 'source') assert.equal(view.source, '$$x^2$$');
 });
@@ -266,7 +261,7 @@ await test('a missing resolver says so and keeps the source', () => {
     destination: '',
     block: false,
   };
-  const view = widgetView(widget, {}, () => false);
+  const view = widgetView(widget, {});
   assert.equal(view.kind, 'source');
   if (view.kind === 'source') assert.match(view.message, /loading/);
 });
@@ -275,10 +270,51 @@ await test('an attachment whose bytes are missing keeps its source', () => {
   const doc = `![shot](${attachment})\n`;
   const [region] = findRichRegions(stateOf(doc, doc.length));
   assert.ok(region !== undefined);
-  const view = widgetView(
-    region,
-    { resolveAttachment: () => null },
-    () => false,
-  );
+  const view = widgetView(region, { resolveAttachment: () => null });
   assert.equal(view.kind, 'source');
+});
+
+await test('a soft line break joins its paragraph', () => {
+  // Decision 0068. The two source lines are one paragraph, so the break
+  // between them is replaced by one space and the lines read as one.
+  const doc = 'One line.\nJoined to it.\n\nA second paragraph.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, doc.length - 1), {});
+  const found: [number, number][] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push([from, to]);
+  });
+  assert.deepEqual(found, [[9, 10]]);
+  assert.equal(doc.slice(9, 10), '\n');
+});
+
+await test('a hard break keeps its line break', () => {
+  const doc = 'One line.  \nKept apart.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, doc.length), {});
+  const found: [number, number][] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push([from, to]);
+  });
+  assert.deepEqual(found, []);
+});
+
+await test('a joined paragraph shows its source under the caret', () => {
+  const doc = 'One line.\nJoined to it.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, 3), {});
+  const found: [number, number][] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push([from, to]);
+  });
+  assert.deepEqual(found, []);
+});
+
+await test('a joined break swallows the quote mark of the next line', () => {
+  // The quote mark of a continuation line is notation, so it goes with the
+  // break. Leaving it would put a stray angle bracket inside the sentence.
+  const doc = '> One line.\n> Joined to it.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, doc.length), {});
+  const found: string[] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push(doc.slice(from, to));
+  });
+  assert.deepEqual(found, ['\n> ']);
 });

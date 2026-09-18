@@ -52,7 +52,7 @@ await test('the shell policy names the inline scripts and refuses the rest', () 
   assert.match(policy, /script-src 'self' 'sha256-abc'/);
   assert.doesNotMatch(policy, /script-src[^;]*'unsafe-inline'/);
   assert.match(policy, /style-src 'self' 'unsafe-inline'/);
-  assert.match(policy, /img-src 'self' blob: data:/);
+  assert.match(policy, /img-src 'self' blob: data: https:/);
   assert.match(policy, /frame-src 'self'/);
   assert.match(policy, /object-src 'none'/);
   assert.match(policy, /base-uri 'self'/);
@@ -114,7 +114,7 @@ await test('the published page denies framing and every script', () => {
   // The page loads the built stylesheet and its fonts, and the pictures of its
   // own scope, from this origin and from nowhere else.
   assert.ok(policy.includes("style-src 'self'"));
-  assert.ok(policy.includes("img-src 'self'"));
+  assert.ok(policy.includes("img-src 'self' https:"));
   assert.ok(policy.includes("font-src 'self'"));
   // The password form sends to this origin only.
   assert.ok(policy.includes("form-action 'self'"));

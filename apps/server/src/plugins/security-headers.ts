@@ -41,14 +41,16 @@ export const dataContentPolicy = [
  * allowance than an inline script.
  *
  * Images add `blob:` and `data:`, because an attachment is fetched as bytes
- * and shown through `URL.createObjectURL`.
+ * and shown through `URL.createObjectURL`, and `https:`, because decision 0067
+ * loads a picture that a note names by address. The renderer emits no other
+ * scheme on an image source, so the two lists state one rule.
  */
 export function appShellContentPolicy(scriptHashes: readonly string[]): string {
   return [
     "default-src 'self'",
     `script-src 'self'${scriptHashes.map((hash) => ` '${hash}'`).join('')}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' blob: data:",
+    "img-src 'self' blob: data: https:",
     "font-src 'self'",
     "connect-src 'self'",
     "media-src 'self' blob:",
@@ -93,8 +95,9 @@ export const framedDocumentContentPolicy = [
  * The page is a document that the server builds for a person with no account,
  * so it is the strictest document policy of this deployment. It permits
  * nothing by default and then names the four things the page needs: the built
- * application stylesheet, the pictures of the notes in its own scope, the
- * fonts of that stylesheet, and the address that its password form sends to.
+ * application stylesheet, the pictures of the notes in its own scope and the
+ * pictures they name over HTTPS (decision 0067), the fonts of that
+ * stylesheet, and the address that its password form sends to.
  *
  * `script-src 'none'` is the rule of decision 0031. The page holds no script,
  * so an injected one cannot run even if a later change let one through the
@@ -109,7 +112,7 @@ export const publishedDocumentContentPolicy = [
   "default-src 'none'",
   "script-src 'none'",
   "style-src 'self'",
-  "img-src 'self'",
+  "img-src 'self' https:",
   "font-src 'self'",
   "connect-src 'none'",
   "object-src 'none'",

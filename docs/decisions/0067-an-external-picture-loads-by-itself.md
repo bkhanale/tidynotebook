@@ -19,13 +19,18 @@ host of the picture learns nothing until the reader asks.
 An external picture renders as a picture, in the note surface and on the
 published page.
 
-`classifyUrl` still decides the destination. An `external` image source keeps
-its address, and the sanitizer accepts `http` and `https` on `src` and no
-other scheme, so `javascript:` and `data:` stay refused. The renderer writes
-`referrerpolicy="no-referrer"` and `loading="lazy"` on every external
-picture, so the host of the picture never learns which note holds it and a
-picture below the fold costs nothing until the reader reaches it. The Load
-control and the `image-external` widget kind are gone.
+`classifyUrl` still decides the destination. An `external` image source over
+HTTPS keeps its address, and the sanitizer accepts `https` on `src` and no
+other scheme, so `javascript:`, `data:` and plain HTTP stay refused and keep
+the alt text. `allowsExternalImage` in `packages/markdown/src/policy.ts` is
+the one place that states the scheme, and the `img-src` list of
+`apps/server/src/plugins/security-headers.ts` names the same one, so the
+renderer never emits a picture that the page then refuses.
+
+The renderer writes `referrerpolicy="no-referrer"` and `loading="lazy"` on
+every external picture, so the host of the picture never learns which note
+holds it and a picture below the fold costs nothing until the reader reaches
+it. The Load control and the `image-external` widget kind are gone.
 
 ## Consequences
 
@@ -36,5 +41,7 @@ control and the `image-external` widget kind are gone.
 - An image element runs no script, so the widened scheme list adds no code
   execution surface. `packages/markdown/src/render.test.ts` proves that every
   other scheme still loses the picture and keeps the alt text.
+- A picture named over plain HTTP no longer appears at all. It never appeared
+  on an HTTPS deployment either, because the browser refuses mixed content.
 - `packages/markdown/src/corpus.test.ts` and
   `tests/integration/published-page.test.ts` hold the emitted element.

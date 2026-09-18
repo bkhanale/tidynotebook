@@ -363,8 +363,8 @@ await test('nested quotes nest and each level gets a bar', () => {
   assert.deepEqual(
     structureOf(doc).filter((item) => item.kind === 'quote'),
     [
-      { kind: 'quote', depth: 1 },
-      { kind: 'quote', depth: 2 },
+      { kind: 'quote', depth: 1, tone: null },
+      { kind: 'quote', depth: 2, tone: null },
     ],
   );
   assert.equal(visibleText(doc), 'outer\n\ninner\n');
@@ -664,4 +664,58 @@ await test('the preview rebuilds when the parser produced more tree', () => {
   assert.equal(previewNeedsRebuild({ ...quiet, docChanged: true }), true);
   assert.equal(previewNeedsRebuild({ ...quiet, selectionSet: true }), true);
   assert.equal(previewNeedsRebuild({ ...quiet, viewportChanged: true }), true);
+});
+
+await test('an alert quote states its tone and shows its title', () => {
+  const doc = '> [!WARNING]\n> Mind the gap.\n';
+  const found = describe(doc);
+  assert.ok(has(found, 'line', 'cm-np-alert'));
+  assert.ok(has(found, 'line', 'cm-np-alert-warning'));
+  assert.deepEqual(
+    structureOf(doc).filter((item) => item.kind === 'quote'),
+    [{ kind: 'quote', depth: 1, tone: 'warning' }],
+  );
+  // The marker leaves the text. The title widget carries the word, so the
+  // visible text of the source is the body alone.
+  assert.equal(visibleText(doc), '\nMind the gap.\n');
+});
+
+await test('every alert tone reaches its own class', () => {
+  for (const tone of ['note', 'tip', 'important', 'warning', 'caution'])
+    assert.ok(
+      has(
+        describe(`> [!${tone.toUpperCase()}]\n> Body.\n`),
+        'line',
+        `cm-np-alert-${tone}`,
+      ),
+      tone,
+    );
+});
+
+await test('a quote that is no alert keeps its first line', () => {
+  const doc = '> [!UNKNOWN]\n> Body.\n';
+  assert.ok(!has(describe(doc), 'line', 'cm-np-alert'));
+  assert.deepEqual(
+    structureOf(doc).filter((item) => item.kind === 'quote'),
+    [{ kind: 'quote', depth: 1, tone: null }],
+  );
+});
+
+await test('a table inside a quote carries the inset of that quote', () => {
+  const doc = '> | In | Quote |\n> | -- | ----- |\n> | a  | b     |\n';
+  const found = describe(doc);
+  // A row is a table-row box and takes no padding, so the inset sits on the
+  // leading cell of every row.
+  assert.ok(has(found, 'mark', 'cm-np-table-lead'));
+  assert.ok(has(found, 'mark', 'cm-np-table-quoted-1'));
+});
+
+await test('a table at the left edge grows no leading cell', () => {
+  const doc = '| A | B |\n| - | - |\n| 1 | 2 |\n';
+  assert.ok(!has(describe(doc), 'mark', 'cm-np-table-lead'));
+});
+
+await test('a table inside a list item keeps its indentation in a cell', () => {
+  const doc = '1. Item\n\n   | A | B |\n   | - | - |\n   | 1 | 2 |\n';
+  assert.ok(has(describe(doc), 'mark', 'cm-np-table-lead'));
 });

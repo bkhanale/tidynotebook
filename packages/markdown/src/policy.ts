@@ -153,6 +153,22 @@ export function classifyUrl(raw: string, sourcePath = ''): ContentUrl {
 }
 
 /**
+ * The one scheme an external picture may use.
+ *
+ * Decision 0067 loads an external picture, and the content policy of the
+ * application shell and of the published page names `https:` alone. A picture
+ * over plain HTTP is refused here rather than blocked by the browser later,
+ * so one rule decides it and the reader sees the alt text instead of an empty
+ * box.
+ */
+const secureImageScheme = /^https:/i;
+
+/** Whether an external destination may load as a picture. */
+export function allowsExternalImage(href: string): boolean {
+  return secureImageScheme.test(href.trim());
+}
+
+/**
  * The only identifier shape the renderer may emit.
  *
  * mdast-util-to-hast writes a footnote identifier as `user-content-fn-<label>`
@@ -175,10 +191,10 @@ const headingOrFootnoteId = /^(?:footnote-label|user-content-[A-Za-z0-9])/;
  * the alert attributes of a block quote, and the placeholder elements for
  * math and diagrams.
  *
- * An image source accepts `http` and `https` as well as an internal path,
- * because decision 0067 loads an external picture. An image element runs no
- * script, and every other scheme, `javascript:` and `data:` among them, is
- * still refused.
+ * An image source accepts `https` as well as an internal path, because
+ * decision 0067 loads an external picture. An image element runs no script,
+ * and every other scheme, `javascript:` and `data:` among them, is still
+ * refused.
  *
  * Math renders through `./math.ts`, which sanitizes KaTeX HTML on its own
  * and inserts it after this schema ran. The main pipeline therefore keeps
@@ -214,9 +230,9 @@ export const sanitizeSchema: SanitizeSchema = {
   protocols: {
     href: ['http', 'https', 'mailto'],
     // An image source is an internal attachment path, which carries no
-    // scheme, or the external address that decision 0067 keeps. Every other
-    // scheme, `javascript:` and `data:` first, is refused here.
-    src: ['http', 'https'],
+    // scheme, or the secure external address that decision 0067 keeps. Every
+    // other scheme, `javascript:` and `data:` first, is refused here.
+    src: ['https'],
   },
   ancestors: {
     input: ['li'],

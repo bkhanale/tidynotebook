@@ -141,6 +141,17 @@ const noteBodyClasses = [
   '[&_a]:text-accent [&_a]:underline',
   '[&_strong]:font-semibold',
   '[&_blockquote]:my-4 [&_blockquote]:border-l-2 [&_blockquote]:border-edge-line [&_blockquote]:pl-4 [&_blockquote]:text-muted',
+  // An alert is a quote that states a tone, and the note surface draws the
+  // same three colours for the five tones of GitHub. The title word states
+  // which tone a person is reading.
+  '[&_blockquote.notes-alert]:text-ink',
+  '[&_blockquote[data-alert=note]]:border-accent [&_blockquote[data-alert=important]]:border-accent',
+  '[&_blockquote[data-alert=tip]]:border-success',
+  '[&_blockquote[data-alert=warning]]:border-danger [&_blockquote[data-alert=caution]]:border-danger',
+  '[&_.notes-alert-title]:mb-1 [&_.notes-alert-title]:font-note-heading',
+  '[&_blockquote[data-alert=note]_.notes-alert-title]:text-accent [&_blockquote[data-alert=important]_.notes-alert-title]:text-accent',
+  '[&_blockquote[data-alert=tip]_.notes-alert-title]:text-success',
+  '[&_blockquote[data-alert=warning]_.notes-alert-title]:text-danger [&_blockquote[data-alert=caution]_.notes-alert-title]:text-danger',
   '[&_pre]:my-4 [&_pre]:overflow-x-auto [&_pre]:rounded-lg [&_pre]:bg-card [&_pre]:p-4 [&_pre]:font-mono [&_pre]:text-note-mono',
   '[&_code]:font-mono [&_code]:text-note-mono',
   '[&_img]:my-4 [&_img]:max-w-full [&_img]:rounded-lg',

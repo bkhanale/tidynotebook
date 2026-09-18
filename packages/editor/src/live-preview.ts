@@ -40,6 +40,12 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
+import {
+  alertMarkerLength,
+  alertTitle,
+  alertToneOf,
+  type AlertTone,
+} from '@notesapp/markdown';
 import { taskToggleAt } from './commands.ts';
 import { noteMarkdown } from './language.ts';
 
@@ -59,7 +65,12 @@ export type PreviewNode =
       readonly rows: number;
       readonly columns: number;
     }
-  | { readonly kind: 'quote'; readonly depth: number }
+  | {
+      readonly kind: 'quote';
+      readonly depth: number;
+      /** The alert tone the quote opens with, or `null` for a plain quote. */
+      readonly tone: AlertTone | null;
+    }
   | { readonly kind: 'thematic-break' };
 
 /** The result of one preview build. */
@@ -161,6 +172,34 @@ class BulletWidget extends WidgetType {
 
   override eq(): boolean {
     return true;
+  }
+}
+
+/**
+ * Draws the title of an alert in place of its marker.
+ *
+ * The marker names the tone and is not content, so it leaves the screen the
+ * way a heading marker does. The word it leaves behind is the word the
+ * reference renderer writes, so both readers of a note name the alert the
+ * same way.
+ */
+class AlertTitleWidget extends WidgetType {
+  readonly tone: AlertTone;
+
+  constructor(tone: AlertTone) {
+    super();
+    this.tone = tone;
+  }
+
+  override eq(other: AlertTitleWidget): boolean {
+    return other.tone === this.tone;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-np-alert-title';
+    span.textContent = alertTitle(this.tone);
+    return span;
   }
 }
 
@@ -420,6 +459,37 @@ export function buildPreview(
     lineClass(last, last, `${className}-close`);
   };
 
+  /** The text of one line with its quote marks removed. */
+  const quotedText = (text: string): string =>
+    text.replace(/^[ \t]*(?:>[ \t]?)+/, '');
+
+  /**
+   * The alert marker of one block quote, or `null`.
+   *
+   * The rule is the rule of `@notesapp/markdown`: the first quoted line that
+   * holds any text carries the marker alone. An empty quoted line above it is
+   * skipped, because the reference renderer reads the first paragraph and an
+   * empty line makes no paragraph.
+   */
+  const alertMarkerAt = (
+    from: number,
+    to: number,
+  ): { readonly from: number; readonly to: number; readonly tone: AlertTone } | null => {
+    for (let pos = from; pos <= to; ) {
+      const line = doc.lineAt(pos);
+      const text = quotedText(line.text);
+      if (text.trim() !== '') {
+        const tone = alertToneOf(text);
+        if (tone === null) return null;
+        const start = line.from + (line.text.length - text.length);
+        return { from: start, to: start + alertMarkerLength(text), tone };
+      }
+      if (line.to >= to || line.number >= doc.lines) return null;
+      pos = line.to + 1;
+    }
+    return null;
+  };
+
   const tree = syntaxTree(state);
   const stack: string[] = [];
   let alignments: readonly ColumnAlign[] = [];
@@ -445,6 +515,33 @@ export function buildPreview(
       [
         header ? 'cm-np-table-head' : 'cm-np-table-cell',
         align === null ? '' : `cm-np-align-${align}`,
+      ]
+        .filter((part) => part !== '')
+        .join(' '),
+    );
+  };
+
+  /**
+   * Marks what stands between the start of a line and the start of its row.
+   *
+   * A row of a table is a `display: table-row` box, and CSS gives such a box
+   * no margin and no padding, so a table inside a list item or inside a quote
+   * has no way to carry its inset. This one leading cell carries it: the
+   * spaces of a list item keep their own width inside it, and the class below
+   * adds the step of each quote level. Every row of the table gets one, so the
+   * columns still line up.
+   *
+   * A table at the left edge of the note has nothing before its row, so it
+   * gets no leading cell and nothing changes for it.
+   */
+  const tableLeadMark = (rowFrom: number, quoted: number): void => {
+    const start = doc.lineAt(rowFrom).from;
+    mark(
+      start,
+      rowFrom,
+      [
+        'cm-np-table-lead',
+        quoted > 0 ? `cm-np-table-quoted-${String(Math.min(quoted, 4))}` : '',
       ]
         .filter((part) => part !== '')
         .join(' '),
@@ -610,12 +707,26 @@ export function buildPreview(
       // The node is pushed on the stack only after this returns, so the
       // depth of the node itself is one more than the stack reports.
       const depth = depthOf('Blockquote') + 1;
-      structure.push({ kind: 'quote', depth });
+      const marker = alertMarkerAt(node.from, node.to);
+      const tone = marker === null ? null : marker.tone;
+      structure.push({ kind: 'quote', depth, tone });
       lineClass(
         node.from,
         node.to,
         `cm-np-quote cm-np-quote-${String(Math.min(depth, 4))}`,
       );
+      if (marker !== null) {
+        lineClass(node.from, node.to, `cm-np-alert cm-np-alert-${marker.tone}`);
+        // The marker follows the reveal rule of every other block marker: it
+        // is the title of the alert until the selection reaches its line.
+        if (touchesLines(marker.from, marker.to)) dim(marker.from, marker.to);
+        else
+          items.push(
+            Decoration.replace({
+              widget: new AlertTitleWidget(marker.tone),
+            }).range(marker.from, marker.to),
+          );
+      }
       return true;
     }
 
@@ -728,6 +839,7 @@ export function buildPreview(
       ]
         .filter((part) => part !== '')
         .join(' ');
+      tableLeadMark(node.from, depthOf('Blockquote'));
       let column = 0;
       let at = node.from;
       for (
@@ -767,6 +879,7 @@ export function buildPreview(
         lineClass(node.from, node.to, 'cm-np-table-closed');
         return false;
       }
+      tableLeadMark(node.from, depthOf('Blockquote'));
       for (const part of delimiterRowParts(
         doc.sliceString(node.from, node.to),
         node.from,
