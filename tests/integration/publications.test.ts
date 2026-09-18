@@ -641,6 +641,8 @@ await test('a revoked link and an expired link answer the one refusal', async ()
   assert.equal(unknown.ok, false);
 });
 
+const publicationCleanupCutoff = new Date('2026-09-18T00:00:00.000Z');
+
 await test('a revoked link leaves the list of the owner and frees its place', async () => {
   // Regression. The list is the audit surface of the feature, so it answers
   // what is open right now (decision 0048). A revoked link opens nothing from
@@ -663,7 +665,7 @@ await test('a revoked link leaves the list of the owner and frees its place', as
       owner,
       workspaceId,
       link.link.publicationId,
-      new Date(),
+      new Date(publicationCleanupCutoff.getTime() - 1),
     ),
   );
   const after = await store.publishedLinks.list(owner, workspaceId);
@@ -692,9 +694,7 @@ await test('the cleanup takes the dead record and keeps the live one', async () 
       values ($1, $2, $3, '2026-01-01T00:00:00.000Z')`,
     [digestOf(ticket), workspaceId, folder.link.publicationId],
   );
-  const removed = await store.cleanupPublications(
-    new Date('2026-09-18T00:00:00.000Z'),
-  );
+  const removed = await store.cleanupPublications(publicationCleanupCutoff);
   // The expired link and the two revoked links of the checks above, and the
   // ticket. A revoked row is dead to every reader and to the owner list, and
   // this run is what finally takes it away.
