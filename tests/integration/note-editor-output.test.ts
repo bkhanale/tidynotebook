@@ -20,16 +20,36 @@ await test('the built note name asks for no saved personal data', async () => {
   });
 });
 
-await test('the built Publish header action is quiet at rest', async () => {
-  const [source, style] = await Promise.all([
+await test('the built note name is the last part of the breadcrumb', async () => {
+  // Decision 0069. The name field renders into the breadcrumb slot of the
+  // frame and reads the one class recipe of that field, so the note surface
+  // below it states the name nowhere.
+  const source = await readFile(
+    resolve(root, 'apps/web/dist/features/editor/note-header.js'),
+    'utf8',
+  );
+  assert.match(source, /HeaderLeaf/);
+  assert.match(source, /noteNameFieldClassName\(\)/);
+});
+
+await test('the built note route puts History and Publish in one menu', async () => {
+  // Decision 0069. The header carries the note menu and nothing else of the
+  // route, so neither History nor Publish keeps a control of its own.
+  const [source, menu] = await Promise.all([
     readFile(
       resolve(root, 'apps/web/dist/features/editor/note-header-actions.js'),
       'utf8',
     ),
-    import('../../apps/web/dist/features/editor/note-header-action-style.js'),
+    import('../../apps/web/dist/lib/note-menu.js'),
   ]);
-  assert.match(source, /variant: noteHeaderPublishButtonVariant/);
-  assert.equal(style.noteHeaderPublishButtonVariant, 'ghost');
+  const ids = menu
+    .noteMenuRows({ canMove: true, canPublish: true })
+    .map((row) => row.id);
+  assert.ok(ids.includes('history'));
+  assert.ok(ids.includes('publish'));
+  assert.match(source, /noteMenuRows/);
+  assert.ok(!source.includes('HistoryIcon'));
+  assert.ok(!source.includes('LinkIcon'));
 });
 
 await test('the built loader rejects state from another note', async () => {

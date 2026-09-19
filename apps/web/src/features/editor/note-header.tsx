@@ -1,21 +1,29 @@
 /**
- * The header row of the note screen.
+ * The name of the open note, in the frame header.
  *
- * The note name is the largest type on the screen and is edited in place. The
- * row is sticky, so the name stays reachable while a long note scrolls. The
- * note saves itself and every note action lives in the command palette, so the
- * header carries no save status and no overflow menu, and the full width goes
- * to the name.
+ * The name is the last part of the breadcrumb, and it is the field a person
+ * types the name into (decision 0069). The note route claims that part with
+ * `HeaderLeaf`, so the frame draws no word of its own and the note surface
+ * below keeps its whole height for the text.
+ *
+ * The reason a name cannot be kept is not here. The header row is 44 px and
+ * it holds no second line, so the note screen states the reason as one
+ * message on the note and this field points at it.
  */
 import { useRef, type ReactNode } from 'react';
 import {
-  noteColumnClassName,
-  noteHeaderRowClassName,
-  noteTitleClassName,
-} from '../../lib/note-header-layout.ts';
+  noteNameFieldClassName,
+  noteNameFieldSize,
+} from '../../lib/note-name-field.ts';
 import { noteNameInputPolicy } from '../../lib/note-name-input.ts';
+import { HeaderLeaf } from '../../shell/header-slot.tsx';
 
-/** The sticky header of one open note. */
+/** The id of the message that states why a name cannot be kept. */
+export function noteNameErrorId(fileId: string): string {
+  return `notes-path-error-${fileId}`;
+}
+
+/** The editable name of one open note. */
 export function NoteHeader({
   fileId,
   name,
@@ -32,37 +40,34 @@ export function NoteHeader({
   readonly onNameCommit: () => void;
   readonly nameInputRef?: React.Ref<HTMLInputElement> | undefined;
 }): ReactNode {
-  const errorId = `notes-path-error-${fileId}`;
   const fallbackRef = useRef<HTMLInputElement | null>(null);
 
   return (
-    <header className={noteHeaderRowClassName()}>
-      <div className={noteColumnClassName()}>
-        <input
-          ref={nameInputRef ?? fallbackRef}
-          id={`notes-path-${fileId}`}
-          className={noteTitleClassName()}
-          type="text"
-          value={name}
-          {...noteNameInputPolicy()}
-          aria-label="Note name"
-          aria-invalid={nameError !== ''}
-          aria-describedby={nameError === '' ? undefined : errorId}
-          placeholder="Note name"
-          onChange={(event): void => onNameChange(event.target.value)}
-          onBlur={onNameCommit}
-          onKeyDown={(event): void => {
-            if (event.key !== 'Enter') return;
-            event.preventDefault();
-            onNameCommit();
-          }}
-        />
-        {nameError === '' ? null : (
-          <p className="m-0 text-control text-danger" id={errorId} role="alert">
-            {nameError}
-          </p>
-        )}
-      </div>
-    </header>
+    <HeaderLeaf>
+      <input
+        ref={nameInputRef ?? fallbackRef}
+        id={`notes-path-${fileId}`}
+        className={noteNameFieldClassName()}
+        type="text"
+        // The field follows the name, so the hover fill covers the words and
+        // not the free width of the header.
+        size={noteNameFieldSize(name)}
+        value={name}
+        {...noteNameInputPolicy()}
+        aria-label="Note name"
+        aria-invalid={nameError !== ''}
+        aria-describedby={
+          nameError === '' ? undefined : noteNameErrorId(fileId)
+        }
+        placeholder="Note name"
+        onChange={(event): void => onNameChange(event.target.value)}
+        onBlur={onNameCommit}
+        onKeyDown={(event): void => {
+          if (event.key !== 'Enter') return;
+          event.preventDefault();
+          onNameCommit();
+        }}
+      />
+    </HeaderLeaf>
   );
 }

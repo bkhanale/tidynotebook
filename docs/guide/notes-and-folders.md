@@ -14,8 +14,8 @@ sidebar marks it **Local**.
 
 ## Name a note
 
-The name is the large text at the top of the note. Select it and type. The name
-is kept when you press **Enter** or select something else.
+The name is the last part of the line at the top of the screen. Select it and
+type. The name is kept when you press **Enter** or select something else.
 
 - A name needs no `.md` ending. If you type one it is removed, because every
   note is already a Markdown file.
@@ -23,7 +23,7 @@ is kept when you press **Enter** or select something else.
   folder to place the note in a folder, or New note in this folder to make a
   note that starts there.
 - A backslash and a name another note already uses are refused, with one
-  sentence under the field. The last good name stays.
+  sentence on the note. The last good name stays.
 
 ## Make a folder
 
@@ -39,7 +39,7 @@ after a note delete.
 ## Move and rename
 
 Drag a note or a folder onto another folder, or onto **All notes** to move it
-to the top. The note menu, marked **More actions for this note**, also offers
+to the top. The note menu in the header, marked **Note actions**, also offers
 **Move to folder**.
 
 Renaming a folder renames the path of every note inside it, and the application
@@ -49,7 +49,7 @@ itself. The reason appears as one line in the sidebar.
 
 ## Find a note
 
-Select **Search notes** in the header, or press **Ctrl + P**. Type a few words.
+Select **Search** in the header, or press **Ctrl + P**. Type a few words.
 Notes whose name matches come first, then notes whose text matches, with a
 short excerpt around the match. An empty box lists the notes you changed most
 recently.

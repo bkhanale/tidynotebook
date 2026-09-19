@@ -98,6 +98,7 @@ and needs no record.
 | [0066](0066-the-browser-suite-is-retired.md)                           | The browser suite is retired                               |
 | [0067](0067-an-external-picture-loads-by-itself.md)                    | An external picture loads by itself                        |
 | [0068](0068-a-soft-line-break-joins-its-paragraph.md)                  | A soft line break joins its paragraph in the preview       |
+| [0069](0069-the-note-name-is-the-last-part-of-the-breadcrumb.md)       | The note name is the last part of the breadcrumb           |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -255,3 +256,7 @@ server, a database and a browser for each worker of five projects, and it stood
 in front of every landing. `pnpm verify` is the whole gate now. A pure module
 proves what a person sees and an integration test reads the built or served
 result. It supersedes records 0014 and 0036.
+
+Record 0069 makes the note name the last part of the breadcrumb, because the
+header and the note surface both stated it and the note lost its first band to
+a word the header already carried. It refines records 0064, 0055 and 0015.

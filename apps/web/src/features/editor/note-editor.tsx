@@ -68,7 +68,7 @@ import {
   type NoteScreenActions,
 } from './note-actions.tsx';
 import { NoteFooter } from './note-footer.tsx';
-import { NoteHeader } from './note-header.tsx';
+import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
 import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
 import {
@@ -1115,6 +1115,14 @@ function NoteEditorBody({
       className="flex h-full min-h-0 min-w-0 flex-col"
       data-save-state={saveState}
     >
+      <NoteHeader
+        fileId={fileId}
+        name={name}
+        nameError={pathError}
+        nameInputRef={nameInputRef}
+        onNameChange={applyName}
+        onNameCommit={commitName}
+      />
       <NoteHeaderActions
         workspaceId={workspaceId}
         fileId={fileId}
@@ -1127,6 +1135,17 @@ function NoteEditorBody({
         onDelete={deleteNoteAndLeave}
       />
       <div className={`flex min-h-0 flex-1 flex-col ${pageGutter}`}>
+        {/*
+          The name field is in the frame header, which is one row of 44 px and
+          holds no second line, so the reason a name cannot be kept stands
+          here, on the note the name belongs to (record 0069). The field
+          points at this message with `aria-describedby`.
+        */}
+        {pathError === '' ? null : (
+          <div className="mt-4" id={noteNameErrorId(fileId)}>
+            <Notice tone="problem" message={pathError} />
+          </div>
+        )}
         {editorNotice === '' ? null : (
           <div className="mt-4">
             <Notice tone="problem" message={editorNotice} />
@@ -1168,21 +1187,13 @@ function NoteEditorBody({
         ) : null}
 
         {/*
-          The name, the text and the footer are one column, so they sit in
-          one flex child and the side region is its sibling. A header outside
-          this row would centre its column on the whole screen and the name
-          would not line up with the first line of the note (decision 0055).
+          The text and the footer are one column, so they sit in one flex
+          child and the side region is its sibling (decision 0055). The name
+          is not here: it is the last part of the breadcrumb in the frame
+          header, so the note starts with its text (decision 0069).
         */}
         <div className="flex min-h-0 flex-1 gap-6">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <NoteHeader
-              fileId={fileId}
-              name={name}
-              nameError={pathError}
-              nameInputRef={nameInputRef}
-              onNameChange={applyName}
-              onNameCommit={commitName}
-            />
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col pt-4">
             <div
               ref={containerRef}
               className="min-h-0 flex-1 overflow-hidden"

@@ -64,6 +64,7 @@ export {
   badgeClassName,
   buttonClassName,
   buttonName,
+  compactButtonVisualClassName,
   fieldClassName,
   focusOutline,
   focusOutlineInset,

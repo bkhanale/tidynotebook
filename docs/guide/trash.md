@@ -5,7 +5,7 @@ note you delete.
 
 ## Delete a note
 
-Open the note menu, select **Delete**, then **Confirm delete**. You return to
+Open the note menu in the header and select **Move to Trash**. You return to
 the note list and a bar says the note moved to Trash. The bar offers **Undo**
 for a few seconds and then goes away by itself. The note stays in Trash either
 way.

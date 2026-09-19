@@ -7,7 +7,10 @@
  * after an item runs. Focus always returns to the trigger.
  *
  * Every class the menu renders comes from `./control-classes.ts`: the trigger
- * is a ghost button and each row is `rowClassName` (decision 0065). The
+ * is a ghost button and each row is `rowClassName` (decision 0065). A
+ * `compact` trigger keeps its touch target and draws a smaller surface inside
+ * it, exactly as a compact `Button` does, so a menu in a row of actions or in
+ * the frame header stays as quiet as every other control. The
  * surface is a raised plane: the card fill, the subtle edge and the overlay
  * step (decisions 0052 and 0063). `hint` is the quiet value on the right of a
  * row, such as the theme that is in force; a keyboard hint is a key cap from
@@ -32,7 +35,11 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { buttonClassName, rowClassName } from './control-classes.ts';
+import {
+  buttonClassName,
+  compactButtonVisualClassName,
+  rowClassName,
+} from './control-classes.ts';
 import { transitionRaise } from './motion.ts';
 import { placeOverlay } from './overlay-position.ts';
 
@@ -110,6 +117,7 @@ export function Menu({
   matchTrigger = false,
   align = 'end',
   triggerClassName,
+  compact = false,
   children,
 }: {
   /** The accessible name of the trigger. */
@@ -135,6 +143,16 @@ export function Menu({
   readonly matchTrigger?: boolean | undefined;
   readonly align?: MenuAlign | undefined;
   readonly triggerClassName?: string | undefined;
+  /**
+   * Keeps the touch target of the trigger and draws a smaller surface inside
+   * it, the way a compact `Button` does.
+   *
+   * A compact trigger is a quiet icon-only control, so the surface reads the
+   * ghost recipe at the small size. The trigger stays as easy to hit under
+   * touch, and the mark a person sees is the one the rest of the product
+   * draws.
+   */
+  readonly compact?: boolean | undefined;
   /** Visible trigger text. Omit it for an icon-only trigger. */
   readonly children?: ReactNode | undefined;
 }): ReactNode {
@@ -253,6 +271,28 @@ export function Menu({
     item.onSelect();
   };
 
+  const triggerContent = (
+    <>
+      {icon === undefined ? null : (
+        <span
+          className="inline-flex items-center justify-center"
+          aria-hidden="true"
+        >
+          {icon}
+        </span>
+      )}
+      {children === undefined ? null : (
+        // A flex box and not a plain span, because a trigger that shows text
+        // often shows more than text: an icon, a label that has to take the
+        // free width, and a chevron at the far edge. A plain span made those
+        // three one inline box, so the parts could not be laid out at all.
+        <span className="flex min-w-0 flex-1 items-center gap-cluster">
+          {children}
+        </span>
+      )}
+    </>
+  );
+
   return (
     <div className="relative" ref={rootRef}>
       <button
@@ -262,7 +302,9 @@ export function Menu({
           triggerClassName ??
           buttonClassName({
             variant: 'ghost',
-            iconOnly: true,
+            size: compact ? 'sm' : 'md',
+            iconOnly: children === undefined,
+            compact,
           })
         }
         aria-haspopup="menu"
@@ -289,22 +331,18 @@ export function Menu({
           }
         }}
       >
-        {icon === undefined ? null : (
+        {compact ? (
           <span
-            className="inline-flex items-center justify-center"
-            aria-hidden="true"
+            className={compactButtonVisualClassName({
+              variant: 'ghost',
+              size: 'sm',
+              iconOnly: children === undefined,
+            })}
           >
-            {icon}
+            {triggerContent}
           </span>
-        )}
-        {children === undefined ? null : (
-          // A flex box and not a plain span, because a trigger that shows text
-          // often shows more than text: an icon, a label that has to take the
-          // free width, and a chevron at the far edge. A plain span made those
-          // three one inline box, so the parts could not be laid out at all.
-          <span className="flex min-w-0 flex-1 items-center gap-cluster">
-            {children}
-          </span>
+        ) : (
+          triggerContent
         )}
       </button>
       {open

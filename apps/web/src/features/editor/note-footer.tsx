@@ -10,7 +10,7 @@
  * else does (record 0064 and the design guide).
  */
 import type { ReactNode } from 'react';
-import { noteColumnClassName } from '../../lib/note-header-layout.ts';
+import { noteColumnClassName } from '../../lib/note-column.ts';
 
 /** Counts the words of a Markdown buffer. */
 export function wordCount(text: string): number {

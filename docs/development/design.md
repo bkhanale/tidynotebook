@@ -31,9 +31,8 @@ The named steps live in `apps/web/src/tailwind.css`. Use no other size.
 - `text-ui` is body text outside a note, a list row title and a dialog title.
 - `text-base` is the title of a card or a section.
 - `text-xl` is the title of a page.
-- `text-3xl` is the name of a note, the largest text on the note screen.
-- The `text-note` steps are the note text and its heading ramp, which stops
-  under the note name.
+- `text-3xl` is the name of a note on the published page, the largest step.
+- The `text-note` steps are the note text and its heading ramp.
 
 Two weights in the chrome: `font-medium` for a control label and a selected
 row, `font-semibold` for a title. No capitals, no wide tracking, no bold.
@@ -56,17 +55,16 @@ count. Separate everything else with space or fill.
 
 Elevation is `shadow-raised`, `shadow-overlay` and `shadow-modal`, from the
 scrim of the palette (record 0052). A raised surface is `bg-card`, `edge-subtle`
-and one step, so a light palette shows the shadow and a dark palette shows the
-edge.
+and one step.
 
 Radius: `rounded-sm` for a keyboard hint and a task box, `rounded-md` for a
 control and a row, `rounded-lg` for a card, a menu, a toast and a code block,
 `rounded-xl` for a dialog, `rounded-full` for an avatar alone.
 
 Space comes from the four named steps of the layout scale, `gutter`,
-`gutter-wide`, `cluster` and `group`, plus the numeric scale inside one
-control. `pageGutter` in `packages/ui/src/layout.tsx` is the one distance from
-the screen edge to the content.
+`gutter-wide`, `cluster` and `group`, plus the numeric scale inside one control.
+`pageGutter` in `packages/ui/src/layout.tsx` is the one distance from the screen
+edge to the content.
 
 ## Controls
 
@@ -77,30 +75,28 @@ no screen writes its own (record 0065).
   `secondary` is every other button, `bg-card` with `edge-line` and
   `shadow-raised`. `ghost` is an icon only action and a Cancel. `danger` is a
   destructive confirmation, and a quiet button that starts one takes the
-  danger tone from the recipe. `md` is 32 px on a desktop, `sm` is 28 px.
+  danger tone from the recipe. `md` is 32 px, `sm` is 28 px, and `compact`
+  keeps the touch target and draws a smaller surface inside it.
 - `rowClassName`: every clickable row, in the tree, a list, a menu, the palette
   and the sidebar footer. 28 px on a desktop, `rounded-md`, `hover:bg-hover`.
   The open or chosen row is `bg-active text-strong font-medium`. No ring. A row
-  that destroys something takes the danger tone from the recipe, because two
-  colour classes on one element are decided by the stylesheet and not by the
-  caller.
+  that destroys something takes the danger tone from the recipe and never a
+  colour class of its own (record 0065).
 - `fieldClassName`: a text field, a select and a read only field. 32 px,
   `edge-line` at rest, `border-focus` with a ring when active, `border-danger`
-  in error. The label sits above the field in `text-control font-medium`.
+  in error. Its label sits above it in `text-control font-medium`.
 - `kbdClassName`: one key cap in `text-kbd font-mono` with `edge-line`. A key
   combination is one cap for each key, from `KeyHint` in
   `apps/web/src/shell/key-hint.tsx`, and `apps/web/src/shell/modifier-key.ts`
-  decides the cap of the device: the Command, Shift and Option signs on an
-  Apple device, the words Ctrl, Shift and Alt elsewhere, the Return sign for
-  Enter and Esc for Escape. A screen reader gets the full key name.
+  decides the cap of the device. A screen reader gets the full key name.
 
 Focus is one treatment: a two pixel outline in the focus colour, offset outward
-on a control and inward on a row inside a scroller. Never `focus:` for a
-pointer state, always `focus-visible:`.
+on a control and inward on a row inside a scroller. Never `focus:`, always
+`focus-visible:`.
 
 A primary button appears once on a screen, inside the route and not in the
 sidebar. A hover changes the fill to the derived hover of the palette and
-nothing else (record 0057). Nothing scales on press.
+nothing else (record 0057), and nothing scales on press.
 
 ## Icons
 
@@ -113,11 +109,16 @@ that no screen uses.
 ## The frame
 
 The header is 44 px and is the context of the route (record 0064): the sidebar
-toggle, the breadcrumb, the actions of the route through `HeaderSlot` in
+toggle, the breadcrumb, the actions of the route through `HeaderSlot`, the last
+breadcrumb part through `HeaderLeafSlot`, both in
 `apps/web/src/shell/header-slot.tsx`, then Search and the account avatar. The
-sidebar is rows on the chrome plane: the workspace switcher, Search, New note,
-the Folders label with its New folder action, the tree without guide lines, and
-the footer rows. The wordmark appears on the sign in and setup screens only.
+note route writes its name in that part, as the one field that renames it, and
+gives the header one control, its menu, with History and Publish as rows
+(record 0069). Every icon-only control of the row is compact: it keeps its
+touch target and draws the smaller mark, as the rest of the product does. The sidebar is rows on the chrome plane: the
+workspace switcher, New note, the Folders label with its New folder action, the
+tree without guide lines, and the footer rows. The wordmark belongs to the sign
+in and setup screens.
 
 ## Surfaces a person waits on or reads
 
@@ -125,8 +126,7 @@ the footer rows. The wordmark appears on the sign in and setup screens only.
   sentence in `text-control text-muted`, and one action. No box.
 - A notice is a tone surface, `bg-accent-surface`, `bg-success-surface` or
   `bg-danger-surface`, a mark in the tone colour and text in `text-strong`. No
-  edge. One notice for one cause. A tone surface is a fill and not the page, so
-  it takes the strong text, as every other fill of the product does.
+  edge, and one notice for one cause.
 - A loading state is the placeholder in `packages/ui/src/loading.tsx`.
 - A toast is `Toast` in `packages/ui`, a raised surface at the bottom of the
   screen with one sentence and one action.

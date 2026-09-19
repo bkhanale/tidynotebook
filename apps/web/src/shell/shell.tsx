@@ -11,13 +11,21 @@
  * person works under. Every distance in that row comes from the layout scale
  * of `apps/web/src/tailwind.css`.
  *
- * The sidebar is a column of rows: the workspace switcher, Search, New note,
- * the Folders label with its New folder action, the tree and the footer. No
- * row of it is a filled button, because the one action of a screen lives in
- * the screen (decision 0062). Its width and its collapse state belong to the
- * person and live in browser settings; `./sidebar-size.ts` holds the steps
- * and `./drawer.ts` turns one state into classes. Every route below owns
- * exactly one `main` landmark.
+ * The last part of the breadcrumb is a slot as well. A route that writes that
+ * part itself claims `HeaderLeafSlot`, which is how the note route makes its
+ * name the one editable name of the screen (decision 0069). A phone carries
+ * five controls where it carried seven, and the gap is one step below the
+ * medium width, which is what leaves the name its room.
+ *
+ * The sidebar is a column of rows: the workspace switcher, New note, the
+ * Folders label with its New folder action, the tree and the footer. Search
+ * is not one of them: the header carries it at every width and `Cmd or
+ * Ctrl + P` opens it from the keyboard, so the row it held is space the tree
+ * has now (decision 0069). No row of it is a filled button, because the one
+ * action of a screen lives in the screen (decision 0062). Its width and its
+ * collapse state belong to the person and live in browser settings, where
+ * `./sidebar-size.ts` holds the steps and `./drawer.ts` turns one state into
+ * classes. Every route below owns exactly one `main` landmark.
  *
  * The tree marks two things at once: the note the screen shows, and the
  * folder that a create action uses as its parent. `lib/tree-row.ts` holds
@@ -52,6 +60,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  compactButtonVisualClassName,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -147,7 +156,12 @@ import {
   useOnline,
 } from '../features/editor/save-status.tsx';
 import { actionIcon } from './action-icons.tsx';
-import { HeaderSlot, HeaderSlotProvider } from './header-slot.tsx';
+import {
+  HeaderLeafSlot,
+  HeaderSlot,
+  HeaderSlotProvider,
+  useHeaderSlot,
+} from './header-slot.tsx';
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import {
@@ -288,7 +302,7 @@ const rowActionClassName = buttonClassName({
 const rowSpacerClassName = 'size-11 shrink-0 md:size-7';
 
 /**
- * One row of the sidebar that is the whole control, such as Search.
+ * One row of the sidebar that is the whole control, such as New note.
  *
  * It stands in the column above the tree, which does not scroll, so it takes
  * the outward focus outline of every other control.
@@ -539,6 +553,10 @@ function GroupLabel({
  * Below the medium width only the last part stays. A phone header holds the
  * drawer toggle, the actions of the route and the account, and the whole
  * path of a note does not fit beside them.
+ *
+ * The last part is a slot. A route that writes that part itself, such as the
+ * note route with its name field, claims it through `HeaderLeafSlot` and the
+ * word below is not drawn (decision 0069).
  */
 function Breadcrumb({
   parts,
@@ -547,18 +565,22 @@ function Breadcrumb({
   readonly parts: readonly BreadcrumbPart[];
   readonly onSelectFolder: (folder: string) => void;
 }): ReactNode {
+  const { leafFilled } = useHeaderSlot();
   return (
     <nav className="min-w-0 flex-1" aria-label="Where you are">
       <ol className="m-0 flex min-w-0 list-none items-center gap-1 p-0 text-ui">
         {parts.map((part, index) =>
           part.to === null ? (
             <li
-              className="flex min-w-0 items-center"
+              className="flex min-w-0 flex-1 items-center"
               key={`${String(index)}:${part.label}`}
             >
-              <span className="truncate font-medium text-strong">
-                {part.label}
-              </span>
+              {leafFilled ? null : (
+                <span className="truncate font-medium text-strong">
+                  {part.label}
+                </span>
+              )}
+              <HeaderLeafSlot className="flex min-w-0 flex-1 items-center empty:hidden" />
             </li>
           ) : (
             <li
@@ -588,8 +610,8 @@ function Breadcrumb({
 /**
  * The sidebar: a column of rows on the chrome plane.
  *
- * The switcher, then Search and New note, then the Folders label with its
- * New folder action, then the tree, then the footer rows (decision 0064). No
+ * The switcher, then New note, then the Folders label with its New folder
+ * action, then the tree, then the footer rows (decisions 0064 and 0069). No
  * row of it is a filled button: the one action of a screen lives in the
  * screen (decision 0062).
  */
@@ -600,7 +622,6 @@ function Sidebar({
   newNoteProblem,
   onSelectFolder,
   onNavigate,
-  onSearch,
   onNewFolderIn,
   onRenameFolder,
   onPublishFolder,
@@ -617,7 +638,6 @@ function Sidebar({
   readonly newNoteProblem: string | null;
   readonly onSelectFolder: (folder: string) => void;
   readonly onNavigate: () => void;
-  readonly onSearch: () => void;
   readonly onNewFolderIn: (folder: string) => void;
   readonly onRenameFolder: (folder: string) => void;
   readonly onPublishFolder: (folder: string) => void;
@@ -788,22 +808,6 @@ function Sidebar({
       />
 
       <div className="px-2 pt-1">
-        <button
-          type="button"
-          className={sidebarRowClassName}
-          onClick={onSearch}
-        >
-          <span
-            className="inline-flex shrink-0 items-center text-muted"
-            aria-hidden="true"
-          >
-            <SearchIcon />
-          </span>
-          <span className="min-w-0 flex-1 truncate">Search</span>
-          <span className="shrink-0">
-            <KeyHint keys={paletteKeys} />
-          </span>
-        </button>
         <button
           type="button"
           className={sidebarRowClassName}
@@ -1633,14 +1637,23 @@ function ShellFrame({
             Skip to content
           </a>
 
+          {/*
+            The gap is one step on a phone and the cluster step from the
+            medium width up. A phone header carries the drawer toggle, the
+            name of the note, the note menu, Search and the account, where it
+            carried History and Publish as well (decision 0069). Each
+            icon-only control is compact: it keeps its touch target and draws
+            the smaller mark that every other control of the product draws.
+          */}
           <header
-            className={`z-30 flex h-header shrink-0 items-center gap-cluster border-b border-edge-subtle bg-surface ${pageGutter}`}
+            className={`z-30 flex h-header shrink-0 items-center gap-1 border-b border-edge-subtle bg-surface md:gap-cluster ${pageGutter}`}
           >
             <Button
               buttonRef={menuButtonRef}
               variant="ghost"
               size="sm"
-              className="size-11 shrink-0 md:hidden"
+              compact
+              className="shrink-0 md:hidden"
               label="Open navigation"
               title="Open navigation"
               icon={<MenuIcon />}
@@ -1653,7 +1666,8 @@ function ShellFrame({
             <Button
               variant="ghost"
               size="sm"
-              className="size-11 shrink-0 max-md:hidden md:size-7"
+              compact
+              className="shrink-0 max-md:hidden"
               label={
                 sidebar.size.collapsed ? 'Show the sidebar' : 'Hide the sidebar'
               }
@@ -1681,24 +1695,42 @@ function ShellFrame({
 
             <HeaderSlot className="flex shrink-0 items-center gap-cluster empty:hidden" />
 
+            {/*
+              A hand written button and not a `Button`, because the word and
+              the key hint each appear at a width of their own. Every class it
+              draws still comes from the one recipe of a control (record
+              0065): the compact outer box keeps the touch target and the
+              surface inside it is what a person sees.
+            */}
             <button
               type="button"
               className={buttonClassName({
                 variant: 'ghost',
                 size: 'sm',
-                className: 'min-w-11 shrink-0',
+                compact: true,
+                className: 'shrink-0',
               })}
+              aria-label="Search"
+              title="Search"
               onClick={() => setPaletteOpen(true)}
             >
               <span
-                className="inline-flex shrink-0 items-center"
-                aria-hidden="true"
+                className={compactButtonVisualClassName({
+                  variant: 'ghost',
+                  size: 'sm',
+                  iconOnly: false,
+                })}
               >
-                <SearchIcon />
-              </span>
-              <span className="sr-only md:not-sr-only">Search</span>
-              <span className="max-lg:hidden">
-                <KeyHint keys={paletteKeys} />
+                <span
+                  className="inline-flex shrink-0 items-center"
+                  aria-hidden="true"
+                >
+                  <SearchIcon />
+                </span>
+                <span className="max-md:hidden">Search</span>
+                <span className="max-lg:hidden">
+                  <KeyHint keys={paletteKeys} />
+                </span>
               </span>
             </button>
 
@@ -1711,10 +1743,13 @@ function ShellFrame({
               }
               items={accountItems}
               pinned={signOutItem}
+              compact
               triggerClassName={buttonClassName({
                 variant: 'ghost',
                 size: 'sm',
-                className: 'size-11 shrink-0 px-0 md:size-8 md:min-h-8',
+                iconOnly: true,
+                compact: true,
+                className: 'shrink-0',
               })}
             />
           </header>
@@ -1742,7 +1777,6 @@ function ShellFrame({
               newNoteProblem={newNote.error}
               onSelectFolder={setSelectedFolder}
               onNavigate={() => setDrawerOpen(false)}
-              onSearch={() => setPaletteOpen(true)}
               onNewFolderIn={(folder) => setNewFolderParent(folder)}
               onRenameFolder={(folder) => setRenameFolder(folder)}
               onPublishFolder={(folder) => setPublishFolder(folder)}

@@ -27,11 +27,12 @@ normal note: you can change it, rename it, or delete it.
 
 The screen has three parts.
 
-- The **header** holds the NotesApp mark, a wide **Search notes** button, and a
-  **More actions** menu.
-- The **sidebar** holds **New note**, **New folder**, your six most recent
-  notes, the whole note tree under **All notes**, and at the bottom a line that
-  says where your saves are, plus **Trash**.
+- The **header** says where you are: your workspace, the folders above the
+  note, and the name of the note or the page. Then the actions of that page,
+  then **Search** and your account.
+- The **sidebar** holds your workspace, **New note**, **New folder**, the whole
+  note tree under **All notes**, and at the bottom a line that says where your
+  saves are, plus **Trash**.
 - The rest of the screen is the note you have open.
 
 On a phone the sidebar is hidden. Select the menu button in the header to open

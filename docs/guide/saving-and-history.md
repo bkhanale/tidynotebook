@@ -22,7 +22,7 @@ The footer of the note adds the word count and when the note was last saved.
 
 ## History
 
-Open the note menu and select **History**. Each row says when that version was
+Open the note menu in the header and select **History**. Each row says when that version was
 saved and what changed, for example `3 lines added, 1 line removed`.
 
 Select a row to open it. You get the difference between that version and the

@@ -8,7 +8,7 @@ connection, because it reads the versions your server accepted.
 
 ## One note
 
-Open the note menu, the one marked **More actions for this note**, and select
+Open the note menu in the header, the one marked **Note actions**, and select
 **Export as Markdown**. The note downloads as one `.md` file named after the
 note.
 

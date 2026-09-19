@@ -16,7 +16,7 @@ You make the link, you keep the link, and you stop the link when you want.
 ## Publish one note
 
 1. Open the note.
-2. Open the command palette, then select **Publish this note**.
+2. Open the note menu in the header, then select **Publish**.
 3. Read what the link opens, then select **Publish**.
 4. Select **Copy link**.
 

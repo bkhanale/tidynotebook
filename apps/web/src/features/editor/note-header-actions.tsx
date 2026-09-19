@@ -2,10 +2,14 @@
  * The actions of the note route, in the frame header.
  *
  * The header is the context of the route: where a person is, then what they
- * can do here (record 0064). The note route puts History, Publish and a menu
- * of the rest there, through the one `HeaderSlot` of the frame. The note
- * surface itself keeps no control, so the name, the text and the word count
- * stay one page.
+ * can do here (record 0064). The note route puts one control there, the note
+ * menu, and History and Publish are rows of it (record 0069). The note
+ * surface itself keeps no control, so the text and the word count stay one
+ * page.
+ *
+ * `lib/note-menu.ts` decides which rows the menu holds and in what order, so
+ * the order is a rule a unit test reads and not a shape of this JSX. This
+ * file turns one row into its handler and its glyph.
  *
  * Every action here is one the command palette already offers, and it runs
  * the same function, so a person meets one behaviour by two roads. Each row
@@ -14,19 +18,15 @@
  * (record 0065).
  */
 import type { ReactNode } from 'react';
-import { Link } from 'react-router';
-import {
-  buttonClassName,
-  Button,
-  HistoryIcon,
-  LinkIcon,
-  Menu,
-  MoreIcon,
-  type MenuItem,
-} from '@notesapp/ui';
+import { useNavigate } from 'react-router';
+import { buttonClassName, Menu, MoreIcon, type MenuItem } from '@notesapp/ui';
 import { actionIcon } from '../../shell/action-icons.tsx';
 import { HeaderActions } from '../../shell/header-slot.tsx';
-import { noteHeaderPublishButtonVariant } from './note-header-action-style.ts';
+import {
+  noteMenuRows,
+  noteTrashRow,
+  type NoteMenuAction,
+} from '../../lib/note-menu.ts';
 
 /** What the open note can do, as the header offers it. */
 export type NoteHeaderActionsProps = {
@@ -42,7 +42,21 @@ export type NoteHeaderActionsProps = {
   readonly onDelete: () => void;
 };
 
-/** The History, Publish and note menu of the open note. */
+/**
+ * The trigger of the note menu.
+ *
+ * It keeps its touch target and draws a smaller surface inside it, as every
+ * other compact control of the product does.
+ */
+const noteMenuTriggerClassName = buttonClassName({
+  variant: 'ghost',
+  size: 'sm',
+  iconOnly: true,
+  compact: true,
+  className: 'shrink-0',
+});
+
+/** The note menu of the open note, in the frame header. */
 export function NoteHeaderActions({
   workspaceId,
   fileId,
@@ -54,83 +68,38 @@ export function NoteHeaderActions({
   onPublish,
   onDelete,
 }: NoteHeaderActionsProps): ReactNode {
-  const items: MenuItem[] = [
-    {
-      id: 'rename',
-      label: 'Rename',
-      icon: actionIcon('rename'),
-      onSelect: onRename,
+  const navigate = useNavigate();
+
+  /** What each row of the menu runs. */
+  const run: Readonly<Record<NoteMenuAction, () => void>> = {
+    history: () => {
+      void navigate(`/w/${workspaceId}/notes/${fileId}/history`);
     },
-    ...(onMoveToFolder === undefined
-      ? []
-      : [
-          {
-            id: 'move',
-            label: 'Move to folder',
-            icon: actionIcon('move'),
-            onSelect: onMoveToFolder,
-          },
-        ]),
-    {
-      id: 'duplicate',
-      label: 'Duplicate',
-      icon: actionIcon('duplicate'),
-      onSelect: onDuplicate,
-    },
-    {
-      id: 'attach-image',
-      label: 'Attach an image',
-      icon: actionIcon('image'),
-      onSelect: onAttachImage,
-    },
-    {
-      id: 'export',
-      label: 'Export as Markdown',
-      icon: actionIcon('export'),
-      onSelect: onExport,
-    },
-  ];
+    publish: () => onPublish?.(),
+    rename: onRename,
+    move: () => onMoveToFolder?.(),
+    duplicate: onDuplicate,
+    'attach-image': onAttachImage,
+    export: onExport,
+    delete: onDelete,
+  };
+
+  const items: MenuItem[] = noteMenuRows({
+    canMove: onMoveToFolder !== undefined,
+    canPublish: onPublish !== undefined,
+  }).map((row) => ({
+    id: row.id,
+    label: row.label,
+    icon: actionIcon(row.icon),
+    onSelect: run[row.id],
+  }));
 
   return (
     <HeaderActions>
       {/*
-        A control that navigates is an anchor and never a button, so the
-        middle click, the context menu and the address all keep working. It
-        reads the same recipe as every button of the product.
-      */}
-      <Link
-        className={buttonClassName({
-          variant: 'ghost',
-          iconOnly: true,
-        })}
-        to={`/w/${workspaceId}/notes/${fileId}/history`}
-        aria-label="History"
-        title="History"
-      >
-        <span className="inline-flex items-center justify-center" aria-hidden>
-          <HistoryIcon />
-        </span>
-      </Link>
-      {onPublish === undefined ? null : (
-        // The word leaves the button on a narrow screen, where the header
-        // also carries the breadcrumb, the search and the account. The name
-        // and the tooltip stay, so the action is never a glyph alone.
-        <Button
-          variant={noteHeaderPublishButtonVariant}
-          size="sm"
-          icon={<LinkIcon />}
-          label="Publish"
-          title="Publish"
-          onClick={onPublish}
-        >
-          <span className="hidden md:inline">Publish</span>
-        </Button>
-      )}
-      {/*
-        The rest of the actions of the note. Move to Trash is the one row that
-        destroys something, so it takes the danger tone of the row recipe and
-        stands in the pinned region under the separator, away from the row a
-        person reaches for by mistake.
+        Move to Trash is the one row that destroys something, so it takes the
+        danger tone of the row recipe and stands in the pinned region under
+        the separator, away from the row a person reaches for by mistake.
       */}
       <Menu
         label="Note actions"
@@ -138,13 +107,15 @@ export function NoteHeaderActions({
         items={items}
         pinned={[
           {
-            id: 'delete',
-            label: 'Move to Trash',
-            icon: actionIcon('delete'),
+            id: noteTrashRow.id,
+            label: noteTrashRow.label,
+            icon: actionIcon(noteTrashRow.icon),
             danger: true,
-            onSelect: onDelete,
+            onSelect: run[noteTrashRow.id],
           },
         ]}
+        triggerClassName={noteMenuTriggerClassName}
+        compact
       />
     </HeaderActions>
   );
