@@ -5,6 +5,27 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.2 - 2026-09-19
+
+This patch release makes the live preview and the published page render the
+same Markdown.
+
+### Added
+
+- Alert block quotes show their tone and title in the live preview and on a
+  published page.
+
+### Fixed
+
+- An external picture over HTTPS loads when it reaches the screen. The request
+  sends no referrer.
+- A soft line break joins one paragraph. A hard line break stays on a new line.
+- A table inside a list or a quote keeps its columns and indentation.
+- A reference image resolves through its definition in the live preview.
+- A Mermaid diagram can recover from a slow load or a render failure.
+- Strikethrough needs two tildes. One tilde stays as text in every Markdown
+  surface.
+
 ## 0.3.1 - 2026-09-18
 
 This patch release corrects the note loader, the folder tree marks, and the
