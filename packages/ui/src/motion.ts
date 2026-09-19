@@ -53,3 +53,13 @@ export const transitionPanel =
  */
 export const transitionRaise =
   'motion-safe:transition-opacity motion-safe:duration-150 motion-safe:ease-soft motion-safe:starting:opacity-0';
+
+/**
+ * How a compact confirmation enters the place of the action that opened it.
+ *
+ * The controls travel one short step from the right and fade in. The parent
+ * keeps their full width before and after the change, so the row does not
+ * move while the person chooses.
+ */
+export const transitionAction =
+  'motion-safe:transition motion-safe:duration-150 motion-safe:ease-soft motion-safe:starting:translate-x-2 motion-safe:starting:opacity-0';

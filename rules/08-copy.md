@@ -17,4 +17,5 @@
 - Name an empty state by what is missing and offer the one action that fills
   it.
 - Keep one term for one thing across the whole application: Save, Trash,
-  Restore, Delete permanently, History, Read, Write.
+  Restore, Delete, History, Read, Write. In Trash, the page copy states that
+  Delete removes a note for good.

@@ -137,9 +137,9 @@ the footer rows. The wordmark appears on the sign in and setup screens only.
 ## Copy
 
 Sentence case everywhere. Name a thing by what a person does with it. One term
-for one thing: Save, Trash, Restore, Delete permanently, History, Publish. A
-row shows one name and one fact. The rules of user facing text in `AGENTS.md`
-hold here.
+for one thing: Save, Trash, Restore, Delete, History, Publish. In Trash, the
+page copy states that Delete removes a note for good. A row shows one name and
+one fact. The rules of user facing text in `AGENTS.md` hold here.
 
 ## Before a screen lands
 

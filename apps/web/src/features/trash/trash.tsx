@@ -1,12 +1,11 @@
 /**
- * The trash: the deleted notes of one workspace, with Restore and Delete
- * permanently.
+ * The trash: the deleted notes of one workspace, with Restore and Delete.
  *
  * Deleting a note writes a tombstone revision, so the note leaves the file
  * tree but keeps its identifier, its content and its history. This screen is
  * the way back. Restore writes one revision on top of that tombstone. Delete
- * permanently calls the purge operation for that one note, after which nothing
- * can bring it back.
+ * Delete calls the purge operation for that one note, after which nothing can
+ * bring it back.
  *
  * A deletion that this device has not sent yet is listed as well. The local
  * store holds it as a tombstone of its own, and merging the two lists means a
@@ -37,6 +36,7 @@ import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
   buttonClassName,
+  CheckIcon,
   ChevronLeftIcon,
   CloseIcon,
   EmptyState,
@@ -47,6 +47,7 @@ import {
   PageHeader,
   Toast,
   TrashIcon,
+  transitionAction,
 } from '@notesapp/ui';
 import {
   problemMessage,
@@ -57,7 +58,7 @@ import {
 import { useLocalQuery } from '../../local-state.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 import { folderOf, relativeTime } from '../../lib/relative-time.ts';
-import { useFiles } from '../../shell/files.tsx';
+import { mergeTrash, type TrashItem } from '../../lib/trash-view.ts';
 
 /** How long the notice after a deletion stays on screen. */
 export const undoNoticeMs = 8000;
@@ -68,62 +69,14 @@ const restoreWaitMs = 15_000;
 /** How long a restore waits between two attempts. */
 const restoreStepMs = 250;
 
-/** One deleted note as the trash shows it. */
-export type TrashItem = {
-  readonly fileId: string;
-  readonly path: string;
-  /** The instant of the deletion, or `null` when only this device knows it. */
-  readonly deletedAt: string | null;
-  /** True while the deletion has not reached the server. */
-  readonly pending: boolean;
-};
+/** The largest file set the purge operation accepts in one request. */
+const purgeBatchSize = 1000;
 
-/**
- * Merges the deleted notes of the server with the ones only this device knows.
- *
- * A note that this device deleted while offline holds no place in the listing
- * of the server yet, and a note that another device deleted is not in the
- * local cache. Both belong in the trash, so the two lists are joined on the
- * file identifier and the server entry wins where both hold one.
- */
-export function mergeTrash(
-  remote: readonly WorkspaceDeletedFileSummary[],
-  local: readonly {
-    readonly fileId: string;
-    readonly path: string;
-    readonly deleted: boolean;
-    readonly updatedAt: string;
-  }[],
-): readonly TrashItem[] {
-  const merged = new Map<string, TrashItem>();
-  for (const file of local) {
-    if (!file.deleted) continue;
-    merged.set(file.fileId, {
-      fileId: file.fileId,
-      path: file.path,
-      deletedAt: file.updatedAt,
-      pending: true,
-    });
-  }
-  for (const file of remote)
-    merged.set(file.fileId, {
-      fileId: file.fileId,
-      path: file.path,
-      deletedAt: file.deletedAt,
-      pending: false,
-    });
-  return [...merged.values()].sort((left, right) => {
-    const leftAt = Date.parse(left.deletedAt ?? '');
-    const rightAt = Date.parse(right.deletedAt ?? '');
-    if (
-      Number.isFinite(leftAt) &&
-      Number.isFinite(rightAt) &&
-      leftAt !== rightAt
-    )
-      return rightAt - leftAt;
-    return left.path < right.path ? -1 : left.path > right.path ? 1 : 0;
-  });
-}
+/** The permanent deletion that waits for confirmation. */
+type TrashConfirmation =
+  | { readonly kind: 'one'; readonly fileId: string }
+  | { readonly kind: 'all' }
+  | null;
 
 /** Reads every page of the deleted notes of one workspace. */
 async function loadDeletedFiles(
@@ -394,6 +347,56 @@ export function TrashView(): ReactNode {
   );
 }
 
+/**
+ * The two compact choices that replace a Delete action.
+ *
+ * The safe choice takes focus and sits at the right edge. A second press at
+ * the place of the Delete action therefore cancels instead of confirming.
+ */
+function DeleteConfirmation({
+  confirmLabel,
+  cancelLabel,
+  disabled,
+  onConfirm,
+  onCancel,
+}: {
+  readonly confirmLabel: string;
+  readonly cancelLabel: string;
+  readonly disabled: boolean;
+  readonly onConfirm: () => void;
+  readonly onCancel: () => void;
+}): ReactNode {
+  const cancelRef = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    cancelRef.current?.focus();
+  }, []);
+  return (
+    <div
+      className={`flex items-center gap-cluster ${transitionAction}`}
+      role="group"
+      aria-label="Confirm delete"
+    >
+      <Button
+        variant="danger"
+        size="sm"
+        disabled={disabled}
+        icon={<CheckIcon />}
+        label={confirmLabel}
+        onClick={onConfirm}
+      />
+      <Button
+        buttonRef={cancelRef}
+        variant="ghost"
+        size="sm"
+        disabled={disabled}
+        icon={<CloseIcon />}
+        label={cancelLabel}
+        onClick={onCancel}
+      />
+    </div>
+  );
+}
+
 /** The listing and the two actions of the trash. */
 function TrashList({
   store,
@@ -406,16 +409,19 @@ function TrashList({
 }): ReactNode {
   const navigate = useNavigate();
   const requestSync = useRequestSync();
-  const files = useFiles();
   const [remote, setRemote] = useState<readonly WorkspaceDeletedFileSummary[]>(
     [],
   );
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<string | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<TrashConfirmation>(null);
   const [busy, setBusy] = useState(false);
+  const [removedFileIds, setRemovedFileIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [generation, setGeneration] = useState(0);
+  const loadedWorkspace = useRef<string | null>(null);
   const emptyLocalFiles = useMemo(() => [], []);
   const localFiles = useLocalQuery(
     store,
@@ -457,11 +463,18 @@ function TrashList({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
+    const firstRead = loadedWorkspace.current !== workspaceId;
+    if (firstRead) {
+      setLoading(true);
+      setRemote([]);
+      setRemovedFileIds(new Set());
+      setConfirming(null);
+    }
     void loadDeletedFiles(workspaceId)
       .then((files) => {
         if (cancelled) return;
         setRemote(files);
+        loadedWorkspace.current = workspaceId;
         setFailure(null);
       })
       .catch((reason: unknown) => {
@@ -481,14 +494,10 @@ function TrashList({
   }, [workspaceId, generation]);
 
   const items = useMemo(
-    () => mergeTrash(remote, localFiles.value),
-    [remote, localFiles.value],
+    () => mergeTrash(remote, localFiles.value, removedFileIds),
+    [remote, localFiles.value, removedFileIds],
   );
   const now = Date.now();
-
-  const reload = (): void => {
-    setGeneration((value) => value + 1);
-  };
 
   const restore = (item: TrashItem): void => {
     if (busy) return;
@@ -511,47 +520,70 @@ function TrashList({
     })();
   };
 
-  const deleteForever = (item: TrashItem): void => {
+  const deleteForever = (targets: readonly TrashItem[]): void => {
     if (busy) return;
-    if (confirming !== item.fileId) {
-      setConfirming(item.fileId);
-      return;
-    }
     setConfirming(null);
     setBusy(true);
     setFailure(null);
     setOutcome(null);
+    const targetIds = targets.map((item) => item.fileId);
+    setRemovedFileIds((current) => new Set([...current, ...targetIds]));
     void (async (): Promise<void> => {
-      const purged = await purgeFiles({
-        path: { workspaceId },
-        body: { mutationId: generateUUID(), fileIds: [item.fileId] },
-      });
-      if (purged.error !== undefined || purged.data === undefined) {
-        setBusy(false);
-        setFailure(problemMessage(purged.error));
-        return;
+      const purgedIds: string[] = [];
+      let purgeFailure: string | null = null;
+      for (let index = 0; index < targetIds.length; index += purgeBatchSize) {
+        const batch = targetIds.slice(index, index + purgeBatchSize);
+        const purged = await purgeFiles({
+          path: { workspaceId },
+          body: { mutationId: generateUUID(), fileIds: batch },
+        });
+        if (purged.error !== undefined || purged.data === undefined) {
+          purgeFailure = problemMessage(purged.error);
+          break;
+        }
+        purgedIds.push(...purged.data.purgedFileIds);
       }
-      try {
-        await store?.forgetPurgedFiles(accountId, workspaceId, [item.fileId]);
-      } catch {
-        setBusy(false);
-        setRemote((current) =>
-          current.filter((file) => file.fileId !== item.fileId),
-        );
-        files.reload();
-        reload();
-        setFailure(
-          'The note is deleted permanently on the server. Reload this page to update this device.',
-        );
-        return;
-      }
-      setOutcome(`${displayNoteName(item.path)} is deleted permanently.`);
+      const purgedSet = new Set(purgedIds);
       setRemote((current) =>
-        current.filter((file) => file.fileId !== item.fileId),
+        current.filter((file) => !purgedSet.has(file.fileId)),
       );
+      let localFailure = false;
+      if (purgedIds.length > 0) {
+        try {
+          if (store === null)
+            throw new Error('The local store is not available.');
+          await store.forgetPurgedFiles(accountId, workspaceId, purgedIds);
+        } catch {
+          localFailure = true;
+        }
+      }
+      // A target that the server did not purge returns to the list. A purged
+      // target stays hidden for this mount, even if an older read finishes
+      // after this operation and still contains it.
+      setRemovedFileIds((current) => {
+        const next = new Set(current);
+        for (const fileId of targetIds)
+          if (!purgedSet.has(fileId)) next.delete(fileId);
+        return next;
+      });
+      if (localFailure)
+        setFailure(
+          purgedIds.length === 1
+            ? 'The server deleted the note. Reload this page to update this device.'
+            : 'The server deleted the notes. Reload this page to update this device.',
+        );
+      else if (purgeFailure !== null) setFailure(purgeFailure);
+      else if (purgedIds.length !== targetIds.length)
+        setFailure(
+          'Some notes are not ready to delete. Wait for sync and try again.',
+        );
+      else
+        setOutcome(
+          targets.length === 1
+            ? `${displayNoteName(targets[0]?.path ?? '')} is deleted.`
+            : `${String(targets.length)} notes are deleted.`,
+        );
       requestSync();
-      files.reload();
-      reload();
       setBusy(false);
     })();
   };
@@ -560,21 +592,50 @@ function TrashList({
     <Page>
       <PageHeader
         title="Trash"
-        description="Restore puts a note back with your notes. Delete permanently removes the note and its versions for good."
+        description="Restore puts a note back with your notes. Delete removes the note and its versions for good."
         actions={
-          <Link
-            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
-            to={`/w/${workspaceId}`}
-          >
-            <span className="inline-flex items-center" aria-hidden="true">
-              <ChevronLeftIcon />
-            </span>
-            <span>Back to your notes</span>
-          </Link>
+          <>
+            <Link
+              className={buttonClassName({ variant: 'ghost', size: 'sm' })}
+              to={`/w/${workspaceId}`}
+            >
+              <span className="inline-flex items-center" aria-hidden="true">
+                <ChevronLeftIcon />
+              </span>
+              <span>Back to your notes</span>
+            </Link>
+            {items.length === 0 ? null : (
+              <div className="flex w-24 justify-end md:w-16">
+                {confirming?.kind === 'all' ? (
+                  <DeleteConfirmation
+                    confirmLabel={`Delete all ${String(items.length)} notes for good`}
+                    cancelLabel="Keep all notes in Trash"
+                    disabled={busy || items.some((item) => item.pending)}
+                    onConfirm={() => deleteForever(items)}
+                    onCancel={() => setConfirming(null)}
+                  />
+                ) : (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    tone="danger"
+                    disabled={busy || items.some((item) => item.pending)}
+                    onClick={() => setConfirming({ kind: 'all' })}
+                  >
+                    Clear all
+                  </Button>
+                )}
+              </div>
+            )}
+          </>
         }
       />
       <div className="space-y-4">
-        {outcome === null ? null : <Notice tone="success" message={outcome} />}
+        {outcome === null ? null : (
+          <p className="sr-only" role="status" aria-live="polite">
+            {outcome}
+          </p>
+        )}
         {failure === null ? null : <Notice tone="problem" message={failure} />}
         {loading ? (
           <LoadingState shape="list" rows={4} label="The trash is loading." />
@@ -582,7 +643,7 @@ function TrashList({
           <EmptyState
             icon={<TrashIcon size={20} />}
             title="The trash is empty"
-            description="A note you delete waits here until you restore it or delete it for good."
+            description="A note you delete waits here until you restore it or select Delete."
           />
         ) : (
           <section aria-labelledby="trash-heading">
@@ -624,40 +685,35 @@ function TrashList({
                       >
                         Restore
                       </Button>
-                      {confirming === item.fileId ? (
-                        <>
-                          <Button
-                            variant="danger"
-                            size="sm"
+                      <div className="flex w-24 justify-end md:w-16">
+                        {confirming?.kind === 'one' &&
+                        confirming.fileId === item.fileId ? (
+                          <DeleteConfirmation
+                            confirmLabel={`Delete ${name} for good`}
+                            cancelLabel={`Keep ${name} in Trash`}
                             disabled={busy}
-                            icon={<TrashIcon />}
-                            label={`Confirm that ${name} is deleted permanently`}
-                            onClick={() => deleteForever(item)}
-                          >
-                            Confirm
-                          </Button>
+                            onConfirm={() => deleteForever([item])}
+                            onCancel={() => setConfirming(null)}
+                          />
+                        ) : (
                           <Button
                             variant="ghost"
                             size="sm"
-                            label={`Keep ${name} in the trash`}
-                            onClick={() => setConfirming(null)}
+                            tone="danger"
+                            disabled={busy || item.pending}
+                            icon={<TrashIcon />}
+                            label={`Delete ${name}`}
+                            onClick={() =>
+                              setConfirming({
+                                kind: 'one',
+                                fileId: item.fileId,
+                              })
+                            }
                           >
-                            Keep
+                            Delete
                           </Button>
-                        </>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          tone="danger"
-                          disabled={busy}
-                          icon={<TrashIcon />}
-                          label={`Delete permanently: ${name}`}
-                          onClick={() => deleteForever(item)}
-                        >
-                          Delete permanently
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </div>
                   </ListRow>
                 );

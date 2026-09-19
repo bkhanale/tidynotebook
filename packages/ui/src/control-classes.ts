@@ -48,7 +48,7 @@ export type ButtonSize = 'sm' | 'md';
  * The tone of a quiet button.
  *
  * `danger` marks a ghost or a secondary button that starts a destructive
- * action, such as Delete permanently on a trash row, before the filled
+ * action, such as Delete on a Trash row, before the filled
  * `danger` variant confirms it. The tone is part of the recipe and never a
  * class a caller adds, because two colour utilities on one element are decided
  * by the stylesheet and not by the caller (decision 0065).
@@ -270,7 +270,7 @@ export type ButtonName = {
  * How a button names itself.
  *
  * A `label` names the button whether or not the button also shows text. One
- * word on a row of a list, such as `Restore` or `Delete permanently`, names
+ * word on a row of a list, such as `Restore` or `Delete`, names
  * the action and never the row it acts on, so every row of that list carried
  * the same name while a label given to a button with text was dropped.
  *

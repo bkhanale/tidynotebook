@@ -11,6 +11,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  transitionAction,
   transitionField,
   transitionPanel,
   transitionRaise,
@@ -19,6 +20,7 @@ import {
 
 /** Every name of the scale, with the name a failure message reads. */
 const names: readonly (readonly [string, string])[] = [
+  ['transitionAction', transitionAction],
   ['transitionSurface', transitionSurface],
   ['transitionField', transitionField],
   ['transitionPanel', transitionPanel],

@@ -20,14 +20,18 @@ Two actions sit on every row.
 
 - **Restore** puts the note back where it was and opens it. Its whole history
   comes back with it.
-- **Delete permanently** asks you to select **Confirm**. The note and every
-  version of it are removed for good, and the images that no other note uses
-  are released. This cannot be undone, and it needs a connection.
+- **Delete** shows a tick and a cross. Select the tick to remove the note and
+  every version of it for good. Select the cross to keep the note in Trash.
+  Delete also releases images that no other note uses. You cannot undo this
+  action, and it needs a connection.
+
+Select **Clear all** at the top to delete all notes in Trash. Select the tick
+to continue or the cross to keep the notes.
 
 ## What Trash does not do
 
-There is no "empty trash" action and no automatic cleanup. A note stays in
-Trash until you restore it or delete it permanently. Nothing expires.
+There is no automatic cleanup. A note stays in Trash until you restore it or
+delete it. Nothing expires.
 
 A note you delete while offline appears in the same list and reaches your
 server when the connection returns.

@@ -299,6 +299,35 @@ await test('a permanent deletion of one note removes it from the trash', async (
   assert.equal(responseOf(gone.response).status, 410);
 });
 
+await test('one purge removes all selected notes from the trash', async () => {
+  const first = await makeNote(`trash/${randomUUID()}.md`, '# First\n');
+  const second = await makeNote(`trash/${randomUUID()}.md`, '# Second\n');
+  await removeNote(first.fileId, first.tag);
+  await removeNote(second.fileId, second.tag);
+
+  const purged = await purgeFiles({
+    headers,
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      fileIds: [first.fileId, second.fileId],
+    },
+  });
+  assert.equal(purged.error, undefined, JSON.stringify(purged.error));
+  assert.deepEqual(
+    new Set(purged.data?.purgedFileIds),
+    new Set([first.fileId, second.fileId]),
+  );
+
+  const remaining = await trash();
+  assert.equal(
+    remaining.some(
+      (file) => file.fileId === first.fileId || file.fileId === second.fileId,
+    ),
+    false,
+  );
+});
+
 await test('a live note cannot be restored', async () => {
   const note = await makeNote(`trash/${randomUUID()}.md`, '# Live\n');
   const refused = await restoreFile({

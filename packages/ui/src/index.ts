@@ -95,6 +95,7 @@ export {
   PageHeader,
 } from './layout.tsx';
 export {
+  transitionAction,
   transitionField,
   transitionPanel,
   transitionRaise,
