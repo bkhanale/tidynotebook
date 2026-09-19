@@ -1,7 +1,7 @@
 /** The visible Trash list is stable while a server change reaches the store. */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mergeTrash } from './trash-view.ts';
+import { mergeTrash, trashListClassName } from './trash-view.ts';
 
 const first = '10000000-0000-4000-8000-000000000001';
 const second = '10000000-0000-4000-8000-000000000002';
@@ -68,4 +68,12 @@ await test('a removed note stays out while both sources still hold it', () => {
   );
 
   assert.deepEqual(items, []);
+});
+
+await test('deleted note rows have one named space between them', () => {
+  const classes = trashListClassName.split(' ');
+
+  assert.ok(classes.includes('flex'));
+  assert.ok(classes.includes('flex-col'));
+  assert.ok(classes.includes('gap-cluster'));
 });

@@ -55,6 +55,27 @@ export type ButtonSize = 'sm' | 'md';
  */
 export type ButtonTone = 'danger';
 
+/** The colour and surface of one button. */
+function buttonVariantClassName(
+  variant: ButtonVariant,
+  tone: ButtonTone | undefined,
+  interaction: 'button' | 'group',
+): string {
+  const danger = tone === 'danger';
+  const hover = interaction === 'group' ? 'group-hover:' : 'hover:';
+  return variant === 'secondary'
+    ? danger
+      ? `border border-edge-line bg-card text-danger shadow-raised ${hover}bg-danger-surface`
+      : `border border-edge-line bg-card text-strong shadow-raised ${hover}bg-hover`
+    : variant === 'ghost'
+      ? danger
+        ? `bg-transparent text-danger ${hover}bg-danger-surface`
+        : `bg-transparent text-strong ${hover}bg-hover`
+      : variant === 'danger'
+        ? `bg-danger-fill text-on-danger ${hover}bg-danger-fill-hover`
+        : `bg-accent-fill text-on-accent ${hover}bg-accent-fill-hover`;
+}
+
 /**
  * The appearance of a button, as classes.
  *
@@ -81,32 +102,31 @@ export function buttonClassName(
     readonly variant?: ButtonVariant | undefined;
     readonly size?: ButtonSize | undefined;
     readonly tone?: ButtonTone | undefined;
+    readonly iconOnly?: boolean | undefined;
+    readonly compactIcon?: boolean | undefined;
     readonly className?: string | undefined;
   } = {},
 ): string {
   const variant = options.variant ?? 'primary';
   const size = options.size ?? 'md';
-  const danger = options.tone === 'danger';
-  const variantClass =
-    variant === 'secondary'
-      ? danger
-        ? 'border border-edge-line bg-card text-danger shadow-raised hover:bg-danger-surface'
-        : 'border border-edge-line bg-card text-strong shadow-raised hover:bg-hover'
-      : variant === 'ghost'
-        ? danger
-          ? 'bg-transparent text-danger hover:bg-danger-surface'
-          : 'bg-transparent text-strong hover:bg-hover'
-        : variant === 'danger'
-          ? 'bg-danger-fill text-on-danger hover:bg-danger-fill-hover'
-          : 'bg-accent-fill text-on-accent hover:bg-accent-fill-hover';
+  const compactIcon = options.compactIcon === true;
+  const variantClass = compactIcon
+    ? 'group bg-transparent'
+    : buttonVariantClassName(variant, options.tone, 'button');
 
   // Touch pointers get the 44 px minimum. A mouse pointer keeps the compact
   // control scale, so the chrome stays quiet on a desktop screen: 32 px for a
   // button and 28 px for a small one.
   const sizeClass =
-    size === 'sm' ? 'min-h-11 px-2.5 md:min-h-7' : 'min-h-11 px-3 md:min-h-8';
+    options.iconOnly === true
+      ? size === 'sm'
+        ? 'size-11 px-0 md:size-7'
+        : 'size-11 px-0 md:size-8'
+      : size === 'sm'
+        ? 'min-h-11 px-2.5 md:min-h-7'
+        : 'min-h-11 px-3 md:min-h-8';
   return [
-    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline ${transitionSurface} ${focusOutline} disabled:cursor-not-allowed disabled:opacity-50`,
+    `inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-control font-medium no-underline ${transitionSurface} ${compactIcon ? 'focus-visible:outline-none' : focusOutline} disabled:cursor-not-allowed disabled:opacity-50`,
     variantClass,
     sizeClass,
     options.className ?? '',
@@ -116,15 +136,27 @@ export function buttonClassName(
 }
 
 /**
- * The one square shape of an icon only button, per size.
+ * The visible surface inside a compact icon button.
  *
- * A button with no text is a square of its own height, so its icon sits in the
- * middle and a row of them lines up. `Button` applies it when it has no
- * children, and a trigger or an anchor that a screen builds from
- * `buttonClassName` passes it as the `className`.
+ * The button keeps its 44 px touch target. This surface is 32 px under touch
+ * and takes the focus treatment, fill, and hover state that a person sees.
  */
-export function iconOnlyClassName(size: ButtonSize = 'md'): string {
-  return size === 'sm' ? 'size-11 px-0 md:size-7' : 'size-11 px-0 md:size-8';
+export function compactIconVisualClassName(
+  options: {
+    readonly variant?: ButtonVariant | undefined;
+    readonly size?: ButtonSize | undefined;
+    readonly tone?: ButtonTone | undefined;
+  } = {},
+): string {
+  const variant = options.variant ?? 'primary';
+  const size = options.size ?? 'md';
+  const sizeClass = size === 'sm' ? 'size-8 md:size-7' : 'size-9 md:size-8';
+  return [
+    `inline-flex items-center justify-center rounded-md ${transitionSurface}`,
+    'group-focus-visible:outline-2 group-focus-visible:outline-offset-2 group-focus-visible:outline-focus',
+    buttonVariantClassName(variant, options.tone, 'group'),
+    sizeClass,
+  ].join(' ');
 }
 
 /**

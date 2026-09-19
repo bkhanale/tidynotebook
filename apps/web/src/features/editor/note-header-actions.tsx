@@ -17,7 +17,6 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import {
   buttonClassName,
-  iconOnlyClassName,
   Button,
   HistoryIcon,
   LinkIcon,
@@ -102,7 +101,7 @@ export function NoteHeaderActions({
       <Link
         className={buttonClassName({
           variant: 'ghost',
-          className: iconOnlyClassName(),
+          iconOnly: true,
         })}
         to={`/w/${workspaceId}/notes/${fileId}/history`}
         aria-label="History"

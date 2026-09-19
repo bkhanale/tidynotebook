@@ -63,7 +63,6 @@ export type {
 export {
   badgeClassName,
   buttonClassName,
-  iconOnlyClassName,
   buttonName,
   fieldClassName,
   focusOutline,

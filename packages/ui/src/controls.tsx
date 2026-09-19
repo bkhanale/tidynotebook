@@ -12,7 +12,7 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
-  iconOnlyClassName,
+  compactIconVisualClassName,
   fieldClassName,
   focusOutline,
   type ButtonSize,
@@ -47,6 +47,7 @@ export function Button({
   buttonRef,
   ariaControls,
   ariaExpanded,
+  compactIcon = false,
 }: {
   readonly type?: 'button' | 'submit' | undefined;
   readonly variant?: ButtonVariant | undefined;
@@ -62,15 +63,18 @@ export function Button({
   readonly buttonRef?: Ref<HTMLButtonElement> | undefined;
   readonly ariaControls?: string | undefined;
   readonly ariaExpanded?: boolean | undefined;
+  /** Keeps the touch target and draws a smaller icon surface inside it. */
+  readonly compactIcon?: boolean | undefined;
 }): ReactNode {
   const hasChildren = children !== undefined && children !== null;
+  const usesCompactIcon = compactIcon && !hasChildren;
   const classes = buttonClassName({
     variant,
     size,
     tone,
-    className: [hasChildren ? '' : iconOnlyClassName(size), extraClassName]
-      .filter(Boolean)
-      .join(' '),
+    iconOnly: !hasChildren,
+    compactIcon: usesCompactIcon,
+    className: extraClassName,
   });
 
   const name = buttonName({ label, title, hasText: hasChildren });
@@ -89,7 +93,11 @@ export function Button({
     >
       {icon !== undefined ? (
         <span
-          className="inline-flex items-center justify-center"
+          className={
+            usesCompactIcon
+              ? compactIconVisualClassName({ variant, size, tone })
+              : 'inline-flex items-center justify-center'
+          }
           aria-hidden="true"
         >
           {icon}

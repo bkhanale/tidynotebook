@@ -15,6 +15,7 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
+  compactIconVisualClassName,
   fieldClassName,
   focusOutline,
   focusOutlineInset,
@@ -43,6 +44,10 @@ const recipes: readonly (readonly [string, string])[] = [
   ...sizes.map(
     (size) => [`${size} button`, buttonClassName({ size })] as const,
   ),
+  [
+    'compact danger icon',
+    compactIconVisualClassName({ variant: 'danger', size: 'sm' }),
+  ],
   ['row', rowClassName()],
   ['selected row', rowClassName({ selected: true })],
   ['current row', rowClassName({ current: true })],
@@ -229,6 +234,36 @@ await test('a button is 32 px on a desktop and 28 px when it is small', () => {
   const small = buttonClassName({ size: 'sm' }).split(' ');
   assert.ok(small.includes('min-h-11'), 'the touch minimum');
   assert.ok(small.includes('md:min-h-7'), 'the small desktop height');
+});
+
+await test('a compact icon keeps its touch target and reduces its visible surface', () => {
+  const button = buttonClassName({
+    variant: 'danger',
+    size: 'sm',
+    iconOnly: true,
+    compactIcon: true,
+  });
+  const visual = compactIconVisualClassName({
+    variant: 'danger',
+    size: 'sm',
+  });
+
+  assert.ok(button.includes('size-11'), 'the square touch target');
+  assert.ok(button.includes('px-0'), 'the icon has no text inset');
+  assert.ok(!button.includes('px-2.5'), 'the text inset does not squeeze it');
+  assert.ok(button.includes('group'), 'the visual state owner');
+  assert.ok(
+    button.includes('focus-visible:outline-none'),
+    'the outer target has no second outline',
+  );
+  assert.ok(!button.includes('bg-danger-fill'), 'the outer target has no fill');
+  assert.ok(visual.includes('size-8'), 'the visible touch surface');
+  assert.ok(visual.includes('md:size-7'), 'the small desktop surface');
+  assert.ok(visual.includes('bg-danger-fill'), 'the confirmation fill');
+  assert.ok(
+    visual.includes('group-focus-visible:outline-focus'),
+    'the visible focus surface',
+  );
 });
 
 await test('a row is 28 px on a desktop and 44 px under touch', () => {

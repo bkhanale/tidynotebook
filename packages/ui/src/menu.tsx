@@ -32,11 +32,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  buttonClassName,
-  iconOnlyClassName,
-  rowClassName,
-} from './control-classes.ts';
+import { buttonClassName, rowClassName } from './control-classes.ts';
 import { transitionRaise } from './motion.ts';
 import { placeOverlay } from './overlay-position.ts';
 
@@ -266,7 +262,7 @@ export function Menu({
           triggerClassName ??
           buttonClassName({
             variant: 'ghost',
-            className: iconOnlyClassName(),
+            iconOnly: true,
           })
         }
         aria-haspopup="menu"

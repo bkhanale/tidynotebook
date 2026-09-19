@@ -31,6 +31,9 @@ export type LocalTrashFile = {
   readonly updatedAt: string;
 };
 
+/** Rows separate with the named close-group distance and no rule. */
+export const trashListClassName = 'm-0 flex list-none flex-col gap-cluster p-0';
+
 /**
  * Merges the server Trash with the deleted notes only this device knows.
  *

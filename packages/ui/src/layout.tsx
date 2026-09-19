@@ -27,6 +27,10 @@
  */
 import type { ReactNode } from 'react';
 import { rowClassName } from './control-classes.ts';
+import {
+  pageHeaderActionsClassName,
+  type PageHeaderActionLayout,
+} from './layout-classes.ts';
 
 /**
  * The distance from the edge of the screen to the content of a page.
@@ -66,7 +70,7 @@ export function Page({
 }
 
 /**
- * The title row of a screen, with one optional action on the right.
+ * The title row of a screen, with optional actions below or on the right.
  *
  * The title block grows and can shrink to nothing, so a long description
  * never pushes the action onto a line of its own on a wide screen. Below
@@ -77,11 +81,13 @@ export function PageHeader({
   title,
   description,
   actions,
+  actionLayout = 'cluster',
   id,
 }: {
   readonly title: string;
   readonly description?: string | undefined;
   readonly actions?: ReactNode | undefined;
+  readonly actionLayout?: PageHeaderActionLayout | undefined;
   readonly id?: string | undefined;
 }): ReactNode {
   return (
@@ -98,7 +104,9 @@ export function PageHeader({
         )}
       </div>
       {actions === undefined ? null : (
-        <div className="flex shrink-0 items-center gap-cluster">{actions}</div>
+        <div className={pageHeaderActionsClassName(actionLayout)}>
+          {actions}
+        </div>
       )}
     </div>
   );

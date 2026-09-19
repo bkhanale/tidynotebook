@@ -58,7 +58,11 @@ import {
 import { useLocalQuery } from '../../local-state.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 import { folderOf, relativeTime } from '../../lib/relative-time.ts';
-import { mergeTrash, type TrashItem } from '../../lib/trash-view.ts';
+import {
+  mergeTrash,
+  trashListClassName,
+  type TrashItem,
+} from '../../lib/trash-view.ts';
 
 /** How long the notice after a deletion stays on screen. */
 export const undoNoticeMs = 8000;
@@ -382,6 +386,7 @@ function DeleteConfirmation({
         disabled={disabled}
         icon={<CheckIcon />}
         label={confirmLabel}
+        compactIcon
         onClick={onConfirm}
       />
       <Button
@@ -391,6 +396,7 @@ function DeleteConfirmation({
         disabled={disabled}
         icon={<CloseIcon />}
         label={cancelLabel}
+        compactIcon
         onClick={onCancel}
       />
     </div>
@@ -593,6 +599,7 @@ function TrashList({
       <PageHeader
         title="Trash"
         description="Restore puts a note back with your notes. Delete removes the note and its versions for good."
+        actionLayout="split"
         actions={
           <>
             <Link
@@ -653,7 +660,7 @@ function TrashList({
             >
               Deleted notes
             </h2>
-            <ul className="m-0 list-none p-0">
+            <ul className={trashListClassName}>
               {items.map((item) => {
                 const name = displayNoteName(item.path);
                 const folder = folderOf(item.path);
