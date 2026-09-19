@@ -386,7 +386,7 @@ function DeleteConfirmation({
         disabled={disabled}
         icon={<CheckIcon />}
         label={confirmLabel}
-        compactIcon
+        compact
         onClick={onConfirm}
       />
       <Button
@@ -396,7 +396,7 @@ function DeleteConfirmation({
         disabled={disabled}
         icon={<CloseIcon />}
         label={cancelLabel}
-        compactIcon
+        compact
         onClick={onCancel}
       />
     </div>
@@ -626,6 +626,7 @@ function TrashList({
                     variant="secondary"
                     size="sm"
                     tone="danger"
+                    compact
                     disabled={busy || items.some((item) => item.pending)}
                     onClick={() => setConfirming({ kind: 'all' })}
                   >
@@ -686,6 +687,7 @@ function TrashList({
                       <Button
                         variant="secondary"
                         size="sm"
+                        compact
                         disabled={busy}
                         label={`Restore ${name}`}
                         onClick={() => restore(item)}

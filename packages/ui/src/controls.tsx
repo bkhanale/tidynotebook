@@ -12,7 +12,7 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
-  compactIconVisualClassName,
+  compactButtonVisualClassName,
   fieldClassName,
   focusOutline,
   type ButtonSize,
@@ -47,7 +47,7 @@ export function Button({
   buttonRef,
   ariaControls,
   ariaExpanded,
-  compactIcon = false,
+  compact = false,
 }: {
   readonly type?: 'button' | 'submit' | undefined;
   readonly variant?: ButtonVariant | undefined;
@@ -63,21 +63,33 @@ export function Button({
   readonly buttonRef?: Ref<HTMLButtonElement> | undefined;
   readonly ariaControls?: string | undefined;
   readonly ariaExpanded?: boolean | undefined;
-  /** Keeps the touch target and draws a smaller icon surface inside it. */
-  readonly compactIcon?: boolean | undefined;
+  /** Keeps the touch target and draws a smaller surface inside it. */
+  readonly compact?: boolean | undefined;
 }): ReactNode {
   const hasChildren = children !== undefined && children !== null;
-  const usesCompactIcon = compactIcon && !hasChildren;
   const classes = buttonClassName({
     variant,
     size,
     tone,
     iconOnly: !hasChildren,
-    compactIcon: usesCompactIcon,
+    compact,
     className: extraClassName,
   });
 
   const name = buttonName({ label, title, hasText: hasChildren });
+  const content = (
+    <>
+      {icon !== undefined ? (
+        <span
+          className="inline-flex items-center justify-center"
+          aria-hidden="true"
+        >
+          {icon}
+        </span>
+      ) : null}
+      {hasChildren ? <span>{children}</span> : null}
+    </>
+  );
 
   return (
     <button
@@ -91,19 +103,20 @@ export function Button({
       aria-expanded={ariaExpanded}
       title={name.title}
     >
-      {icon !== undefined ? (
+      {compact ? (
         <span
-          className={
-            usesCompactIcon
-              ? compactIconVisualClassName({ variant, size, tone })
-              : 'inline-flex items-center justify-center'
-          }
-          aria-hidden="true"
+          className={compactButtonVisualClassName({
+            variant,
+            size,
+            tone,
+            iconOnly: !hasChildren,
+          })}
         >
-          {icon}
+          {content}
         </span>
-      ) : null}
-      {hasChildren ? <span>{children}</span> : null}
+      ) : (
+        content
+      )}
     </button>
   );
 }

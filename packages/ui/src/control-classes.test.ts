@@ -15,7 +15,7 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
-  compactIconVisualClassName,
+  compactButtonVisualClassName,
   fieldClassName,
   focusOutline,
   focusOutlineInset,
@@ -46,7 +46,11 @@ const recipes: readonly (readonly [string, string])[] = [
   ),
   [
     'compact danger icon',
-    compactIconVisualClassName({ variant: 'danger', size: 'sm' }),
+    compactButtonVisualClassName({
+      variant: 'danger',
+      size: 'sm',
+      iconOnly: true,
+    }),
   ],
   ['row', rowClassName()],
   ['selected row', rowClassName({ selected: true })],
@@ -241,11 +245,12 @@ await test('a compact icon keeps its touch target and reduces its visible surfac
     variant: 'danger',
     size: 'sm',
     iconOnly: true,
-    compactIcon: true,
+    compact: true,
   });
-  const visual = compactIconVisualClassName({
+  const visual = compactButtonVisualClassName({
     variant: 'danger',
     size: 'sm',
+    iconOnly: true,
   });
 
   assert.ok(button.includes('size-11'), 'the square touch target');
@@ -264,6 +269,28 @@ await test('a compact icon keeps its touch target and reduces its visible surfac
     visual.includes('group-focus-visible:outline-focus'),
     'the visible focus surface',
   );
+});
+
+await test('a compact text button has a quiet surface inside its touch target', () => {
+  const button = buttonClassName({
+    variant: 'secondary',
+    size: 'sm',
+    compact: true,
+  });
+  const visual = compactButtonVisualClassName({
+    variant: 'secondary',
+    size: 'sm',
+    iconOnly: false,
+  });
+
+  assert.ok(button.includes('min-h-11'), 'the touch target height');
+  assert.ok(button.includes('px-0'), 'the outer target has no text inset');
+  assert.ok(button.includes('group'), 'the visual state owner');
+  assert.ok(!button.includes('bg-card'), 'the outer target has no fill');
+  assert.ok(visual.includes('min-h-8'), 'the visible touch surface');
+  assert.ok(visual.includes('md:min-h-7'), 'the small desktop surface');
+  assert.ok(visual.includes('px-2.5'), 'the visible text inset');
+  assert.ok(visual.includes('bg-card'), 'the secondary surface fill');
 });
 
 await test('a row is 28 px on a desktop and 44 px under touch', () => {
