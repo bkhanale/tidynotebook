@@ -499,11 +499,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // table ends, the hairline between two rows separates them, and no line
     // runs down the columns: the space between them already does that.
     //
-    // A cell breaks between words and never inside one. The editor wraps every
-    // line of a note, and that wrap broke a word of a narrow column into two,
-    // so a wide table squashed into the measure and read as rubble. A cell
-    // that keeps its words whole keeps the table its own shape, and the note
-    // scrolls sideways to reach the last column.
+    // A cell keeps its text on one line. The editor wraps every line of a
+    // note, and that wrap squeezed a wide table into the measure and broke a
+    // column mid word. A cell that never wraps keeps the table the shape its
+    // source states, and the note scrolls sideways to reach the last column.
+    // `pre` and not `nowrap`, because the spaces inside a cell belong to the
+    // source and the editor shows the source.
     '.cm-np-table-cell': {
       display: 'table-cell',
       paddingInlineStart: '0',
@@ -511,8 +512,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       paddingBlock: 'calc(var(--spacing) * 1.5)',
       verticalAlign: 'top',
       borderBottom: '1px solid var(--notes-border-subtle)',
-      overflowWrap: 'normal',
-      wordBreak: 'normal',
+      whiteSpace: 'pre',
     },
     '.cm-np-table-head': {
       display: 'table-cell',
@@ -523,8 +523,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderBottom: '1px solid var(--notes-border-line)',
       fontWeight: 'var(--font-weight-note-heading)',
       color: 'var(--notes-text-strong)',
-      overflowWrap: 'normal',
-      wordBreak: 'normal',
+      whiteSpace: 'pre',
     },
     // What stands between the start of a line and the start of its row: the
     // indentation of a list item and the marks of a quote. A row is a
@@ -603,11 +602,16 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderRadius: 'var(--radius-md)',
     },
     '.cm-np-widget-note': {
+      display: 'block',
+      margin: '0',
       color: 'var(--notes-text-muted)',
       fontSize: 'var(--text-ui)',
     },
     '.cm-np-widget-error': { color: 'var(--notes-danger-text)' },
     '.cm-np-widget-source': {
+      display: 'block',
+      margin: '0',
+      marginBlockStart: 'calc(var(--spacing) * 1)',
       fontFamily: 'var(--font-mono)',
       fontSize: 'var(--text-note-mono)',
       whiteSpace: 'pre-wrap',
@@ -617,6 +621,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // and carries the radius of a control (records 0063 and 0065).
     '.cm-np-widget-action': {
       font: 'inherit',
+      marginBlockStart: 'calc(var(--spacing) * 2)',
       fontSize: 'var(--text-control)',
       marginInlineStart: 'calc(var(--spacing) * 2)',
       paddingInline: 'calc(var(--spacing) * 2)',

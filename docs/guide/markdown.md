@@ -1,21 +1,27 @@
 # Markdown
 
 This page is for the person who writes the notes. It states which Markdown the
-editor understands and how the two modes show it.
+editor understands and how a note shows it.
 
-## Write mode and Read mode
+## One note surface
 
-The toggle at the top of a note switches between **Write** and **Read**.
+A note has one surface, and the Markdown source is always the document.
+Markers are hidden and the text is styled in place, and the source comes back
+where your cursor is. A block construct shows its markers while you are on the
+line that carries them. A fenced block shows its fences while you are anywhere
+inside it. An inline construct shows its markers while your selection touches
+the whole construct, so a cursor inside a bold word brings both `**` runs back.
 
-In Write mode the Markdown source is always the document. Markers are hidden
-and the text is styled in place, and the source comes back where your cursor
-is. A block construct shows its markers while you are on the line that carries
-them. A fenced block shows its fences while you are anywhere inside it. An
-inline construct shows its markers while your selection touches the whole
-construct, so a cursor inside a bold word brings both `**` runs back.
+A published link shows the same note through the same grammar, so the two
+never disagree about what a note means.
 
-Read mode shows the finished document and nothing else. Both modes use the same
-grammar, so they never disagree about what a note means.
+## Paragraphs and line breaks
+
+Two lines of one paragraph read as one paragraph, which is what Markdown
+means. The source lines come back while your cursor is in that paragraph.
+
+End a line with two spaces or with a backslash to break the line and stay in
+the same paragraph. Leave a blank line to start a new paragraph.
 
 ## What the editor understands
 
@@ -25,8 +31,15 @@ quotes, inline code, fenced code with a language, indented code, links,
 reference links, images, thematic breaks, hard breaks, escapes, and entities
 all work as CommonMark describes.
 
-A task box is a real checkbox in Write mode. Select it to tick the line. A
-table stays editable text, so you can change it in place.
+A task box is a real checkbox. Select it to tick the line. A table stays
+editable text, so you can change it in place. A table wider than the column
+keeps its shape, and the note scrolls sideways to reach the last column.
+
+## Alerts
+
+A block quote whose first line is `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,
+`[!WARNING]` or `[!CAUTION]` is an alert. The marker leaves the text and the
+quote shows the word and a colour instead.
 
 ## Math
 
@@ -42,9 +55,10 @@ failing.
 
 A code fence marked `mermaid` is drawn as a diagram.
 
-An image from this note shows the picture. An image from another site is never
-fetched by itself: it shows a small placeholder with a **Load** button, so
-opening a note cannot tell another site that you read it.
+An image from this note shows the picture. An image from another site shows the
+picture as well, and the address must start with `https`. Opening the note
+asks that site for the picture, so the site learns that somebody opened it. The
+request names no note and no address of yours.
 
 To add an image, paste it, drag the file onto the editor, or use **Attach
 image** in the note menu. The editor uploads it and writes the Markdown for
@@ -52,8 +66,8 @@ you. Only images are accepted, and an upload needs a connection.
 
 ## HTML is not rendered
 
-Raw HTML is shown as text in Write mode and removed in Read mode. Nothing you
-write as HTML has any effect. A link to anything other than a web address, a
+Raw HTML is shown as text in the note and removed from a published link.
+Nothing you write as HTML has any effect. A link to anything other than a web address, a
 mail address, another note, or an attachment loses its destination and is shown
 as plain text.
 

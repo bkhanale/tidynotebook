@@ -94,8 +94,9 @@ loses text to a failed render.
 The renderer drops raw HTML and keeps its text, so nothing a person writes as
 HTML can act. The URL policy keeps a small set of schemes and the two internal
 prefixes, and it removes the destination of anything else rather than following
-it. An external image is never fetched by the page itself; it renders as a
-placeholder with an action.
+it. An external image loads over HTTPS and no other scheme, and it carries
+`referrerpolicy="no-referrer"`. See
+[decision 0067](../decisions/0067-an-external-picture-loads-by-itself.md).
 
 `packages/markdown/src/policy.ts` is the one definition of both rules. A change
 there is a change to the security surface, so it needs a test that proves the

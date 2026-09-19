@@ -74,6 +74,6 @@ through the editor path, so both surfaces must agree on structure.
 | `src/parse.ts`         | The parser and its extension set            |
 | `src/render.ts`        | `renderMarkdown` and heading slugs          |
 | `src/policy.ts`        | The sanitizer schema and the URL policy     |
-| `src/alerts.ts`        | The alert marker and the five tones          |
+| `src/alerts.ts`        | The alert marker and the five tones         |
 | `src/limits.ts`        | Size and depth limits, `MarkdownLimitError` |
 | `test-data/content.ts` | The equivalence corpus                      |

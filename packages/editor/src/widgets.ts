@@ -45,7 +45,11 @@ import {
   WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
-import { allowsExternalImage, classifyUrl } from '@notesapp/markdown';
+import {
+  allowsExternalImage,
+  alertToneOf,
+  classifyUrl,
+} from '@notesapp/markdown';
 
 /** The kinds of region that render as a widget. */
 export type RichWidgetKind =
@@ -117,6 +121,29 @@ export function attachmentIdOf(destination: string): string | null {
   return destination;
 }
 
+/** One created diagram element and the call that releases it. */
+export type DiagramHandle = {
+  readonly element: HTMLElement;
+  readonly dispose: () => void;
+};
+
+/**
+ * The release of the diagram that one widget element holds.
+ *
+ * A widget is filled again when its source or its resolvers change, and it is
+ * destroyed when it leaves the screen. Both paths pass through the release
+ * below, so a diagram frame never outlives the element that shows it.
+ */
+const diagramReleases = new WeakMap<HTMLElement, () => void>();
+
+/** Releases the diagram of one widget element, if it holds one. */
+function releaseDiagram(parent: HTMLElement): void {
+  const release = diagramReleases.get(parent);
+  if (release === undefined) return;
+  diagramReleases.delete(parent);
+  release();
+}
+
 /** Callbacks the web composition injects into the widget extension. */
 export type RichWidgetResolvers = {
   /**
@@ -134,8 +161,13 @@ export type RichWidgetResolvers = {
   /**
    * Creates the diagram element for one Mermaid source, for example an
    * isolated frame. May throw; a throw shows editable source.
+   *
+   * It answers the element and the call that releases it. A diagram holds a
+   * frame, a listener and a clock, and a widget that leaves the screen must
+   * give all three back, so the release is part of the answer and not
+   * something a caller can forget.
    */
-  readonly createDiagram?: ((source: string) => HTMLElement) | undefined;
+  readonly createDiagram?: ((source: string) => DiagramHandle) | undefined;
   /** Called when a widget hands the cursor back to its source. */
   readonly onOpenSource?: ((widget: RichWidget) => void) | undefined;
 };
@@ -162,16 +194,46 @@ function lineRange(
   return { from: state.doc.lineAt(from).from, to: state.doc.lineAt(to).to };
 }
 
-/** Reads the destination and alt text of one Image node. */
-function readImage(
-  state: EditorState,
-  node: { from: number; to: number },
-  urlFrom: number,
-  urlTo: number,
-): { readonly alt: string; readonly destination: string } {
-  const source = state.doc.sliceString(node.from, node.to);
-  const alt = /^!\[([^\]]*)\]/.exec(source)?.[1] ?? '';
-  return { alt, destination: state.doc.sliceString(urlFrom, urlTo) };
+/** The alt text of one image, which is the run between `![` and `]`. */
+function imageAlt(source: string): string {
+  return /^!\[([^\]]*)\]/.exec(source)?.[1] ?? '';
+}
+
+/**
+ * One reference label, in the form CommonMark compares.
+ *
+ * A label matches without regard to case and to the shape of its white space,
+ * so both sides of the comparison pass through here.
+ */
+function referenceKey(label: string): string {
+  return label.trim().replace(/\s+/g, ' ').toLocaleLowerCase('en-US');
+}
+
+/**
+ * The link definitions of one document, by label.
+ *
+ * A reference image names its destination somewhere else in the note, so the
+ * widget finder needs the definitions before it can resolve one. They come
+ * from the syntax tree, like every other fact of the preview.
+ */
+function linkDefinitions(state: EditorState): ReadonlyMap<string, string> {
+  const doc = state.doc;
+  const found = new Map<string, string>();
+  syntaxTree(state).iterate({
+    enter: (node) => {
+      if (node.name !== 'LinkReference') return true;
+      const label = node.node.getChild('LinkLabel');
+      const url = node.node.getChild('URL');
+      if (label === null || url === null) return false;
+      const key = referenceKey(
+        doc.sliceString(label.from + 1, Math.max(label.from + 1, label.to - 1)),
+      );
+      // The first definition of a label wins, as CommonMark states.
+      if (!found.has(key)) found.set(key, doc.sliceString(url.from, url.to));
+      return false;
+    },
+  });
+  return found;
 }
 
 /**
@@ -185,6 +247,7 @@ export function findRichRegions(state: EditorState): readonly RichWidget[] {
   const doc = state.doc;
   const found: RichWidget[] = [];
   const slice = (from: number, to: number): string => doc.sliceString(from, to);
+  const definitions = linkDefinitions(state);
   syntaxTree(state).iterate({
     enter: (node) => {
       if (found.length >= richLimits.maxWidgets) return false;
@@ -235,20 +298,38 @@ export function findRichRegions(state: EditorState): readonly RichWidget[] {
         return false;
       }
       if (name === 'Image') {
+        const text = slice(node.from, node.to);
+        const alt = imageAlt(text);
         const url = node.node.getChild('URL');
-        if (url === null) return false;
-        const { alt, destination } = readImage(state, node, url.from, url.to);
+        // A reference image names its destination elsewhere in the note. The
+        // full form carries the label, and the collapsed and shortcut forms
+        // use the alt text as the label, which is what CommonMark states.
+        const label = node.node.getChild('LinkLabel');
+        const destination =
+          url !== null
+            ? slice(url.from, url.to)
+            : (definitions.get(
+                referenceKey(
+                  label === null
+                    ? alt
+                    : slice(
+                        label.from + 1,
+                        Math.max(label.from + 1, label.to - 1),
+                      ),
+                ),
+              ) ?? null);
+        if (destination === null) return false;
         const attachment = attachmentIdOf(destination);
         const line = doc.lineAt(node.from);
         const alone =
-          line.text.trim() === slice(node.from, node.to).trim() &&
+          line.text.trim() === text.trim() &&
           doc.lineAt(node.to).number === line.number;
         if (attachment === null && !isExternalImage(destination)) return false;
         found.push({
           from: alone ? line.from : node.from,
           to: alone ? line.to : node.to,
           kind: 'image',
-          source: slice(node.from, node.to),
+          source: text,
           content: alt,
           destination,
           block: alone,
@@ -276,7 +357,11 @@ export type WidgetView =
       readonly external: boolean;
     }
   | { readonly kind: 'math'; readonly html: string; readonly display: boolean }
-  | { readonly kind: 'element'; readonly element: HTMLElement }
+  | {
+      readonly kind: 'element';
+      readonly element: HTMLElement;
+      readonly dispose: () => void;
+    }
   | {
       readonly kind: 'source';
       readonly message: string;
@@ -329,7 +414,12 @@ export function widgetView(
   const create = resolvers.createDiagram;
   if (create === undefined) return source('Diagrams are still loading.');
   try {
-    return { kind: 'element', element: create(widget.content) };
+    const handle = create(widget.content);
+    return {
+      kind: 'element',
+      element: handle.element,
+      dispose: handle.dispose,
+    };
   } catch {
     return source('This diagram cannot be rendered.');
   }
@@ -382,6 +472,7 @@ class RichWidgetType extends WidgetType {
    * the same element and its position in the layout.
    */
   override updateDOM(dom: HTMLElement): boolean {
+    releaseDiagram(dom);
     dom.textContent = '';
     this.fill(dom);
     return true;
@@ -389,6 +480,7 @@ class RichWidgetType extends WidgetType {
 
   /** Releases a removed widget promptly, which stops a frame from loading. */
   override destroy(dom: HTMLElement): void {
+    releaseDiagram(dom);
     dom.textContent = '';
   }
 
@@ -469,6 +561,7 @@ class RichWidgetType extends WidgetType {
       parent.appendChild(holder);
       return;
     }
+    diagramReleases.set(parent, view.dispose);
     parent.appendChild(view.element);
   }
 }
@@ -551,6 +644,11 @@ type SoftBreak = {
 /** What opens a continuation line: indentation and the quote marks. */
 const continuationPrefix = /^[ \t]*(?:>[ \t]*)*/;
 
+/** The text of one line with its quote marks removed. */
+function quotedText(text: string): string {
+  return text.replace(continuationPrefix, '');
+}
+
 /**
  * The soft line breaks of every paragraph of one document.
  *
@@ -580,9 +678,14 @@ function findSoftBreaks(state: EditorState): readonly SoftBreak[] {
         },
       });
       let line = doc.lineAt(node.from);
+      // An alert marker is a line of its own, the way the reference renderer
+      // puts the title of an alert in its own paragraph. Joining it would run
+      // the word Warning into the first sentence of the alert.
+      const markerLine =
+        alertToneOf(quotedText(line.text)) === null ? -1 : line.number;
       while (line.to < node.to && line.number < doc.lines) {
         const next = doc.line(line.number + 1);
-        if (!hard.has(line.number)) {
+        if (!hard.has(line.number) && line.number !== markerLine) {
           const lead = continuationPrefix.exec(next.text)?.[0].length ?? 0;
           found.push({
             from: line.to,

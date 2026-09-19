@@ -474,8 +474,12 @@ export function buildPreview(
   const alertMarkerAt = (
     from: number,
     to: number,
-  ): { readonly from: number; readonly to: number; readonly tone: AlertTone } | null => {
-    for (let pos = from; pos <= to; ) {
+  ): {
+    readonly from: number;
+    readonly to: number;
+    readonly tone: AlertTone;
+  } | null => {
+    for (let pos = from; pos <= to;) {
       const line = doc.lineAt(pos);
       const text = quotedText(line.text);
       if (text.trim() !== '') {

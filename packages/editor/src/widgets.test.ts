@@ -318,3 +318,47 @@ await test('a joined break swallows the quote mark of the next line', () => {
   });
   assert.deepEqual(found, ['\n> ']);
 });
+
+await test('the marker line of an alert keeps its own line', () => {
+  // The reference renderer puts the title of an alert in a paragraph of its
+  // own, so joining the marker line would run the word into the sentence.
+  const doc = '> [!WARNING]\n> Mind the gap.\n> It is wide.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, doc.length), {});
+  const found: string[] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push(doc.slice(from, to));
+  });
+  // Only the break between the two body lines joins, and it is the one that
+  // stands before the second body line.
+  assert.deepEqual(found, ['\n> ']);
+  let joinedAt = -1;
+  buildRichWidgets(stateOf(doc, doc.length), {}).decorations.between(
+    0,
+    doc.length,
+    (from) => {
+      joinedAt = from;
+    },
+  );
+  assert.equal(joinedAt, doc.indexOf('\n> It is wide.'));
+});
+
+await test('a reference image resolves its destination from the note', () => {
+  const doc =
+    '![Reference style][img-ref]\n\n[img-ref]: https://example.invalid/a.png\n';
+  const [region, ...rest] = findRichRegions(stateOf(doc, doc.length));
+  assert.equal(rest.length, 0);
+  assert.equal(region?.kind, 'image');
+  assert.equal(region?.destination, 'https://example.invalid/a.png');
+  assert.equal(region?.content, 'Reference style');
+});
+
+await test('a shortcut image reads its own alt text as the label', () => {
+  const doc = '![Shortcut]\n\n[shortcut]: https://example.invalid/b.png\n';
+  const [region] = findRichRegions(stateOf(doc, doc.length));
+  assert.equal(region?.destination, 'https://example.invalid/b.png');
+});
+
+await test('a reference image with no definition stays source', () => {
+  const doc = '![Missing][nowhere]\n';
+  assert.deepEqual(findRichRegions(stateOf(doc, doc.length)), []);
+});

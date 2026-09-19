@@ -44,6 +44,7 @@ import {
   setNoteLinkSource,
   type EditorView,
   type LinkTarget,
+  type DiagramHandle,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
 import {
@@ -587,12 +588,12 @@ function NoteEditorBody({
           ? null
           : (attachmentUrlsRef.current.get(key) ?? null);
       },
-      createDiagram: (source: string): HTMLElement =>
+      createDiagram: (source: string): DiagramHandle =>
         createDiagramFrame({
           source,
           theme: themeRef.current,
           framePath: diagramFramePath,
-        }).element,
+        }),
     }),
     [attachmentUrls, mathReady, resolved],
   );

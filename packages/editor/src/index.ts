@@ -76,6 +76,7 @@ export {
   tableAlignments,
 } from './live-preview.ts';
 export type {
+  DiagramHandle,
   RichWidget,
   RichWidgetKind,
   RichWidgetResolvers,
@@ -85,6 +86,7 @@ export {
   attachmentIdOf,
   buildRichWidgets,
   findRichRegions,
+  isExternalImage,
   richLimits,
   richWidgets,
   shouldPreserveAsSource,

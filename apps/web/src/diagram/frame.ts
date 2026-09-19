@@ -98,6 +98,14 @@ export const diagramLimits = {
   maxSourceChars: 20000,
   /** Longest accepted render, in milliseconds. */
   maxRenderMs: 8000,
+  /**
+   * Longest accepted load of the frame document, in milliseconds.
+   *
+   * The document holds the whole diagram engine inline, so a cold cache on a
+   * slow link needs more than a render does. The clock stops on the `load`
+   * event, and the render budget starts there.
+   */
+  maxLoadMs: 30000,
   /** Smallest applied frame height, in pixels. */
   minHeightPx: 40,
   /** Largest applied frame height, in pixels. */
@@ -191,8 +199,10 @@ export type DiagramFrameOptions = {
    * generated output, and this path is a static Vite entry, not an API route.
    */
   readonly framePath: string;
-  /** How long the parent waits before falling back to source. */
+  /** How long the parent waits for the answer of a loaded frame. */
   readonly timeoutMs?: number | undefined;
+  /** How long the parent waits for the frame document itself to load. */
+  readonly loadTimeoutMs?: number | undefined;
 };
 
 /**
@@ -216,12 +226,23 @@ export const diagramFrameStyle: Readonly<Record<string, string>> = {
 /**
  * Creates the parent side of one diagram frame.
  *
- * Returns a wrapper element holding the sandboxed iframe. The iframe starts
- * loading immediately; the request is posted once it loads, and the wrapper
- * keeps the requested height once the validated response arrives. A missing
- * response, a mismatched request ID, a failed render, or a timeout replaces
- * the iframe with the editable source and an inline message. The caller
- * removes everything through `dispose`.
+ * Returns a wrapper element holding the sandboxed iframe, and the `dispose`
+ * that releases it. **A caller must call `dispose`.** The wrapper holds a
+ * window listener and a timer, and neither goes away with the element.
+ *
+ * Two clocks run, and they answer two different questions.
+ *
+ * - The load clock asks whether the frame document arrived at all. The frame
+ *   holds the whole diagram engine inline, so a cold cache on a slow link
+ *   takes real time, and a render budget that starts before the bytes arrive
+ *   spends itself on the download. It is cleared by the `load` event.
+ * - The render clock asks whether a loaded frame answered. It starts on
+ *   `load`, beside the budget that the frame itself keeps, so the two agree
+ *   on what they measure.
+ *
+ * A failure is never final. The wrapper shows what happened, the source, and
+ * a Try again action, so one slow load does not leave text on the screen
+ * until the note is edited.
  */
 export function createDiagramFrame(options: DiagramFrameOptions): {
   readonly element: HTMLDivElement;
@@ -229,84 +250,138 @@ export function createDiagramFrame(options: DiagramFrameOptions): {
 } {
   const wrapper = document.createElement('div');
   wrapper.className = 'notes-diagram';
-  wrapper.setAttribute('data-notesapp-diagram', 'pending');
 
-  const requestId = generateUUID();
-  const timeoutMs = options.timeoutMs ?? diagramLimits.maxRenderMs;
+  const renderTimeoutMs = options.timeoutMs ?? diagramLimits.maxRenderMs;
+  const loadTimeoutMs = options.loadTimeoutMs ?? diagramLimits.maxLoadMs;
+
+  let frame: HTMLIFrameElement | null = null;
+  let requestId = '';
   let settled = false;
   let timer = 0;
+  let disposed = false;
 
+  const stopClock = (): void => {
+    window.clearTimeout(timer);
+    timer = 0;
+  };
+
+  /**
+   * Shows what happened, the source, and the one action that retries.
+   *
+   * Every path that reaches it has already stopped waiting: a timer that
+   * fired was not cleared, and the one answer of the frame is read once.
+   */
   const fallback = (message: string): void => {
-    if (settled) return;
+    if (disposed) return;
     settled = true;
+    stopClock();
+    frame = null;
     wrapper.setAttribute('data-notesapp-diagram', 'source');
     wrapper.textContent = '';
+    // The element sits inside the widget of `packages/editor`, so it reads
+    // the classes of that widget: a note, an action and a source. The editor
+    // theme is the one adapter that styles the generated DOM of the note, and
+    // a name of this file alone would reach no rule at all.
     const note = document.createElement('p');
-    note.className = 'notes-rich-fallback';
+    note.className = 'cm-np-widget-note';
     note.textContent = message;
     wrapper.appendChild(note);
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'cm-np-widget-action';
+    retry.textContent = 'Try again';
+    // The widget around this element opens the source of the diagram on a
+    // press, so the action stops the press from reaching it.
+    retry.addEventListener('mousedown', (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+    });
+    retry.addEventListener('click', (event: Event): void => {
+      event.preventDefault();
+      event.stopPropagation();
+      start();
+    });
+    wrapper.appendChild(retry);
     const code = document.createElement('pre');
-    code.className = 'notes-rich-source';
+    code.className = 'cm-np-widget-source';
     code.textContent = options.source;
     wrapper.appendChild(code);
   };
 
-  const iframe = document.createElement('iframe');
-  iframe.className = 'notes-diagram-frame';
-  iframe.setAttribute('title', 'Diagram preview');
-  iframe.setAttribute('sandbox', 'allow-scripts');
-  iframe.setAttribute('referrerpolicy', 'no-referrer');
-  iframe.setAttribute('loading', 'lazy');
-  iframe.setAttribute('src', options.framePath);
-  Object.assign(iframe.style, diagramFrameStyle);
-  iframe.style.height = `${String(diagramLimits.minHeightPx)}px`;
-  wrapper.appendChild(iframe);
-
   const onMessage = (event: MessageEvent): void => {
-    if (!iframe.isConnected) {
-      window.removeEventListener('message', onMessage);
-      window.clearTimeout(timer);
-      return;
-    }
-    if (event.source !== iframe.contentWindow) return;
+    const current = frame;
+    if (current === null || settled || disposed) return;
+    if (event.source !== current.contentWindow) return;
     if (!isDiagramResponse(event.data)) return;
     if (event.data.requestId !== requestId) return;
-    if (settled) return;
-    settled = true;
-    window.clearTimeout(timer);
+    stopClock();
     if (!event.data.ok) {
-      fallback('This diagram cannot be rendered, so it stays editable source.');
+      fallback('This diagram cannot be rendered.');
       return;
     }
+    settled = true;
     wrapper.setAttribute('data-notesapp-diagram', 'ready');
-    iframe.style.height = `${String(clampDiagramHeight(event.data.height))}px`;
+    current.style.height = `${String(clampDiagramHeight(event.data.height))}px`;
   };
+
+  /** Builds the frame, posts the request, and starts the two clocks. */
+  function start(): void {
+    if (disposed) return;
+    settled = false;
+    stopClock();
+    requestId = generateUUID();
+    wrapper.textContent = '';
+    wrapper.setAttribute('data-notesapp-diagram', 'pending');
+
+    const iframe = document.createElement('iframe');
+    iframe.className = 'notes-diagram-frame';
+    iframe.setAttribute('title', 'Diagram preview');
+    iframe.setAttribute('sandbox', 'allow-scripts');
+    iframe.setAttribute('referrerpolicy', 'no-referrer');
+    // No `loading="lazy"`. The widget itself exists only while the editor
+    // renders this part of the note, so the browser would add a second, and
+    // invisible, gate in front of a clock that is already running.
+    iframe.setAttribute('src', options.framePath);
+    Object.assign(iframe.style, diagramFrameStyle);
+    iframe.style.height = `${String(diagramLimits.minHeightPx)}px`;
+    wrapper.appendChild(iframe);
+    frame = iframe;
+
+    const request: DiagramRequest = {
+      requestId,
+      source: options.source,
+      theme: options.theme,
+      palette: activePalette(),
+    };
+    iframe.addEventListener('load', (): void => {
+      if (frame !== iframe || disposed) return;
+      stopClock();
+      // The frame runs with an opaque origin (`sandbox` without
+      // `allow-same-origin`), so the target origin is `*` by necessity. The
+      // message itself carries the request ID, and the response is accepted
+      // only from this iframe with the same ID, so a stray frame cannot
+      // answer for it.
+      iframe.contentWindow?.postMessage(request, '*');
+      timer = window.setTimeout(() => {
+        fallback('This diagram took too long to draw.');
+      }, renderTimeoutMs);
+    });
+
+    timer = window.setTimeout(() => {
+      fallback('The diagram viewer did not load.');
+    }, loadTimeoutMs);
+  }
+
   window.addEventListener('message', onMessage);
-
-  const request: DiagramRequest = {
-    requestId,
-    source: options.source,
-    theme: options.theme,
-    palette: activePalette(),
-  };
-  iframe.addEventListener('load', (): void => {
-    // The frame runs with an opaque origin (`sandbox` without
-    // `allow-same-origin`), so the target origin is `*` by necessity. The
-    // message itself carries the request ID, and the response is accepted
-    // only from this iframe with the same ID, so a stray frame cannot
-    // answer for it.
-    iframe.contentWindow?.postMessage(request, '*');
-  });
-
-  timer = window.setTimeout(() => {
-    fallback('Diagram rendering timed out, so the source stays editable.');
-  }, timeoutMs);
+  start();
 
   return {
     element: wrapper,
     dispose: (): void => {
-      window.clearTimeout(timer);
+      disposed = true;
+      stopClock();
       window.removeEventListener('message', onMessage);
+      frame = null;
       wrapper.remove();
     },
   };
