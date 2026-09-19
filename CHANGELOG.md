@@ -5,6 +5,20 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.3 - 2026-09-19
+
+This patch release simplifies the Trash delete flow and keeps the Publish
+action quiet at rest.
+
+### Changed
+
+- Trash uses Delete for the remove action. The page states that Delete removes
+  a note for good.
+- A Delete row shows a tick to continue and a cross to keep the note. Clear
+  all removes all notes in Trash through the same choice.
+- The Publish action in the note header stays quiet at rest. It gains a fill
+  only when a pointer or the keyboard reaches it.
+
 ## 0.3.2 - 2026-09-19
 
 This patch release makes the live preview and the published page render the
