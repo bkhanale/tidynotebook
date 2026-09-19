@@ -276,3 +276,14 @@ await test('a mermaid fence stays a placeholder on the server path', async () =>
   assert.equal(html, '<pre data-diagram="mermaid">graph TD;\n  A-->B;</pre>');
   assert.ok(!html.includes('<svg'));
 });
+
+await test('a strike opens on two tildes and never on one', async () => {
+  // The Lezer grammar of the editor opens a strike on `~~` alone. remark
+  // opened one on a single `~` as well, so `H~2~O` struck its own subscript
+  // on the published page and stayed text in the note.
+  const one = await renderMarkdown('H~2~O stays whole.\n');
+  assert.ok(!one.includes('<del>'), one);
+  assert.ok(one.includes('H~2~O stays whole.'));
+  const two = await renderMarkdown('This is ~~struck~~ text.\n');
+  assert.ok(two.includes('<del>struck</del>'), two);
+});

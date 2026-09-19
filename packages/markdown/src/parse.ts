@@ -4,7 +4,9 @@
  * One parser configuration serves the editor, the server, and the reading
  * surface, so all three agree on what a document means. The flavor is CommonMark
  * plus the GFM set (tables, task list items, strikethrough, autolinks, and
- * footnotes), YAML front matter, and inline and display math.
+ * footnotes), YAML front matter, and inline and display math. A strike opens
+ * on two tildes and never on one, which is what the Lezer grammar of the
+ * editor does.
  *
  * Four rules matter for the rest of the package:
  *
@@ -48,12 +50,19 @@ import { singleDollarTextMath } from './math-syntax.ts';
  * pass, and no plugin that reads a directive out of a note.
  */
 export function createMarkdownProcessor() {
-  return unified()
-    .use(remarkParse)
-    .use(remarkFrontmatter, 'yaml')
-    .use(remarkGfm)
-    .use(remarkMath, { singleDollarTextMath })
-    .use(remarkMathParens);
+  return (
+    unified()
+      .use(remarkParse)
+      .use(remarkFrontmatter, 'yaml')
+      // One tilde is not a strike. The Lezer grammar of the editor opens a
+      // strike on `~~` alone, and remark opens one on a single `~` as well, so
+      // `H~2~O` struck its own subscript on the published page and stayed text
+      // in the note. The editor is the stricter of the two, so remark follows
+      // it and one grammar answers both surfaces.
+      .use(remarkGfm, { singleTilde: false })
+      .use(remarkMath, { singleDollarTextMath })
+      .use(remarkMathParens)
+  );
 }
 
 /**
