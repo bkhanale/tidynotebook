@@ -20,6 +20,18 @@ await test('the built note name asks for no saved personal data', async () => {
   });
 });
 
+await test('the built Publish header action is quiet at rest', async () => {
+  const [source, style] = await Promise.all([
+    readFile(
+      resolve(root, 'apps/web/dist/features/editor/note-header-actions.js'),
+      'utf8',
+    ),
+    import('../../apps/web/dist/features/editor/note-header-action-style.js'),
+  ]);
+  assert.match(source, /variant: noteHeaderPublishButtonVariant/);
+  assert.equal(style.noteHeaderPublishButtonVariant, 'ghost');
+});
+
 await test('the built loader rejects state from another note', async () => {
   const module = await import('../../apps/web/dist/lib/note-load-state.js');
   const status = module.noteLoadStatusFor(

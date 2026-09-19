@@ -27,6 +27,7 @@ import {
 } from '@notesapp/ui';
 import { actionIcon } from '../../shell/action-icons.tsx';
 import { HeaderActions } from '../../shell/header-slot.tsx';
+import { noteHeaderPublishButtonVariant } from './note-header-action-style.ts';
 
 /** What the open note can do, as the header offers it. */
 export type NoteHeaderActionsProps = {
@@ -116,7 +117,7 @@ export function NoteHeaderActions({
         // also carries the breadcrumb, the search and the account. The name
         // and the tooltip stay, so the action is never a glyph alone.
         <Button
-          variant="secondary"
+          variant={noteHeaderPublishButtonVariant}
           size="sm"
           icon={<LinkIcon />}
           label="Publish"
