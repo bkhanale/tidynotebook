@@ -17,8 +17,12 @@ import {
   composeRootGuide,
   guidedDirectories,
   maximumGuideLines,
-  skillFile,
+  skillsDirectory,
 } from './check-agents-md.mjs';
+
+/** The `SKILL.md` of one skill directory. */
+const skillFile = (/** @type {string} */ name) =>
+  `${skillsDirectory}/${name}/SKILL.md`;
 
 // The fixtures below are disposable trees under the system temporary
 // directory. They are never committed as application code.
@@ -68,7 +72,7 @@ function check(overrides, options = {}) {
     for (const [, file] of areaReadingList)
       if (!(file in files)) files[file] = '# Fixture\n';
     files['CLAUDE.md'] = claudeEntry;
-    files[skillFile] = skill;
+    files[skillFile('build-it-right')] = skill;
     for (const guided of guidedDirectories)
       files[`${guided}/AGENTS.md`] = guide();
     for (const [name, content] of Object.entries({ ...files, ...overrides })) {
@@ -169,7 +173,10 @@ await test('an entry file with more than the import fails', () => {
 
 await test('a skill name outside the allowed shape fails', () => {
   const result = check({
-    [skillFile]: skill.replace('name: build-it-right', 'name: Build_It_Right'),
+    [skillFile('build-it-right')]: skill.replace(
+      'name: build-it-right',
+      'name: build_it_right',
+    ),
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /lower case letters/);
@@ -177,7 +184,7 @@ await test('a skill name outside the allowed shape fails', () => {
 
 await test('a skill description in the first person fails', () => {
   const result = check({
-    [skillFile]: skill.replace('Loads', 'I load'),
+    [skillFile('build-it-right')]: skill.replace('Loads', 'I load'),
   });
   assert.equal(result.status, 1);
   assert.match(result.output, /third person/);
@@ -187,4 +194,26 @@ await test('a skill that the second harness cannot reach fails', () => {
   const result = check({}, { link: false });
   assert.equal(result.status, 1);
   assert.match(result.output, /must link to/);
+});
+
+await test('a second skill is checked as well, and it needs its own link', () => {
+  const result = check({
+    [skillFile('releasing-a-version')]: skill.replace(
+      'name: build-it-right',
+      'name: releasing-a-version',
+    ),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /\.claude\/skills\/releasing-a-version/);
+});
+
+await test('a skill whose name differs from its directory fails', () => {
+  const result = check({
+    [skillFile('build-it-right')]: skill.replace(
+      'name: build-it-right',
+      'name: building-it-right',
+    ),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.output, /They are one name/);
 });

@@ -19,8 +19,10 @@
  * 3. The reading list of `tools/agent-context.mjs` runs for every guide, so a
  *    guide cannot point at a file that moved away.
  * 4. Each harness reads the context through its own entry: `CLAUDE.md` holds
- *    the import of the root guide and nothing else, and the start skill has
- *    one file under `.agents/` that `.claude/` links to.
+ *    the import of the root guide and nothing else, and every skill has one
+ *    directory under `.agents/skills/` that `.claude/skills/` links to. A
+ *    skill is named by its directory, so the name in its frontmatter and the
+ *    name of its directory are one name.
  *
  * A separate root permits a disposable negative check without application
  * fixtures, in the same shape as `tools/check-boundaries.mjs`.
@@ -57,17 +59,19 @@ export const keyFilesHeading = '## Key files';
 export const claudeEntry =
   '@AGENTS.md\n\nAGENTS.md is the source of every rule.\n';
 
-/** The change skill, and the link that the second harness reads. */
-export const skillFile = '.agents/skills/build-it-right/SKILL.md';
-export const skillLink = '.claude/skills/build-it-right/SKILL.md';
+/** Where the skills live, and where the second harness reads them. */
+export const skillsDirectory = '.agents/skills';
+export const skillsLink = '.claude/skills';
 
 /**
  * Checks the skill frontmatter against the Agent Skills rules.
  *
- * @param {string} text
+ * @param {string} text The whole `SKILL.md`.
+ * @param {string} skillFile The path of that file, for the message.
+ * @param {string} directoryName The directory that holds it.
  * @returns {string[]}
  */
-export function skillFailures(text) {
+export function skillFailures(text, skillFile, directoryName) {
   const block = /^---\n([\s\S]*?)\n---\n/.exec(text);
   if (block === null) return [`${skillFile}: no frontmatter block.`];
   const front = block[1] ?? '';
@@ -89,6 +93,10 @@ export function skillFailures(text) {
     );
   if (/\bI \b|you can/.test(description))
     failures.push(`${skillFile}: write the description in the third person.`);
+  if (name !== directoryName)
+    failures.push(
+      `${skillFile}: the name is ${name === '' ? 'absent' : name}, and the directory is ${directoryName}. They are one name.`,
+    );
   return failures;
 }
 
@@ -174,17 +182,32 @@ export async function main(directory) {
     failures.push('CLAUDE.md: missing. It imports the root guide.');
   else if (entry !== claudeEntry)
     failures.push('CLAUDE.md: it holds only the import and the one sentence.');
-  const skill = await readFile(join(directory, skillFile), 'utf8').catch(
-    () => null,
-  );
-  if (skill === null) failures.push(`${skillFile}: missing.`);
-  else failures.push(...skillFailures(skill));
-  const [target, linked] = await Promise.all([
-    realpath(join(directory, skillFile)).catch(() => null),
-    realpath(join(directory, skillLink)).catch(() => null),
-  ]);
-  if (target === null || linked !== target)
-    failures.push(`${skillLink}: it must link to ${skillFile}.`);
+  const skills = (
+    await readdir(join(directory, skillsDirectory), {
+      withFileTypes: true,
+    }).catch(() => [])
+  )
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+  if (skills.length === 0)
+    failures.push(`${skillsDirectory}/: no skill. The harnesses read none.`);
+  for (const name of skills) {
+    const file = `${skillsDirectory}/${name}/SKILL.md`;
+    const skill = await readFile(join(directory, file), 'utf8').catch(
+      () => null,
+    );
+    if (skill === null) failures.push(`${file}: missing.`);
+    else failures.push(...skillFailures(skill, file, name));
+    const [target, linked] = await Promise.all([
+      realpath(join(directory, skillsDirectory, name)).catch(() => null),
+      realpath(join(directory, skillsLink, name)).catch(() => null),
+    ]);
+    if (target === null || linked !== target)
+      failures.push(
+        `${skillsLink}/${name}: it must link to ${skillsDirectory}/${name}.`,
+      );
+  }
   /** @type {Set<string>} */
   const stale = new Set();
   for (const guided of guidedDirectories) {
@@ -218,7 +241,7 @@ export async function main(directory) {
     return 1;
   }
   process.stdout.write(
-    `Agent guides: the root guide matches ${rules.length} rule files, ${guidedDirectories.length} directory guides are present with a complete reading list, and both harness entries resolve.\n`,
+    `Agent guides: the root guide matches ${rules.length} rule files, ${guidedDirectories.length} directory guides are present with a complete reading list, and both harness entries resolve for ${skills.length} skills.\n`,
   );
   return 0;
 }

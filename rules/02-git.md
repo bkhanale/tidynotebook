@@ -11,3 +11,7 @@
   it. Pull requests are not required.
 - Stay inside the active worktree. All edits, commits, and untracked files
   belong in that worktree.
+- A release follows the `releasing-a-version` skill, from the changelog entry
+  to the signed tag, the GitHub release, and the milestone. Prove each step
+  with `node tools/release-check.mjs`. A pushed tag is never moved and never
+  deleted.
