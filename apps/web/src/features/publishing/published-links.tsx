@@ -50,6 +50,7 @@ import {
 } from '@notesapp/ui';
 import { problemMessage } from '../../app.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import { useNow } from '../../shell/now.ts';
 import { useFiles } from '../../shell/files.tsx';
 import {
   linkFacts,
@@ -125,7 +126,7 @@ function PublishedLinksList({
     };
   }, [workspaceId, generation]);
 
-  const now = Date.now();
+  const now = useNow();
   const notes = files.notes;
   const rows = useMemo(
     () =>

@@ -73,6 +73,7 @@ import {
   idleAttachmentPreview,
   type AttachmentPreview,
 } from './attachment-preview.ts';
+import { useNow } from '../../shell/now.ts';
 
 /** How many history entries one page requests. */
 const historyPageSize = 50;
@@ -298,6 +299,10 @@ function HistoryDetail({
   readonly workspaceId: string;
   readonly fileId: string;
 }): ReactNode {
+  // Every row of the list states how long ago its version was written, so the
+  // screen takes the instant as a value that moves and not as one reading of
+  // the clock. The early returns below stand between this line and the rows.
+  const now = useNow();
   const [head, setHead] = useState<FileHead>({ status: 'loading' });
   const [items, setItems] = useState<readonly HistoryRevisionItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -602,7 +607,6 @@ function HistoryDetail({
     );
 
   const name = displayNoteName(head.path);
-  const now = Date.now();
   const restorable = head.headRevisionId !== null;
   return (
     <Page width="wide">

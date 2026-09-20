@@ -29,6 +29,7 @@ import {
 } from '@notesapp/ui';
 import { useLocalStore, useSession } from '../../app.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import { useNow } from '../../shell/now.ts';
 import { useFiles } from '../../shell/files.tsx';
 import { useCreateNote } from './new-note.tsx';
 import { groupNotesByRecency } from '../../lib/note-groups.ts';
@@ -50,7 +51,7 @@ export function NotesHomeView(): ReactNode {
   const newNote = useCreateNote(store.store, accountId, workspaceId);
   useDocumentTitle('All notes');
 
-  const now = Date.now();
+  const now = useNow();
   const groups = useMemo(
     () => groupNotesByRecency(files.notes, now),
     [files.notes, now],

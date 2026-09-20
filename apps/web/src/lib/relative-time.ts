@@ -20,6 +20,20 @@ const steps: readonly {
   { unit: 'year', ms: 31_536_000_000 },
 ];
 
+/**
+ * How often a screen reads the clock again, in milliseconds.
+ *
+ * A phrase of this scale is only true for the instant it was built from, so a
+ * screen that stays open has to read the clock again. The smallest step of the
+ * scale is one minute, which is also when the first phrase changes, from
+ * `just now` to `1 minute ago`. The step below is half of that minute, so no
+ * phrase of the scale is ever skipped and no phrase stands for longer than
+ * half a minute after it stopped being true.
+ *
+ * `useNow` in `apps/web/src/shell/now.ts` is the one reader of this value.
+ */
+export const relativeTimeStepMs = 30_000;
+
 /** The name of one folder path, or `null` when the note is at the top. */
 export function folderOf(path: string): string | null {
   const cut = path.lastIndexOf('/');

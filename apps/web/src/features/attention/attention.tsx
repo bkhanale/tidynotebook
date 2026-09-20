@@ -43,6 +43,7 @@ import {
   recoveredNoteName,
   type ParkedSave,
 } from '../../lib/parked-saves.ts';
+import { useNow } from '../../shell/now.ts';
 
 /** One row of the list with its four actions. */
 function ParkedSaveRow({
@@ -178,7 +179,7 @@ export function AttentionRoute(): ReactNode {
   );
   const [notice, setNotice] = useState('');
   const [failure, setFailure] = useState<string | null>(null);
-  const now = new Date();
+  const now = new Date(useNow());
 
   if (workspaceId === null || accountId === null || store === null)
     return (

@@ -63,6 +63,7 @@ import {
   trashListClassName,
   type TrashItem,
 } from '../../lib/trash-view.ts';
+import { useNow } from '../../shell/now.ts';
 
 /** How long the notice after a deletion stays on screen. */
 export const undoNoticeMs = 8000;
@@ -503,7 +504,7 @@ function TrashList({
     () => mergeTrash(remote, localFiles.value, removedFileIds),
     [remote, localFiles.value, removedFileIds],
   );
-  const now = Date.now();
+  const now = useNow();
 
   const restore = (item: TrashItem): void => {
     if (busy) return;

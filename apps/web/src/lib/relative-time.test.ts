@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { folderOf, relativeTime } from './relative-time.ts';
+import { folderOf, relativeTime, relativeTimeStepMs } from './relative-time.ts';
 
 const now = Date.parse('2026-09-10T12:00:00.000Z');
 
@@ -20,6 +20,22 @@ await test('an older instant reads in the largest unit that fits', () => {
 await test('an unreadable instant reads as nothing', () => {
   assert.equal(relativeTime('not a time', now), '');
   assert.equal(relativeTime('', now), '');
+});
+
+await test('the phrase of one instant changes as the clock moves', () => {
+  // A screen that stays open reads the clock again every step, so the row
+  // follows the clock instead of holding the phrase it first drew.
+  const instant = '2026-09-10T12:00:00.000Z';
+  assert.equal(relativeTime(instant, now), 'just now');
+  assert.equal(relativeTime(instant, now + 61_000), '1 minute ago');
+  assert.equal(relativeTime(instant, now + 3_660_000), '1 hour ago');
+});
+
+await test('the step of the clock skips no phrase of the scale', () => {
+  // The first phrase changes after one minute. A step longer than that could
+  // step over a whole phrase, and a step of zero would never end.
+  assert.ok(relativeTimeStepMs > 0);
+  assert.ok(relativeTimeStepMs <= 60_000);
 });
 
 await test('a folder is the path without the note name', () => {
