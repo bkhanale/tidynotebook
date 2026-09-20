@@ -46,6 +46,7 @@ import {
   type AppearanceChoice,
   type Theme,
 } from '@notesapp/ui';
+import { createFocusPass } from './lib/focus-pass.ts';
 import { displayNoteName } from './lib/note-name.ts';
 import {
   chooseWorkspace,
@@ -829,13 +830,19 @@ export function useWorkspaceSync(
     // A tab that comes back to the screen asks for a pass. `focus` alone is
     // not enough: a browser gives a tab that becomes visible again only the
     // visibility event, so a person who returns to the tab would otherwise
-    // wait for the safety interval.
+    // wait for the safety interval. One return often sends both events, and a
+    // person who moves between two windows returns again soon, so the bound in
+    // `lib/focus-pass.ts` holds the ask to one pass for each quiet period.
+    const focusPass = createFocusPass();
+    const onReturn = (): void => {
+      if (focusPass.ask(Date.now())) requestSync();
+    };
     const onVisible = (): void => {
-      if (document.visibilityState === 'visible') requestSync();
+      if (document.visibilityState === 'visible') onReturn();
     };
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);
-    window.addEventListener('focus', requestSync);
+    window.addEventListener('focus', onReturn);
     document.addEventListener('visibilitychange', onVisible);
     readQueue();
     const running = engine.run(controller.signal);
@@ -854,7 +861,7 @@ export function useWorkspaceSync(
       unsubscribe();
       window.removeEventListener('online', onOnline);
       window.removeEventListener('offline', onOffline);
-      window.removeEventListener('focus', requestSync);
+      window.removeEventListener('focus', onReturn);
       document.removeEventListener('visibilitychange', onVisible);
       controller.abort();
       engine.stop();
