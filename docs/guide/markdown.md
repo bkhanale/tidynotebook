@@ -20,8 +20,9 @@ never disagree about what a note means.
 Two lines of one paragraph read as one paragraph, which is what Markdown
 means. The source lines come back while your cursor is in that paragraph.
 
-End a line with two spaces or with a backslash to break the line and stay in
-the same paragraph. Leave a blank line to start a new paragraph.
+Press Shift and Enter to break a line and stay in the same paragraph. Press
+Enter twice to start a new paragraph. A broken line keeps its backslash in the
+source, and you see it again while your cursor is in that paragraph.
 
 ## What the editor understands
 

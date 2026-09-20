@@ -598,12 +598,20 @@ export function buildRichWidgets(
     items.push(decoration.range(widget.from, widget.to));
     atomicItems.push(decoration.range(widget.from, widget.to));
   }
-  for (const join of findSoftBreaks(state)) {
+  const breaks = findParagraphBreaks(state);
+  for (const join of breaks.joins) {
     if (join.to <= join.from) continue;
     if (touches(join.paragraphFrom, join.paragraphTo)) continue;
     const joined = Decoration.replace({ widget: new SoftBreakWidget() });
     items.push(joined.range(join.from, join.to));
     atomicItems.push(joined.range(join.from, join.to));
+  }
+  for (const marker of breaks.markers) {
+    if (marker.to <= marker.from) continue;
+    if (touches(marker.paragraphFrom, marker.paragraphTo)) continue;
+    const hide = Decoration.replace({});
+    items.push(hide.range(marker.from, marker.to));
+    atomicItems.push(hide.range(marker.from, marker.to));
   }
   for (const underline of findSetextUnderlines(state)) {
     if (touches(underline.headingFrom, underline.headingTo)) continue;
@@ -641,6 +649,27 @@ type SoftBreak = {
   readonly paragraphTo: number;
 };
 
+/**
+ * One hard break marker of a paragraph, without its line break.
+ *
+ * `from` and `to` cover the backslash or the two spaces the author wrote, and
+ * never the line break itself, because the break is what the marker asks for.
+ * `paragraphFrom` and `paragraphTo` are the range the selection must touch to
+ * bring the marker back (record 0070).
+ */
+type HardBreakMarker = {
+  readonly from: number;
+  readonly to: number;
+  readonly paragraphFrom: number;
+  readonly paragraphTo: number;
+};
+
+/** What one paragraph hides so that it reads the way the renderer reads it. */
+type ParagraphBreaks = {
+  readonly joins: readonly SoftBreak[];
+  readonly markers: readonly HardBreakMarker[];
+};
+
 /** What opens a continuation line: indentation and the quote marks. */
 const continuationPrefix = /^[ \t]*(?:>[ \t]*)*/;
 
@@ -650,20 +679,23 @@ function quotedText(text: string): string {
 }
 
 /**
- * The soft line breaks of every paragraph of one document.
+ * The line breaks of every paragraph of one document.
  *
  * CommonMark joins two lines of one paragraph, and the reference renderer
  * does exactly that, so the note surface joins them too (decision 0068). A
  * line that ends with a hard break keeps its break: a hard break is content
- * and the author wrote it on purpose.
+ * and the author wrote it on purpose. The marker of that break is notation,
+ * so it hides with the rest of the source of its paragraph (decision 0070).
  *
  * The ranges come from the syntax tree. A paragraph node states where the
  * paragraph starts and ends, and a `HardBreak` child states which of its
- * lines the author ended deliberately.
+ * lines the author ended deliberately. That child covers its marker and the
+ * line break, so the hidden range stops at the end of the line.
  */
-function findSoftBreaks(state: EditorState): readonly SoftBreak[] {
+function findParagraphBreaks(state: EditorState): ParagraphBreaks {
   const doc = state.doc;
   const found: SoftBreak[] = [];
+  const markers: HardBreakMarker[] = [];
   syntaxTree(state).iterate({
     enter: (node) => {
       if (node.name !== 'Paragraph') return true;
@@ -672,8 +704,15 @@ function findSoftBreaks(state: EditorState): readonly SoftBreak[] {
         from: node.from,
         to: node.to,
         enter: (inner) => {
-          if (inner.name === 'HardBreak')
-            hard.add(doc.lineAt(inner.from).number);
+          if (inner.name !== 'HardBreak') return true;
+          const line = doc.lineAt(inner.from);
+          hard.add(line.number);
+          markers.push({
+            from: inner.from,
+            to: Math.min(inner.to, line.to),
+            paragraphFrom: node.from,
+            paragraphTo: node.to,
+          });
           return true;
         },
       });
@@ -699,7 +738,7 @@ function findSoftBreaks(state: EditorState): readonly SoftBreak[] {
       return true;
     },
   });
-  return found;
+  return { joins: found, markers };
 }
 
 /**

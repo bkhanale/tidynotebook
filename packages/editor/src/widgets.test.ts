@@ -287,9 +287,32 @@ await test('a soft line break joins its paragraph', () => {
   assert.equal(doc.slice(9, 10), '\n');
 });
 
-await test('a hard break keeps its line break', () => {
-  const doc = 'One line.  \nKept apart.\n';
-  const { decorations } = buildRichWidgets(stateOf(doc, doc.length), {});
+await test('a hard break keeps its line break and hides its marker', () => {
+  // Record 0070. The marker is notation, so it goes while the caret is away
+  // and the line break it asks for stays.
+  const doc = 'One line.  \nKept apart.\n\nAway.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, doc.length - 1), {});
+  const found: string[] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push(doc.slice(from, to));
+  });
+  assert.deepEqual(found, ['  ']);
+});
+
+await test('a backslash break hides the backslash only', () => {
+  const doc = 'One line.\\\nKept apart.\n\nAway.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, doc.length - 1), {});
+  const found: [number, number][] = [];
+  decorations.between(0, doc.length, (from, to) => {
+    found.push([from, to]);
+  });
+  assert.deepEqual(found, [[9, 10]]);
+  assert.equal(doc.slice(9, 11), '\\\n');
+});
+
+await test('a hard break shows its marker under the caret', () => {
+  const doc = 'One line.\\\nKept apart.\n';
+  const { decorations } = buildRichWidgets(stateOf(doc, 3), {});
   const found: [number, number][] = [];
   decorations.between(0, doc.length, (from, to) => {
     found.push([from, to]);

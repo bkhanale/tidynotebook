@@ -14,6 +14,7 @@ import { EditorState, type TransactionSpec } from '@codemirror/state';
 import {
   continueBlockSpec,
   formattingKeymap,
+  hardBreakSpec,
   headingLevelSpec,
   indentListSpec,
   inListItem,
@@ -246,6 +247,38 @@ await test('a closed fence does not swallow the text after it', () => {
   );
 });
 
+await test('Shift and Enter breaks the line inside the paragraph', () => {
+  // Record 0070. The backslash is the CommonMark break, so the renderer and
+  // the preview both keep the break without starting a paragraph.
+  const state = stateOf('One line.‸Joined to it.');
+  assert.equal(
+    applied(state, hardBreakSpec(state)),
+    'One line.\\\n‸Joined to it.',
+  );
+});
+
+await test('a break inside a list item stays inside the item', () => {
+  const state = stateOf('- [ ] one‸');
+  assert.equal(applied(state, hardBreakSpec(state)), '- [ ] one\\\n      ‸');
+  const ordered = stateOf('  2. one‸');
+  assert.equal(applied(ordered, hardBreakSpec(ordered)), '  2. one\\\n     ‸');
+});
+
+await test('a break inside a block quote repeats the quote marks', () => {
+  const state = stateOf('> one‸');
+  assert.equal(applied(state, hardBreakSpec(state)), '> one\\\n> ‸');
+});
+
+await test('a break replaces the selected text', () => {
+  const state = stateOf('One «and two»three.');
+  assert.equal(applied(state, hardBreakSpec(state)), 'One \\\n‸three.');
+});
+
+await test('a break declines inside a code fence', () => {
+  const state = stateOf('```\ncode‸\n```\n');
+  assert.equal(hardBreakSpec(state), null);
+});
+
 await test('the list line parser reads every marker shape', () => {
   assert.equal(parseListLine('plain'), null);
   const ordered = parseListLine('  3) text');
@@ -275,6 +308,7 @@ await test('every documented shortcut has a binding or a window handler', () => 
     'Mod-[',
     'Tab',
     'Enter',
+    'Shift-Enter',
   ])
     assert.ok(keys.has(wanted), `missing binding ${wanted}`);
   assert.ok(shortcuts.length >= 15);

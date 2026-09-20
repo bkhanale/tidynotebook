@@ -43,9 +43,14 @@ This is the CommonMark rule, and it is the rule of a Markdown file. A comment
 field of a hosting service often turns every new line into a break instead; a
 note is a document and not a comment, so it follows the document rule.
 
-The editor shows the source, so a soft break looks like a break while a person
-writes. That is the source and not the result. `render.test.ts` holds both
-rules, and the corpus holds one of each kind.
+The live preview reads both the same way as the renderer. It joins a soft
+break into its paragraph and it hides the marker of a hard break, and the
+paragraph shows its source lines again while the selection touches it. Shift
+and Enter write the break, and the marker is always the backslash. See
+[decision 0068](../decisions/0068-a-soft-line-break-joins-its-paragraph.md)
+and
+[decision 0070](../decisions/0070-shift-and-enter-writes-a-hard-break.md).
+`render.test.ts` holds both rules, and the corpus holds one of each kind.
 
 ## Delimiters that are ours to choose
 

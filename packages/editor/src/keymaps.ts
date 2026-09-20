@@ -472,6 +472,45 @@ export function continueBlockSpec(state: EditorState): TransactionSpec | null {
   return null;
 }
 
+/**
+ * The continuation one line writes below itself.
+ *
+ * A list item repeats its indentation and then the width of its marker in
+ * spaces, so the second line stays inside the item. A block quote repeats its
+ * marks. Every other line repeats its indentation only.
+ */
+function continuationOf(lineText: string): string {
+  const parsed = parseListLine(lineText);
+  if (parsed !== null)
+    return `${parsed.indent}${' '.repeat(parsed.prefixLength - parsed.indent.length)}`;
+  const quote = quoteLinePattern.exec(lineText);
+  if (quote !== null) return `${quote[1] ?? ''}${quote[2] ?? ''}`;
+  return /^[ \t]*/.exec(lineText)?.[0] ?? '';
+}
+
+/**
+ * Writes a break inside the paragraph the cursor sits in.
+ *
+ * The marker is the backslash of CommonMark and not two spaces, because a
+ * trailing space is invisible and a trim removes it (record 0070). Inside a
+ * fenced code block the command declines, so the default new line applies and
+ * no backslash lands in the code.
+ */
+export function hardBreakSpec(state: EditorState): TransactionSpec | null {
+  const insideFence = state.selection.ranges.some((range) =>
+    insideCodeFence(state, state.doc.lineAt(range.from).number),
+  );
+  if (insideFence) return null;
+  return state.changeByRange((range) => {
+    const line = state.doc.lineAt(range.from);
+    const insert = `\\\n${continuationOf(line.text)}`;
+    return {
+      changes: { from: range.from, to: range.to, insert },
+      range: EditorSelection.cursor(range.from + insert.length),
+    };
+  });
+}
+
 /** Turns a spec producing function into a CodeMirror command. */
 function dispatching(
   build: (state: EditorState) => TransactionSpec | null,
@@ -566,6 +605,9 @@ export const indentListItem = dispatching(indentListSpec);
 /** Removes one indentation unit from the list item under the cursor. */
 export const outdentListItem = dispatching(outdentListSpec);
 
+/** Writes a break inside the paragraph on Shift and Enter. */
+export const insertHardBreak = dispatching(hardBreakSpec);
+
 /** Continues a list item or a block quote on Enter. */
 export const continueBlock = dispatching(continueBlockSpec);
 
@@ -627,6 +669,7 @@ export const formattingKeymap: readonly KeyBinding[] = [
   { key: 'Mod-[', run: outdentListItem, preventDefault: true },
   { key: 'Tab', run: indentListItem, shift: outdentListItem },
   { key: 'Enter', run: continueBlock },
+  { key: 'Shift-Enter', run: insertHardBreak },
 ];
 
 /**
@@ -661,6 +704,7 @@ export const shortcuts: readonly EditorShortcut[] = [
     keys: 'Shift + Tab or Cmd or Ctrl + [',
     description: 'Outdent the list item',
   },
+  { keys: 'Shift + Enter', description: 'Break the line inside the paragraph' },
   { keys: 'Cmd or Ctrl + Enter', description: 'Toggle the task box' },
   { keys: 'Alt + Enter', description: 'Open the link at the cursor' },
 ];

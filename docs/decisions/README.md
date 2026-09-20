@@ -99,6 +99,7 @@ and needs no record.
 | [0067](0067-an-external-picture-loads-by-itself.md)                    | An external picture loads by itself                        |
 | [0068](0068-a-soft-line-break-joins-its-paragraph.md)                  | A soft line break joins its paragraph in the preview       |
 | [0069](0069-the-note-name-is-the-last-part-of-the-breadcrumb.md)       | The note name is the last part of the breadcrumb           |
+| [0070](0070-shift-and-enter-writes-a-hard-break.md)                    | Shift and Enter writes a hard break                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -260,3 +261,7 @@ result. It supersedes records 0014 and 0036.
 Record 0069 makes the note name the last part of the breadcrumb, because the
 header and the note surface both stated it and the note lost its first band to
 a word the header already carried. It refines records 0064, 0055 and 0015.
+
+Record 0070 binds Shift and Enter to a hard break and hides the marker while
+the selection is away from its paragraph, because record 0068 left no way to
+break a line and the marker read as a stray backslash. It refines record 0068.
