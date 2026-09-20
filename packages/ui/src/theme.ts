@@ -500,6 +500,15 @@ export function themeProperties(
   return pairs;
 }
 
+/**
+ * The property that states the appearance to the browser itself.
+ *
+ * It sits beside the palette because the appearance decides it, and one
+ * write keeps the two in step. The first paint script of
+ * `apps/web/index.html` writes the same property before this module loads.
+ */
+export const colourSchemeProperty = 'color-scheme';
+
 /** The smallest surface that `applyTheme` can write to, for tests. */
 export type ThemeRoot = {
   setAttribute(name: string, value: string): void;
@@ -510,12 +519,22 @@ export type ThemeRoot = {
  * Applies one theme to a root surface.
  *
  * Sets the `data-theme` attribute to the appearance, names the theme in
- * `data-theme-id`, and writes every token as a custom property, so the
- * central Tailwind theme and the editor adapter receive the active palette.
+ * `data-theme-id`, writes the appearance as the colour scheme of the root,
+ * and writes every token as a custom property, so the central Tailwind theme
+ * and the editor adapter receive the active palette.
+ *
+ * The colour scheme is not a palette token and it is not a class. It is the
+ * one statement that reaches the parts of the page that the palette cannot:
+ * the scrollbar of every region that scrolls, a native select, a date field,
+ * and the fill that a browser paints into a remembered field. Without it a
+ * browser assumes a light page and draws a light scrollbar over a dark
+ * palette. `Appearance` holds the two keywords that CSS names, so the
+ * appearance of the theme is the value. Record 0071.
  */
 export function applyTheme(root: ThemeRoot, theme: Theme): void {
   root.setAttribute('data-theme', theme.appearance);
   root.setAttribute('data-theme-id', theme.id);
+  root.setProperty(colourSchemeProperty, theme.appearance);
   for (const [property, value] of themeProperties(theme))
     root.setProperty(property, value);
 }

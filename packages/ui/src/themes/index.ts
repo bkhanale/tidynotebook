@@ -34,6 +34,7 @@ export {
   appearanceStorageKey,
   applyTheme,
   applyThemeToDocument,
+  colourSchemeProperty,
   contrastRatio,
   derivedPropertyName,
   derivedPropertyNames,

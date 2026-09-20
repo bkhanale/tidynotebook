@@ -67,6 +67,17 @@ await test('no shipped document holds a colour value of its own', async () => {
   assert.match(html, /__NOTESAPP_THEME_COLOUR__/);
 });
 
+await test('the shell document states the colour scheme of the first paint', async () => {
+  // A browser draws the scrollbar of every region that scrolls, a native
+  // control and a remembered field from the colour scheme, and it assumes a
+  // light page until the document states one. The script that writes the
+  // stored palette therefore states the appearance as well, and the branch
+  // that runs when that script fails states the dark default with it.
+  const html = await readFile(resolve(root, 'apps/web/index.html'), 'utf8');
+  assert.match(html, /colorScheme = dark \? 'dark' : 'light'/);
+  assert.match(html, /colorScheme = 'dark'/);
+});
+
 await test('the built stylesheet declares every variable the editor reads', () => {
   const missing = editorThemeVariables.filter(
     (name) => !new RegExp(`${name}\\s*:`).test(css),

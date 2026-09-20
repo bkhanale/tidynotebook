@@ -15,6 +15,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   applyTheme,
+  colourSchemeProperty,
   contrastRatio,
   derivedPropertyName,
   derivedPropertyNames,
@@ -502,7 +503,8 @@ await test('applying a theme writes every property and both attributes', () => {
     properties.size,
     themePropertyNames.length +
       derivedPropertyNames.length +
-      syntaxPropertyNames.length,
+      syntaxPropertyNames.length +
+      1,
   );
   assert.equal(properties.get('--notes-bg'), theme.tokens.background);
   assert.equal(
@@ -510,4 +512,25 @@ await test('applying a theme writes every property and both attributes', () => {
     derivedValue(theme.tokens, 'borderLine'),
   );
   assert.equal(properties.get('--notes-syntax-comment'), theme.syntax.comment);
+});
+
+await test('every theme states its appearance as the colour scheme', () => {
+  // The browser draws the scrollbar of every region that scrolls from this
+  // one property. A dark palette with no colour scheme takes the light
+  // scrollbar of the browser, which is what a person saw before this rule.
+  for (const theme of themes) {
+    const properties = new Map<string, string>();
+    applyTheme(
+      {
+        setAttribute: () => undefined,
+        setProperty: (key, value) => properties.set(key, value),
+      },
+      theme,
+    );
+    assert.equal(
+      properties.get(colourSchemeProperty),
+      theme.appearance,
+      theme.id,
+    );
+  }
 });

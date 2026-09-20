@@ -100,6 +100,7 @@ and needs no record.
 | [0068](0068-a-soft-line-break-joins-its-paragraph.md)                  | A soft line break joins its paragraph in the preview       |
 | [0069](0069-the-note-name-is-the-last-part-of-the-breadcrumb.md)       | The note name is the last part of the breadcrumb           |
 | [0070](0070-shift-and-enter-writes-a-hard-break.md)                    | Shift and Enter writes a hard break                        |
+| [0071](0071-the-page-states-its-appearance-to-the-browser.md)          | The page states its appearance to the browser              |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

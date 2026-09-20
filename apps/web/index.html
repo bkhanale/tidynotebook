@@ -32,6 +32,11 @@
         var root = document.documentElement;
         root.setAttribute('data-theme', dark ? 'dark' : 'light');
         root.setAttribute('data-theme-id', theme.id);
+        // The browser draws the scrollbar, a native control and a remembered
+        // field from the colour scheme of the page, and it assumes a light
+        // page until the page says otherwise. `applyTheme` writes the same
+        // property once React runs.
+        root.style.colorScheme = dark ? 'dark' : 'light';
         for (var index = 0; index < themes.properties.length; index += 1)
           root.style.setProperty(themes.properties[index], theme.values[index]);
         root.style.background = theme.values[0];
@@ -39,6 +44,7 @@
         if (colour) colour.setAttribute('content', theme.values[0]);
       } catch (error) {
         document.documentElement.setAttribute('data-theme', 'dark');
+        document.documentElement.style.colorScheme = 'dark';
       }
     </script>
   </head>

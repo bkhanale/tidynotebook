@@ -84,7 +84,7 @@ and the stylesheet fallbacks to one registry.
 | ------------------------- | ------------------------------------------- |
 | `src/index.ts`            | The one public entry point                  |
 | `src/themes/index.ts`     | The theme registry                          |
-| `src/theme.ts`            | Token names, `applyTheme`, contrast checks  |
+| `src/theme.ts`            | Tokens, the colour scheme, contrast checks  |
 | `src/control-classes.ts`  | The one recipe of every control             |
 | `src/icon-grid.ts`        | The one grid and the two sizes of an icon   |
 | `src/icons.tsx`           | The one icon set                            |

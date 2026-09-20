@@ -23,6 +23,7 @@ export {
   appearanceStorageKey,
   applyTheme,
   applyThemeToDocument,
+  colourSchemeProperty,
   contrastRatio,
   defaultThemeFamilyId,
   defaultThemeFor,
