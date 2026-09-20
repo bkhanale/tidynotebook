@@ -36,6 +36,26 @@ export type BreadcrumbRoute = {
   readonly leaf: string;
 };
 
+/**
+ * The identity of one part, for the list that draws it.
+ *
+ * The last part is one place, whatever word it holds. The note route writes
+ * its name field into that place (decision 0069), and the word of the place
+ * is the name a person is typing. An identity that held the word therefore
+ * changed on every keystroke, so React replaced the element, the portal lost
+ * its host, and the field was destroyed under the caret: one character, then
+ * the keyboard of a phone closed. The identity of the last part is fixed.
+ *
+ * Every other part is a link that only the route changes, so its position and
+ * its word identify it and two folders of one name stay apart.
+ */
+export function breadcrumbKey(part: BreadcrumbPart, index: number): string {
+  return part.to === null ? leafKey : `${String(index)}:${part.label}`;
+}
+
+/** The identity of the last part, which never changes while a route is open. */
+const leafKey = 'leaf';
+
 /** The address of the note list of one workspace. */
 function workspaceHome(workspaceId: string): string {
   return `/w/${workspaceId}`;

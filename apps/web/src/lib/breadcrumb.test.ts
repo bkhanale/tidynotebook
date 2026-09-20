@@ -1,6 +1,24 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { breadcrumbParts, type BreadcrumbRoute } from './breadcrumb.ts';
+import {
+  breadcrumbKey,
+  breadcrumbParts,
+  type BreadcrumbPart,
+  type BreadcrumbRoute,
+} from './breadcrumb.ts';
+
+/**
+ * The identity of the part at one position.
+ *
+ * A guard and not an assertion: a position that no part fills is a defect in
+ * the test, so it fails loudly here (decision 0019).
+ */
+function keyAt(parts: readonly BreadcrumbPart[], index: number): string {
+  const part = parts[index];
+  if (part === undefined)
+    throw new Error(`no breadcrumb part at ${String(index)}`);
+  return breadcrumbKey(part, index);
+}
 
 /** One route of the frame, with the parts a test wants to change. */
 function route(over: Partial<BreadcrumbRoute> = {}): BreadcrumbRoute {
@@ -95,4 +113,35 @@ await test('a workspace with no name yet yields no part of its own', () => {
     route({ workspaceName: '', notePath: 'Work/Note.md', leaf: 'Note' }),
   ))
     assert.notEqual(part.label, '');
+});
+
+await test('the last part keeps one identity while its word changes', () => {
+  // The note route writes its name field into the last part (decision 0069).
+  // A key that held the word changed on each keystroke, so React replaced the
+  // element and the field was destroyed under the caret: one character, then
+  // the keyboard of a phone closed.
+  const open = route({ notePath: 'Notes/Draft.md', leaf: 'Draft' });
+  const before = breadcrumbParts(open);
+  const after = breadcrumbParts({ ...open, leaf: 'Drafts' });
+  assert.equal(
+    keyAt(before, before.length - 1),
+    keyAt(after, after.length - 1),
+  );
+});
+
+await test('two parts of one breadcrumb never share an identity', () => {
+  // A folder of the same name at two depths stays two rows.
+  const parts = breadcrumbParts(
+    route({ notePath: 'Work/Work/Note.md', leaf: 'Note' }),
+  );
+  const keys = parts.map((part, index) => breadcrumbKey(part, index));
+  assert.equal(new Set(keys).size, keys.length);
+});
+
+await test('a link part is identified by its place and its word', () => {
+  const parts = breadcrumbParts(
+    route({ notePath: 'Work/Note.md', leaf: 'Note' }),
+  );
+  assert.equal(keyAt(parts, 0), '0:Personal');
+  assert.equal(keyAt(parts, 1), '1:Work');
 });

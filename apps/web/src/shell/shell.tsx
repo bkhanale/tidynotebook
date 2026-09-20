@@ -170,7 +170,11 @@ import {
   syncStateMessage,
 } from '../lib/sync-state.ts';
 import type { ActionIconName } from '../lib/palette-items.ts';
-import { breadcrumbParts, type BreadcrumbPart } from '../lib/breadcrumb.ts';
+import {
+  breadcrumbKey,
+  breadcrumbParts,
+  type BreadcrumbPart,
+} from '../lib/breadcrumb.ts';
 import {
   DeleteWorkspaceDialog,
   NewWorkspaceDialog,
@@ -573,7 +577,7 @@ function Breadcrumb({
           part.to === null ? (
             <li
               className="flex min-w-0 flex-1 items-center"
-              key={`${String(index)}:${part.label}`}
+              key={breadcrumbKey(part, index)}
             >
               {leafFilled ? null : (
                 <span className="truncate font-medium text-strong">
@@ -585,7 +589,7 @@ function Breadcrumb({
           ) : (
             <li
               className="flex shrink-0 items-center gap-1 max-md:hidden"
-              key={`${String(index)}:${part.label}`}
+              key={breadcrumbKey(part, index)}
             >
               <Link
                 className={`max-w-32 truncate rounded-md text-muted no-underline hover:text-strong ${transitionSurface} ${focusOutline}`}
