@@ -26,6 +26,8 @@ import {
   parseHexColor,
   relativeLuminance,
   resolveAppearance,
+  scrollbarProperty,
+  scrollbarValue,
   shiftAwayFrom,
   syntaxPropertyName,
   syntaxPropertyNames,
@@ -504,7 +506,7 @@ await test('applying a theme writes every property and both attributes', () => {
     themePropertyNames.length +
       derivedPropertyNames.length +
       syntaxPropertyNames.length +
-      1,
+      2,
   );
   assert.equal(properties.get('--notes-bg'), theme.tokens.background);
   assert.equal(
@@ -512,6 +514,23 @@ await test('applying a theme writes every property and both attributes', () => {
     derivedValue(theme.tokens, 'borderLine'),
   );
   assert.equal(properties.get('--notes-syntax-comment'), theme.syntax.comment);
+});
+
+await test('the scrollbar takes the component edge of the palette', () => {
+  // A scrollbar is a control that a person must see and grab, so its thumb is
+  // the edge token that every palette holds to the non-text minimum. The
+  // value names the property instead of copying a colour, so one write
+  // follows every theme change.
+  assert.equal(scrollbarValue, 'var(--notes-border) transparent');
+  const properties = new Map<string, string>();
+  applyTheme(
+    {
+      setAttribute: () => undefined,
+      setProperty: (key, value) => properties.set(key, value),
+    },
+    defaultThemeFor('dark'),
+  );
+  assert.equal(properties.get(scrollbarProperty), scrollbarValue);
 });
 
 await test('every theme states its appearance as the colour scheme', () => {

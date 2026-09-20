@@ -37,6 +37,10 @@
         // page until the page says otherwise. `applyTheme` writes the same
         // property once React runs.
         root.style.colorScheme = dark ? 'dark' : 'light';
+        // The thumb of every scrollbar is the component edge of the palette
+        // and the track is nothing. The value names the property that the
+        // loop above wrote, so it follows the palette with no colour here.
+        root.style.scrollbarColor = 'var(--notes-border) transparent';
         for (var index = 0; index < themes.properties.length; index += 1)
           root.style.setProperty(themes.properties[index], theme.values[index]);
         root.style.background = theme.values[0];

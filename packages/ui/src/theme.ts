@@ -509,6 +509,28 @@ export function themeProperties(
  */
 export const colourSchemeProperty = 'color-scheme';
 
+/**
+ * The property that colours the scrollbar of every region that scrolls.
+ *
+ * The colour scheme alone leaves the browser to choose, and its choice is a
+ * bar with a track that reads louder than anything the product draws. This
+ * property states the two parts instead: the thumb and the track.
+ */
+export const scrollbarProperty = 'scrollbar-color';
+
+/**
+ * The thumb and the track of every scrollbar.
+ *
+ * The thumb is the component edge of the palette, which `theme.test.ts` holds
+ * to the non-text minimum on every surface, because a scrollbar is a control
+ * that a person must see and grab. The track is nothing, so the page shows
+ * through and a region that scrolls gains no second edge.
+ *
+ * The value names the property that `applyTheme` writes on the same element,
+ * so one write follows every theme change and no colour is copied.
+ */
+export const scrollbarValue = `var(${themePropertyName('border')}) transparent`;
+
 /** The smallest surface that `applyTheme` can write to, for tests. */
 export type ThemeRoot = {
   setAttribute(name: string, value: string): void;
@@ -530,11 +552,16 @@ export type ThemeRoot = {
  * browser assumes a light page and draws a light scrollbar over a dark
  * palette. `Appearance` holds the two keywords that CSS names, so the
  * appearance of the theme is the value. Record 0071.
+ *
+ * The scrollbar takes one step more. A browser that knows the page is dark
+ * still draws its own bar, and that bar is louder than the note it sits
+ * beside, so the palette states the thumb and drops the track. Record 0072.
  */
 export function applyTheme(root: ThemeRoot, theme: Theme): void {
   root.setAttribute('data-theme', theme.appearance);
   root.setAttribute('data-theme-id', theme.id);
   root.setProperty(colourSchemeProperty, theme.appearance);
+  root.setProperty(scrollbarProperty, scrollbarValue);
   for (const [property, value] of themeProperties(theme))
     root.setProperty(property, value);
 }

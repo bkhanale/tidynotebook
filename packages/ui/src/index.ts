@@ -40,6 +40,8 @@ export {
   parseThemeFamilyId,
   relativeLuminance,
   resolveAppearance,
+  scrollbarProperty,
+  scrollbarValue,
   shiftAwayFrom,
   syntaxPropertyName,
   syntaxPropertyNames,

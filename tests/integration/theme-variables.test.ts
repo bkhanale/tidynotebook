@@ -18,7 +18,7 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { editorThemeVariables } from '@notesapp/editor';
-import { defaultThemeFor, themeProperties } from '@notesapp/ui';
+import { defaultThemeFor, scrollbarValue, themeProperties } from '@notesapp/ui';
 import { loadCompiler, webRequire } from './support/tailwind.ts';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
@@ -76,6 +76,9 @@ await test('the shell document states the colour scheme of the first paint', asy
   const html = await readFile(resolve(root, 'apps/web/index.html'), 'utf8');
   assert.match(html, /colorScheme = dark \? 'dark' : 'light'/);
   assert.match(html, /colorScheme = 'dark'/);
+  // The scrollbar of the first paint reads the same palette property that the
+  // script writes, so the bar never stands in a colour of its own.
+  assert.ok(html.includes(`scrollbarColor = '${scrollbarValue}'`));
 });
 
 await test('the built stylesheet declares every variable the editor reads', () => {
