@@ -5,6 +5,39 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.4 - 2026-09-20
+
+This patch release adds a hard line break, moves the note name into the
+breadcrumb, and repairs the caret, the scrollbar, and the relative time.
+
+### Added
+
+- Shift and Enter breaks a line inside one paragraph. The new line keeps the
+  list item or the block quote that the caret sits in.
+
+### Changed
+
+- The note name is the last part of the breadcrumb. The note now starts with
+  its text.
+- The sidebar Search row is gone. The Search button in the header opens the
+  same palette.
+- History and Publish are rows of the note menu on a narrow screen.
+
+### Fixed
+
+- The caret stays in the note name while a person types. On a phone the
+  keyboard stays open.
+- The editor keeps the caret in view after a command. Enter, a heading, a
+  list, an indent and a link all move the view with the caret.
+- A dark page draws a dark scrollbar. The thumb takes its colour from the
+  palette of the theme.
+- A relative time follows the clock. The note list, Trash, History and the
+  published links all state the time that passed.
+- A note screen opens faster after the first visit. The browser starts the
+  request for the page while the worker starts.
+- A return to the window asks for one sync pass. Two returns close together
+  cost one server conversation.
+
 ## 0.3.3 - 2026-09-19
 
 This patch release simplifies the Trash delete flow and keeps the Publish
