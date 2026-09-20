@@ -65,6 +65,23 @@ export function servedByWorker(
 }
 
 /**
+ * The answer that navigation preload already started, or `null`.
+ *
+ * A controlled navigation waits for the worker to start before its request
+ * reaches the server, because the worker decides the answer. Navigation
+ * preload removes that wait: the browser starts the request for the document
+ * while it starts the worker, and hands the answer to the fetch event.
+ *
+ * The value arrives as `undefined` in a browser that does not support the
+ * feature, and in a worker that has not enabled it, so this guard states what
+ * a usable answer is and never claims a type. A miss means the worker asks for
+ * the document itself, which is what every navigation did before.
+ */
+export function preloadedResponse(value: unknown): Response | null {
+  return value instanceof Response ? value : null;
+}
+
+/**
  * Runs one task for each item, with no more than `limit` running at a time.
  *
  * The precache of this worker holds about a hundred entries and a browser

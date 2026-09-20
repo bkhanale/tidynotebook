@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   forEachBounded,
   isCacheableAsset,
+  preloadedResponse,
   servedByWorker,
   type RoutedRequest,
 } from './routing.ts';
@@ -187,4 +188,21 @@ await test('the worker still answers every address of the application', () => {
     ),
     true,
   );
+});
+
+await test('the worker takes the answer that navigation preload started', () => {
+  // The browser starts the request for the document while it starts the
+  // worker, and hands the answer to the fetch event. The worker uses that
+  // answer instead of asking for the document a second time.
+  const answer = new Response('<!doctype html>', { status: 200 });
+  assert.equal(preloadedResponse(answer), answer);
+});
+
+await test('a request with no preload answer falls back to the network', () => {
+  // A browser with no support for the feature, a worker that did not enable
+  // it, and every request that is not a navigation all answer nothing here.
+  assert.equal(preloadedResponse(undefined), null);
+  assert.equal(preloadedResponse(null), null);
+  assert.equal(preloadedResponse('<!doctype html>'), null);
+  assert.equal(preloadedResponse({ status: 200 }), null);
 });

@@ -30,11 +30,29 @@
  * the page keeps a share of them for its own modules. See
  * [decision 0044](../../../../docs/decisions/0044-the-worker-stays-out-of-the-first-load.md).
  */
-import { forEachBounded, isCacheableAsset, servedByWorker } from './routing.ts';
+import {
+  forEachBounded,
+  isCacheableAsset,
+  preloadedResponse,
+  servedByWorker,
+} from './routing.ts';
+
+/**
+ * What this worker uses of its own registration.
+ *
+ * `navigationPreload` is absent in a browser that does not support it, so the
+ * property is optional and every caller checks it.
+ */
+type WorkerRegistration = {
+  readonly navigationPreload?: {
+    enable(): Promise<void>;
+  };
+};
 
 type WorkerScope = {
   readonly location: { readonly origin: string };
   readonly caches: CacheStorage;
+  readonly registration: WorkerRegistration;
   readonly skipWaiting: () => Promise<void>;
   addEventListener(
     type: 'install',
@@ -57,6 +75,13 @@ type ExtendableEvent = {
 
 type FetchEvent = ExtendableEvent & {
   readonly request: Request;
+  /**
+   * The answer that navigation preload already started, when it is enabled.
+   *
+   * It settles with a `Response` for a navigation, with `undefined` for every
+   * other request, and it rejects when that request fails.
+   */
+  readonly preloadResponse?: Promise<unknown>;
   respondWith(response: Promise<Response>): void;
 };
 
@@ -175,6 +200,28 @@ async function serveAsset(request: Request): Promise<Response> {
 }
 
 /**
+ * Asks the browser to start a navigation request while it starts the worker.
+ *
+ * A controlled navigation waits for the worker, because the worker decides the
+ * answer, so the request to the server began only once the worker was running.
+ * With preload the browser starts both at the same time and the navigate
+ * branch of `handleFetch` takes the answer that is already on its way.
+ *
+ * Record 0044 keeps the worker out of the first load, so this affects the
+ * second visit and every visit after it.
+ */
+async function enableNavigationPreload(): Promise<void> {
+  const preload = self.registration.navigationPreload;
+  if (preload === undefined) return;
+  try {
+    await preload.enable();
+  } catch {
+    // A browser may refuse the feature. The worker then asks for the document
+    // itself, which is what every navigation did before.
+  }
+}
+
+/**
  * Every address the main thread pinned, as this worker knows them now.
  *
  * The fetch listener has to decide without waiting whether this worker can
@@ -215,6 +262,12 @@ async function handleFetch(event: FetchEvent): Promise<Response> {
   const request = event.request;
   if (request.mode === 'navigate') {
     try {
+      // The browser started this request while it started the worker, so the
+      // answer is often already on its way. A browser with no preload, and a
+      // preload that the registration refused, both answer nothing here and
+      // the worker asks for the document itself.
+      const preloaded = preloadedResponse(await event.preloadResponse);
+      if (preloaded !== null) return preloaded;
       return await fetch(request);
     } catch {
       try {
@@ -264,6 +317,7 @@ self.addEventListener('activate', (event) => {
         // Cleanup is best effort. The worker still serves the next
         // navigation.
       }
+      await enableNavigationPreload();
       await readPinnedUrls();
       // This worker claims no client. A document that loaded without it is
       // already reading every module it needs straight from the network, so
