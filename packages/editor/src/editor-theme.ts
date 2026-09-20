@@ -202,10 +202,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       lineHeight: 'var(--text-note--line-height)',
       alignItems: 'stretch',
     },
-    // The text starts close under the note name, because the name titles the
-    // text and the two read as one page. The space under the last line stays
-    // large, so there is always a strip of the editable element to click on
-    // below the text.
+    // The space above the first line belongs here and never to the frame of
+    // the note screen. The scroller moves this padding with the text, so the
+    // strip under the frame header fills with the note as a person scrolls.
+    // Padding on the frame would stay on the screen and read as a second bar
+    // that says nothing. The space under the last line stays large, so there
+    // is always a strip of the editable element to click on below the text.
     //
     // The inline padding carries the measure and centres it. It cannot be a
     // margin on the line: a table row is a `display: table-row` box, and CSS
@@ -223,7 +225,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       width: '100%',
       paddingInline:
         'max(calc(var(--spacing) * 2), calc((100% - var(--container-note)) / 2))',
-      paddingBlockStart: 'calc(var(--spacing) * 2)',
+      paddingBlockStart: 'calc(var(--spacing) * 6)',
       paddingBlockEnd: 'calc(var(--spacing) * 6)',
     },
     // The measure caps the line as well, so a line can never grow past the

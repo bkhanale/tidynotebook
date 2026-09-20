@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { noteColumnClassName } from './note-column.ts';
+import {
+  noteColumnClassName,
+  noteFooterClassName,
+  noteFrameClassName,
+} from './note-column.ts';
 
 await test('the text and the footer share one centred column', () => {
   const column = noteColumnClassName().split(' ');
@@ -17,4 +21,22 @@ await test('the column holds no name of its own', () => {
   const column = noteColumnClassName();
   assert.ok(!column.includes('text-3xl'));
   assert.ok(!column.includes('font-semibold'));
+});
+
+await test('the frame of the note draws no space above the text', () => {
+  // The editor scrolls inside this frame, so padding here would stay on the
+  // screen under the frame header while the text moved behind it. The space
+  // above the first line belongs to the editor content instead.
+  const frame = noteFrameClassName().split(' ');
+  assert.ok(!frame.some((name) => name.startsWith('pt-')));
+  assert.ok(!frame.some((name) => name.startsWith('py-')));
+  assert.ok(!frame.some((name) => name.startsWith('p-')));
+});
+
+await test('the footer draws the one divider above itself', () => {
+  // The note text is a region a person scrolls, so the design guide draws a
+  // line there. It is `edge-line`, the one divider of the product.
+  const footer = noteFooterClassName().split(' ');
+  assert.ok(footer.includes('border-t'));
+  assert.ok(footer.includes('border-edge-line'));
 });

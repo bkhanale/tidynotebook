@@ -57,6 +57,7 @@ import {
   useRegisterNoteActions,
   type NoteScreenActions,
 } from './note-actions.tsx';
+import { noteFrameClassName } from '../../lib/note-column.ts';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
@@ -1226,7 +1227,7 @@ function NoteEditorBody({
           header, so the note starts with its text (decision 0069).
         */}
         <div className="flex min-h-0 flex-1 gap-6">
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col pt-4">
+          <div className={noteFrameClassName()}>
             <div
               ref={containerRef}
               className="min-h-0 flex-1 overflow-hidden"
