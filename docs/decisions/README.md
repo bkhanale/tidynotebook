@@ -102,6 +102,7 @@ and needs no record.
 | [0070](0070-shift-and-enter-writes-a-hard-break.md)                    | Shift and Enter writes a hard break                        |
 | [0071](0071-the-page-states-its-appearance-to-the-browser.md)          | The page states its appearance to the browser              |
 | [0072](0072-the-scrollbar-takes-the-edge-of-the-palette.md)            | The scrollbar takes the edge of the palette                |
+| [0073](0073-a-save-names-the-revision-it-descends-from.md)             | A save names the revision it descends from                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -267,3 +268,10 @@ a word the header already carried. It refines records 0064, 0055 and 0015.
 Record 0070 binds Shift and Enter to a hard break and hides the marker while
 the selection is away from its paragraph, because record 0068 left no way to
 break a line and the marker read as a stray backslash. It refines record 0068.
+
+Record 0073 makes a save name the accepted revision its content descends from,
+because the local store read that precondition from the mirror while the
+content came from the parent chain, and a device that only opened a note put
+its own text back over a version another device wrote. It also drops a working
+copy that holds no unsent work when the head of its file moves, so a restore
+reaches the device that asked for it. It keeps the resolution of record 0026.
