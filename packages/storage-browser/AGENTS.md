@@ -24,7 +24,8 @@ channel, and composes these area modules behind the one port, each a factory
 over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 
 - `channel.ts`: the message shape of the invalidation channel (0019).
-- `shared.ts`: the context type and the cross-area row helpers.
+- `shared.ts`: the context type, the cross-area row helpers, and the one
+  precondition rule of a submission, `expectedHeadOfParent` (0073).
 - `drafts.ts`: save, read, rebase, drop a draft; read a cached note.
 - `versions.ts`: checkpoint a save and list local history.
 - `file-actions.ts`: move or trash a file, every working copy (0032).
@@ -68,7 +69,10 @@ migration test the upgrade from the earlier stored shape.
   the queue entry in one transaction.
 - No schema change without a new `schemaVersions` entry and its upgrade.
 - No silent data loss on a blocked or newer schema. Refuse loudly.
-- No treatment of a draft as a server version. A draft is recovery data.
+- No treatment of a draft as a server version. A draft is recovery data, and a
+  draft that holds no unsent work is dropped when the head of its file moves.
+- No precondition read from the mirror. A submission names the accepted
+  revision its parent chain descends from (0073).
 
 ## Key files
 

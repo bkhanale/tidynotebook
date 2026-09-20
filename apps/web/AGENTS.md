@@ -93,6 +93,7 @@ on each rule below.
 | `src/lib/workspace-choice.ts`                 | Which workspace opens           |
 | `src/lib/breadcrumb.ts`                       | Where a person is, as parts     |
 | `src/features/editor/note-editor.tsx`         | The editor host and editor view |
+| `src/features/editor/note-loader.tsx`         | The read that opens one note    |
 | `src/features/editor/note-header-actions.tsx` | The actions of the note route   |
 | `vite.config.ts`                              | Build, theme assets, worker     |
 | `src/logging.ts`                              | Browser sink for log events     |

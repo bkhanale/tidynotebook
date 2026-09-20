@@ -54,7 +54,12 @@ import {
   PageHeader,
   rowClassName,
 } from '@notesapp/ui';
-import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
+import {
+  problemMessage,
+  useLocalStore,
+  useRequestSync,
+  useSession,
+} from '../../app.tsx';
 import {
   loadAttachmentBinary,
   type LoadedAttachment,
@@ -303,6 +308,7 @@ function HistoryDetail({
   // screen takes the instant as a value that moves and not as one reading of
   // the clock. The early returns below stand between this line and the rows.
   const now = useNow();
+  const requestSync = useRequestSync();
   const [head, setHead] = useState<FileHead>({ status: 'loading' });
   const [items, setItems] = useState<readonly HistoryRevisionItem[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -564,6 +570,10 @@ function HistoryDetail({
       setActionError(problemMessage(result.error));
       return;
     }
+    // The restore is a version of the server, so it reaches this device
+    // through the ordered feed. The pass is asked for here, because without it
+    // the note keeps the replaced text until the safety interval comes round.
+    requestSync();
     setActionMessage(
       'That text is back as the newest version. Every earlier version is kept.',
     );

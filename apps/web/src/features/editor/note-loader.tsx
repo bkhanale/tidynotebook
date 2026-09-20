@@ -1,0 +1,371 @@
+/**
+ * The read that puts one note on the screen, and the states that are not one.
+ *
+ * Unknown, purged, deleted and unavailable each read as themselves, so an
+ * empty note is never the answer to a failed read (decision 0038). The local
+ * store answers first, and the generated `getFile` operation answers for a
+ * note this device has not received yet.
+ *
+ * The screen follows the store. A restore brings a deleted note back, and a
+ * version of another device replaces the note an idle editor holds (record
+ * 0073). Both make the loader read the note again and mount the editor on what
+ * the store now holds. An editor with a working copy of its own is never
+ * remounted, so no text of this device can be lost to a read.
+ */
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { Link, useLocation, useNavigate } from 'react-router';
+import { getFile } from '@notesapp/api-client';
+import type { LocalStore } from '@notesapp/sync';
+import type { LinkTarget } from '@notesapp/editor';
+import { LoadingState, Notice, pageGutter } from '@notesapp/ui';
+import { problemMessage } from '../../app.tsx';
+import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
+import { displayNoteName } from '../../lib/note-name.ts';
+import {
+  noteLoadStatusFor,
+  type NoteLoadIdentity,
+  type NoteLoadState,
+  type NoteLoadStatus,
+} from '../../lib/note-load-state.ts';
+import { NoteEditor, recordTiming } from './note-editor.tsx';
+
+/**
+ * Loads one note and mounts its editor.
+ *
+ * Unknown, purged, and unavailable notes stay distinct and never render as
+ * an empty note. The accepted head text comes from the generated `getFile`
+ * operation; local drafts and checkpoints take over once the editor mounts.
+ */
+export function NoteEditorLoader({
+  store,
+  accountId,
+  workspaceId,
+  fileId,
+  onMoveToFolder,
+  onPublish,
+}: {
+  readonly store: LocalStore | null;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly fileId: string;
+  readonly onMoveToFolder?: (() => void) | undefined;
+  readonly onPublish?: (() => void) | undefined;
+}): ReactNode {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const identity: NoteLoadIdentity = { accountId, workspaceId, fileId };
+  const [loadState, setLoadState] = useState<NoteLoadState>(() => ({
+    identity,
+    status: { kind: 'loading' },
+  }));
+  const status = noteLoadStatusFor(loadState, identity);
+  const setStatus = useCallback(
+    (next: NoteLoadStatus): void => {
+      setLoadState({
+        identity: { accountId, workspaceId, fileId },
+        status: next,
+      });
+    },
+    [accountId, workspaceId, fileId],
+  );
+  // A restore brings a deleted note back, and a version of another device
+  // replaces the note an idle editor holds. The loader then reads the note
+  // once more, so the screen follows the store without a page reload.
+  const [reloadToken, setReloadToken] = useState(0);
+  // A second read of a note that is already on the screen keeps the screen it
+  // has. Only the first read of a note shows the loading state, so a version
+  // that arrives does not blank a note a person is reading.
+  const quietReload = useRef(false);
+  const readAgain = useCallback((): void => {
+    quietReload.current = true;
+    setReloadToken((token) => token + 1);
+  }, []);
+  const statusKind = useRef<NoteLoadStatus['kind']>(status.kind);
+  statusKind.current = status.kind;
+  const [linkNotice, setLinkNotice] = useState('');
+  const routeState: unknown = location.state;
+  const focusName =
+    routeState !== null &&
+    typeof routeState === 'object' &&
+    Object.fromEntries(Object.entries(routeState))['focusNoteName'] === true;
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load(): Promise<void> {
+      if (quietReload.current) quietReload.current = false;
+      else setStatus({ kind: 'loading' });
+      if (store !== null) {
+        try {
+          const startedAt = performance.now();
+          const cached = await store.readCachedNote(
+            accountId,
+            workspaceId,
+            fileId,
+          );
+          if (cancelled) return;
+          if (cached !== null) {
+            recordTiming('notesapp.cached-note-open', startedAt);
+            if (cached.deleted) {
+              setStatus({ kind: 'deleted', path: cached.path });
+              return;
+            }
+            setStatus({
+              kind: 'ready',
+              path: cached.path,
+              text: cached.text,
+              headRevisionId: cached.baseRevisionId,
+              workingCopyId: cached.workingCopyId,
+              sequence: cached.sequence,
+            });
+            return;
+          }
+        } catch {
+          // A server read can still show content. A later local write failure
+          // keeps the in-memory buffer visible and closes unsafe reload.
+        }
+      }
+      const result = await getFile({
+        path: { workspaceId, fileId },
+      });
+      if (cancelled) return;
+      if (result.error !== undefined || result.data === undefined) {
+        const code = result.response?.status ?? 0;
+        if (code === 404) setStatus({ kind: 'unknown' });
+        else if (code === 410) setStatus({ kind: 'purged' });
+        else
+          setStatus({
+            kind: 'unavailable',
+            message: problemMessage(result.error),
+          });
+        return;
+      }
+      // The screen reached this note before the ordered feed reached the
+      // store, so this device holds no row for it. Keep the read, so a later
+      // save, move, or deletion starts from a local row instead of naming a
+      // create precondition for a file the server already has.
+      const head = result.data.head;
+      if (store !== null && head !== null && head !== undefined) {
+        try {
+          await store.cacheServerNote(accountId, workspaceId, {
+            fileId,
+            path: result.data.path,
+            kind: result.data.kind === 'attachment' ? 'attachment' : 'note',
+            revisionId: head.revisionId,
+            digest: head.digest,
+            text: head.text ?? '',
+          });
+        } catch {
+          // The note still opens from the buffer above. A device that could
+          // not keep the read reports its failure on the next write.
+        }
+      }
+      if (cancelled) return;
+      setStatus({
+        kind: 'ready',
+        path: result.data.path,
+        text: result.data.head?.text ?? '',
+        headRevisionId: result.data.headRevisionId,
+        sequence: 0,
+      });
+    }
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [store, accountId, workspaceId, fileId, reloadToken, setStatus]);
+
+  // A restore can reach this device while the note screen shows it as deleted.
+  // The loader then reads the note again. The open editor keeps its instance,
+  // its document, its undo history, and its selection.
+  useEffect(() => {
+    if (store === null) return;
+    const activeStore = store;
+    let cancelled = false;
+    const recheck = async (): Promise<void> => {
+      try {
+        const cached = await activeStore.readCachedNote(
+          accountId,
+          workspaceId,
+          fileId,
+        );
+        if (cancelled || cached === null) return;
+        if (cached.deleted && statusKind.current === 'ready') {
+          setStatus({ kind: 'deleted', path: cached.path });
+          return;
+        }
+        // The note was in the trash and is not any more, so a restore
+        // reached this device. The loader reads it again.
+        if (!cached.deleted && statusKind.current === 'deleted') readAgain();
+      } catch {
+        // The open note keeps its buffer. A failed recheck changes nothing.
+      }
+    };
+    const unsubscribe = activeStore.subscribe((change) => {
+      if (
+        change.accountId === accountId &&
+        change.workspaceId === workspaceId &&
+        (change.fileId === null || change.fileId === fileId)
+      ) {
+        if (change.kind === 'purge') {
+          setStatus({ kind: 'purged' });
+          return;
+        }
+        if (change.kind === 'file') void recheck();
+      }
+    });
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [store, accountId, workspaceId, fileId, setStatus, readAgain]);
+
+  if (status.kind === 'loading')
+    return (
+      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <LoadingState shape="note" label="The note is loading." />
+      </section>
+    );
+  if (status.kind === 'unknown')
+    return (
+      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note not found
+        </h1>
+        <p>
+          The server knows no note at that address. It may be removed, or the
+          address may be wrong. This is not an empty note.
+        </p>
+        <p>
+          <Link to={`/w/${workspaceId}`}>Back to your notes.</Link>
+        </p>
+      </section>
+    );
+  if (status.kind === 'purged')
+    return (
+      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note deleted permanently
+        </h1>
+        <p>
+          This note was deleted permanently. Work for it that waits on this
+          device stays here and can go into a new note.
+        </p>
+        <p>
+          <Link to={`/w/${workspaceId}`}>Back to your notes.</Link>
+        </p>
+      </section>
+    );
+  if (status.kind === 'deleted')
+    return (
+      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note deleted on this device
+        </h1>
+        <p>
+          {displayNoteName(status.path)} is in the trash. The deletion goes to
+          the server when this device has a connection.
+        </p>
+        <p>
+          <Link to={`/w/${workspaceId}/trash`}>Open Trash.</Link>
+        </p>
+      </section>
+    );
+  if (status.kind === 'unavailable')
+    return (
+      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          Note unavailable
+        </h1>
+        <p className="text-control text-danger" role="alert">
+          {status.message}
+        </p>
+      </section>
+    );
+  if (store === null)
+    return (
+      <section className={`mx-auto w-full max-w-3xl ${pageGutter} py-6`}>
+        <h1 className="mb-4 mt-0 text-xl font-semibold text-strong">
+          {displayNoteName(status.path)}
+        </h1>
+        <p className="text-control text-danger" role="alert">
+          Local storage is unavailable, so editing is closed here. The saved
+          text follows and can be read.
+        </p>
+        <pre className="overflow-x-auto rounded-lg border border-edge-subtle bg-card p-3 text-control">
+          {status.text}
+        </pre>
+      </section>
+    );
+
+  const activeStore = store;
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      {linkNotice === '' ? null : (
+        <div className={`${pageGutter} pt-4`}>
+          <Notice tone="info" message={linkNotice} />
+        </div>
+      )}
+      <NoteEditor
+        // The revision decides the instance, and not the count of the reads.
+        // A read that answers with the revision the editor already holds
+        // therefore mounts nothing, so an ask that arrives before the read
+        // returns cannot start a round of mounts.
+        key={`${fileId}:${status.headRevisionId ?? 'new'}`}
+        store={store}
+        accountId={accountId}
+        workspaceId={workspaceId}
+        fileId={fileId}
+        baseRevisionId={status.headRevisionId}
+        initialText={status.text}
+        initialPath={status.path}
+        initialWorkingCopyId={status.workingCopyId}
+        initialSequence={status.sequence}
+        focusName={focusName}
+        onMoveToFolder={onMoveToFolder}
+        onPublish={onPublish}
+        onHeadReplaced={readAgain}
+        onOpenLink={(target: LinkTarget): void => {
+          const action = resolveLinkAction(target.target, status.path);
+          if (action.kind === 'note-id') {
+            setLinkNotice('');
+            void navigate(`/w/${workspaceId}/notes/${action.fileId}`);
+            return;
+          }
+          if (action.kind === 'external') {
+            setLinkNotice('');
+            window.open(action.url, '_blank', 'noopener,noreferrer');
+            return;
+          }
+          if (action.kind === 'note-path') {
+            void (async (): Promise<void> => {
+              const files = await activeStore.listLocalFiles(
+                accountId,
+                workspaceId,
+              );
+              const found = files.find(
+                (file) =>
+                  file.kind === 'note' &&
+                  !file.deleted &&
+                  file.path === action.path,
+              );
+              if (found === undefined) {
+                setLinkNotice(missingNoteNotice);
+                return;
+              }
+              setLinkNotice('');
+              void navigate(`/w/${workspaceId}/notes/${found.fileId}`);
+            })();
+            return;
+          }
+          setLinkNotice('This link points at nothing that can open here.');
+        }}
+      />
+    </div>
+  );
+}

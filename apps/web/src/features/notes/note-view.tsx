@@ -30,7 +30,7 @@ import { useDocumentTitle } from '../../shell/document-title.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 
 const NoteEditorLoader = lazy(async () => ({
-  default: (await import('../editor/note-editor.tsx')).NoteEditorLoader,
+  default: (await import('../editor/note-loader.tsx')).NoteEditorLoader,
 }));
 
 /** One note: unknown, purged, empty, and readable states stay distinct. */
