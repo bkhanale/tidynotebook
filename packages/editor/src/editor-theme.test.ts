@@ -167,6 +167,23 @@ await test('the task box is drawn from the theme and never by the system', () =>
   assert.equal(rule('.cm-np-task:checked + .cm-np-task-mark').display, 'block');
 });
 
+await test('the task box centres on the capital band of its line', () => {
+  // The box is a control inside a line of text, so a person reads the two as
+  // one line. `text-bottom` set the foot of the box on the foot of the
+  // descender, which put the centre of the box about 2 px below the centre of
+  // the word beside it, and the box read as one that had slipped off the
+  // line. The alignment therefore lifts the box by half the capital height of
+  // the face in use, `cap`, less half its own edge, so the centre of the box
+  // meets the centre of the capital band. No number of Geist appears here:
+  // the browser reads the metric of whatever face the line renders in.
+  const shell = rule('.cm-np-task-box');
+  const size = 'var(--cm-np-task-size)';
+  assert.equal(shell['--cm-np-task-size'], 'calc(var(--spacing) * 4)');
+  assert.equal(shell.width, size, 'the box reads one name for its edge');
+  assert.equal(shell.height, size, 'the box reads one name for its edge');
+  assert.equal(shell.verticalAlign, `calc(0.5cap - ${size} / 2)`);
+});
+
 await test('a list marker is quiet and never the accent', () => {
   // Record 0062. The accent marks a link, the caret and the selection, and
   // a bullet states none of those.

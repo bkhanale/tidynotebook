@@ -415,12 +415,20 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-task-box': {
       position: 'relative',
       display: 'inline-flex',
-      width: 'calc(var(--spacing) * 4)',
-      height: 'calc(var(--spacing) * 4)',
+      // One name holds the edge of the box, so the size and the alignment
+      // below cannot state two different boxes.
+      '--cm-np-task-size': 'calc(var(--spacing) * 4)',
+      width: 'var(--cm-np-task-size)',
+      height: 'var(--cm-np-task-size)',
       marginInlineEnd: 'calc(var(--spacing) * 1.5)',
-      // `text-bottom` sets the foot of the box on the foot of the text, so
-      // the box sits on the writing line instead of floating above it.
-      verticalAlign: 'text-bottom',
+      // The box centres on the capital band of the text beside it, which is
+      // the band a person reads the line by. `cap` is the cap height of the
+      // font in use, so the centre follows the face and the note type step
+      // and no number states a metric of Geist a second time. `text-bottom`
+      // set the foot of the box on the foot of the descender instead, which
+      // put the centre of a 16 px box about 2 px under the centre of the
+      // word and read as a box that had slipped off the line.
+      verticalAlign: 'calc(0.5cap - var(--cm-np-task-size) / 2)',
     },
     '.cm-np-task': {
       appearance: 'none',
