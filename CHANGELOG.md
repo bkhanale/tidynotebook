@@ -5,6 +5,22 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.5 - 2026-09-20
+
+This patch release keeps the note safe when a second device writes it, and it
+cleans the top and the bottom of the note screen.
+
+### Fixed
+
+- A note stays correct when a second device saves it. The open note reads the
+  new version, and it does not put the old text back.
+- A restore from History reaches this device at once. The note shows the
+  restored version without a wait.
+- The empty bar under the note header is gone. The space above the first line
+  moves with the text.
+- A line separates the note from the word count. The count no longer reads as
+  a line of the note.
+
 ## 0.3.4 - 2026-09-20
 
 This patch release adds a hard line break, moves the note name into the
