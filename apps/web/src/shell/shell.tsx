@@ -54,6 +54,7 @@ import {
   useParams,
 } from 'react-router';
 import {
+  avatarClassName,
   Badge,
   Button,
   buttonClassName,
@@ -61,6 +62,7 @@ import {
   ChevronRightIcon,
   CloseIcon,
   compactButtonVisualClassName,
+  edgeControlClassName,
   FileTextIcon,
   FolderIcon,
   FolderOpenIcon,
@@ -1648,6 +1650,12 @@ function ShellFrame({
             carried History and Publish as well (decision 0069). Each
             icon-only control is compact: it keeps its touch target and draws
             the smaller mark that every other control of the product draws.
+
+            The control at each end takes `edgeControlClassName`, which pulls
+            its touch box into the gutter so the mark a person reads sits on
+            the same line as the title of the page below. Without it the
+            toggle stood 14 px inside the gutter on a phone and the avatar
+            stood 10 px inside it, so one bar showed three different edges.
           */}
           <header
             className={`z-30 flex h-header shrink-0 items-center gap-1 border-b border-edge-subtle bg-surface md:gap-cluster ${pageGutter}`}
@@ -1657,7 +1665,7 @@ function ShellFrame({
               variant="ghost"
               size="sm"
               compact
-              className="shrink-0 md:hidden"
+              className={`shrink-0 md:hidden ${edgeControlClassName({ edge: 'start', mark: 'icon' })}`}
               label="Open navigation"
               title="Open navigation"
               icon={<MenuIcon />}
@@ -1671,7 +1679,7 @@ function ShellFrame({
               variant="ghost"
               size="sm"
               compact
-              className="shrink-0 max-md:hidden"
+              className={`shrink-0 max-md:hidden ${edgeControlClassName({ edge: 'start', mark: 'icon' })}`}
               label={
                 sidebar.size.collapsed ? 'Show the sidebar' : 'Hide the sidebar'
               }
@@ -1740,11 +1748,7 @@ function ShellFrame({
 
             <Menu
               label={accountLabel}
-              icon={
-                <span className="inline-flex size-6 items-center justify-center rounded-full bg-active text-kbd font-semibold text-strong">
-                  {accountInitial}
-                </span>
-              }
+              icon={<span className={avatarClassName()}>{accountInitial}</span>}
               items={accountItems}
               pinned={signOutItem}
               compact
@@ -1753,7 +1757,7 @@ function ShellFrame({
                 size: 'sm',
                 iconOnly: true,
                 compact: true,
-                className: 'shrink-0',
+                className: `shrink-0 ${edgeControlClassName({ edge: 'end', mark: 'avatar' })}`,
               })}
             />
           </header>

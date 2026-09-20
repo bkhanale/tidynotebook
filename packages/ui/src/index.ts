@@ -62,12 +62,16 @@ export type {
   ButtonSize,
   ButtonTone,
   ButtonVariant,
+  EdgeMark,
+  FrameEdge,
 } from './control-classes.ts';
 export {
+  avatarClassName,
   badgeClassName,
   buttonClassName,
   buttonName,
   compactButtonVisualClassName,
+  edgeControlClassName,
   fieldClassName,
   focusOutline,
   focusOutlineInset,

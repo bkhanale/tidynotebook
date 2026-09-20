@@ -12,10 +12,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  avatarClassName,
   badgeClassName,
   buttonClassName,
   buttonName,
   compactButtonVisualClassName,
+  edgeControlClassName,
   fieldClassName,
   focusOutline,
   focusOutlineInset,
@@ -23,7 +25,10 @@ import {
   rowClassName,
   type ButtonSize,
   type ButtonVariant,
+  type EdgeMark,
+  type FrameEdge,
 } from './control-classes.ts';
+import { defaultIconSize } from './icon-grid.ts';
 
 /** Every button appearance, with the name a failure message reads. */
 const variants: readonly ButtonVariant[] = [
@@ -60,6 +65,7 @@ const recipes: readonly (readonly [string, string])[] = [
   ['invalid field', fieldClassName({ invalid: true })],
   ['key cap', kbdClassName()],
   ['badge', badgeClassName()],
+  ['avatar', avatarClassName()],
 ];
 
 /** A filter utility that makes a colour out of another colour. */
@@ -110,15 +116,18 @@ await test('no recipe draws a ring except the focus ring of a field', () => {
 });
 
 await test('every recipe takes one radius of the named scale', () => {
+  // The avatar is the one exception the design guide names: a circle of an
+  // initial, and `rounded-full` is what draws a circle.
   for (const [name, classes] of recipes) {
     const found = classes
       .split(' ')
       .filter((part) => /(?:^|:)rounded(?:-|$)/.test(part));
     assert.equal(found.length, 1, `${name} names ${String(found.length)}`);
     assert.ok(
-      ['rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl'].includes(
-        found[0] ?? '',
-      ),
+      (name === 'avatar'
+        ? ['rounded-full']
+        : ['rounded-sm', 'rounded-md', 'rounded-lg', 'rounded-xl']
+      ).includes(found[0] ?? ''),
       `${found[0] ?? ''} of the ${name}`,
     );
   }
@@ -421,4 +430,72 @@ await test('a row with no tone reads in the ink and marks in the strong text', (
   const marked = rowClassName({ selected: true }).split(' ');
   assert.ok(marked.includes('text-strong'), 'the colour of a marked row');
   assert.ok(marked.includes('bg-active'), 'the fill of a marked row');
+});
+
+/*
+ * The pull of a control at the edge of a frame.
+ *
+ * The defect these cover: the header drew its drawer toggle 30 px from the
+ * edge of a phone screen while the title of the page below it stood at 16 px,
+ * because a compact control centres its 16 px mark in a 44 px touch box. The
+ * arithmetic below is the rule, and the strings of the recipe answer to it.
+ */
+
+/** The width in pixels of one step of the spacing scale. */
+const spacingStep = 4;
+
+/** The box of a small compact control, under touch and from the medium width. */
+const smallControlBox = { touch: 44, wide: 28 } as const;
+
+/** The width in pixels of each mark that a control at a frame edge draws. */
+const markWidth = { icon: defaultIconSize, avatar: 24 } as const;
+
+/** Every side of a frame that a control sits on. */
+const edges: readonly FrameEdge[] = ['start', 'end'];
+
+/** Every mark that a control at a frame edge draws. */
+const marks: readonly EdgeMark[] = ['icon', 'avatar'];
+
+/** The utility that pulls a control by one distance, on one side. */
+function pullUtility(edge: FrameEdge, pixels: number, wide: boolean): string {
+  const side = edge === 'start' ? 'ms' : 'me';
+  const steps = pixels / spacingStep;
+  return `${wide ? 'md:' : ''}-${side}-${String(steps)}`;
+}
+
+for (const edge of edges)
+  for (const mark of marks)
+    await test(`the ${mark} at the ${edge} edge lands on the gutter line`, () => {
+      const touch = (smallControlBox.touch - markWidth[mark]) / 2;
+      const wide = (smallControlBox.wide - markWidth[mark]) / 2;
+      assert.equal(
+        edgeControlClassName({ edge, mark }),
+        `${pullUtility(edge, touch, false)} ${pullUtility(edge, wide, true)}`,
+      );
+    });
+
+await test('the pull answers the box of the control it corrects', () => {
+  // Check the check: the pull is half of the difference between the box and
+  // the mark, so a change to either size has to reach the recipe. These two
+  // assertions fail when it does not.
+  const box = buttonClassName({
+    variant: 'ghost',
+    size: 'sm',
+    iconOnly: true,
+    compact: true,
+  }).split(' ');
+  assert.ok(
+    box.includes(`size-${String(smallControlBox.touch / spacingStep)}`),
+    'the touch box of a small compact control',
+  );
+  assert.ok(
+    box.includes(`md:size-${String(smallControlBox.wide / spacingStep)}`),
+    'the wide box of a small compact control',
+  );
+  assert.ok(
+    avatarClassName()
+      .split(' ')
+      .includes(`size-${String(markWidth.avatar / spacingStep)}`),
+    'the width of the avatar',
+  );
 });

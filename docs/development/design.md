@@ -111,14 +111,14 @@ that no screen uses.
 The header is 44 px and is the context of the route (record 0064): the sidebar
 toggle, the breadcrumb, the actions of the route through `HeaderSlot`, the last
 breadcrumb part through `HeaderLeafSlot`, both in
-`apps/web/src/shell/header-slot.tsx`, then Search and the account avatar. The
-note route writes its name in that part, as the one field that renames it, and
-gives the header one control, its menu, with History and Publish as rows
-(record 0069). Every icon-only control of the row is compact: it keeps its
-touch target and draws the smaller mark, as the rest of the product does. The sidebar is rows on the chrome plane: the
-workspace switcher, New note, the Folders label with its New folder action, the
-tree without guide lines, and the footer rows. The wordmark belongs to the sign
-in and setup screens.
+`apps/web/src/shell/header-slot.tsx`, then Search and the account avatar of
+`avatarClassName`. The note route writes its name in that part, as the one
+field that renames it, and gives the header one control, its menu, with History
+and Publish as rows (record 0069). Every icon-only control of the row is
+compact, and the one at each end takes the pull of `edgeControlClassName`. The
+sidebar is rows on the chrome plane: the workspace switcher, New note, the
+Folders label with its New folder action, the tree without guide lines, and the
+footer rows. The wordmark belongs to the sign in and setup screens.
 
 ## Surfaces a person waits on or reads
 

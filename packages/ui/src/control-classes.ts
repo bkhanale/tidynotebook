@@ -169,6 +169,56 @@ export function compactButtonVisualClassName(options: {
 }
 
 /**
+ * The appearance of an account avatar, as classes.
+ *
+ * A monochrome circle of the initial of the account, and the one mark of the
+ * product that is not an icon and not a word (record 0064). It is 24 px, one
+ * step wider than the 16 px icon beside it, because a letter needs more room
+ * than a glyph drawn on the icon grid. `edgeControlClassName` reads that
+ * width, so the two facts stay one fact.
+ */
+export function avatarClassName(): string {
+  return 'inline-flex size-6 items-center justify-center rounded-full bg-active text-kbd font-semibold text-strong';
+}
+
+/** The mark that a control at the edge of a frame draws inside its box. */
+export type EdgeMark = 'icon' | 'avatar';
+
+/** The side of a frame that a control sits on. */
+export type FrameEdge = 'start' | 'end';
+
+/**
+ * The pull of a small compact control at the edge of a frame, as classes.
+ *
+ * A compact control keeps the 44 px touch target and draws a smaller surface
+ * inside it, so the mark that a person reads sits well inside the box. At the
+ * edge of a frame that distance pushes the mark off the gutter line, and the
+ * header stops lining up with the page below it. The control takes the
+ * distance back as a negative margin: the box grows into the gutter, the
+ * touch target stays 44 px, and the mark lands on the line. The sidebar
+ * reaches the same line with padding, because a row of 8 px inside a column
+ * of 8 px puts the text of the row 16 px from the edge.
+ *
+ * The pull is half of the difference between the box and the mark. A small
+ * control is 44 px under touch and 28 px from the medium width up, an icon is
+ * 16 px and the avatar of the account menu is 24 px. An icon therefore takes
+ * 14 px and then 6 px, and the avatar takes 10 px and then 2 px.
+ * `control-classes.test.ts` holds each string below to that arithmetic.
+ */
+export function edgeControlClassName(options: {
+  readonly edge: FrameEdge;
+  readonly mark: EdgeMark;
+}): string {
+  return options.edge === 'start'
+    ? options.mark === 'avatar'
+      ? '-ms-2.5 md:-ms-0.5'
+      : '-ms-3.5 md:-ms-1.5'
+    : options.mark === 'avatar'
+      ? '-me-2.5 md:-me-0.5'
+      : '-me-3.5 md:-me-1.5';
+}
+
+/**
  * The appearance of a clickable row, as classes.
  *
  * One recipe for every row a person can press: a tree row, a list row, a menu
