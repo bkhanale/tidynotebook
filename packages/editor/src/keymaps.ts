@@ -26,6 +26,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state';
 import { EditorView, type Command, type KeyBinding } from '@codemirror/view';
+import { editingTransaction } from './commands.ts';
 
 /** One row of the shortcut table that the shell renders. */
 export type EditorShortcut = {
@@ -519,7 +520,7 @@ function dispatching(
     if (view.state.readOnly) return false;
     const spec = build(view.state);
     if (spec === null) return false;
-    view.dispatch(view.state.update({ ...spec, userEvent: 'input.format' }));
+    view.dispatch(view.state.update(editingTransaction(spec)));
     return true;
   };
 }
@@ -626,10 +627,7 @@ export const insertLink: Command = (view: EditorView): boolean => {
   if (view.state.readOnly) return false;
   void grantedClipboardText().then((clipboard) => {
     view.dispatch(
-      view.state.update({
-        ...linkSpec(view.state, clipboard),
-        userEvent: 'input.format',
-      }),
+      view.state.update(editingTransaction(linkSpec(view.state, clipboard))),
     );
     view.focus();
   });

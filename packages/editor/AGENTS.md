@@ -46,9 +46,9 @@ only package, or a server only package.
 - **A decoration.** Read the node from the Lezer tree with
   `syntaxTree(state)` in `live-preview.ts` and add the decoration for its
   range. Never scan the source text.
-- **A command and its key.** Add the command in `commands.ts`, then bind it
-  in `keymaps.ts` and add it to the exported `shortcuts` list, so the
-  shortcuts screen stays complete.
+- **A command and its key.** Add the command in `commands.ts`, dispatch it
+  through `editingTransaction`, which keeps the caret in view, then bind it in
+  `keymaps.ts` and add it to the exported `shortcuts` list.
 - **A shared Markdown syntax constant.** Add it in `packages/markdown`, for
   example in `math-syntax.ts`, and read it here. Do not repeat a delimiter.
 

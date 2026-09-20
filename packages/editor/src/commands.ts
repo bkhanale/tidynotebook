@@ -9,6 +9,23 @@
 import type { ChangeSpec, TransactionSpec } from '@codemirror/state';
 import { EditorState } from '@codemirror/state';
 
+/**
+ * The transaction that one editing command dispatches.
+ *
+ * Every command of this package writes to the document and leaves the caret
+ * somewhere new. CodeMirror scrolls the caret back into view only when the
+ * transaction asks for it, so a command that leaves the flag out writes a line
+ * that the person cannot see: the caret sits below the fold and the view stays
+ * where it was. Typing one character needs no flag, because that change
+ * arrives through the DOM and CodeMirror sets the flag itself.
+ *
+ * The flag scrolls nothing when the caret is already in view, so one rule
+ * covers every command and no command decides for itself.
+ */
+export function editingTransaction(spec: TransactionSpec): TransactionSpec {
+  return { ...spec, userEvent: 'input.format', scrollIntoView: true };
+}
+
 /** A link found at one document position. */
 export type LinkTarget = { readonly kind: 'url'; readonly target: string };
 

@@ -19,6 +19,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import {
+  editingTransaction,
   headingSpec,
   linkTargetAt,
   toggleTaskSpec,
@@ -120,7 +121,7 @@ export function createEditor(
       run: (view): boolean => {
         const spec = toggleTaskSpec(view.state);
         if (spec === null) return false;
-        view.dispatch(view.state.update(spec));
+        view.dispatch(view.state.update(editingTransaction(spec)));
         return true;
       },
     },
@@ -236,6 +237,6 @@ export function setEditorRich(
 export function applyHeading(view: EditorView, level: number): boolean {
   const spec = headingSpec(view.state, level);
   if (spec === null) return false;
-  view.dispatch(view.state.update(spec));
+  view.dispatch(view.state.update(editingTransaction(spec)));
   return true;
 }
