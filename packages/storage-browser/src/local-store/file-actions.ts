@@ -27,6 +27,7 @@ import {
   bodyOfDigest,
   draftLeads,
   draftsOfFile,
+  expectedHeadOfParent,
   nextCheckpointSequence,
   nextQueueSequence,
   type LocalStoreContext,
@@ -47,8 +48,15 @@ type FileState = {
   readonly deleted: boolean;
   /** The tip this device holds, which the next revision names as its parent. */
   readonly parentId: string | null;
-  /** The accepted head this device knows, which the submission names. */
-  readonly expectedHead: string | null;
+  /**
+   * The accepted head this device held while the state was read.
+   *
+   * The write transaction reads it again and refuses the whole action when it
+   * moved, so an action never lands on a file that changed while it was read.
+   * It is not the precondition of the submission: that one comes from the
+   * parent chain (record 0073).
+   */
+  readonly seenAcceptedHead: string | null;
   /** The working copy this state came from. */
   readonly workingCopyId: string;
 };
@@ -112,7 +120,7 @@ export function createFileActionsSlice(
         text: leading.deleted ? '' : leading.text,
         deleted: leading.deleted,
         parentId: leading.lastCheckpointId ?? leading.baseRevisionId,
-        expectedHead: file?.acceptedHeadRevisionId ?? null,
+        seenAcceptedHead: file?.acceptedHeadRevisionId ?? null,
         workingCopyId: leading.workingCopyId,
       };
     if (file === null) return null;
@@ -123,7 +131,7 @@ export function createFileActionsSlice(
         text: '',
         deleted: true,
         parentId: head ?? null,
-        expectedHead: file.acceptedHeadRevisionId,
+        seenAcceptedHead: file.acceptedHeadRevisionId,
         workingCopyId: newId(),
       };
 
@@ -146,7 +154,7 @@ export function createFileActionsSlice(
         text: body,
         deleted: checkpoint.deleted,
         parentId: checkpoint.revisionId,
-        expectedHead: file.acceptedHeadRevisionId,
+        seenAcceptedHead: file.acceptedHeadRevisionId,
         workingCopyId: checkpoint.workingCopyId,
       };
     }
@@ -168,7 +176,7 @@ export function createFileActionsSlice(
       text: body,
       deleted: false,
       parentId: file.acceptedHeadRevisionId,
-      expectedHead: file.acceptedHeadRevisionId,
+      seenAcceptedHead: file.acceptedHeadRevisionId,
       workingCopyId: newId(),
     };
   };
@@ -246,7 +254,9 @@ export function createFileActionsSlice(
             ]);
             const file: FileRow | null =
               stored === undefined ? null : validateAcceptedFile(stored);
-            if ((file?.acceptedHeadRevisionId ?? null) !== state.expectedHead)
+            if (
+              (file?.acceptedHeadRevisionId ?? null) !== state.seenAcceptedHead
+            )
               throw new LocalStorageError(
                 'stale',
                 'a file of this action changed while it was read',
@@ -333,8 +343,17 @@ export function createFileActionsSlice(
               workspaceId,
               mutationId,
               deviceId,
+              // The accepted revision this content descends from. A move and
+              // a deletion state it from the parent chain, as a save does, so
+              // no write of this store takes its precondition from the mirror
+              // (record 0073).
               expectedHeads: {
-                [state.fileId]: file?.acceptedHeadRevisionId ?? null,
+                [state.fileId]: await expectedHeadOfParent(
+                  ctx,
+                  accountId,
+                  workspaceId,
+                  state.parentId,
+                ),
               },
               revisions: [
                 {

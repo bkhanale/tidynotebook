@@ -96,6 +96,35 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
     return drafts.some((draft) => draftIsUnsentWork(draft, heads));
   };
 
+  /**
+   * Removes every working copy of one file that holds no unsent work.
+   *
+   * A draft is recovery data for work that has not reached the server. A head
+   * that arrives and already states what a draft says leaves that draft with
+   * nothing to recover, and a draft that stays goes on shadowing the newer
+   * head: `readCachedNote` opens its text, the person edits a version that
+   * somebody else replaced, and a restore has no visible effect on the device
+   * that asked for it (record 0073).
+   *
+   * The caller runs this only where the accepted head follows the server, so
+   * every surviving draft is one the dirty test named as real work.
+   */
+  const dropSettledDrafts = async (
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+    heads: readonly HeadState[],
+  ): Promise<void> => {
+    for (const draft of await draftsOfFile(ctx, accountId, workspaceId, fileId))
+      if (!draftIsUnsentWork(draft, heads))
+        await tables.drafts.delete([
+          serverOrigin,
+          accountId,
+          workspaceId,
+          draft.workingCopyId,
+        ]);
+  };
+
   /** The accepted state of one file as a comparable head. */
   const acceptedHeadState = async (
     accountId: string,
@@ -323,6 +352,12 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   localHeadRevisionId: item.revisionId,
                   updatedAt: nowIso(),
                 });
+                await dropSettledDrafts(
+                  accountId,
+                  workspaceId,
+                  item.fileId,
+                  heads,
+                );
               } else if (file !== null) {
                 // The accepted head follows the snapshot, but the path, the
                 // deletion state, and the local head keep whatever local
@@ -552,27 +587,16 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   localHeadRevisionId: file.revisionId,
                   updatedAt: nowIso(),
                 });
-                // A live file that this device holds a tombstone draft for was
-                // restored. That draft says nothing the file does not already
-                // say, and it would shadow every later edit of the note, so it
-                // goes with the deletion it recorded.
-                if (!file.deleted) {
-                  const stale = await draftsOfFile(
-                    ctx,
-                    accountId,
-                    workspaceId,
-                    file.fileId,
-                  );
-                  for (const draft of stale) {
-                    if (!draft.deleted) continue;
-                    await tables.drafts.delete([
-                      serverOrigin,
-                      accountId,
-                      workspaceId,
-                      draft.workingCopyId,
-                    ]);
-                  }
-                }
+                // Every working copy of this file that holds no unsent work
+                // goes with the head it described. A tombstone draft of a note
+                // the server restored, and a draft of the version that another
+                // device just replaced, both land here.
+                await dropSettledDrafts(
+                  accountId,
+                  workspaceId,
+                  file.fileId,
+                  heads,
+                );
               } else {
                 await tables.acceptedFiles.put({
                   ...current,

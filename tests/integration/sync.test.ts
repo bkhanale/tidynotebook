@@ -26,6 +26,7 @@ import {
   listHistory,
   listWorkspaces,
   purgeFiles,
+  restoreFile,
   signInWithPassword,
   updateFile,
 } from '@notesapp/api-client';
@@ -819,6 +820,197 @@ await test('an edit to a remotely deleted note becomes a recovered note', async 
   } finally {
     await storeA.close();
     await storeB.close();
+  }
+});
+
+await test('a device that only opened a note keeps the newer text', async () => {
+  const file = await newFile('notes/opened-only.md', '# Base\n');
+  const storeA = await openStore('opened-a', 'device-opened-a');
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-opened-a-pull');
+    // The editor opens the note and flushes its buffer, which every editor
+    // does on a blur and on the way out. The person types nothing.
+    await storeA.saveDraft(
+      draftOf(
+        ownerAccountId,
+        'working-opened-a',
+        file.fileId,
+        file.revisionId,
+        '# Base\n',
+        'notes/opened-only.md',
+        1,
+      ),
+    );
+
+    // Another device writes the note.
+    const elsewhere = await updateFile({
+      headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
+      path: { workspaceId, fileId: file.fileId },
+      body: {
+        text: '# Written elsewhere\n',
+        revisionId: randomUUID(),
+        mutationId: randomUUID(),
+        deviceId: 'device-elsewhere',
+      },
+    });
+    assert.equal(elsewhere.error, undefined, JSON.stringify(elsewhere.error));
+
+    // This device reads that version.
+    const pulling = startEngine(storeA, ownerCookie, 'engine-opened-a-feed');
+    try {
+      await waitFor(async () => {
+        const seen = await storeA.readFileSaveSnapshot(
+          ownerAccountId,
+          workspaceId,
+          file.fileId,
+        );
+        return seen.acceptedHeadRevisionId !== file.revisionId;
+      }, 'the opened device reads the version of the other device');
+    } finally {
+      await stopEngine(pulling);
+    }
+
+    // The note now opens with the newer text, and the working copy that held
+    // the replaced text is gone, so nothing shadows it.
+    const cached = await storeA.readCachedNote(
+      ownerAccountId,
+      workspaceId,
+      file.fileId,
+    );
+    assert.equal(cached?.text, '# Written elsewhere\n');
+    assert.equal(cached?.stale, false);
+    assert.equal(
+      await storeA.readDraft(ownerAccountId, workspaceId, 'working-opened-a'),
+      null,
+    );
+
+    // The flush that the editor writes when the tab is hidden creates no
+    // version, because the buffer says what the accepted head already says.
+    assert.equal(
+      await storeA.checkpoint(
+        draftOf(
+          ownerAccountId,
+          'working-opened-a',
+          file.fileId,
+          cached?.baseRevisionId ?? null,
+          '# Written elsewhere\n',
+          'notes/opened-only.md',
+          2,
+        ),
+        null,
+      ),
+      null,
+    );
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(live.data?.head?.text, '# Written elsewhere\n');
+  } finally {
+    await storeA.close();
+  }
+});
+
+await test('a save over an older head is rebased and says so', async () => {
+  const file = await newFile('notes/rebased.md', '# Base\n');
+  const storeA = await openStore('rebase-a', 'device-rebase-a');
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-rebase-a-pull');
+    // This device types over the base and keeps the save on the device.
+    await checkpointText(
+      storeA,
+      draftOf(
+        ownerAccountId,
+        'working-rebase-a',
+        file.fileId,
+        file.revisionId,
+        '# Mine\n',
+        'notes/rebased.md',
+        1,
+      ),
+    );
+    const elsewhere = await updateFile({
+      headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
+      path: { workspaceId, fileId: file.fileId },
+      body: {
+        text: '# Theirs\n',
+        revisionId: randomUUID(),
+        mutationId: randomUUID(),
+        deviceId: 'device-elsewhere',
+      },
+    });
+    assert.equal(elsewhere.error, undefined, JSON.stringify(elsewhere.error));
+
+    const runA = startEngine(storeA, ownerCookie, 'engine-rebase-a');
+    try {
+      await waitFor(
+        async () => (await queuedOf(storeA)).length === 0,
+        'the rebased device drains its save',
+      );
+    } finally {
+      await stopEngine(runA);
+    }
+
+    // The later save wins, the head it passed is a history entry, and the
+    // answer names it, so the person reads one notice instead of nothing.
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(live.data?.head?.text, '# Mine\n');
+    const history = await listHistory({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.deepEqual(
+      history.data?.revisions.map((revision) => revision.revisionId).length,
+      3,
+    );
+    assert.ok(
+      runA.notices.some((notice) => notice.kind === 'superseded'),
+      'the device tells the person that it passed a version',
+    );
+  } finally {
+    await storeA.close();
+  }
+});
+
+await test('a restore reaches the device that asked for it', async () => {
+  const file = await newFile('notes/restored.md', '# Keep\n');
+  const storeA = await openStore('restore-a', 'device-restore-a');
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-restore-a-pull');
+    await storeA.trashFiles(ownerAccountId, workspaceId, [file.fileId]);
+    const runA = startEngine(storeA, ownerCookie, 'engine-restore-a');
+    try {
+      await waitFor(
+        async () => (await queuedOf(storeA)).length === 0,
+        'the restoring device sends its deletion',
+      );
+      const restored = await restoreFile({
+        headers: browser(ownerCookie),
+        path: { workspaceId, fileId: file.fileId },
+        body: {
+          mutationId: randomUUID(),
+          deviceId: storeA.deviceId,
+          clientTime: new Date().toISOString(),
+          revisionId: randomUUID(),
+        },
+      });
+      assert.equal(restored.error, undefined, JSON.stringify(restored.error));
+      await waitFor(async () => {
+        const cached = await storeA.readCachedNote(
+          ownerAccountId,
+          workspaceId,
+          file.fileId,
+        );
+        return cached?.deleted === false && cached.text === '# Keep\n';
+      }, 'the restore reaches the device that asked for it');
+    } finally {
+      await stopEngine(runA);
+    }
+  } finally {
+    await storeA.close();
   }
 });
 

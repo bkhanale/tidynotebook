@@ -1515,6 +1515,210 @@ await test('a draft over an older accepted head opens as stale', async () => {
   await store.close();
 });
 
+await test('a working copy with nothing to recover follows a newer head', async () => {
+  const backend = createBackend('settled-draft-follows');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const first = 'one\n';
+
+  // The note as the server holds it, and the flush an editor writes when it
+  // opens the note and the person types nothing.
+  await store.cacheServerNote(account, workspace, {
+    fileId: file,
+    path: 'notes/one.md',
+    kind: 'note',
+    revisionId: 'rev-1',
+    digest: await contentDigest(first),
+    text: first,
+  });
+  const opened = draftOf(account, workspace, file, 'copy-a', first, {
+    baseRevisionId: 'rev-1',
+  });
+  await store.saveDraft(opened);
+
+  const second = 'two\n';
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: 'rev-2',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest(second),
+          text: second,
+        },
+        purgedFileId: null,
+      },
+    ],
+    '2',
+  );
+
+  // The working copy said only what the head it was written over said, so it
+  // has nothing left to recover and it does not shadow the newer text.
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.text, second);
+  assert.equal(cached?.stale, false);
+  assert.equal(cached?.baseRevisionId, 'rev-2');
+  await store.close();
+});
+
+await test('a save names the accepted revision its content descends from', async () => {
+  const backend = createBackend('precondition-of-parent');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  await store.cacheServerNote(account, workspace, {
+    fileId: file,
+    path: 'notes/one.md',
+    kind: 'note',
+    revisionId: 'rev-1',
+    digest: await contentDigest('one\n'),
+    text: 'one\n',
+  });
+  // The person types over the text of `rev-1`, and the ordered feed brings a
+  // version of another device before the version of this device is written.
+  const typed = draftOf(account, workspace, file, 'copy-a', 'mine\n', {
+    baseRevisionId: 'rev-1',
+  });
+  await store.saveDraft(typed);
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: 'rev-2',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest('theirs\n'),
+          text: 'theirs\n',
+        },
+        purgedFileId: null,
+      },
+    ],
+    '2',
+  );
+
+  const queued = await store.checkpoint(typed, null);
+  // The precondition names `rev-1`, which this text was written over. A
+  // precondition of `rev-2` would tell the server that this save had read the
+  // version of the other device, and the server would replace it in silence.
+  assert.deepEqual(queued?.input.expectedHeads, { [file]: 'rev-1' });
+  assert.deepEqual(queued?.input.revisions[0]?.parents, ['rev-1']);
+
+  // A second version of the same working copy keeps naming that revision,
+  // because the chain between them has not reached the server yet.
+  const again = await store.checkpoint(
+    { ...typed, text: 'mine again\n', sequence: 2 },
+    null,
+  );
+  assert.deepEqual(again?.input.expectedHeads, { [file]: 'rev-1' });
+  await store.close();
+});
+
+await test('a deletion names the revision it removes, not a newer head', async () => {
+  const backend = createBackend('precondition-of-deletion');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  await store.cacheServerNote(account, workspace, {
+    fileId: file,
+    path: 'notes/one.md',
+    kind: 'note',
+    revisionId: 'rev-1',
+    digest: await contentDigest('one\n'),
+    text: 'one\n',
+  });
+  const typed = draftOf(account, workspace, file, 'copy-a', 'mine\n', {
+    baseRevisionId: 'rev-1',
+  });
+  await store.saveDraft(typed);
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: 'rev-2',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest('theirs\n'),
+          text: 'theirs\n',
+        },
+        purgedFileId: null,
+      },
+    ],
+    '2',
+  );
+
+  const [queued] = await store.trashFiles(account, workspace, [file]);
+  // The server refuses a deletion whose precondition is behind the head, so
+  // this value is what keeps a deletion from removing text this device never
+  // read.
+  assert.deepEqual(queued?.input.expectedHeads, { [file]: 'rev-1' });
+  await store.close();
+});
+
+await test('a restore reaches a device that holds the replaced text', async () => {
+  const backend = createBackend('restore-over-working-copy');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+
+  // The note as this device wrote it and the server accepted it. The working
+  // copy stays, because the editor is open on the note.
+  const written = draftOf(account, workspace, file, 'copy-a', 'newest\n');
+  await store.saveDraft(written);
+  const entry = await store.checkpoint(written, null);
+  await store.acknowledge(account, acceptanceOf(entry, account, '4'));
+
+  // History restore writes an older version as the newest one on the server.
+  await store.applyRemoteChanges(
+    account,
+    workspace,
+    [
+      {
+        file: {
+          fileId: file,
+          revisionId: 'restored-revision',
+          path: 'notes/one.md',
+          fileKind: 'note',
+          deleted: false,
+          digest: await contentDigest('older\n'),
+          text: 'older\n',
+        },
+        purgedFileId: null,
+      },
+    ],
+    '5',
+  );
+
+  // The working copy held exactly the text the restore replaced, so it keeps
+  // nothing. Without the drop the note would open with `newest` again and the
+  // restore would read as an action that did nothing.
+  assert.equal(await store.readDraft(account, workspace, 'copy-a'), null);
+  const cached = await store.readCachedNote(account, workspace, file);
+  assert.equal(cached?.text, 'older\n');
+  assert.equal(cached?.stale, false);
+  await store.close();
+});
+
 await test('a remote change keeps a draft that differs from it', async () => {
   const backend = createBackend('remote-keeps-draft');
   const store = await openLocalStore(origin, backend.options());

@@ -88,6 +88,55 @@ export function draftLeads(
   return file.localHeadRevisionId !== file.acceptedHeadRevisionId;
 }
 
+/**
+ * The accepted revision that one submitted parent chain descends from.
+ *
+ * A submission states two things about its place in history: `parents` names
+ * the revision its content was written over, and `expectedHeads` states the
+ * accepted head the server must still hold. The two must name one lineage. The
+ * mirror cannot answer the second question, because the ordered feed moves the
+ * accepted head under an open working copy and the content stays where it was.
+ * A submission that read the precondition from the mirror therefore passed the
+ * one server check that keeps a save from replacing text this device never saw
+ * (record 0073).
+ *
+ * The walk starts at the parent and climbs through the unaccepted checkpoints
+ * of this device, because the server has none of them yet. It stops at the
+ * first revision this device did not create, and at an accepted checkpoint of
+ * its own, because both of those are revisions the server holds. A first
+ * revision has no parent and answers `null`, which states that the server must
+ * not have the file yet.
+ *
+ * The caller runs inside a transaction that covers the checkpoints table.
+ */
+export const expectedHeadOfParent = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+  parentId: string | null,
+): Promise<string | null> => {
+  const seen = new Set<string>();
+  let current = parentId;
+  while (current !== null) {
+    // An immutable checkpoint always names an earlier parent, so a repeat is a
+    // corrupt graph rather than a long chain. Stopping at the repeat keeps the
+    // walk finite and leaves the precondition on the last sound revision.
+    if (seen.has(current)) return current;
+    seen.add(current);
+    const stored: unknown = await ctx.tables.checkpoints.get([
+      ctx.serverOrigin,
+      accountId,
+      workspaceId,
+      current,
+    ]);
+    if (stored === undefined) return current;
+    const checkpoint = validateCheckpoint(stored);
+    if (checkpoint.accepted) return current;
+    current = checkpoint.parents[0] ?? null;
+  }
+  return null;
+};
+
 /** The stored form of a draft the caller supplied. */
 export const draftRow = (
   ctx: LocalStoreContext,

@@ -26,6 +26,7 @@ import {
 import {
   byteLength,
   draftRow,
+  expectedHeadOfParent,
   nextCheckpointSequence,
   nextQueueSequence,
   type LocalStoreContext,
@@ -220,9 +221,19 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
               workspaceId,
               mutationId,
               deviceId,
-              // The accepted head known locally. `null` states that the server
-              // must not have this file yet.
-              expectedHeads: { [fileId]: file?.acceptedHeadRevisionId ?? null },
+              // The accepted revision this content descends from, read from
+              // the parent chain and never from the mirror. The mirror moves
+              // when the ordered feed brings a version of another device, and
+              // a precondition taken from it would tell the server that this
+              // save had seen that version (record 0073).
+              expectedHeads: {
+                [fileId]: await expectedHeadOfParent(
+                  ctx,
+                  accountId,
+                  workspaceId,
+                  parentId,
+                ),
+              },
               revisions: [
                 {
                   id: revisionId,
