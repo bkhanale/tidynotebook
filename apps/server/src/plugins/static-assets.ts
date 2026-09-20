@@ -161,10 +161,8 @@ export function acceptedEncodings(
  */
 export const assetHashLength = 8;
 
-/** The last part of a name that the bundler hashed, and nothing else. */
-const assetHash = new RegExp(
-  `^-[A-Za-z0-9_]{${String(assetHashLength)}}\\.[A-Za-z0-9]+$`,
-);
+/** The characters that the bundler draws a hash from. */
+const assetHashCharacters = /^[A-Za-z0-9_-]+$/;
 
 /**
  * Whether a built file carries a content hash in its name.
@@ -173,21 +171,29 @@ const assetHash = new RegExp(
  * name changes whenever the bytes change. Such a file can be cached for as
  * long as the browser likes.
  *
- * The hash is the last hyphen separated part of the name. A hyphen inside it
- * is therefore read as the end of the name and not as part of the hash, which
- * costs a year of caching for the rare emitted file whose hash holds one, and
- * which is the safe direction. The rule accepted a hyphen before, so
- * `apple-touch-icon.png` passed for a hashed file on the strength of
- * `touch-icon`, and every vendored face passed on the strength of
- * `latin-ext`. Each of those keeps one address across every deployment, so a
- * browser that read one of them pinned those bytes for a year and never asked
- * for the file again. An installed icon on an iPhone stayed at the drawing of
- * the deployment that first served it.
+ * The rule reads that construction and nothing looser: the hash is the last
+ * `assetHashLength` characters before the extension, and a hyphen stands
+ * directly in front of them. A hyphen inside the hash is therefore read
+ * correctly, which six of the vendored mathematics faces need.
+ *
+ * A rule that accepted any hyphen followed by eight or more characters read a
+ * hash where the build wrote none. `apple-touch-icon.png` passed on the
+ * strength of `touch-icon`, and every vendored Geist face passed on the
+ * strength of `latin-ext`. Each of those keeps one address across every
+ * deployment, so a browser that read one pinned those bytes for a year and
+ * never asked for the file again. An installed icon on an iPhone stayed at the
+ * drawing of the deployment that first served it. Every icon now carries a
+ * hash of its own (decision 0074), and `tests/integration/web-build.test.ts`
+ * reads the real build to hold the two sides together.
  */
 export function isHashedAssetName(filePath: string): boolean {
   const name = basename(filePath);
-  const hyphen = name.lastIndexOf('-');
-  return hyphen !== -1 && assetHash.test(name.slice(hyphen));
+  const dot = name.lastIndexOf('.');
+  if (dot === -1) return false;
+  const stem = name.slice(0, dot);
+  if (stem.length <= assetHashLength) return false;
+  if (stem[stem.length - assetHashLength - 1] !== '-') return false;
+  return assetHashCharacters.test(stem.slice(-assetHashLength));
 }
 
 /** Names that must be revalidated on every load, whatever their extension. */

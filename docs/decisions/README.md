@@ -103,6 +103,7 @@ and needs no record.
 | [0071](0071-the-page-states-its-appearance-to-the-browser.md)          | The page states its appearance to the browser              |
 | [0072](0072-the-scrollbar-takes-the-edge-of-the-palette.md)            | The scrollbar takes the edge of the palette                |
 | [0073](0073-a-save-names-the-revision-it-descends-from.md)             | A save names the revision it descends from                 |
+| [0074](0074-the-build-names-every-cached-asset.md)                     | The build names every asset that a browser may pin         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

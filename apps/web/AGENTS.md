@@ -95,5 +95,7 @@ on each rule below.
 | `src/features/editor/note-editor.tsx`         | The editor host and editor view |
 | `src/features/editor/note-loader.tsx`         | The read that opens one note    |
 | `src/features/editor/note-header-actions.tsx` | The actions of the note route   |
-| `vite.config.ts`                              | Build, theme assets, worker     |
+| `vite.config.ts`                              | Build, theme, icons, worker     |
+| `src/pwa/icons.ts`                            | The one list of the icons       |
+| `icons/`                                      | The icon files the build names  |
 | `src/logging.ts`                              | Browser sink for log events     |

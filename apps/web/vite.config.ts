@@ -1,7 +1,17 @@
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { build, defineConfig, type Plugin } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
+import {
+  appIcons,
+  iconBuiltAddress,
+  iconDirectory,
+  iconLinkElements,
+  iconSourceAddress,
+  iconSourceAddresses,
+  type IconAddresses,
+} from './src/pwa/icons.ts';
 import { precacheWorker } from './src/pwa/precache.ts';
 import {
   defaultThemeFamilyId,
@@ -49,6 +59,9 @@ const themeColourPlaceholder = '__NOTESAPP_THEME_COLOUR__';
 
 /** The served name of the installed application manifest. */
 const manifestPath = 'manifest.webmanifest';
+
+/** The placeholder that the icon links of the shell replace. */
+const iconLinkPlaceholder = '__NOTESAPP_ICON_LINKS__';
 
 /** One theme of the registry as the inline script receives it. */
 export type InlineThemeVariant = {
@@ -132,7 +145,9 @@ export type WebManifestDocument = {
  * The shape is declared here, where the value is built, so a reader of the
  * text does not have to claim one.
  */
-export function webManifestDocument(): WebManifestDocument {
+export function webManifestDocument(
+  addresses: IconAddresses,
+): WebManifestDocument {
   const theme = defaultThemeFor('dark');
   return {
     name: 'Notesapp',
@@ -144,44 +159,69 @@ export function webManifestDocument(): WebManifestDocument {
     orientation: 'any',
     background_color: theme.tokens.background,
     theme_color: theme.tokens.background,
-    icons: [
-      {
-        src: '/icon-192.png',
-        sizes: '192x192',
-        type: 'image/png',
-        purpose: 'any',
-      },
-      {
-        src: '/icon-512.png',
-        sizes: '512x512',
-        type: 'image/png',
-        purpose: 'any',
-      },
-      {
-        src: '/maskable-512.png',
-        sizes: '512x512',
-        type: 'image/png',
-        purpose: 'maskable',
-      },
-    ],
+    icons: appIcons
+      .filter((icon) => icon.purpose !== null)
+      .map((icon) => ({
+        src: addresses[icon.file] ?? '',
+        sizes: icon.sizes ?? 'any',
+        type: icon.type,
+        purpose: String(icon.purpose),
+      })),
   };
 }
 
 /** The installed application manifest, serialized. */
-export function webManifest(): string {
-  return `${JSON.stringify(webManifestDocument(), null, 2)}\n`;
+export function webManifest(addresses: IconAddresses): string {
+  return `${JSON.stringify(webManifestDocument(addresses), null, 2)}\n`;
 }
 
 /**
- * Writes the theme registry into the shell document and the manifest.
+ * Emits every icon under a name that follows its bytes, and writes the
+ * theme registry into the shell document and the manifest.
  *
- * Both outputs are generated from `@notesapp/ui`, so the palette lives in
+ * The palette outputs are generated from `@notesapp/ui`, so a colour lives in
  * exactly one place: adding a theme changes one data file and nothing here
- * (audit UI-48).
+ * (audit UI-48). The icon addresses are generated from `appIcons`, so the
+ * shell document and the manifest cannot name an icon the build does not
+ * write, and a new drawing reaches every browser at once (0074).
+ *
+ * The development server holds no build, so it answers the source address of
+ * each icon and the manifest that names those addresses.
  */
-function themeAssets(): Plugin {
+function themeAssets(directory: string): Plugin {
+  /** The address of each icon of this build, filled before the shell. */
+  let addresses: IconAddresses = iconSourceAddresses();
+
+  /** The bytes of each icon, read once. */
+  const bytes = new Map<string, Uint8Array>();
+
+  /** Whether this run emits files. The development server emits none. */
+  let emits = false;
+
   return {
     name: 'notesapp-theme-assets',
+    configResolved(resolved): void {
+      emits = resolved.command === 'build';
+    },
+    // The icons are read and named here, so the shell transform and the
+    // manifest below both read one filled map. The development server holds
+    // no emitted file, so it keeps the source address of each icon and the
+    // middleware below answers it.
+    async buildStart(): Promise<void> {
+      if (!emits) return;
+      const built: Record<string, string> = {};
+      for (const icon of appIcons) {
+        const source = await readFile(
+          resolve(directory, iconDirectory, icon.file),
+        );
+        bytes.set(icon.file, source);
+        built[icon.file] = iconBuiltAddress(
+          icon.file,
+          createHash('sha256').update(source).digest('hex'),
+        );
+      }
+      addresses = built;
+    },
     transformIndexHtml: {
       order: 'pre',
       handler(html: string): string {
@@ -190,24 +230,52 @@ function themeAssets(): Plugin {
           .replace(
             themeColourPlaceholder,
             () => defaultThemeFor('dark').tokens.background,
-          );
+          )
+          .replace(iconLinkPlaceholder, () => iconLinkElements(addresses));
       },
     },
     configureServer(server): void {
       server.middlewares.use((request, response, next): void => {
-        if (!(request.url ?? '').startsWith(`/${manifestPath}`)) {
+        const url = (request.url ?? '').split('?')[0] ?? '';
+        if (url.startsWith(`/${manifestPath}`)) {
+          response.setHeader('content-type', 'application/manifest+json');
+          response.end(webManifest(addresses));
+          return;
+        }
+        const icon = appIcons.find(
+          (one) => iconSourceAddress(one.file) === url,
+        );
+        if (icon === undefined) {
           next();
           return;
         }
-        response.setHeader('content-type', 'application/manifest+json');
-        response.end(webManifest());
+        response.setHeader('content-type', icon.type);
+        readFile(resolve(directory, iconDirectory, icon.file)).then(
+          (source) => {
+            response.end(source);
+          },
+          () => {
+            next();
+          },
+        );
       });
     },
     generateBundle(): void {
+      for (const icon of appIcons) {
+        const source = bytes.get(icon.file);
+        const fileName = addresses[icon.file];
+        if (source === undefined || fileName === undefined)
+          throw new Error(`The build read no bytes for ${icon.file}.`);
+        this.emitFile({
+          type: 'asset',
+          fileName: fileName.slice(1),
+          source,
+        });
+      }
       this.emitFile({
         type: 'asset',
         fileName: manifestPath,
-        source: webManifest(),
+        source: webManifest(addresses),
       });
     },
   };
@@ -311,7 +379,7 @@ export default defineConfig(({ command }) => ({
   },
   plugins: [
     tailwindcss(),
-    themeAssets(),
+    themeAssets(import.meta.dirname),
     ...(command === 'build' ? [diagramFrame(import.meta.dirname)] : []),
     // Last, because its hook reads every emitted file of the build, including
     // the application manifest and the diagram frame that the two plugins

@@ -50,6 +50,20 @@ await test('every emitted name of the bundler carries its hash', () => {
     'attention-link-5pZjb6jT.js',
     'main-BR7H7KVx.css',
     'now-Ca5VK6da.js',
+    // Six vendored faces carry a hyphen inside the hash itself. A rule that
+    // cut the name at the last hyphen read `rTL` as the hash and served them
+    // revalidated for ever.
+    'KaTeX_Caligraphic-Regular-CTRA-rTL.woff',
+    'KaTeX_Caligraphic-Regular-Di6jR-x-.woff2',
+    'KaTeX_Math-BoldItalic-iY-2wyZ7.woff',
+    'KaTeX_Math-Italic-t53AETM-.woff2',
+    'KaTeX_Script-Regular-C5JkGWo-.ttf',
+    'KaTeX_Size4-Regular-BF-4gkZK.woff',
+    // The build names an icon the same way (0074).
+    'apple-touch-icon-7402c1eb.png',
+    'icon-192-85536966.png',
+    'maskable-512-2f9c70da.png',
+    'icon-58a10ab5.svg',
   ])
     assert.ok(isHashedAssetName(`/dist/assets/${name}`), name);
 });

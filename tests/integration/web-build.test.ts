@@ -12,9 +12,11 @@
  * from another list, or that keeps a fixed name, therefore fails here.
  */
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
+import { assetHashLength, cacheControlFor } from '@notesapp/server';
+import { appIcons, iconHashLength } from '../../apps/web/src/pwa/icons.ts';
 import {
   derivePrecache,
   directoryFiles,
@@ -22,6 +24,18 @@ import {
 } from '../../apps/web/src/pwa/precache.ts';
 
 const distribution = join(import.meta.dirname, '../../apps/web/dist/web');
+
+/** The emitted directory, whose names carry a hash of their bytes. */
+const hashedDirectory = '/assets/';
+
+/** A neighbour that the build writes beside a file and never serves. */
+const notServed = /\.(?:br|gz|map)$/;
+
+/** Every served file of the build, by address. */
+async function servedFiles(): Promise<readonly string[]> {
+  const files = await directoryFiles(distribution);
+  return files.map((file) => file.url).filter((url) => !notServed.test(url));
+}
 
 /** The built worker, or a failure that names the one cause. */
 async function readWorker(): Promise<string> {
@@ -58,4 +72,60 @@ await test('the cache of the built worker follows its bytes', async () => {
   // A fixed name served the shell of an older deployment until the browser
   // evicted it, because the address of the shell never changes.
   assert.ok(!worker.includes('notesapp-app-v1'));
+});
+
+await test('the two sides agree on the length of a hash', () => {
+  // `apps/web` is browser code and imports no server package, so the two
+  // constants cannot read each other. This is where they meet.
+  assert.equal(iconHashLength, assetHashLength);
+});
+
+await test('a year of caching follows the name the build wrote', async () => {
+  // The server reads a content hash out of a name. A file of the emitted
+  // directory carries one, so it is pinned. Every other served file keeps one
+  // address across deployments, so it is revalidated. A rule that read a hash
+  // where the build wrote none pinned `/apple-touch-icon.png` for a year, and
+  // an installed icon on a device never changed again.
+  const files = await servedFiles();
+  assert.ok(files.length > 0, 'the browser build is absent');
+  for (const url of files) {
+    const pinned = cacheControlFor(url).includes('immutable');
+    assert.equal(pinned, url.startsWith(hashedDirectory), url);
+  }
+});
+
+await test('the shell and the manifest name icons that the build wrote', async () => {
+  const shell = await readFile(join(distribution, 'index.html'), 'utf8');
+  const manifest: unknown = JSON.parse(
+    await readFile(join(distribution, 'manifest.webmanifest'), 'utf8'),
+  );
+  const emitted = new Set(await servedFiles());
+  const named: string[] = [];
+  for (const element of shell.match(/<link\b[^>]*>/g) ?? []) {
+    if (!/rel="(?:icon|apple-touch-icon)"/.test(element)) continue;
+    named.push(/href="([^"]+)"/.exec(element)?.[1] ?? '');
+  }
+  assert.ok(
+    typeof manifest === 'object' && manifest !== null && 'icons' in manifest,
+  );
+  const icons: unknown = manifest.icons;
+  assert.ok(Array.isArray(icons));
+  for (const icon of icons) {
+    assert.ok(typeof icon === 'object' && icon !== null && 'src' in icon);
+    const source: unknown = icon.src;
+    assert.ok(typeof source === 'string');
+    named.push(source);
+  }
+  assert.equal(named.length, appIcons.length);
+  for (const address of named) {
+    // A fixed address is what a stale cache entry answers, so no icon keeps
+    // one. See decision 0074.
+    assert.ok(address.startsWith(hashedDirectory), address);
+    assert.ok(emitted.has(address), address);
+  }
+});
+
+await test('no icon keeps a fixed address of its own', async () => {
+  const root = await readdir(distribution);
+  for (const icon of appIcons) assert.ok(!root.includes(icon.file), icon.file);
 });

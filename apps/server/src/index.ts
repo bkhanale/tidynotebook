@@ -116,7 +116,9 @@ export {
   publishedDocumentHeaders,
 } from './plugins/security-headers.ts';
 export {
+  assetHashLength,
   builtStylesheetHrefs,
+  cacheControlFor,
   documentStylesheetHrefs,
 } from './plugins/static-assets.ts';
 export {

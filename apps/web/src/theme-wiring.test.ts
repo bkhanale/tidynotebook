@@ -24,6 +24,11 @@ import {
   themes,
 } from '@notesapp/ui';
 import {
+  appIcons,
+  iconSourceAddresses,
+  type IconAddresses,
+} from './pwa/icons.ts';
+import {
   themeRegistry,
   themeRegistryData,
   webManifest,
@@ -33,12 +38,18 @@ import {
 
 const inline = themeRegistry();
 
+/** The source address of every icon, as the development server answers it. */
+const sourceAddresses: IconAddresses = iconSourceAddresses();
+
 await test('the inline script text carries the registry it was built from', () => {
   assert.deepEqual(JSON.parse(themeRegistryData()), inline);
 });
 
 await test('the manifest text carries the document it was built from', () => {
-  assert.deepEqual(JSON.parse(webManifest()), webManifestDocument());
+  assert.deepEqual(
+    JSON.parse(webManifest(sourceAddresses)),
+    webManifestDocument(sourceAddresses),
+  );
 });
 
 await test('the inline script carries every theme of the registry', () => {
@@ -90,7 +101,7 @@ await test('the inline script carries the derived divider of every theme', () =>
 });
 
 await test('the manifest takes its interface colour from the registry', () => {
-  const manifest = webManifestDocument();
+  const manifest = webManifestDocument(sourceAddresses);
   const theme = defaultThemeFor('dark');
   assert.equal(manifest.theme_color, theme.tokens.background);
   assert.equal(manifest.background_color, theme.tokens.background);
@@ -99,4 +110,17 @@ await test('the manifest takes its interface colour from the registry', () => {
 
 await test('the editor reads exactly the syntax group of a theme', () => {
   assert.deepEqual([...syntaxTokenNames], [...syntaxPropertyNames]);
+});
+
+await test('every icon of the manifest is one the build emits', () => {
+  const manifest = webManifestDocument(sourceAddresses);
+  const listed = appIcons.filter((icon) => icon.purpose !== null);
+  assert.equal(manifest.icons.length, listed.length);
+  for (const [at, icon] of listed.entries()) {
+    const entry = manifest.icons[at];
+    assert.ok(entry !== undefined, icon.file);
+    assert.equal(entry.src, sourceAddresses[icon.file], icon.file);
+    assert.equal(entry.type, icon.type, icon.file);
+    assert.equal(entry.purpose, icon.purpose, icon.file);
+  }
 });
