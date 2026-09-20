@@ -153,14 +153,41 @@ export function acceptedEncodings(
 }
 
 /**
+ * The length of the hash that the bundler writes into an emitted name.
+ *
+ * Rollup, and Vite above it, write eight characters. The build asserts the
+ * same length over its own output, so a release that changes it fails the
+ * gate instead of quietly serving every asset as revalidated.
+ */
+export const assetHashLength = 8;
+
+/** The last part of a name that the bundler hashed, and nothing else. */
+const assetHash = new RegExp(
+  `^-[A-Za-z0-9_]{${String(assetHashLength)}}\\.[A-Za-z0-9]+$`,
+);
+
+/**
  * Whether a built file carries a content hash in its name.
  *
  * Vite writes `name-<hash>.ext` for every emitted chunk and asset, so the
  * name changes whenever the bytes change. Such a file can be cached for as
  * long as the browser likes.
+ *
+ * The hash is the last hyphen separated part of the name. A hyphen inside it
+ * is therefore read as the end of the name and not as part of the hash, which
+ * costs a year of caching for the rare emitted file whose hash holds one, and
+ * which is the safe direction. The rule accepted a hyphen before, so
+ * `apple-touch-icon.png` passed for a hashed file on the strength of
+ * `touch-icon`, and every vendored face passed on the strength of
+ * `latin-ext`. Each of those keeps one address across every deployment, so a
+ * browser that read one of them pinned those bytes for a year and never asked
+ * for the file again. An installed icon on an iPhone stayed at the drawing of
+ * the deployment that first served it.
  */
 export function isHashedAssetName(filePath: string): boolean {
-  return /-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$/.test(basename(filePath));
+  const name = basename(filePath);
+  const hyphen = name.lastIndexOf('-');
+  return hyphen !== -1 && assetHash.test(name.slice(hyphen));
 }
 
 /** Names that must be revalidated on every load, whatever their extension. */

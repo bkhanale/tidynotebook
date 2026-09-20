@@ -39,6 +39,48 @@ await test('a hashed file is cached for a year and everything else is not', () =
   assert.equal(cacheControlFor('/dist/frame-CdE12fGh.html'), 'no-cache');
 });
 
+await test('every emitted name of the bundler carries its hash', () => {
+  // Real names of one build. The bundler writes eight characters of its own
+  // alphabet, which holds a digit, a letter of either case and `_`.
+  for (const name of [
+    'main-DQQg1tio.js',
+    'editor-CJLxXS_0.js',
+    'dist-D_J69Mso.js',
+    'note-editor-hOd_chB0.js',
+    'attention-link-5pZjb6jT.js',
+    'main-BR7H7KVx.css',
+    'now-Ca5VK6da.js',
+  ])
+    assert.ok(isHashedAssetName(`/dist/assets/${name}`), name);
+});
+
+await test('a fixed address is never pinned, whatever its hyphens', () => {
+  // A file of the public directory keeps one address across every
+  // deployment, so a year of `immutable` pins bytes that a later build
+  // replaces. The browser then holds the old bytes and never asks again,
+  // which is what an iPhone reported for the installed icon.
+  //
+  // Each name below is a real one. `apple-touch-icon.png` and the vendored
+  // faces read as hashed while the rule accepted a hyphen inside the hash,
+  // because `touch-icon` and `latin-ext` are long enough to pass for one.
+  for (const name of [
+    'apple-touch-icon.png',
+    'icon-192.png',
+    'icon-512.png',
+    'maskable-512.png',
+    'icon.svg',
+    'fonts/geist-latin-ext.woff2',
+    'fonts/geist-latin-ext-italic.woff2',
+    'fonts/geist-latin-italic.woff2',
+    'fonts/geist-mono-latin.woff2',
+    'fonts/geist-mono-latin-ext.woff2',
+    'KaTeX_Main-Regular.woff2',
+  ]) {
+    assert.equal(isHashedAssetName(`/dist/${name}`), false, name);
+    assert.equal(cacheControlFor(`/dist/${name}`), 'no-cache', name);
+  }
+});
+
 await test('an entity tag condition matches by value and by star', () => {
   assert.ok(matchesEntityTag('"abc"', '"abc"'));
   assert.ok(matchesEntityTag('W/"abc"', '"abc"'));
