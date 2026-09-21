@@ -5,6 +5,22 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.6 - 2026-09-21
+
+This patch release brings the current icon to an installed application, and it
+puts the task box and the controls of the top bar on their line.
+
+### Fixed
+
+- An installed application shows the current icon. A device that holds an older
+  drawing gets the new one.
+- A change to the typeface reaches the reader. The browser no longer keeps an
+  old font file for a year.
+- A task box sits on the line of its text. The box centres on the word beside
+  it.
+- The controls of the top bar line up with the page below. On a phone the
+  drawer button and the account picture stand at the edge of the title.
+
 ## 0.3.5 - 2026-09-20
 
 This patch release keeps the note safe when a second device writes it, and it
