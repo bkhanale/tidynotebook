@@ -11,9 +11,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EditorState } from '@codemirror/state';
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
+import { syntaxTree } from '@codemirror/language';
 import { containerDepth } from './math-syntax.ts';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 
 await test('a line that reports its depth reads back that number', () => {
   for (const depth of [0, 1, 4]) assert.equal(containerDepth({ depth }), depth);
@@ -28,15 +28,9 @@ await test('a display math block closes at the end of its block quote', () => {
   // The depth is what ends the block here: the third line leaves the quote,
   // so the math block must not swallow it.
   const doc = '> $$\n> a = b\n\nplain text\n';
-  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
-  for (
-    let attempt = 0;
-    attempt < 200 && syntaxTree(state).length < state.doc.length;
-    attempt += 1
-  ) {
-    ensureSyntaxTree(state, state.doc.length, 5000);
-    state = state.update({}).state;
-  }
+  const state = parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown()] }),
+  );
   const blocks: { from: number; to: number }[] = [];
   syntaxTree(state).iterate({
     enter: (node) => {

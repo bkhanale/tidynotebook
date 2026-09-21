@@ -29,7 +29,7 @@
  * break or a whole line must come from a state field, which is what
  * `./widgets.ts` provides.
  */
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
+import { syntaxTree } from '@codemirror/language';
 import { EditorState, type Extension, type Range } from '@codemirror/state';
 import {
   Decoration,
@@ -47,7 +47,7 @@ import {
   type AlertTone,
 } from '@notesapp/markdown';
 import { taskToggleAt } from './commands.ts';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 
 /** One structural fact the preview decorated, in document order. */
 export type PreviewNode =
@@ -1077,21 +1077,16 @@ export function buildPreview(
  * the decoration builder reported. The equivalence gate compares the result
  * with the reference renderer, so both readers of a note must agree.
  *
- * A view parses at least its viewport before it renders. A headless state
- * parses in slices and keeps the result in its parse context, so the loop
- * below pumps that work into the state field until the tree covers the
- * document.
+ * `parsedWhole` refuses a partial parse rather than handing one back. A
+ * document this function reported on is therefore always the whole
+ * document: a caller that saw a mismatch here is looking at a real
+ * disagreement between the two readers of a note, never at a parser that
+ * ran out of time.
  */
 export function previewStructureOf(doc: string): readonly PreviewNode[] {
-  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
-  for (
-    let attempt = 0;
-    attempt < 500 && syntaxTree(state).length < state.doc.length;
-    attempt += 1
-  ) {
-    ensureSyntaxTree(state, state.doc.length, 5000);
-    state = state.update({}).state;
-  }
+  const state = parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown()] }),
+  );
   // A selection outside the document reveals nothing, so every construct is
   // reported in its rendered form.
   return buildPreview(state, [{ from: 0, to: state.doc.length }], {

@@ -9,8 +9,15 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { syntaxTree } from '@codemirror/language';
+import { EditorState } from '@codemirror/state';
 import { tags, type Tag } from '@lezer/highlight';
-import { codeHighlightSpecs, syntaxTokenNames } from './language.ts';
+import {
+  codeHighlightSpecs,
+  noteMarkdown,
+  parsedWhole,
+  syntaxTokenNames,
+} from './language.ts';
 
 /** Every tag the code highlight style paints, flattened. */
 function styledTags(): readonly Tag[] {
@@ -69,4 +76,41 @@ await test('the syntax contract keeps the heading and link names', () => {
   // the code style no longer reads them, so the agreement test still holds.
   assert.ok(syntaxTokenNames.includes('heading'));
   assert.ok(syntaxTokenNames.includes('link'));
+});
+
+/**
+ * Many short paragraphs, each its own block, well past the 3000 character
+ * initial viewport of `@codemirror/language`.
+ *
+ * A single unbroken paragraph of the same length would not prove the
+ * refusal: the incremental parser must finish a block it has already
+ * started, so one giant paragraph parses to its end in the first pass
+ * regardless of length. Many short blocks give the parser a boundary to
+ * stop at inside the first 3000 characters, so the first pass is provably
+ * partial.
+ */
+function manyShortParagraphs(count: number): string {
+  return `${'word '.repeat(10)}\n\n`.repeat(count);
+}
+
+await test('parsedWhole pumps the parser until the tree covers the document', () => {
+  const doc = manyShortParagraphs(60);
+  const state = parsedWhole(
+    EditorState.create({ doc, extensions: [noteMarkdown()] }),
+  );
+  assert.equal(syntaxTree(state).length, state.doc.length);
+});
+
+await test('parsedWhole refuses a document the bound cannot cover', () => {
+  const doc = manyShortParagraphs(60);
+  const fresh = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  // A fresh state only ever parses its initial viewport, capped at 3000
+  // characters, so a document past that length is partial before the first
+  // pump. An attempt bound of 0 forces the refusal without depending on how
+  // fast the machine running the test is.
+  assert.ok(syntaxTree(fresh).length < fresh.doc.length);
+  assert.throws(
+    () => parsedWhole(fresh, { attempts: 0 }),
+    /the parser stopped at \d+ of \d+ characters/,
+  );
 });

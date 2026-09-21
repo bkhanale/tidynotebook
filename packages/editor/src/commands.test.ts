@@ -1,9 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
 import { editingTransaction, linkSpanAt } from './commands.ts';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 
 await test('an editing command asks to keep the caret in view', () => {
   // CodeMirror scrolls the caret back into view only when the transaction
@@ -24,20 +23,11 @@ await test('an editing command asks to keep the caret in view', () => {
  * A state whose whole document is parsed.
  *
  * `linkSpanAt` reads the syntax tree, so a test needs the tree of the whole
- * document. A headless state parses in slices and keeps the result in its
- * parse context, so this loop pumps that work into the state field.
+ * document. A headless state parses in slices, so this reads through
+ * `parsedWhole`, which pumps that work into the state field.
  */
 function stateOf(doc: string): EditorState {
-  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
-  for (
-    let attempt = 0;
-    attempt < 200 && syntaxTree(state).length < state.doc.length;
-    attempt += 1
-  ) {
-    ensureSyntaxTree(state, state.doc.length, 5000);
-    state = state.update({}).state;
-  }
-  return state;
+  return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
 }
 
 /** The span of the link at one position, described for a test. */

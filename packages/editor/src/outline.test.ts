@@ -7,23 +7,13 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 import { outlineOf } from './outline.ts';
 
 /** Builds a state whose whole document is parsed. */
 function stateOf(doc: string): EditorState {
-  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
-  for (
-    let attempt = 0;
-    attempt < 200 && syntaxTree(state).length < state.doc.length;
-    attempt += 1
-  ) {
-    ensureSyntaxTree(state, state.doc.length, 5000);
-    state = state.update({}).state;
-  }
-  return state;
+  return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
 }
 
 await test('every heading shape reaches the outline with its level', () => {

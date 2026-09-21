@@ -9,9 +9,8 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 import {
   buildPreview,
   delimiterRowParts,
@@ -25,21 +24,12 @@ import {
  * Builds a state whose whole document is parsed.
  *
  * A view parses at least its viewport before it renders, so the preview
- * reads a ready tree there. A headless state parses in slices and keeps the
- * result in its parse context, so the loop below pumps that work into the
- * state field until the tree covers the document.
+ * reads a ready tree there. A headless state parses in slices, so this
+ * reads through `parsedWhole`, which pumps that work into the state field
+ * until the tree covers the document or refuses.
  */
 function stateOf(doc: string): EditorState {
-  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
-  for (
-    let attempt = 0;
-    attempt < 200 && syntaxTree(state).length < state.doc.length;
-    attempt += 1
-  ) {
-    ensureSyntaxTree(state, state.doc.length, 5000);
-    state = state.update({}).state;
-  }
-  return state;
+  return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
 }
 
 /**
@@ -675,18 +665,12 @@ function typeInto(text: string, onStep: (state: EditorState) => void): void {
   let state = EditorState.create({ doc: '', extensions: [noteMarkdown()] });
   for (const character of text) {
     const at = state.doc.length;
-    state = state.update({
-      changes: { from: at, insert: character },
-      selection: { anchor: at + 1 },
-    }).state;
-    for (
-      let attempt = 0;
-      attempt < 200 && syntaxTree(state).length < state.doc.length;
-      attempt += 1
-    ) {
-      ensureSyntaxTree(state, state.doc.length, 5000);
-      state = state.update({}).state;
-    }
+    state = parsedWhole(
+      state.update({
+        changes: { from: at, insert: character },
+        selection: { anchor: at + 1 },
+      }).state,
+    );
     onStep(state);
   }
 }

@@ -17,12 +17,14 @@
 import { markdown } from '@codemirror/lang-markdown';
 import { yamlFrontmatter } from '@codemirror/lang-yaml';
 import {
+  ensureSyntaxTree,
   HighlightStyle,
   LanguageDescription,
   LanguageSupport,
   syntaxHighlighting,
+  syntaxTree,
 } from '@codemirror/language';
-import type { Extension } from '@codemirror/state';
+import type { EditorState, Extension } from '@codemirror/state';
 import { GFM } from '@lezer/markdown';
 import { tags } from '@lezer/highlight';
 import { mathMarkdownExtension } from './math-syntax.ts';
@@ -192,4 +194,62 @@ export function noteMarkdown(): LanguageSupport {
 /** The language plus the colors its fenced code needs. */
 export function noteMarkdownExtensions(): Extension {
   return [noteMarkdown(), syntaxHighlighting(codeHighlightStyle)];
+}
+
+/** How many pumps of the parser {@link parsedWhole} allows before it refuses. */
+const wholeDocumentAttemptBound = 500;
+
+/** How much parsing work one pump of {@link parsedWhole} buys, in milliseconds. */
+const wholeDocumentSliceBudget = 5000;
+
+/** Tuning knobs of {@link parsedWhole}, for a test that proves its refusal. */
+export type ParsedWholeOptions = {
+  /**
+   * Overrides the attempt bound.
+   *
+   * A test sets this to 0 to force the refusal without waiting on a slow
+   * machine: a fresh state only ever parses its initial viewport of about
+   * 3000 characters, so a document past that length is provably partial
+   * before the first pump.
+   */
+  readonly attempts?: number;
+};
+
+/**
+ * Pumps the parser of a state until its tree covers the whole document.
+ *
+ * A view parses at least its viewport before it renders, so the live
+ * preview always reads a tree that is ready for what is on screen. A
+ * headless state, the kind a test or an offline reader builds, parses in
+ * slices instead and keeps the unfinished work in its parse context. This
+ * helper drives that background work into the state field one slice at a
+ * time, the same way `@codemirror/language` drives it during idle time in a
+ * real view.
+ *
+ * The bound exists so a stuck parse fails loudly instead of spinning
+ * forever. When the tree still does not cover the document after the bound
+ * is spent, this throws instead of handing back a state whose tree is
+ * partial: a caller that compares a partial tree against the whole document
+ * would read the gap as a Markdown defect instead of a parser refusal.
+ */
+export function parsedWhole(
+  state: EditorState,
+  options: ParsedWholeOptions = {},
+): EditorState {
+  const attemptBound = options.attempts ?? wholeDocumentAttemptBound;
+  let current = state;
+  for (
+    let attempt = 0;
+    attempt < attemptBound && syntaxTree(current).length < current.doc.length;
+    attempt += 1
+  ) {
+    ensureSyntaxTree(current, current.doc.length, wholeDocumentSliceBudget);
+    current = current.update({}).state;
+  }
+  const reached = syntaxTree(current).length;
+  if (reached < current.doc.length)
+    throw new Error(
+      `the parser stopped at ${String(reached)} of ${String(current.doc.length)} characters`,
+    );
+  return current;
 }

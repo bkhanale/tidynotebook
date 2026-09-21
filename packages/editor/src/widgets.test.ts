@@ -8,9 +8,8 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import { EditorState } from '@codemirror/state';
-import { noteMarkdown } from './language.ts';
+import { noteMarkdown, parsedWhole } from './language.ts';
 import {
   attachmentIdOf,
   buildRichWidgets,
@@ -23,22 +22,15 @@ import {
 
 /** Builds a state whose whole document is parsed. */
 function stateOf(doc: string, selection?: number): EditorState {
-  let state = EditorState.create({
-    doc,
-    extensions: [noteMarkdown()],
-    ...(selection === undefined
-      ? {}
-      : { selection: { anchor: selection, head: selection } }),
-  });
-  for (
-    let attempt = 0;
-    attempt < 200 && syntaxTree(state).length < state.doc.length;
-    attempt += 1
-  ) {
-    ensureSyntaxTree(state, state.doc.length, 5000);
-    state = state.update({}).state;
-  }
-  return state;
+  return parsedWhole(
+    EditorState.create({
+      doc,
+      extensions: [noteMarkdown()],
+      ...(selection === undefined
+        ? {}
+        : { selection: { anchor: selection, head: selection } }),
+    }),
+  );
 }
 
 const attachment = '/attachments/0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
