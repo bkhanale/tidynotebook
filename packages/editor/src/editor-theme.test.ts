@@ -192,6 +192,28 @@ await test('a list marker is quiet and never the accent', () => {
   assert.equal(rule('.cm-np-list-number').color, 'var(--notes-text-muted)');
 });
 
+await test('a wrapped item starts on the first letter of its own text', () => {
+  // The defect this covers: the editor wraps every line, so the second line
+  // of a long item started again at the left edge, under the box or the
+  // bullet, and one item read as two.
+  //
+  // The lead states no width, so it takes the width of the indentation, the
+  // marker and the space it holds. The body claims the whole measure, which
+  // is what makes the lead shrink to its own content. No rule here states a
+  // distance, so the alignment follows the real marker at every depth.
+  const line = rule('.cm-np-list-line');
+  const lead = rule('.cm-np-list-lead');
+  const body = rule('.cm-np-list-body');
+  assert.equal(line.display, 'table');
+  assert.equal(line.width, '100%');
+  assert.equal(lead.display, 'table-cell');
+  assert.equal(lead.width, undefined);
+  // The source spaces of a nested item keep their own width in the lead.
+  assert.equal(lead.whiteSpace, 'pre');
+  assert.equal(body.display, 'table-cell');
+  assert.equal(body.width, '100%');
+});
+
 await test('strong text and a heading read one weight', () => {
   // One name for one fact, so the note and the published page cannot drift.
   assert.equal(

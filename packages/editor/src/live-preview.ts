@@ -552,6 +552,43 @@ export function buildPreview(
     );
   };
 
+  /**
+   * Puts the marker of one list item beside its text instead of above it.
+   *
+   * The editor wraps every line, and a wrapped line starts again at the left
+   * edge of the note. The second line of an item therefore stood under its
+   * own box or bullet and read as a new item. The marker line becomes one row
+   * of two boxes: the lead holds the indentation and the marker, and the body
+   * holds the text. The body is a cell of its own, so every wrapped line
+   * starts on the first letter of the item.
+   *
+   * The lead takes the width of what is in it, so the alignment follows the
+   * real marker at any depth: the source spaces of a nested item, the drawn
+   * bullet, the number of an ordered item, and the task box with the gap it
+   * carries. No rule states a distance, and nothing here measures the text.
+   *
+   * Only the line that carries the marker is a row. A later line of the same
+   * item already holds its own indentation in the source, and a table row
+   * inside an item keeps the leading cell that `tableLeadMark` gives it.
+   */
+  const hangingIndent = (item: SyntaxNode): void => {
+    const listMark = item.getChild('ListMark');
+    if (listMark === null) return;
+    const line = doc.lineAt(listMark.from);
+    const taskMarker = item.getChild('Task')?.getChild('TaskMarker') ?? null;
+    const marker = taskMarker !== null ? taskMarker.to : listMark.to;
+    if (marker > line.to) return;
+    let content = marker;
+    while (
+      content < line.to &&
+      /[ \t]/.test(doc.sliceString(content, content + 1))
+    )
+      content += 1;
+    lineClass(line.from, line.from, 'cm-np-list-line');
+    mark(line.from, content, 'cm-np-list-lead');
+    mark(content, line.to, 'cm-np-list-body');
+  };
+
   /** The nesting depth of the given container kind on the current stack. */
   const depthOf = (...names: readonly string[]): number =>
     stack.reduce(
@@ -751,6 +788,7 @@ export function buildPreview(
         depth: depthOf('BulletList', 'OrderedList'),
         ordered: parent === 'OrderedList',
       });
+      hangingIndent(node.node);
       return true;
     }
 

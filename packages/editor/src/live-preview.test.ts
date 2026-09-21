@@ -277,6 +277,62 @@ await test('a bullet is replaced at every depth and an ordered marker is kept', 
   assert.equal(visibleText('3. three\n4. four\n'), '3. three\n4. four\n');
 });
 
+await test('the marker line of an item is one row of a lead and a body', () => {
+  // The defect this covers: the editor wraps every line, so the second line
+  // of a long item started again at the left edge, under the box or the
+  // bullet, and one item read as two. The lead holds the indentation and the
+  // marker, the body holds the text, and the body is the box that wraps.
+  for (const item of [
+    { doc: '- [ ] one\n', lead: [0, 6], body: [6, 9] },
+    { doc: '- one\n', lead: [0, 2], body: [2, 5] },
+    { doc: '1. one\n', lead: [0, 3], body: [3, 6] },
+  ]) {
+    const found = describe(item.doc);
+    assert.ok(
+      has(found, 'line', 'cm-np-list-line', 0, 0),
+      `${item.doc} has no row`,
+    );
+    assert.ok(
+      has(found, 'mark', 'cm-np-list-lead', item.lead[0], item.lead[1]),
+      `${item.doc} has no lead`,
+    );
+    assert.ok(
+      has(found, 'mark', 'cm-np-list-body', item.body[0], item.body[1]),
+      `${item.doc} has no body`,
+    );
+  }
+});
+
+await test('a nested item takes its own source indentation into the lead', () => {
+  // The lead takes the width of what it holds, so the indentation of a nested
+  // item belongs inside it. This is what keeps the alignment right at every
+  // depth without a rule that states a distance.
+  const found = describe('- one\n  - [ ] two\n');
+  assert.ok(has(found, 'line', 'cm-np-list-line', 6, 6));
+  assert.ok(has(found, 'mark', 'cm-np-list-lead', 6, 14));
+  assert.ok(has(found, 'mark', 'cm-np-list-body', 14, 17));
+});
+
+await test('only the marker line of an item is a row', () => {
+  // A later line of the same item already carries its indentation in the
+  // source, so it stays an ordinary line and nothing moves it twice.
+  const rows = describe('- one\n  two\n').filter(
+    (item) => item.kind === 'line' && item.value === 'cm-np-list-line',
+  );
+  assert.deepEqual(
+    rows.map((row) => row.from),
+    [0],
+  );
+});
+
+await test('an item with no text grows no body', () => {
+  // A mark decoration may not be empty, so an item that holds only its marker
+  // gets the lead alone.
+  const found = describe('- \n');
+  assert.ok(has(found, 'mark', 'cm-np-list-lead', 0, 2));
+  assert.ok(!has(found, 'mark', 'cm-np-list-body'));
+});
+
 await test('a task marker becomes a checkbox that carries its own position', () => {
   const doc = '- [ ] one\n- [x] two\n';
   const found = describe(doc);

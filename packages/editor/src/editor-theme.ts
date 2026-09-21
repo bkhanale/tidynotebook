@@ -399,6 +399,31 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       fontStyle: 'normal',
     },
 
+    // The marker of an item stands beside the text of the item and never
+    // above it. The editor wraps every line, so the second line of a long
+    // item started again at the left edge, under the box or the bullet, and
+    // the item read as two items.
+    //
+    // The line that carries the marker is one row of two cells. The lead cell
+    // takes the width of what it holds, which is the indentation of the item,
+    // the marker, and the space after it, and the body cell takes the rest of
+    // the measure. A cell wraps inside its own box, so every wrapped line of
+    // the item starts on the first letter of its text.
+    //
+    // The alignment therefore follows the real marker and no rule states a
+    // distance: the source spaces of a nested item, the drawn bullet, the
+    // number of an ordered item at any width, and the task box with the gap
+    // it carries all size the lead cell themselves. This is the same
+    // mechanism that `.cm-np-table-lead` uses, and `live-preview.ts` marks
+    // both ranges.
+    '.cm-np-list-line': { display: 'table', width: '100%' },
+    // The lead holds the source spaces of a nested item, so it keeps them at
+    // their own width and never wraps between the indentation and the marker.
+    '.cm-np-list-lead': { display: 'table-cell', whiteSpace: 'pre' },
+    // The body takes every remaining pixel of the measure, which is what
+    // makes the lead shrink to its own content.
+    '.cm-np-list-body': { display: 'table-cell', width: '100%' },
+
     // The task box is a drawn control (record 0033). The native box paints
     // the accent of the operating system and nothing in the palette reaches
     // it, so the appearance is removed and the box is drawn again from the

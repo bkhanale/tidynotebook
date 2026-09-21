@@ -20,11 +20,12 @@ completion, paste conversion, and the unified diff for History.
   this package that sets presentation in TypeScript. It reads the named steps
   of `apps/web/src/tailwind.css`, which `editorThemeVariables` lists for the
   integration test, and the runtime `--notes-*` palette.
-- The rhythm of a note comes from the note: a blank line of the source is a
-  line at the full height, so `.cm-line` adds no block padding and a heading
-  adds the one step that groups it with its own text. Strong text, a heading
-  and a table head read `--font-weight-note-heading`, so the note and the
-  published page agree.
+- The rhythm of a note comes from the note: a blank source line is a line at
+  the full height, so `.cm-line` adds no block padding and a heading adds the
+  one step that groups it with its text. Strong text, a heading and a table
+  head read `--font-weight-note-heading`, so the note and the page agree.
+- The marker line of a list item is one row: a lead cell for its indentation
+  and its marker, and a body cell that wraps, so no rule states an indent.
 - The task box is drawn from the theme (record 0033), and it is the one thing
   here that reads `--notes-border`, the edge record 0063 keeps for a control
   whose state a person reads with no text. Every other edge of a note is
