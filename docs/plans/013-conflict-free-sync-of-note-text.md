@@ -2,7 +2,7 @@
 
 Status: active
 
-> The live items become issues on the [GitHub project board](https://github.com/users/bkhanale/projects/2), one row for each item, with milestone 0.4.0, a priority label and an area label. Issue 152 stays open until item 9 lands.
+> The live items are [GitHub issues 154 to 162](https://github.com/bkhanale/notesapp/issues?q=is%3Aissue+%22Sync+013%22) on the [project board](https://github.com/users/bkhanale/projects/2), item 1 to item 9 in order, each a sub-issue of issue 152 with its blocking items linked. Issue 152 stays open until item 9 lands.
 
 This plan turns [design 013](../design/013-conflict-free-sync-of-note-text.md)
 and decision records 0076 to 0080 into ordered work. Items 1, 7 and 9 each land
