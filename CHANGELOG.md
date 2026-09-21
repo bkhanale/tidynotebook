@@ -5,6 +5,26 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.7 - 2026-09-21
+
+This patch release opens a link with one click, and it keeps a long list item
+in line with its own text.
+
+### Changed
+
+- One click opens a link in a note. The pointer over a link states what the
+  click does.
+- A link that holds the cursor shows its Markdown source, so you can still
+  change the words and the address. Move the cursor into a link with an arrow
+  key, or select the text beside it.
+- A web address that you write on its own in the text opens the same way. An
+  address inside angle brackets opens as well.
+
+### Fixed
+
+- A list item that is longer than one line keeps each line in step with its
+  own text. A checklist item no longer starts again under its box.
+
 ## 0.3.6 - 2026-09-21
 
 This patch release brings the current icon to an installed application, and it
