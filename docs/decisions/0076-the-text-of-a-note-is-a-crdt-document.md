@@ -1,6 +1,6 @@
 # 0076. The text of a note is a CRDT document inside its revisions
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-21
 
 ## Context
@@ -17,7 +17,7 @@ devices always reach one note that holds the work of both.
 
 - The text of a note is a CRDT document (record 0077 names the library).
 - A revision of a note carries an update with every local operation since the
-  state the server last confirmed, and the state vector its device held. It
+  last head its device applied, and the state vector its device held. It
   carries no text and no digest. The contract carries the bytes as base64.
 - The server keeps one current document for each note. Inside the transaction
   of `commitChangeset` it applies the update, reads the text, checks it,
@@ -30,8 +30,11 @@ devices always reach one note that holds the work of both.
   carries the update, the text and the epoch (record 0080).
 - A save never rebases text and never supersedes a head. The precondition of
   record 0073 applies to the path and the deletion state only.
-- On the device, a save queues the update since the confirmed state, so every
-  queued mutation stands alone. The open editor holds one document joined to
+- The device stores the last head it applied, with its revision, text and
+  state vector, because a document cannot give back an earlier text. A save
+  queues the update since that head, so every queued mutation stands alone,
+  and it keeps the text of the document at that save for local History and
+  for Review (record 0079). The open editor holds one document joined to
   the one CodeMirror view, applies remote updates with a remote origin, holds
   them during a composition, and undoes local edits only.
 - When the device holds no unsent work and its feed reached the head, the

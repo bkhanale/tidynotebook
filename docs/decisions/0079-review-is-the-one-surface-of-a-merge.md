@@ -1,6 +1,6 @@
 # 0079. Review is the one surface of a merge
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-21
 
 ## Context

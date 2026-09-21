@@ -5,11 +5,10 @@ Status: active
 > The live items become issues on the [GitHub project board](https://github.com/users/bkhanale/projects/2), one row for each item, with milestone 0.4.0, a priority label and an area label. Issue 152 stays open until item 9 lands.
 
 This plan turns [design 013](../design/013-conflict-free-sync-of-note-text.md)
-and decision records 0076 to 0080 into ordered work. The owner accepts the five
-records before item 1 starts. Items 1, 7 and 9 each land alone. Items 2 to 6
-are one landing on one branch, one commit for each item, because the contract,
-the server and the client change format together and `main` never holds one
-half. `pnpm verify` passes before each landing.
+and decision records 0076 to 0080 into ordered work. Items 1, 7 and 9 each land
+alone. Items 2 to 6 are one landing on one branch, one commit for each item,
+because the contract, the server and the client change format together and
+`main` never holds one half. `pnpm verify` passes before each landing.
 
 ## Decisions
 
@@ -26,10 +25,11 @@ half. `pnpm verify` passes before each landing.
    boundary rule in `tools/check-boundaries.mjs`. Add the property test of
    convergence and the replay tests of record 0080, including two insertions at
    one place, a deletion against an edit, and line endings (0077, 0080).
-2. The contract. Change the note revision of the changeset, the accepted
-   answer, the feed item and the snapshot item in `packages/api-contract/` to
-   carry the update, the state vector, the epoch and the merged mark of record 0076. Add the refusal codes for an old form and an old epoch. Run
-   `pnpm generate` (0076, 0080).
+2. The contract. Change the note revision of the changeset, the accepted answer,
+   the feed item and the snapshot item in `packages/api-contract/` to carry the
+   update, the state vector, the epoch and the merged mark of record 0076. Add
+   the refusal codes for an old form and an old epoch. Run `pnpm generate`
+   (0076, 0080).
 3. The domain rule. Add the document port to
    `packages/core/src/files/ports.ts`. Change `commitChangeset` and
    `rebaseHeads` in `packages/core/src/files/commit.ts`: apply the update,

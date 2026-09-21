@@ -1,6 +1,6 @@
 # 0078. One rule for each conflict that is not text
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-09-21
 
 ## Context
@@ -15,6 +15,9 @@ note as a new recovered note. See
 The server decides each case in `packages/core/src/files/commit.ts`. The
 device whose intent did not win reads one notice.
 
+- **A save that did not change the path.** It keeps the current path. A save
+  changes the path only when its path differs from the path of the head that
+  its precondition names, as `rebasedPath` holds today.
 - **Two paths for one note.** A rename or a move that the server accepts last
   wins. The other path stays in History.
 - **An edit against a move to Trash.** The edit wins in both orders. A deletion

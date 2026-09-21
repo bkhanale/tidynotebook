@@ -49,10 +49,11 @@ moved, so no logic on the device can compare the texts in time.
 restarts from a snapshot when a cursor or a page expires. A device that is far
 behind therefore never needs the whole history of changes.
 
-**Drafts and versions are local rows.** `packages/storage-browser` keeps a
-draft for each working copy and an immutable checkpoint for each version.
+**Drafts and versions are local rows.** `packages/storage-browser` keeps a draft
+for each working copy and an immutable checkpoint for each version.
 `expectedHeadOfParent` in `local-store/shared.ts` names the precondition of a
-save ([record 0073](../decisions/0073-a-save-names-the-revision-it-descends-from.md)).
+save
+([record 0073](../decisions/0073-a-save-names-the-revision-it-descends-from.md)).
 
 **One editor instance holds the note.**
 `apps/web/src/features/editor/note-editor.tsx` builds one CodeMirror view for
@@ -133,8 +134,8 @@ Markdown that its own document does not hold.
 **Option B: the CRDT rides inside revisions.** This is the decision.
 
 - A changeset keeps its shape. A revision of a note carries a Yjs update with
-  every local operation since the state that the server last confirmed, and
-  the state vector that the device held when it made the save. It carries no
+  every local operation since the last head that its device applied, and the
+  state vector that the device held when it made the save. It carries no
   text and no digest. The contract carries the bytes as base64.
 - The server keeps one current document for each note. It applies the update
   inside the transaction that already takes the workspace lock, reads the text
@@ -155,32 +156,37 @@ stored Markdown and do not change.
 
 ## The fourth question: the device
 
-The browser store keeps, for each note it holds, the document bytes, the state
-vector that the server confirmed, the text of the document, and the epoch of
-the document (see the seventh question).
+The browser store keeps, for each note it holds, the document bytes, the text
+of the document, the epoch of the document (see the seventh question), and the
+last head that it applied: its revision, its text and its state vector. A feed
+item carries all three. The device needs the text of that head as a stored
+value, because a Yjs document cannot give back the text of an earlier state.
 
 - **Typing.** The open editor holds one Yjs document in memory, joined to the
   one CodeMirror view. A local edit changes the document, and a coalesced write
   stores the new bytes and text. The draft of today becomes this write, and it
   stays recovery data until a save.
 - **Saving.** Record 0022 stays: a pause, a blur or a move away ends one save.
-  The save queues one mutation with the update since the state that the server
-  last confirmed, not since the last queued save. Every queued mutation
+  The save queues one mutation with the update since the last head that the
+  device applied, not since the last queued save. Every queued mutation
   therefore stands alone: the server always holds what it depends on, and a
   refused mutation never blocks the next one. Two mutations can carry the same
   operations, and a Yjs update applies once however many times it arrives, so
   the overlap and a repeated send are both safe. The queue freezes the body on
-  the first send, as now.
+  the first send, as now. A queued save also keeps the text of the document at
+  that save, so History on the device lists it before the server accepts it,
+  as a checkpoint does today, and Review can read it.
 - **Refusal for good.** When the server refuses a save for good, for example
   for the note size, the device keeps its document and its text, and the save
   reaches Needs attention as record 0026 states. The next save of that note
-  carries every operation since the confirmed state again.
+  carries every operation since the last applied head again.
 - **Receiving.** The feed brings the update and the text of each accepted
   revision, and its epoch. When the epoch is newer than the one the device
   holds, the feed item carries the whole new document instead of an update,
-  and the device replaces its document and replays its unsent work. The store applies the update to the stored bytes. When the note is
-  open, the store publishes the change, and the editor applies the updates it
-  does not hold, with a remote origin. The binding turns them into one
+  and the device replaces its document and replays its unsent work. Otherwise
+  the store applies the update to the stored bytes. When the note is open, the
+  store publishes the change, and the editor applies the updates it does not
+  hold, with a remote origin. The binding turns them into one
   CodeMirror transaction, so the selection moves with the text.
 - **Undo.** The Yjs undo manager replaces the CodeMirror history in the note
   editor. It tracks the local origin only, so undo never reverses the work of
@@ -192,9 +198,10 @@ the document (see the seventh question).
   lacks from the store after the invalidation channel names the note, so the
   tabs converge the same way two devices do.
 - **Check.** When a device holds no unsent work for a note and its feed has
-  reached the head, the digest of its text must equal the digest of the head. When it does not, the device takes the
-  full document of the server and replays its own work over it, as the seventh
-  question states. This check turns a silent divergence into a repair.
+  reached the head, the digest of its text must equal the digest of the head.
+  When it does not, the device takes the full document of the server and replays
+  its own work over it, as the seventh question states. This check turns a
+  silent divergence into a repair.
 - **The engine.** It keeps its order: push, then pull. A CRDT does not need the
   device to read first.
 
@@ -210,6 +217,12 @@ deletion gives the same answer in both orders of arrival, because it protects
 text. The rule for two paths follows the order in which the server accepts
 them, because neither path holds more of the work of the person.
 
+- **A save that did not change the path.** It keeps the current path of the
+  file. A save changes the path only when its path differs from the path of
+  the head its device last applied, which the precondition of record 0073
+  names. So a save of text never undoes a rename or a move from another
+  device, as `rebasedPath` in `packages/core/src/files/commit.ts` already
+  holds.
 - **Two renames or moves of one note.** The one that the server accepts last
   wins. The other path stays in History. The device whose path lost reads
   "Renamed on another device" with the new name.
@@ -256,10 +269,11 @@ A document must start once, from one writer. Two devices that each start a
 document from the same Markdown make two sets of character identities, and a
 merge of the two holds the text twice. The design makes that impossible.
 
-- The server starts the document of every existing note from its head, once,
-  in a data migration beside `packages/storage-server/src/portable-markdown-migration.ts`.
-  A device receives documents with its snapshot and feed and never starts a
-  document from Markdown for a note that exists.
+- The server starts the document of every existing note from its head, once, in
+  a data migration beside
+  `packages/storage-server/src/portable-markdown-migration.ts`. A device
+  receives documents with its snapshot and feed and never starts a document from
+  Markdown for a note that exists.
 - A new note starts on the device that creates it, which already assigns the
   file identity. Its first save carries the first state.
 - An import and a restore of a purged note start their documents on the server.
@@ -270,15 +284,15 @@ compaction when the bytes of a document pass the bound that
 `packages/note-document` names. A compaction starts a new document from the
 current text.
 
-A save for an older epoch is refused. The device then takes the new document
-and **replays** its unsent work over it. Replay compares three texts: the text
-of the last state of the old epoch that the device saw, its own text, and the
+A save for an older epoch is refused. The device then takes the new document and
+**replays** its unsent work over it. Replay compares three texts: the text of
+the last head of the old epoch that the device applied, its own text, and the
 text of the new document. It keeps every local insertion, at the matching place
 in the new text, and applies a local deletion only to text that is still there
-unchanged. So replay drops no text of the person, the same promise a CRDT
-makes. The device then shows the Review line. A device that held a draft or a
-queued version from before this change replays it once, the same way. Replay is
-the only place that compares texts, and it lives in `packages/note-document`.
+unchanged. So replay drops no text of the person, the same promise a CRDT makes.
+The device then shows the Review line. A device that held a draft or a queued
+version from before this change replays it once, the same way. Replay is the
+only place that compares texts, and it lives in `packages/note-document`.
 
 ## The change of format
 
