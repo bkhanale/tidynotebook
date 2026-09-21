@@ -21,7 +21,7 @@ import {
 import {
   editingTransaction,
   headingSpec,
-  linkTargetAt,
+  linkSpanAt,
   toggleTaskSpec,
   type EditorNavigation,
   type LinkTarget,
@@ -56,7 +56,7 @@ export type CreateEditorOptions = {
 /** Re-resolution of a link target for keyboard activation. */
 function linkAtCursor(view: EditorView): LinkTarget | null {
   const position = view.state.selection.main.head;
-  return linkTargetAt(view.state.doc.toString(), position);
+  return linkSpanAt(view.state, position)?.target ?? null;
 }
 
 /** The theme compartment, so palette changes never rebuild the editor. */
@@ -150,26 +150,31 @@ export function createEditor(
         if (update.docChanged) onChange(update.state.doc.toString());
       }),
       EditorView.domEventHandlers({
+        // A link opens on a plain click, which is what the pointer over it
+        // states, and one tap opens it on a touch screen for the same reason.
+        //
+        // A link the selection already touches shows its source, so the
+        // person is editing that link and the click places the caret instead.
+        // The caret reaches a link with an arrow key or with a click beside
+        // it, so every link stays editable with no modifier to learn.
+        //
+        // The main button only, and never with Shift, so a middle click and
+        // an extended selection keep their meaning.
         mousedown: (event, view): boolean => {
-          const target =
-            event.target instanceof HTMLElement ? event.target : null;
+          if (event.button !== 0 || event.shiftKey) return false;
           const position = view.posAtCoords({
             x: event.clientX,
             y: event.clientY,
           });
           if (position === null || position === undefined) return false;
-          const withModifier = event.metaKey || event.ctrlKey;
-          const isTouchAction =
-            target?.getAttribute('data-notesapp-touch-link') === 'true';
-          if ((withModifier || isTouchAction) && !view.state.readOnly) {
-            const link = linkTargetAt(view.state.doc.toString(), position);
-            if (link !== null) {
-              navigation.onOpenLink?.(link);
-              event.preventDefault();
-              return true;
-            }
-          }
-          return false;
+          const link = linkSpanAt(view.state, position);
+          if (link === null) return false;
+          const selection = view.state.selection.main;
+          if (selection.from <= link.to && selection.to >= link.from)
+            return false;
+          navigation.onOpenLink?.(link.target);
+          event.preventDefault();
+          return true;
         },
       }),
       // The content element carries the accessible name. The wrapper around

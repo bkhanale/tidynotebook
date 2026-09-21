@@ -493,7 +493,15 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       textDecorationColor:
         'color-mix(in srgb, var(--notes-accent-text) 35%, transparent)',
       textUnderlineOffset: '3px',
+      // A plain click on a link opens it, so the pointer says so before the
+      // click. It is the one place in a note that leaves the text cursor.
+      cursor: 'pointer',
     },
+    // A link the selection touches shows its source. The person is editing
+    // that link now, so a click places the caret and the cursor says so.
+    // `live-preview.ts` adds this class from the same reveal rule that shows
+    // the source, so the cursor and the click cannot disagree.
+    '.cm-np-link-open': { cursor: 'text' },
     '.cm-np-footnote': {
       color: 'var(--notes-accent-text)',
       fontSize: 'var(--text-control)',

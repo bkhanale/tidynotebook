@@ -30,7 +30,12 @@ export {
   setEditorRich,
   setEditorTheme,
 } from './create-editor.ts';
-export type { EditorNavigation, LinkTarget, TaskBox } from './commands.ts';
+export type {
+  EditorNavigation,
+  LinkSpan,
+  LinkTarget,
+  TaskBox,
+} from './commands.ts';
 export type { NoteChoice, NoteLinkSource } from './completion.ts';
 export { noteLinkText, relativeNotePath } from './completion.ts';
 export { openFindAndReplace, setNoteLinkSource } from './extensions.ts';
@@ -42,7 +47,7 @@ export type { EditorView } from '@codemirror/view';
 export {
   findTaskBox,
   headingSpec,
-  linkTargetAt,
+  linkSpanAt,
   taskToggleAt,
   toggleTaskSpec,
 } from './commands.ts';

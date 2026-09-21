@@ -214,6 +214,15 @@ await test('a wrapped item starts on the first letter of its own text', () => {
   assert.equal(body.width, '100%');
 });
 
+await test('the pointer over a link says that a click opens it', () => {
+  // A plain click on a link opens it, so the cursor states that before the
+  // click. A link the selection touches shows its source and is being edited,
+  // so it takes the text cursor back. `live-preview.ts` adds the open class
+  // from the same reveal rule that shows the source.
+  assert.equal(rule('.cm-np-link').cursor, 'pointer');
+  assert.equal(rule('.cm-np-link-open').cursor, 'text');
+});
+
 await test('strong text and a heading read one weight', () => {
   // One name for one fact, so the note and the published page cannot drift.
   assert.equal(

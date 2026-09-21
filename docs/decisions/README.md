@@ -104,6 +104,7 @@ and needs no record.
 | [0072](0072-the-scrollbar-takes-the-edge-of-the-palette.md)            | The scrollbar takes the edge of the palette                |
 | [0073](0073-a-save-names-the-revision-it-descends-from.md)             | A save names the revision it descends from                 |
 | [0074](0074-the-build-names-every-cached-asset.md)                     | The build names every asset that a browser may pin         |
+| [0075](0075-a-link-opens-on-a-plain-click.md)                          | A link opens on a plain click                              |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -276,3 +277,9 @@ content came from the parent chain, and a device that only opened a note put
 its own text back over a version another device wrote. It also drops a working
 copy that holds no unsent work when the head of its file moves, so a restore
 reaches the device that asked for it. It keeps the resolution of record 0026.
+
+Record 0075 makes a plain click on a link open it and puts a pointer over
+every link, because the modifier that opened one was written nowhere a person
+could read it and the touch path opened nothing at all. A link that the
+selection touches keeps the caret, so every link stays editable. It replaces
+the rule of design 001.

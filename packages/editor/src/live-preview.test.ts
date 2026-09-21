@@ -388,6 +388,36 @@ await test('a bullet that is not a task still shows its source when edited', () 
   );
 });
 
+await test('a link says whether a plain click on it opens it', () => {
+  // A plain click on a link opens it, and the pointer over it says so. A link
+  // the selection touches shows its source instead, so the person is editing
+  // that link and a click there places the caret. One class carries that fact
+  // to the theme, from the same reveal rule that shows the source, so the
+  // cursor and the click cannot disagree.
+  const doc = 'see [label](https://example.com) here\n';
+  assert.ok(has(describe(doc), 'mark', 'cm-np-link', 4, 32));
+  assert.ok(!has(describe(doc), 'mark', 'cm-np-link-open'));
+  const edited = describe(doc, { from: 8, to: 8 });
+  assert.ok(has(edited, 'mark', 'cm-np-link-open', 4, 32));
+});
+
+await test('an autolink and a bare address open the same way', () => {
+  // The grammar names three link shapes, and a person reads all three as a
+  // link, so all three carry the one class that states it.
+  assert.ok(
+    has(describe('see <https://example.com> here\n'), 'mark', 'cm-np-link'),
+  );
+  assert.ok(
+    has(
+      describe('see https://example.com here\n'),
+      'mark',
+      'cm-np-link',
+      4,
+      23,
+    ),
+  );
+});
+
 await test('a fenced block keeps its info string and dims its fences', () => {
   const doc = '```ts\nconst a = 1;\n```\n';
   const found = describe(doc);

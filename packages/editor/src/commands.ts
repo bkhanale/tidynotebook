@@ -6,8 +6,10 @@
  * API operations. Navigation uses injected callbacks, so this package never
  * imports the API client or a storage package.
  */
+import { syntaxTree } from '@codemirror/language';
 import type { ChangeSpec, TransactionSpec } from '@codemirror/state';
 import { EditorState } from '@codemirror/state';
+import type { SyntaxNode } from '@lezer/common';
 
 /**
  * The transaction that one editing command dispatches.
@@ -167,64 +169,73 @@ export function headingSpec(
   return { changes };
 }
 
-/** The spans of one inline link match on a line. */
-type InlineLinkSpans = {
-  readonly openFrom: number;
-  readonly labelFrom: number;
-  readonly labelTo: number;
-  readonly closeTo: number;
-  readonly destination: string;
+/** One link the preview renders, with the range it covers. */
+export type LinkSpan = {
+  /** The first offset of the link in the document. */
+  readonly from: number;
+  /** The offset after the last character of the link. */
+  readonly to: number;
+  /** Where the link goes. */
+  readonly target: LinkTarget;
 };
 
-/** Finds the inline link at a line offset, or null. */
-function inlineLinkAt(
-  lineText: string,
-  lineFrom: number,
-  offset: number,
-): InlineLinkSpans | null {
-  const pattern = /\[([^\]\n]*)\]\(([^)\s\n]+)\)/g;
-  for (;;) {
-    const match = pattern.exec(lineText);
-    if (match === null) return null;
-    const full = match[0] ?? '';
-    if (full === '') return null;
-    const label = match[1] ?? '';
-    const destination = match[2] ?? '';
-    const start = (match.index ?? 0) + lineFrom;
-    const end = start + full.length;
-    if (offset < start || offset > end) continue;
-    return {
-      openFrom: start,
-      labelFrom: start + 1,
-      labelTo: start + 1 + label.length,
-      closeTo: end,
-      destination,
-    };
+/** The destination of one link node, or null when it names none. */
+function linkDestination(state: EditorState, node: SyntaxNode): string | null {
+  if (node.name === 'Link' || node.name === 'Autolink') {
+    const url = node.getChild('URL');
+    if (url === null) return null;
+    const text = state.doc.sliceString(url.from, url.to);
+    // `[label](<a b>)` wraps its destination, and the brackets are notation.
+    const inner =
+      text.startsWith('<') && text.endsWith('>') ? text.slice(1, -1) : text;
+    return inner === '' ? null : inner;
   }
+  // A bare address is a `URL` node of its own paragraph. Inside a link, an
+  // image, or a reference definition the same node is the target of that
+  // construct and never a link of its own.
+  if (node.name !== 'URL') return null;
+  const owner = node.parent?.name ?? '';
+  if (owner === 'Link' || owner === 'Image' || owner === 'Autolink')
+    return null;
+  if (owner === 'LinkReference') return null;
+  const text = state.doc.sliceString(node.from, node.to);
+  return text === '' ? null : text;
 }
 
 /**
- * Finds the link target at one document position.
+ * Finds the link at one document position, or null.
  *
- * Returns the Markdown destination of `[label](destination)`. Returns null on
- * plain text, so a normal click keeps placing the cursor instead of
- * navigating.
+ * The syntax tree answers, so this reads the same nodes that the live preview
+ * decorates and the two cannot disagree about where a link starts and ends.
+ * Three shapes name a target: `[label](destination)`, `<https://example.com>`,
+ * and a bare address that the grammar marks on its own. A footnote and a
+ * reference link name none, so they return null and a click on them places
+ * the caret.
+ *
+ * The range is the whole construct, so a caller can ask whether the selection
+ * is inside the link that a person clicked.
  */
-export function linkTargetAt(
-  text: string,
+export function linkSpanAt(
+  state: EditorState,
   position: number,
-): LinkTarget | null {
-  let lineFrom = 0;
-  for (;;) {
-    const end = text.indexOf('\n', lineFrom);
-    const lineTo = end === -1 ? text.length : end;
-    if (position <= lineTo) {
-      const lineText = text.slice(lineFrom, lineTo);
-      const inline = inlineLinkAt(lineText, lineFrom, position);
-      if (inline !== null) return { kind: 'url', target: inline.destination };
-      return null;
+): LinkSpan | null {
+  const at = Math.min(Math.max(position, 0), state.doc.length);
+  const tree = syntaxTree(state);
+  // Both sides, so a position on either edge of a link still finds it.
+  for (const side of [-1, 1] as const) {
+    for (
+      let node: SyntaxNode | null = tree.resolveInner(at, side);
+      node !== null;
+      node = node.parent
+    ) {
+      const target = linkDestination(state, node);
+      if (target !== null)
+        return {
+          from: node.from,
+          to: node.to,
+          target: { kind: 'url', target },
+        };
     }
-    if (end === -1) return null;
-    lineFrom = end + 1;
   }
+  return null;
 }

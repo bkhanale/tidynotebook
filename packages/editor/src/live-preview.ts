@@ -427,6 +427,21 @@ export function buildPreview(
   const dim = (from: number, to: number): void => {
     mark(from, to, 'cm-np-marker');
   };
+  /**
+   * Marks one link, and says whether a plain click on it opens it.
+   *
+   * A link the selection touches shows its source, so the person is editing
+   * that link and a click there places the caret. The open class carries that
+   * one fact to the theme, which turns the pointer back into a text cursor,
+   * so the shape of the cursor and what the click does cannot disagree.
+   */
+  const linkMark = (from: number, to: number): void => {
+    mark(
+      from,
+      to,
+      touches(from, to) ? 'cm-np-link cm-np-link-open' : 'cm-np-link',
+    );
+  };
   const lineClass = (from: number, to: number, className: string): void => {
     let pos = from;
     for (;;) {
@@ -950,7 +965,7 @@ export function buildPreview(
       // exactly as written.
       if (link.getChild('URL') === null && link.getChild('LinkLabel') === null)
         return false;
-      mark(node.from, node.to, 'cm-np-link');
+      linkMark(node.from, node.to);
       return true;
     }
 
@@ -960,7 +975,7 @@ export function buildPreview(
     }
 
     if (name === 'Autolink') {
-      mark(node.from, node.to, 'cm-np-link');
+      linkMark(node.from, node.to);
       return true;
     }
 
@@ -991,7 +1006,7 @@ export function buildPreview(
         return false;
       }
       if (owner === null || owner.name !== 'LinkReference')
-        mark(node.from, node.to, 'cm-np-link');
+        linkMark(node.from, node.to);
       return false;
     }
 

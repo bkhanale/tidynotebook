@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { editingTransaction } from './commands.ts';
+import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
+import { EditorState } from '@codemirror/state';
+import { editingTransaction, linkSpanAt } from './commands.ts';
+import { noteMarkdown } from './language.ts';
 
 await test('an editing command asks to keep the caret in view', () => {
   // CodeMirror scrolls the caret back into view only when the transaction
@@ -15,4 +18,87 @@ await test('an editing command asks to keep the caret in view', () => {
   assert.equal(spec.userEvent, 'input.format');
   assert.deepEqual(spec.selection, { anchor: 5 });
   assert.deepEqual(spec.changes, { from: 4, insert: '\n' });
+});
+
+/**
+ * A state whose whole document is parsed.
+ *
+ * `linkSpanAt` reads the syntax tree, so a test needs the tree of the whole
+ * document. A headless state parses in slices and keeps the result in its
+ * parse context, so this loop pumps that work into the state field.
+ */
+function stateOf(doc: string): EditorState {
+  let state = EditorState.create({ doc, extensions: [noteMarkdown()] });
+  for (
+    let attempt = 0;
+    attempt < 200 && syntaxTree(state).length < state.doc.length;
+    attempt += 1
+  ) {
+    ensureSyntaxTree(state, state.doc.length, 5000);
+    state = state.update({}).state;
+  }
+  return state;
+}
+
+/** The span of the link at one position, described for a test. */
+function spanAt(
+  doc: string,
+  position: number,
+): { from: number; to: number; target: string } | null {
+  const span = linkSpanAt(stateOf(doc), position);
+  return span === null
+    ? null
+    : { from: span.from, to: span.to, target: span.target.target };
+}
+
+await test('the three link shapes name their target and their range', () => {
+  // The tree answers, so this reads the same nodes that the live preview
+  // decorates and the click cannot disagree with the reveal about where one
+  // link starts and ends.
+  assert.deepEqual(spanAt('see [label](https://example.com) here\n', 8), {
+    from: 4,
+    to: 32,
+    target: 'https://example.com',
+  });
+  assert.deepEqual(spanAt('see <https://example.com> here\n', 10), {
+    from: 4,
+    to: 25,
+    target: 'https://example.com',
+  });
+  assert.deepEqual(spanAt('see https://example.com here\n', 10), {
+    from: 4,
+    to: 23,
+    target: 'https://example.com',
+  });
+});
+
+await test('a link answers on either of its own edges', () => {
+  // A click lands on an offset, and the offset of the first character of a
+  // link belongs to the text before it as well.
+  const doc = 'see [label](https://example.com) here\n';
+  assert.equal(spanAt(doc, 4)?.target, 'https://example.com');
+  assert.equal(spanAt(doc, 32)?.target, 'https://example.com');
+  assert.equal(spanAt(doc, 3), null);
+  assert.equal(spanAt(doc, 33), null);
+});
+
+await test('what names no target places the caret instead', () => {
+  // A footnote, a reference link, a bare bracket pair and the target of an
+  // image each name no address to open, so a click on them stays a click.
+  assert.equal(spanAt('a [^1] note\n\n[^1]: text\n', 3), null);
+  assert.equal(
+    spanAt('see [a][b] here\n\n[b]: https://example.com\n', 6),
+    null,
+  );
+  assert.equal(spanAt('see [word] here\n', 6), null);
+  assert.equal(spanAt('see ![alt](pic.png) here\n', 13), null);
+  assert.equal(spanAt('plain text\n', 3), null);
+});
+
+await test('a wrapped destination loses the brackets that hold it', () => {
+  // `[label](<a b>)` wraps its destination, and the brackets are notation.
+  assert.equal(
+    spanAt('see [label](<https://example.com/a b>) here\n', 8)?.target,
+    'https://example.com/a b',
+  );
 });
