@@ -219,6 +219,10 @@ export type RevisionRecord = {
   readonly restoredFrom: string | null;
   readonly clientTime: string;
   readonly serverTime: string;
+  /** The generation of the document at this revision, or null. */
+  readonly epoch: number | null;
+  /** True when this save joined work that its device had not seen. */
+  readonly merged: boolean;
 };
 
 /** Reads and the one write of an open workspace transaction. */

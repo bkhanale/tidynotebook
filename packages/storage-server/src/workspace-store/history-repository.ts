@@ -85,6 +85,8 @@ export function historyRepository(
           size: contents.size,
           markdown: contents.markdown,
           objectId: contents.objectId,
+          epoch: revisions.documentEpoch,
+          merged: revisions.merged,
         })
         .from(revisions)
         .innerJoin(
@@ -113,6 +115,8 @@ export function historyRepository(
         )
         .orderBy(revisionParents.ordinal);
       return {
+        epoch: row.epoch,
+        merged: row.merged,
         revisionId: row.id,
         fileId: row.fileId,
         path: row.path,

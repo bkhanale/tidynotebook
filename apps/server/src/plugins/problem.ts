@@ -39,6 +39,13 @@ export type ProblemCode =
   | 'invalid_content'
   | 'too_many_files'
   | 'unrenderable_note'
+  | 'epoch_mismatch'
+  | 'unseen_work'
+  | 'document_malformed'
+  | 'document_dependency_missing'
+  | 'document_unsupported'
+  | 'document_too_large'
+  | 'sync_protocol_unsupported'
   | 'quota_exceeded'
   | 'rate_limited'
   | 'route_not_found'
@@ -66,6 +73,16 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   host_not_allowed: 'The Host header is not served by this deployment.',
   payload_too_large: 'The request body is larger than the configured limit.',
   unsupported_media_type: 'The request media type is not supported.',
+  epoch_mismatch: 'The note holds another generation of its document.',
+  unseen_work: 'The deletion would hide text that this device has not seen.',
+  document_malformed: 'The document work of the save is not readable.',
+  document_dependency_missing:
+    'The document work names work that the document does not hold.',
+  document_unsupported:
+    'The document work writes something other than the text of the note.',
+  document_too_large: 'The document work passes a bound of the workspace.',
+  sync_protocol_unsupported:
+    'This deployment does not serve the sync protocol version of the caller.',
   request_timeout: 'The request body stopped before it was complete.',
   unauthenticated: 'The request carries no usable session or token.',
   forbidden: 'The actor may not perform this operation.',
@@ -267,6 +284,17 @@ const domainStatus: Readonly<
   too_many_files: { status: 422, code: 'too_many_files' },
   note_too_large: { status: 422, code: 'unrenderable_note' },
   note_too_deep: { status: 422, code: 'unrenderable_note' },
+  // The refusals of one document. Each of them leaves the accepted state as
+  // it was, so the device keeps its work and acts on the answer.
+  epoch_mismatch: { status: 409, code: 'epoch_mismatch' },
+  unseen_work: { status: 409, code: 'unseen_work' },
+  document_malformed: { status: 422, code: 'document_malformed' },
+  document_dependency_missing: {
+    status: 422,
+    code: 'document_dependency_missing',
+  },
+  document_unsupported: { status: 422, code: 'document_unsupported' },
+  document_too_large: { status: 413, code: 'document_too_large' },
   published_link_unavailable: {
     status: 404,
     code: 'published_link_unavailable',
@@ -287,6 +315,17 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
     'The file was permanently deleted, so this identifier can never be written again.',
   snapshot_required:
     'The snapshot expired or the cursor predates the retained window. Start a fresh snapshot and keep local work.',
+  epoch_mismatch:
+    'The note holds another generation of its document. Read the current document, then save again.',
+  unseen_work:
+    'The deletion would hide text that this device has not seen. Read the text first.',
+  document_malformed: 'The document work of the save is not readable.',
+  document_dependency_missing:
+    'The document work names an insertion or a deletion that the document does not hold.',
+  document_unsupported:
+    'The document work writes something other than the text of the note.',
+  document_too_large:
+    'The document work, or the document it would produce, passes a bound of the workspace.',
   unsupported_version:
     'The requested sync protocol version is not served. No data was changed.',
   invalid_path: 'A submitted path does not follow the workspace path rules.',

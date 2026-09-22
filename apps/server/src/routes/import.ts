@@ -10,7 +10,7 @@ import {
   createAttachmentChangeset,
   createFileChangeset,
   listFiles,
-  markdownContent,
+  workspaceText,
   normalizePath,
   type Actor,
   type ChangesetInput,
@@ -232,7 +232,8 @@ async function importNotes(
       fileId,
       revisionId: randomUUID(),
       path: entry.path,
-      content: await markdownContent(entry.bytes.toString('utf8')),
+      // An import starts the document of the note on the server (record 0084).
+      content: workspaceText(entry.bytes.toString('utf8'), 1),
       message: 'Import note.',
       ids: {
         mutationId: randomUUID(),

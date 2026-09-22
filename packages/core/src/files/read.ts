@@ -10,7 +10,7 @@
  * `forbidden`, so an answer does not disclose that it exists.
  */
 import { authorize, type Actor } from '../identity/actor.ts';
-import { fail, ok, type Result } from './model.ts';
+import { fail, ok, type AcceptedChangeset, type Result } from './model.ts';
 import type {
   FilePage,
   FilePageRequest,

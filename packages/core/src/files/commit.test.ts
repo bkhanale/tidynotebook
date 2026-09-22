@@ -205,6 +205,14 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           restoredFrom: revision.restoredFrom,
           clientTime: revision.clientTime,
           serverTime: '2026-09-06T10:00:00.000Z',
+          epoch:
+            input.documents.find(
+              (document) => document.fileId === revision.fileId,
+            )?.epoch ?? null,
+          merged: input.documents.some(
+            (document) =>
+              document.fileId === revision.fileId && document.merged,
+          ),
         });
         state.files.set(revision.fileId, {
           fileId: revision.fileId,

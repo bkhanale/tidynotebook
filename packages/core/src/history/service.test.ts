@@ -199,6 +199,12 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           restoredFrom: r.restoredFrom,
           clientTime: r.clientTime,
           serverTime: new Date().toISOString(),
+          epoch:
+            input.documents.find((document) => document.fileId === r.fileId)
+              ?.epoch ?? null,
+          merged: input.documents.some(
+            (document) => document.fileId === r.fileId && document.merged,
+          ),
         });
         state.files.set(r.fileId, {
           fileId: r.fileId,
@@ -390,6 +396,8 @@ await test('restoreRevision: creates child revision referencing historic revisio
     restoredFrom: null,
     clientTime: new Date().toISOString(),
     serverTime: new Date().toISOString(),
+    epoch: 1,
+    merged: false,
   });
   state.revisions.set('r2', {
     revisionId: 'r2',
@@ -406,6 +414,8 @@ await test('restoreRevision: creates child revision referencing historic revisio
     restoredFrom: null,
     clientTime: new Date().toISOString(),
     serverTime: new Date().toISOString(),
+    epoch: 1,
+    merged: false,
   });
 
   const store = fakeStore(state);

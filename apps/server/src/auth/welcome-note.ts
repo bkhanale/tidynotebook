@@ -15,7 +15,7 @@ import {
   commitChangeset,
   createFileChangeset,
   generateUUID,
-  markdownContent,
+  workspaceText,
   requestDigest,
   verifyActor,
   type WorkspaceStore,
@@ -89,7 +89,7 @@ export async function seedWelcomeNote(
     fileId,
     revisionId: body.revisionId,
     path: body.path,
-    content: await markdownContent(body.text),
+    content: workspaceText(body.text, 1),
     message: null,
     ids: {
       mutationId: body.mutationId,

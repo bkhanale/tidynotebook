@@ -1,3 +1,4 @@
+import { createDocumentService } from '@notesapp/storage-server';
 /**
  * Handlers of the file, revision, and changeset operations.
  *
@@ -41,6 +42,8 @@ import {
   restoreFile,
   tombstoneContent,
   updateFileChangeset,
+  type DocumentSave,
+  workspaceText,
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
@@ -128,7 +131,8 @@ function refuse(
     | 'invalid_content'
     | 'invalid_graph'
     | 'mutation_reused'
-    | 'not_found',
+    | 'not_found'
+    | 'document_malformed',
   fileIds: readonly string[] = [],
 ): never {
   throw new DomainProblemError({ code, fileIds: [...fileIds] });
@@ -226,6 +230,14 @@ export function acceptedRevisionBody(
     actorAccountId: revision.actorAccountId,
     serverTime: revision.serverTime,
     message: revision.message,
+    epoch: revision.epoch,
+    // The complete state of the accepted document, as base64. It states
+    // identities and deletions and holds no note text (record 0081).
+    acceptedState:
+      revision.acceptedState === null
+        ? null
+        : Buffer.from(revision.acceptedState).toString('base64'),
+    merged: revision.merged,
   };
 }
 
@@ -247,9 +259,10 @@ export function acceptedBody(
 }
 
 /** The content reference of a stored revision, so a change can reuse it. */
-function contentOf(revision: RevisionRecord): ContentRef {
-  if (revision.text !== null)
-    return { kind: 'markdown', digest: revision.digest, text: revision.text };
+function contentOf(revision: RevisionRecord, epoch: number): ContentRef {
+  // The workspace authors this text: it repeats what the head already holds,
+  // so the document keeps every identity (record 0081).
+  if (revision.text !== null) return workspaceText(revision.text, epoch);
   if (revision.objectId !== null)
     return {
       kind: 'attachment',
@@ -259,18 +272,53 @@ function contentOf(revision: RevisionRecord): ContentRef {
   throw new Error('notesapp: a stored revision names no content.');
 }
 
+/** Decodes one base64 member of a save, or refuses the revision. */
+function bytesOf(value: unknown, fileId: string): Uint8Array {
+  if (typeof value !== 'string') refuse('invalid_content', [fileId]);
+  try {
+    return new Uint8Array(Buffer.from(value, 'base64'));
+  } catch {
+    return refuse('document_malformed', [fileId]);
+  }
+}
+
+/**
+ * The document work that one submitted note revision carries.
+ *
+ * A save states its work, its generation, and the complete state that the
+ * device had seen. A save with no update states what it saw and nothing more,
+ * which is how a deletion reaches the workspace (records 0081, 0083).
+ */
+export function submittedDocument(
+  value: unknown,
+  fileId: string,
+): DocumentSave {
+  const epoch = readProperty(value, 'epoch');
+  if (typeof epoch !== 'number') refuse('invalid_content', [fileId]);
+  const update = readProperty(value, 'update');
+  return {
+    work:
+      update === null || update === undefined
+        ? { kind: 'none' }
+        : { kind: 'update', update: bytesOf(update, fileId) },
+    epoch,
+    observed: bytesOf(readProperty(value, 'observed'), fileId),
+  };
+}
+
 /** The content that one submitted revision carries. */
 export function submittedContent(entry: unknown, fileId: string): ContentRef {
   const content = readProperty(entry, 'content');
   const kind = readText(content, 'kind');
-  const digest = readText(content, 'digest');
   if (kind === 'markdown') {
-    const text = readProperty(content, 'text');
-    // The contract cannot state that Markdown carries text and an attachment
-    // carries an object, so the handler checks the pair.
-    if (typeof text !== 'string') refuse('invalid_content', [fileId]);
-    return { kind: 'markdown', digest, text };
+    const document = readProperty(content, 'document');
+    // The contract cannot state that a note carries document work and an
+    // attachment names an object, so the handler checks the pair.
+    if (document === undefined || document === null)
+      refuse('invalid_content', [fileId]);
+    return { kind: 'markdown', document: submittedDocument(document, fileId) };
   }
+  const digest = readText(content, 'digest');
   const objectId = readProperty(content, 'attachmentObjectId');
   if (typeof objectId !== 'string') refuse('invalid_content', [fileId]);
   return { kind: 'attachment', digest, objectId };
@@ -365,6 +413,7 @@ export function listingRequest(request: FastifyRequest): FilePageRequest {
  */
 export function missingWorkspaceStore(): WorkspaceStore {
   return {
+    documents: createDocumentService(),
     transact: () => {
       throw new Error(
         'notesapp: the server was built without a workspace store.',
@@ -486,6 +535,40 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
   }
 
   return {
+    /**
+     * What this workspace knows about one mutation identity (record 0086).
+     *
+     * A device reads it after it lost an answer, before it transforms work
+     * that may already have committed. The answer repeats the stored outcome
+     * of exactly the request that the device froze, and it carries no note
+     * text, so an actor that may write and not read learns nothing.
+     */
+    getMutationReceipt: async (request): Promise<HandlerResult> => {
+      const actor = requireActor(request).actor;
+      const workspaceId = readText(request.params, 'workspaceId');
+      const mutationId = readText(request.params, 'mutationId');
+      const digest = readText(request.query, 'digest');
+      const receipt = unwrap(
+        await readMutationReceipt(store, actor, workspaceId, mutationId),
+      );
+      const accepted = receipt !== null && receipt.digest === digest;
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        body: {
+          mutationId,
+          status:
+            receipt === null
+              ? 'absent'
+              : accepted
+                ? 'accepted'
+                : 'other_request',
+          accepted:
+            accepted && receipt !== null ? acceptedBody(receipt.outcome) : null,
+        },
+      };
+    },
+
     listFiles: async (request): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
@@ -629,7 +712,9 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         fileId,
         revisionId: readText(body, 'revisionId'),
         path: readText(body, 'path'),
-        content: await markdownContent(readText(body, 'text')),
+        content: markdownContent(
+          submittedDocument(readProperty(body, 'document'), fileId),
+        ),
         message: readOptionalText(body, 'message'),
         ids: submissionIds(body),
       });
@@ -671,8 +756,11 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
       });
       if (replayed !== null) return replayed;
       const head = await conditionalHead(request, workspaceId, fileId, tags);
-      const text = readProperty(body, 'text');
+      const document = readProperty(body, 'document');
       const path = readProperty(body, 'path');
+      // A rename keeps the text of the head, and the document that holds it
+      // keeps its generation.
+      const headEpoch = head.epoch ?? 1;
       const changeset = updateFileChangeset({
         workspaceId,
         fileId,
@@ -683,9 +771,9 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         // path.
         path: typeof path === 'string' ? path : head.path,
         content:
-          typeof text === 'string'
-            ? await markdownContent(text)
-            : contentOf(head),
+          document === undefined || document === null
+            ? contentOf(head, headEpoch)
+            : markdownContent(submittedDocument(document, fileId)),
         deleted: false,
         message: readOptionalText(body, 'message'),
         ids: submissionIds(body),
@@ -726,7 +814,12 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         // A tombstone stores no note text. The revision before it keeps the
         // content, so the deletion adds nothing to the stored bytes and a full
         // workspace can still be tidied.
-        content: await tombstoneContent(contentOf(head)),
+        // A tombstone states what the device had seen, so the workspace can
+        // refuse a deletion that would hide unseen text (record 0083).
+        content: tombstoneContent(
+          contentOf(head, head.epoch ?? 1),
+          submittedDocument(readProperty(body, 'document'), fileId),
+        ),
         deleted: true,
         message: readOptionalText(body, 'message'),
         ids: submissionIds(body),
