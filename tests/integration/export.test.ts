@@ -217,7 +217,7 @@ function ids(): { revisionId: string; mutationId: string; deviceId: string } {
 async function newNote(
   path: string,
   text: string,
-): Promise<{ fileId: string; tag: string }> {
+): Promise<{ fileId: string; tag: string; revisionId: string }> {
   const fileId = randomUUID();
   const created = await createFile({
     headers: browser(cookie),
@@ -227,7 +227,7 @@ async function newNote(
   assert.equal(created.error, undefined, JSON.stringify(created.error));
   const tag = responseOf(created.response).headers.get('etag') ?? '';
   assert.notEqual(tag, '');
-  return { fileId, tag };
+  return { fileId, tag, revisionId: created.data?.revision.revisionId ?? '' };
 }
 
 const pngBytes = await sharp({
@@ -407,7 +407,7 @@ await test('the archive follows a rename and a later edit', async () => {
     headers: { ...browser(cookie), 'if-match': first.tag },
     path: { workspaceId, fileId: first.fileId },
     body: {
-      document: await saveForHead(workspaceId, first.tag, '# Two\n'),
+      document: await saveForHead(workspaceId, first.revisionId, '# Two\n'),
       path: 'moved/renamed.md',
       ...ids(),
     },
