@@ -178,3 +178,16 @@ BEGIN
 		v_unreferenced_objects;
 END;
 $$;
+--> statement-breakpoint
+
+-- The schema version is the number of entries in the migration journal. This
+-- migration is the eighth entry, so the function reports eight.
+CREATE OR REPLACE FUNCTION public.notesapp_schema_version()
+RETURNS integer
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = pg_catalog, pg_temp
+AS $$
+  SELECT 8;
+$$;

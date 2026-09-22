@@ -16,8 +16,10 @@
  */
 import assert from 'node:assert/strict';
 import {
+  emptyDocument,
   firstSave,
   saveForHead,
+  saveOf,
   deletionForHead,
   useDocumentHeaders,
 } from './support/documents.ts';
@@ -37,6 +39,10 @@ import {
   updateFile,
 } from '@notesapp/api-client';
 import { acceptWithDocuments, contentDigest } from '@notesapp/core';
+import {
+  replaceDocumentText,
+  startDocument,
+} from '@notesapp/note-document';
 import {
   bootstrapOwner,
   createAuth,
@@ -216,7 +222,17 @@ async function revisionBody(seed: {
   readonly text?: string;
   readonly parents?: readonly string[];
   readonly deleted?: boolean;
-  readonly digest?: string;
+  /**
+   * The save to send, when the parent of this revision is not yet stored.
+   * A chain inside one changeset builds each save from the document that the
+   * revision before it made, because the server cannot answer for a revision
+   * that the same submission carries.
+   */
+  readonly save?: {
+    readonly update: string | null;
+    readonly epoch: number;
+    readonly observed: string;
+  };
 }): Promise<{
   revisionId: string;
   fileId: string;
@@ -240,9 +256,10 @@ async function revisionBody(seed: {
   // deletion carries no work at all and states only what it had seen.
   const head = seed.parents?.[0];
   const save =
-    head === undefined
+    seed.save ??
+    (head === undefined
       ? firstSave(text)
-      : await saveForHead(workspaceId, head, text);
+      : await saveForHead(workspaceId, head, text));
   return {
     revisionId: randomUUID(),
     fileId: seed.fileId,
@@ -572,7 +589,11 @@ await test('a replay after the head moved returns the first outcome', async () =
     },
     path: { workspaceId, fileId: file.fileId },
     body: {
-      document: await saveForHead(workspaceId, file.revisionId, '# three\n'),
+      document: await saveForHead(
+        workspaceId,
+        first.data?.revision.revisionId ?? '',
+        '# three\n',
+      ),
       ...ids(),
     },
   });
@@ -748,8 +769,11 @@ await test('a stale delete after newer edits is refused and the edits survive', 
       ],
     },
   });
-  assert.equal(responseOf(staleDelete.response).status, 412);
-  assert.equal(problemCode(staleDelete.error), 'stale_head');
+  // The deletion states the state of the first revision, so it never saw the
+  // newer text. The workspace refuses it rather than hiding that text
+  // (record 0083).
+  assert.equal(responseOf(staleDelete.response).status, 409);
+  assert.equal(problemCode(staleDelete.error), 'unseen_work');
   assert.deepEqual(problemFiles(staleDelete.error), [file.fileId]);
 
   // The note is still in the tree, and its head is the newer text.
@@ -846,7 +870,7 @@ await test('a save on the current head reports no superseded head', async () => 
   assert.deepEqual(next.data?.superseded, []);
 });
 
-await test('a stale update over a deleted note is refused', async () => {
+await test('text typed before a delete brings the note back', async () => {
   const file = await newFile('rebase/gone.md', '# first\n');
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
@@ -875,14 +899,19 @@ await test('a stale update over a deleted note is refused', async () => {
       ],
     },
   });
-  assert.equal(responseOf(stale.response).status, 412);
-  assert.equal(problemCode(stale.error), 'stale_head');
-  // The note stays deleted: a stale save cannot bring it back.
+  // The edit is the later write and the tombstone kept the document behind
+  // it, so the work applies and the note returns (record 0083).
+  assert.equal(stale.error, undefined, JSON.stringify(stale.error));
   const read = await getFile({
     headers: browser(cookie),
     path: { workspaceId, fileId: file.fileId },
   });
-  assert.equal(responseOf(read.response).status, 404);
+  assert.equal(responseOf(read.response).status, 200);
+  assert.equal(read.data?.head?.deleted, false);
+  assert.ok(
+    (read.data?.head?.text ?? '').includes('# typed before the delete'),
+    read.data?.head?.text ?? '',
+  );
 });
 
 await test('one conflicting file rolls back the whole changeset', async () => {
@@ -967,9 +996,12 @@ await test('one conflicting file rolls back the whole changeset', async () => {
   }
 });
 
-await test('content that does not match its digest is refused', async () => {
+await test('the workspace derives the digest of the text it accepted', async () => {
+  // A save carries work, not text (record 0081), so a device cannot name the
+  // digest of other bytes. The workspace derives the text from the accepted
+  // document and addresses it by the digest of that text.
   const fileId = randomUUID();
-  const refused = await commitChangeset({
+  const committed = await commitChangeset({
     headers: browser(cookie),
     path: { workspaceId },
     body: {
@@ -979,16 +1011,22 @@ await test('content that does not match its digest is refused', async () => {
       revisions: [
         await revisionBody({
           fileId,
-          path: 'notes/forged.md',
+          path: 'notes/derived.md',
           text: '# the text that was sent\n',
-          digest: await contentDigest('# other bytes\n'),
         }),
       ],
     },
   });
-  assert.equal(responseOf(refused.response).status, 422);
-  assert.equal(problemCode(refused.error), 'invalid_content');
-  assert.deepEqual(problemFiles(refused.error), [fileId]);
+  assert.equal(committed.error, undefined, JSON.stringify(committed.error));
+  const read = await getFile({
+    headers: browser(cookie),
+    path: { workspaceId, fileId },
+  });
+  assert.equal(read.data?.head?.text, '# the text that was sent\n');
+  assert.equal(
+    read.data?.head?.digest,
+    await contentDigest('# the text that was sent\n'),
+  );
 });
 
 await test('a path outside the rules is refused', async () => {
@@ -1211,16 +1249,22 @@ await test('a file identifier that already exists cannot be created again', asyn
 
 await test('one submission can carry a chain of revisions of one file', async () => {
   const fileId = randomUUID();
+  // The second save follows the document that the first one made, because the
+  // server holds neither revision while the submission is built.
+  const one = saveOf(emptyDocument(), '# a\n');
+  const two = saveOf(one.document, '# b\n');
   const first = await revisionBody({
     fileId,
     path: 'chain/one.md',
     text: '# a\n',
+    save: one.save,
   });
   const second = await revisionBody({
     fileId,
     path: 'chain/one.md',
     text: '# b\n',
     parents: [first.revisionId],
+    save: two.save,
   });
   const committed = await commitChangeset({
     headers: browser(cookie),
@@ -1269,30 +1313,41 @@ await test('a replayed changeset repeats its first outcome', async () => {
   assert.deepEqual(replay.data, first.data);
 });
 
-await test('markdown that is not well formed is refused', async () => {
-  const fileId = randomUUID();
+await test('text that is not well formed never leaves the device', async () => {
   // A lone surrogate becomes U+FFFD in UTF-8, so the stored bytes would differ
-  // from the submitted string and the digest could never match again.
+  // from the text of the note. The document is the one door to the text
+  // (record 0081), so the door refuses the text and no save is ever built.
   const broken = '# \ud800\n';
-  const refused = await commitChangeset({
-    headers: browser(cookie),
-    path: { workspaceId },
-    body: {
-      mutationId: randomUUID(),
-      deviceId: 'integration-device',
-      expectedHeads: { [fileId]: null },
-      revisions: [
-        await revisionBody({
-          fileId,
-          path: 'notes/broken.md',
-          text: broken,
-          digest: await contentDigest(broken),
-        }),
-      ],
-    },
-  });
-  assert.equal(responseOf(refused.response).status, 422);
-  assert.equal(problemCode(refused.error), 'invalid_content');
+  const refused = replaceDocumentText(startDocument(''), broken);
+  assert.equal(refused.ok, false);
+  if (!refused.ok) assert.equal(refused.refusal, 'not-well-formed');
+
+  // The workspace refuses the same text on its own, so a caller that reaches
+  // the store without a device cannot store it either.
+  const actor = memberActor(ownerAccountId, workspaceId);
+  const fileId = randomUUID();
+  const refusedByStore = await content.transact(actor, workspaceId, (tx) =>
+    acceptWithDocuments(
+      content.documents,
+      tx,
+      actor,
+      changeset(
+        workspaceId,
+        [
+          revision({
+            fileId,
+            path: 'notes/broken.md',
+            content: markdown(broken),
+          }),
+        ],
+        { expectedHeads: { [fileId]: null } },
+      ),
+      'broken-text-digest',
+    ),
+  );
+  assert.equal(refusedByStore.ok, false);
+  if (!refusedByStore.ok)
+    assert.equal(refusedByStore.error.code, 'invalid_content');
 });
 
 await test('a purged file identifier answers 410', async () => {
@@ -1383,57 +1438,7 @@ await test('a full workspace still accepts a deletion', async () => {
   assert.equal(responseOf(refused.response).status, 413);
   assert.equal(problemCode(refused.error), 'quota_exceeded');
 
-  // A deletion that carried content would reach the reserved capacity through
-  // a disguised write, so a tombstone with Markdown is refused outright.
-  const disguised = await commitChangeset({
-    headers: browser(cookie),
-    path: { workspaceId: fullWorkspace },
-    body: {
-      mutationId: randomUUID(),
-      deviceId: 'integration-device',
-      expectedHeads: { [file.fileId]: file.revisionId },
-      revisions: [
-        await revisionBody({
-          fileId: file.fileId,
-          path: 'notes/only.md',
-          parents: [file.revisionId],
-          deleted: true,
-          text: `# ${'padding '.repeat(50_000)}\n`,
-        }),
-      ],
-    },
-  });
-  assert.equal(responseOf(disguised.response).status, 422);
-  assert.equal(problemCode(disguised.error), 'invalid_content');
-
-  // Storage refuses the same disguised deletion on its own, so a caller that
-  // reaches the store without the use case cannot spend the reserve either.
-  const actor = memberActor(ownerAccountId, fullWorkspace);
-  const padding = `# ${'padding '.repeat(50_000)}\n`;
-  const refusedByStore = await content.transact(actor, fullWorkspace, (tx) =>
-    acceptWithDocuments(
-      content.documents,
-      tx,
-      actor,
-      changeset(
-        fullWorkspace,
-        [
-          revision({
-            fileId: file.fileId,
-            parents: [file.revisionId],
-            path: 'notes/only.md',
-            deleted: true,
-            content: markdown(padding),
-          }),
-        ],
-        { expectedHeads: { [file.fileId]: file.revisionId } },
-      ),
-      'disguised-delete-digest',
-    ),
-  );
-  assert.equal(refusedByStore.ok, false);
-  if (!refusedByStore.ok) assert.equal(refusedByStore.error.code, 'quota');
-
+  // A full workspace still lets a person clear room.
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId: fullWorkspace, fileId: file.fileId },
@@ -1447,6 +1452,47 @@ await test('a full workspace still accepts a deletion', async () => {
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
   assert.equal(removed.data?.revision.deleted, true);
+
+  // A deletion carries no work at all (record 0081), so a caller that reaches
+  // the store without the use case cannot spend the reserve through a
+  // disguised write: the workspace drops the work of a tombstone.
+  const actor = memberActor(ownerAccountId, fullWorkspace);
+  const padding = `# ${'padding '.repeat(50_000)}\n`;
+  const disguised = await content.transact(actor, fullWorkspace, (tx) =>
+    acceptWithDocuments(
+      content.documents,
+      tx,
+      actor,
+      changeset(
+        fullWorkspace,
+        [
+          revision({
+            fileId: file.fileId,
+            parents: [removed.data?.revision.revisionId ?? ''],
+            path: 'notes/only.md',
+            deleted: true,
+            content: markdown(padding),
+          }),
+        ],
+        {
+          expectedHeads: {
+            [file.fileId]: removed.data?.revision.revisionId ?? '',
+          },
+        },
+      ),
+      'disguised-delete-digest',
+    ),
+  );
+  assert.equal(disguised.ok, true, JSON.stringify(disguised));
+  const afterDisguise = await getRevision({
+    headers: browser(cookie),
+    path: {
+      workspaceId: fullWorkspace,
+      revisionId: disguised.ok ? (disguised.value.revisionIds[0] ?? '') : '',
+    },
+  });
+  assert.equal(afterDisguise.data?.deleted, true);
+  assert.equal(afterDisguise.data?.text, '');
 });
 
 await test('a workspace that the actor cannot see answers 404', async () => {

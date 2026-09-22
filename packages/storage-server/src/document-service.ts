@@ -32,6 +32,9 @@ function domainCode(refusal: DocumentRefusal): DomainErrorCode {
   if (refusal === 'malformed') return 'document_malformed';
   if (refusal === 'missing-dependency') return 'document_dependency_missing';
   if (refusal === 'unsupported-structure') return 'document_unsupported';
+  // Text that is not well formed is content that the workspace cannot store,
+  // so it answers with the content code that every other bad body answers.
+  if (refusal === 'not-well-formed') return 'invalid_content';
   return 'document_too_large';
 }
 

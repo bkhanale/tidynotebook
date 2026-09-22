@@ -108,11 +108,16 @@ export async function acceptDocumentWork(
     if (revision.deleted && !covered.value)
       return fail('unseen_work', [revision.fileId]);
 
+    // A deletion carries no work at all. Work under a tombstone would add
+    // text while the revision claims to remove the note, and the quota rule
+    // that keeps a full workspace manageable reserves capacity for operations
+    // that add nothing. The document therefore stays exactly as it is.
+    const work = revision.deleted ? { kind: 'none' as const } : save.work;
     const applied =
-      save.work.kind === 'update'
-        ? service.apply(before.bytes, save.work.update)
-        : save.work.kind === 'text'
-          ? service.replaceText(before.bytes, save.work.text)
+      work.kind === 'update'
+        ? service.apply(before.bytes, work.update)
+        : work.kind === 'text'
+          ? service.replaceText(before.bytes, work.text)
           : // A save with no text work, which is how a deletion states what
             // the device had seen, leaves the document exactly as it is.
             ok({
@@ -133,7 +138,7 @@ export async function acceptDocumentWork(
     // want, and the workspace writes their text into the document rather than
     // deciding from it (records 0083, 0084).
     const deleted =
-      save.work.kind !== 'text' && head?.deleted === true && !revision.deleted
+      work.kind !== 'text' && head?.deleted === true && !revision.deleted
         ? !newWork
         : revision.deleted;
     const text = deleted ? '' : applied.value.text;

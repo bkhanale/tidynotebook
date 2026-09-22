@@ -598,6 +598,10 @@ export type FileRevision = {
      * The generation of that document, or null for an attachment revision.
      */
     readonly epoch: DocumentEpoch | null;
+    /**
+     * True when the save that made this revision joined work that its device had not seen. Every device reads the mark in History, and the device that saved keeps its own checkpoint for Review.
+     */
+    readonly merged: boolean;
 };
 
 /**

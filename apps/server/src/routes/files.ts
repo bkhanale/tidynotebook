@@ -213,6 +213,7 @@ function revisionBody(revision: RevisionRecord): Record<string, unknown> {
     clientTime: revision.clientTime,
     serverTime: revision.serverTime,
     epoch: revision.epoch,
+    merged: revision.merged,
     // The document of the note, as base64, when this revision is its head.
     // A reader starts from it and merges its own work into it.
     document:

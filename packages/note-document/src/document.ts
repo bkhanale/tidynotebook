@@ -28,7 +28,9 @@ export type DocumentRefusal =
   /** The update writes something other than the plain text root. */
   | 'unsupported-structure'
   /** The update names an insertion or deletion that the document lacks. */
-  | 'missing-dependency';
+  | 'missing-dependency'
+  /** The text that the update would hold is not well formed. */
+  | 'not-well-formed';
 
 /** The outcome of one operation that can refuse. */
 export type DocumentResult<T> =
@@ -176,13 +178,16 @@ export function applyDocumentUpdate(
       return { ok: false, refusal: 'missing-dependency' };
     if (gainedAnotherRoot(doc))
       return { ok: false, refusal: 'unsupported-structure' };
+    // A lone surrogate becomes U+FFFD when the text is encoded as UTF-8, so
+    // the stored bytes would differ from the text that the document holds.
+    // The document is the one door to the text (record 0081), so the door
+    // refuses it.
+    const text = doc.getText(noteTextRoot).toJSON();
+    if (!text.isWellFormed()) return { ok: false, refusal: 'not-well-formed' };
     const next = encodeDocument(doc);
     if (next.byteLength > bounds.maxDocumentBytes)
       return { ok: false, refusal: 'too-large' };
-    return {
-      ok: true,
-      value: { document: next, text: doc.getText(noteTextRoot).toJSON() },
-    };
+    return { ok: true, value: { document: next, text } };
   } finally {
     doc.destroy();
   }
@@ -220,6 +225,8 @@ export function replaceDocumentText(
   text: string,
   bounds: DocumentBounds = documentBounds,
 ): DocumentResult<AppliedDocument> {
+  if (!text.isWellFormed())
+    return { ok: false, refusal: 'not-well-formed' };
   const doc = loadDocument(document);
   try {
     const live = doc.getText(noteTextRoot);

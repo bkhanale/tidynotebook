@@ -116,7 +116,10 @@ function parseAcceptedRevision(value: unknown): AcceptedRevision {
       digest: record.digest,
       size: record.size,
       epoch: typeof record.epoch === 'number' ? record.epoch : null,
-      acceptedState: null,
+      acceptedState:
+        typeof record.acceptedState === 'string'
+          ? new Uint8Array(Buffer.from(record.acceptedState, 'base64'))
+          : null,
       merged: record.merged === true,
       actorAccountId: record.actorAccountId,
       serverTime: record.serverTime,
@@ -785,7 +788,18 @@ async function writeChangeset(
     actorAccountId: actor.accountId,
     mutationId: input.mutationId,
     requestDigest: digest,
-    outcome,
+    // A replay answers exactly what the first attempt answered, so the stored
+    // outcome keeps the complete accepted state as text (record 0085).
+    outcome: {
+      ...outcome,
+      revisions: outcome.revisions.map((revision) => ({
+        ...revision,
+        acceptedState:
+          revision.acceptedState === null
+            ? null
+            : Buffer.from(revision.acceptedState).toString('base64'),
+      })),
+    },
   });
 
   // Force the deferred checks now, so a path conflict is an expected outcome

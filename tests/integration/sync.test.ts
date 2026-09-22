@@ -925,7 +925,7 @@ await test('a device that only opened a note keeps the newer text', async () => 
   }
 });
 
-await test('a save over an older head is rebased and says so', async () => {
+await test('a save over work it never saw keeps both texts', async () => {
   const file = await newFile('notes/rebased.md', '# Base\n');
   const storeA = await openStore('rebase-a', 'device-rebase-a');
   try {
@@ -965,13 +965,16 @@ await test('a save over an older head is rebased and says so', async () => {
       await stopEngine(runA);
     }
 
-    // The later save wins, the head it passed is a history entry, and the
-    // answer names it, so the person reads one notice instead of nothing.
+    // Both edits reach the note: the device that saved last joined the work
+    // it had not seen, so no text is lost (records 0081, 0087).
     const live = await getFile({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },
     });
-    assert.equal(live.data?.head?.text, '# Mine\n');
+    const merged = live.data?.head?.text ?? '';
+    assert.ok(merged.includes('# Mine'), merged);
+    assert.ok(merged.includes('# Theirs'), merged);
+    assert.equal(live.data?.head?.merged, true);
     const history = await listHistory({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },
@@ -982,7 +985,7 @@ await test('a save over an older head is rebased and says so', async () => {
     );
     assert.ok(
       runA.notices.some((notice) => notice.kind === 'superseded'),
-      'the device tells the person that it passed a version',
+      'the device tells the person that its save joined other work',
     );
   } finally {
     await storeA.close();
