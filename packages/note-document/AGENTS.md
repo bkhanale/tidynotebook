@@ -21,7 +21,11 @@ the complete observed state that decides whether work is unseen.
   delta and never decides whether work is unseen.
 - `src/bounds.ts` holds the one set of resource bounds. The text limit of a
   note stays in `packages/markdown`.
-- `src/editor-bridge.ts` is the private entry for `packages/editor` only.
+- `src/session.ts` holds the live session of one open note. It hands out
+  bytes and text, labels each change as local, remote, or repair, and checks
+  foreign work on a trial copy before the live document takes it.
+- `src/editor-bridge.ts` is the private entry for `packages/editor` only. It
+  returns the live text and the one local undo manager of a session.
 - No storage, no transport, no React, and no CodeMirror code lives here.
 
 ## Allowed imports

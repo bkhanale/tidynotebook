@@ -23,3 +23,9 @@ export {
 } from './document.ts';
 export type { Coverage, DocumentInEpoch, ObservedInEpoch } from './observed.ts';
 export { observeDocument, observedCoverage } from './observed.ts';
+export type {
+  DocumentSession,
+  SessionChange,
+  SessionOrigin,
+} from './session.ts';
+export { openDocumentSession } from './session.ts';

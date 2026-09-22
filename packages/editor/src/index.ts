@@ -96,3 +96,4 @@ export {
   richWidgets,
   shouldPreserveAsSource,
 } from './widgets.ts';
+export { documentBindingExtension } from './document-binding.ts';
