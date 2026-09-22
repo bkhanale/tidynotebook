@@ -5,6 +5,7 @@ required:
   - revisionId
   - mutationId
   - deviceId
+  - document
 properties:
   revisionId:
     allOf:

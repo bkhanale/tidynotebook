@@ -1,6 +1,10 @@
 /** Explicit save history and restore checks against a real server. */
 import assert from 'node:assert/strict';
-import { firstSave, saveForHead } from './support/documents.ts';
+import {
+  firstSave,
+  saveForHead,
+  useDocumentHeaders,
+} from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -99,6 +103,7 @@ const cookie = cookieHeader(
   responseOf(signedIn.response).headers.getSetCookie(),
 );
 const headers = { origin: 'http://127.0.0.1', cookie };
+useDocumentHeaders(headers);
 const workspaces = await listWorkspaces({ headers });
 const workspaceId = workspaces.data?.workspaces[0]?.workspaceId ?? '';
 

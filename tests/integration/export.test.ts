@@ -13,7 +13,12 @@
  * ```
  */
 import assert from 'node:assert/strict';
-import { firstSave, saveForHead } from './support/documents.ts';
+import {
+  firstSave,
+  saveForHead,
+  deletionForHead,
+  useDocumentHeaders,
+} from './support/documents.ts';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -192,6 +197,7 @@ const cookie = cookieHeader(
 );
 assert.ok(cookie.length > 0, 'the test needs a session cookie');
 
+useDocumentHeaders(browser(cookie));
 const account = await getAccount({ headers: browser(cookie) });
 assert.match(account.data?.accountId ?? '', /^[0-9a-f-]{36}$/);
 const listed = await listWorkspaces({ headers: browser(cookie) });
@@ -278,7 +284,10 @@ await test('a deleted note cannot be exported', async () => {
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': note.tag },
     path: { workspaceId, fileId: note.fileId },
-    body: ids(),
+    body: {
+      ...ids(),
+      document: await deletionForHead(workspaceId, note.tag.replace(/"/g, '')),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
   const answer = await exportNote({
@@ -321,7 +330,13 @@ await test('the archive holds every live note and the images they use', async ()
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': doomed.tag },
     path: { workspaceId, fileId: doomed.fileId },
-    body: ids(),
+    body: {
+      ...ids(),
+      document: await deletionForHead(
+        workspaceId,
+        doomed.tag.replace(/"/g, ''),
+      ),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
 

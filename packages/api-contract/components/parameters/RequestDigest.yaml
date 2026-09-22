@@ -2,7 +2,7 @@ name: digest
 in: query
 required: true
 style: form
-explode: false
+explode: true
 description: >-
   The digest of the exact request that the device froze on its first
   send. It decides whether the stored receipt belongs to this request.

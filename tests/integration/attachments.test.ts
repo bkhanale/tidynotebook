@@ -7,6 +7,7 @@
  * directly with the store.
  */
 import assert from 'node:assert/strict';
+import { deletionForHead, useDocumentHeaders } from './support/documents.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { PassThrough } from 'node:stream';
@@ -175,6 +176,7 @@ const cookie = cookieHeader(
 );
 assert.ok(cookie.length > 0, 'the test needs a session cookie');
 
+useDocumentHeaders(browser(cookie));
 const account = await getAccount({ headers: browser(cookie) });
 const ownerAccountId = account.data?.accountId ?? '';
 assert.match(ownerAccountId, /^[0-9a-f-]{36}$/);
@@ -1168,7 +1170,12 @@ async function noteWithAttachment(
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': `"${revisionId}"` },
     path: { workspaceId, fileId },
-    body: { revisionId: randomUUID(), ...mutationIds() },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'attachment-test',
+      revisionId: randomUUID(),
+      document: await deletionForHead(workspaceId, revisionId),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
   return {

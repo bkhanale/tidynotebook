@@ -1,6 +1,10 @@
 /** Trash listing, restore, and permanent deletion against a real server. */
 import assert from 'node:assert/strict';
-import { deletionForHead, firstSave } from './support/documents.ts';
+import {
+  deletionForHead,
+  firstSave,
+  useDocumentHeaders,
+} from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -101,6 +105,7 @@ const cookie = cookieHeader(
   responseOf(signedIn.response).headers.getSetCookie(),
 );
 const headers = { origin: 'http://127.0.0.1', cookie };
+useDocumentHeaders(headers);
 const workspaces = await listWorkspaces({ headers });
 const workspaceId = workspaces.data?.workspaces[0]?.workspaceId ?? '';
 const device = 'trash-test';
@@ -140,6 +145,7 @@ async function removeNote(fileId: string, tag: string): Promise<void> {
       mutationId: randomUUID(),
       deviceId: device,
       message: null,
+      document: await deletionForHead(workspaceId, tag.replace(/"/g, '')),
     },
   });
   assert.equal(deleted.error, undefined, JSON.stringify(deleted.error));

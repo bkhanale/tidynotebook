@@ -8,7 +8,11 @@
  * retention, version, and purge rules hold.
  */
 import assert from 'node:assert/strict';
-import { firstSave, saveForHead } from './support/documents.ts';
+import {
+  firstSave,
+  saveForHead,
+  useDocumentHeaders,
+} from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -148,6 +152,7 @@ const ownerCookie = cookieHeader(
 );
 assert.ok(ownerCookie.length > 0, 'the test needs an owner session cookie');
 
+useDocumentHeaders(browser(ownerCookie));
 const account = await getAccount({ headers: browser(ownerCookie) });
 const ownerAccountId = account.data?.accountId ?? '';
 assert.match(ownerAccountId, /^[0-9a-f-]{36}$/);

@@ -128,8 +128,14 @@ export async function acceptDocumentWork(
       service.observe(before.bytes),
     );
     const head = heads.get(revision.fileId);
+    // The text work of a device brings a note back from Trash, and a save
+    // with no work leaves it there. A restore and an import state what they
+    // want, and the workspace writes their text into the document rather than
+    // deciding from it (records 0083, 0084).
     const deleted =
-      head?.deleted === true && !revision.deleted ? !newWork : revision.deleted;
+      save.work.kind !== 'text' && head?.deleted === true && !revision.deleted
+        ? !newWork
+        : revision.deleted;
     const text = deleted ? '' : applied.value.text;
     working.set(revision.fileId, {
       bytes: applied.value.bytes,

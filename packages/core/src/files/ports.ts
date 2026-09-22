@@ -221,6 +221,14 @@ export type RevisionRecord = {
   readonly serverTime: string;
   /** The generation of the document at this revision, or null. */
   readonly epoch: number | null;
+  /**
+   * The document of the note, when this revision is its head.
+   *
+   * A reader starts from it and stays able to merge later work. An older
+   * revision and an attachment carry none: the text of an older revision is
+   * history, and only the head has a live document (record 0081).
+   */
+  readonly document: Uint8Array | null;
   /** True when this save joined work that its device had not seen. */
   readonly merged: boolean;
 };

@@ -205,6 +205,10 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           restoredFrom: revision.restoredFrom,
           clientTime: revision.clientTime,
           serverTime: '2026-09-06T10:00:00.000Z',
+          document:
+            input.documents.find(
+              (document) => document.fileId === revision.fileId,
+            )?.bytes ?? null,
           epoch:
             input.documents.find(
               (document) => document.fileId === revision.fileId,

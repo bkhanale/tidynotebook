@@ -2718,7 +2718,8 @@ export const operations: readonly OperationEntry[] = [
         "required": [
           "revisionId",
           "mutationId",
-          "deviceId"
+          "deviceId",
+          "document"
         ],
         "properties": {
           "revisionId": {
@@ -4528,7 +4529,7 @@ export const operations: readonly OperationEntry[] = [
         "location": "query",
         "required": true,
         "style": "form",
-        "explode": false
+        "explode": true
       }
     ],
     "request": {

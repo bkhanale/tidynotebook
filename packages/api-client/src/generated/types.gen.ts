@@ -443,7 +443,7 @@ export type DeleteFileInput = {
     /**
      * What the device had seen of the document when it deleted the note. The save carries no update. The workspace refuses the deletion when the state does not cover the text work that the note holds, so a deletion never hides an edit that the device never saw.
      */
-    document?: DocumentSave;
+    document: DocumentSave;
 };
 
 /**

@@ -15,7 +15,12 @@
  * ```
  */
 import assert from 'node:assert/strict';
-import { firstSave, saveForHead } from './support/documents.ts';
+import {
+  firstSave,
+  saveForHead,
+  deletionForHead,
+  useDocumentHeaders,
+} from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import {
@@ -164,6 +169,7 @@ const cookie = cookieHeader(
 );
 assert.ok(cookie.length > 0, 'the test needs a session cookie');
 
+useDocumentHeaders(browser(cookie));
 const account = await getAccount({ headers: browser(cookie) });
 const ownerAccountId = account.data?.accountId ?? '';
 assert.match(ownerAccountId, /^[0-9a-f-]{36}$/);
@@ -410,7 +416,10 @@ await test('a deletion writes a tombstone and hides the file', async () => {
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: ids(),
+    body: {
+      ...ids(),
+      document: await deletionForHead(workspaceId, file.tag.replace(/"/g, '')),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
   assert.equal(responseOf(removed.response).status, 200);
@@ -464,7 +473,10 @@ await test('a deletion clears the search row of a file', async () => {
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: ids(),
+    body: {
+      ...ids(),
+      document: await deletionForHead(workspaceId, file.tag.replace(/"/g, '')),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
 
@@ -839,7 +851,10 @@ await test('a stale update over a deleted note is refused', async () => {
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: ids(),
+    body: {
+      ...ids(),
+      document: await deletionForHead(workspaceId, file.tag.replace(/"/g, '')),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
 
@@ -1422,7 +1437,13 @@ await test('a full workspace still accepts a deletion', async () => {
   const removed = await deleteFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId: fullWorkspace, fileId: file.fileId },
-    body: ids(),
+    body: {
+      ...ids(),
+      document: await deletionForHead(
+        fullWorkspace,
+        file.tag.replace(/"/g, ''),
+      ),
+    },
   });
   assert.equal(removed.error, undefined, JSON.stringify(removed.error));
   assert.equal(removed.data?.revision.deleted, true);

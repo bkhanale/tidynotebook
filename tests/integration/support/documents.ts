@@ -15,6 +15,19 @@ import {
   startDocument,
 } from '@notesapp/note-document';
 
+/**
+ * The headers that a read of a document carries.
+ *
+ * A test signs in once and states its headers here, so the helpers below read
+ * a document as that account and never as a stranger.
+ */
+let readHeaders: Record<string, string> = {};
+
+/** States the headers that the helpers of this module use. */
+export function useDocumentHeaders(headers: Record<string, string>): void {
+  readHeaders = headers;
+}
+
 /** The base64 of one byte string, as the contract states it. */
 export function base64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
@@ -106,7 +119,10 @@ export async function saveForHead(
   readonly epoch: number;
   readonly observed: string;
 }> {
-  const head = await getRevision({ path: { workspaceId, revisionId } });
+  const head = await getRevision({
+    headers: readHeaders,
+    path: { workspaceId, revisionId },
+  });
   const document = head.data?.document ?? null;
   return saveOf(
     document === null ? emptyDocument() : documentOf(document),
@@ -123,7 +139,10 @@ export async function deletionForHead(
   readonly epoch: number;
   readonly observed: string;
 }> {
-  const head = await getRevision({ path: { workspaceId, revisionId } });
+  const head = await getRevision({
+    headers: readHeaders,
+    path: { workspaceId, revisionId },
+  });
   const document = head.data?.document ?? null;
   return deletionOf(document === null ? emptyDocument() : documentOf(document));
 }

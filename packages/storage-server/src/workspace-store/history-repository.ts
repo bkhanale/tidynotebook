@@ -13,7 +13,13 @@ import {
   type RevisionRecord,
   type WorkspaceTransaction,
 } from '@notesapp/core';
-import { contents, revisionParents, revisions } from '../schema.ts';
+import {
+  contents,
+  files,
+  noteDocuments,
+  revisionParents,
+  revisions,
+} from '../schema.ts';
 import { assertUuid } from './errors.ts';
 import type { RepositoryContext } from './context.ts';
 
@@ -87,6 +93,8 @@ export function historyRepository(
           objectId: contents.objectId,
           epoch: revisions.documentEpoch,
           merged: revisions.merged,
+          document: noteDocuments.bytes,
+          headRevisionId: files.headRevisionId,
         })
         .from(revisions)
         .innerJoin(
@@ -94,6 +102,22 @@ export function historyRepository(
           and(
             eq(contents.workspaceId, revisions.workspaceId),
             eq(contents.digest, revisions.contentDigest),
+          ),
+        )
+        .innerJoin(
+          files,
+          and(
+            eq(files.workspaceId, revisions.workspaceId),
+            eq(files.id, revisions.fileId),
+          ),
+        )
+        // The document of a note belongs to its head. An older revision joins
+        // no row, so it carries none (record 0081).
+        .leftJoin(
+          noteDocuments,
+          and(
+            eq(noteDocuments.workspaceId, revisions.workspaceId),
+            eq(noteDocuments.fileId, revisions.fileId),
           ),
         )
         .where(
@@ -117,6 +141,7 @@ export function historyRepository(
       return {
         epoch: row.epoch,
         merged: row.merged,
+        document: row.headRevisionId === row.id ? (row.document ?? null) : null,
         revisionId: row.id,
         fileId: row.fileId,
         path: row.path,
