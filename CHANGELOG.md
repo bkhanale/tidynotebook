@@ -5,6 +5,24 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 - 2026-09-22
+
+This minor release makes an update safe for every open tab, and it tells you
+when your server needs a newer version of Notesapp.
+
+### Added
+
+- Notesapp asks your server which sync version it serves, before it sends or
+  reads anything. When your server needs a newer version, the sidebar states
+  that saving waits, and a notice offers the update. Your work stays on this
+  device until then.
+
+### Changed
+
+- Update now stores the text of every open tab and closes each of them, then
+  starts the new version. A tab that cannot store its text stops the update,
+  and every tab stays as it is.
+
 ## 0.3.7 - 2026-09-21
 
 This patch release opens a link with one click, and it keeps a long list item
