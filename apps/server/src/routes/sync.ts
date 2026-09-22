@@ -193,8 +193,7 @@ export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
               digest: change.digest,
               kindOfFile: change.kindOfFile,
               epoch: change.epoch,
-              update:
-                change.update === null ? null : base64Of(change.update),
+              update: change.update === null ? null : base64Of(change.update),
               stateVector:
                 change.stateVector === null
                   ? null

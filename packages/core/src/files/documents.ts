@@ -24,10 +24,13 @@ import { contentDigest } from './digest.ts';
 import {
   fail,
   ok,
+  type AcceptedChangeset,
+  type ChangesetInput,
   type DocumentWrite,
   type Result,
   type RevisionInput,
   type StoredRevisionInput,
+  type SupersededHead,
 } from './model.ts';
 import type {
   DocumentService,
@@ -36,11 +39,6 @@ import type {
   WorkspaceTransaction,
 } from './ports.ts';
 import type { Actor } from '../identity/actor.ts';
-import type {
-  AcceptedChangeset,
-  ChangesetInput,
-  SupersededHead,
-} from './model.ts';
 
 /** What the acceptance of one changeset produced for its documents. */
 export type AcceptedDocuments = {

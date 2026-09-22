@@ -211,13 +211,8 @@ await test('getChanges continues from the last returned change', async () => {
     new Map([[ownerId, 'owner']]),
     {
       changes: [
-        {
-          cursor: '11',
-          entityKind: 'file',
-          entityId: fileId,
-          revisionId: null,
-          deleted: true,
-        },
+        // A permanent deletion names the note alone: its revisions are gone.
+        { kind: 'purge', cursor: '11', fileId },
       ],
       highWater: '11',
       oldestRetained: '1',

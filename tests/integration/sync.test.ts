@@ -15,7 +15,7 @@ import {
   saveForHead,
   useDocumentHeaders,
 } from './support/documents.ts';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -94,11 +94,6 @@ function cookieHeader(values: readonly string[]): string {
 /** The headers of a browser request. A write also names the origin. */
 function browser(cookie: string): Record<string, string> {
   return { origin: 'http://127.0.0.1', cookie };
-}
-
-/** The SHA-256 digest of UTF-8 Markdown, as the design defines it. */
-function sha256hex(text: string): string {
-  return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
 const database = await createDisposableDatabase();

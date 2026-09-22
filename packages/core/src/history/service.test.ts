@@ -12,7 +12,6 @@ import {
   type AcceptedChangeset,
   type AcceptedInput,
   type AcceptedRevision,
-  type ChangesetInput,
   type Result,
 } from '../files/model.ts';
 import type {

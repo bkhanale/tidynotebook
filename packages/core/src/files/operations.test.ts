@@ -8,7 +8,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { maxFilesPerChangeset } from './commit.ts';
-import { contentDigest } from './digest.ts';
 import type { ContentRef } from './model.ts';
 import {
   createFileChangeset,

@@ -1349,6 +1349,10 @@ await test('the first pull stages, fetches, and activates a snapshot', async () 
           deleted: false,
           digest: 'digest-a',
           text: '# A\n',
+          // The snapshot carries the whole document of the note, which the
+          // device stores as it is (record 0081).
+          document: 'AAEC',
+          epoch: 1,
         },
       });
     },
@@ -1529,6 +1533,8 @@ await test('a purged revision mid-download restarts the snapshot once', async ()
           deleted: false,
           digest: 'digest-a',
           text: '# A\n',
+          document: 'AAEC',
+          epoch: 1,
         },
       });
     },

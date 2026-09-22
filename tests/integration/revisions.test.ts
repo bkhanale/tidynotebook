@@ -39,10 +39,7 @@ import {
   updateFile,
 } from '@notesapp/api-client';
 import { acceptWithDocuments, contentDigest } from '@notesapp/core';
-import {
-  replaceDocumentText,
-  startDocument,
-} from '@notesapp/note-document';
+import { replaceDocumentText, startDocument } from '@notesapp/note-document';
 import {
   bootstrapOwner,
   createAuth,

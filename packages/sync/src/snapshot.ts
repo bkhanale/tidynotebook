@@ -238,7 +238,8 @@ async function fullSnapshot(
       deleted: revision.deleted,
       digest: revision.digest,
       text: revision.text,
-      document: revision.document === null ? null : bytesOfBase64(revision.document),
+      document:
+        revision.document === null ? null : bytesOfBase64(revision.document),
       epoch: revision.epoch,
     });
   }

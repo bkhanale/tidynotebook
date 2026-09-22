@@ -225,8 +225,7 @@ export function replaceDocumentText(
   text: string,
   bounds: DocumentBounds = documentBounds,
 ): DocumentResult<AppliedDocument> {
-  if (!text.isWellFormed())
-    return { ok: false, refusal: 'not-well-formed' };
+  if (!text.isWellFormed()) return { ok: false, refusal: 'not-well-formed' };
   const doc = loadDocument(document);
   try {
     const live = doc.getText(noteTextRoot);

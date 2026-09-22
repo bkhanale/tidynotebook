@@ -14,7 +14,6 @@ import type { Actor, Role } from '../identity/actor.ts';
 import type {
   AcceptedChangeset,
   AcceptedInput,
-  ChangesetInput,
   DomainErrorCode,
   Result,
   SupersededHead,

@@ -14,17 +14,6 @@ import { createDocumentService } from '@notesapp/storage-server';
  * head answers 412 with the files that moved on.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type {
-  AcceptedChangeset,
-  AcceptedRevision,
-  ChangesetInput,
-  ContentRef,
-  FilePageRequest,
-  Result,
-  RevisionInput,
-  RevisionRecord,
-  WorkspaceStore,
-} from '@notesapp/core';
 import {
   commitChangeset,
   createFileChangeset,
@@ -42,8 +31,17 @@ import {
   restoreFile,
   tombstoneContent,
   updateFileChangeset,
-  type DocumentSave,
   workspaceText,
+  type AcceptedChangeset,
+  type AcceptedRevision,
+  type ChangesetInput,
+  type ContentRef,
+  type DocumentSave,
+  type FilePageRequest,
+  type Result,
+  type RevisionInput,
+  type RevisionRecord,
+  type WorkspaceStore,
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';

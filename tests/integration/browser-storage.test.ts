@@ -10,6 +10,7 @@
  *
  * Every test builds its own `IDBFactory`, so runs never share state.
  */
+import { startDocument } from '@notesapp/note-document';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import process from 'node:process';
@@ -1359,6 +1360,8 @@ await test('snapshot activation and clearing publish committed invalidations', a
     deleted: false,
     digest,
     text,
+    document: startDocument(text),
+    epoch: 1,
   });
   await store.activateSnapshot('snapshot-token');
   assert.deepEqual(changes, [`file:${file}`, 'cursor:all']);
@@ -2070,6 +2073,8 @@ await test('a fresh snapshot forgets a purged note but keeps unsent local work',
     deleted: false,
     digest,
     text,
+    document: startDocument(text),
+    epoch: 1,
   });
   await store.activateSnapshot('token');
 

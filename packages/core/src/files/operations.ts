@@ -7,7 +7,6 @@
  * one. They perform no permission check and no storage lookup;
  * `commitChangeset` owns every rule.
  */
-import { contentDigest } from './digest.ts';
 import {
   fail,
   ok,
