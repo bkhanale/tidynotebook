@@ -19,6 +19,9 @@ the complete observed state that decides whether work is unseen.
 - `src/observed.ts` holds complete observed state: the state vector and the
   deletion set, encoded as a Yjs snapshot. A state vector alone serves a
   delta and never decides whether work is unseen.
+- `src/recovery.ts` joins two legacy texts over their base. It is the
+  exception for migration and repair, never the normal merge, and it reports
+  an ambiguity instead of guessing a placement (record 0084).
 - `src/bounds.ts` holds the one set of resource bounds. The text limit of a
   note stays in `packages/markdown`.
 - `src/session.ts` holds the live session of one open note. It hands out

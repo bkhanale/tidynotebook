@@ -30,3 +30,9 @@ export type {
   SessionOrigin,
 } from './session.ts';
 export { openDocumentSession } from './session.ts';
+export type {
+  RecoveryAmbiguity,
+  RecoveryInput,
+  RecoveryOutcome,
+} from './recovery.ts';
+export { recoverLegacyText } from './recovery.ts';
