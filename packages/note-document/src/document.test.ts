@@ -283,5 +283,5 @@ await test('a delta carries exactly the work that a peer lacks', () => {
   const delta = encodeDocumentDelta(server, Y.encodeStateVector(peer));
   assert.ok(delta.byteLength < server.byteLength);
   Y.applyUpdate(peer, delta);
-  assert.equal(peer.getText(noteTextRoot).toString(), 'shared text');
+  assert.equal(peer.getText(noteTextRoot).toJSON(), 'shared text');
 });

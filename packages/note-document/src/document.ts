@@ -71,7 +71,7 @@ export function startDocument(text: string): Uint8Array {
 /** The text that a document holds. */
 export function readDocumentText(document: Uint8Array): string {
   const doc = loadDocument(document);
-  const text = doc.getText(noteTextRoot).toString();
+  const text = doc.getText(noteTextRoot).toJSON();
   doc.destroy();
   return text;
 }
@@ -180,7 +180,7 @@ export function applyDocumentUpdate(
       return { ok: false, refusal: 'too-large' };
     return {
       ok: true,
-      value: { document: next, text: doc.getText(noteTextRoot).toString() },
+      value: { document: next, text: doc.getText(noteTextRoot).toJSON() },
     };
   } finally {
     doc.destroy();

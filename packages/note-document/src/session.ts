@@ -72,7 +72,7 @@ export class DocumentSession {
 
   /** The text that the session holds now. */
   text(): string {
-    return liveDocumentOf(this).getText(noteTextRoot).toString();
+    return liveDocumentOf(this).getText(noteTextRoot).toJSON();
   }
 
   /** The whole document as bytes. */

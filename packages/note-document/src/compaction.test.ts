@@ -34,7 +34,7 @@ await test('compaction keeps identities, so old offline work still applies', () 
   const log = [base, ...written];
   const uncompacted = Y.mergeUpdates(log);
   const compacted = compactDocument(log);
-  assert.equal(readDocumentText(compacted), text.toString());
+  assert.equal(readDocumentText(compacted), text.toJSON());
   assert.ok(compacted.byteLength <= uncompacted.byteLength);
   // Equal rendered text is not the proof: the complete observed state is.
   assert.deepEqual(observeDocument(compacted), observeDocument(uncompacted));
@@ -47,7 +47,7 @@ await test('compaction keeps identities, so old offline work still applies', () 
   assert.ok(accepted.ok, accepted.ok ? '' : accepted.refusal);
   // The phone takes the same offline work and both hold one text.
   Y.applyUpdate(phone, Y.mergeUpdates(offline));
-  assert.equal(accepted.value.text, text.toString());
+  assert.equal(accepted.value.text, text.toJSON());
   assert.ok(accepted.value.text.startsWith('The very quick '));
   assert.ok(!accepted.value.text.includes('brown'));
 });
