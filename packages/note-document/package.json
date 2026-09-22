@@ -1,0 +1,30 @@
+{
+  "name": "@notesapp/note-document",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./editor-bridge": {
+      "types": "./dist/editor-bridge.d.ts",
+      "default": "./dist/editor-bridge.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc -b tsconfig.build.json && tsc -p tsconfig.json",
+    "build": "tsc -b tsconfig.build.json",
+    "test:unit": "node ../../tools/run-tests.mjs unit"
+  },
+  "dependencies": {
+    "diff": "catalog:",
+    "yjs": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:toolchain"
+  }
+}

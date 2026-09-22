@@ -41,6 +41,7 @@ export const guidedDirectories = [
   'packages/core',
   'packages/editor',
   'packages/markdown',
+  'packages/note-document',
   'packages/storage-browser',
   'packages/storage-server',
   'packages/sync',

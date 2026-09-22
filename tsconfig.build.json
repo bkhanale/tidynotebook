@@ -9,6 +9,7 @@
     { "path": "packages/editor/tsconfig.build.json" },
     { "path": "packages/logging/tsconfig.build.json" },
     { "path": "packages/markdown/tsconfig.build.json" },
+    { "path": "packages/note-document/tsconfig.build.json" },
     { "path": "packages/storage-browser/tsconfig.build.json" },
     { "path": "packages/storage-server/tsconfig.build.json" },
     { "path": "packages/sync/tsconfig.build.json" },

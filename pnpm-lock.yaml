@@ -123,6 +123,9 @@ catalogs:
     '@types/react-dom':
       specifier: 19.2.7
       version: 19.2.7
+    diff:
+      specifier: 9.0.0
+      version: 9.0.0
     drizzle-orm:
       specifier: 0.45.2
       version: 0.45.2
@@ -144,6 +147,9 @@ catalogs:
     sharp:
       specifier: 0.35.4
       version: 0.35.4
+    yjs:
+      specifier: 13.6.32
+      version: 13.6.32
   toolchain:
     typescript:
       specifier: 7.0.2
@@ -426,9 +432,18 @@ importers:
       '@notesapp/markdown':
         specifier: workspace:*
         version: link:../markdown
+      '@notesapp/note-document':
+        specifier: workspace:*
+        version: link:../note-document
       diff:
-        specifier: 9.0.0
+        specifier: 'catalog:'
         version: 9.0.0
+      y-codemirror.next:
+        specifier: 0.3.6
+        version: 0.3.6(@codemirror/state@6.7.4)(@codemirror/view@6.43.11)(yjs@13.6.32)
+      yjs:
+        specifier: 'catalog:'
+        version: 13.6.32
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -497,6 +512,22 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.2
+      typescript:
+        specifier: catalog:toolchain
+        version: 7.0.2
+
+  packages/note-document:
+    dependencies:
+      diff:
+        specifier: 'catalog:'
+        version: 9.0.0
+      yjs:
+        specifier: 'catalog:'
+        version: 13.6.32
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.4.1
       typescript:
         specifier: catalog:toolchain
         version: 7.0.2
@@ -2903,6 +2934,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  isomorphic.js@0.2.5:
+    resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
+
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
@@ -2940,6 +2974,11 @@ packages:
 
   layout-base@2.0.1:
     resolution: {integrity: sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg==}
+
+  lib0@0.2.117:
+    resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==}
+    engines: {node: '>=16'}
+    hasBin: true
 
   light-my-request@6.6.0:
     resolution: {integrity: sha512-CHYbu8RtboSIoVsHZ6Ye4cj4Aw/yg2oAFimlF7mNvfDV192LR7nDiKtSIfCuLT7KokPSTn/9kfVLm5OGN0A28A==}
@@ -3749,6 +3788,17 @@ packages:
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
+
+  y-codemirror.next@0.3.6:
+    resolution: {integrity: sha512-GnmVXhTe+UtoFbbaSdwhq6gdAQZdIY9az0Xj6HR2J4PO6Yw4w3xaaSssU+6T72WhXAI0wf9FbuY2s0Ms+WrexA==}
+    peerDependencies:
+      '@codemirror/state': ^6.0.0
+      '@codemirror/view': ^6.0.0
+      yjs: ^13.5.6
+
+  yjs@13.6.32:
+    resolution: {integrity: sha512-lfiJIIC4Xayt5ItynE407ehlE03pCjeOc4hkR4yxxvvNJ4kuiN25B0g+Qp8XagYz361LLL7DCzR5bvFJ81QKtQ==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
 
   zod@4.5.4:
     resolution: {integrity: sha512-sC95tT5iHHH9gtpj6A81kh+NEaRAUFN+qlUPDUbRfOMvNf5QCBqsb3WgvnpVtK5Y+4UfA6KqufotuTvMGiTlsA==}
@@ -5556,6 +5606,8 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isomorphic.js@0.2.5: {}
+
   jiti@2.7.0: {}
 
   jose@6.2.11: {}
@@ -5585,6 +5637,10 @@ snapshots:
   layout-base@1.0.2: {}
 
   layout-base@2.0.1: {}
+
+  lib0@0.2.117:
+    dependencies:
+      isomorphic.js: 0.2.5
 
   light-my-request@6.6.0:
     dependencies:
@@ -6641,6 +6697,17 @@ snapshots:
       powershell-utils: 0.1.0
 
   xtend@4.0.2: {}
+
+  y-codemirror.next@0.3.6(@codemirror/state@6.7.4)(@codemirror/view@6.43.11)(yjs@13.6.32):
+    dependencies:
+      '@codemirror/state': 6.7.4
+      '@codemirror/view': 6.43.11
+      lib0: 0.2.117
+      yjs: 13.6.32
+
+  yjs@13.6.32:
+    dependencies:
+      lib0: 0.2.117
 
   zod@4.5.4: {}
 

@@ -12,5 +12,8 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"],
-  "references": [{ "path": "../markdown/tsconfig.build.json" }]
+  "references": [
+    { "path": "../markdown/tsconfig.build.json" },
+    { "path": "../note-document/tsconfig.build.json" }
+  ]
 }

@@ -31,7 +31,10 @@
     "@lezer/highlight": "1.2.3",
     "@lezer/markdown": "1.7.2",
     "@notesapp/markdown": "workspace:*",
-    "diff": "9.0.0"
+    "@notesapp/note-document": "workspace:*",
+    "diff": "catalog:",
+    "y-codemirror.next": "0.3.6",
+    "yjs": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

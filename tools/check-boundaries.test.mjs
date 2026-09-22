@@ -676,3 +676,94 @@ await test('rejects a mixed type and value import declared only by @types', () =
     'Undeclared dependency lodash.',
   );
 });
+
+/** A document package with the bridge entry, as record 0082 states it. */
+const documentPackage = {
+  'packages/note-document/package.json': JSON.stringify({
+    ...JSON.parse(manifest('note-document', { yjs: '13.6.32' })),
+    exports: {
+      '.': './src/index.ts',
+      './editor-bridge': './src/editor-bridge.ts',
+    },
+  }),
+  'packages/note-document/src/index.ts':
+    "import * as Y from 'yjs';\nexport const start = () => new Y.Doc();\n",
+  'packages/note-document/src/editor-bridge.ts':
+    "import * as Y from 'yjs';\nexport const text = () => new Y.Doc().getText('text');\n",
+};
+
+await test('accepts the editor reading the bridge and the binding', () => {
+  accepted(
+    check(
+      workspace({
+        ...documentPackage,
+        'packages/editor/package.json': manifest('editor', {
+          '@notesapp/note-document': 'workspace:*',
+          'y-codemirror.next': '0.3.6',
+          yjs: '13.6.32',
+        }),
+        'packages/editor/src/index.ts':
+          "import type { Text } from 'yjs';\nimport { yCollab } from 'y-codemirror.next';\nimport { text } from '@notesapp/note-document/editor-bridge';\nexport const bind = (): Text => { void yCollab; return text(); };\n",
+      }),
+    ),
+  );
+});
+
+await test('rejects the bridge outside the editor', () => {
+  rejected(
+    check(
+      workspace({
+        ...documentPackage,
+        'packages/sync/package.json': manifest('sync', {
+          '@notesapp/note-document': 'workspace:*',
+        }),
+        'packages/sync/src/index.ts':
+          "export { text } from '@notesapp/note-document/editor-bridge';\n",
+      }),
+    ),
+    'Only packages/editor reads the private editor bridge (record 0082).',
+  );
+});
+
+await test('rejects a run time Yjs import outside the document package', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/sync/package.json': manifest('sync', { yjs: '13.6.32' }),
+        'packages/sync/src/index.ts':
+          "import * as Y from 'yjs';\nexport const doc = new Y.Doc();\n",
+      }),
+    ),
+    'Only packages/note-document imports yjs at run time (record 0082).',
+  );
+});
+
+await test('rejects the CodeMirror binding outside the editor', () => {
+  rejected(
+    check(
+      workspace({
+        'apps/web/package.json': manifest('web', {
+          'y-codemirror.next': '0.3.6',
+        }),
+        'apps/web/src/index.ts':
+          "export { yCollab } from 'y-codemirror.next';\n",
+      }),
+    ),
+    'Only packages/editor imports y-codemirror.next (record 0082).',
+  );
+});
+
+await test('rejects a second entry point on any other package', () => {
+  rejected(
+    check(
+      workspace({
+        'packages/ui/package.json': JSON.stringify({
+          ...JSON.parse(manifest('ui')),
+          exports: { '.': './src/index.ts', './editor-bridge': './src/b.ts' },
+        }),
+        'packages/ui/src/index.ts': 'export const ui = 1;\n',
+      }),
+    ),
+    'Expose only the public package entry point through exports["."].',
+  );
+});

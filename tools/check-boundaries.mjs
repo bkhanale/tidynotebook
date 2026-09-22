@@ -41,7 +41,11 @@ const allowed = {
   sync: ['core', 'api-client', 'markdown'],
   markdown: ['core'],
   logging: [],
-  editor: ['core', 'markdown', 'ui'],
+  // The editor binds one live note document to its view (record 0082).
+  editor: ['core', 'markdown', 'ui', 'note-document'],
+  // The document package owns Yjs behind a byte API and imports no workspace
+  // package. Core receives it through a port, never through an import.
+  'note-document': [],
   ui: [],
   'sdk-codegen': ['api-contract'],
 };
@@ -57,6 +61,7 @@ const browser = new Set([
   'editor',
   'ui',
   'logging',
+  'note-document',
 ]);
 const serverOnly = new Set(['server', 'storage-server']);
 // Recognized test files may use these modules. Production files may not.
@@ -172,6 +177,18 @@ const featuresLineCap = 1600;
 const webLibPrefix = 'apps/web/src/lib/';
 const webReactPackages = new Set(['react', 'react-dom']);
 const webScreenPrefixes = ['apps/web/src/shell/', 'apps/web/src/features/'];
+// Record 0082. Yjs stays behind the note document package: only that package
+// imports it at run time, and a type-only import is the one other use. The
+// editor alone reads the live document through the private bridge entry and
+// alone imports the CodeMirror binding, so no Yjs value reaches core, sync,
+// storage, or a web feature.
+const yjsOwner = 'note-document';
+const yjsPackages = new Set(['yjs', 'lib0']);
+const editorBinding = 'y-codemirror.next';
+const editorBridgeEntry = '@notesapp/note-document/editor-bridge';
+const bridgeReaders = new Set(['editor']);
+// The one package with a second entry point, and the one entry it may add.
+const secondEntries = new Map([[yjsOwner, './editor-bridge']]);
 const generated = [
   'packages/api-client/src/generated/',
   'packages/api-contract/src/generated/',
@@ -245,7 +262,11 @@ for (const item of packages) {
   const edges = new Set();
   graph.set(name, edges);
   const exports = record(item.manifest.exports);
-  if (!('.' in exports) || Object.keys(exports).some((entry) => entry !== '.'))
+  const extraEntry = secondEntries.get(key);
+  if (
+    !('.' in exports) ||
+    Object.keys(exports).some((entry) => entry !== '.' && entry !== extraEntry)
+  )
     fail(
       item.path,
       'Expose only the public package entry point through exports["."].',
@@ -343,9 +364,21 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
     fail(file, 'Package import aliases are not part of the public boundary.');
     return;
   }
+  if (specifier === editorBridgeEntry && !bridgeReaders.has(key))
+    fail(
+      file,
+      'Only packages/editor reads the private editor bridge (record 0082).',
+    );
+  if (yjsPackages.has(dependency) && key !== yjsOwner && !isTypeOnly)
+    fail(
+      file,
+      `Only packages/note-document imports ${dependency} at run time (record 0082).`,
+    );
+  if (dependency === editorBinding && !bridgeReaders.has(key))
+    fail(file, `Only packages/editor imports ${editorBinding} (record 0082).`);
   if (dependency.startsWith('@notesapp/')) {
     graph.get(name)?.add(dependency);
-    if (specifier !== dependency)
+    if (specifier !== dependency && specifier !== editorBridgeEntry)
       fail(file, `Deep import ${specifier} is forbidden.`);
     if (!allowed[key]?.includes(short(dependency)))
       fail(file, `Forbidden import ${dependency}.`);
