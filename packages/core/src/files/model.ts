@@ -121,6 +121,14 @@ export type DocumentWrite = {
   readonly epoch: number;
   readonly state: Uint8Array;
   readonly merged: boolean;
+  /**
+   * The work that this changeset added to the document, as the feed sends it.
+   * It is the delta from the state before this changeset, so a reader that
+   * holds that state needs nothing else.
+   */
+  readonly update: Uint8Array;
+  /** The state vector after the change, so a reader can ask for a delta. */
+  readonly vector: Uint8Array;
 };
 
 /**

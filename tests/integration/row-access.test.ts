@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import {
+  createDocumentService,
   openWorkspaceStore,
   runMigrations,
   type WorkspaceStoreHandle,
@@ -66,9 +67,13 @@ type Seeded = {
 };
 
 const database: TestDatabase = await createDisposableDatabase();
-const store: WorkspaceStoreHandle = openWorkspaceStore(database.runtimeUrl, {
-  poolSize: 4,
-});
+const store: WorkspaceStoreHandle = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  {
+    poolSize: 4,
+  },
+);
 
 /** Fills every scoped table of one workspace. */
 async function seedEverything(): Promise<Seeded> {

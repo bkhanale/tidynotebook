@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { commitChangeset, listBacklinks, readFile } from '@notesapp/core';
 import {
+  createDocumentService,
   migratePortableMarkdown,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -17,7 +18,7 @@ import {
 } from './support/database.ts';
 
 const database = await createDisposableDatabase();
-const store = openWorkspaceStore(database.runtimeUrl);
+const store = openWorkspaceStore(database.runtimeUrl, createDocumentService());
 
 await test('a move rewrites inbound links in its accepted changeset', async () => {
   const workspaceId = randomUUID();

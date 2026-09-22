@@ -47,6 +47,8 @@ const documentService: DocumentService = {
       state: new TextEncoder().encode(text),
     }),
   observe: (document: Uint8Array) => document,
+  stateVector: (document: Uint8Array) => document,
+  delta: (document: Uint8Array) => document,
   readText: (document: Uint8Array) => new TextDecoder().decode(document),
   covers: () => ok(true),
 };

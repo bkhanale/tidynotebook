@@ -13,8 +13,9 @@ import {
   type FileRecord,
   type HeadState,
   type WorkspaceTransaction,
+  type StoredDocument,
 } from '@notesapp/core';
-import { files, livePaths } from '../schema.ts';
+import { files, livePaths, noteDocuments } from '../schema.ts';
 import { assertUuid } from './errors.ts';
 import {
   listingBound,
@@ -30,10 +31,33 @@ export function notesRepository(
   context: RepositoryContext,
 ): Pick<
   WorkspaceTransaction,
-  'heads' | 'headStates' | 'listFiles' | 'takenPaths' | 'file'
+  'documents' | 'heads' | 'headStates' | 'listFiles' | 'takenPaths' | 'file'
 > {
   const { db, workspaceId } = context;
   return {
+    async documents(
+      fileIds: readonly string[],
+    ): Promise<ReadonlyMap<string, StoredDocument>> {
+      if (fileIds.length === 0) return new Map();
+      for (const fileId of fileIds) assertUuid(fileId, 'a file');
+      const rows = await db
+        .select({
+          fileId: noteDocuments.fileId,
+          bytes: noteDocuments.bytes,
+          epoch: noteDocuments.epoch,
+        })
+        .from(noteDocuments)
+        .where(
+          and(
+            eq(noteDocuments.workspaceId, workspaceId),
+            inArray(noteDocuments.fileId, [...fileIds]),
+          ),
+        );
+      return new Map(
+        rows.map((row) => [row.fileId, { bytes: row.bytes, epoch: row.epoch }]),
+      );
+    },
+
     async heads(
       fileIds: readonly string[],
     ): Promise<ReadonlyMap<string, string | null>> {

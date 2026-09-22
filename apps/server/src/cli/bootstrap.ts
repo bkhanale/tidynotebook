@@ -10,6 +10,7 @@
  */
 import process from 'node:process';
 import {
+  createDocumentService,
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -56,7 +57,11 @@ export async function bootstrapOwner(
       `notesapp: the password must have at least ${String(minimumPasswordLength)} characters.`,
     );
   const identity = openIdentityStore(input.config.databaseUrl, { poolSize: 2 });
-  const content = openWorkspaceStore(input.config.databaseUrl, { poolSize: 2 });
+  const content = openWorkspaceStore(
+    input.config.databaseUrl,
+    createDocumentService(),
+    { poolSize: 2 },
+  );
   // Sign-up stays disabled in the running server. This command builds its own
   // instance with sign-up permitted, so the one-time path is here and nowhere
   // else.

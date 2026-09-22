@@ -33,7 +33,9 @@ const allowed = {
   // Accepted index updates parse Markdown inside the same database
   // transaction that advances a head. This server-only adapter may therefore
   // use the shared pure parser, and the edge stays acyclic.
-  'storage-server': ['core', 'markdown'],
+  // The deployment builds its document service here, so the server and the
+  // migration command share one adapter over the document package (0081).
+  'storage-server': ['core', 'markdown', 'note-document'],
   'storage-browser': ['core', 'sync'],
   // The device derives its own backlinks from the note bodies it holds, so
   // it reads links with the one shared extractor that the server index uses

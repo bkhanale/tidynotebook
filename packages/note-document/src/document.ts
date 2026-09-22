@@ -12,6 +12,7 @@
  * trial document, then refuses any unresolved insertion or deletion, any
  * structure other than plain text, and any result past the bounds.
  */
+import { diffChars } from 'diff';
 import * as Y from 'yjs';
 import { documentBounds, type DocumentBounds } from './bounds.ts';
 
@@ -203,4 +204,48 @@ export function compactDocument(updates: readonly Uint8Array[]): Uint8Array {
   const compacted = encodeDocument(doc);
   doc.destroy();
   return compacted;
+}
+
+/**
+ * Writes one text into a document and keeps its identities.
+ *
+ * The workspace authors text in three places: a restore from History or
+ * Trash, an import, and the link rewrites that follow a move. Each of them
+ * edits the document rather than starting a new one, so every character that
+ * stays keeps its identity and a device that holds older work still merges
+ * (record 0081).
+ */
+export function replaceDocumentText(
+  document: Uint8Array,
+  text: string,
+  bounds: DocumentBounds = documentBounds,
+): DocumentResult<AppliedDocument> {
+  const doc = loadDocument(document);
+  try {
+    const live = doc.getText(noteTextRoot);
+    const current = live.toJSON();
+    if (current !== text) {
+      doc.transact(() => {
+        let at = 0;
+        for (const part of diffChars(current, text)) {
+          if (part.added === true) {
+            live.insert(at, part.value);
+            at += part.value.length;
+            continue;
+          }
+          if (part.removed === true) {
+            live.delete(at, part.value.length);
+            continue;
+          }
+          at += part.value.length;
+        }
+      });
+    }
+    const next = encodeDocument(doc);
+    if (next.byteLength > bounds.maxDocumentBytes)
+      return { ok: false, refusal: 'too-large' };
+    return { ok: true, value: { document: next, text: live.toJSON() } };
+  } finally {
+    doc.destroy();
+  }
 }

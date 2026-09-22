@@ -24,8 +24,14 @@ export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
 export type {
   AcceptedChangeset,
+  AcceptedInput,
   AcceptedRevision,
   ChangesetInput,
+  DocumentSave,
+  DocumentWork,
+  DocumentWrite,
+  StoredContentRef,
+  StoredRevisionInput,
   ContentRef,
   DomainError,
   DomainErrorCode,
@@ -54,7 +60,10 @@ export type {
   FilePageRequest,
   FileRecord,
   FileSort,
+  AppliedDocument,
+  DocumentService,
   HeadState,
+  StoredDocument,
   HistoryPage,
   HistoryRevision,
   MutationReceipt,
@@ -77,6 +86,7 @@ export type {
 } from './files/ports.ts';
 export { isOperationalError, OperationalError } from './files/ports.ts';
 export { commitChangeset, maxFilesPerChangeset } from './files/commit.ts';
+export { acceptDocumentWork, acceptWithDocuments } from './files/documents.ts';
 export { listBacklinks, type Backlink } from './files/backlinks.ts';
 export type {
   CreateFileInput,
@@ -90,6 +100,7 @@ export {
   markdownContent,
   renameFolderChangeset,
   tombstoneContent,
+  workspaceText,
   updateFileChangeset,
 } from './files/operations.ts';
 export type {

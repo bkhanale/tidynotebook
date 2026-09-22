@@ -29,7 +29,10 @@ import {
   type ReadinessCheck,
   type ReadinessProbe,
 } from '@notesapp/server';
-import { openWorkspaceStore } from '@notesapp/storage-server';
+import {
+  createDocumentService,
+  openWorkspaceStore,
+} from '@notesapp/storage-server';
 import {
   createDisposableDatabase,
   openSession,
@@ -177,7 +180,11 @@ await test('a readiness probe opens no database connection of its own', async ()
     'select pg_terminate_backend(pid) from pg_stat_activity where datname = $1',
     [database.name],
   );
-  const store = openWorkspaceStore(database.runtimeUrl, { poolSize: 1 });
+  const store = openWorkspaceStore(
+    database.runtimeUrl,
+    createDocumentService(),
+    { poolSize: 1 },
+  );
   try {
     const probes = databaseProbes(() => store.probeDatabase());
     // The first read opens the one pooled connection of this store.
@@ -335,9 +342,13 @@ await test('backup and restore round-trip a note with its history and attachment
   try {
     sourceDb = await createDisposableDatabase();
     targetDb = await createDisposableDatabase();
-    const schemaStore = openWorkspaceStore(sourceDb.runtimeUrl, {
-      poolSize: 1,
-    });
+    const schemaStore = openWorkspaceStore(
+      sourceDb.runtimeUrl,
+      createDocumentService(),
+      {
+        poolSize: 1,
+      },
+    );
     const schemaReport = await evaluateReadiness(
       databaseProbes(() => schemaStore.probeDatabase()),
       'full',

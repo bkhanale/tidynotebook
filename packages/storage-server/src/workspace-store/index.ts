@@ -18,6 +18,7 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 import type {
   Actor,
+  DocumentService,
   PublicationReader,
   PublicationStore,
   PublishedLink,
@@ -225,8 +226,9 @@ function createTransaction(
   db: NodePgDatabase,
   actor: Actor,
   workspaceId: string,
+  documents: DocumentService,
 ): WorkspaceTransaction {
-  const context = { client, db, actor, workspaceId };
+  const context = { client, db, actor, workspaceId, documents };
   return {
     ...membershipRepository(context),
     ...notesRepository(context),
@@ -240,6 +242,7 @@ function createTransaction(
 /** Opens a workspace store over one PostgreSQL connection pool. */
 export function openWorkspaceStore(
   databaseUrl: string,
+  documents: DocumentService,
   options: WorkspaceStoreOptions = {},
 ): WorkspaceStoreHandle {
   const pool = new pg.Pool({
@@ -272,6 +275,7 @@ export function openWorkspaceStore(
   };
 
   return {
+    documents,
     async transact<T>(
       actor: Actor,
       workspaceId: string,
@@ -284,7 +288,8 @@ export function openWorkspaceStore(
         workspaceId,
         run,
         options,
-        createTransaction,
+        (client, db, transactionActor, scope) =>
+          createTransaction(client, db, transactionActor, scope, documents),
       );
     },
 

@@ -7,6 +7,7 @@ import {
   encodeDocumentDelta,
   noteTextRoot,
   readDocumentText,
+  replaceDocumentText,
   startDocument,
 } from './document.ts';
 import { observeDocument, observedCoverage } from './observed.ts';
@@ -284,4 +285,31 @@ await test('a delta carries exactly the work that a peer lacks', () => {
   assert.ok(delta.byteLength < server.byteLength);
   Y.applyUpdate(peer, delta);
   assert.equal(peer.getText(noteTextRoot).toJSON(), 'shared text');
+});
+
+await test('a text write edits the document and keeps its identities', () => {
+  // Record 0081. A restore, an import, and a link rewrite write text. They
+  // edit the live text, so a device that holds older work still merges.
+  const base = startDocument('# One\nlink to notes/old.md\n');
+  const offline = device(base);
+  const away = updateOf(offline, (text) => {
+    text.insert(5, ' plus');
+  });
+  const rewritten = replaceDocumentText(base, '# One\nlink to notes/new.md\n');
+  assert.ok(rewritten.ok, rewritten.ok ? '' : rewritten.refusal);
+  assert.equal(rewritten.value.text, '# One\nlink to notes/new.md\n');
+
+  const joined = applyDocumentUpdate(rewritten.value.document, away);
+  assert.ok(joined.ok, joined.ok ? '' : joined.refusal);
+  assert.equal(joined.value.text, '# One plus\nlink to notes/new.md\n');
+});
+
+await test('a text write that changes nothing changes no identity', () => {
+  const base = startDocument('same\n');
+  const written = replaceDocumentText(base, 'same\n');
+  assert.ok(written.ok);
+  assert.deepEqual(
+    observeDocument(written.value.document),
+    observeDocument(base),
+  );
 });

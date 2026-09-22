@@ -15,6 +15,7 @@
 import {
   bigint,
   boolean,
+  customType,
   check,
   foreignKey,
   index,
@@ -29,6 +30,19 @@ import {
   uuid,
 } from 'drizzle-orm/pg-core';
 import { sql } from 'drizzle-orm';
+
+/**
+ * Raw bytes, as PostgreSQL `bytea`.
+ *
+ * A document and an observed state are bytes, never text: a base64 column
+ * would store a third of its size again and would invite a reader to treat
+ * the value as something a person reads.
+ */
+const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
+  dataType: () => 'bytea',
+  toDriver: (value: Uint8Array) => Buffer.from(value),
+  fromDriver: (value: Buffer) => new Uint8Array(value),
+});
 
 /**
  * A workspace membership role.
@@ -325,6 +339,14 @@ export const revisions = pgTable(
       .default(sql`clock_timestamp()`),
     message: text('message'),
     restoredFrom: uuid('restored_from'),
+    // The document work of this revision, which the feed sends as one record
+    // (record 0081). `documentUpdate` is null where no delta exists, for
+    // example at the generation boundary that the migration writes; the feed
+    // then sends the whole document instead.
+    documentUpdate: bytes('document_update'),
+    documentVector: bytes('document_vector'),
+    documentEpoch: integer('document_epoch'),
+    merged: boolean('merged').notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.workspaceId, table.id] }),
@@ -354,6 +376,37 @@ export const revisions = pgTable(
       table.workspaceId,
       table.restoredFrom,
     ),
+  ],
+);
+
+/**
+ * The document of one note (records 0081, 0084).
+ *
+ * The row holds the whole document, its generation, and its complete state.
+ * Routine compaction rewrites `bytes` and keeps every character identity and
+ * the generation, so work written offline before it still applies.
+ */
+export const noteDocuments = pgTable(
+  'note_documents',
+  {
+    workspaceId: uuid('workspace_id')
+      .notNull()
+      .references(() => workspaces.id),
+    fileId: uuid('file_id').notNull(),
+    epoch: integer('epoch').notNull().default(1),
+    bytes: bytes('bytes').notNull(),
+    state: bytes('state').notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.fileId] }),
+    foreignKey({
+      name: 'note_documents_file_fk',
+      columns: [table.workspaceId, table.fileId],
+      foreignColumns: [files.workspaceId, files.id],
+    }),
   ],
 );
 

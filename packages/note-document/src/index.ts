@@ -20,6 +20,7 @@ export {
   mergeDocumentUpdates,
   noteTextRoot,
   readDocumentText,
+  replaceDocumentText,
   startDocument,
 } from './document.ts';
 export type { Coverage, DocumentInEpoch, ObservedInEpoch } from './observed.ts';

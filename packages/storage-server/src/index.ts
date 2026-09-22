@@ -6,6 +6,7 @@
  * migrations, and the roles and row access policies that protect the data.
  * A browser package must never import it.
  */
+export { createDocumentService } from './document-service.ts';
 export {
   DatabaseFailure,
   defaultConnectionTimeoutMs,

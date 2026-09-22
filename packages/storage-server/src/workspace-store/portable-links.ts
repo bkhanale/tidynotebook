@@ -3,11 +3,12 @@ import { createHash, randomUUID } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
+  type AcceptedInput,
+  type DocumentService,
+  type StoredRevisionInput,
   fail,
   ok,
-  type ChangesetInput,
   type Result,
-  type RevisionInput,
 } from '@notesapp/core';
 import {
   extractLinks,
@@ -17,6 +18,7 @@ import {
 import {
   contents,
   files,
+  noteDocuments,
   noteLinks,
   revisions,
   searchIndex,
@@ -26,8 +28,8 @@ function markdownDigest(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-function tips(input: ChangesetInput): ReadonlyMap<string, RevisionInput> {
-  const result = new Map<string, RevisionInput>();
+function tips(input: AcceptedInput): ReadonlyMap<string, StoredRevisionInput> {
+  const result = new Map<string, StoredRevisionInput>();
   for (const revision of input.revisions) result.set(revision.fileId, revision);
   return result;
 }
@@ -41,7 +43,7 @@ function noteTitle(path: string): string {
 export async function updateAcceptedIndexes(
   db: NodePgDatabase,
   workspaceId: string,
-  acceptedHeads: ReadonlyMap<string, RevisionInput>,
+  acceptedHeads: ReadonlyMap<string, StoredRevisionInput>,
 ): Promise<void> {
   const fileIds = [...acceptedHeads.keys()];
   if (fileIds.length === 0) return;
@@ -101,8 +103,9 @@ export async function updateAcceptedIndexes(
 export async function expandMovedReferences(
   db: NodePgDatabase,
   workspaceId: string,
-  input: ChangesetInput,
-): Promise<Result<ChangesetInput>> {
+  input: AcceptedInput,
+  service: DocumentService,
+): Promise<Result<AcceptedInput>> {
   const submittedTips = tips(input);
   const submittedIds = [...submittedTips.keys()];
   const current = await db
@@ -173,7 +176,18 @@ export async function expandMovedReferences(
               inArray(files.id, [...sourceIds]),
             ),
           );
-  const rewritten: RevisionInput[] = [];
+  const rewritten: StoredRevisionInput[] = [];
+  // The documents that this changeset writes, by file. A rewrite edits the
+  // document that the changeset already accepted, so the two never disagree.
+  const documents = new Map<
+    string,
+    AcceptedInput['documents'][number] & { readonly vectorBefore: Uint8Array }
+  >(
+    input.documents.map((document) => [
+      document.fileId,
+      { ...document, vectorBefore: service.stateVector(document.bytes) },
+    ]),
+  );
   for (const revision of input.revisions) {
     if (submittedTips.get(revision.fileId)?.id !== revision.id) {
       rewritten.push(revision);
@@ -189,18 +203,34 @@ export async function expandMovedReferences(
       sourcePath,
       movedPaths,
     );
-    rewritten.push(
-      changed.count === 0
-        ? revision
-        : {
-            ...revision,
-            content: {
-              kind: 'markdown',
-              digest: markdownDigest(changed.text),
-              text: changed.text,
-            },
-          },
-    );
+    if (changed.count === 0) {
+      rewritten.push(revision);
+      continue;
+    }
+    // The rewrite is a document edit, so the note keeps its identities and
+    // every device merges it like any other work (record 0083).
+    const current = documents.get(revision.fileId);
+    if (current === undefined) {
+      rewritten.push(revision);
+      continue;
+    }
+    const edited = service.replaceText(current.bytes, changed.text);
+    if (!edited.ok) return edited;
+    documents.set(revision.fileId, {
+      ...current,
+      bytes: edited.value.bytes,
+      state: edited.value.state,
+      update: service.delta(edited.value.bytes, current.vectorBefore),
+      vector: service.stateVector(edited.value.bytes),
+    });
+    rewritten.push({
+      ...revision,
+      content: {
+        kind: 'markdown',
+        digest: markdownDigest(changed.text),
+        text: changed.text,
+      },
+    });
   }
   const expectedHeads: Record<string, string | null> = {
     ...input.expectedHeads,
@@ -218,7 +248,24 @@ export async function expandMovedReferences(
       movedPaths,
     );
     if (changed.count === 0) continue;
+    const stored = await readDocument(db, workspaceId, source.fileId);
+    if (stored === null) continue;
+    const edited = service.replaceText(stored.bytes, changed.text);
+    if (!edited.ok) return edited;
     expectedHeads[source.fileId] = source.headRevisionId;
+    documents.set(source.fileId, {
+      vectorBefore: service.stateVector(stored.bytes),
+      fileId: source.fileId,
+      bytes: edited.value.bytes,
+      epoch: stored.epoch,
+      state: edited.value.state,
+      merged: false,
+      update: service.delta(
+        edited.value.bytes,
+        service.stateVector(stored.bytes),
+      ),
+      vector: service.stateVector(edited.value.bytes),
+    });
     rewritten.push({
       id: randomUUID(),
       fileId: source.fileId,
@@ -237,5 +284,30 @@ export async function expandMovedReferences(
   }
   const fileIds = [...new Set(rewritten.map((revision) => revision.fileId))];
   if (fileIds.length > 1000) return fail('invalid_graph', fileIds);
-  return ok({ ...input, expectedHeads, revisions: rewritten });
+  return ok({
+    ...input,
+    expectedHeads,
+    revisions: rewritten,
+    documents: [...documents.values()].map(
+      ({ vectorBefore: _vectorBefore, ...document }) => document,
+    ),
+  });
+}
+
+/** The stored document of one note, or null when it has none yet. */
+async function readDocument(
+  db: NodePgDatabase,
+  workspaceId: string,
+  fileId: string,
+): Promise<{ bytes: Uint8Array; epoch: number } | null> {
+  const rows = await db
+    .select({ bytes: noteDocuments.bytes, epoch: noteDocuments.epoch })
+    .from(noteDocuments)
+    .where(
+      and(
+        eq(noteDocuments.workspaceId, workspaceId),
+        eq(noteDocuments.fileId, fileId),
+      ),
+    );
+  return rows[0] ?? null;
 }

@@ -12,7 +12,10 @@ import {
   type RevisionInput,
 } from '@notesapp/core';
 import { openLocalStore } from '@notesapp/storage-browser';
-import { openWorkspaceStore } from '@notesapp/storage-server';
+import {
+  createDocumentService,
+  openWorkspaceStore,
+} from '@notesapp/storage-server';
 import { searchLocal } from '@notesapp/sync';
 import {
   changeset,
@@ -23,7 +26,7 @@ import {
 } from './support/database.ts';
 
 const database = await createDisposableDatabase();
-const store = openWorkspaceStore(database.runtimeUrl);
+const store = openWorkspaceStore(database.runtimeUrl, createDocumentService());
 const accountId = randomUUID();
 const workspaceId = randomUUID();
 await seedWorkspace(database, workspaceId, [{ accountId, role: 'owner' }]);

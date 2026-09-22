@@ -30,6 +30,8 @@ import {
   type SupersededHead,
   type SyncChangeFeed,
   type WorkspaceTransaction,
+  type AcceptedInput,
+  type StoredRevisionInput,
 } from '@notesapp/core';
 import {
   attachmentObjects,
@@ -42,6 +44,7 @@ import {
   revisions,
   syncChanges,
   workspaceUsage,
+  noteDocuments,
 } from '../schema.ts';
 import {
   captureSnapshot,
@@ -112,6 +115,9 @@ function parseAcceptedRevision(value: unknown): AcceptedRevision {
       deleted: record.deleted,
       digest: record.digest,
       size: record.size,
+      epoch: typeof record.epoch === 'number' ? record.epoch : null,
+      acceptedState: null,
+      merged: record.merged === true,
       actorAccountId: record.actorAccountId,
       serverTime: record.serverTime,
       message: record.message,
@@ -201,14 +207,14 @@ function parseOutcome(value: unknown): AcceptedChangeset {
 }
 
 /** The last submitted revision of each file, which becomes its new head. */
-function tips(input: ChangesetInput): ReadonlyMap<string, RevisionInput> {
-  const result = new Map<string, RevisionInput>();
+function tips(input: AcceptedInput): ReadonlyMap<string, StoredRevisionInput> {
+  const result = new Map<string, StoredRevisionInput>();
   for (const revision of input.revisions) result.set(revision.fileId, revision);
   return result;
 }
 
 /** Parses an informational client timestamp. */
-function clientTime(revision: RevisionInput): Date {
+function clientTime(revision: StoredRevisionInput): Date {
   const parsed = new Date(revision.clientTime);
   if (Number.isNaN(parsed.getTime())) {
     throw new OperationalError(
@@ -254,7 +260,7 @@ export function syncRepository(
 
     async accept(
       writer: Actor,
-      input: ChangesetInput,
+      input: AcceptedInput,
       digest: string,
       superseded: readonly SupersededHead[] = [],
     ): Promise<Result<AcceptedChangeset>> {
@@ -276,7 +282,12 @@ export function syncRepository(
           'notesapp: a changeset must carry at least one revision.',
         );
       }
-      const expanded = await expandMovedReferences(db, workspaceId, input);
+      const expanded = await expandMovedReferences(
+        db,
+        workspaceId,
+        input,
+        context.documents,
+      );
       if (!expanded.ok) return expanded;
       const acceptedInput = expanded.value;
       const fileIds = [
@@ -378,12 +389,20 @@ export function syncRepository(
 }
 
 /** Performs the atomic write of one validated changeset. */
+/** The document that one changeset wrote for a note, or undefined. */
+function documentOf(
+  input: AcceptedInput,
+  fileId: string,
+): AcceptedInput['documents'][number] | undefined {
+  return input.documents.find((document) => document.fileId === fileId);
+}
+
 async function writeChangeset(
   client: pg.PoolClient,
   db: NodePgDatabase,
   actor: Actor,
   workspaceId: string,
-  input: ChangesetInput,
+  input: AcceptedInput,
   digest: string,
   fileIds: readonly string[],
   superseded: readonly SupersededHead[],
@@ -614,6 +633,12 @@ async function writeChangeset(
         clientTime: clientTime(revision),
         message: revision.message,
         restoredFrom: revision.restoredFrom,
+        // The feed sends one record per revision, so the work of this save
+        // and the vector that follows it belong to the revision row.
+        documentUpdate: documentOf(input, revision.fileId)?.update ?? null,
+        documentVector: documentOf(input, revision.fileId)?.vector ?? null,
+        documentEpoch: documentOf(input, revision.fileId)?.epoch ?? null,
+        merged: documentOf(input, revision.fileId)?.merged ?? false,
       })),
     )
     .returning({ id: revisions.id, serverTime: revisions.serverTime });
@@ -683,6 +708,32 @@ async function writeChangeset(
       });
   }
 
+  // The document of every note that this changeset changed commits with its
+  // revisions, so an accepted text and the document it came from can never
+  // disagree (record 0081).
+  if (input.documents.length > 0) {
+    await db
+      .insert(noteDocuments)
+      .values(
+        input.documents.map((document) => ({
+          workspaceId,
+          fileId: document.fileId,
+          epoch: document.epoch,
+          bytes: document.bytes,
+          state: document.state,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [noteDocuments.workspaceId, noteDocuments.fileId],
+        set: {
+          bytes: sql`excluded.bytes`,
+          state: sql`excluded.state`,
+          epoch: sql`excluded.epoch`,
+          updatedAt: sql`now()`,
+        },
+      });
+  }
+
   await updateAcceptedIndexes(db, workspaceId, heads);
 
   await db.insert(syncChanges).values(
@@ -708,7 +759,11 @@ async function writeChangeset(
           'notesapp: an accepted revision was not written back.',
         );
       }
+      const document = documentOf(input, revision.fileId);
       return {
+        epoch: document?.epoch ?? null,
+        acceptedState: document?.state ?? null,
+        merged: document?.merged ?? false,
         revisionId: revision.id,
         fileId: revision.fileId,
         parents: [...revision.parents],

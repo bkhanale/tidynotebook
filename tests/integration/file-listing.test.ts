@@ -25,7 +25,10 @@ import {
   type FileSort,
   type RevisionInput,
 } from '@notesapp/core';
-import { openWorkspaceStore } from '@notesapp/storage-server';
+import {
+  createDocumentService,
+  openWorkspaceStore,
+} from '@notesapp/storage-server';
 import {
   changeset,
   createDisposableDatabase,
@@ -35,7 +38,9 @@ import {
 } from './support/database.ts';
 
 const database = await createDisposableDatabase();
-const store = openWorkspaceStore(database.runtimeUrl, { poolSize: 4 });
+const store = openWorkspaceStore(database.runtimeUrl, createDocumentService(), {
+  poolSize: 4,
+});
 
 /** One workspace with one owner, used by one check only. */
 async function newWorkspace(): Promise<{

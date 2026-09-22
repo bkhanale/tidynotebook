@@ -76,6 +76,8 @@ export async function acceptDocumentWork(
   revisions: readonly RevisionInput[],
 ): Promise<Result<AcceptedDocuments>> {
   const working = new Map<string, StoredDocument>();
+  /** The state vector of each note before this changeset touched it. */
+  const vectorsBefore = new Map<string, Uint8Array>();
   const merged = new Set<string>();
   const states = new Map<string, Uint8Array>();
   const accepted: StoredRevisionInput[] = [];
@@ -91,6 +93,8 @@ export async function acceptDocumentWork(
       currentDocument(service, stored.get(revision.fileId), save.epoch);
     if (before.epoch !== save.epoch)
       return fail('epoch_mismatch', [revision.fileId]);
+    if (!vectorsBefore.has(revision.fileId))
+      vectorsBefore.set(revision.fileId, service.stateVector(before.bytes));
 
     // The workspace itself has seen everything it holds, so a text that it
     // writes is never a merge and never hides work.
@@ -151,12 +155,15 @@ export async function acceptDocumentWork(
   for (const [fileId, document] of working) {
     const state = states.get(fileId);
     if (state === undefined) continue;
+    const vectorBefore = vectorsBefore.get(fileId) ?? new Uint8Array();
     documents.push({
       fileId,
       bytes: document.bytes,
       epoch: document.epoch,
       state,
       merged: merged.has(fileId),
+      update: service.delta(document.bytes, vectorBefore),
+      vector: service.stateVector(document.bytes),
     });
   }
   return ok({ revisions: accepted, documents });

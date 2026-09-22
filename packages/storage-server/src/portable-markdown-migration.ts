@@ -2,7 +2,8 @@
 import {
   commitChangeset,
   generateUUID,
-  markdownContent,
+  workspaceText,
+  type DocumentService,
   verifyActor,
 } from '@notesapp/core';
 import { migrateLegacyReferences } from '@notesapp/markdown';
@@ -33,9 +34,10 @@ type AttachmentRevisionRow = {
 /** Rewrites every live legacy reference and records each unresolved target. */
 export async function migratePortableMarkdown(
   databaseUrl: string,
+  documents: DocumentService,
 ): Promise<PortableMarkdownMigrationResult> {
   const client = new pg.Client({ connectionString: databaseUrl });
-  const store = openWorkspaceStore(databaseUrl, { poolSize: 1 });
+  const store = openWorkspaceStore(databaseUrl, documents, { poolSize: 1 });
   await client.connect();
   let revisedNotes = 0;
   let deadReferences = 0;
@@ -114,7 +116,9 @@ export async function migratePortableMarkdown(
                 parents: [row.head_revision_id],
                 path: row.path,
                 deleted: false,
-                content: await markdownContent(migrated.text),
+                // The migration writes the text into the document of the
+                // note, so the note keeps its identities (record 0084).
+                content: workspaceText(migrated.text, 1),
                 clientTime: new Date().toISOString(),
                 message: 'Make links portable.',
                 restoredFrom: null,

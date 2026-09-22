@@ -42,6 +42,7 @@ import {
   type ServerConfig,
 } from '@notesapp/server';
 import {
+  createDocumentService,
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -103,7 +104,11 @@ function browser(cookie: string): Record<string, string> {
 
 const database = await createDisposableDatabase();
 const identity = openIdentityStore(database.runtimeUrl);
-const content = openWorkspaceStore(database.runtimeUrl, { poolSize: 4 });
+const content = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  { poolSize: 4 },
+);
 
 /** The environment of this test deployment. */
 function environment(): Record<string, string> {

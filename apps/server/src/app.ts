@@ -42,6 +42,7 @@ import { createPublicationHasher } from './auth/publication-secrets.ts';
 import { createSetupHandlers } from './auth/setup.ts';
 import { createMailTransport } from './auth/mail.ts';
 import {
+  createDocumentService,
   openAttachmentStore,
   openIdentityStore,
   openWorkspaceStore,
@@ -475,7 +476,10 @@ async function composeApp(
   // The content store uses the same runtime role. It opens its own pool,
   // because a content transaction holds the workspace lock for the length of a
   // changeset and must not queue behind an identity lookup.
-  const content = openWorkspaceStore(config.databaseUrl);
+  const content = openWorkspaceStore(
+    config.databaseUrl,
+    createDocumentService(),
+  );
   opened.push(() => content.close());
   // The database probes read through the pool that serves the workspace
   // traffic, so a probe that an orchestrator repeats forever opens no

@@ -28,6 +28,7 @@ import {
   type ServerConfig,
 } from '@notesapp/server';
 import {
+  createDocumentService,
   openAttachmentStore,
   openIdentityStore,
   openWorkspaceStore,
@@ -64,7 +65,11 @@ const environment = (): Record<string, string> => ({
 });
 const config: ServerConfig = loadServerConfig(environment());
 const identity = openIdentityStore(database.runtimeUrl);
-const content = openWorkspaceStore(database.runtimeUrl, { poolSize: 4 });
+const content = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  { poolSize: 4 },
+);
 const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
   poolSize: 4,
 });

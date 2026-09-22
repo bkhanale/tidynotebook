@@ -13,6 +13,8 @@ import { readFile } from 'node:fs/promises';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import type { DocumentService } from '@notesapp/core';
+import { createDocumentService } from './document-service.ts';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import pg from 'pg';
 import {
@@ -42,7 +44,7 @@ export const authRole = 'notesapp_auth';
  * `migrations/meta/_journal.json`. The readiness probe compares its answer
  * with this constant, so one value describes the required set.
  */
-export const requiredSchemaVersion = 7;
+export const requiredSchemaVersion = 8;
 
 /**
  * One PostgreSQL advisory lock serializes every migration run.
@@ -121,6 +123,12 @@ export type MigrationRun = {
   readonly runtimePassword: string;
   /** The password that the identity role receives after they apply. */
   readonly authPassword: string;
+  /**
+   * The document service of this deployment. The migration of record 0084
+   * writes the text of a note into its document, so it needs the same port
+   * that the workspace uses.
+   */
+  readonly documents: DocumentService;
 };
 
 /**
@@ -159,7 +167,7 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
       ] as const) {
         await setRolePassword(client, role, password);
       }
-      await migratePortableMarkdown(run.databaseUrl);
+      await migratePortableMarkdown(run.databaseUrl, run.documents);
     } finally {
       await client.query('select pg_advisory_unlock($1::bigint)', [
         migrationLockKey,
@@ -206,12 +214,14 @@ async function loadProfile(profile: MigrationProfile): Promise<MigrationRun> {
         process.env['NOTESAPP_RUNTIME_PASSWORD'] || testRuntimePassword,
       authPassword:
         process.env['NOTESAPP_AUTH_DATABASE_PASSWORD'] || testAuthPassword,
+      documents: createDocumentService(),
     };
   }
   return {
     databaseUrl: await readSecretFile('NOTESAPP_DATABASE_URL_FILE'),
     runtimePassword: await readSecretFile('NOTESAPP_RUNTIME_PASSWORD_FILE'),
     authPassword: await readSecretFile('NOTESAPP_AUTH_PASSWORD_FILE'),
+    documents: createDocumentService(),
   };
 }
 

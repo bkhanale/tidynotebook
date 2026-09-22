@@ -17,6 +17,7 @@ import { inspect } from 'node:util';
 import type { AcceptedChangeset, Result } from '@notesapp/core';
 import { isOperationalError } from '@notesapp/core';
 import {
+  createDocumentService,
   createTestDatabase,
   dropTestDatabase,
   migrationsFolder,
@@ -43,9 +44,13 @@ import {
 } from './support/database.ts';
 
 const database: TestDatabase = await createDisposableDatabase();
-const store: WorkspaceStoreHandle = openWorkspaceStore(database.runtimeUrl, {
-  poolSize: 6,
-});
+const store: WorkspaceStoreHandle = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  {
+    poolSize: 6,
+  },
+);
 
 /** Creates one workspace with one owner and returns its identifiers. */
 async function newWorkspace(
@@ -450,7 +455,11 @@ await test('immutable rows: rejects an update or a delete on a stored revision',
 await test('pooled identity: keeps no identity on a released connection', async () => {
   const { workspaceId, accountId } = await newWorkspace();
   const actor = memberActor(accountId, workspaceId);
-  const single = openWorkspaceStore(database.runtimeUrl, { poolSize: 1 });
+  const single = openWorkspaceStore(
+    database.runtimeUrl,
+    createDocumentService(),
+    { poolSize: 1 },
+  );
   try {
     const only = revision({ fileId: randomUUID(), path: 'notes/pooled.md' });
     accepted(
@@ -483,10 +492,14 @@ await test('a full pool refuses rather than waits without bound', async () => {
   // whole request bound fired, and every request behind it waited as well.
   const { workspaceId, accountId } = await newWorkspace();
   const actor = memberActor(accountId, workspaceId);
-  const tight = openWorkspaceStore(database.runtimeUrl, {
-    poolSize: 1,
-    connectionTimeoutMs: 250,
-  });
+  const tight = openWorkspaceStore(
+    database.runtimeUrl,
+    createDocumentService(),
+    {
+      poolSize: 1,
+      connectionTimeoutMs: 250,
+    },
+  );
   let release = (): void => {};
   const held = new Promise<void>((accept) => {
     release = accept;

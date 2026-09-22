@@ -33,6 +33,7 @@ import {
   type Result,
 } from '@notesapp/core';
 import {
+  createDocumentService,
   openWorkspaceStore,
   readOnlyTransactionCode,
   type PublishedLinkDraft,
@@ -50,9 +51,13 @@ import {
 } from './support/database.ts';
 
 const database: TestDatabase = await createDisposableDatabase();
-const store: WorkspaceStoreHandle = openWorkspaceStore(database.runtimeUrl, {
-  poolSize: 4,
-});
+const store: WorkspaceStoreHandle = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  {
+    poolSize: 4,
+  },
+);
 /** The schema owner reads every row, so it states what is at rest. */
 const admin: TestSession = await openSession(database.migrationUrl);
 

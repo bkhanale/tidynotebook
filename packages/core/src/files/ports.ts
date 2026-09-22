@@ -72,6 +72,10 @@ export type DocumentService = {
   replaceText(document: Uint8Array, text: string): Result<AppliedDocument>;
   /** The complete observed state of a document. */
   observe(document: Uint8Array): Uint8Array;
+  /** The state vector of a document, which names its insertions. */
+  stateVector(document: Uint8Array): Uint8Array;
+  /** The work of a document that a reader with one state vector lacks. */
+  delta(document: Uint8Array, stateVector: Uint8Array): Uint8Array;
   /** The text that a document derives. */
   readText(document: Uint8Array): string;
   /**

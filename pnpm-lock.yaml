@@ -559,6 +559,9 @@ importers:
       '@notesapp/markdown':
         specifier: workspace:*
         version: link:../markdown
+      '@notesapp/note-document':
+        specifier: workspace:*
+        version: link:../note-document
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.2(@types/pg@8.23.1)(kysely@0.29.5)(pg@8.23.0)

@@ -379,6 +379,8 @@ const documentService: DocumentService = {
   replaceText: (_document: Uint8Array, text: string) =>
     ok({ bytes: bytesOf(text), text, state: bytesOf(text) }),
   observe: (document: Uint8Array) => document,
+  stateVector: (document: Uint8Array) => document,
+  delta: (document: Uint8Array) => document,
   readText: (document: Uint8Array) => textOf(document),
   covers: (observed: Uint8Array, document: Uint8Array) =>
     ok(
