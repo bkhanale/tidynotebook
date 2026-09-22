@@ -10,6 +10,7 @@
  * expiry, and server-side stale-save rebasing.
  */
 import assert from 'node:assert/strict';
+import { firstSave, saveForHead } from './support/documents.ts';
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -201,7 +202,7 @@ async function newFile(
     body: {
       fileId,
       path,
-      text,
+      document: firstSave(text),
       revisionId: ids.revisionId,
       mutationId: ids.mutationId,
       deviceId: ids.deviceId,
@@ -443,8 +444,7 @@ await test('an accepted mutation replays exactly after later heads', async () =>
         deleted: false,
         content: {
           kind: 'markdown' as const,
-          digest: sha256hex(firstText),
-          text: firstText,
+          document: firstSave(firstText),
         },
         clientTime,
       },
@@ -463,7 +463,7 @@ await test('an accepted mutation replays exactly after later heads', async () =>
     headers: { ...browser(ownerCookie), 'if-match': `"${firstRevision}"` },
     path: { workspaceId, fileId },
     body: {
-      text: '# Replay two\n',
+      document: await saveForHead(workspaceId, firstRevision, '# Replay two\n'),
       revisionId: secondRevision,
       mutationId: randomUUID(),
       deviceId: 'integration-device',
@@ -852,7 +852,11 @@ await test('a device that only opened a note keeps the newer text', async () => 
       headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
       path: { workspaceId, fileId: file.fileId },
       body: {
-        text: '# Written elsewhere\n',
+        document: await saveForHead(
+          workspaceId,
+          file.revisionId,
+          '# Written elsewhere\n',
+        ),
         revisionId: randomUUID(),
         mutationId: randomUUID(),
         deviceId: 'device-elsewhere',
@@ -938,7 +942,7 @@ await test('a save over an older head is rebased and says so', async () => {
       headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
       path: { workspaceId, fileId: file.fileId },
       body: {
-        text: '# Theirs\n',
+        document: await saveForHead(workspaceId, file.revisionId, '# Theirs\n'),
         revisionId: randomUUID(),
         mutationId: randomUUID(),
         deviceId: 'device-elsewhere',

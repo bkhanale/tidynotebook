@@ -110,12 +110,7 @@ function toRevisionBody(revision: ChangesetInput['revisions'][number]): {
   readonly parents: string[];
   readonly path: string;
   readonly deleted: boolean;
-  readonly content: {
-    readonly kind: 'markdown' | 'attachment';
-    readonly digest: string;
-    readonly text?: string;
-    readonly attachmentObjectId?: string;
-  };
+  readonly content: ReturnType<typeof toContentBody>;
   readonly clientTime: string;
   readonly message: string | null;
   readonly restoredFrom: string | null;
@@ -134,15 +129,54 @@ function toRevisionBody(revision: ChangesetInput['revisions'][number]): {
   };
 }
 
-/** The generated body of one content reference, without absent members. */
-function toContentBody(content: ContentRef): {
-  readonly kind: 'markdown' | 'attachment';
-  readonly digest: string;
-  readonly text?: string;
-  readonly attachmentObjectId?: string;
-} {
-  if (content.kind === 'markdown')
-    return { kind: 'markdown', digest: content.digest, text: content.text };
+/** The bytes of one base64 value that the contract states. */
+function bytesOfBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+/** One byte string as the base64 that the contract states. */
+function base64(bytes: Uint8Array): string {
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+/**
+ * The generated body of one content reference.
+ *
+ * A note carries the work of its save, its generation, and the complete state
+ * that this device had seen. The server derives the text, so no save carries
+ * text (record 0081). An attachment names finalized bytes as before.
+ */
+function toContentBody(content: ContentRef):
+  | {
+      readonly kind: 'markdown';
+      readonly document: {
+        readonly update: string | null;
+        readonly epoch: number;
+        readonly observed: string;
+      };
+    }
+  | {
+      readonly kind: 'attachment';
+      readonly digest: string;
+      readonly attachmentObjectId: string;
+    } {
+  if (content.kind === 'markdown') {
+    const save = content.document;
+    return {
+      kind: 'markdown',
+      document: {
+        update: save.work.kind === 'update' ? base64(save.work.update) : null,
+        epoch: save.epoch,
+        observed: base64(save.observed ?? new Uint8Array()),
+      },
+    };
+  }
   return {
     kind: 'attachment',
     digest: content.digest,
@@ -567,6 +601,13 @@ function createOperations(
           revisionIds: [...sent.data.revisionIds],
           cursor: sent.data.cursor,
           revisions: sent.data.revisions.map((revision) => ({
+            epoch: revision.epoch,
+            acceptedState:
+              revision.acceptedState === null ||
+              revision.acceptedState === undefined
+                ? null
+                : bytesOfBase64(revision.acceptedState),
+            merged: revision.merged,
             revisionId: revision.revisionId,
             fileId: revision.fileId,
             parents: [...revision.parents],
@@ -674,24 +715,46 @@ function createOperations(
       return {
         ok: true as const,
         value: {
-          changes: sent.data.changes.map((change) => ({
-            file:
-              change.entityKind === 'file' && change.revisionId !== null
+          // The feed states everything a reader needs: the accepted work of a
+          // note, a whole document at a new generation, a note that the
+          // workspace removed for good, or a membership change that only
+          // moves the cursor (record 0081).
+          changes: sent.data.changes.map((change) => {
+            if (change.kind === 'purge')
+              return { file: null, purgedFileId: change.fileId };
+            if (change.kind === 'membership')
+              return { file: null, purgedFileId: null };
+            const document =
+              change.kind === 'document'
                 ? {
-                    fileId: change.entityId,
-                    revisionId: change.revisionId,
+                    kind: 'document' as const,
+                    bytes: bytesOfBase64(change.document),
+                    epoch: change.epoch,
                   }
-                : null,
-            // A file record with no revision and the deleted flag set is a
-            // purge marker: the revisions of that file no longer exist, so the
-            // record states the file itself instead of a revision to read.
-            purgedFileId:
-              change.entityKind === 'file' &&
-              change.revisionId === null &&
-              change.deleted
-                ? change.entityId
-                : null,
-          })),
+                : change.update === null || change.epoch === null
+                  ? null
+                  : {
+                      kind: 'update' as const,
+                      bytes: bytesOfBase64(change.update),
+                      epoch: change.epoch,
+                    };
+            return {
+              file: {
+                fileId: change.fileId,
+                revisionId: change.revisionId,
+                path: change.path,
+                fileKind:
+                  change.kind === 'update' && change.kindOfFile === 'attachment'
+                    ? ('attachment' as const)
+                    : ('note' as const),
+                deleted: change.deleted,
+                digest: change.digest,
+                document,
+                text: null,
+              },
+              purgedFileId: null,
+            };
+          }),
           nextCursor: sent.data.nextCursor,
         },
       };

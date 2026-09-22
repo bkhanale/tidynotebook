@@ -7,7 +7,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import pg from 'pg';
 import {
   commitChangeset,
-  markdownContent,
+  workspaceText,
   searchFiles,
   updateFileChangeset,
   verifyActor,
@@ -16,6 +16,7 @@ import {
   type RevisionInput,
 } from '@notesapp/core';
 import {
+  createDocumentService,
   createTestDatabase,
   databaseName,
   dropTestDatabase,
@@ -138,7 +139,9 @@ async function seedBatch(
         parents: [],
         path: note.path,
         deleted: false,
-        content: await markdownContent(note.text),
+        // The harness seeds through the workspace, which writes the text
+        // into the document of the note (record 0081).
+        content: workspaceText(note.text, 1),
         clientTime: '2026-09-06T00:00:00.000Z',
         message: null,
         restoredFrom: null,
@@ -172,6 +175,7 @@ let store: ReturnType<typeof openWorkspaceStore> | null = null;
 
 try {
   await runMigrations({
+    documents: createDocumentService(),
     databaseUrl: migrationUrl,
     runtimePassword:
       process.env['NOTESAPP_RUNTIME_PASSWORD'] ?? testRuntimePassword,
@@ -185,7 +189,7 @@ try {
   );
   // The measured closures below run after the assignment, so they read this
   // constant. The outer `store` stays for the `finally` that closes it.
-  const openStore = openWorkspaceStore(runtimeUrl, {
+  const openStore = openWorkspaceStore(runtimeUrl, createDocumentService(), {
     poolSize: activeUsers,
     statementTimeoutMs: 30_000,
   });
@@ -289,8 +293,9 @@ try {
             revisionId: randomUUID(),
             expectedHead: head.revisionId,
             path: base.path,
-            content: await markdownContent(
+            content: workspaceText(
               `${base.text}\nrevision ${String(round)}\n`,
+              1,
             ),
             deleted: false,
             message: null,

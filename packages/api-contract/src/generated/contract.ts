@@ -3894,6 +3894,7 @@ export const operations: readonly OperationEntry[] = [
                       "path",
                       "deleted",
                       "digest",
+                      "kindOfFile",
                       "epoch",
                       "update",
                       "stateVector"
@@ -3941,6 +3942,15 @@ export const operations: readonly OperationEntry[] = [
                         "readOnly": true,
                         "description": "True when the note is in Trash after this record."
                       },
+                      "kindOfFile": {
+                        "type": "string",
+                        "readOnly": true,
+                        "description": "Whether the record states a note or an attachment.",
+                        "enum": [
+                          "note",
+                          "attachment"
+                        ]
+                      },
                       "digest": {
                         "allOf": [
                           {
@@ -3948,38 +3958,47 @@ export const operations: readonly OperationEntry[] = [
                           }
                         ],
                         "readOnly": true,
-                        "description": "Digest of the text that the accepted document derives."
+                        "description": "Digest of the text that the accepted document derives, or of the bytes of an attachment."
                       },
                       "epoch": {
-                        "allOf": [
+                        "oneOf": [
                           {
                             "$ref": "https://notesapp.invalid/contract-definitions#/$defs/DocumentEpoch"
+                          },
+                          {
+                            "type": "null"
                           }
                         ],
                         "readOnly": true,
-                        "description": "The generation that this update belongs to."
+                        "description": "The generation that this update belongs to, or null for an attachment revision, which holds no document."
                       },
                       "update": {
-                        "allOf": [
+                        "oneOf": [
                           {
                             "$ref": "https://notesapp.invalid/contract-definitions#/$defs/DocumentUpdate"
+                          },
+                          {
+                            "type": "null"
                           }
                         ],
                         "readOnly": true,
-                        "description": "The work that this record adds to the document."
+                        "description": "The work that this record adds to the document, or null for an attachment revision."
                       },
                       "stateVector": {
-                        "allOf": [
+                        "oneOf": [
                           {
                             "type": "string",
                             "description": "The state vector of a document, as base64. A reader sends it to ask for the work that it lacks. It names insertions only, so it never answers whether a deletion is unseen.",
                             "contentEncoding": "base64",
                             "pattern": "^[A-Za-z0-9+/]*={0,2}$",
                             "maxLength": 1398104
+                          },
+                          {
+                            "type": "null"
                           }
                         ],
                         "readOnly": true,
-                        "description": "The state vector of the document at this revision, so a reader can ask for exactly the work that it lacks."
+                        "description": "The state vector of the document at this revision, so a reader can ask for exactly the work that it lacks. Null for an attachment."
                       }
                     }
                   },

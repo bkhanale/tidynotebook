@@ -174,6 +174,9 @@ importers:
       '@notesapp/markdown':
         specifier: workspace:*
         version: link:packages/markdown
+      '@notesapp/note-document':
+        specifier: workspace:*
+        version: link:packages/note-document
       '@notesapp/server':
         specifier: workspace:*
         version: link:apps/server
@@ -537,6 +540,9 @@ importers:
       '@notesapp/core':
         specifier: workspace:*
         version: link:../core
+      '@notesapp/note-document':
+        specifier: workspace:*
+        version: link:../note-document
       '@notesapp/sync':
         specifier: workspace:*
         version: link:../sync

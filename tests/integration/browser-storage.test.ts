@@ -121,14 +121,19 @@ function acceptanceOf(
       parents: revision.parents,
       path: revision.path,
       deleted: revision.deleted,
-      digest: revision.content.digest,
-      size:
-        revision.content.kind === 'markdown'
-          ? new TextEncoder().encode(revision.content.text).byteLength
-          : 0,
+      // The workspace derives the text and its digest from the accepted
+      // document, so the acceptance states what it wrote (record 0081).
+      digest:
+        revision.content.kind === 'attachment'
+          ? revision.content.digest
+          : 'a'.repeat(64),
+      size: 0,
       actorAccountId: accountId,
       serverTime: '2026-09-06T12:00:00.000Z',
       message: revision.message,
+      epoch: revision.content.kind === 'markdown' ? 1 : null,
+      acceptedState: null,
+      merged: false,
     }),
   );
   return {
@@ -295,7 +300,14 @@ await test('a draft save and a checkpoint commit as one transaction each', async
   assert.deepEqual(entry?.input.expectedHeads, { [file]: null });
   const revision = entry?.input.revisions[0];
   assert.equal(revision?.parents.length, 0);
-  assert.equal(revision?.content.digest, await contentDigest('# One\n'));
+  // The save carries the work of this device, not its text (record 0081).
+  assert.equal(revision?.content.kind, 'markdown');
+  assert.equal(
+    revision?.content.kind === 'markdown'
+      ? revision.content.document.work.kind
+      : null,
+    'update',
+  );
 
   const checkpoints = await store.listCheckpoints(account, workspace, file);
   assert.equal(checkpoints.length, 1);
@@ -321,13 +333,19 @@ await test('a deletion checkpoint submits a tombstone with no text', async () =>
   const entry = await store.checkpoint(removed, null);
   const revision = entry?.input.revisions[0];
   assert.equal(revision?.deleted, true);
-  // The server refuses a deletion that submits Markdown, so the tombstone
-  // carries the empty text and the digest of the empty text.
+  // A deletion carries no text work at all. It states the complete state
+  // that this device had seen, so the workspace can refuse a deletion that
+  // would hide an edit of another device (record 0083).
   assert.equal(
-    revision?.content.kind === 'markdown' ? revision.content.text : null,
-    '',
+    revision?.content.kind === 'markdown'
+      ? revision.content.document.work.kind
+      : null,
+    'none',
   );
-  assert.equal(revision?.content.digest, await contentDigest(''));
+  assert.ok(
+    revision?.content.kind === 'markdown' &&
+      (revision.content.document.observed?.byteLength ?? 0) > 0,
+  );
   await store.close();
 });
 
@@ -1219,6 +1237,7 @@ await test('a restore from the server puts a deleted note back in the tree', asy
           revisionId: 'restore-revision',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest,
           text: 'keep me\n',
@@ -1283,6 +1302,7 @@ await test('a restore reaches a device whose deletion draft holds the text', asy
           revisionId: 'restore-revision',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest,
           text: 'keep me\n',
@@ -1427,6 +1447,7 @@ await test('a draft that matches a newer accepted head is dropped on open', asyn
           revisionId: remoteRevision,
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest(shared),
           text: shared,
@@ -1475,6 +1496,7 @@ await test('a draft over an older accepted head opens as stale', async () => {
           revisionId: remoteRevision,
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest(remoteText),
           text: remoteText,
@@ -1549,6 +1571,7 @@ await test('a working copy with nothing to recover follows a newer head', async 
           revisionId: 'rev-2',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest(second),
           text: second,
@@ -1600,6 +1623,7 @@ await test('a save names the accepted revision its content descends from', async
           revisionId: 'rev-2',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest('theirs\n'),
           text: 'theirs\n',
@@ -1656,6 +1680,7 @@ await test('a deletion names the revision it removes, not a newer head', async (
           revisionId: 'rev-2',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest('theirs\n'),
           text: 'theirs\n',
@@ -1699,6 +1724,7 @@ await test('a restore reaches a device that holds the replaced text', async () =
           revisionId: 'restored-revision',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest('older\n'),
           text: 'older\n',
@@ -1750,6 +1776,7 @@ await test('a remote change keeps a draft that differs from it', async () => {
           revisionId: remoteRevision,
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: await contentDigest('# Other\n'),
           text: '# Other\n',
@@ -2267,9 +2294,11 @@ await test('a deletion survives the next save of an open working copy', async ()
   const tombstone = queued.input.revisions[0];
   assert.equal(tombstone?.deleted, true);
   assert.equal(
-    tombstone?.content.kind === 'markdown' ? tombstone.content.text : null,
-    '',
-    'a tombstone carries no text',
+    tombstone?.content.kind === 'markdown'
+      ? tombstone.content.document.work.kind
+      : null,
+    'none',
+    'a tombstone carries no text work',
   );
 
   // The deletion reached every working copy, so the editor cannot state the
@@ -2426,6 +2455,7 @@ await test('a note whose body this device lacks still reaches Trash', async () =
           revisionId: 'server-1',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: 'digest-not-stored',
           text: null,
@@ -2475,6 +2505,7 @@ await test('a move refuses a note whose body this device lacks', async () => {
           revisionId: 'server-1',
           path: 'notes/one.md',
           fileKind: 'note',
+          document: null,
           deleted: false,
           digest: 'digest-not-stored',
           text: null,

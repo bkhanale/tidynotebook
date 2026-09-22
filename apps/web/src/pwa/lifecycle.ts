@@ -254,10 +254,19 @@ export async function copyPendingToRecovery(
   for (const entry of queued) {
     for (const revision of entry.input.revisions) {
       if (revision.content.kind !== 'markdown') continue;
+      // A save carries work, so its text comes from the checkpoint that froze
+      // it (record 0085). A revision whose checkpoint this device no longer
+      // holds has no text to keep.
+      const text = await store.readRevisionText(
+        accountId,
+        workspaceId,
+        revision.id,
+      );
+      if (text === null) continue;
       await store.addRecovery(accountId, workspaceId, {
         fileId: revision.fileId,
         path: revision.path,
-        text: revision.content.text,
+        text,
         reason,
       });
       copied += 1;

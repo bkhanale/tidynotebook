@@ -34,6 +34,7 @@ import {
   type SnapshotItemRow,
   type SnapshotRow,
   type Tables,
+  type DocumentRow,
 } from './database.ts';
 
 /** The schema version this application writes. */
@@ -195,12 +196,34 @@ export function validateDraft(value: unknown): DraftRow {
 function validateContentRef(value: unknown, where: string): ContentRef {
   const row = object(value, where);
   const kind = member(row, 'kind', ['markdown', 'attachment'] as const, where);
-  if (kind === 'markdown')
+  if (kind === 'markdown') {
+    // The content of a queued note revision is the document work of its save
+    // (record 0081): the update, the generation, and the state it had seen.
+    const save = object(row['document'], where);
+    const work = object(save['work'], where);
+    const workKind = member(
+      work,
+      'kind',
+      ['update', 'text', 'none'] as const,
+      where,
+    );
     return {
       kind,
-      digest: text(row, 'digest', where),
-      text: text(row, 'text', where),
+      document: {
+        work:
+          workKind === 'update'
+            ? { kind: workKind, update: byteString(work, 'update', where) }
+            : workKind === 'text'
+              ? { kind: workKind, text: text(work, 'text', where) }
+              : { kind: workKind },
+        epoch: count(save, 'epoch', where),
+        observed:
+          save['observed'] === null
+            ? null
+            : byteString(save, 'observed', where),
+      },
     };
+  }
   return {
     kind,
     digest: text(row, 'digest', where),
@@ -399,6 +422,32 @@ export function validatePreference(value: unknown): PreferenceRow {
   };
 }
 
+/** Reads one stored byte string, or refuses the row. */
+function byteString(
+  row: Record<string, unknown>,
+  name: string,
+  table: string,
+): Uint8Array {
+  const value = row[name];
+  if (value instanceof Uint8Array) return value;
+  // A structured clone can return an ArrayBuffer for bytes that an older
+  // engine stored, so the value is read and never asserted.
+  if (value instanceof ArrayBuffer) return new Uint8Array(value);
+  throw new LocalStorageError('corrupt', `${table}.${name} is not bytes`);
+}
+
+/** Narrows one stored document of a note. */
+export function validateDocument(value: unknown): DocumentRow {
+  const row = object(value, 'document');
+  return {
+    ...partition(row, 'document'),
+    fileId: text(row, 'fileId', 'document'),
+    bytes: byteString(row, 'bytes', 'document'),
+    epoch: count(row, 'epoch', 'document'),
+    appliedVector: byteString(row, 'appliedVector', 'document'),
+  };
+}
+
 /** Narrows one stored recovery entry. */
 export function validateRecovery(value: unknown): RecoveryRow {
   const row = object(value, 'recovery');
@@ -530,6 +579,7 @@ async function revalidate(tables: Tables): Promise<void> {
   await validateTable(tables.cursors, validateCursor);
   await validateTable(tables.preferences, validatePreference);
   await validateTable(tables.recovery, validateRecovery);
+  await validateTable(tables.documents, validateDocument);
 }
 
 /**

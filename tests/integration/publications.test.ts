@@ -21,6 +21,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import test from 'node:test';
 import {
+  acceptWithDocuments,
   listPublishedNotes,
   maxPublishedLinksPerWorkspace,
   readPublishedNote,
@@ -106,7 +107,7 @@ async function write(
       ? changeset(workspaceId, entries)
       : changeset(workspaceId, entries, { expectedHeads });
   const result = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(actor, input, randomUUID()),
+    acceptWithDocuments(store.documents, tx, actor, input, randomUUID()),
   );
   assert.equal(result.ok, true, 'the seed changeset was refused');
 }

@@ -384,7 +384,22 @@ export type RemoteFileChange = {
   readonly fileKind: LocalFileKind;
   readonly deleted: boolean;
   readonly digest: string;
+  /**
+   * The accepted work of a note, which the device applies to the document it
+   * holds (record 0085). `update` carries the work that follows the state the
+   * device already had, and `document` carries a whole document, which a new
+   * generation and a snapshot both send. A record of an attachment has none.
+   */
+  readonly document: ServerDocumentWork | null;
+  /** The text of an attachment change, which is always null. */
   readonly text: string | null;
+};
+
+/** The accepted document work of one note, as the feed states it. */
+export type ServerDocumentWork = {
+  readonly kind: 'update' | 'document';
+  readonly bytes: Uint8Array;
+  readonly epoch: number;
 };
 
 /**
@@ -529,6 +544,19 @@ export type LocalStore = {
    * newer one.
    */
   saveDraft(draft: Draft): Promise<void>;
+
+  /**
+   * The text of one local revision, or `null` when this device holds none.
+   *
+   * A save carries work and not text, so the text of a refused save comes
+   * from the checkpoint that froze it. The Needs attention list and a
+   * recovered note both read it (records 0081, 0085).
+   */
+  readRevisionText(
+    accountId: string,
+    workspaceId: string,
+    revisionId: string,
+  ): Promise<string | null>;
 
   /** Reads one working copy, or `null` when it has no stored draft. */
   readDraft(

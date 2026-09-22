@@ -15,6 +15,7 @@
  * ```
  */
 import assert from 'node:assert/strict';
+import { firstSave, saveForHead } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import {
@@ -30,7 +31,7 @@ import {
   signInWithPassword,
   updateFile,
 } from '@notesapp/api-client';
-import { contentDigest } from '@notesapp/core';
+import { acceptWithDocuments, contentDigest } from '@notesapp/core';
 import {
   bootstrapOwner,
   createAuth,
@@ -190,7 +191,7 @@ async function newFile(
   const created = await createFile({
     headers: browser(cookie),
     path: { workspaceId: workspace },
-    body: { fileId, path, text, ...ids() },
+    body: { fileId, path, document: firstSave(text), ...ids() },
   });
   assert.equal(created.error, undefined, JSON.stringify(created.error));
   const response = responseOf(created.response);
@@ -216,12 +217,26 @@ async function revisionBody(seed: {
   parents: string[];
   path: string;
   deleted: boolean;
-  content: { kind: 'markdown'; digest: string; text: string };
+  content: {
+    kind: 'markdown';
+    document: {
+      update: string | null;
+      epoch: number;
+      observed: string;
+    };
+  };
   clientTime: string;
   message: null;
   restoredFrom: null;
 }> {
   const text = seed.text ?? `# ${seed.path}\n`;
+  // A save carries the work of this device, not its text (record 0081). A
+  // deletion carries no work at all and states only what it had seen.
+  const head = seed.parents?.[0];
+  const save =
+    head === undefined
+      ? firstSave(text)
+      : await saveForHead(workspaceId, head, text);
   return {
     revisionId: randomUUID(),
     fileId: seed.fileId,
@@ -230,8 +245,7 @@ async function revisionBody(seed: {
     deleted: seed.deleted ?? false,
     content: {
       kind: 'markdown',
-      digest: seed.digest ?? (await contentDigest(text)),
-      text,
+      document: seed.deleted === true ? { ...save, update: null } : save,
     },
     clientTime: '2026-09-06T10:00:00.000Z',
     message: null,
@@ -304,7 +318,10 @@ await test('an update needs the entity tag of the head it saw', async () => {
   const missing = await updateFile({
     headers: browser(cookie),
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(missing.response).status, 428);
   assert.equal(problemCode(missing.error), 'precondition_required');
@@ -312,7 +329,10 @@ await test('an update needs the entity tag of the head it saw', async () => {
   const stale = await updateFile({
     headers: { ...browser(cookie), 'if-match': `"${randomUUID()}"` },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(stale.response).status, 412);
   assert.equal(problemCode(stale.error), 'stale_head');
@@ -323,7 +343,10 @@ await test('an update needs the entity tag of the head it saw', async () => {
   const malformed = await updateFile({
     headers: { ...browser(cookie), 'if-match': '"not-a-revision-tag"' },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(malformed.response).status, 412);
   assert.equal(problemCode(malformed.error), 'stale_head');
@@ -331,7 +354,10 @@ await test('an update needs the entity tag of the head it saw', async () => {
   const updated = await updateFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   });
   assert.equal(updated.error, undefined, JSON.stringify(updated.error));
   const response = responseOf(updated.response);
@@ -353,7 +379,10 @@ await test('an update needs the entity tag of the head it saw', async () => {
   const again = await updateFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# three\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# three\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(again.response).status, 412);
 });
@@ -514,7 +543,10 @@ await test('a replay after the head moved returns the first outcome', async () =
   const write = {
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   };
   const first = await updateFile(write);
   assert.equal(first.error, undefined);
@@ -527,7 +559,10 @@ await test('a replay after the head moved returns the first outcome', async () =
       'if-match': `"${first.data?.revision.revisionId ?? ''}"`,
     },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# three\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# three\n'),
+      ...ids(),
+    },
   });
   assert.equal(between.error, undefined);
 
@@ -580,7 +615,10 @@ await test('a stored outcome of an unknown shape stops the replay', async () => 
   const broken = await updateFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...identifiers },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...identifiers,
+    },
   });
   assert.equal(responseOf(broken.response).status, 500);
   assert.equal(problemCode(broken.error), 'internal_error');
@@ -599,13 +637,23 @@ await test('the same mutation identity with another body is refused', async () =
   const first = await updateFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...identifiers },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...identifiers,
+    },
   });
   assert.equal(first.error, undefined);
   const reused = await updateFile({
     headers: { ...browser(cookie), 'if-match': file.tag },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# another text\n', ...identifiers },
+    body: {
+      document: await saveForHead(
+        workspaceId,
+        file.revisionId,
+        '# another text\n',
+      ),
+      ...identifiers,
+    },
   });
   assert.equal(responseOf(reused.response).status, 409);
   assert.equal(problemCode(reused.error), 'mutation_reused');
@@ -888,7 +936,14 @@ await test('one conflicting file rolls back the whole changeset', async () => {
     const accepted = await updateFile({
       headers: { ...browser(cookie), 'if-match': `"${other.revisionId}"` },
       path: { workspaceId, fileId: other.fileId },
-      body: { text: '# after the conflict\n', ...ids() },
+      body: {
+        document: await saveForHead(
+          workspaceId,
+          other.revisionId,
+          '# after the conflict\n',
+        ),
+        ...ids(),
+      },
     });
     assert.equal(accepted.error, undefined);
     assert.equal(BigInt(accepted.data?.accepted.cursor ?? '0'), before + 1n);
@@ -926,7 +981,12 @@ await test('a path outside the rules is refused', async () => {
   const refused = await createFile({
     headers: browser(cookie),
     path: { workspaceId },
-    body: { fileId, path: 'notes/../escape.md', text: '# x\n', ...ids() },
+    body: {
+      fileId,
+      path: 'notes/../escape.md',
+      document: firstSave('# x\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(refused.response).status, 422);
   assert.equal(problemCode(refused.error), 'invalid_path');
@@ -1080,7 +1140,10 @@ await test('a write refuses the star precondition and accepts a tag list', async
   const star = await updateFile({
     headers: { ...browser(cookie), 'if-match': '*' },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(star.response).status, 428);
   assert.equal(problemCode(star.error), 'precondition_required');
@@ -1091,7 +1154,10 @@ await test('a write refuses the star precondition and accepts a tag list', async
       'if-match': `"${randomUUID()}", ${file.tag}`,
     },
     path: { workspaceId, fileId: file.fileId },
-    body: { text: '# two\n', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, file.revisionId, '# two\n'),
+      ...ids(),
+    },
   });
   assert.equal(list.error, undefined, JSON.stringify(list.error));
   assert.equal(responseOf(list.response).status, 200);
@@ -1101,7 +1167,9 @@ await test('a write to a file that does not exist answers 404', async () => {
   const missing = await updateFile({
     headers: { ...browser(cookie), 'if-match': `"${randomUUID()}"` },
     path: { workspaceId, fileId: randomUUID() },
-    body: { text: '# x\n', ...ids() },
+    // The note does not exist, so the save states the work of a device that
+    // starts one. The workspace answers before it reads any document.
+    body: { document: firstSave('# x\n'), ...ids() },
   });
   assert.equal(responseOf(missing.response).status, 404);
   assert.equal(problemCode(missing.error), 'not_found');
@@ -1115,7 +1183,7 @@ await test('a file identifier that already exists cannot be created again', asyn
     body: {
       fileId: file.fileId,
       path: 'notes/other-name.md',
-      text: '# x\n',
+      document: firstSave('# x\n'),
       ...ids(),
     },
   });
@@ -1228,7 +1296,12 @@ await test('a purged file identifier answers 410', async () => {
   const refused = await createFile({
     headers: browser(cookie),
     path: { workspaceId },
-    body: { fileId, path: 'notes/purged.md', text: '# x\n', ...ids() },
+    body: {
+      fileId,
+      path: 'notes/purged.md',
+      document: firstSave('# x\n'),
+      ...ids(),
+    },
   });
   assert.equal(responseOf(refused.response).status, 410);
   assert.equal(problemCode(refused.error), 'purged');
@@ -1245,7 +1318,7 @@ await test('a note that nests too deeply is refused with a message', async () =>
     body: {
       fileId,
       path: 'notes/too-deep.md',
-      text: `${'> '.repeat(200)}deep\n`,
+      document: firstSave(`${'> '.repeat(200)}deep\n`),
       ...ids(),
     },
   });
@@ -1264,7 +1337,7 @@ await test('a note that nests too deeply is refused with a message', async () =>
     body: {
       fileId: randomUUID(),
       path: 'notes/too-deep.md',
-      text: '# shallow\n',
+      document: firstSave('# shallow\n'),
       ...ids(),
     },
   });
@@ -1288,7 +1361,7 @@ await test('a full workspace still accepts a deletion', async () => {
     body: {
       fileId: randomUUID(),
       path: 'notes/second.md',
-      text: '# second\n',
+      document: firstSave('# second\n'),
       ...ids(),
     },
   });
@@ -1323,7 +1396,9 @@ await test('a full workspace still accepts a deletion', async () => {
   const actor = memberActor(ownerAccountId, fullWorkspace);
   const padding = `# ${'padding '.repeat(50_000)}\n`;
   const refusedByStore = await content.transact(actor, fullWorkspace, (tx) =>
-    tx.accept(
+    acceptWithDocuments(
+      content.documents,
+      tx,
       actor,
       changeset(
         fullWorkspace,

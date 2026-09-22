@@ -15,7 +15,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { inspect } from 'node:util';
 import type { AcceptedChangeset, Result } from '@notesapp/core';
-import { isOperationalError } from '@notesapp/core';
+import { acceptWithDocuments, isOperationalError } from '@notesapp/core';
 import {
   createDocumentService,
   createTestDatabase,
@@ -108,7 +108,13 @@ await test('accepted changesets: writes a two file changeset and reports both he
 
   const outcome = accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, input, 'digest-two-files'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        input,
+        'digest-two-files',
+      ),
     ),
   );
 
@@ -147,7 +153,13 @@ await test('accepted changesets: stores equal content once inside one workspace'
 
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, input, 'digest-duplicate'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        input,
+        'digest-duplicate',
+      ),
     ),
   );
 
@@ -161,7 +173,13 @@ await test('accepted changesets: records the accepted path of every live file', 
   const only = revision({ fileId: randomUUID(), path: 'notes/live.md' });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [only]), 'digest-live'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [only]),
+        'digest-live',
+      ),
     ),
   );
   assert.equal(await countRows('live_paths', workspaceId), 1);
@@ -175,7 +193,13 @@ await test('accepted changesets: records the accepted path of every live file', 
   });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [removal]), 'digest-removed'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [removal]),
+        'digest-removed',
+      ),
     ),
   );
   assert.equal(await countRows('live_paths', workspaceId), 0);
@@ -186,7 +210,9 @@ await test('accepted changesets: rejects a second live file on one accepted path
   const actor = memberActor(accountId, workspaceId);
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(
+      acceptWithDocuments(
+        store.documents,
+        tx,
         actor,
         changeset(workspaceId, [
           revision({ fileId: randomUUID(), path: 'notes/taken.md' }),
@@ -198,7 +224,13 @@ await test('accepted changesets: rejects a second live file on one accepted path
 
   const clash = revision({ fileId: randomUUID(), path: 'notes/taken.md' });
   const result = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(actor, changeset(workspaceId, [clash]), 'digest-clash'),
+    acceptWithDocuments(
+      store.documents,
+      tx,
+      actor,
+      changeset(workspaceId, [clash]),
+      'digest-clash',
+    ),
   );
 
   assert.equal(result.ok, false);
@@ -216,7 +248,9 @@ await test('accepted changesets: swaps two accepted paths inside one changeset',
   const right = revision({ fileId: randomUUID(), path: 'notes/right.md' });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(
+      acceptWithDocuments(
+        store.documents,
+        tx,
         actor,
         changeset(workspaceId, [left, right]),
         'digest-before-swap',
@@ -240,7 +274,7 @@ await test('accepted changesets: swaps two accepted paths inside one changeset',
   ]);
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, swap, 'digest-swap'),
+      acceptWithDocuments(store.documents, tx, actor, swap, 'digest-swap'),
     ),
   );
 
@@ -268,7 +302,9 @@ await test('workspace boundaries: rejects a parent revision of another workspace
   const seed = revision({ fileId: randomUUID(), path: 'notes/source.md' });
   accepted(
     await store.transact(sourceActor, source.workspaceId, (tx) =>
-      tx.accept(
+      acceptWithDocuments(
+        store.documents,
+        tx,
         sourceActor,
         changeset(source.workspaceId, [seed]),
         'digest-source',
@@ -283,7 +319,9 @@ await test('workspace boundaries: rejects a parent revision of another workspace
     path: 'notes/borrowed.md',
   });
   const result = await store.transact(targetActor, target.workspaceId, (tx) =>
-    tx.accept(
+    acceptWithDocuments(
+      store.documents,
+      tx,
       targetActor,
       changeset(target.workspaceId, [borrowed]),
       'digest-borrowed',
@@ -302,7 +340,13 @@ await test('workspace boundaries: rejects a cross workspace revision through the
   const seed = revision({ fileId: randomUUID(), path: 'notes/fk.md' });
   accepted(
     await store.transact(actor, source.workspaceId, (tx) =>
-      tx.accept(actor, changeset(source.workspaceId, [seed]), 'digest-fk'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(source.workspaceId, [seed]),
+        'digest-fk',
+      ),
     ),
   );
 
@@ -331,7 +375,13 @@ await test('workspace boundaries: leaves no partial result when one file of a ch
   });
 
   const result = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(actor, changeset(workspaceId, [good, bad]), 'digest-partial'),
+    acceptWithDocuments(
+      store.documents,
+      tx,
+      actor,
+      changeset(workspaceId, [good, bad]),
+      'digest-partial',
+    ),
   );
 
   assert.equal(result.ok, false);
@@ -359,7 +409,13 @@ await test('commit order: allocates strictly increasing cursors without a gap', 
   const outcomes = await Promise.all(
     inputs.map((input, index) =>
       store.transact(actor, workspaceId, (tx) =>
-        tx.accept(actor, input, `digest-parallel-${index}`),
+        acceptWithDocuments(
+          store.documents,
+          tx,
+          actor,
+          input,
+          `digest-parallel-${index}`,
+        ),
       ),
     ),
   );
@@ -395,13 +451,21 @@ await test('immutable rows: rejects an update or a delete on a stored revision',
   const first = revision({ fileId: randomUUID(), path: 'notes/immutable.md' });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [first]), 'digest-immutable'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [first]),
+        'digest-immutable',
+      ),
     ),
   );
   // A second revision gives `revision_parents` a row to protect.
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(
+      acceptWithDocuments(
+        store.documents,
+        tx,
         actor,
         changeset(workspaceId, [
           revision({
@@ -464,7 +528,13 @@ await test('pooled identity: keeps no identity on a released connection', async 
     const only = revision({ fileId: randomUUID(), path: 'notes/pooled.md' });
     accepted(
       await single.transact(actor, workspaceId, (tx) =>
-        tx.accept(actor, changeset(workspaceId, [only]), 'digest-pooled'),
+        acceptWithDocuments(
+          store.documents,
+          tx,
+          actor,
+          changeset(workspaceId, [only]),
+          'digest-pooled',
+        ),
       ),
     );
 
@@ -538,13 +608,25 @@ await test('quota: rejects new content and keeps the earlier state', async () =>
   const first = revision({ fileId: randomUUID(), path: 'notes/q1.md' });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [first]), 'digest-q1'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [first]),
+        'digest-q1',
+      ),
     ),
   );
 
   const second = revision({ fileId: randomUUID(), path: 'notes/q2.md' });
   const rejected = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(actor, changeset(workspaceId, [second]), 'digest-q2'),
+    acceptWithDocuments(
+      store.documents,
+      tx,
+      actor,
+      changeset(workspaceId, [second]),
+      'digest-q2',
+    ),
   );
   assert.equal(rejected.ok, false);
   if (!rejected.ok) assert.equal(rejected.error.code, 'quota');
@@ -570,11 +652,19 @@ await test('quota: accepts a control operation on a full workspace', async () =>
   });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [first]), 'digest-control-1'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [first]),
+        'digest-control-1',
+      ),
     ),
   );
   const blocked = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(
+    acceptWithDocuments(
+      store.documents,
+      tx,
       actor,
       changeset(workspaceId, [
         revision({ fileId: randomUUID(), path: 'notes/blocked.md' }),
@@ -595,7 +685,9 @@ await test('quota: accepts a control operation on a full workspace', async () =>
   });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(
+      acceptWithDocuments(
+        store.documents,
+        tx,
         actor,
         changeset(workspaceId, [removal]),
         'digest-control-delete',
@@ -646,6 +738,7 @@ await test('migrations: applies to an empty database and is a no operation the s
       assert.equal(version[0]?.version, before[0]?.total);
 
       await runMigrations({
+        documents: createDocumentService(),
         databaseUrl: fresh.migrationUrl,
         runtimePassword: 'notesapp_app_test_password',
         authPassword: 'notesapp_auth_test_password',
@@ -671,6 +764,7 @@ await test('migrations: two concurrent runs serialize on one session lock', asyn
     databaseUrl: migrationUrl,
     runtimePassword: 'notesapp_app_test_password',
     authPassword: 'notesapp_auth_test_password',
+    documents: createDocumentService(),
   };
   try {
     await Promise.all([runMigrations(run), runMigrations(run)]);
@@ -688,29 +782,42 @@ await test('migrations: two concurrent runs serialize on one session lock', asyn
   }
 });
 
-await test('content digests: rejects Markdown that does not match its digest', async () => {
+await test('content digests: the stored digest is the digest of the text', async () => {
+  // A save carries work and the workspace derives the text, so no client can
+  // state a digest that names other bytes (record 0081). The stored content
+  // is addressed by the digest of exactly the text it holds.
   const { workspaceId, accountId } = await newWorkspace();
   const actor = memberActor(accountId, workspaceId);
-  const forged = revision({
+  const text = '# the accepted body\n';
+  const written = revision({
     fileId: randomUUID(),
-    path: 'notes/forged.md',
-    content: {
-      kind: 'markdown',
-      digest: markdownDigest('# a different body\n'),
-      text: '# the submitted body\n',
-    },
+    path: 'notes/derived.md',
+    content: markdown(text),
   });
 
   const result = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(actor, changeset(workspaceId, [forged]), 'digest-forged'),
+    acceptWithDocuments(
+      store.documents,
+      tx,
+      actor,
+      changeset(workspaceId, [written]),
+      'digest-derived',
+    ),
   );
 
-  assert.equal(result.ok, false);
-  if (!result.ok) {
-    assert.equal(result.error.code, 'invalid_content');
-    assert.deepEqual(result.error.fileIds, [forged.fileId]);
+  assert.equal(result.ok, true, JSON.stringify(result));
+  const reader = await openSession(database.migrationUrl);
+  try {
+    const rows = await reader.query<{ digest: string; markdown: string }>(
+      'select digest, markdown from contents where workspace_id = $1',
+      [workspaceId],
+    );
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.markdown, text);
+    assert.equal(rows[0]?.digest, markdownDigest(text));
+  } finally {
+    await reader.close();
   }
-  assert.equal(await countRows('contents', workspaceId), 0);
 });
 
 await test('content digests: an attachment must carry its object digest', async () => {
@@ -734,7 +841,9 @@ await test('content digests: an attachment must carry its object digest', async 
     content: { kind: 'attachment', digest: 'sha256-other', objectId },
   });
   const rejected = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(
+    acceptWithDocuments(
+      store.documents,
+      tx,
       actor,
       changeset(workspaceId, [wrong]),
       'digest-attachment-wrong',
@@ -754,7 +863,13 @@ await test('content digests: an attachment must carry its object digest', async 
   });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [right]), 'digest-attachment-ok'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [right]),
+        'digest-attachment-ok',
+      ),
     ),
   );
 });
@@ -794,7 +909,13 @@ await test('quota: a reused digest still needs room below the control reserve', 
   });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [first]), 'digest-reuse-1'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [first]),
+        'digest-reuse-1',
+      ),
     ),
   );
 
@@ -806,7 +927,13 @@ await test('quota: a reused digest still needs room below the control reserve', 
     content: body,
   });
   const rejected = await store.transact(actor, workspaceId, (tx) =>
-    tx.accept(actor, changeset(workspaceId, [second]), 'digest-reuse-2'),
+    acceptWithDocuments(
+      store.documents,
+      tx,
+      actor,
+      changeset(workspaceId, [second]),
+      'digest-reuse-2',
+    ),
   );
   assert.equal(rejected.ok, false);
   if (!rejected.ok) assert.equal(rejected.error.code, 'quota');
@@ -822,7 +949,9 @@ await test('quota: a reused digest still needs room below the control reserve', 
   });
   accepted(
     await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(
+      acceptWithDocuments(
+        store.documents,
+        tx,
         actor,
         changeset(workspaceId, [removal]),
         'digest-reuse-delete',
@@ -850,6 +979,7 @@ await test('operational failures: a refused connection stays an infrastructure f
   const secret = 'wrong-password-marker';
   const broken = openWorkspaceStore(
     withCredentials(database.runtimeUrl, runtimeRole, secret),
+    createDocumentService(),
     { poolSize: 1 },
   );
   try {
@@ -880,14 +1010,20 @@ await test('operational failures: the reported cause carries no stored content',
 
   const error = await thrownBy(() =>
     store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, [only]), 'digest-marker'),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, [only]),
+        'digest-marker',
+      ),
     ),
   );
 
   assert.ok(isOperationalError(error));
   const printed = inspect(error, { depth: 10 });
   assert.equal(printed.includes(marker), false);
-  assert.equal(printed.includes(body.digest), false);
+  assert.equal(printed.includes(marker), false);
 });
 
 await test('operational failures: an unreachable server is unavailable', async () => {
@@ -897,6 +1033,7 @@ await test('operational failures: an unreachable server is unavailable', async (
   // than a SQLSTATE.
   const dead = openWorkspaceStore(
     'postgres://notesapp_app:unused@127.0.0.1:1/notesapp_test',
+    createDocumentService(),
     { poolSize: 1 },
   );
   try {
@@ -911,6 +1048,7 @@ await test('operational failures: an unreachable server is unavailable', async (
 
   const missing = openWorkspaceStore(
     withDatabaseName(database.runtimeUrl, 'notesapp_test_absent_database'),
+    createDocumentService(),
     { poolSize: 1 },
   );
   try {

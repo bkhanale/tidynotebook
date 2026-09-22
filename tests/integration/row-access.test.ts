@@ -1,3 +1,4 @@
+import { acceptWithDocuments } from '@notesapp/core';
 /**
  * Row level security under the runtime role.
  *
@@ -93,7 +94,13 @@ async function seedEverything(): Promise<Seeded> {
     digest: string,
   ): Promise<void> => {
     const result = await store.transact(actor, workspaceId, (tx) =>
-      tx.accept(actor, changeset(workspaceId, entries), digest),
+      acceptWithDocuments(
+        store.documents,
+        tx,
+        actor,
+        changeset(workspaceId, entries),
+        digest,
+      ),
     );
     if (!result.ok) assert.fail(`the seed was rejected: ${result.error.code}`);
   };
@@ -347,6 +354,7 @@ await test('runtime role limits: cannot read or run the migration bookkeeping', 
   }
   await assert.rejects(() =>
     runMigrations({
+      documents: createDocumentService(),
       databaseUrl: database.runtimeUrl,
       runtimePassword: 'notesapp_app_test_password',
       authPassword: 'notesapp_auth_test_password',

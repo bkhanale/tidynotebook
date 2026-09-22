@@ -8,6 +8,7 @@
  * retention, version, and purge rules hold.
  */
 import assert from 'node:assert/strict';
+import { firstSave, saveForHead } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -184,7 +185,7 @@ async function newFile(
     body: {
       fileId,
       path,
-      text,
+      document: firstSave(text),
       revisionId: ids.revisionId,
       mutationId: ids.mutationId,
       deviceId: ids.deviceId,
@@ -287,7 +288,7 @@ await test('late commits do not change snapshot pages but appear in changes', as
     },
     path: { workspaceId, fileId },
     body: {
-      text: updatedText,
+      document: await saveForHead(workspaceId, before.revisionId, updatedText),
       revisionId: ids.revisionId,
       mutationId: ids.mutationId,
       deviceId: ids.deviceId,
@@ -329,10 +330,22 @@ await test('late commits do not change snapshot pages but appear in changes', as
     assert.ok(at >= previous, 'records must arrive in commit order');
     previous = at;
   }
-  const late = rows.find((row) => row.entityId === fileId);
+  // A record of a note states the file, its revision, and its work, so a
+  // reader needs no second request to learn what changed (record 0081).
+  const late = rows.find(
+    (row) => row.kind !== 'membership' && row.fileId === fileId,
+  );
   assert.ok(late !== undefined, 'the updated file must have a change record');
-  assert.equal(late?.revisionId, ids.revisionId);
-  assert.equal(late?.deleted, false);
+  assert.equal(
+    late?.kind === 'update' || late?.kind === 'document'
+      ? late.revisionId
+      : null,
+    ids.revisionId,
+  );
+  assert.equal(
+    late?.kind === 'update' || late?.kind === 'document' ? late.deleted : null,
+    false,
+  );
   snapshotCursor = changes.data?.nextCursor ?? snapshotCursor;
 
   // Polling at the new cursor is empty and echoes the high-water mark.
@@ -395,11 +408,12 @@ await test('a purge emits a deletion and invalidates live snapshots', async () =
     query: { cursor: at },
   });
   assert.equal(changes.error, undefined, JSON.stringify(changes.error));
+  // A permanent deletion has no revision left to name, so the feed states
+  // the note itself and the reader forgets it (record 0083).
   const deletion = (changes.data?.changes ?? []).find(
-    (row) => row.entityKind === 'file' && row.entityId === file.fileId,
+    (row) => row.kind === 'purge' && row.fileId === file.fileId,
   );
   assert.ok(deletion !== undefined, 'the purge must be streamed');
-  assert.equal(deletion?.deleted, true);
 
   const reread = await getSnapshotPage({
     headers: browser(ownerCookie),

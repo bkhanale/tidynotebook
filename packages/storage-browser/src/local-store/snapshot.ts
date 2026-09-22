@@ -7,6 +7,7 @@
  * and content presence. `applyRemoteChanges` folds the change feed into the
  * mirror without overwriting unsubmitted local work.
  */
+import { applyServerWork } from './documents.ts';
 import {
   LocalStorageError,
   type LocalStore,
@@ -506,6 +507,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.queue,
             tables.checkpoints,
             tables.recovery,
+            tables.documents,
           ],
           async () => {
             for (const change of changes) {
@@ -520,15 +522,32 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   await forgetFile(accountId, workspaceId, change.purgedFileId);
                 continue;
               }
-              if (file.text !== null) {
+              // The accepted work of a note applies to the document that this
+              // device holds, and the text that a reader sees comes from the
+              // result (record 0085). A device that cannot apply the work
+              // keeps what it has; the next snapshot repairs it.
+              let acceptedText = file.text;
+              if (file.document !== null) {
+                const applied = await applyServerWork(
+                  tables,
+                  { serverOrigin, accountId, workspaceId, fileId: file.fileId },
+                  file.document.epoch,
+                  file.document.kind === 'document'
+                    ? { kind: 'document', document: file.document.bytes }
+                    : { kind: 'update', update: file.document.bytes },
+                );
+                await tables.documents.put(applied.row);
+                acceptedText = applied.text;
+              }
+              if (acceptedText !== null) {
                 await tables.contents.put({
                   serverOrigin,
                   accountId,
                   workspaceId,
                   digest: file.digest,
-                  text: file.text,
+                  text: acceptedText,
                   bytes: null,
-                  size: byteLength(file.text),
+                  size: byteLength(acceptedText),
                 });
               }
               const known: unknown = await tables.acceptedFiles.get([
@@ -554,7 +573,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                 path: file.path,
                 deleted: file.deleted,
                 text:
-                  file.text ??
+                  acceptedText ??
                   (await bodyOfDigest(
                     ctx,
                     accountId,

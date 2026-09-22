@@ -83,11 +83,33 @@ class FakeStore implements LocalStore {
     return `${account}/${workspace}`;
   }
 
+  /** The frozen text of each local revision, as a checkpoint holds it. */
+  readonly revisionTexts = new Map<string, string>();
+
+  readRevisionText(
+    _account: string,
+    _workspace: string,
+    revisionId: string,
+  ): Promise<string | null> {
+    return Promise.resolve(this.revisionTexts.get(revisionId) ?? null);
+  }
+
   subscribe(): () => void {
     return () => {};
   }
 
   enqueue(entry: QueueEntry): void {
+    // The fake writes the text of a save as its update, so the frozen text of
+    // each revision is what a checkpoint of this device would hold.
+    for (const revision of entry.input.revisions)
+      if (
+        revision.content.kind === 'markdown' &&
+        revision.content.document.work.kind === 'update'
+      )
+        this.revisionTexts.set(
+          revision.id,
+          new TextDecoder().decode(revision.content.document.work.update),
+        );
     this.entries.set(entry.input.mutationId, entry);
     this.order.push(entry.input.mutationId);
   }
@@ -118,6 +140,7 @@ class FakeStore implements LocalStore {
   }
 
   checkpoint(draft: Draft, message: string | null): Promise<QueueEntry | null> {
+    this.revisionTexts.set(`rev-${draft.workingCopyId}`, draft.text);
     const entry: QueueEntry = {
       accountId: draft.accountId,
       input: {
@@ -135,8 +158,14 @@ class FakeStore implements LocalStore {
             deleted: draft.deleted,
             content: {
               kind: 'markdown',
-              digest: `digest-${draft.workingCopyId}`,
-              text: draft.text,
+              document: {
+                work: {
+                  kind: 'update',
+                  update: new TextEncoder().encode(draft.text),
+                },
+                epoch: 1,
+                observed: new Uint8Array(),
+              },
             },
             clientTime: new Date(this.nowMs).toISOString(),
             message,
@@ -566,8 +595,11 @@ function queuedEntry(
         deleted: false,
         content: {
           kind: 'markdown',
-          digest: `digest-${revisionId}`,
-          text,
+          document: {
+            work: { kind: 'update', update: new TextEncoder().encode(text) },
+            epoch: 1,
+            observed: new Uint8Array(),
+          },
         },
         clientTime: '2026-09-06T10:00:00.000Z',
         message: null,
@@ -849,8 +881,12 @@ await test('an edit to a remotely deleted note is kept as a recovered note', asy
   assert.ok(kept !== null);
   const revision = kept.input.revisions[0];
   assert.equal(revision?.deleted, false);
+  // The recovered note carries the frozen text of the refused save, which
+  // the checkpoint of that save holds (record 0085).
   assert.equal(
-    revision?.content.kind === 'markdown' ? revision.content.text : null,
+    revision?.content.kind === 'markdown'
+      ? (store.revisionTexts.get(revision.id) ?? null)
+      : null,
     '# B\n',
   );
   assert.equal(revision?.path, 'notes/file-a (recovered).md');
@@ -1400,7 +1436,16 @@ await test('a purge in one change page supersedes its missing deletion revision'
         value: {
           changes: [
             {
-              file: { fileId: 'file-a', revisionId: 'rev-deleted' },
+              file: {
+                fileId: 'file-a',
+                revisionId: 'rev-deleted',
+                path: 'notes/file-a.md',
+                fileKind: 'note' as const,
+                deleted: true,
+                digest: 'digest-deleted',
+                document: null,
+                text: null,
+              },
               purgedFileId: null,
             },
             { file: null, purgedFileId: 'file-a' },

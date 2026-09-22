@@ -32,6 +32,7 @@
  * ```
  */
 import assert from 'node:assert/strict';
+import { firstSave } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -142,7 +143,7 @@ const created = await createFile({
     fileId: noteId,
     revisionId: randomUUID(),
     path: 'notes/report/first.md',
-    text: noteText,
+    document: firstSave(noteText),
     mutationId: randomUUID(),
     deviceId: 'write-refusal-device',
   },

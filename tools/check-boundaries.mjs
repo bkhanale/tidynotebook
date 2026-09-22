@@ -36,7 +36,9 @@ const allowed = {
   // The deployment builds its document service here, so the server and the
   // migration command share one adapter over the document package (0081).
   'storage-server': ['core', 'markdown', 'note-document'],
-  'storage-browser': ['core', 'sync'],
+  // The device holds the document of each note, so it reads the same byte
+  // API that the server uses (records 0081, 0085).
+  'storage-browser': ['core', 'sync', 'note-document'],
   // The device derives its own backlinks from the note bodies it holds, so
   // it reads links with the one shared extractor that the server index uses
   // (record 0037). The edge stays acyclic, because markdown reaches core only.

@@ -24,8 +24,9 @@ import type {
   RevisionInput,
   Role,
 } from '@notesapp/core';
-import { verifyActor } from '@notesapp/core';
+import { workspaceText, verifyActor } from '@notesapp/core';
 import {
+  createDocumentService,
   authRole,
   createTestDatabase,
   databaseName,
@@ -88,6 +89,7 @@ export async function createDisposableDatabase(): Promise<TestDatabase> {
   const migrationUrl = await createTestDatabase(serverUrl, name);
   try {
     await runMigrations({
+      documents: createDocumentService(),
       databaseUrl: migrationUrl,
       runtimePassword: testPassword(),
       authPassword: testIdentityPassword(),
@@ -158,9 +160,15 @@ export function markdownDigest(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');
 }
 
-/** Markdown content with its digest. */
+/**
+ * The content of one note that a test writes.
+ *
+ * A test seeds through the workspace, so it writes text the way the workspace
+ * itself does: the text goes into the document of the note and keeps every
+ * identity (record 0081).
+ */
 export function markdown(text: string): ContentRef {
-  return { kind: 'markdown', digest: markdownDigest(text), text };
+  return workspaceText(text, 1);
 }
 
 /** What a test revision changes. */

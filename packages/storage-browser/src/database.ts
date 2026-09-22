@@ -130,6 +130,24 @@ export type PreferenceRow = Preference;
 /** The stored form of one recovery entry. Task 17 fills this table. */
 export type RecoveryRow = RecoveryRecord;
 
+/**
+ * The document of one note on this device (records 0081, 0085).
+ *
+ * `bytes` is the whole document, which holds the text of the note and the
+ * identity of every character. `appliedVector` names the state that the
+ * server has of this document, so a save sends the work after it and nothing
+ * else. `epoch` is the generation that the two agree on.
+ */
+export type DocumentRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly fileId: string;
+  readonly bytes: Uint8Array;
+  readonly epoch: number;
+  readonly appliedVector: Uint8Array;
+};
+
 /** Whether the recorded schema change finished. */
 export type MigrationState = 'complete' | 'in-progress';
 
@@ -171,6 +189,7 @@ export type Tables = {
   readonly preferences: Table<PreferenceRow, [string, string, string, string]>;
   readonly recovery: Table<RecoveryRow, [string, string, string, string]>;
   readonly meta: Table<MetaRow, string>;
+  readonly documents: Table<DocumentRow, [string, string, string, string]>;
 };
 
 /**
@@ -272,6 +291,15 @@ export const schemaVersions: readonly {
       branches: null,
     },
   },
+  {
+    version: 5,
+    stores: {
+      // The document of each note on this device (records 0081, 0085). The
+      // text of a note now comes from it, and a save sends the work that it
+      // holds rather than the whole text.
+      documents: '[serverOrigin+accountId+workspaceId+fileId]',
+    },
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */
@@ -289,6 +317,7 @@ export const tableNames: readonly string[] = [
   'preferences',
   'recovery',
   'meta',
+  'documents',
 ];
 
 /** The default database name. Tests pass their own to stay isolated. */
@@ -324,6 +353,9 @@ export function createDatabase(
   for (const entry of schemaVersions)
     db.version(entry.version).stores(entry.stores);
   const tables: Tables = {
+    documents: db.table<DocumentRow, [string, string, string, string]>(
+      'documents',
+    ),
     drafts: db.table<DraftRow, [string, string, string, string]>('drafts'),
     checkpoints: db.table<CheckpointRow, [string, string, string, string]>(
       'checkpoints',

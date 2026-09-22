@@ -1,5 +1,6 @@
 /** Trash listing, restore, and permanent deletion against a real server. */
 import assert from 'node:assert/strict';
+import { deletionForHead, firstSave } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -116,7 +117,7 @@ async function makeNote(
     body: {
       fileId,
       path,
-      text,
+      document: firstSave(text),
       revisionId: randomUUID(),
       mutationId: randomUUID(),
       deviceId: device,

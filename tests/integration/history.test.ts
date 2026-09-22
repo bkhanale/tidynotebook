@@ -1,5 +1,6 @@
 /** Explicit save history and restore checks against a real server. */
 import assert from 'node:assert/strict';
+import { firstSave, saveForHead } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -110,7 +111,7 @@ await test('each explicit save creates a restorable version', async () => {
     body: {
       fileId,
       path: 'versions.md',
-      text: '# First\n',
+      document: firstSave('# First\n'),
       revisionId: firstRevisionId,
       mutationId: randomUUID(),
       deviceId: 'history-test',
@@ -128,7 +129,7 @@ await test('each explicit save creates a restorable version', async () => {
       mutationId: randomUUID(),
       deviceId: 'history-test',
       revisionId: secondRevisionId,
-      text: secondText,
+      document: await saveForHead(workspaceId, firstRevisionId, secondText),
     },
   });
   assert.equal(saved.error, undefined, JSON.stringify(saved.error));

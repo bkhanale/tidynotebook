@@ -16,6 +16,7 @@
  * ```
  */
 import assert from 'node:assert/strict';
+import { firstSave } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -232,7 +233,13 @@ async function writeNote(path: string, text: string): Promise<string> {
   const created = await createFile({
     headers: owner(),
     path: { workspaceId },
-    body: { fileId, revisionId: randomUUID(), path, text, ...ids() },
+    body: {
+      fileId,
+      revisionId: randomUUID(),
+      path,
+      document: firstSave(text),
+      ...ids(),
+    },
   });
   assert.equal(created.error, undefined, JSON.stringify(created.error));
   return fileId;

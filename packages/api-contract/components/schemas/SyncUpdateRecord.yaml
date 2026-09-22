@@ -12,6 +12,7 @@ required:
   - path
   - deleted
   - digest
+  - kindOfFile
   - epoch
   - update
   - stateVector
@@ -45,25 +46,41 @@ properties:
     type: boolean
     readOnly: true
     description: True when the note is in Trash after this record.
+  kindOfFile:
+    type: string
+    readOnly: true
+    description: Whether the record states a note or an attachment.
+    enum:
+      - note
+      - attachment
   digest:
     allOf:
       - $ref: './ContentDigest.yaml'
     readOnly: true
-    description: Digest of the text that the accepted document derives.
+    description: >-
+      Digest of the text that the accepted document derives, or of the
+      bytes of an attachment.
   epoch:
-    allOf:
+    oneOf:
       - $ref: './DocumentEpoch.yaml'
+      - type: 'null'
     readOnly: true
-    description: The generation that this update belongs to.
+    description: >-
+      The generation that this update belongs to, or null for an
+      attachment revision, which holds no document.
   update:
-    allOf:
+    oneOf:
       - $ref: './DocumentUpdate.yaml'
+      - type: 'null'
     readOnly: true
-    description: The work that this record adds to the document.
+    description: >-
+      The work that this record adds to the document, or null for an
+      attachment revision.
   stateVector:
-    allOf:
+    oneOf:
       - $ref: './DocumentStateVector.yaml'
+      - type: 'null'
     readOnly: true
     description: >-
       The state vector of the document at this revision, so a reader can
-      ask for exactly the work that it lacks.
+      ask for exactly the work that it lacks. Null for an attachment.

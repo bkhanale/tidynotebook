@@ -7,6 +7,7 @@
  * refers to and a stored checkpoint always has a parent. `listCheckpoints`
  * reads the local history of one file.
  */
+import { deletionSave, foldTextIntoDocument } from './documents.ts';
 import { contentDigest } from '@notesapp/core';
 import type { ChangesetInput } from '@notesapp/core';
 import {
@@ -21,6 +22,7 @@ import { guard, type CheckpointRow, type FileRow } from '../database.ts';
 import {
   validateAcceptedFile,
   validateCheckpoint,
+  validateContent,
   validateDraft,
 } from '../migrations.ts';
 import {
@@ -32,7 +34,10 @@ import {
   type LocalStoreContext,
 } from './shared.ts';
 
-type VersionsSlice = Pick<LocalStore, 'checkpoint' | 'listCheckpoints'>;
+type VersionsSlice = Pick<
+  LocalStore,
+  'checkpoint' | 'listCheckpoints' | 'readRevisionText'
+>;
 
 export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
   const { serverOrigin, deviceId, db, tables, nowIso, newId, publish } = ctx;
@@ -56,6 +61,38 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
   });
 
   return {
+    /**
+     * The text of one local revision, or null (record 0085).
+     *
+     * A save carries work, so the text that a refused save kept comes from
+     * the checkpoint that froze it and the content row it named.
+     */
+    readRevisionText(
+      accountId: string,
+      workspaceId: string,
+      revisionId: string,
+    ): Promise<string | null> {
+      return guard('reading the text of a revision', () =>
+        db.transaction('r', [tables.checkpoints, tables.contents], async () => {
+          const stored: unknown = await tables.checkpoints.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            revisionId,
+          ]);
+          if (stored === undefined) return null;
+          const checkpoint = validateCheckpoint(stored);
+          const content: unknown = await tables.contents.get([
+            serverOrigin,
+            accountId,
+            workspaceId,
+            checkpoint.digest,
+          ]);
+          return content === undefined ? null : validateContent(content).text;
+        }),
+      );
+    },
+
     async checkpoint(
       draft: Draft,
       message: string | null,
@@ -84,6 +121,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             tables.contents,
             tables.acceptedFiles,
             tables.queue,
+            tables.documents,
           ],
           async (): Promise<QueueEntry | null> => {
             const { accountId, workspaceId, fileId } = draft;
@@ -167,6 +205,15 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             )
               return null;
 
+            // The text of this save becomes work on the document of the
+            // note, inside this transaction, so a second tab that wrote first
+            // keeps its work (records 0081, 0085).
+            const key = { serverOrigin, accountId, workspaceId, fileId };
+            const folded = draft.deleted
+              ? { row: null, save: await deletionSave(tables, key) }
+              : await foldTextIntoDocument(tables, key, revisionText);
+            if (folded.row !== null) await tables.documents.put(folded.row);
+
             const parentId = lastCheckpointId ?? draft.baseRevisionId;
             const parents = parentId === null ? [] : [parentId];
             await tables.contents.put({
@@ -241,7 +288,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
                   parents,
                   path: draft.path,
                   deleted: draft.deleted,
-                  content: { kind: 'markdown', digest, text: revisionText },
+                  content: { kind: 'markdown', document: folded.save },
                   clientTime,
                   message,
                   restoredFrom: null,

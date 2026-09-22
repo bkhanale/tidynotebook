@@ -17,6 +17,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import {
+  createDocumentService,
   createTestDatabase,
   dropTestDatabase,
   requiredSchemaVersion,
@@ -42,6 +43,7 @@ await test('two databases of one cluster migrate together', async () => {
   const runs = urls.map(
     async (databaseUrl) =>
       await runMigrations({
+        documents: createDocumentService(),
         databaseUrl,
         runtimePassword: testRuntimePassword,
         authPassword: testAuthPassword,

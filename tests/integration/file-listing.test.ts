@@ -30,6 +30,7 @@ import {
   openWorkspaceStore,
 } from '@notesapp/storage-server';
 import {
+  markdown,
   changeset,
   createDisposableDatabase,
   memberActor,
@@ -249,10 +250,10 @@ await test('the trash pages by the same keyset in both orders', async () => {
           parents: [parent],
           path: note.path,
           deleted: true,
-          content: await tombstoneContent({
-            kind: 'markdown',
-            digest: stored.digest,
-            text: stored.text ?? '',
+          content: tombstoneContent(markdown(stored.text ?? ''), {
+            work: { kind: 'none' },
+            epoch: 1,
+            observed: null,
           }),
         }),
       ],

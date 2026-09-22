@@ -21,6 +21,7 @@
  * ```
  */
 import assert from 'node:assert/strict';
+import { firstSave } from './support/documents.ts';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -112,7 +113,7 @@ const created = await createFile({
     fileId: randomUUID(),
     revisionId: randomUUID(),
     path: 'notes/guarded/one.md',
-    text: '# Guarded\n\nThe words behind a password.\n',
+    document: firstSave('# Guarded\n\nThe words behind a password.\n'),
     mutationId: randomUUID(),
     deviceId: 'attempt-limit-device',
   },

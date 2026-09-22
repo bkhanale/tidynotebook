@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@notesapp/core": "workspace:*",
+    "@notesapp/note-document": "workspace:*",
     "@notesapp/sync": "workspace:*",
     "dexie": "4.4.6"
   },

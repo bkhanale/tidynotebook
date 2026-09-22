@@ -35,6 +35,7 @@
     "@notesapp/core": "workspace:*",
     "@notesapp/editor": "workspace:*",
     "@notesapp/markdown": "workspace:*",
+    "@notesapp/note-document": "workspace:*",
     "@notesapp/server": "workspace:*",
     "@notesapp/storage-browser": "workspace:*",
     "@notesapp/storage-server": "workspace:*",

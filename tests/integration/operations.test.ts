@@ -139,6 +139,7 @@ function checkNamed(
 await test('a database that no pool can reach reports degraded', async () => {
   const store = openWorkspaceStore(
     'postgres://invalid:invalid@127.0.0.1:1/invalid',
+    createDocumentService(),
   );
   try {
     const report = await evaluateReadiness(

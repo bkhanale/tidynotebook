@@ -21,6 +21,7 @@ import {
   type LocalFileKind,
   type LocalStore,
   type RemoteChange,
+  type RemoteFileChange,
 } from './local-port.ts';
 import {
   SnapshotRestartNeeded,
@@ -59,10 +60,12 @@ export type RevisionData = {
  * record, which only advances the cursor.
  */
 export type ChangeRecord = {
-  readonly file: {
-    readonly fileId: string;
-    readonly revisionId: string;
-  } | null;
+  /**
+   * The accepted change of one file, with the work that a note carries. The
+   * feed states everything a reader needs, so no reader fetches a revision to
+   * learn what changed (record 0081).
+   */
+  readonly file: RemoteFileChange | null;
   /** The file that a permanent deletion removed, or `null`. */
   readonly purgedFileId: string | null;
 };
@@ -287,30 +290,7 @@ async function fetchAndApply(
       continue;
     }
     if (purgedFileIds.has(pointer.fileId)) continue;
-    const fetched = await sendWithRetry(ctx, (signal) =>
-      net.revision(pointer.revisionId, signal),
-    );
-    if (fetched === null) return 'deferred';
-    if (!fetched.ok) {
-      if (fetched.problem.status === 401) return 'paused';
-      if (fetched.problem.status === 403) return 'access-lost';
-      if (fetched.problem.status === 404 || fetched.problem.status === 410)
-        throw new SnapshotRestartNeeded('revision-purged');
-      throw new SyncFailedError(fetched.problem.code, fetched.problem.status);
-    }
-    const revision = fetched.value;
-    files.push({
-      file: {
-        fileId: revision.fileId,
-        revisionId: revision.revisionId,
-        path: revision.path,
-        fileKind: revision.fileKind,
-        deleted: revision.deleted,
-        digest: revision.digest,
-        text: revision.text,
-      },
-      purgedFileId: null,
-    });
+    files.push({ file: pointer, purgedFileId: null });
   }
   await local.applyRemoteChanges(
     accountId,

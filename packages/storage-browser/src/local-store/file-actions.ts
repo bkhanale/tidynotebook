@@ -12,6 +12,7 @@
  * brought to the same state, keeping its text and its sequence. Either the
  * whole set is written or nothing is.
  */
+import { deletionSave } from './documents.ts';
 import { contentDigest } from '@notesapp/core';
 import type { ChangesetInput } from '@notesapp/core';
 import {
@@ -241,6 +242,7 @@ export function createFileActionsSlice(
           tables.contents,
           tables.acceptedFiles,
           tables.queue,
+          tables.documents,
         ],
         async (): Promise<readonly QueueEntry[]> => {
           const entries: QueueEntry[] = [];
@@ -270,6 +272,12 @@ export function createFileActionsSlice(
               text: action.text,
               bytes: null,
               size: byteLength(action.text),
+            });
+            const save = await deletionSave(tables, {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId: state.fileId,
             });
             const checkpoint: CheckpointRow = {
               serverOrigin,
@@ -362,11 +370,11 @@ export function createFileActionsSlice(
                   parents: state.parentId === null ? [] : [state.parentId],
                   path: action.toPath,
                   deleted: action.deleted,
-                  content: {
-                    kind: 'markdown',
-                    digest: action.digest,
-                    text: action.text,
-                  },
+                  // A move states what this device had seen and no text work:
+                  // the path changes, the text does not. A deletion states
+                  // the same, so the workspace can refuse one that would hide
+                  // unseen text (records 0081, 0083).
+                  content: { kind: 'markdown', document: save },
                   clientTime,
                   message: null,
                   restoredFrom: null,

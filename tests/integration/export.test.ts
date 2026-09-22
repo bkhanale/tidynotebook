@@ -13,6 +13,7 @@
  * ```
  */
 import assert from 'node:assert/strict';
+import { firstSave, saveForHead } from './support/documents.ts';
 import { Buffer } from 'node:buffer';
 import { randomUUID } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -215,7 +216,7 @@ async function newNote(
   const created = await createFile({
     headers: browser(cookie),
     path: { workspaceId },
-    body: { fileId, path, text, ...ids() },
+    body: { fileId, path, document: firstSave(text), ...ids() },
   });
   assert.equal(created.error, undefined, JSON.stringify(created.error));
   const tag = responseOf(created.response).headers.get('etag') ?? '';
@@ -390,7 +391,11 @@ await test('the archive follows a rename and a later edit', async () => {
   const changed = await updateFile({
     headers: { ...browser(cookie), 'if-match': first.tag },
     path: { workspaceId, fileId: first.fileId },
-    body: { text: '# Two\n', path: 'moved/renamed.md', ...ids() },
+    body: {
+      document: await saveForHead(workspaceId, first.tag, '# Two\n'),
+      path: 'moved/renamed.md',
+      ...ids(),
+    },
   });
   assert.equal(changed.error, undefined, JSON.stringify(changed.error));
   const answer = await exportWorkspace({

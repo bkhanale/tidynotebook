@@ -1405,21 +1405,25 @@ export type SyncUpdateRecord = {
      */
     readonly deleted: boolean;
     /**
-     * Digest of the text that the accepted document derives.
+     * Whether the record states a note or an attachment.
+     */
+    readonly kindOfFile: 'note' | 'attachment';
+    /**
+     * Digest of the text that the accepted document derives, or of the bytes of an attachment.
      */
     readonly digest: ContentDigest;
     /**
-     * The generation that this update belongs to.
+     * The generation that this update belongs to, or null for an attachment revision, which holds no document.
      */
-    readonly epoch: DocumentEpoch;
+    readonly epoch: DocumentEpoch | null;
     /**
-     * The work that this record adds to the document.
+     * The work that this record adds to the document, or null for an attachment revision.
      */
-    readonly update: DocumentUpdate;
+    readonly update: DocumentUpdate | null;
     /**
-     * The state vector of the document at this revision, so a reader can ask for exactly the work that it lacks.
+     * The state vector of the document at this revision, so a reader can ask for exactly the work that it lacks. Null for an attachment.
      */
-    readonly stateVector: DocumentStateVector;
+    readonly stateVector: DocumentStateVector | null;
 };
 
 /**

@@ -271,10 +271,19 @@ export async function parkRefusedSave(
   });
   for (const revision of entry.input.revisions) {
     if (revision.content.kind !== 'markdown') continue;
+    // The save carries work, so its text comes from the checkpoint that
+    // froze it. A checkpoint that this device no longer holds keeps nothing
+    // to show, and the entry stays parked with its reason.
+    const text = await local.readRevisionText(
+      accountId,
+      workspaceId,
+      revision.id,
+    );
+    if (text === null) continue;
     await local.addRecovery(accountId, workspaceId, {
       fileId: revision.fileId,
       path: revision.path,
-      text: revision.content.text,
+      text,
       reason: 'save_refused',
       code,
       mutationId: entry.input.mutationId,
@@ -432,14 +441,21 @@ async function recoverStaleHead(
     const revision = entry.input.revisions.find(
       (candidate) => candidate.fileId === updated,
     );
-    if (revision !== undefined && revision.content.kind === 'markdown')
-      await keepAsRecoveredNote(
-        local,
+    if (revision !== undefined && revision.content.kind === 'markdown') {
+      const text = await local.readRevisionText(
         accountId,
         workspaceId,
-        revision.path,
-        revision.content.text,
+        revision.id,
       );
+      if (text !== null)
+        await keepAsRecoveredNote(
+          local,
+          accountId,
+          workspaceId,
+          revision.path,
+          text,
+        );
+    }
     await local.discardQueueEntry(accountId, entry.input.mutationId);
     ctx.announce({
       kind: 'preserved',

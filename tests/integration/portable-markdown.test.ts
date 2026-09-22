@@ -48,7 +48,11 @@ await test('a move rewrites inbound links in its accepted changeset', async () =
     fileId: target.fileId,
     parents: [target.id],
     path: 'archive/a.md',
-    text: target.content.kind === 'markdown' ? target.content.text : '',
+    text:
+      target.content.kind === 'markdown' &&
+      target.content.document.work.kind === 'text'
+        ? target.content.document.work.text
+        : '',
   });
   const changedWithLink = revision({
     fileId: changedSource.fileId,
@@ -104,7 +108,10 @@ await test('the data migration rewrites live legacy links and reports dead links
   const seeded = await commitChangeset(store, actor, input, 'legacy-seed');
   assert.equal(seeded.ok, true, JSON.stringify(seeded));
 
-  const result = await migratePortableMarkdown(database.migrationUrl);
+  const result = await migratePortableMarkdown(
+    database.migrationUrl,
+    createDocumentService(),
+  );
   assert.equal(result.revisedNotes, 1);
   assert.equal(result.deadReferences, 1);
   const migrated = await readFile(store, actor, workspaceId, source.fileId);
