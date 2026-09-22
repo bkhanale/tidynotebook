@@ -1,0 +1,61 @@
+type: object
+description: >-
+  One whole document of a note. The feed emits it when the generation of
+  the note changes, because identities of one generation say nothing
+  about another, and a reader cannot join the two by an update.
+additionalProperties: false
+required:
+  - kind
+  - cursor
+  - fileId
+  - revisionId
+  - path
+  - deleted
+  - digest
+  - epoch
+  - document
+properties:
+  kind:
+    type: string
+    description: Names this record form.
+    enum:
+      - document
+  cursor:
+    allOf:
+      - $ref: './SyncCursorValue.yaml'
+    readOnly: true
+    description: The position of this record in the ordered feed.
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The note that this record states.
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The accepted revision that this document holds.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+    description: The accepted path of the note at this record.
+  deleted:
+    type: boolean
+    readOnly: true
+    description: True when the note is in Trash at this record.
+  digest:
+    allOf:
+      - $ref: './ContentDigest.yaml'
+    readOnly: true
+    description: Digest of the text that this document derives.
+  epoch:
+    allOf:
+      - $ref: './DocumentEpoch.yaml'
+    readOnly: true
+    description: The generation that this document starts for the reader.
+  document:
+    allOf:
+      - $ref: './DocumentUpdate.yaml'
+    readOnly: true
+    description: The whole document of the note at this record.

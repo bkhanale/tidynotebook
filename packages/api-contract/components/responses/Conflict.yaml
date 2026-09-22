@@ -2,7 +2,10 @@ description: >-
   The change cannot be accepted next to the state that the workspace
   holds. The code names the reason: path_conflict for a path that another
   live file occupies, and mutation_reused for a mutation identity that
-  was already used for another operation.
+  was already used for another operation. A save of a note adds
+  epoch_mismatch, which means that the note holds another generation of
+  its document, so the device reads the current document before it saves
+  again.
 content:
   application/problem+json:
     schema:

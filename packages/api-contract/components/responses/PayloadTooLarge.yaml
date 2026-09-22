@@ -1,4 +1,8 @@
-description: The request body is larger than the configured limit.
+description: >-
+  The request body is larger than the configured limit. A save of a note
+  adds document_too_large, which means that the update or the document
+  it would produce passes a bound of the workspace. The work stays on the
+  device, which offers recovery rather than sending the same bytes again.
 content:
   application/problem+json:
     schema:

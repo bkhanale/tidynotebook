@@ -1,0 +1,39 @@
+type: object
+description: >-
+  What the workspace knows about one mutation identity. A device reads it
+  when it does not know whether a save reached the server, before it
+  transforms work that may already have committed. The answer states the
+  outcome and never the text of a note.
+additionalProperties: false
+required:
+  - mutationId
+  - status
+  - accepted
+properties:
+  mutationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The mutation identity that the device asked about.
+  status:
+    type: string
+    readOnly: true
+    description: >-
+      accepted means this workspace committed exactly this request.
+      absent means it holds no receipt for the identity, which is
+      definitive only while no other writer of this account is running.
+      other_request means the identity belongs to a different request,
+      so the device must not send this one under it.
+    enum:
+      - accepted
+      - absent
+      - other_request
+  accepted:
+    oneOf:
+      - $ref: './AcceptedChangeset.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The stored outcome of the accepted request, or null. It repeats
+      what the first answer stated, so a device that lost the answer can
+      settle its queue without sending again.

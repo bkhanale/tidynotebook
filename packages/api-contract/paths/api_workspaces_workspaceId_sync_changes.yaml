@@ -33,3 +33,5 @@ get:
       $ref: '../components/responses/UnprocessableContent.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/SyncProtocolUnsupported.yaml'

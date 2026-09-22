@@ -31,3 +31,5 @@ get:
       $ref: '../components/responses/SnapshotRequired.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/SyncProtocolUnsupported.yaml'

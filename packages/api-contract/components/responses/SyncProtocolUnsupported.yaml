@@ -1,0 +1,16 @@
+description: >-
+  This deployment does not serve the sync protocol version of the
+  caller. The code is sync_protocol_unsupported. The request changed
+  nothing, so the caller keeps its work, reads the served versions, and
+  sends again after it holds a version that this deployment serves.
+headers:
+  Retry-After:
+    description: Seconds to wait before the caller asks again.
+    required: false
+    schema:
+      type: integer
+      minimum: 0
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

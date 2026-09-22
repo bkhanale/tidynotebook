@@ -1,31 +1,6 @@
-type: object
 description: >-
-  The immutable content of one submitted revision. Markdown carries its
-  text; an attachment names a finalized object of the same workspace.
-additionalProperties: false
-required:
-  - kind
-  - digest
-properties:
-  kind:
-    type: string
-    description: Which of the two content forms this revision carries.
-    enum:
-      - markdown
-      - attachment
-  digest:
-    allOf:
-      - $ref: './ContentDigest.yaml'
-    description: >-
-      Digest of the content. The server recomputes it from the submitted
-      bytes and refuses a revision that declares another value.
-  text:
-    allOf:
-      - $ref: './MarkdownText.yaml'
-    description: The Markdown of this revision. Absent for an attachment.
-  attachmentObjectId:
-    allOf:
-      - $ref: './Uuid.yaml'
-    description: >-
-      The finalized attachment object of this revision. Absent for
-      Markdown.
+  The content of one submitted revision. A note carries document work; an
+  attachment names finalized bytes. The kind states which form applies.
+oneOf:
+  - $ref: './MarkdownContentInput.yaml'
+  - $ref: './AttachmentContentInput.yaml'

@@ -11,11 +11,9 @@ properties:
     description: Ordered changes after the requested cursor, oldest first.
     maxItems: 500
     items:
-      $ref: './SyncChangeItem.yaml'
+      $ref: './SyncRecord.yaml'
   nextCursor:
-    type: string
+    allOf:
+      - $ref: './SyncCursorValue.yaml'
     readOnly: true
     description: The cursor the client sends to continue.
-    minLength: 1
-    maxLength: 32
-    pattern: ^[0-9]+$

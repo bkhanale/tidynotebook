@@ -1,0 +1,8 @@
+name: mutationId
+in: path
+required: true
+style: simple
+explode: false
+description: The stable identity that the device gave one mutation.
+schema:
+  $ref: '../schemas/Uuid.yaml'

@@ -74,6 +74,18 @@ export type AcceptedRevision = {
      * The checkpoint name of the revision, or null.
      */
     readonly message: CheckpointMessage;
+    /**
+     * The generation of the document that this revision holds, or null for an attachment revision.
+     */
+    readonly epoch: DocumentEpoch | null;
+    /**
+     * The complete state of the document after acceptance. It states identities and deletions, and it holds no note text, so an actor that may write and not read learns nothing from it. Absent for an attachment revision, where it is null.
+     */
+    readonly acceptedState: DocumentObservedState | null;
+    /**
+     * True when this save joined work that the device had not seen. The device that saved keeps the checkpoint of that save for Review, and every device marks the revision in History.
+     */
+    readonly merged: boolean;
 };
 
 /**
@@ -102,6 +114,24 @@ export type Account = {
  * Appearance choice. The value system follows the device preference between the light and the dark variant of the chosen theme family.
  */
 export type Appearance = 'system' | 'light' | 'dark';
+
+/**
+ * The content of one attachment revision. It names a finalized object of the same workspace and the digest of its bytes.
+ */
+export type AttachmentContentInput = {
+    /**
+     * Names this content form.
+     */
+    kind: 'attachment';
+    /**
+     * Digest of the bytes. The server recomputes it and refuses a revision that declares another value.
+     */
+    digest: ContentDigest;
+    /**
+     * The finalized attachment object of this revision.
+     */
+    attachmentObjectId: Uuid;
+};
 
 /**
  * The uploaded temporary attachment object and its verified digest.
@@ -342,26 +372,9 @@ export type CheckpointMessage = string | null;
 export type ContentDigest = string;
 
 /**
- * The immutable content of one submitted revision. Markdown carries its text; an attachment names a finalized object of the same workspace.
+ * The content of one submitted revision. A note carries document work; an attachment names finalized bytes. The kind states which form applies.
  */
-export type ContentInput = {
-    /**
-     * Which of the two content forms this revision carries.
-     */
-    kind: 'markdown' | 'attachment';
-    /**
-     * Digest of the content. The server recomputes it from the submitted bytes and refuses a revision that declares another value.
-     */
-    digest: ContentDigest;
-    /**
-     * The Markdown of this revision. Absent for an attachment.
-     */
-    text?: MarkdownText;
-    /**
-     * The finalized attachment object of this revision. Absent for Markdown.
-     */
-    attachmentObjectId?: Uuid;
-};
+export type ContentInput = MarkdownContentInput | AttachmentContentInput;
 
 /**
  * The identifiers, the path, and the first content of a new file.
@@ -433,6 +446,44 @@ export type DeleteFileInput = {
  * The device that submitted the change. It is informational and appears in the history of the workspace.
  */
 export type DeviceId = string;
+
+/**
+ * The generation of the document of one note. Identities of one epoch say nothing about another, so two states are compared inside one epoch only. Routine compaction keeps the epoch; a migration or an explicit repair starts a new one.
+ */
+export type DocumentEpoch = number;
+
+/**
+ * The complete observed state of a document, as base64. It holds the state vector and the deletion set, so it states every insertion and every deletion that the device has seen. A state vector alone serves a delta and never decides whether work is unseen.
+ */
+export type DocumentObservedState = string;
+
+/**
+ * The text work of one saved note: the update, the generation it belongs to, and the complete state that the device had seen when it saved. The server derives the Markdown and its digest from the accepted document, so a save carries no text.
+ */
+export type DocumentSave = {
+    /**
+     * The work of this save, from the last state the device sent.
+     */
+    update: DocumentUpdate;
+    /**
+     * The generation that this update belongs to.
+     */
+    epoch: DocumentEpoch;
+    /**
+     * The complete state that the device had seen at the save. The workspace reads it to decide whether the save joins unseen work, and whether a deletion would hide an edit that the device never saw.
+     */
+    observed: DocumentObservedState;
+};
+
+/**
+ * The state vector of a document, as base64. A reader sends it to ask for the work that it lacks. It names insertions only, so it never answers whether a deletion is unseen.
+ */
+export type DocumentStateVector = string;
+
+/**
+ * One document update, as base64. It carries the text work of a note and nothing else. The server applies it to a trial document and refuses it when it is malformed, when it names work that the document lacks, when it writes anything other than the text of the note, or when the result passes a bound.
+ */
+export type DocumentUpdate = string;
 
 /**
  * A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.
@@ -535,6 +586,14 @@ export type FileRevision = {
      * Instant at which the workspace accepted the revision.
      */
     readonly serverTime: string;
+    /**
+     * The whole document of the note at this revision, so a reader can start from it and stay able to merge later work. Null for an attachment revision.
+     */
+    readonly document: DocumentUpdate | null;
+    /**
+     * The generation of that document, or null for an attachment revision.
+     */
+    readonly epoch: DocumentEpoch | null;
 };
 
 /**
@@ -635,9 +694,41 @@ export type ImportWorkspaceResult = {
 };
 
 /**
+ * The content of one saved note. It carries document work, never text: the accepted text is what the workspace derives from the accepted document.
+ */
+export type MarkdownContentInput = {
+    /**
+     * Names this content form.
+     */
+    kind: 'markdown';
+    /**
+     * The text work of this save.
+     */
+    document: DocumentSave;
+};
+
+/**
  * The Markdown source of one revision. It is stored and returned exactly as it was written, without normalization.
  */
 export type MarkdownText = string;
+
+/**
+ * What the workspace knows about one mutation identity. A device reads it when it does not know whether a save reached the server, before it transforms work that may already have committed. The answer states the outcome and never the text of a note.
+ */
+export type MutationReceipt = {
+    /**
+     * The mutation identity that the device asked about.
+     */
+    readonly mutationId: Uuid;
+    /**
+     * accepted means this workspace committed exactly this request. absent means it holds no receipt for the identity, which is definitive only while no other writer of this account is running. other_request means the identity belongs to a different request, so the device must not send this one under it.
+     */
+    readonly status: 'accepted' | 'absent' | 'other_request';
+    /**
+     * The stored outcome of the accepted request, or null. It repeats what the first answer stated, so a device that lost the answer can settle its queue without sending again.
+     */
+    readonly accepted: AcceptedChangeset | null;
+};
 
 /**
  * Settings that follow one account to every device.
@@ -1166,40 +1257,86 @@ export type SupersededHead = {
 };
 
 /**
- * One commit ordered incremental change record.
- */
-export type SyncChangeItem = {
-    /**
-     * The commit ordered position of this change.
-     */
-    readonly cursor: string;
-    /**
-     * The kind of entity that the record refers to.
-     */
-    readonly entityKind: 'file' | 'membership';
-    entityId: Uuid;
-    /**
-     * The revision of a file change, or null otherwise.
-     */
-    readonly revisionId: Uuid | null;
-    /**
-     * Whether the change deletes its entity.
-     */
-    readonly deleted: boolean;
-};
-
-/**
  * Ordered incremental changes after a cursor.
  */
 export type SyncChanges = {
     /**
      * Ordered changes after the requested cursor, oldest first.
      */
-    readonly changes: Array<SyncChangeItem>;
+    readonly changes: Array<SyncRecord>;
     /**
      * The cursor the client sends to continue.
      */
-    readonly nextCursor: string;
+    readonly nextCursor: SyncCursorValue;
+};
+
+/**
+ * One commit ordered position in the feed of a workspace. It is the decimal text of the position, and a reader sends the last one it applied to continue.
+ */
+export type SyncCursorValue = string;
+
+/**
+ * One whole document of a note. The feed emits it when the generation of the note changes, because identities of one generation say nothing about another, and a reader cannot join the two by an update.
+ */
+export type SyncDocumentRecord = {
+    /**
+     * Names this record form.
+     */
+    kind: 'document';
+    /**
+     * The position of this record in the ordered feed.
+     */
+    readonly cursor: SyncCursorValue;
+    /**
+     * The note that this record states.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The accepted revision that this document holds.
+     */
+    readonly revisionId: Uuid;
+    /**
+     * The accepted path of the note at this record.
+     */
+    readonly path: FilePath;
+    /**
+     * True when the note is in Trash at this record.
+     */
+    readonly deleted: boolean;
+    /**
+     * Digest of the text that this document derives.
+     */
+    readonly digest: ContentDigest;
+    /**
+     * The generation that this document starts for the reader.
+     */
+    readonly epoch: DocumentEpoch;
+    /**
+     * The whole document of the note at this record.
+     */
+    readonly document: DocumentUpdate;
+};
+
+/**
+ * One change of the membership of the workspace. A reader reads its own access again when it meets one.
+ */
+export type SyncMembershipRecord = {
+    /**
+     * Names this record form.
+     */
+    kind: 'membership';
+    /**
+     * The position of this record in the ordered feed.
+     */
+    readonly cursor: SyncCursorValue;
+    /**
+     * The account whose membership changed.
+     */
+    readonly accountId: Uuid;
+    /**
+     * True when the account no longer belongs to the workspace.
+     */
+    readonly removed: boolean;
 };
 
 /**
@@ -1210,6 +1347,75 @@ export type SyncProtocolReport = {
      * Every served sync protocol version, oldest first. The list is never empty.
      */
     readonly versions: Array<number>;
+};
+
+/**
+ * One note that the workspace removed for good. Its revisions no longer exist, so the record names the note itself and carries no revision.
+ */
+export type SyncPurgeRecord = {
+    /**
+     * Names this record form.
+     */
+    kind: 'purge';
+    /**
+     * The position of this record in the ordered feed.
+     */
+    readonly cursor: SyncCursorValue;
+    /**
+     * The note that the workspace removed for good.
+     */
+    readonly fileId: Uuid;
+};
+
+/**
+ * One record of the ordered feed. The kind states which form applies: the work of one save, a whole document at a new generation, a note that the workspace removed for good, or a change of the membership.
+ */
+export type SyncRecord = SyncUpdateRecord | SyncDocumentRecord | SyncPurgeRecord | SyncMembershipRecord;
+
+/**
+ * One accepted change of a note, as the work that follows the state the reader already holds. The record binds the update, the derived text digest, the revision, and the generation to one committed state.
+ */
+export type SyncUpdateRecord = {
+    /**
+     * Names this record form.
+     */
+    kind: 'update';
+    /**
+     * The position of this record in the ordered feed.
+     */
+    readonly cursor: SyncCursorValue;
+    /**
+     * The note that this record changes.
+     */
+    readonly fileId: Uuid;
+    /**
+     * The accepted revision that this record carries.
+     */
+    readonly revisionId: Uuid;
+    /**
+     * The accepted path of the note after this record.
+     */
+    readonly path: FilePath;
+    /**
+     * True when the note is in Trash after this record.
+     */
+    readonly deleted: boolean;
+    /**
+     * Digest of the text that the accepted document derives.
+     */
+    readonly digest: ContentDigest;
+    /**
+     * The generation that this update belongs to.
+     */
+    readonly epoch: DocumentEpoch;
+    /**
+     * The work that this record adds to the document.
+     */
+    readonly update: DocumentUpdate;
+    /**
+     * The state vector of the document at this revision, so a reader can ask for exactly the work that it lacks.
+     */
+    readonly stateVector: DocumentStateVector;
 };
 
 /**
@@ -1550,18 +1756,66 @@ export type SnapshotPageWritable = {
 };
 
 /**
- * One commit ordered incremental change record.
- */
-export type SyncChangeItemWritable = {
-    entityId: Uuid;
-};
-
-/**
  * Ordered incremental changes after a cursor.
  */
 export type SyncChangesWritable = {
     [key: string]: never;
 };
+
+/**
+ * One whole document of a note. The feed emits it when the generation of the note changes, because identities of one generation say nothing about another, and a reader cannot join the two by an update.
+ */
+export type SyncDocumentRecordWritable = {
+    /**
+     * Names this record form.
+     */
+    kind: 'document';
+};
+
+/**
+ * One change of the membership of the workspace. A reader reads its own access again when it meets one.
+ */
+export type SyncMembershipRecordWritable = {
+    /**
+     * Names this record form.
+     */
+    kind: 'membership';
+};
+
+/**
+ * One note that the workspace removed for good. Its revisions no longer exist, so the record names the note itself and carries no revision.
+ */
+export type SyncPurgeRecordWritable = {
+    /**
+     * Names this record form.
+     */
+    kind: 'purge';
+};
+
+/**
+ * One record of the ordered feed. The kind states which form applies: the work of one save, a whole document at a new generation, a note that the workspace removed for good, or a change of the membership.
+ */
+export type SyncRecordWritable = SyncUpdateRecordWritable | SyncDocumentRecordWritable | SyncPurgeRecordWritable | SyncMembershipRecordWritable;
+
+/**
+ * One accepted change of a note, as the work that follows the state the reader already holds. The record binds the update, the derived text digest, the revision, and the generation to one committed state.
+ */
+export type SyncUpdateRecordWritable = {
+    /**
+     * Names this record form.
+     */
+    kind: 'update';
+};
+
+/**
+ * The stable identity that the device gave one mutation.
+ */
+export type MutationId = Uuid;
+
+/**
+ * The digest of the exact request that the device froze on its first send. It decides whether the stored receipt belongs to this request.
+ */
+export type RequestDigest = ContentDigest;
 
 /**
  * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
@@ -1841,7 +2095,7 @@ export type UpdatePreferencesErrors = {
      */
     403: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2271,7 +2525,7 @@ export type CreateOwnerErrors = {
      */
     403: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2409,7 +2663,7 @@ export type CreateWorkspaceErrors = {
      */
     403: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2524,7 +2778,7 @@ export type UpdateWorkspaceErrors = {
      */
     404: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2591,7 +2845,7 @@ export type UploadAttachmentErrors = {
      */
     408: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2599,7 +2853,7 @@ export type UploadAttachmentErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -2666,7 +2920,7 @@ export type FinalizeAttachmentErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -2678,7 +2932,7 @@ export type FinalizeAttachmentErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2686,7 +2940,7 @@ export type FinalizeAttachmentErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -2805,7 +3059,7 @@ export type CommitChangesetErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -2817,7 +3071,7 @@ export type CommitChangesetErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -2825,13 +3079,17 @@ export type CommitChangesetErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * This deployment does not serve the sync protocol version of the caller. The code is sync_protocol_unsupported. The request changed nothing, so the caller keeps its work, reads the served versions, and sends again after it holds a version that this deployment serves.
+     */
+    503: ProblemDetails;
 };
 
 export type CommitChangesetError = CommitChangesetErrors[keyof CommitChangesetErrors];
@@ -3001,7 +3259,7 @@ export type CreateFileErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -3013,7 +3271,7 @@ export type CreateFileErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3021,7 +3279,7 @@ export type CreateFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3088,7 +3346,7 @@ export type DeleteFileErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -3100,7 +3358,7 @@ export type DeleteFileErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3108,7 +3366,7 @@ export type DeleteFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3243,7 +3501,7 @@ export type UpdateFileErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -3255,7 +3513,7 @@ export type UpdateFileErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3263,7 +3521,7 @@ export type UpdateFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3515,7 +3773,7 @@ export type RestoreRevisionErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -3527,7 +3785,7 @@ export type RestoreRevisionErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3535,7 +3793,7 @@ export type RestoreRevisionErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3598,11 +3856,11 @@ export type ImportWorkspaceErrors = {
      */
     408: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3610,7 +3868,7 @@ export type ImportWorkspaceErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3629,6 +3887,71 @@ export type ImportWorkspaceResponses = {
 };
 
 export type ImportWorkspaceResponse = ImportWorkspaceResponses[keyof ImportWorkspaceResponses];
+
+export type GetMutationReceiptData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+        /**
+         * The stable identity that the device gave one mutation.
+         */
+        mutationId: Uuid;
+    };
+    query: {
+        /**
+         * The digest of the exact request that the device froze on its first send. It decides whether the stored receipt belongs to this request.
+         */
+        digest: ContentDigest;
+    };
+    url: '/api/workspaces/{workspaceId}/mutations/{mutationId}';
+};
+
+export type GetMutationReceiptErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetMutationReceiptError = GetMutationReceiptErrors[keyof GetMutationReceiptErrors];
+
+export type GetMutationReceiptResponses = {
+    /**
+     * What the workspace knows about one mutation identity.
+     */
+    200: MutationReceipt;
+};
+
+export type GetMutationReceiptResponse = GetMutationReceiptResponses[keyof GetMutationReceiptResponses];
 
 export type ListPublishedLinksData = {
     body?: never;
@@ -3721,7 +4044,7 @@ export type CreatePublishedLinkErrors = {
      */
     404: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3729,7 +4052,7 @@ export type CreatePublishedLinkErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3840,11 +4163,11 @@ export type PurgeFilesErrors = {
      */
     403: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3852,7 +4175,7 @@ export type PurgeFilesErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -3907,7 +4230,7 @@ export type PreviewPurgeErrors = {
      */
     403: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -3915,7 +4238,7 @@ export type PreviewPurgeErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -4101,13 +4424,17 @@ export type GetChangesErrors = {
      */
     410: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * This deployment does not serve the sync protocol version of the caller. The code is sync_protocol_unsupported. The request changed nothing, so the caller keeps its work, reads the served versions, and sends again after it holds a version that this deployment serves.
+     */
+    503: ProblemDetails;
 };
 
 export type GetChangesError = GetChangesErrors[keyof GetChangesErrors];
@@ -4160,7 +4487,7 @@ export type StartSnapshotErrors = {
      */
     404: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -4168,13 +4495,17 @@ export type StartSnapshotErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * This deployment does not serve the sync protocol version of the caller. The code is sync_protocol_unsupported. The request changed nothing, so the caller keeps its work, reads the served versions, and sends again after it holds a version that this deployment serves.
+     */
+    503: ProblemDetails;
 };
 
 export type StartSnapshotError = StartSnapshotErrors[keyof StartSnapshotErrors];
@@ -4244,6 +4575,10 @@ export type GetSnapshotPageErrors = {
      * The service failed to complete the request.
      */
     500: ProblemDetails;
+    /**
+     * This deployment does not serve the sync protocol version of the caller. The code is sync_protocol_unsupported. The request changed nothing, so the caller keeps its work, reads the served versions, and sends again after it holds a version that this deployment serves.
+     */
+    503: ProblemDetails;
 };
 
 export type GetSnapshotPageError = GetSnapshotPageErrors[keyof GetSnapshotPageErrors];
@@ -4365,7 +4700,7 @@ export type RestoreFileErrors = {
      */
     404: ProblemDetails;
     /**
-     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation.
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
      */
     409: ProblemDetails;
     /**
@@ -4377,7 +4712,7 @@ export type RestoreFileErrors = {
      */
     412: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -4385,7 +4720,7 @@ export type RestoreFileErrors = {
      */
     415: ProblemDetails;
     /**
-     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files.
+     * The request is well formed but its content cannot be accepted. The code names the reason: invalid_path, invalid_graph, invalid_content, or too_many_files. A save of a note adds document_malformed for bytes that are not an update, document_dependency_missing for work that names an insertion or a deletion the document lacks, and document_unsupported for work that writes anything other than the text of the note. Each of them leaves the accepted state exactly as it was.
      */
     422: ProblemDetails;
     /**
@@ -4521,7 +4856,7 @@ export type OpenPublishedPageErrors = {
      */
     400: ProblemDetails;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**
@@ -4637,7 +4972,7 @@ export type UnlockPublishedLinkErrors = {
      */
     404: PublishedRefusal;
     /**
-     * The request body is larger than the configured limit.
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
     /**

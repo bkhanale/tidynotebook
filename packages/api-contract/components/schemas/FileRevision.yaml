@@ -13,6 +13,8 @@ required:
   - digest
   - size
   - text
+  - document
+  - epoch
   - attachmentObjectId
   - message
   - restoredFrom
@@ -104,3 +106,20 @@ properties:
     description: Instant at which the workspace accepted the revision.
     format: date-time
     maxLength: 64
+  document:
+    oneOf:
+      - $ref: './DocumentUpdate.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The whole document of the note at this revision, so a reader can
+      start from it and stay able to merge later work. Null for an
+      attachment revision.
+  epoch:
+    oneOf:
+      - $ref: './DocumentEpoch.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The generation of that document, or null for an attachment
+      revision.

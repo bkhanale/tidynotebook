@@ -1,0 +1,28 @@
+type: object
+description: >-
+  The text work of one saved note: the update, the generation it belongs
+  to, and the complete state that the device had seen when it saved. The
+  server derives the Markdown and its digest from the accepted document,
+  so a save carries no text.
+additionalProperties: false
+required:
+  - update
+  - epoch
+  - observed
+properties:
+  update:
+    allOf:
+      - $ref: './DocumentUpdate.yaml'
+    description: The work of this save, from the last state the device sent.
+  epoch:
+    allOf:
+      - $ref: './DocumentEpoch.yaml'
+    description: The generation that this update belongs to.
+  observed:
+    allOf:
+      - $ref: './DocumentObservedState.yaml'
+    description: >-
+      The complete state that the device had seen at the save. The
+      workspace reads it to decide whether the save joins unseen work,
+      and whether a deletion would hide an edit that the device never
+      saw.

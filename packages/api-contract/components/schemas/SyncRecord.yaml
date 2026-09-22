@@ -1,0 +1,9 @@
+description: >-
+  One record of the ordered feed. The kind states which form applies: the
+  work of one save, a whole document at a new generation, a note that the
+  workspace removed for good, or a change of the membership.
+oneOf:
+  - $ref: './SyncUpdateRecord.yaml'
+  - $ref: './SyncDocumentRecord.yaml'
+  - $ref: './SyncPurgeRecord.yaml'
+  - $ref: './SyncMembershipRecord.yaml'

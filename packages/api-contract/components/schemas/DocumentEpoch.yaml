@@ -1,0 +1,7 @@
+type: integer
+description: >-
+  The generation of the document of one note. Identities of one epoch say
+  nothing about another, so two states are compared inside one epoch
+  only. Routine compaction keeps the epoch; a migration or an explicit
+  repair starts a new one.
+minimum: 1

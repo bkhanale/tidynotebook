@@ -1,0 +1,10 @@
+type: string
+description: >-
+  One document update, as base64. It carries the text work of a note and
+  nothing else. The server applies it to a trial document and refuses it
+  when it is malformed, when it names work that the document lacks, when
+  it writes anything other than the text of the note, or when the result
+  passes a bound.
+contentEncoding: base64
+pattern: ^[A-Za-z0-9+/]*={0,2}$
+maxLength: 2796204

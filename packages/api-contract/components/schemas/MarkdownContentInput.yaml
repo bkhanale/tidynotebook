@@ -1,0 +1,19 @@
+type: object
+description: >-
+  The content of one saved note. It carries document work, never text:
+  the accepted text is what the workspace derives from the accepted
+  document.
+additionalProperties: false
+required:
+  - kind
+  - document
+properties:
+  kind:
+    type: string
+    description: Names this content form.
+    enum:
+      - markdown
+  document:
+    allOf:
+      - $ref: './DocumentSave.yaml'
+    description: The text work of this save.

@@ -1,0 +1,25 @@
+type: object
+description: >-
+  The content of one attachment revision. It names a finalized object of
+  the same workspace and the digest of its bytes.
+additionalProperties: false
+required:
+  - kind
+  - digest
+  - attachmentObjectId
+properties:
+  kind:
+    type: string
+    description: Names this content form.
+    enum:
+      - attachment
+  digest:
+    allOf:
+      - $ref: './ContentDigest.yaml'
+    description: >-
+      Digest of the bytes. The server recomputes it and refuses a
+      revision that declares another value.
+  attachmentObjectId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    description: The finalized attachment object of this revision.

@@ -1,0 +1,8 @@
+type: string
+description: >-
+  One commit ordered position in the feed of a workspace. It is the
+  decimal text of the position, and a reader sends the last one it
+  applied to continue.
+minLength: 1
+maxLength: 32
+pattern: ^[0-9]+$

@@ -1,0 +1,32 @@
+get:
+  operationId: getMutationReceipt
+  summary: Read what the workspace knows about one mutation identity.
+  description: >-
+    States whether this workspace accepted the request that carries the
+    mutation identity and the request digest. A device reads it after a
+    lost answer, before it transforms work that may already have
+    committed. The answer repeats the stored outcome and never the text
+    of a note, so an actor that may write and not read learns nothing.
+    A digest that names another request answers other_request.
+  tags:
+    - files
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+    - $ref: '../components/parameters/MutationId.yaml'
+    - $ref: '../components/parameters/RequestDigest.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/MutationReceipt.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

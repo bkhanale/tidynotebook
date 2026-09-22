@@ -1,0 +1,69 @@
+type: object
+description: >-
+  One accepted change of a note, as the work that follows the state the
+  reader already holds. The record binds the update, the derived text
+  digest, the revision, and the generation to one committed state.
+additionalProperties: false
+required:
+  - kind
+  - cursor
+  - fileId
+  - revisionId
+  - path
+  - deleted
+  - digest
+  - epoch
+  - update
+  - stateVector
+properties:
+  kind:
+    type: string
+    description: Names this record form.
+    enum:
+      - update
+  cursor:
+    allOf:
+      - $ref: './SyncCursorValue.yaml'
+    readOnly: true
+    description: The position of this record in the ordered feed.
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The note that this record changes.
+  revisionId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The accepted revision that this record carries.
+  path:
+    allOf:
+      - $ref: './FilePath.yaml'
+    readOnly: true
+    description: The accepted path of the note after this record.
+  deleted:
+    type: boolean
+    readOnly: true
+    description: True when the note is in Trash after this record.
+  digest:
+    allOf:
+      - $ref: './ContentDigest.yaml'
+    readOnly: true
+    description: Digest of the text that the accepted document derives.
+  epoch:
+    allOf:
+      - $ref: './DocumentEpoch.yaml'
+    readOnly: true
+    description: The generation that this update belongs to.
+  update:
+    allOf:
+      - $ref: './DocumentUpdate.yaml'
+    readOnly: true
+    description: The work that this record adds to the document.
+  stateVector:
+    allOf:
+      - $ref: './DocumentStateVector.yaml'
+    readOnly: true
+    description: >-
+      The state vector of the document at this revision, so a reader can
+      ask for exactly the work that it lacks.

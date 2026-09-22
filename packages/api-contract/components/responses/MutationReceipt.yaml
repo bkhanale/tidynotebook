@@ -1,0 +1,5 @@
+description: What the workspace knows about one mutation identity.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/MutationReceipt.yaml'

@@ -74,6 +74,8 @@ paths:
     $ref: './paths/api_workspaces_workspaceId_files_fileId.yaml'
   /api/workspaces/{workspaceId}/revisions/{revisionId}:
     $ref: './paths/api_workspaces_workspaceId_revisions_revisionId.yaml'
+  /api/workspaces/{workspaceId}/mutations/{mutationId}:
+    $ref: './paths/api_workspaces_workspaceId_mutations_mutationId.yaml'
   /api/workspaces/{workspaceId}/changesets:
     $ref: './paths/api_workspaces_workspaceId_changesets.yaml'
   /api/workspaces/{workspaceId}/attachments:
@@ -123,6 +125,10 @@ components:
     sessionCookie:
       $ref: './components/securitySchemes/sessionCookie.yaml'
   parameters:
+    MutationId:
+      $ref: './components/parameters/MutationId.yaml'
+    RequestDigest:
+      $ref: './components/parameters/RequestDigest.yaml'
     RequestId:
       $ref: './components/parameters/RequestId.yaml'
     Detail:
@@ -287,8 +293,12 @@ components:
       $ref: './components/responses/SnapshotStarted.yaml'
     SnapshotPage:
       $ref: './components/responses/SnapshotPage.yaml'
+    MutationReceipt:
+      $ref: './components/responses/MutationReceipt.yaml'
     SyncChanges:
       $ref: './components/responses/SyncChanges.yaml'
+    SyncProtocolUnsupported:
+      $ref: './components/responses/SyncProtocolUnsupported.yaml'
     SnapshotRequired:
       $ref: './components/responses/SnapshotRequired.yaml'
     PublishedLinkCreated:
@@ -434,8 +444,34 @@ components:
       $ref: './components/schemas/SnapshotStarted.yaml'
     SnapshotPage:
       $ref: './components/schemas/SnapshotPage.yaml'
-    SyncChangeItem:
-      $ref: './components/schemas/SyncChangeItem.yaml'
+    SyncCursorValue:
+      $ref: './components/schemas/SyncCursorValue.yaml'
+    SyncRecord:
+      $ref: './components/schemas/SyncRecord.yaml'
+    SyncUpdateRecord:
+      $ref: './components/schemas/SyncUpdateRecord.yaml'
+    SyncDocumentRecord:
+      $ref: './components/schemas/SyncDocumentRecord.yaml'
+    SyncPurgeRecord:
+      $ref: './components/schemas/SyncPurgeRecord.yaml'
+    SyncMembershipRecord:
+      $ref: './components/schemas/SyncMembershipRecord.yaml'
+    DocumentUpdate:
+      $ref: './components/schemas/DocumentUpdate.yaml'
+    DocumentObservedState:
+      $ref: './components/schemas/DocumentObservedState.yaml'
+    DocumentStateVector:
+      $ref: './components/schemas/DocumentStateVector.yaml'
+    DocumentEpoch:
+      $ref: './components/schemas/DocumentEpoch.yaml'
+    DocumentSave:
+      $ref: './components/schemas/DocumentSave.yaml'
+    MarkdownContentInput:
+      $ref: './components/schemas/MarkdownContentInput.yaml'
+    AttachmentContentInput:
+      $ref: './components/schemas/AttachmentContentInput.yaml'
+    MutationReceipt:
+      $ref: './components/schemas/MutationReceipt.yaml'
     SyncChanges:
       $ref: './components/schemas/SyncChanges.yaml'
     PublishedTokenValue:

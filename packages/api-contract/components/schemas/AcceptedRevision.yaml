@@ -16,6 +16,9 @@ required:
   - actorAccountId
   - serverTime
   - message
+  - epoch
+  - acceptedState
+  - merged
 properties:
   revisionId:
     allOf:
@@ -71,3 +74,28 @@ properties:
       - $ref: './CheckpointMessage.yaml'
     readOnly: true
     description: The checkpoint name of the revision, or null.
+  epoch:
+    oneOf:
+      - $ref: './DocumentEpoch.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The generation of the document that this revision holds, or null
+      for an attachment revision.
+  acceptedState:
+    oneOf:
+      - $ref: './DocumentObservedState.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The complete state of the document after acceptance. It states
+      identities and deletions, and it holds no note text, so an actor
+      that may write and not read learns nothing from it. Absent for an
+      attachment revision, where it is null.
+  merged:
+    type: boolean
+    readOnly: true
+    description: >-
+      True when this save joined work that the device had not seen. The
+      device that saved keeps the checkpoint of that save for Review, and
+      every device marks the revision in History.

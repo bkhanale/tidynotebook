@@ -1,0 +1,25 @@
+type: object
+description: >-
+  One note that the workspace removed for good. Its revisions no longer
+  exist, so the record names the note itself and carries no revision.
+additionalProperties: false
+required:
+  - kind
+  - cursor
+  - fileId
+properties:
+  kind:
+    type: string
+    description: Names this record form.
+    enum:
+      - purge
+  cursor:
+    allOf:
+      - $ref: './SyncCursorValue.yaml'
+    readOnly: true
+    description: The position of this record in the ordered feed.
+  fileId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The note that the workspace removed for good.

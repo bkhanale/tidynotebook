@@ -1,0 +1,30 @@
+type: object
+description: >-
+  One change of the membership of the workspace. A reader reads its own
+  access again when it meets one.
+additionalProperties: false
+required:
+  - kind
+  - cursor
+  - accountId
+  - removed
+properties:
+  kind:
+    type: string
+    description: Names this record form.
+    enum:
+      - membership
+  cursor:
+    allOf:
+      - $ref: './SyncCursorValue.yaml'
+    readOnly: true
+    description: The position of this record in the ordered feed.
+  accountId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: The account whose membership changed.
+  removed:
+    type: boolean
+    readOnly: true
+    description: True when the account no longer belongs to the workspace.

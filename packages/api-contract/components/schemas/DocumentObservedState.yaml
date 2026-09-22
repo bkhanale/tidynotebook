@@ -1,0 +1,9 @@
+type: string
+description: >-
+  The complete observed state of a document, as base64. It holds the
+  state vector and the deletion set, so it states every insertion and
+  every deletion that the device has seen. A state vector alone serves a
+  delta and never decides whether work is unseen.
+contentEncoding: base64
+pattern: ^[A-Za-z0-9+/]*={0,2}$
+maxLength: 1398104

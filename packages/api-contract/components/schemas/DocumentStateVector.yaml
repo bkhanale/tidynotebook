@@ -1,0 +1,8 @@
+type: string
+description: >-
+  The state vector of a document, as base64. A reader sends it to ask for
+  the work that it lacks. It names insertions only, so it never answers
+  whether a deletion is unseen.
+contentEncoding: base64
+pattern: ^[A-Za-z0-9+/]*={0,2}$
+maxLength: 1398104
