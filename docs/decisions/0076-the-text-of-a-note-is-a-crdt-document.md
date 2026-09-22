@@ -1,6 +1,6 @@
 # 0076. The text of a note is a CRDT document inside its revisions
 
-- Status: Accepted
+- Status: Superseded by [0081](0081-accepted-text-and-observed-state-belong-to-one-document.md)
 - Date: 2026-09-21
 
 ## Context

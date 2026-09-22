@@ -1,6 +1,6 @@
 # 0080. A document starts once and an epoch carries work across a new start
 
-- Status: Accepted
+- Status: Superseded by [0084](0084-compaction-keeps-identities-and-recovery-keeps-original-work.md)
 - Date: 2026-09-21
 
 ## Context

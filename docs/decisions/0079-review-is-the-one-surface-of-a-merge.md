@@ -1,6 +1,6 @@
 # 0079. Review is the one surface of a merge
 
-- Status: Accepted
+- Status: Superseded by [0087](0087-review-keeps-the-checkpoint-that-caused-it.md)
 - Date: 2026-09-21
 
 ## Context

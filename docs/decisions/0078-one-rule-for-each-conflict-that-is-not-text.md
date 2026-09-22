@@ -1,6 +1,6 @@
 # 0078. One rule for each conflict that is not text
 
-- Status: Accepted
+- Status: Superseded by [0083](0083-metadata-conflicts-preserve-unseen-text-work.md)
 - Date: 2026-09-21
 
 ## Context

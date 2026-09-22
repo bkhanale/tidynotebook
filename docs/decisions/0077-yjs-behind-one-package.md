@@ -1,6 +1,6 @@
 # 0077. Yjs behind one package
 
-- Status: Accepted
+- Status: Superseded by [0082](0082-yjs-has-a-byte-api-and-a-private-editor-bridge.md)
 - Date: 2026-09-21
 
 ## Context
