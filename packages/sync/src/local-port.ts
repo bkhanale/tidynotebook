@@ -352,6 +352,16 @@ export type SnapshotRevision = {
   readonly deleted: boolean;
   readonly digest: string;
   readonly text: string | null;
+  /**
+   * The whole document of the note, or `null` for an attachment revision.
+   *
+   * A device that joins by snapshot needs the document itself, not only the
+   * text: without it the first save of that device would carry a document of
+   * its own and merge as two texts rather than one (record 0081).
+   */
+  readonly document: Uint8Array | null;
+  /** The generation of that document, or `null` for an attachment. */
+  readonly epoch: number | null;
 };
 
 /**

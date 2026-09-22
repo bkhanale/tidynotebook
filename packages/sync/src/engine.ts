@@ -26,6 +26,7 @@
  * maps domain records to generated bodies and generated answers back to
  * domain outcomes.
  */
+import { base64, bytesOfBase64 } from './bytes.ts';
 import {
   commitChangeset,
   getAccount,
@@ -127,22 +128,6 @@ function toRevisionBody(revision: ChangesetInput['revisions'][number]): {
     message: revision.message,
     restoredFrom: revision.restoredFrom,
   };
-}
-
-/** The bytes of one base64 value that the contract states. */
-function bytesOfBase64(value: string): Uint8Array {
-  const binary = atob(value);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index += 1)
-    bytes[index] = binary.charCodeAt(index);
-  return bytes;
-}
-
-/** One byte string as the base64 that the contract states. */
-function base64(bytes: Uint8Array): string {
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary);
 }
 
 /**
@@ -697,6 +682,8 @@ function createOperations(
           deleted: sent.data.deleted,
           digest: sent.data.digest,
           text: sent.data.text,
+          document: sent.data.document,
+          epoch: sent.data.epoch,
         },
       };
     },

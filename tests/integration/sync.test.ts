@@ -343,7 +343,7 @@ async function queuedOf(store: LocalStore, account = ownerAccountId) {
   return store.pending(account, workspaceId);
 }
 
-await test('a later offline save becomes the next version', async () => {
+await test('a later offline save joins the work it never saw', async () => {
   const file = await newFile('notes/shared.md', '# Base\n');
   const storeA = await openStore('ab-a', 'device-a');
   const storeB = await openStore('ab-b', 'device-b');
@@ -359,7 +359,7 @@ await test('a later offline save becomes the next version', async () => {
         'working-a',
         file.fileId,
         file.revisionId,
-        '# A\n',
+        '# Base\nFrom A\n',
         'notes/shared.md',
         1,
       ),
@@ -371,7 +371,7 @@ await test('a later offline save becomes the next version', async () => {
         'working-b',
         file.fileId,
         file.revisionId,
-        '# B\n',
+        '# Base\nFrom B\n',
         'notes/shared.md',
         1,
       ),
@@ -391,7 +391,7 @@ await test('a later offline save becomes the next version', async () => {
       path: { workspaceId, fileId: file.fileId },
     });
     assert.equal(live.error, undefined, JSON.stringify(live.error));
-    assert.equal(live.data?.head?.text, '# A\n');
+    assert.equal(live.data?.head?.text, '# Base\nFrom A\n');
 
     const runB = startEngine(storeB, ownerCookie, 'engine-b');
     try {
@@ -411,14 +411,21 @@ await test('a later offline save becomes the next version', async () => {
     assert.ok(tipB.length > 0, 'device B must keep its checkpoint');
     assert.equal(
       localB[localB.length - 1]?.digest,
-      await contentDigest('# B\n'),
+      await contentDigest('# Base\nFrom B\n'),
       "device B's text must stay in local history",
     );
+    // Both devices wrote over the same base, so the later save joins the work
+    // it never saw rather than replacing it. The note carries both edits, the
+    // revision says that it merged, and the device keeps its own checkpoint
+    // for Review (records 0081, 0083, 0087).
     const kept = await getFile({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },
     });
-    assert.equal(kept.data?.head?.text, '# B\n');
+    const joined = kept.data?.head?.text ?? '';
+    assert.ok(joined.includes('From A'), joined);
+    assert.ok(joined.includes('From B'), joined);
+    assert.equal(kept.data?.head?.merged, true);
     const history = await listHistory({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },
@@ -750,7 +757,7 @@ await test('an expired lease is taken over and a held lease keeps a follower wai
   }
 });
 
-await test('an edit to a remotely deleted note becomes a recovered note', async () => {
+await test('an edit that arrives after a delete brings the note back', async () => {
   const file = await newFile('notes/keep.md', '# Base\n');
   const storeA = await openStore('recover-a', 'device-a');
   const storeB = await openStore('recover-b', 'device-b');
@@ -807,26 +814,26 @@ await test('an edit to a remotely deleted note becomes a recovered note', async 
       await stopEngine(runA);
     }
 
-    // The original note stays deleted, so it is not live. The edit is kept as
-    // a new note, so no text is lost and nothing waits in a second inbox.
+    // The edit is the later write and the tombstone kept the document behind
+    // it, so the note returns with that text. No second note is created and
+    // nothing waits in a recovery inbox (record 0083).
     const original = await getFile({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },
     });
-    assert.notEqual(original.error, undefined);
-    assert.equal(problemCode(original.error), 'not_found');
+    assert.equal(original.error, undefined, JSON.stringify(original.error));
+    assert.equal(original.data?.head?.deleted, false);
+    assert.ok(
+      (original.data?.head?.text ?? '').includes('# My edit'),
+      original.data?.head?.text ?? '',
+    );
     assert.deepEqual(await storeA.recover(ownerAccountId, workspaceId), []);
     const files = await storeA.listLocalFiles(ownerAccountId, workspaceId);
-    const recovered = files.find(
-      (summary) => summary.path === 'notes/keep (recovered).md',
+    assert.equal(
+      files.find((summary) => summary.path === 'notes/keep (recovered).md'),
+      undefined,
+      'the note came back, so no recovered copy is needed',
     );
-    assert.ok(recovered !== undefined, 'a recovered note is created');
-    const cached = await storeA.readCachedNote(
-      ownerAccountId,
-      workspaceId,
-      recovered.fileId,
-    );
-    assert.equal(cached?.text, '# My edit\n');
   } finally {
     await storeA.close();
     await storeB.close();
@@ -925,7 +932,7 @@ await test('a device that only opened a note keeps the newer text', async () => 
   }
 });
 
-await test('a save over work it never saw keeps both texts', async () => {
+await test('a save over work it never saw joins it and offers Review', async () => {
   const file = await newFile('notes/rebased.md', '# Base\n');
   const storeA = await openStore('rebase-a', 'device-rebase-a');
   try {
@@ -938,7 +945,7 @@ await test('a save over work it never saw keeps both texts', async () => {
         'working-rebase-a',
         file.fileId,
         file.revisionId,
-        '# Mine\n',
+        '# Base\nMine\n',
         'notes/rebased.md',
         1,
       ),
@@ -947,7 +954,11 @@ await test('a save over work it never saw keeps both texts', async () => {
       headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
       path: { workspaceId, fileId: file.fileId },
       body: {
-        document: await saveForHead(workspaceId, file.revisionId, '# Theirs\n'),
+        document: await saveForHead(
+          workspaceId,
+          file.revisionId,
+          '# Base\nTheirs\n',
+        ),
         revisionId: randomUUID(),
         mutationId: randomUUID(),
         deviceId: 'device-elsewhere',
@@ -972,9 +983,20 @@ await test('a save over work it never saw keeps both texts', async () => {
       path: { workspaceId, fileId: file.fileId },
     });
     const merged = live.data?.head?.text ?? '';
-    assert.ok(merged.includes('# Mine'), merged);
-    assert.ok(merged.includes('# Theirs'), merged);
+    assert.ok(merged.includes('Mine'), merged);
+    assert.ok(merged.includes('Theirs'), merged);
     assert.equal(live.data?.head?.merged, true);
+    // The checkpoint of this device keeps the text it saved, so Review can
+    // show the person what they wrote (record 0087).
+    const local = await storeA.listCheckpoints(
+      ownerAccountId,
+      workspaceId,
+      file.fileId,
+    );
+    assert.equal(
+      local[local.length - 1]?.digest,
+      await contentDigest('# Base\nMine\n'),
+    );
     const history = await listHistory({
       headers: browser(ownerCookie),
       path: { workspaceId, fileId: file.fileId },

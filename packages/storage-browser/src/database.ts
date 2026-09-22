@@ -106,6 +106,13 @@ export type SnapshotItemRow = {
   readonly deleted: boolean;
   readonly digest: string;
   readonly storedAt: string;
+  /**
+   * The whole document of the note, or `null` for an attachment revision and
+   * for an item that an earlier release stored.
+   */
+  readonly document: Uint8Array | null;
+  /** The generation of that document, or `null` when there is none. */
+  readonly epoch: number | null;
 };
 
 /**

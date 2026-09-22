@@ -520,16 +520,52 @@ export type SnapshotPage = {
   readonly items: readonly SnapshotItem[];
 };
 
-/** One commit ordered incremental change record. */
-export type SyncChange = {
-  /** The commit ordered position of this change, as a decimal string. */
-  readonly cursor: string;
-  readonly entityKind: SyncEntityKind;
-  readonly entityId: string;
-  /** The revision of a file change, or `null` for a non-file change. */
-  readonly revisionId: string | null;
-  readonly deleted: boolean;
-};
+/**
+ * One commit ordered incremental change record.
+ *
+ * The feed states everything a reader needs, so no reader fetches a revision
+ * to learn what changed (record 0081). A save of a note carries the work that
+ * follows the state the reader already holds. A note whose generation changed
+ * carries the whole document, because identities of one generation say
+ * nothing about another. A purge names the note alone, because its revisions
+ * are gone. A membership record only moves the cursor.
+ */
+export type SyncChange =
+  | {
+      readonly kind: 'update';
+      /** The commit ordered position of this record, as a decimal string. */
+      readonly cursor: string;
+      readonly fileId: string;
+      readonly revisionId: string;
+      readonly path: string;
+      readonly deleted: boolean;
+      readonly digest: string;
+      readonly kindOfFile: FileKind;
+      /** The generation of the work, or `null` for an attachment. */
+      readonly epoch: number | null;
+      /** The work of this save, or `null` for an attachment. */
+      readonly update: Uint8Array | null;
+      /** The state vector at this revision, or `null` for an attachment. */
+      readonly stateVector: Uint8Array | null;
+    }
+  | {
+      readonly kind: 'document';
+      readonly cursor: string;
+      readonly fileId: string;
+      readonly revisionId: string;
+      readonly path: string;
+      readonly deleted: boolean;
+      readonly digest: string;
+      readonly epoch: number;
+      readonly document: Uint8Array;
+    }
+  | { readonly kind: 'purge'; readonly cursor: string; readonly fileId: string }
+  | {
+      readonly kind: 'membership';
+      readonly cursor: string;
+      readonly accountId: string;
+      readonly removed: boolean;
+    };
 
 /** The raw feed that one incremental sync read returns. */
 export type SyncChangeFeed = {

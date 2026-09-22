@@ -16,6 +16,7 @@
  * in cursor order. An expired cursor, an expired token, or a revision that
  * vanished mid-download restarts from a fresh snapshot and keeps local work.
  */
+import { bytesOfBase64 } from './bytes.ts';
 import {
   LocalStorageError,
   type LocalFileKind,
@@ -49,6 +50,10 @@ export type RevisionData = {
   readonly deleted: boolean;
   readonly digest: string;
   readonly text: string | null;
+  /** The whole document of the note, as base64, or `null` (record 0081). */
+  readonly document: string | null;
+  /** The generation of that document, or `null`. */
+  readonly epoch: number | null;
 };
 
 /**
@@ -233,6 +238,8 @@ async function fullSnapshot(
       deleted: revision.deleted,
       digest: revision.digest,
       text: revision.text,
+      document: revision.document === null ? null : bytesOfBase64(revision.document),
+      epoch: revision.epoch,
     });
   }
   try {

@@ -45,6 +45,11 @@ function readOptionalInteger(value: unknown, key: string): number | undefined {
 }
 
 /** Builds the snapshot and incremental sync handlers. */
+/** One byte string as the base64 that the contract states. */
+function base64Of(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64');
+}
+
 export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
   return {
     // The list is a fact of the build, not of an account, so the answer reads
@@ -150,13 +155,52 @@ export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
         status: 200,
         mediaType: jsonMediaType,
         body: {
-          changes: page.changes.map((change) => ({
-            cursor: change.cursor,
-            entityKind: change.entityKind,
-            entityId: change.entityId,
-            revisionId: change.revisionId,
-            deleted: change.deleted,
-          })),
+          // Every record of the feed states its own form, so the reader never
+          // fetches a revision to learn what changed (record 0081).
+          changes: page.changes.map((change) => {
+            if (change.kind === 'membership')
+              return {
+                kind: 'membership' as const,
+                cursor: change.cursor,
+                accountId: change.accountId,
+                removed: change.removed,
+              };
+            if (change.kind === 'purge')
+              return {
+                kind: 'purge' as const,
+                cursor: change.cursor,
+                fileId: change.fileId,
+              };
+            if (change.kind === 'document')
+              return {
+                kind: 'document' as const,
+                cursor: change.cursor,
+                fileId: change.fileId,
+                revisionId: change.revisionId,
+                path: change.path,
+                deleted: change.deleted,
+                digest: change.digest,
+                epoch: change.epoch,
+                document: base64Of(change.document),
+              };
+            return {
+              kind: 'update' as const,
+              cursor: change.cursor,
+              fileId: change.fileId,
+              revisionId: change.revisionId,
+              path: change.path,
+              deleted: change.deleted,
+              digest: change.digest,
+              kindOfFile: change.kindOfFile,
+              epoch: change.epoch,
+              update:
+                change.update === null ? null : base64Of(change.update),
+              stateVector:
+                change.stateVector === null
+                  ? null
+                  : base64Of(change.stateVector),
+            };
+          }),
           nextCursor: page.nextCursor,
         },
       };

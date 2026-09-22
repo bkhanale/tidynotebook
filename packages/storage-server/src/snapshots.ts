@@ -248,16 +248,47 @@ export async function readSyncChanges(
     readonly limit: number;
   },
 ): Promise<SyncChangeFeed> {
+  // The feed states everything a reader needs, so the record carries the
+  // accepted work of the revision beside its metadata (record 0081). A note
+  // whose revision holds no delta is a generation boundary, and the whole
+  // document of that note answers it instead.
   const rows = await client.query<{
     cursor: string;
     entity_kind: string;
     entity_id: string;
     revision_id: string | null;
     deleted: boolean;
+    path: string | null;
+    file_kind: string | null;
+    content_digest: string | null;
+    document_update: Buffer | null;
+    document_vector: Buffer | null;
+    document_epoch: number | null;
+    document_bytes: Buffer | null;
+    document_current_epoch: number | null;
   }>(
-    `select cursor, entity_kind, entity_id, revision_id, deleted from sync_changes
-      where workspace_id = $1 and cursor > $2::bigint
-      order by cursor asc, entity_kind asc, entity_id asc
+    `select c.cursor,
+            c.entity_kind,
+            c.entity_id,
+            c.revision_id,
+            c.deleted,
+            r.path,
+            f.kind as file_kind,
+            r.content_digest,
+            r.document_update,
+            r.document_vector,
+            r.document_epoch,
+            d.bytes as document_bytes,
+            d.epoch as document_current_epoch
+      from sync_changes c
+      left join revisions r
+        on r.workspace_id = c.workspace_id and r.id = c.revision_id
+      left join files f
+        on f.workspace_id = c.workspace_id and f.id = c.entity_id
+      left join note_documents d
+        on d.workspace_id = c.workspace_id and d.file_id = c.entity_id
+      where c.workspace_id = $1 and c.cursor > $2::bigint
+      order by c.cursor asc, c.entity_kind asc, c.entity_id asc
       limit $3`,
     [input.workspaceId, input.afterCursor, input.limit],
   );
@@ -267,13 +298,56 @@ export async function readSyncChanges(
     [input.workspaceId],
   );
   const oldestCursor = oldest.rows[0]?.oldest ?? null;
-  const changes: SyncChange[] = rows.rows.map((row) => ({
-    cursor: BigInt(row.cursor).toString(),
-    entityKind: row.entity_kind === 'membership' ? 'membership' : 'file',
-    entityId: row.entity_id,
-    revisionId: row.revision_id,
-    deleted: row.deleted,
-  }));
+  const changes: SyncChange[] = rows.rows.map((row) => {
+    const at = BigInt(row.cursor).toString();
+    if (row.entity_kind === 'membership')
+      return {
+        kind: 'membership' as const,
+        cursor: at,
+        accountId: row.entity_id,
+        removed: row.deleted,
+      };
+    // A permanent deletion names no revision, because the revisions are gone.
+    if (row.revision_id === null || row.path === null)
+      return { kind: 'purge' as const, cursor: at, fileId: row.entity_id };
+    const note = row.file_kind !== 'attachment';
+    if (
+      note &&
+      row.document_update === null &&
+      row.document_bytes !== null &&
+      row.document_current_epoch !== null
+    )
+      return {
+        kind: 'document' as const,
+        cursor: at,
+        fileId: row.entity_id,
+        revisionId: row.revision_id,
+        path: row.path,
+        deleted: row.deleted,
+        digest: row.content_digest ?? '',
+        epoch: row.document_current_epoch,
+        document: new Uint8Array(row.document_bytes),
+      };
+    return {
+      kind: 'update' as const,
+      cursor: at,
+      fileId: row.entity_id,
+      revisionId: row.revision_id,
+      path: row.path,
+      deleted: row.deleted,
+      digest: row.content_digest ?? '',
+      kindOfFile: note ? ('note' as const) : ('attachment' as const),
+      epoch: row.document_epoch,
+      update:
+        row.document_update === null
+          ? null
+          : new Uint8Array(row.document_update),
+      stateVector:
+        row.document_vector === null
+          ? null
+          : new Uint8Array(row.document_vector),
+    };
+  });
   return {
     changes,
     highWater: cursor.toString(),

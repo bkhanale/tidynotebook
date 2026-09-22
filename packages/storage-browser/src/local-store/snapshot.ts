@@ -232,6 +232,8 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               deleted: revision.deleted,
               digest: revision.digest,
               storedAt: nowIso(),
+              document: revision.document,
+              epoch: revision.epoch,
             };
             await tables.snapshotItems.put(item);
           },
@@ -253,6 +255,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.queue,
             tables.checkpoints,
             tables.recovery,
+            tables.documents,
           ],
           async () => {
             const plans: unknown[] = await tables.stagedSnapshots.toArray();
@@ -302,6 +305,24 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             for (const item of byRevision.values())
               byFile.set(item.fileId, item);
             for (const item of byFile.values()) {
+              // A snapshot is the whole state of the workspace at its cursor,
+              // so it carries the whole document of every note. The device
+              // starts from that document, which is what keeps its first save
+              // a merge of one text rather than two (record 0081).
+              if (item.document !== null && item.epoch !== null) {
+                const applied = await applyServerWork(
+                  tables,
+                  {
+                    serverOrigin,
+                    accountId,
+                    workspaceId,
+                    fileId: item.fileId,
+                  },
+                  item.epoch,
+                  { kind: 'document', document: item.document },
+                );
+                await tables.documents.put(applied.row);
+              }
               const known: unknown = await tables.acceptedFiles.get([
                 serverOrigin,
                 accountId,

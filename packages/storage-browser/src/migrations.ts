@@ -387,6 +387,8 @@ export function validateSnapshotItem(value: unknown): SnapshotItemRow {
     deleted: flag(row, 'deleted', 'snapshot item'),
     digest: text(row, 'digest', 'snapshot item'),
     storedAt: text(row, 'storedAt', 'snapshot item'),
+    document: addedBytes(row, 'document', 'snapshot item'),
+    epoch: addedCount(row, 'epoch', 'snapshot item'),
   };
 }
 
@@ -434,6 +436,33 @@ function byteString(
   // engine stored, so the value is read and never asserted.
   if (value instanceof ArrayBuffer) return new Uint8Array(value);
   throw new LocalStorageError('corrupt', `${table}.${name} is not bytes`);
+}
+
+/**
+ * Bytes, or `null` for a field that a record written before it existed omits.
+ *
+ * A staged snapshot item of an earlier release carries no document, and the
+ * item of an attachment never carries one.
+ */
+function addedBytes(
+  row: Record<string, unknown>,
+  name: string,
+  table: string,
+): Uint8Array | null {
+  const value: unknown = row[name];
+  if (value === undefined || value === null) return null;
+  return byteString(row, name, table);
+}
+
+/** A number, or `null` for a field that a record omits. */
+function addedCount(
+  row: Record<string, unknown>,
+  name: string,
+  table: string,
+): number | null {
+  const value: unknown = row[name];
+  if (value === undefined || value === null) return null;
+  return count(row, name, table);
 }
 
 /** Narrows one stored document of a note. */
