@@ -66,7 +66,7 @@ function hunksOf(
   other: readonly string[],
   bounds: DocumentBounds,
 ): Hunk[] | null {
-  const parts = diffArrays<string, string>([...base], [...other], {
+  const parts = diffArrays<string>([...base], [...other], {
     maxEditLength: bounds.maxRecoveryEdits,
   });
   if (parts === undefined) return null;
