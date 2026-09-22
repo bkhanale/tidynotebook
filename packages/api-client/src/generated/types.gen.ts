@@ -401,9 +401,9 @@ export type CreateFileInput = {
      */
     path: FilePath;
     /**
-     * Markdown of the first revision.
+     * The document work of the first revision. A new note starts on the device that creates it, so the save carries the whole document.
      */
-    text: MarkdownText;
+    document: DocumentSave;
     /**
      * Name of this checkpoint, or null.
      */
@@ -440,6 +440,10 @@ export type DeleteFileInput = {
      * Reason for the deletion, or null.
      */
     message?: CheckpointMessage;
+    /**
+     * What the device had seen of the document when it deleted the note. The save carries no update. The workspace refuses the deletion when the state does not cover the text work that the note holds, so a deletion never hides an edit that the device never saw.
+     */
+    document?: DocumentSave;
 };
 
 /**
@@ -462,9 +466,9 @@ export type DocumentObservedState = string;
  */
 export type DocumentSave = {
     /**
-     * The work of this save, from the last state the device sent.
+     * The work of this save, from the last state the device sent, or null when the save carries no text work. A deletion states what the device had seen and nothing else.
      */
-    update: DocumentUpdate;
+    update: DocumentUpdate | null;
     /**
      * The generation that this update belongs to.
      */
@@ -1454,9 +1458,9 @@ export type UpdateFileInput = {
      */
     path?: FilePath;
     /**
-     * New Markdown of the file. The content of the expected head is kept when this member is absent, which is how a plain rename is written.
+     * The document work of this save. The text of the expected head is kept when this member is absent, which is how a plain rename is written.
      */
-    text?: MarkdownText;
+    document?: DocumentSave;
     /**
      * Name of this checkpoint, or null.
      */

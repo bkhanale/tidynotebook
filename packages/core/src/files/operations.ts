@@ -13,6 +13,7 @@ import {
   ok,
   type ChangesetInput,
   type ContentRef,
+  type DocumentSave,
   type Result,
   type RevisionInput,
 } from './model.ts';
@@ -29,9 +30,9 @@ export type SubmissionIds = {
   readonly clientTime: string;
 };
 
-/** Markdown content and its digest. */
-export async function markdownContent(text: string): Promise<ContentRef> {
-  return { kind: 'markdown', digest: await contentDigest(text), text };
+/** The content of one note revision, from the document work of a save. */
+export function markdownContent(document: DocumentSave): ContentRef {
+  return { kind: 'markdown', document };
 }
 
 /**
@@ -42,11 +43,20 @@ export async function markdownContent(text: string): Promise<ContentRef> {
  * reference of its parent, because an attachment revision has no other way to
  * name content.
  */
-export async function tombstoneContent(
+export function tombstoneContent(
   parent: ContentRef,
-): Promise<ContentRef> {
+  document: DocumentSave,
+): ContentRef {
   if (parent.kind === 'attachment') return parent;
-  return markdownContent('');
+  return markdownContent({ ...document, work: { kind: 'none' } });
+}
+
+/** The content that the workspace writes when it authors the text itself. */
+export function workspaceText(text: string, epoch: number): ContentRef {
+  return {
+    kind: 'markdown',
+    document: { work: { kind: 'text', text }, epoch, observed: null },
+  };
 }
 
 /** What a new file carries. */

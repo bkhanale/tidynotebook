@@ -27,17 +27,31 @@ const ids: SubmissionIds = {
   clientTime: '2026-09-06T10:00:00.000Z',
 };
 
-await test('markdown content carries the digest of its own bytes', async () => {
-  const content = await markdownContent('# one\n');
-  assert.equal(content.kind, 'markdown');
-  assert.equal(content.digest, await contentDigest('# one\n'));
+/** One save of a device, as the transport hands it to the domain. */
+const save = (text: string) => ({
+  work: { kind: 'update' as const, update: new TextEncoder().encode(text) },
+  epoch: 1,
+  observed: new Uint8Array(),
 });
 
-await test('a tombstone carries no note text but keeps an attachment', async () => {
-  const note = await tombstoneContent(await markdownContent('# long\n'));
+await test('the content of a note carries its document work', () => {
+  const content = markdownContent(save('# one\n'));
+  assert.equal(content.kind, 'markdown');
+  assert.equal(
+    content.kind === 'markdown' ? content.document.work.kind : 'x',
+    'update',
+  );
+});
+
+await test('a tombstone states what it saw and keeps an attachment', () => {
+  // A deletion carries no text work. The workspace reads the state it states
+  // to decide whether the deletion would hide unseen work.
+  const note = tombstoneContent(markdownContent(save('# long\n')), save(''));
   assert.equal(note.kind, 'markdown');
-  assert.equal(note.kind === 'markdown' ? note.text : 'x', '');
-  assert.equal(note.digest, await contentDigest(''));
+  assert.equal(
+    note.kind === 'markdown' ? note.document.work.kind : 'x',
+    'none',
+  );
 
   const attachment: ContentRef = {
     kind: 'attachment',
@@ -46,7 +60,7 @@ await test('a tombstone carries no note text but keeps an attachment', async () 
   };
   // An attachment revision has no other way to name content, so the tombstone
   // keeps the object of its parent.
-  assert.deepEqual(await tombstoneContent(attachment), attachment);
+  assert.deepEqual(tombstoneContent(attachment, save('')), attachment);
 });
 
 await test('a new file states that it must not exist yet', async () => {
@@ -55,7 +69,7 @@ await test('a new file states that it must not exist yet', async () => {
     fileId: 'f1',
     revisionId: 'r1',
     path: 'notes/one.md',
-    content: await markdownContent('# one\n'),
+    content: markdownContent(save('# one\n')),
     message: 'first',
     ids,
   });
@@ -74,7 +88,7 @@ await test('a change of an existing file names the expected head as its parent',
     revisionId: 'r2',
     expectedHead: 'r1',
     path: 'notes/two.md',
-    content: await markdownContent('# two\n'),
+    content: markdownContent(save('# two\n')),
     deleted: true,
     message: null,
     ids,
@@ -91,7 +105,7 @@ async function member(index: number): Promise<FolderMember> {
     expectedHead: `h${String(index)}`,
     revisionId: `r${String(index)}`,
     path: `notes/${String(index)}.md`,
-    content: await markdownContent(`# ${String(index)}\n`),
+    content: markdownContent(save(`# ${String(index)}\n`)),
   };
 }
 
@@ -180,7 +194,7 @@ await test('a folder rename accepts a name in decomposed form', async () => {
     expectedHead: 'h1',
     revisionId: 'r1',
     path: `${composed.normalize('NFC')}/1.md`,
-    content: await markdownContent('# 1\n'),
+    content: markdownContent(save('# 1\n')),
   };
   const built = renameFolderChangeset({
     workspaceId,
@@ -205,7 +219,7 @@ await test('a folder rename leaves a folder whose name only starts the same', as
     expectedHead: 'h9',
     revisionId: 'r9',
     path: 'notes/trips-2026/day.md',
-    content: await markdownContent('# Day\n'),
+    content: markdownContent(save('# Day\n')),
   };
   const built = renameFolderChangeset({
     workspaceId,
@@ -225,7 +239,7 @@ await test('a folder rename writes every new path in composed form', async () =>
     expectedHead: 'h1',
     revisionId: 'r1',
     path: 'notes/1.md',
-    content: await markdownContent('# 1\n'),
+    content: markdownContent(save('# 1\n')),
   };
   const built = renameFolderChangeset({
     workspaceId,

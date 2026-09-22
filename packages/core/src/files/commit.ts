@@ -37,6 +37,7 @@
  */
 import { authorize, type Actor } from '../identity/actor.ts';
 import { contentDigest } from './digest.ts';
+import { acceptDocumentWork } from './documents.ts';
 import { validateGraph } from './graph.ts';
 import {
   fail,
@@ -46,6 +47,7 @@ import {
   type Result,
   type RevisionInput,
   type SupersededHead,
+  type StoredRevisionInput,
 } from './model.ts';
 import { normalizePath, type PathKind } from './path.ts';
 import type {
@@ -194,10 +196,16 @@ async function rebaseHeads(
   });
   const tips = new Map<string, RevisionInput>();
   for (const revision of input.revisions) tips.set(revision.fileId, revision);
+  // An attachment keeps the old boundary: a stale deletion of one, and a
+  // stale save over one, are refused. A note crosses the boundary, because
+  // its document decides the outcome: text work brings a note back from
+  // Trash, and a deletion is refused only when it would hide work that the
+  // device has not seen (records 0081, 0083).
   const boundary = moved.filter((fileId) => {
     const head = heads.get(fileId);
     const tip = tips.get(fileId);
     if (head === undefined || tip === undefined) return false;
+    if (tip.content.kind === 'markdown') return false;
     return head.deleted || tip.deleted;
   });
   if (boundary.length > 0) return fail('stale_head', boundary);
@@ -288,7 +296,7 @@ function rebasedPath(
  *   content out of storage in the first place.
  */
 async function checkContent(
-  revisions: readonly RevisionInput[],
+  revisions: readonly StoredRevisionInput[],
 ): Promise<Result<void>> {
   const wrong: string[] = [];
   for (const revision of revisions) {
@@ -367,12 +375,31 @@ export async function commitChangeset(
       );
       if (!graph.ok) return graph;
 
-      const content = await checkContent(accepted.revisions);
+      // The text work of every note in this changeset applies here, against
+      // the documents that the workspace holds, and the accepted text of each
+      // revision comes from the result (record 0081).
+      const documents = await acceptDocumentWork(
+        store.documents,
+        await tx.documents(
+          accepted.revisions
+            .filter((revision) => revision.content.kind === 'markdown')
+            .map((revision) => revision.fileId),
+        ),
+        await tx.headStates(fileIds),
+        accepted.revisions,
+      );
+      if (!documents.ok) return documents;
+
+      const content = await checkContent(documents.value.revisions);
       if (!content.ok) return content;
 
       const outcome = await tx.accept(
         actor,
-        accepted,
+        {
+          ...accepted,
+          revisions: documents.value.revisions,
+          documents: documents.value.documents,
+        },
         digest,
         rebased.value.superseded,
       );
@@ -381,7 +408,7 @@ export async function commitChangeset(
       // The last revision of a file in the submission is its new head, so a file
       // is deleted when that revision is a tombstone.
       const tips = new Map<string, boolean>();
-      for (const revision of accepted.revisions)
+      for (const revision of documents.value.revisions)
         tips.set(revision.fileId, revision.deleted);
       const deleted = [...tips.entries()]
         .filter(([, gone]) => gone)

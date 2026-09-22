@@ -21,7 +21,14 @@ function revision(
     parents,
     path: `notes/${fileId}.md`,
     deleted: false,
-    content: { kind: 'markdown', digest: `digest-${id}`, text: `# ${id}` },
+    content: {
+      kind: 'markdown',
+      document: {
+        work: { kind: 'text', text: `# ${id}` },
+        epoch: 1,
+        observed: null,
+      },
+    },
     clientTime: '2026-09-05T10:00:00.000Z',
     message: null,
     restoredFrom: null,

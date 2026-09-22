@@ -1,0 +1,209 @@
+/**
+ * How the workspace accepts the text work of a save (record 0081).
+ *
+ * Every accepted text of a note comes through here: a save from a device, an
+ * import, a restore from History or Trash, and the link rewrites that follow
+ * a move. The rule is the same for each of them, so no writer can reach the
+ * text of a note by another path.
+ *
+ * The order of the checks is the rule:
+ *
+ * 1. The generation must match. Identities of one generation say nothing
+ *    about another, so a save of another epoch is refused before anything
+ *    else reads its bytes.
+ * 2. The complete observed state decides two questions: whether this save
+ *    joins work that the device had not seen, which marks the revision as
+ *    merged, and whether a deletion would hide such work, which refuses the
+ *    deletion (record 0083).
+ * 3. The update applies to a trial document. A refusal leaves the stored
+ *    document exactly as it was.
+ * 4. The workspace derives the text of the revision from the result, so the
+ *    stored text and the document can never disagree.
+ */
+import { contentDigest } from './digest.ts';
+import {
+  fail,
+  ok,
+  type DocumentWrite,
+  type Result,
+  type RevisionInput,
+  type StoredRevisionInput,
+} from './model.ts';
+import type {
+  DocumentService,
+  HeadState,
+  StoredDocument,
+  WorkspaceTransaction,
+} from './ports.ts';
+import type { Actor } from '../identity/actor.ts';
+import type {
+  AcceptedChangeset,
+  ChangesetInput,
+  SupersededHead,
+} from './model.ts';
+
+/** What the acceptance of one changeset produced for its documents. */
+export type AcceptedDocuments = {
+  readonly revisions: readonly StoredRevisionInput[];
+  readonly documents: readonly DocumentWrite[];
+};
+
+/** Whether two byte strings hold the same value. */
+function sameBytes(one: Uint8Array, other: Uint8Array): boolean {
+  if (one.byteLength !== other.byteLength) return false;
+  return one.every((value, index) => value === other[index]);
+}
+
+/** The document that a note holds now, or a started one for a new note. */
+function currentDocument(
+  service: DocumentService,
+  stored: StoredDocument | undefined,
+  epoch: number,
+): StoredDocument {
+  return stored ?? { bytes: service.start(''), epoch };
+}
+
+/**
+ * Applies the document work of every revision of one changeset.
+ *
+ * The revisions of one file apply in submission order, so two saves of one
+ * file in one changeset build on each other exactly as the device wrote them.
+ */
+export async function acceptDocumentWork(
+  service: DocumentService,
+  stored: ReadonlyMap<string, StoredDocument>,
+  heads: ReadonlyMap<string, HeadState>,
+  revisions: readonly RevisionInput[],
+): Promise<Result<AcceptedDocuments>> {
+  const working = new Map<string, StoredDocument>();
+  const merged = new Set<string>();
+  const states = new Map<string, Uint8Array>();
+  const accepted: StoredRevisionInput[] = [];
+
+  for (const revision of revisions) {
+    if (revision.content.kind !== 'markdown') {
+      accepted.push({ ...revision, content: revision.content });
+      continue;
+    }
+    const save = revision.content.document;
+    const before =
+      working.get(revision.fileId) ??
+      currentDocument(service, stored.get(revision.fileId), save.epoch);
+    if (before.epoch !== save.epoch)
+      return fail('epoch_mismatch', [revision.fileId]);
+
+    // The workspace itself has seen everything it holds, so a text that it
+    // writes is never a merge and never hides work.
+    const covered =
+      save.observed === null
+        ? ok(true)
+        : service.covers(save.observed, before.bytes);
+    if (!covered.ok) return covered;
+    // A deletion that hides text the device never saw is refused, in either
+    // arrival order. The person reads that text before they can remove it.
+    if (revision.deleted && !covered.value)
+      return fail('unseen_work', [revision.fileId]);
+
+    const applied =
+      save.work.kind === 'update'
+        ? service.apply(before.bytes, save.work.update)
+        : save.work.kind === 'text'
+          ? service.replaceText(before.bytes, save.work.text)
+          : // A save with no text work, which is how a deletion states what
+            // the device had seen, leaves the document exactly as it is.
+            ok({
+              bytes: before.bytes,
+              text: service.readText(before.bytes),
+              state: service.observe(before.bytes),
+            });
+    if (!applied.ok) return applied;
+    // Work that the document already held adds nothing. A save that repeats
+    // it is a duplicate, and a duplicate never brings a note back from Trash.
+    const newWork = !sameBytes(
+      applied.value.state,
+      service.observe(before.bytes),
+    );
+    const head = heads.get(revision.fileId);
+    const deleted =
+      head?.deleted === true && !revision.deleted ? !newWork : revision.deleted;
+    const text = deleted ? '' : applied.value.text;
+    working.set(revision.fileId, {
+      bytes: applied.value.bytes,
+      epoch: save.epoch,
+    });
+    states.set(revision.fileId, applied.value.state);
+    if (!covered.value) merged.add(revision.fileId);
+    accepted.push({
+      ...revision,
+      // Text work against a tombstone brings the note back: the edit is the
+      // later write, and the tombstone kept the document behind it. A
+      // duplicate update leaves the note in Trash.
+      deleted,
+      content: {
+        kind: 'markdown',
+        digest: await contentDigest(text),
+        text,
+      },
+    });
+  }
+
+  const documents: DocumentWrite[] = [];
+  for (const [fileId, document] of working) {
+    const state = states.get(fileId);
+    if (state === undefined) continue;
+    documents.push({
+      fileId,
+      bytes: document.bytes,
+      epoch: document.epoch,
+      state,
+      merged: merged.has(fileId),
+    });
+  }
+  return ok({ revisions: accepted, documents });
+}
+
+/**
+ * Accepts one changeset with the text work of its notes.
+ *
+ * This is the one door of an accepted text (record 0081). Every writer calls
+ * it: the changeset operation, a restore from History or Trash, an import,
+ * and the link rewrites of a move. It reads the documents of the changed
+ * notes, applies their work, and writes the revisions and the documents in
+ * the one savepoint of `accept`.
+ */
+export async function acceptWithDocuments(
+  service: DocumentService,
+  tx: WorkspaceTransaction,
+  actor: Actor,
+  input: ChangesetInput,
+  digest: string,
+  superseded: readonly SupersededHead[] = [],
+): Promise<Result<AcceptedChangeset>> {
+  const noteIds = [
+    ...new Set(
+      input.revisions
+        .filter((revision) => revision.content.kind === 'markdown')
+        .map((revision) => revision.fileId),
+    ),
+  ];
+  const fileIds = [
+    ...new Set(input.revisions.map((revision) => revision.fileId)),
+  ];
+  const work = await acceptDocumentWork(
+    service,
+    await tx.documents(noteIds),
+    await tx.headStates(fileIds),
+    input.revisions,
+  );
+  if (!work.ok) return work;
+  return tx.accept(
+    actor,
+    {
+      ...input,
+      revisions: work.value.revisions,
+      documents: work.value.documents,
+    },
+    digest,
+    superseded,
+  );
+}

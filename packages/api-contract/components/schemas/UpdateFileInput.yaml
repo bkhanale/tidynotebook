@@ -24,12 +24,13 @@ properties:
     description: >-
       New path of the file. The path of the expected head is kept when
       this member is absent.
-  text:
+  document:
     allOf:
-      - $ref: './MarkdownText.yaml'
+      - $ref: './DocumentSave.yaml'
     description: >-
-      New Markdown of the file. The content of the expected head is kept
-      when this member is absent, which is how a plain rename is written.
+      The document work of this save. The text of the expected head is
+      kept when this member is absent, which is how a plain rename is
+      written.
   message:
     allOf:
       - $ref: './CheckpointMessage.yaml'

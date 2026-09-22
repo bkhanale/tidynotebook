@@ -7,7 +7,7 @@ required:
   - mutationId
   - deviceId
   - path
-  - text
+  - document
 properties:
   fileId:
     allOf:
@@ -33,10 +33,12 @@ properties:
     allOf:
       - $ref: './FilePath.yaml'
     description: Path of the new note, which must end in .md.
-  text:
+  document:
     allOf:
-      - $ref: './MarkdownText.yaml'
-    description: Markdown of the first revision.
+      - $ref: './DocumentSave.yaml'
+    description: >-
+      The document work of the first revision. A new note starts on the
+      device that creates it, so the save carries the whole document.
   message:
     allOf:
       - $ref: './CheckpointMessage.yaml'

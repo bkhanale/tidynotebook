@@ -13,12 +13,81 @@
 import type { Actor, Role } from '../identity/actor.ts';
 import type {
   AcceptedChangeset,
+  AcceptedInput,
   ChangesetInput,
+  DomainErrorCode,
   Result,
   SupersededHead,
 } from './model.ts';
 import type { SearchHit } from '../search/service.ts';
 import type { Backlink } from './backlinks.ts';
+
+/**
+ * The document of one note, as the workspace holds it now.
+ *
+ * `bytes` is the whole document and `epoch` its generation. A note that has
+ * no document yet reads as `null`, which happens only before the migration of
+ * record 0084 reaches it.
+ */
+export type StoredDocument = {
+  readonly bytes: Uint8Array;
+  readonly epoch: number;
+};
+
+/** One document after an accepted update, with what the workspace derived. */
+export type AppliedDocument = {
+  /** The document after the update. */
+  readonly bytes: Uint8Array;
+  /** The text that the document derives, which the revision stores. */
+  readonly text: string;
+  /** The complete state of the document after the update. */
+  readonly state: Uint8Array;
+};
+
+/**
+ * The document service of the workspace (records 0081, 0082).
+ *
+ * `packages/core` states this port and never implements it: the server
+ * composition root supplies the adapter over the document package, so no Yjs
+ * type reaches the domain. Every value here is bytes or text.
+ */
+export type DocumentService = {
+  /** Starts the document of a note that has none yet. */
+  start(text: string): Uint8Array;
+  /**
+   * Applies one update to a document, or names the refusal.
+   *
+   * The update applies to a trial document, so a refusal leaves the bytes of
+   * the caller exactly as they were, and refused work is never kept as work
+   * that a later update could activate.
+   */
+  apply(document: Uint8Array, update: Uint8Array): Result<AppliedDocument>;
+  /**
+   * Writes one text into a document and keeps its identities.
+   *
+   * The workspace uses it where it authors text itself: a restore from
+   * History or Trash, an import into a note that exists, and the link
+   * rewrites that follow a move (record 0081).
+   */
+  replaceText(document: Uint8Array, text: string): Result<AppliedDocument>;
+  /** The complete observed state of a document. */
+  observe(document: Uint8Array): Uint8Array;
+  /** The text that a document derives. */
+  readText(document: Uint8Array): string;
+  /**
+   * Whether an observed state covers every insertion and deletion of a
+   * document of the same generation.
+   */
+  covers(observed: Uint8Array, document: Uint8Array): Result<boolean>;
+};
+
+/** The refusal codes that a document service may answer. */
+export const documentRefusals: readonly DomainErrorCode[] = [
+  'document_malformed',
+  'document_dependency_missing',
+  'document_unsupported',
+  'document_too_large',
+];
 
 /** A stored outcome of an earlier accepted changeset, kept for safe retries. */
 export type MutationReceipt = {
@@ -165,6 +234,13 @@ export type WorkspaceTransaction = {
    * The accepted head of each requested file. The value is `null` when the
    * file does not exist in accepted state. A missing key means the same.
    */
+  /**
+   * The documents of the named notes, by file identifier. A note with no
+   * document yet is absent from the map.
+   */
+  documents(
+    fileIds: readonly string[],
+  ): Promise<ReadonlyMap<string, StoredDocument>>;
   heads(
     fileIds: readonly string[],
   ): Promise<ReadonlyMap<string, string | null>>;
@@ -256,7 +332,7 @@ export type WorkspaceTransaction = {
    */
   accept(
     actor: Actor,
-    input: ChangesetInput,
+    input: AcceptedInput,
     digest: string,
     superseded?: readonly SupersededHead[],
   ): Promise<Result<AcceptedChangeset>>;
@@ -478,6 +554,13 @@ export type TransactOptions = {
 
 /** Opens one workspace transaction for a verified actor. */
 export type WorkspaceStore = {
+  /**
+   * The document service of this deployment (records 0081, 0082).
+   *
+   * The composition root supplies it, so the domain reads and writes the
+   * document of a note without importing the library that implements it.
+   */
+  readonly documents: DocumentService;
   /**
    * Runs `run` inside one workspace transaction and commits when it returns.
    * The transaction rolls back when `run` throws. The actor identity is set on

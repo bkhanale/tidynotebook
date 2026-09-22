@@ -10,12 +10,14 @@ import { previewPurge, purgeFiles } from './purge.ts';
 import {
   ok,
   type AcceptedChangeset,
+  type AcceptedInput,
   type AcceptedRevision,
   type ChangesetInput,
   type Result,
 } from '../files/model.ts';
 import type {
   DeletedFilePage,
+  DocumentService,
   FilePage,
   FileRecord,
   HistoryPage,
@@ -28,6 +30,26 @@ import type {
   WorkspaceStore,
   WorkspaceTransaction,
 } from '../files/ports.ts';
+
+/** A document service over plain text, as the domain tests use it. */
+const documentService: DocumentService = {
+  start: (text: string) => new TextEncoder().encode(text),
+  apply: (_document: Uint8Array, update: Uint8Array) =>
+    ok({
+      bytes: update,
+      text: new TextDecoder().decode(update),
+      state: update,
+    }),
+  replaceText: (_document: Uint8Array, text: string) =>
+    ok({
+      bytes: new TextEncoder().encode(text),
+      text,
+      state: new TextEncoder().encode(text),
+    }),
+  observe: (document: Uint8Array) => document,
+  readText: (document: Uint8Array) => new TextDecoder().decode(document),
+  covers: () => ok(true),
+};
 
 const workspaceId = 'w0000000-0000-4000-8000-000000000001';
 const ownerId = 'a0000000-0000-4000-8000-000000000001';
@@ -46,6 +68,8 @@ class FakeWorkspace {
   readonly roles = new Map<string, Role>();
   readonly files = new Map<string, FileRecord>();
   readonly revisions = new Map<string, RevisionRecord>();
+  /** The document of each note, which a restore edits. */
+  readonly documents = new Map<string, { bytes: Uint8Array; epoch: number }>();
   readonly receipts = new Map<string, MutationReceipt>();
   readonly purged = new Set<string>();
   readonly history: HistoryRevision[] = [];
@@ -61,6 +85,15 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
     search: () => Promise.resolve([]),
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
+    documents: (fileIds: readonly string[]) =>
+      Promise.resolve(
+        new Map(
+          fileIds.flatMap((fileId) => {
+            const document = state.documents.get(fileId);
+            return document === undefined ? [] : [[fileId, document] as const];
+          }),
+        ),
+      ),
     role: (id: string) => Promise.resolve(state.roles.get(id) ?? null),
     receipt: (mutationId: string, id: string) =>
       Promise.resolve(state.receipts.get(`${id}:${mutationId}`) ?? null),
@@ -145,7 +178,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
       Promise.resolve(state.revisions.get(revisionId) ?? null),
     accept: (
       writer: Actor,
-      input: ChangesetInput,
+      input: AcceptedInput,
       _digest: string,
     ): Promise<Result<AcceptedChangeset>> => {
       const acceptedRev = input.revisions.map((r) => {
@@ -185,6 +218,15 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           actorAccountId: writer.accountId,
           serverTime: new Date().toISOString(),
           message: r.message,
+          epoch:
+            input.documents.find((document) => document.fileId === r.fileId)
+              ?.epoch ?? null,
+          acceptedState:
+            input.documents.find((document) => document.fileId === r.fileId)
+              ?.state ?? null,
+          merged: input.documents.some(
+            (document) => document.fileId === r.fileId && document.merged,
+          ),
         };
         return accepted;
       });
@@ -243,6 +285,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
   };
 
   return {
+    documents: documentService,
     transact: <T>(
       _actor: Actor,
       _wsId: string,

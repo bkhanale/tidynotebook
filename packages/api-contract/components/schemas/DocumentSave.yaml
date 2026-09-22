@@ -11,9 +11,13 @@ required:
   - observed
 properties:
   update:
-    allOf:
+    oneOf:
       - $ref: './DocumentUpdate.yaml'
-    description: The work of this save, from the last state the device sent.
+      - type: 'null'
+    description: >-
+      The work of this save, from the last state the device sent, or null
+      when the save carries no text work. A deletion states what the
+      device had seen and nothing else.
   epoch:
     allOf:
       - $ref: './DocumentEpoch.yaml'

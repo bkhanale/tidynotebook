@@ -4,7 +4,9 @@
  * This module coordinates history pagination and revision restoration.
  */
 import { authorize, type Actor } from '../identity/actor.ts';
+import { acceptWithDocuments } from '../files/documents.ts';
 import { validateGraph } from '../files/graph.ts';
+import { workspaceText } from '../files/operations.ts';
 import {
   fail,
   ok,
@@ -126,11 +128,13 @@ export async function restoreRevision(
       const chosenPath = input.path ?? targetRev.path;
       let chosenContent: ContentRef;
       if (targetRev.kind === 'note') {
-        chosenContent = {
-          kind: 'markdown',
-          digest: targetRev.digest,
-          text: targetRev.text ?? '',
-        };
+        // A restore edits the document of the note, so the note keeps its
+        // identities and every device merges the restore like any other work.
+        const documents = await tx.documents([input.fileId]);
+        chosenContent = workspaceText(
+          targetRev.text ?? '',
+          documents.get(input.fileId)?.epoch ?? 1,
+        );
       } else {
         if (targetRev.objectId === null) {
           return fail('invalid_graph', [input.fileId]);
@@ -175,7 +179,7 @@ export async function restoreRevision(
         revisions: [revision],
       };
 
-      return tx.accept(actor, changeset, digest);
+      return acceptWithDocuments(store.documents, tx, actor, changeset, digest);
     },
   );
 }

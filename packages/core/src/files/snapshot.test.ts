@@ -19,7 +19,9 @@ import {
   startSnapshot,
   syncLimit,
 } from './snapshot.ts';
+import { ok } from './model.ts';
 import type {
+  DocumentService,
   SnapshotPage,
   SnapshotStart,
   StartSnapshotInput,
@@ -27,6 +29,18 @@ import type {
   WorkspaceStore,
   WorkspaceTransaction,
 } from './ports.ts';
+
+/** A document service that no snapshot test reaches. */
+const documentService: DocumentService = {
+  start: () => new Uint8Array(),
+  apply: () =>
+    ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
+  replaceText: () =>
+    ok({ bytes: new Uint8Array(), text: '', state: new Uint8Array() }),
+  observe: () => new Uint8Array(),
+  readText: () => '',
+  covers: () => ok(true),
+};
 
 const workspaceId = 'w0000000-0000-4000-8000-000000000001';
 const ownerId = 'a0000000-0000-4000-8000-000000000001';
@@ -51,6 +65,7 @@ function fakeStore(
     search: () => Promise.resolve([]),
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
+    documents: () => Promise.resolve(new Map()),
     role: (id: string) => Promise.resolve(roles.get(id) ?? null),
     receipt: () => Promise.resolve(null),
     heads: () => Promise.resolve(new Map()),
@@ -83,6 +98,7 @@ function fakeStore(
     syncChanges: () => Promise.resolve(feed),
   };
   return {
+    documents: documentService,
     transact: <T>(
       _actor: Actor,
       _workspace: string,
@@ -120,6 +136,7 @@ await test('only sync version 1 is supported', () => {
 await test('startSnapshot rejects an unsupported version before transacting', async () => {
   let transacted = false;
   const store: WorkspaceStore = {
+    documents: documentService,
     transact: <T>(): Promise<T> => {
       transacted = true;
       return Promise.reject(new Error('must not transact'));

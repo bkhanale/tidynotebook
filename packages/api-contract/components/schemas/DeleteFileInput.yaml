@@ -22,3 +22,11 @@ properties:
     allOf:
       - $ref: './CheckpointMessage.yaml'
     description: Reason for the deletion, or null.
+  document:
+    allOf:
+      - $ref: './DocumentSave.yaml'
+    description: >-
+      What the device had seen of the document when it deleted the note.
+      The save carries no update. The workspace refuses the deletion when
+      the state does not cover the text work that the note holds, so a
+      deletion never hides an edit that the device never saw.

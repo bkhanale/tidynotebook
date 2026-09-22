@@ -21,6 +21,7 @@ import {
   type Result,
 } from './model.ts';
 import type { SubmissionIds } from './operations.ts';
+import { workspaceText } from './operations.ts';
 import { normalizePath } from './path.ts';
 import type {
   DeletedFilePage,
@@ -170,11 +171,12 @@ async function planRestore(
           objectId: parent.objectId,
         };
       } else {
-        content = {
-          kind: 'markdown',
-          digest: parent.digest,
-          text: parent.text ?? '',
-        };
+        // A restore edits the document of the note, which the tombstone kept,
+        // so the note keeps its identities and its history (record 0084). The
+        // epoch comes from the document that the workspace holds.
+        const documents = await tx.documents([fileId]);
+        const epoch = documents.get(fileId)?.epoch ?? 1;
+        content = workspaceText(parent.text ?? '', epoch);
       }
 
       const candidates = restoreCandidates(tombstone.path);

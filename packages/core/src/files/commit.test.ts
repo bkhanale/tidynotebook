@@ -14,15 +14,19 @@ import { commitChangeset, maxFilesPerChangeset } from './commit.ts';
 import { contentDigest } from './digest.ts';
 import type {
   AcceptedChangeset,
+  AcceptedInput,
   ChangesetInput,
   ContentRef,
+  DomainErrorCode,
   Result,
   RevisionInput,
   SupersededHead,
 } from './model.ts';
 import { fail, ok } from './model.ts';
 import type {
+  AppliedDocument,
   DeletedFilePage,
+  DocumentService,
   FilePage,
   FileRecord,
   MutationReceipt,
@@ -55,7 +59,9 @@ class FakeWorkspace {
   /** Every call of `onFilesDeleted`, so a test can prove that it ran. */
   readonly deletions: string[][] = [];
   /** Every changeset that reached `accept`. */
-  readonly accepted: ChangesetInput[] = [];
+  readonly accepted: AcceptedInput[] = [];
+  /** The document of each note, as the fake service encodes it. */
+  readonly documents = new Map<string, { bytes: Uint8Array; epoch: number }>();
   cursor = 0;
   /** A domain failure that the next `accept` returns instead of writing. */
   refuse: Result<AcceptedChangeset> | null = null;
@@ -70,6 +76,15 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
     role: (id: string) => Promise.resolve(state.roles.get(id) ?? null),
     receipt: (mutationId: string, id: string) =>
       Promise.resolve(state.receipts.get(`${id}:${mutationId}`) ?? null),
+    documents: (fileIds: readonly string[]) =>
+      Promise.resolve(
+        new Map(
+          fileIds.flatMap((fileId) => {
+            const document = state.documents.get(fileId);
+            return document === undefined ? [] : [[fileId, document] as const];
+          }),
+        ),
+      ),
     heads: (fileIds: readonly string[]) =>
       Promise.resolve(
         new Map(
@@ -153,13 +168,20 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
       Promise.resolve(state.revisions.get(revisionId) ?? null),
     accept: (
       writer: Actor,
-      input: ChangesetInput,
+      input: AcceptedInput,
       digest: string,
       superseded: readonly SupersededHead[] = [],
     ): Promise<Result<AcceptedChangeset>> => {
       if (state.refuse !== null) return Promise.resolve(state.refuse);
       state.accepted.push(input);
       state.cursor += 1;
+      // The documents of the changeset commit with its revisions, so a later
+      // save in the same test reads what this one accepted.
+      for (const document of input.documents)
+        state.documents.set(document.fileId, {
+          bytes: document.bytes,
+          epoch: document.epoch,
+        });
       for (const revision of input.revisions) {
         state.revisions.set(revision.id, {
           revisionId: revision.id,
@@ -212,6 +234,18 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
           actorAccountId: writer.accountId,
           serverTime: '2026-09-06T10:00:00.000Z',
           message: revision.message,
+          epoch:
+            input.documents.find(
+              (document) => document.fileId === revision.fileId,
+            )?.epoch ?? null,
+          acceptedState:
+            input.documents.find(
+              (document) => document.fileId === revision.fileId,
+            )?.state ?? null,
+          merged: input.documents.some(
+            (document) =>
+              document.fileId === revision.fileId && document.merged,
+          ),
         })),
         superseded: superseded.map((entry) => ({ ...entry })),
       };
@@ -254,6 +288,7 @@ function fakeStore(state: FakeWorkspace): WorkspaceStore {
       Promise.resolve({ changes: [], highWater: '0', oldestRetained: null }),
   };
   return {
+    documents: documentService,
     transact: <T>(
       _actor: Actor,
       _workspaceId: string,
@@ -277,10 +312,80 @@ function id(prefix: string): string {
   return `${prefix}0000000-0000-4000-8000-${String(counter).padStart(12, '0')}`;
 }
 
-/** Markdown content with a correct digest. */
-async function content(text: string): Promise<ContentRef> {
-  return { kind: 'markdown', digest: await contentDigest(text), text };
+/**
+ * The bytes of one text, as the fake document service encodes a document.
+ *
+ * The encoding keeps every code unit, including a lone surrogate, so a test
+ * can prove that the workspace refuses text that is not well formed.
+ */
+const bytesOf = (text: string): Uint8Array =>
+  new TextEncoder().encode(JSON.stringify(text));
+
+/** The text of one encoded document. */
+function textOf(bytes: Uint8Array): string {
+  const value: unknown = JSON.parse(new TextDecoder().decode(bytes));
+  return typeof value === 'string' ? value : '';
 }
+
+/**
+ * The text work of one save.
+ *
+ * The fake document service below holds a document as the bytes of its text,
+ * and an update as the whole text that the save produces. `seen` is the text
+ * that the device had when it saved, so a test states unseen work by giving a
+ * `seen` that differs from the stored text.
+ */
+function content(text: string, seen = text, epoch = 1): ContentRef {
+  return {
+    kind: 'markdown',
+    document: {
+      work: { kind: 'update', update: bytesOf(text) },
+      epoch,
+      observed: bytesOf(seen),
+    },
+  };
+}
+
+/** A save that carries no text work, which is how a deletion states its state. */
+function seenOnly(seen: string, epoch = 1): ContentRef {
+  return {
+    kind: 'markdown',
+    document: { work: { kind: 'none' }, epoch, observed: bytesOf(seen) },
+  };
+}
+
+/**
+ * A document service over plain text.
+ *
+ * It keeps the shape of the real one: an update applies to a document, the
+ * observed state of a document is its own bytes, and coverage is whether the
+ * device had seen exactly the stored document. The real merge behaviour is
+ * proved in `packages/note-document` and in the integration suite.
+ */
+let documentRefusal: DomainErrorCode | null = null;
+
+const documentService: DocumentService = {
+  start: (text: string) => bytesOf(text),
+  apply: (_document: Uint8Array, update: Uint8Array) => {
+    if (documentRefusal !== null) return fail(documentRefusal);
+    const text = textOf(update);
+    const applied: AppliedDocument = {
+      bytes: update,
+      text,
+      state: update,
+    };
+    return ok(applied);
+  },
+  replaceText: (_document: Uint8Array, text: string) =>
+    ok({ bytes: bytesOf(text), text, state: bytesOf(text) }),
+  observe: (document: Uint8Array) => document,
+  readText: (document: Uint8Array) => textOf(document),
+  covers: (observed: Uint8Array, document: Uint8Array) =>
+    ok(
+      observed.byteLength === document.byteLength &&
+        observed.every((value, index) => value === document[index]),
+    ),
+};
 
 /** One revision with test defaults. */
 async function revision(
@@ -292,7 +397,7 @@ async function revision(
     parents: seed.parents ?? [],
     path: seed.path,
     deleted: seed.deleted ?? false,
-    content: seed.content ?? (await content(`# ${seed.path}\n`)),
+    content: seed.content ?? content(`# ${seed.path}\n`),
     clientTime: seed.clientTime ?? '2026-09-06T10:00:00.000Z',
     message: seed.message ?? null,
     restoredFrom: seed.restoredFrom ?? null,
@@ -457,19 +562,22 @@ await test('a save on the current head reports no superseded head', async () => 
   assert.deepEqual(result.superseded, []);
 });
 
-await test('a stale update over a deleted head is refused', async () => {
+await test('text work brings a note back from Trash', async () => {
+  // Record 0083. The edit is the later write, and the tombstone kept the
+  // document behind it, so the work applies and the note returns.
   const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
   const first = await revision({ fileId, path: 'notes/one.md' });
   accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const startText = '# notes/one.md\n';
   const tombstone = await revision({
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
     deleted: true,
-    content: await content(''),
+    content: seenOnly(startText),
   });
   accepted(
     await commitChangeset(
@@ -481,13 +589,14 @@ await test('a stale update over a deleted head is refused', async () => {
   );
 
   // The other device still holds the note and saves text it typed before the
-  // deletion. Accepting it would bring the deleted note back.
+  // deletion reached it.
   const stale = await revision({
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
+    content: content('# typed offline\n', startText),
   });
-  const failure = rejected(
+  accepted(
     await commitChangeset(
       store,
       actor,
@@ -495,25 +604,27 @@ await test('a stale update over a deleted head is refused', async () => {
       'd-3',
     ),
   );
-  assert.equal(failure.code, 'stale_head');
-  assert.deepEqual(failure.fileIds, [fileId]);
-  assert.equal(state.files.get(fileId)?.headRevisionId, tombstone.id);
-  assert.equal(state.files.get(fileId)?.deleted, true);
+  assert.equal(state.files.get(fileId)?.headRevisionId, stale.id);
+  assert.equal(state.files.get(fileId)?.deleted, false);
+  assert.equal(state.revisions.get(stale.id)?.text, '# typed offline\n');
 });
 
-await test('a stale rename over a deleted head is refused', async () => {
+await test('a save with no text work leaves a note in Trash', async () => {
+  // A rename carries no text work, so it is not the edit that record 0083
+  // brings back. The note stays where the person put it.
   const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
   const first = await revision({ fileId, path: 'notes/one.md' });
   accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const startText = '# notes/one.md\n';
   const tombstone = await revision({
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
     deleted: true,
-    content: await content(''),
+    content: seenOnly(startText),
   });
   accepted(
     await commitChangeset(
@@ -527,8 +638,9 @@ await test('a stale rename over a deleted head is refused', async () => {
     fileId,
     path: 'notes/renamed.md',
     parents: [first.id],
+    content: seenOnly(startText),
   });
-  const failure = rejected(
+  accepted(
     await commitChangeset(
       store,
       actor,
@@ -536,22 +648,64 @@ await test('a stale rename over a deleted head is refused', async () => {
       'd-3',
     ),
   );
-  assert.equal(failure.code, 'stale_head');
-  assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.files.get(fileId)?.deleted, true);
 });
 
-await test('a stale delete after newer edits is refused', async () => {
+await test('a duplicate of accepted work never leaves Trash', async () => {
+  // The update repeats work that the document already holds, so it adds
+  // nothing and the note stays in Trash (record 0083).
   const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
+  const startText = '# notes/one.md\n';
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const tombstone = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    deleted: true,
+    content: seenOnly(startText),
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([tombstone], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+  const repeat = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    content: content(startText, startText),
+  });
+  accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([repeat], { expectedHeads: { [fileId]: first.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(state.files.get(fileId)?.deleted, true);
+});
+
+await test('a delete that would hide unseen text is refused', async () => {
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const startText = '# notes/one.md\n';
   const first = await revision({ fileId, path: 'notes/one.md' });
   accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
   const newer = await revision({
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
-    content: await content('# text that must survive\n'),
+    content: content('# text that must survive\n', startText),
   });
   accepted(
     await commitChangeset(
@@ -562,14 +716,14 @@ await test('a stale delete after newer edits is refused', async () => {
     ),
   );
 
-  // The delete was made against the first revision, so it never saw the newer
-  // text. A rebase would remove text that the person never read.
+  // The delete states the state of the first revision, so it never saw the
+  // newer text. Accepting it would remove text that the person never read.
   const staleDelete = await revision({
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
     deleted: true,
-    content: await content(''),
+    content: seenOnly(startText),
   });
   const failure = rejected(
     await commitChangeset(
@@ -579,14 +733,14 @@ await test('a stale delete after newer edits is refused', async () => {
       'd-3',
     ),
   );
-  assert.equal(failure.code, 'stale_head');
+  assert.equal(failure.code, 'unseen_work');
   assert.deepEqual(failure.fileIds, [fileId]);
   assert.equal(state.files.get(fileId)?.headRevisionId, newer.id);
   assert.equal(state.files.get(fileId)?.deleted, false);
   assert.equal(state.deletions.length, 0);
 });
 
-await test('a delete on the current head is accepted', async () => {
+await test('a delete of text the device has seen is accepted', async () => {
   const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
@@ -598,7 +752,7 @@ await test('a delete on the current head is accepted', async () => {
     path: 'notes/one.md',
     parents: [first.id],
     deleted: true,
-    content: await content(''),
+    content: seenOnly('# notes/one.md\n'),
   });
   accepted(
     await commitChangeset(
@@ -639,7 +793,7 @@ await test('a stale save after a rename elsewhere keeps the new name', async () 
     fileId,
     path: 'notes/one.md',
     parents: [first.id],
-    content: await content('# later text\n'),
+    content: content('# later text\n'),
   });
   const result = accepted(
     await commitChangeset(
@@ -805,26 +959,23 @@ await test('a narrow grant cannot widen the role', async () => {
   assert.equal(owner.accepted.length, 0);
 });
 
-await test('content that does not match its digest is refused', async () => {
+await test('the accepted text and its digest come from the document', async () => {
+  // A save carries work, not text, so a client can no longer state a digest
+  // that names other bytes. The workspace derives both (record 0081).
   const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
-  const forged = await revision({
+  const written = await revision({
     fileId,
     path: 'notes/one.md',
-    content: {
-      kind: 'markdown',
-      digest: await contentDigest('# other\n'),
-      text: '# one\n',
-    },
+    content: content('# one\n'),
   });
-  const failure = rejected(
-    await commitChangeset(store, actor, changeset([forged]), 'd-1'),
+  const result = accepted(
+    await commitChangeset(store, actor, changeset([written]), 'd-1'),
   );
-  assert.equal(failure.code, 'invalid_content');
-  assert.deepEqual(failure.fileIds, [fileId]);
-  assert.equal(state.accepted.length, 0);
+  assert.equal(state.revisions.get(written.id)?.text, '# one\n');
+  assert.equal(result.revisions[0]?.digest, await contentDigest('# one\n'));
 });
 
 await test('markdown that is not well formed is refused', async () => {
@@ -843,11 +994,7 @@ await test('markdown that is not well formed is refused', async () => {
         await revision({
           fileId,
           path: 'notes/broken.md',
-          content: {
-            kind: 'markdown',
-            digest: await contentDigest(broken),
-            text: broken,
-          },
+          content: content(broken),
         }),
       ]),
       'd-1',
@@ -858,37 +1005,33 @@ await test('markdown that is not well formed is refused', async () => {
   assert.equal(state.accepted.length, 0);
 });
 
-await test('a tombstone that carries markdown is refused', async () => {
+await test('a tombstone stores no text, whatever it carries', async () => {
+  // The document of the note keeps the text, and History keeps the revision
+  // before the tombstone. The tombstone itself adds no bytes, which is what
+  // the quota reserve of a deletion depends on.
   const state = workspaceWith('owner');
   const store = fakeStore(state);
   const actor = actorWith(['read', 'write']);
   const fileId = id('f');
   const first = await revision({ fileId, path: 'notes/one.md' });
   accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
-  // A deletion that carried content would add bytes while it claims to remove
-  // a file, and the quota reserve exists for operations that add nothing.
-  const failure = rejected(
+  const tombstone = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    deleted: true,
+    content: seenOnly('# notes/one.md\n'),
+  });
+  accepted(
     await commitChangeset(
       store,
       actor,
-      changeset(
-        [
-          await revision({
-            fileId,
-            path: 'notes/one.md',
-            parents: [first.id],
-            deleted: true,
-            content: await content('# still here\n'),
-          }),
-        ],
-        { expectedHeads: { [fileId]: first.id } },
-      ),
+      changeset([tombstone], { expectedHeads: { [fileId]: first.id } }),
       'd-2',
     ),
   );
-  assert.equal(failure.code, 'invalid_content');
-  assert.deepEqual(failure.fileIds, [fileId]);
-  assert.equal(state.files.get(fileId)?.deleted, false);
+  assert.equal(state.revisions.get(tombstone.id)?.text, '');
+  assert.equal(state.revisions.get(first.id)?.text, '# notes/one.md\n');
 });
 
 await test('a path outside the rules is refused before any write', async () => {
@@ -936,7 +1079,7 @@ await test('a rename and a content change travel in one revision', async () => {
     fileId,
     path: 'archive/one.md',
     parents: [first.id],
-    content: await content('# moved and edited\n'),
+    content: content('# moved and edited\n'),
   });
   accepted(
     await commitChangeset(
@@ -999,7 +1142,7 @@ await test('a tombstone deletes the file and removes its side records', async ()
             path: 'notes/one.md',
             parents: [first.id],
             deleted: true,
-            content: await content(''),
+            content: seenOnly('# notes/one.md\n'),
           }),
         ],
         { expectedHeads: { [fileId]: first.id } },
@@ -1025,7 +1168,7 @@ await test('side records are removed only when the write succeeded', async () =>
           fileId: id('f'),
           path: 'notes/one.md',
           deleted: true,
-          content: await content(''),
+          content: content(''),
         }),
       ]),
       'd-1',
@@ -1089,4 +1232,109 @@ await test('a second root for an existing file is refused', async () => {
     ),
   );
   assert.equal(failure.code, 'invalid_graph');
+});
+
+await test('a save of another generation is refused', async () => {
+  // Record 0084. Identities of one generation say nothing about another, so
+  // the workspace refuses the save instead of guessing where the work goes.
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const later = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    content: content('# next\n', '# notes/one.md\n', 2),
+  });
+  const failure = rejected(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([later], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+  assert.equal(failure.code, 'epoch_mismatch');
+  assert.deepEqual(failure.fileIds, [fileId]);
+  assert.equal(state.accepted.length, 1);
+});
+
+await test('a save that joins unseen work is marked merged', async () => {
+  // Record 0081. The mark comes from complete observed state: this device had
+  // not seen the text that the workspace holds, so its save joined it.
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const startText = '# notes/one.md\n';
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  const fromAnother = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [first.id],
+    content: content('# from the phone\n', startText),
+  });
+  const seen = accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([fromAnother], { expectedHeads: { [fileId]: first.id } }),
+      'd-2',
+    ),
+  );
+  assert.equal(seen.revisions[0]?.merged, false);
+
+  const offline = await revision({
+    fileId,
+    path: 'notes/one.md',
+    parents: [fromAnother.id],
+    content: content('# from the laptop\n', startText),
+  });
+  const merged = accepted(
+    await commitChangeset(
+      store,
+      actor,
+      changeset([offline], { expectedHeads: { [fileId]: fromAnother.id } }),
+      'd-3',
+    ),
+  );
+  assert.equal(merged.revisions[0]?.merged, true);
+});
+
+await test('a refused update leaves the accepted state unchanged', async () => {
+  const state = workspaceWith('owner');
+  const store = fakeStore(state);
+  const actor = actorWith(['read', 'write']);
+  const fileId = id('f');
+  const first = await revision({ fileId, path: 'notes/one.md' });
+  accepted(await commitChangeset(store, actor, changeset([first]), 'd-1'));
+  documentRefusal = 'document_dependency_missing';
+  try {
+    const failure = rejected(
+      await commitChangeset(
+        store,
+        actor,
+        changeset(
+          [
+            await revision({
+              fileId,
+              path: 'notes/one.md',
+              parents: [first.id],
+            }),
+          ],
+          { expectedHeads: { [fileId]: first.id } },
+        ),
+        'd-2',
+      ),
+    );
+    assert.equal(failure.code, 'document_dependency_missing');
+  } finally {
+    documentRefusal = null;
+  }
+  assert.equal(state.accepted.length, 1);
+  assert.equal(state.files.get(fileId)?.headRevisionId, first.id);
 });

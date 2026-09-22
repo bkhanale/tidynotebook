@@ -12,12 +12,66 @@
  */
 
 /**
- * Immutable content of one revision, addressed by its digest.
+ * The text work of one save of a note (record 0081).
  *
- * Markdown content carries its text. Attachment content carries the identity
- * of a finalized immutable object, never its bytes.
+ * A save carries work, not text. The workspace applies the update to the
+ * document of the note and derives the accepted text from the result, so two
+ * devices that write at the same time keep both edits.
+ *
+ * `observed` is the complete state that the device had seen: the state vector
+ * and the deletion set. It decides whether the save joins unseen work and
+ * whether a deletion would hide an edit that the device never saw. A state
+ * vector alone cannot answer either question, because it does not grow with a
+ * deletion.
+ */
+export type DocumentWork =
+  /** The work of one device, as an update of the document. */
+  | { readonly kind: 'update'; readonly update: Uint8Array }
+  /**
+   * A text that the workspace writes into the document itself. A restore, an
+   * import, and a link rewrite after a move take this form: they edit the
+   * document of the note, so they keep its identities and its history.
+   */
+  | { readonly kind: 'text'; readonly text: string }
+  /** No text work. A deletion states what the device had seen and no more. */
+  | { readonly kind: 'none' };
+
+export type DocumentSave = {
+  readonly work: DocumentWork;
+  readonly epoch: number;
+  /**
+   * The complete state that the device had seen, or null when the workspace
+   * itself writes and therefore has seen everything.
+   */
+  readonly observed: Uint8Array | null;
+};
+
+/**
+ * Immutable content of one revision.
+ *
+ * A note carries document work, and the workspace derives its text and digest
+ * from the accepted document. Attachment content carries the identity of a
+ * finalized immutable object, never its bytes, and keeps its declared digest.
  */
 export type ContentRef =
+  | {
+      readonly kind: 'markdown';
+      readonly document: DocumentSave;
+    }
+  | {
+      readonly kind: 'attachment';
+      readonly digest: string;
+      readonly objectId: string;
+    };
+
+/**
+ * The content of one revision as the workspace stores it.
+ *
+ * A note holds the text that its accepted document derives, with the digest
+ * of that text. The domain never stores the update itself as content: the
+ * document holds the work, and the revision holds what a reader sees.
+ */
+export type StoredContentRef =
   | {
       readonly kind: 'markdown';
       readonly digest: string;
@@ -47,6 +101,26 @@ export type RevisionInput = {
   readonly clientTime: string;
   readonly message: string | null;
   readonly restoredFrom: string | null;
+};
+
+/** One revision with the content that the workspace derived for it. */
+export type StoredRevisionInput = Omit<RevisionInput, 'content'> & {
+  readonly content: StoredContentRef;
+};
+
+/**
+ * The document of one note after an accepted changeset.
+ *
+ * `merged` is true when the save joined work that the device had not seen.
+ * Every device reads that mark in History, and the device that saved keeps
+ * its own checkpoint for Review (record 0087).
+ */
+export type DocumentWrite = {
+  readonly fileId: string;
+  readonly bytes: Uint8Array;
+  readonly epoch: number;
+  readonly state: Uint8Array;
+  readonly merged: boolean;
 };
 
 /**
@@ -84,6 +158,16 @@ export type AcceptedRevision = {
   readonly actorAccountId: string;
   readonly serverTime: string;
   readonly message: string | null;
+  /** The generation of the document, or null for an attachment. */
+  readonly epoch: number | null;
+  /** The complete state of the document, or null for an attachment. */
+  readonly acceptedState: Uint8Array | null;
+  /**
+   * True when this save joined work that the device had not seen. History
+   * marks the revision on every device, and the device that saved keeps its
+   * checkpoint for Review (record 0087).
+   */
+  readonly merged: boolean;
 };
 
 /**
@@ -124,6 +208,18 @@ export type AcceptedChangeset = {
 };
 
 /**
+ * One changeset with everything that the workspace derived from it.
+ *
+ * Storage writes the revisions, the documents, the indexes, the cursor and
+ * the receipt of this value in one savepoint, so an accepted text and the
+ * document it came from can never disagree (record 0081).
+ */
+export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
+  readonly revisions: readonly StoredRevisionInput[];
+  readonly documents: readonly DocumentWrite[];
+};
+
+/**
  * A stable domain failure code.
  *
  * Each code is an expected outcome of a valid request, so a caller can map it
@@ -140,6 +236,20 @@ export type AcceptedChangeset = {
  *
  * `unsupported_version` means that the client asked for a sync protocol
  * version that this server does not serve. The request changes nothing.
+ *
+ * `epoch_mismatch` means that the note holds another generation of its
+ * document, so the identities of the save say nothing about it. The device
+ * reads the current document and saves again.
+ *
+ * `unseen_work` means that a deletion would hide text work that the device
+ * has not seen. An edit wins over Trash in either arrival order, so the
+ * deletion is refused and the device reads the text first (record 0083).
+ *
+ * `document_malformed`, `document_dependency_missing`, `document_unsupported`
+ * and `document_too_large` are the refusals of one update: bytes that are not
+ * an update, work that names an insertion or a deletion the document lacks,
+ * work that writes anything other than the text of the note, and work that
+ * passes a bound. Each leaves the accepted state exactly as it was.
  *
  * `published_link_unavailable` is the one refusal of the reader path of a
  * published link. A link that never existed, a revoked link, an expired link
@@ -171,6 +281,12 @@ export type DomainErrorCode =
   | 'mutation_reused'
   | 'snapshot_required'
   | 'unsupported_version'
+  | 'epoch_mismatch'
+  | 'unseen_work'
+  | 'document_malformed'
+  | 'document_dependency_missing'
+  | 'document_unsupported'
+  | 'document_too_large'
   | 'note_too_large'
   | 'note_too_deep'
   | 'published_link_unavailable'
