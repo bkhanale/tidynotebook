@@ -30,19 +30,14 @@ completion, paste conversion, and the unified diff for History.
   here that reads `--notes-border`, the edge record 0063 keeps for a control
   whose state a person reads with no text. Every other edge of a note is
   `--notes-border-line` or `--notes-border-subtle`.
-- `document-binding.ts` binds a live note document to a view through the
-  private bridge of `packages/note-document`. Only this package reads that
-  bridge and imports `y-codemirror.next` (record 0082).
 - No Markdown grammar lives here. `packages/markdown` owns the language.
   Navigation leaves through injected callbacks, so no route and no endpoint
   lives here either.
 
 ## Allowed imports
 
-`@notesapp/core`, `@notesapp/markdown`, `@notesapp/ui`,
-`@notesapp/note-document` and its `./editor-bridge` entry, plus the CodeMirror
-and Lezer packages, `y-codemirror.next`, and `diff`. Yjs is a type-only import
-here; its values come through the bridge.
+`@notesapp/core`, `@notesapp/markdown`, `@notesapp/ui`, the note document and
+its bridge, the CodeMirror and Lezer packages, `y-codemirror.next`, and `diff`.
 
 This package is browser code. It cannot import a Node built in module, a Node
 only package, or a server only package.
@@ -85,11 +80,12 @@ pattern for a pure module.
 
 ## Key files
 
-| File                   | Purpose                                   |
-| ---------------------- | ----------------------------------------- |
-| `src/index.ts`         | The one public entry point                |
-| `src/create-editor.ts` | Builds one editor instance                |
-| `src/live-preview.ts`  | Tree driven decorations                   |
-| `src/widgets.ts`       | The three allowed block widgets           |
-| `src/editor-theme.ts`  | The typed CodeMirror presentation adapter |
-| `src/keymaps.ts`       | Keymaps and the public `shortcuts` list   |
+| File                      | Purpose                                     |
+| ------------------------- | ------------------------------------------- |
+| `src/index.ts`            | The one public entry point                  |
+| `src/create-editor.ts`    | Builds one editor instance                  |
+| `src/live-preview.ts`     | Tree driven decorations                     |
+| `src/widgets.ts`          | The three allowed block widgets             |
+| `src/editor-theme.ts`     | The typed CodeMirror presentation adapter   |
+| `src/keymaps.ts`          | Keymaps and the public `shortcuts` list     |
+| `src/document-binding.ts` | Binds a live note document to a view (0082) |
