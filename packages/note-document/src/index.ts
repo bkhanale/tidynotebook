@@ -14,6 +14,7 @@ export type {
 } from './document.ts';
 export {
   applyDocumentUpdate,
+  compactDocument,
   documentStateVector,
   encodeDocumentDelta,
   mergeDocumentUpdates,

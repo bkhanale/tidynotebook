@@ -186,3 +186,21 @@ export function applyDocumentUpdate(
     doc.destroy();
   }
 }
+
+/**
+ * Compacts a document or a run of stored updates into one document.
+ *
+ * Record 0084: compaction merges updates and lets Yjs collect the content of
+ * deleted text, and it keeps every character identity and the epoch. An
+ * offline update made against an older state therefore still applies. It is
+ * never a new document started from the current text, so it cannot promise a
+ * fixed size.
+ */
+export function compactDocument(updates: readonly Uint8Array[]): Uint8Array {
+  const doc = new Y.Doc();
+  doc.getText(noteTextRoot);
+  for (const update of updates) Y.applyUpdate(doc, update);
+  const compacted = encodeDocument(doc);
+  doc.destroy();
+  return compacted;
+}
