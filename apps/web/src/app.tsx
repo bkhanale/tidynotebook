@@ -69,6 +69,7 @@ import {
 } from './lib/sync-state.ts';
 import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 import { webLogger } from './logging.ts';
+import { describeStorageFailure } from './pwa/lifecycle.ts';
 import { createSyncSession, type SyncSession } from './pwa/sync-session.ts';
 
 /**
@@ -545,17 +546,9 @@ function useStoreLoader(origin: string): StoreValue {
         if (!cancelled) setStore(opened);
         else await opened.close();
       } catch (failure: unknown) {
-        if (!cancelled) {
-          const detail =
-            failure instanceof Error && failure.cause instanceof Error
-              ? `: ${failure.cause.message}`
-              : '';
-          setError(
-            failure instanceof Error
-              ? `${failure.message}${detail}`
-              : 'Local storage is unavailable.',
-          );
-        }
+        // The person reads one sentence about the cause and what to do, and
+        // never the notice of the storage engine.
+        if (!cancelled) setError(describeStorageFailure(failure));
       }
     }
     void open();
