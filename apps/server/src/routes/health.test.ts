@@ -175,6 +175,62 @@ await test('the drain answer names the address that the caller asked for', async
   }
 });
 
+/** Every text of one answer body, at any depth. */
+function textsOf(value: unknown): readonly string[] {
+  if (typeof value === 'string') return [value];
+  if (Array.isArray(value)) return value.flatMap((item) => textsOf(item));
+  if (value !== null && typeof value === 'object')
+    return Object.values(value).flatMap((item) => textsOf(item));
+  return [];
+}
+
+await test('a caller with no account reads no schema version number', async () => {
+  // The probe addresses take no account (`security: []`), so any caller reads
+  // them. A version number tells that caller which release runs here, so no
+  // text of any answer holds a digit, whatever the state of the schema and
+  // whatever detail the caller asks for.
+  for (const schemaVersion of [
+    null,
+    0,
+    requiredSchemaVersion - 1,
+    requiredSchemaVersion,
+    requiredSchemaVersion + 1,
+  ]) {
+    const probes = databaseProbes(
+      countedRead({ reachable: true, schemaVersion }).read,
+    );
+    for (const url of ['/ready', '/api/ready'])
+      for (const query of [{}, { detail: 'full' }, { detail: 'summary' }]) {
+        const answer = await readinessAnswer(
+          probes,
+          runningLifecycle,
+          request(url, query),
+        );
+        for (const text of textsOf(answer.body))
+          assert.doesNotMatch(
+            text,
+            /\d/,
+            `${url} ${JSON.stringify(query)} at version ${String(schemaVersion)}`,
+          );
+      }
+  }
+});
+
+await test('a full report of an incomplete schema still names the migration', async () => {
+  const report = await evaluateReadiness(
+    databaseProbes(
+      countedRead({
+        reachable: true,
+        schemaVersion: requiredSchemaVersion - 1,
+      }).read,
+    ),
+    'full',
+  );
+  const migration = checkNamed(report, 'migration');
+  assert.equal(migration.status, 'degraded');
+  assert.doesNotMatch(migration.detail ?? '', /\d/);
+});
+
 await test('a summary report drops the detail of every check', async () => {
   const probe: ReadinessProbe = () =>
     Promise.resolve({ name: 'storage', status: 'ok', detail: 'A detail.' });

@@ -171,7 +171,12 @@ export function databaseProbe(read: DatabaseRead): ReadinessProbe {
   };
 }
 
-/** Compares the applied migration count with the version this release needs. */
+/**
+ * Compares the applied migration count with the version this release needs.
+ *
+ * A probe address takes no account, so its detail names no version number: a
+ * number tells any caller which release runs here.
+ */
 export function migrationProbe(read: DatabaseRead): ReadinessProbe {
   return async () => {
     const state = await read();
@@ -191,7 +196,7 @@ export function migrationProbe(read: DatabaseRead): ReadinessProbe {
     return {
       name: 'migration',
       status: 'degraded',
-      detail: `Database schema version ${String(version)} is incomplete; version ${String(requiredSchemaVersion)} is required.`,
+      detail: 'Database schema migrations are incomplete. Run the migrations.',
     };
   };
 }
