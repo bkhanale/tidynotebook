@@ -4,7 +4,7 @@
  * Implements uploadAttachment, finalizeAttachment, and getAttachmentRevision.
  *
  * The upload reads a streamed body, so it carries two bounds that the rest of
- * the boundary does not: the byte bound of `maxAttachmentBytes`, and the idle
+ * the boundary does not: the byte bound of `config.limits.attachmentBytes`, and the idle
  * bound of `plugins/body-idle-timeout.ts`, which refuses a sender that holds
  * the connection while it delivers almost nothing.
  *
@@ -28,6 +28,7 @@ import {
   requestDigest,
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
+import { mebibyte } from '../config.ts';
 import { inspectImage } from '../jobs/inspect-image.ts';
 import { watchBodyIdle } from '../plugins/body-idle-timeout.ts';
 import {
@@ -55,22 +56,25 @@ import {
 } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 
-const maxAttachmentBytes = 20 * 1024 * 1024;
-
 /** The name of a download whose stored path holds none. */
 const fallbackAttachmentName = 'image';
 
 /**
  * Builds the attachment operation handlers.
  *
- * @param uploadIdleTimeoutMs the longest gap between two chunks of an upload
- * body, from `config.limits.uploadIdleTimeoutMs`.
+ * @param limits the largest attachment file, and the longest gap between two
+ * chunks of an upload body, both from `config.limits`.
  */
 export function createAttachmentHandlers(
   workspaceStore: WorkspaceStore,
   attachmentStore: AttachmentStore,
-  uploadIdleTimeoutMs: number,
+  limits: {
+    readonly attachmentBytes: number;
+    readonly uploadIdleTimeoutMs: number;
+  },
 ): HandlerMap {
+  const { attachmentBytes, uploadIdleTimeoutMs } = limits;
+  const tooLarge = `Attachment exceeds ${String(attachmentBytes / mebibyte)} MiB limit.`;
   return {
     uploadAttachment: async (request): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
@@ -115,7 +119,7 @@ export function createAttachmentHandlers(
       const bb = new Busboy({
         headers: { ...request.headers, 'content-type': contentType },
         limits: {
-          fileSize: maxAttachmentBytes,
+          fileSize: attachmentBytes,
           files: 1,
           parts: 10,
         },
@@ -164,19 +168,15 @@ export function createAttachmentHandlers(
 
           fileStream.on('data', (chunk: Buffer) => {
             bytesCount += chunk.length;
-            if (bytesCount > maxAttachmentBytes) {
-              stopWriting(
-                new PayloadTooLargeError('Attachment exceeds 20 MiB limit.'),
-              );
+            if (bytesCount > attachmentBytes) {
+              stopWriting(new PayloadTooLargeError(tooLarge));
               return;
             }
             hasher.update(chunk);
           });
 
           fileStream.on('limit', () => {
-            stopWriting(
-              new PayloadTooLargeError('Attachment exceeds 20 MiB limit.'),
-            );
+            stopWriting(new PayloadTooLargeError(tooLarge));
           });
 
           fileStream.on('error', (err) => {

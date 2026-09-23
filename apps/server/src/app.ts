@@ -409,6 +409,7 @@ export async function createAppWithHandlers(
     options.identity,
     options.protocols ?? [],
     config.rateLimit,
+    config.limits,
   );
   return app;
 }

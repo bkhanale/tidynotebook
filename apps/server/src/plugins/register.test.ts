@@ -10,8 +10,10 @@ import {
   isJsonPayload,
   maxHtmlAnswerBytes,
   mediaTypeHandling,
+  routeBodyLimit,
   toRoutePath,
 } from './register.ts';
+import { loadServerConfig } from '../config.ts';
 
 await test('a path template becomes a Fastify route path', () => {
   assert.equal(toRoutePath('/api/health'), '/api/health');
@@ -335,4 +337,29 @@ await test('an HTML answer that is not bounded text is refused', () => {
     checkHtmlAnswer({ ...document, body: 'a'.repeat(maxHtmlAnswerBytes + 1) }),
     'too_large',
   );
+});
+
+await test('a route that carries a file reads its body bound from the limits', () => {
+  const { limits } = loadServerConfig({
+    NOTESAPP_ORIGIN: 'http://127.0.0.1',
+    NOTESAPP_DATABASE_URL: 'postgres://app:app@127.0.0.1:5432/notesapp',
+    NOTESAPP_AUTH_DATABASE_URL: 'postgres://auth:auth@127.0.0.1:5432/notesapp',
+    NOTESAPP_STORAGE_ROOT: '/var/lib/notesapp',
+    NOTESAPP_AUTH_SECRET: 'register-test-secret-value-0123456789',
+    NOTESAPP_LOG_LEVEL: 'warn',
+    NOTESAPP_MAX_BODY_BYTES: '1048576',
+    NOTESAPP_MAX_HEADER_BYTES: '16384',
+    NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
+  });
+  assert.equal(
+    routeBodyLimit('uploadAttachment', limits),
+    limits.uploadBodyBytes,
+  );
+  assert.equal(
+    routeBodyLimit('importWorkspace', limits),
+    limits.importBodyBytes,
+  );
+  // Every other route takes the bound of the instance, `limits.bodyBytes`.
+  assert.equal(routeBodyLimit('commitChangeset', limits), null);
+  assert.equal(routeBodyLimit('getReadiness', limits), null);
 });

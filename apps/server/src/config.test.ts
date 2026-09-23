@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { ConfigError, loadServerConfig } from './config.ts';
+import { ConfigError, loadServerConfig, mebibyte } from './config.ts';
 
 const valid: Record<string, string> = {
   NOTESAPP_ORIGIN: 'http://127.0.0.1',
@@ -32,6 +32,20 @@ await test('a complete environment produces a configuration', () => {
   assert.equal(config.limits.requestTimeoutMs, 60000);
   assert.equal(config.limits.uploadIdleTimeoutMs, 10000);
   assert.deepEqual(config.rateLimit, { windowSeconds: 60, max: 100 });
+});
+
+await test('every body limit is one field of the limits', () => {
+  // The upload and the import each carry one file in a multipart body, so
+  // each body bound holds its file bound and the room of the form around it.
+  const { limits } = loadServerConfig(valid);
+  assert.equal(limits.attachmentBytes, 20 * mebibyte);
+  assert.equal(limits.archiveBytes, 100 * mebibyte);
+  assert.ok(limits.uploadBodyBytes > limits.attachmentBytes);
+  assert.ok(limits.importBodyBytes > limits.archiveBytes);
+  assert.equal(
+    limits.uploadBodyBytes - limits.attachmentBytes,
+    limits.importBodyBytes - limits.archiveBytes,
+  );
 });
 
 await test('the public route rate limit is explicit and configurable', () => {

@@ -30,10 +30,10 @@ import {
   UnsupportedMediaTypeError,
 } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
+import { mebibyte } from '../config.ts';
 import { readText } from './files.ts';
 import { unzipArchive, type UnzipEntry } from './unzip.ts';
 
-const maxArchiveBytes = 100 * 1024 * 1024;
 const imageTypes = new Map([
   ['.png', 'image/png'],
   ['.jpg', 'image/jpeg'],
@@ -62,6 +62,7 @@ function busboyHeaders(request: FastifyRequest): { 'content-type': string } {
 async function archiveBytes(
   request: FastifyRequest,
   idleMs: number,
+  maxBytes: number,
 ): Promise<Buffer> {
   const parts: Buffer[] = [];
   let size = 0;
@@ -69,7 +70,7 @@ async function archiveBytes(
   let failure: Error | null = null;
   const parser = new Busboy({
     headers: busboyHeaders(request),
-    limits: { fileSize: maxArchiveBytes, files: 1, parts: 5 },
+    limits: { fileSize: maxBytes, files: 1, parts: 5 },
   });
   parser.on('file', (_name, stream) => {
     if (received) {
@@ -79,11 +80,11 @@ async function archiveBytes(
     received = true;
     stream.on('data', (part: Buffer) => {
       size += part.length;
-      if (size <= maxArchiveBytes) parts.push(Buffer.from(part));
+      if (size <= maxBytes) parts.push(Buffer.from(part));
     });
     stream.on('limit', () => {
       failure = new PayloadTooLargeError(
-        'The workspace archive is larger than 100 MiB.',
+        `The workspace archive is larger than ${String(maxBytes / mebibyte)} MiB.`,
       );
       stream.resume();
     });
@@ -263,14 +264,18 @@ async function importNotes(
 /**
  * Builds the portable workspace import handler.
  *
- * @param idleMs the longest gap between two chunks of the archive body, from
- * `config.limits.uploadIdleTimeoutMs`. One bound serves both bodies that this
- * server streams, so a deployment states it once.
+ * @param limits the largest archive, from `config.limits.archiveBytes`, and
+ * the longest gap between two chunks of the archive body, from
+ * `config.limits.uploadIdleTimeoutMs`. One idle bound serves both bodies that
+ * this server streams, so a deployment states it once.
  */
 export function createImportHandlers(
   store: WorkspaceStore,
   attachments: AttachmentStore,
-  idleMs: number,
+  limits: {
+    readonly archiveBytes: number;
+    readonly uploadIdleTimeoutMs: number;
+  },
 ): HandlerMap {
   return {
     importWorkspace: async (request): Promise<HandlerResult> => {
@@ -283,7 +288,13 @@ export function createImportHandlers(
         throw new ForbiddenError();
       let entries: readonly UnzipEntry[];
       try {
-        entries = unzipArchive(await archiveBytes(request, idleMs));
+        entries = unzipArchive(
+          await archiveBytes(
+            request,
+            limits.uploadIdleTimeoutMs,
+            limits.archiveBytes,
+          ),
+        );
       } catch (error) {
         // A body that is too large and a body that stopped are answers of
         // their own. Only an archive that arrived whole and cannot be read is

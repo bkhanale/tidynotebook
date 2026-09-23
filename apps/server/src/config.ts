@@ -91,9 +91,26 @@ export type ServerConfig = {
   readonly trustedProxies: readonly string[];
   /** Level of the structured log. `silent` disables logging. */
   readonly logLevel: LogLevel;
-  /** Request limits applied before a handler runs. */
+  /**
+   * Request limits applied before a handler runs.
+   *
+   * This is the one place that names a body limit. `bodyBytes` covers every
+   * route, and the operator sets it. The upload and the import carry one file
+   * each, so their bounds are fixed: the file bound, and a body bound that is
+   * the file bound plus `multipartEnvelopeBytes`. `plugins/register.ts` gives
+   * each route its body bound, and the two handlers read their file bound
+   * here.
+   */
   readonly limits: {
     readonly bodyBytes: number;
+    /** The largest attachment file of one upload. */
+    readonly attachmentBytes: number;
+    /** The largest body of one upload. */
+    readonly uploadBodyBytes: number;
+    /** The largest workspace archive of one import. */
+    readonly archiveBytes: number;
+    /** The largest body of one import. */
+    readonly importBodyBytes: number;
     readonly headerBytes: number;
     /**
      * The total receive bound of every request.
@@ -269,6 +286,24 @@ const defaultShutdownDeadlineMs = 20000;
  * the upload route itself would have refused.
  */
 const defaultUploadIdleTimeoutMs = 10000;
+
+/** One mebibyte, the unit of the file bounds below and of their messages. */
+export const mebibyte = 1024 * 1024;
+
+/** The largest attachment file of one upload. */
+const attachmentBytes = 20 * mebibyte;
+
+/** The largest workspace archive of one import. */
+const archiveBytes = 100 * mebibyte;
+
+/**
+ * The room that a multipart body takes around its one file.
+ *
+ * The boundary lines, the part headers, and the small fields of the form sit
+ * beside the file in the same body. The handler still refuses a file past its
+ * own bound, so this room only keeps the body bound from firing first.
+ */
+const multipartEnvelopeBytes = 5 * mebibyte;
 
 /**
  * The listening socket of a deployment that names no value of its own.
@@ -459,6 +494,10 @@ export function loadServerConfig(
       : 'info',
     limits: {
       bodyBytes: Number(raw.NOTESAPP_MAX_BODY_BYTES),
+      attachmentBytes,
+      uploadBodyBytes: attachmentBytes + multipartEnvelopeBytes,
+      archiveBytes,
+      importBodyBytes: archiveBytes + multipartEnvelopeBytes,
       headerBytes: Number(raw.NOTESAPP_MAX_HEADER_BYTES),
       requestTimeoutMs,
       uploadIdleTimeoutMs,

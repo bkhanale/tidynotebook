@@ -501,6 +501,27 @@ function throttleGroup(id: OperationId): string | null {
   return null;
 }
 
+/** The body bounds of the routes that carry a file, from `config.limits`. */
+export type RouteBodyLimits = {
+  readonly uploadBodyBytes: number;
+  readonly importBodyBytes: number;
+};
+
+/**
+ * The body bound of one operation, or `null` for the bound of the instance.
+ *
+ * `config.limits` names every value. The instance bound of `app.ts` covers
+ * every route that this function does not name.
+ */
+export function routeBodyLimit(
+  id: string,
+  limits: RouteBodyLimits,
+): number | null {
+  if (id === 'uploadAttachment') return limits.uploadBodyBytes;
+  if (id === 'importWorkspace') return limits.importBodyBytes;
+  return null;
+}
+
 // Replies whose response validation already failed. The failure reply is built
 // by this server, so validating it a second time would only risk a loop.
 const validationFailed = new WeakSet<FastifyReply>();
@@ -514,12 +535,13 @@ const validationFailed = new WeakSet<FastifyReply>();
 export function registerOperations(
   app: FastifyInstance,
   handlers: HandlerMap,
-  identity?: IdentityResolver,
-  protocols: readonly ProtocolAdapter[] = [],
+  identity: IdentityResolver | undefined,
+  protocols: readonly ProtocolAdapter[],
   rateLimit: {
     readonly windowSeconds: number;
     readonly max: number;
-  } = { windowSeconds: 60, max: 100 },
+  },
+  limits: RouteBodyLimits,
 ): void {
   checkRegistration(
     operations,
@@ -691,6 +713,7 @@ export function registerOperations(
     const handler = handlers[operation.id];
     if (handler === undefined)
       throw new Error(`Operation ${operation.id} has no handler.`);
+    const bodyLimit = routeBodyLimit(operation.id, limits);
     app.route({
       method: routeMethods[operation.method],
       url: toRoutePath(operation.path),
@@ -706,15 +729,7 @@ export function registerOperations(
               },
             }),
       },
-      ...(operation.id === 'uploadAttachment' ||
-      operation.id === 'importWorkspace'
-        ? {
-            bodyLimit:
-              operation.id === 'importWorkspace'
-                ? 105 * 1024 * 1024
-                : 25 * 1024 * 1024,
-          }
-        : {}),
+      ...(bodyLimit === null ? {} : { bodyLimit }),
       schema,
       handler: async (request, reply) => {
         const result = await handler(request, reply);
