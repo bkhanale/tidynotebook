@@ -28,9 +28,7 @@ function local(extra: Partial<LocalFileSummary> = {}): LocalFileSummary {
 }
 
 await test('local file state adds, renames, and deletes navigation entries', () => {
-  assert.deepEqual(mergeFileSummaries([remote], [local()]), [
-    { ...remote, updatedAt: '2026-09-07T10:01:00.000Z' },
-  ]);
+  assert.deepEqual(mergeFileSummaries([remote], [local()]), [remote]);
   assert.equal(
     mergeFileSummaries(
       [remote],
@@ -107,5 +105,25 @@ await test('newer accepted local metadata wins over a stale remote listing', () 
       [local()],
     )[0]?.path,
     'remote-rename.md',
+  );
+});
+
+await test('a note keeps the instant it was saved, not the instant it arrived', () => {
+  // A snapshot writes every note of this device at one instant. The listing
+  // names the same revision and states when it was saved, so every note read
+  // "just now" after each snapshot until this rule.
+  const arrived = local({ updatedAt: '2026-09-23T07:08:27.295Z' });
+  assert.equal(
+    mergeFileSummaries([remote], [arrived])[0]?.updatedAt,
+    remote.updatedAt,
+  );
+  // Unsent work of this device is newer than the listing, so its instant
+  // stays.
+  assert.equal(
+    mergeFileSummaries(
+      [remote],
+      [local({ ...arrived, localHeadRevisionId: 'revision-b' })],
+    )[0]?.updatedAt,
+    '2026-09-23T07:08:27.295Z',
   );
 });

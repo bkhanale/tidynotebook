@@ -676,6 +676,7 @@ function createOperations(
           text: sent.data.text,
           document: sent.data.document,
           epoch: sent.data.epoch,
+          serverTime: sent.data.serverTime,
         },
       };
     },

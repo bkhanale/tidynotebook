@@ -54,6 +54,8 @@ export type RevisionData = {
   readonly document: string | null;
   /** The generation of that document, or `null`. */
   readonly epoch: number | null;
+  /** When the server accepted the revision, or `null` when unknown. */
+  readonly serverTime: string | null;
 };
 
 /**
@@ -241,6 +243,7 @@ async function fullSnapshot(
       document:
         revision.document === null ? null : bytesOfBase64(revision.document),
       epoch: revision.epoch,
+      serverTime: revision.serverTime,
     });
   }
   try {

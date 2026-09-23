@@ -1420,6 +1420,7 @@ await test('the first pull stages, fetches, and activates a snapshot', async () 
           // device stores as it is (record 0081).
           document: 'AAEC',
           epoch: 1,
+          serverTime: '2026-09-06T10:00:00.000Z',
         },
       });
     },
@@ -1771,6 +1772,7 @@ await test('a purged revision mid-download restarts the snapshot once', async ()
           text: '# A\n',
           document: 'AAEC',
           epoch: 1,
+          serverTime: '2026-09-06T10:00:00.000Z',
         },
       });
     },

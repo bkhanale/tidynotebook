@@ -90,6 +90,18 @@ export function mergeFileSummaries(
       continue;
     }
     const accepted = merged.get(file.fileId);
+    // The listing and this device describe the same accepted revision, and
+    // nothing of this device waits to be sent. The listing then states when
+    // that revision was saved, while the local row states only when this
+    // device received it, which a snapshot sets to one instant for every
+    // note. The saved instant is the one a person reads.
+    if (
+      accepted !== undefined &&
+      !file.localOnly &&
+      file.localHeadRevisionId === file.acceptedHeadRevisionId &&
+      file.acceptedHeadRevisionId === accepted.headRevisionId
+    )
+      continue;
     const localTimestamp = Date.parse(file.updatedAt);
     const remoteTimestamp =
       accepted === undefined

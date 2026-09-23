@@ -279,6 +279,7 @@ export function validateSnapshotItem(value: unknown): SnapshotItemRow {
     storedAt: text(row, 'storedAt', 'snapshot item'),
     document: addedBytes(row, 'document', 'snapshot item'),
     epoch: addedCount(row, 'epoch', 'snapshot item'),
+    serverTime: addedText(row, 'serverTime', 'snapshot item'),
   };
 }
 

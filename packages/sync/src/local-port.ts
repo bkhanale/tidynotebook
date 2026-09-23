@@ -384,6 +384,12 @@ export type SnapshotRevision = {
   readonly document: Uint8Array | null;
   /** The generation of that document, or `null` for an attachment. */
   readonly epoch: number | null;
+  /**
+   * When the server accepted the revision, or `null` when the answer did not
+   * state it. The file keeps this instant, so a snapshot does not make every
+   * note read as changed when it arrived.
+   */
+  readonly serverTime: string | null;
 };
 
 /** The document of one note on this device, with its generation. */

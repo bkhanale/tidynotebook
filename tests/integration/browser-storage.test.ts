@@ -1369,6 +1369,7 @@ await test('snapshot activation and clearing publish committed invalidations', a
     text,
     document: startDocument(text),
     epoch: 1,
+    serverTime: null,
   });
   await store.activateSnapshot('snapshot-token');
   assert.deepEqual(changes, [`file:${file}`, 'cursor:all']);
@@ -2086,6 +2087,7 @@ await test('a fresh snapshot forgets a purged note but keeps unsent local work',
     text,
     document: startDocument(text),
     epoch: 1,
+    serverTime: null,
   });
   await store.activateSnapshot('token');
 
@@ -3044,6 +3046,44 @@ await test('a deletion of release 0.4 over text it never saw leaves the note', a
     assert.deepEqual(await store.pending(account, workspace), []);
     assert.deepEqual(await store.legacySaves(account, workspace), []);
     assert.deepEqual(await store.recover(account, workspace), []);
+  } finally {
+    await store.close();
+  }
+});
+
+await test('a snapshot keeps the instant each note was saved', async () => {
+  // A snapshot used to write every note at the instant it arrived, so every
+  // note read "just now" on a device that had just downloaded the workspace.
+  const backend = createBackend('snapshot-saved-instant');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  const text = '# Written last week\n';
+  try {
+    await store.stageSnapshot(
+      account,
+      workspace,
+      'token-saved',
+      ['rev-1'],
+      '7',
+    );
+    await store.storeSnapshotRevision(account, workspace, {
+      token: 'token-saved',
+      revisionId: 'rev-1',
+      fileId: file,
+      path: 'notes/last-week.md',
+      kind: 'note',
+      deleted: false,
+      digest: await contentDigest(text),
+      text,
+      document: startDocument(text),
+      epoch: 1,
+      serverTime: '2026-09-16T08:30:00.000Z',
+    });
+    await store.activateSnapshot('token-saved');
+    const [listed] = await store.listLocalFiles(account, workspace);
+    assert.equal(listed?.updatedAt, '2026-09-16T08:30:00.000Z');
   } finally {
     await store.close();
   }

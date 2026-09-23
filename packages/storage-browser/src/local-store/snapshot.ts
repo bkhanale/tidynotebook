@@ -235,6 +235,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               storedAt: nowIso(),
               document: revision.document,
               epoch: revision.epoch,
+              serverTime: revision.serverTime,
             };
             await tables.snapshotItems.put(item);
           },
@@ -374,7 +375,9 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
                   acceptedHeadRevisionId: item.revisionId,
                   acceptedHeadDigest: item.digest,
                   localHeadRevisionId: item.revisionId,
-                  updatedAt: nowIso(),
+                  // The file changed when the server accepted this revision,
+                  // not when this device received it.
+                  updatedAt: item.serverTime ?? nowIso(),
                 });
                 await dropSettledDrafts(
                   accountId,
