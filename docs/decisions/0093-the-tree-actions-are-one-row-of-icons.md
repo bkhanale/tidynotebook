@@ -23,7 +23,9 @@ control with a `label` and a title.
 - Sort notes is a menu of six alternatives, and the one in force is
   `selected`: Name, from A to Z or from Z to A. Date created, the newest or
   the oldest first. Date updated, the newest or the oldest first. Each
-  direction is its own row, so one select sets the whole order.
+  direction is its own row, so one select sets the whole order. The two rows
+  of one fact are one menu `group`, and the subtle hairline of the raised
+  surface separates the three groups (record 0063).
   `apps/web/src/lib/note-order.ts` holds the orders in one table, the
   comparison of each one and the parse of the stored value.
 - The order applies to the notes inside each folder of the tree. A folder has

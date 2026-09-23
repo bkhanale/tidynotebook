@@ -47,8 +47,8 @@ Node only package, no server only package.
   recipe: add it to `control-classes.ts` and prove it in its test.
 - **An icon.** Add it in `src/icons.tsx` inside `IconFrame`, draw it on the 24
   grid with no attribute of its own, export it, and delete an unused one.
-- **A menu.** `label` names the trigger even when it shows text, a menu of
-  alternatives sets `selected`, and an unbounded list pins its create action.
+- **A menu.** `label` names any trigger. Alternatives set `selected`, a set of
+  rows names a `group`, and an unbounded list pins its create action.
 
 ## Testing conventions here
 

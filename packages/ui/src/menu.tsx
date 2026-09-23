@@ -14,7 +14,10 @@
  * surface is a raised plane: the card fill, the subtle edge and the overlay
  * step (decisions 0052 and 0063). `hint` is the quiet value on the right of a
  * row, such as the theme that is in force; a keyboard hint is a key cap from
- * `kbdClassName` and the screen that owns the keys draws it.
+ * `kbdClassName` and the screen that owns the keys draws it. A row can name a
+ * `group`, and the subtle hairline of the raised surface separates one group
+ * from the next, as it separates the pinned rows; `./menu-groups.ts` decides
+ * where it goes.
  *
  * The list is put at the end of the document and placed on the screen, not
  * laid out beside the trigger. A trigger can stand in a box that scrolls, and
@@ -27,6 +30,7 @@
  * [decision 0058](../../../docs/decisions/0058-an-overlay-is-placed-on-the-screen.md).
  */
 import {
+  Fragment,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -40,6 +44,7 @@ import {
   compactButtonVisualClassName,
   rowClassName,
 } from './control-classes.ts';
+import { startsGroup } from './menu-groups.ts';
 import { transitionRaise } from './motion.ts';
 import { placeOverlay } from './overlay-position.ts';
 
@@ -63,8 +68,19 @@ export type MenuItem = {
    * hears which one is open before they move off it.
    */
   readonly selected?: boolean | undefined;
+  /**
+   * The set this row belongs to. Rows of one group sit together, and a
+   * hairline separates one group from the next.
+   */
+  readonly group?: string | undefined;
   readonly onSelect: () => void;
 };
+
+/**
+ * The one hairline inside a menu: between two groups of rows, and above the
+ * pinned rows. It is the subtle edge of a raised surface (decision 0063).
+ */
+const menuDividerClassName = 'border-t border-edge-subtle';
 
 /** Where the menu opens relative to its trigger. */
 export type MenuAlign = 'start' | 'end';
@@ -382,17 +398,20 @@ export function Menu({
               }}
             >
               <div className="min-h-0 flex-1 overflow-y-auto">
-                {items.map((item) => (
-                  <MenuRow
-                    key={item.id}
-                    item={item}
-                    choosing={choosing}
-                    onRun={run}
-                  />
+                {items.map((item, index) => (
+                  <Fragment key={item.id}>
+                    {startsGroup(items, index) ? (
+                      <div
+                        role="separator"
+                        className={`my-1 ${menuDividerClassName}`}
+                      />
+                    ) : null}
+                    <MenuRow item={item} choosing={choosing} onRun={run} />
+                  </Fragment>
                 ))}
               </div>
               {pinned.length === 0 ? null : (
-                <div className="mt-1 shrink-0 border-t border-edge-subtle pt-1">
+                <div className={`mt-1 shrink-0 pt-1 ${menuDividerClassName}`}>
                   {pinned.map((item) => (
                     <MenuRow
                       key={item.id}

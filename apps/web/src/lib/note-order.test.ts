@@ -117,6 +117,13 @@ await test('a stored order is read back', () => {
   for (const order of noteOrders) assert.equal(parseNoteOrder(order), order);
 });
 
+await test('the two directions of one fact share one menu group', () => {
+  assert.deepEqual(
+    noteOrders.map((order) => noteOrderLabel(order).group),
+    ['name', 'name', 'created', 'created', 'updated', 'updated'],
+  );
+});
+
 await test('an unknown or missing stored order falls back to the name', () => {
   assert.equal(defaultNoteOrder, 'name-ascending');
   assert.equal(parseNoteOrder(null), 'name-ascending');

@@ -90,13 +90,17 @@ export const defaultNoteOrder: NoteOrder = 'name-ascending';
 /** The local settings key of the order. One choice for every workspace. */
 export const noteOrderStorageKey = 'notesapp.note-order';
 
-/** What the menu row of one order reads: its name and its direction. */
+/**
+ * What the menu row of one order reads: its name and its direction, and the
+ * group of the fact it compares, so the menu separates the three facts.
+ */
 export function noteOrderLabel(order: NoteOrder): {
   readonly label: string;
   readonly hint: string;
+  readonly group: string;
 } {
-  const { label, hint } = noteOrderRules[order];
-  return { label, hint };
+  const { field, label, hint } = noteOrderRules[order];
+  return { label, hint, group: field };
 }
 
 /** Tells whether a value is one of the orders. */
