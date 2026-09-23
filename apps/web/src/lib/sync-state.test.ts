@@ -5,6 +5,7 @@ import {
   startingSyncState,
   syncDot,
   syncDotClassName,
+  syncFooter,
   syncNeedsAttention,
   syncStateFileId,
   syncStateMessage,
@@ -218,5 +219,51 @@ await test('a save that passed a newer head is not a message of its own', () => 
       path: 'plans/roadmap.md',
     }),
     null,
+  );
+});
+
+await test('a failed local write of the open note takes the footer', () => {
+  // Sync reports that the server holds every save it saw, but the text of
+  // the open note never reached local storage, so that line would be false.
+  const footer = syncFooter({
+    state: { kind: 'in-step' },
+    online: true,
+    noteName: null,
+    openNoteWriteFailed: true,
+  });
+  assert.equal(footer.dot, 'attention');
+  assert.doesNotMatch(footer.line, /Everything is saved/);
+  assert.match(footer.line, /not saved/);
+  // The failure outranks a lost connection too, because the connection only
+  // delays work that is safe on the device.
+  assert.deepEqual(
+    syncFooter({
+      state: { kind: 'waiting' },
+      online: false,
+      noteName: null,
+      openNoteWriteFailed: true,
+    }),
+    footer,
+  );
+});
+
+await test('the footer states sync while local writes succeed', () => {
+  assert.deepEqual(
+    syncFooter({
+      state: { kind: 'in-step' },
+      online: true,
+      noteName: null,
+      openNoteWriteFailed: false,
+    }),
+    { line: 'Everything is saved to the server.', dot: 'saved' },
+  );
+  assert.deepEqual(
+    syncFooter({
+      state: { kind: 'in-step' },
+      online: false,
+      noteName: null,
+      openNoteWriteFailed: false,
+    }),
+    { line: 'No connection. Your notes stay on this device.', dot: 'pending' },
   );
 });

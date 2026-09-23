@@ -47,4 +47,9 @@ export type NoteSaveFacts = {
   readonly state: SaveState;
   /** Text is typed but no version was created from it yet. */
   readonly hasUnsavedEdits: boolean;
+  /**
+   * A write to local storage failed, so the typed text is only in this tab.
+   * `lib/local-write.ts` decides it.
+   */
+  readonly localWriteFailed: boolean;
 };

@@ -59,6 +59,10 @@ import {
   type NoteScreenActions,
 } from './note-actions.tsx';
 import { noteFrameClassName } from '../../lib/note-column.ts';
+import {
+  localWriteFailed,
+  localWriteFailureMessage,
+} from '../../lib/local-write.ts';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
@@ -925,9 +929,13 @@ function NoteEditorBody({
   useBlockUnsafeReload(draftPending || storageError !== null);
   const hasUnsavedEdits =
     draftPending || (saveSnapshot?.hasUncheckpointedDraft ?? false);
+  // The note saves itself, so this is the one place that states a failed
+  // local write, and the sidebar footer stops claiming that it is saved.
+  const writeFailure = localWriteFailureMessage(storageError);
   usePublishNoteSave({
     state: saveState,
     hasUnsavedEdits,
+    localWriteFailed: localWriteFailed(storageError),
     lastSavedAt,
   });
 
@@ -1266,6 +1274,11 @@ function NoteEditorBody({
         {pathError === '' ? null : (
           <div className="mt-4" id={noteNameErrorId(fileId)}>
             <Notice tone="problem" message={pathError} />
+          </div>
+        )}
+        {writeFailure === null ? null : (
+          <div className="mt-4">
+            <Notice tone="problem" message={writeFailure} />
           </div>
         )}
         {editorNotice === '' ? null : (

@@ -204,3 +204,37 @@ export function syncDotClassName(dot: SyncDot): string {
         : 'bg-muted';
   return `size-1.5 shrink-0 rounded-full ${fill}`;
 }
+
+/** What the sidebar footer shows: one sentence and one dot. */
+export type SyncFooter = {
+  readonly line: string;
+  readonly dot: SyncDot;
+};
+
+/**
+ * The sentence and the dot of the sidebar footer.
+ *
+ * Sync only knows about work that reached local storage. When a write of the
+ * open note to local storage fails, the typed text is only in this tab, so a
+ * line that reads that everything is saved would be false. That failure then
+ * takes the footer, and the note itself states the cause and the step that
+ * helps, so the footer only points at it.
+ */
+export function syncFooter(input: {
+  readonly state: SyncState;
+  readonly online: boolean;
+  readonly noteName: string | null;
+  readonly openNoteWriteFailed: boolean;
+}): SyncFooter {
+  if (input.openNoteWriteFailed)
+    return {
+      line: 'The open note is not saved.',
+      dot: 'attention',
+    };
+  return {
+    line: input.online
+      ? syncStateMessage(input.state, input.noteName)
+      : 'No connection. Your notes stay on this device.',
+    dot: syncDot(input.state, input.online),
+  };
+}

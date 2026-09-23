@@ -2,9 +2,9 @@
  * The save state channel of the open note.
  *
  * The note screen publishes what it knows about the open note through
- * `NoteSaveScope`. Its own Save button reports the result, so the person
- * reads it on the control they pressed. The shell reads the same channel
- * for the facts it needs about the open note. The note screen keeps
+ * `NoteSaveScope`. The note saves itself, so no control reports the result;
+ * the note states a failed local write itself (`lib/local-write.ts`). The
+ * shell reads the same channel for the facts it needs about the open note. The note screen keeps
  * `data-save-state` on its root, so automation reads the note state without
  * reading copy and only one element carries it.
  */
@@ -100,13 +100,13 @@ export function useRegisterNoteDraftFlush(flush: () => Promise<void>): void {
 /** Publishes the save facts of the open note while that screen is mounted. */
 export function usePublishNoteSave(report: NoteSaveReport): void {
   const { publish } = useContext(NoteSaveContext);
-  const { state, hasUnsavedEdits, lastSavedAt } = report;
+  const { state, hasUnsavedEdits, localWriteFailed, lastSavedAt } = report;
   useEffect(() => {
-    publish({ state, hasUnsavedEdits, lastSavedAt });
+    publish({ state, hasUnsavedEdits, localWriteFailed, lastSavedAt });
     return () => {
       publish(null);
     };
-  }, [publish, state, hasUnsavedEdits, lastSavedAt]);
+  }, [publish, state, hasUnsavedEdits, localWriteFailed, lastSavedAt]);
 }
 
 /**

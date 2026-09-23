@@ -17,7 +17,7 @@ import {
 } from 'react';
 import { createAttachmentLoader } from '../../lib/attachment-content.ts';
 import { extractAttachmentRefs } from '@notesapp/markdown';
-import type { LocalStore } from '@notesapp/sync';
+import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 
 /** Attachment revision references in stored Markdown. */
 const attachmentReferencePattern = /\/attachments\/([0-9a-fA-F-]{36})/g;
@@ -100,7 +100,15 @@ export function useAttachmentUrls(
     const controller = new AbortController();
     void (async (): Promise<void> => {
       const references = extractAttachmentRefs(bufferText, notePath);
-      const files = await store.listLocalFiles(accountId, workspaceId);
+      let files: readonly LocalFileSummary[];
+      try {
+        files = await store.listLocalFiles(accountId, workspaceId);
+      } catch {
+        // A read of local storage that fails keeps the pictures that are
+        // shown. The write of the same keystroke fails too, and the note
+        // states that failure once (`lib/local-write.ts`).
+        return;
+      }
       if (cancelled) return;
       const wanted = references.flatMap((reference) => {
         if (reference.revisionId !== null)

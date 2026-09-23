@@ -21,7 +21,7 @@ import {
 } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router';
 import { getFile } from '@notesapp/api-client';
-import type { LocalStore } from '@notesapp/sync';
+import type { LocalFileSummary, LocalStore } from '@notesapp/sync';
 import type { LinkTarget } from '@notesapp/editor';
 import { LoadingState, Notice, pageGutter } from '@notesapp/ui';
 import { problemMessage } from '../../app.tsx';
@@ -396,10 +396,18 @@ export function NoteEditorLoader({
           }
           if (action.kind === 'note-path') {
             void (async (): Promise<void> => {
-              const files = await activeStore.listLocalFiles(
-                accountId,
-                workspaceId,
-              );
+              let files: readonly LocalFileSummary[];
+              try {
+                files = await activeStore.listLocalFiles(
+                  accountId,
+                  workspaceId,
+                );
+              } catch {
+                // The link stays where it is and the note stays open. When
+                // local storage stopped, the write of the note fails too, and
+                // the note states that cause once (`lib/local-write.ts`).
+                return;
+              }
               const found = files.find(
                 (file) =>
                   file.kind === 'note' &&

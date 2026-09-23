@@ -166,11 +166,7 @@ import {
 } from './header-slot.tsx';
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
-import {
-  syncDot,
-  syncDotClassName,
-  syncStateMessage,
-} from '../lib/sync-state.ts';
+import { syncDotClassName, syncFooter } from '../lib/sync-state.ts';
 import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   breadcrumbKey,
@@ -697,10 +693,16 @@ function Sidebar({
   const publishedPath = `/w/${workspaceId}/published`;
   const attentionPath = `/w/${workspaceId}/attention`;
   // One short sentence for the state of the work, beside the dot that states
-  // the same thing without a word.
-  const syncLine = online
-    ? syncStateMessage(sync.state, sync.noteName)
-    : 'No connection. Your notes stay on this device.';
+  // the same thing without a word. A failed local write of the open note
+  // takes both, because sync never saw that text.
+  const openNote = useNoteSave();
+  const footer = syncFooter({
+    state: sync.state,
+    online,
+    noteName: sync.noteName,
+    openNoteWriteFailed: openNote?.localWriteFailed ?? false,
+  });
+  const syncLine = footer.line;
   const navigate = useNavigate();
   const { announce } = useDeleteNotice();
   const requestSync = useRequestSync();
@@ -962,10 +964,7 @@ function Sidebar({
 
       <div className="border-t border-edge-subtle p-2">
         <div className={rowClassName({ interactive: false })}>
-          <span
-            className={syncDotClassName(syncDot(sync.state, online))}
-            aria-hidden="true"
-          />
+          <span className={syncDotClassName(footer.dot)} aria-hidden="true" />
           <span className="min-w-0 flex-1 truncate text-muted" title={syncLine}>
             {syncLine}
           </span>
