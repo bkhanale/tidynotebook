@@ -1161,6 +1161,71 @@ await test('a restore reaches the device that asked for it', async () => {
   }
 });
 
+await test('a note that another device makes reads its text here', async () => {
+  // Device B synced before the note existed, so the note reaches it through
+  // the ordered feed and not through a snapshot. The first record of a new
+  // note is the work that started it, and B holds no document to apply it to.
+  const storeA = await openStore('made-a', 'device-made-a');
+  const storeB = await openStore('made-b', 'device-made-b');
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-made-a-pull');
+    await syncPull(storeB, ownerCookie, 'engine-made-b-pull');
+    const fileId = randomUUID();
+    await checkpointText(
+      storeA,
+      draftOf(
+        ownerAccountId,
+        'working-made-a',
+        fileId,
+        null,
+        '# Made on A\n\nFirst line.\n',
+        'notes/made-on-a.md',
+        1,
+      ),
+    );
+    const runA = startEngine(storeA, ownerCookie, 'engine-made-a');
+    try {
+      await waitFor(
+        async () => (await queuedOf(storeA)).length === 0,
+        'device A sends the new note',
+      );
+    } finally {
+      await stopEngine(runA);
+    }
+
+    const runB = startEngine(storeB, ownerCookie, 'engine-made-b');
+    try {
+      await waitFor(
+        async () =>
+          (await storeB.readCachedNote(ownerAccountId, workspaceId, fileId)) !==
+          null,
+        'device B reads the new note',
+      );
+    } finally {
+      await stopEngine(runB);
+    }
+    const cached = await storeB.readCachedNote(
+      ownerAccountId,
+      workspaceId,
+      fileId,
+    );
+    assert.equal(cached?.text, '# Made on A\n\nFirst line.\n');
+    const document = await storeB.readNoteDocument(
+      ownerAccountId,
+      workspaceId,
+      fileId,
+    );
+    assert.ok(document !== null, 'device B holds the document of the note');
+    assert.equal(
+      readDocumentText(document.bytes),
+      '# Made on A\n\nFirst line.\n',
+    );
+  } finally {
+    await storeA.close();
+    await storeB.close();
+  }
+});
+
 // Teardown
 await server.close();
 await auth.close();

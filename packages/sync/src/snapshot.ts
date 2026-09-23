@@ -300,12 +300,21 @@ async function fetchAndApply(
     if (purgedFileIds.has(pointer.fileId)) continue;
     files.push({ file: pointer, purgedFileId: null });
   }
-  await local.applyRemoteChanges(
-    accountId,
-    workspaceId,
-    files,
-    fed.value.nextCursor,
-  );
+  try {
+    await local.applyRemoteChanges(
+      accountId,
+      workspaceId,
+      files,
+      fed.value.nextCursor,
+    );
+  } catch (error: unknown) {
+    // Accepted work that does not fit the document this device holds cannot
+    // be repaired from the feed, which states only the work. The transaction
+    // wrote nothing, and a snapshot carries the whole document of every note.
+    if (error instanceof LocalStorageError && error.kind === 'stale')
+      throw new SnapshotRestartNeeded('document-gap');
+    throw error;
+  }
   const fileCount = files.filter(
     (change) => change.file !== null || change.purgedFileId !== null,
   ).length;

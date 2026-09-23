@@ -147,20 +147,25 @@ export async function applyServerWork(
   work: ServerDocumentWork,
 ): Promise<{ readonly row: DocumentRow; readonly text: string }> {
   const current = await readDocumentRow(tables, key);
-  if (work.kind === 'document' || current === null || current.epoch !== epoch) {
-    // A whole document replaces what this device holds, and so does work of
-    // another generation: identities of one generation say nothing about
-    // another, so the two cannot be merged.
-    const bytes = work.kind === 'document' ? work.document : startDocument('');
+  if (work.kind === 'document') {
+    // A whole document replaces what this device holds.
     const row: DocumentRow = {
       ...key,
-      bytes,
+      bytes: work.document,
       epoch,
-      appliedVector: documentStateVector(bytes),
+      appliedVector: documentStateVector(work.document),
     };
-    return { row, text: readDocumentText(bytes) };
+    return { row, text: readDocumentText(work.document) };
   }
-  const applied = applyDocumentUpdate(current.bytes, work.update);
+  // Work of another generation cannot join what this device holds, because
+  // identities of one generation say nothing about another. Such work, and
+  // the work of a note that this device holds no document for, applies to an
+  // empty document. The first work of a new note starts from nothing, so it
+  // applies whole. Any other work lacks what it depends on and is refused, so
+  // the caller reads a snapshot instead of keeping an empty note.
+  const joined = current === null || current.epoch !== epoch ? null : current;
+  const empty = startDocument('');
+  const applied = applyDocumentUpdate(joined?.bytes ?? empty, work.update);
   if (!applied.ok)
     throw new LocalStorageError(
       'stale',
@@ -173,7 +178,7 @@ export async function applyServerWork(
     // Only the accepted work moves the state this device believes the server
     // has. The unsent work of this device stays unsent (record 0085).
     appliedVector: mergeStateVectors(
-      current.appliedVector,
+      joined?.appliedVector ?? documentStateVector(empty),
       documentStateVector(work.update),
     ),
   };
