@@ -38,7 +38,7 @@ keeps its shape, and the note scrolls sideways to reach the last column.
 
 ## Ordered lists
 
-An ordered list shows numbers, a list inside it shows the letters A, B, C,
+An ordered list shows numbers, a list inside it shows the letters a, b, c,
 and the next list inside shows the numerals i, ii, iii. Below that level the
 three styles start again. The note keeps plain numbers in the source, so the
 file reads the same in any other Markdown tool. You see the number of the

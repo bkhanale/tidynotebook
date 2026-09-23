@@ -21,7 +21,8 @@ widget kinds.
 
 - An ordered item shows the value that CommonMark gives it: the start of its
   list plus its place in the list. The style follows the number of ordered
-  lists around it, in the cycle decimal, upper alpha, lower roman.
+  lists around it, in the cycle decimal, lower alpha, lower roman, which
+  is the cycle of Notion.
   `packages/markdown/src/ordered-markers.ts` holds the cycle and the label,
   and both readers of a note read it.
 - The live preview draws that label in place of the written marker, as it

@@ -12,10 +12,10 @@ await test('the styles cycle from the outer list inward', () => {
     [0, 1, 2, 3, 4, 5, 6].map((level) => orderedMarkerStyle(level)),
     [
       'decimal',
-      'upper-alpha',
+      'lower-alpha',
       'lower-roman',
       'decimal',
-      'upper-alpha',
+      'lower-alpha',
       'lower-roman',
       'decimal',
     ],
@@ -27,16 +27,16 @@ await test('each level labels the first items in its own style', () => {
   const labels = (level: number): readonly string[] =>
     [1, 2, 3, 4].map((value) => orderedMarkerLabel(value, level));
   assert.deepEqual(labels(0), ['1.', '2.', '3.', '4.']);
-  assert.deepEqual(labels(1), ['A.', 'B.', 'C.', 'D.']);
+  assert.deepEqual(labels(1), ['a.', 'b.', 'c.', 'd.']);
   assert.deepEqual(labels(2), ['i.', 'ii.', 'iii.', 'iv.']);
   assert.deepEqual(labels(3), ['1.', '2.', '3.', '4.']);
 });
 
 await test('an alphabetic label continues past Z as CSS counts it', () => {
-  assert.equal(orderedMarkerLabel(26, 1), 'Z.');
-  assert.equal(orderedMarkerLabel(27, 1), 'AA.');
-  assert.equal(orderedMarkerLabel(52, 1), 'AZ.');
-  assert.equal(orderedMarkerLabel(703, 1), 'AAA.');
+  assert.equal(orderedMarkerLabel(26, 1), 'z.');
+  assert.equal(orderedMarkerLabel(27, 1), 'aa.');
+  assert.equal(orderedMarkerLabel(52, 1), 'az.');
+  assert.equal(orderedMarkerLabel(703, 1), 'aaa.');
 });
 
 await test('a roman label writes the subtractive forms', () => {

@@ -221,7 +221,7 @@
    * what the live preview draws. Tailwind names decimal itself, so the two
    * other styles of the cycle are the two values here.
    */
-  --list-style-type-upper-alpha: upper-alpha;
+  --list-style-type-lower-alpha: lower-alpha;
   --list-style-type-lower-roman: lower-roman;
 
   --text-note: 1rem;

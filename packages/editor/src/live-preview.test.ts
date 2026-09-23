@@ -315,19 +315,19 @@ await test('an ordered marker shows the style of its depth', () => {
   ].join('\n');
   assert.deepEqual(orderedLabels(doc), [
     '1.',
-    'A.',
+    'a.',
     'i.',
     '1.',
-    'A.',
+    'a.',
     'ii.',
-    'B.',
+    'b.',
     '2.',
   ]);
 });
 
 await test('a bullet list between two ordered lists does not count as a level', () => {
   const doc = '1. one\n   - bullet\n     1. inner\n';
-  assert.deepEqual(orderedLabels(doc), ['1.', 'A.']);
+  assert.deepEqual(orderedLabels(doc), ['1.', 'a.']);
 });
 
 await test('an ordered item shows the value a reader gives it', () => {
@@ -346,7 +346,7 @@ await test('an ordered item shows the value a reader gives it', () => {
   // a list that interrupts the text of its item.
   assert.deepEqual(
     orderedLabels('2. two\n   1. inner\n   1. next\n3. three\n'),
-    ['2.', 'A.', 'B.', '3.'],
+    ['2.', 'a.', 'b.', '3.'],
   );
 });
 

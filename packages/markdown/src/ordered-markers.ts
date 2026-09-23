@@ -5,8 +5,9 @@
  * file stays portable. A reader shows each item by its value, which is the
  * start of its list plus its place in the list, and by a style that follows
  * the number of ordered lists around it. The styles cycle so that a list and
- * the list inside it never look the same: decimal, then upper alpha, then
- * lower roman, then decimal again.
+ * the list inside it never look the same: decimal, then lower alpha, then
+ * lower roman, then decimal again. This is the cycle that Notion draws and
+ * that most Markdown editors follow, so a note reads the same way here.
  *
  * The names are the CSS list style names, so the published page draws the
  * same cycle with the stylesheet, and the live preview draws it with the
@@ -18,7 +19,7 @@
 /** The ordered styles, from the outer list inward. */
 export const orderedMarkerStyles = [
   'decimal',
-  'upper-alpha',
+  'lower-alpha',
   'lower-roman',
 ] as const;
 
@@ -39,13 +40,13 @@ export function orderedMarkerStyle(level: number): OrderedMarkerStyle {
   return orderedMarkerStyles[index] ?? 'decimal';
 }
 
-/** The letters of an alphabetic value, as CSS counts them: A to Z, then AA. */
+/** The letters of an alphabetic value, as CSS counts them: a to z, then aa. */
 function alphabetic(value: number): string {
   let rest = value;
   let text = '';
   while (rest > 0) {
     const digit = (rest - 1) % 26;
-    text = String.fromCharCode(65 + digit) + text;
+    text = String.fromCharCode(97 + digit) + text;
     rest = Math.floor((rest - 1) / 26);
   }
   return text;
@@ -87,7 +88,7 @@ function roman(value: number): string {
 export function orderedMarkerLabel(value: number, level: number): string {
   const style = orderedMarkerStyle(level);
   const whole = Math.trunc(value);
-  if (style === 'upper-alpha' && whole >= 1) return `${alphabetic(whole)}.`;
+  if (style === 'lower-alpha' && whole >= 1) return `${alphabetic(whole)}.`;
   if (style === 'lower-roman' && whole >= 1 && whole <= 3999)
     return `${roman(whole)}.`;
   return `${String(whole)}.`;
