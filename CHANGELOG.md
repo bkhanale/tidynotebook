@@ -5,6 +5,27 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 - 2026-09-23
+
+This minor release keeps the work of every device. Two people who write the
+same note at the same time now keep both texts, and the note you have open
+takes the work of the other device while you write.
+
+### Added
+
+- **Both texts stay.** A save carries the work you did, not the whole note. A
+  note that two devices wrote at the same time keeps the text of both, and
+  History marks the version that joined them.
+- The note you have open takes the work of another device as it arrives. Your
+  place in the text stays where it is, and your own undo stays your own.
+- A note that you edit after another device moved it to Trash comes back with
+  your text.
+
+### Changed
+
+- A deletion never hides text that you have not read. Notesapp refuses it and
+  states that the note holds newer work.
+
 ## 0.4.0 - 2026-09-22
 
 This minor release makes an update safe for every open tab, and it tells you
