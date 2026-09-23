@@ -412,6 +412,34 @@ await test('the marker line of an item is one row of a lead and a body', () => {
   }
 });
 
+await test('a drawn marker at the start of a line sits inside the lead', () => {
+  // The defect this covers: a top level ordered label starts where the lead
+  // starts, and a lead that was not inclusive at its start sorted after the
+  // widget, so the label stood outside the lead cell and broke over two
+  // lines. The browser draws what the order of the set states.
+  for (const doc of ['1. one\n', '- one\n']) {
+    const state = stateOf(doc);
+    const built = buildPreview(state, [{ from: 0, to: state.doc.length }], {
+      from: state.doc.length,
+      to: state.doc.length,
+    });
+    const starts: string[] = [];
+    for (
+      const cursor = built.decorations.iter();
+      cursor.value !== null;
+      cursor.next()
+    ) {
+      if (cursor.from !== 0) continue;
+      const spec: unknown = cursor.value.spec;
+      starts.push(specWidget(spec) ?? specClass(spec) ?? 'hide');
+    }
+    const lead = starts.indexOf('cm-np-list-lead');
+    const widget = starts.findIndex((name) => name.endsWith('Widget'));
+    assert.ok(lead !== -1 && widget !== -1, `${doc} lost a decoration`);
+    assert.ok(lead < widget, `${doc} draws its marker outside the lead`);
+  }
+});
+
 await test('a nested item takes its own source indentation into the lead', () => {
   // The lead takes the width of what it holds, so the indentation of a nested
   // item belongs inside it. This is what keeps the alignment right at every

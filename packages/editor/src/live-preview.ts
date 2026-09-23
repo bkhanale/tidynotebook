@@ -636,7 +636,18 @@ export function buildPreview(
     )
       content += 1;
     lineClass(line.from, line.from, 'cm-np-list-line');
-    mark(line.from, content, 'cm-np-list-lead');
+    // A drawn marker at the start of the line starts where the lead starts.
+    // A mark that is not inclusive at its start sorts after a widget at the
+    // same position, so CodeMirror drew the widget outside the lead cell, the
+    // lead collapsed, and a label such as `1.` broke over two lines. An
+    // inclusive start keeps the drawn marker inside the lead.
+    if (content > line.from)
+      items.push(
+        Decoration.mark({
+          class: 'cm-np-list-lead',
+          inclusiveStart: true,
+        }).range(line.from, content),
+      );
     mark(content, line.to, 'cm-np-list-body');
   };
 
