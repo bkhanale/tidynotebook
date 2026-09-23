@@ -20,13 +20,15 @@ folders or Collapse all folders. The row replaces the New note row and the
 Folders label. The row is always visible, and each action is a compact ghost
 control with a `label` and a title.
 
-- Sort notes is a menu of three alternatives, and the one in force is
-  `selected`: Name, from A to Z. Date created, the newest first. Date updated,
-  the newest first. `apps/web/src/lib/note-order.ts` holds the orders, the
+- Sort notes is a menu of six alternatives, and the one in force is
+  `selected`: Name, from A to Z or from Z to A. Date created, the newest or
+  the oldest first. Date updated, the newest or the oldest first. Each
+  direction is its own row, so one select sets the whole order.
+  `apps/web/src/lib/note-order.ts` holds the orders in one table, the
   comparison of each one and the parse of the stored value.
 - The order applies to the notes inside each folder of the tree. A folder has
-  no date, so folders stay first and in name order. The All notes page keeps
-  its groups by recency.
+  no date, so folders stay first and in name order from A to Z, in every
+  order. The All notes page keeps its groups by recency.
 - The order is a device choice, like the width of record 0035 and the open
   folders. It is stored in browser settings, it is one choice for every
   workspace, and it never reaches the account.

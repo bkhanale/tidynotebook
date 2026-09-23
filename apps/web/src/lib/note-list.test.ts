@@ -128,7 +128,7 @@ await test('the tree sorts folders and notes in alphabet order without case', ()
       note('d', 'work/two.md', '2026-01-01T00:00:00Z'),
     ],
     [],
-    'name',
+    'name-ascending',
   );
   assert.deepEqual(namesOf(tree), ['work', 'Zoo', 'apple.md', 'Banana.md']);
 });
@@ -153,20 +153,35 @@ await test('the tree sorts the notes of each folder in the chosen order', () => 
     assert.ok(plans?.kind === 'folder');
     return namesOf(plans.children);
   };
-  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'name')), [
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'name-ascending')), [
     'mid.md',
     'new.md',
     'old.md',
   ]);
-  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'created')), [
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'name-descending')), [
+    'old.md',
+    'new.md',
+    'mid.md',
+  ]);
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'created-descending')), [
     'new.md',
     'mid.md',
     'old.md',
   ]);
-  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'updated')), [
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'created-ascending')), [
     'old.md',
     'mid.md',
     'new.md',
+  ]);
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'updated-descending')), [
+    'old.md',
+    'mid.md',
+    'new.md',
+  ]);
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'updated-ascending')), [
+    'new.md',
+    'mid.md',
+    'old.md',
   ]);
 });
 
@@ -178,9 +193,23 @@ await test('a date order keeps the folders first and in name order', () => {
       note('c', 'alpha/two.md', '2026-01-02T00:00:00Z'),
     ],
     ['Beta'],
-    'updated',
+    'updated-ascending',
   );
   assert.deepEqual(namesOf(tree), ['alpha', 'Beta', 'zoo', 'loose.md']);
+});
+
+await test('the Z to A order reverses the notes and not the folders', () => {
+  const tree = buildNoteTree(
+    [
+      note('a', 'apple.md', '2026-01-01T00:00:00Z'),
+      note('b', 'Banana.md', '2026-01-01T00:00:00Z'),
+      note('c', 'zoo/one.md', '2026-01-01T00:00:00Z'),
+      note('d', 'alpha/two.md', '2026-01-01T00:00:00Z'),
+    ],
+    [],
+    'name-descending',
+  );
+  assert.deepEqual(namesOf(tree), ['alpha', 'zoo', 'Banana.md', 'apple.md']);
 });
 
 await test('a folder with no note still reaches the tree', () => {

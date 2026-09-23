@@ -111,7 +111,7 @@ import {
   folderExpansion,
   folderExpansionLabels,
 } from '../lib/folder-expansion.ts';
-import { noteOrderLabels, noteOrders } from '../lib/note-order.ts';
+import { noteOrderLabel, noteOrders } from '../lib/note-order.ts';
 import {
   NewFolderDialog,
   RenameFolderDialog,
@@ -840,8 +840,7 @@ function Sidebar({
             align="start"
             items={noteOrders.map((order) => ({
               id: order,
-              label: noteOrderLabels[order].label,
-              hint: noteOrderLabels[order].hint,
+              ...noteOrderLabel(order),
               selected: order === noteOrder.order,
               onSelect: () => noteOrder.setOrder(order),
             }))}

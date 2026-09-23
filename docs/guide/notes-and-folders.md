@@ -45,12 +45,14 @@ after a note delete.
 
 Select **Sort notes** above the tree and select an order:
 
-- **Name** puts the notes in alphabet order, from A to Z.
-- **Date created** puts the newest note first.
-- **Date updated** puts the note that you changed last first.
+- **Name, A to Z** and **Name, Z to A** put the notes in alphabet order.
+- **Date created, Newest first** and **Date created, Oldest first** use the
+  time you made each note.
+- **Date updated, Newest first** and **Date updated, Oldest first** use the
+  time you last changed each note.
 
 The order applies to the notes in each folder. Folders stay above the notes,
-in alphabet order. This device keeps your order until you select another one.
+in alphabet order from A to Z. This device keeps your order until you select another one.
 
 ## Move and rename
 

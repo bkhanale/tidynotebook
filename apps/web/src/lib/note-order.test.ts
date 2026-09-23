@@ -5,7 +5,7 @@ import {
   compareNames,
   compareNotes,
   defaultNoteOrder,
-  noteOrderLabels,
+  noteOrderLabel,
   noteOrders,
   parseNoteOrder,
 } from './note-order.ts';
@@ -33,10 +33,18 @@ const notes = [
 ];
 
 await test('the name order is the alphabet without case', () => {
-  assert.deepEqual(paths([...notes].sort(compareNotes('name'))), [
+  assert.deepEqual(paths([...notes].sort(compareNotes('name-ascending'))), [
     'Apple.md',
     'banana.md',
     'cherry.md',
+  ]);
+});
+
+await test('the reverse name order runs from Z to A', () => {
+  assert.deepEqual(paths([...notes].sort(compareNotes('name-descending'))), [
+    'cherry.md',
+    'banana.md',
+    'Apple.md',
   ]);
 });
 
@@ -50,31 +58,48 @@ await test('two names that differ in case keep one fixed order', () => {
   assert.equal(compareNames('note', 'note'), 0);
 });
 
-await test('the date created order puts the newest note first', () => {
-  assert.deepEqual(paths([...notes].sort(compareNotes('created'))), [
+await test('the date created order can put the newest note first', () => {
+  assert.deepEqual(paths([...notes].sort(compareNotes('created-descending'))), [
     'banana.md',
     'cherry.md',
     'Apple.md',
   ]);
 });
 
-await test('the date updated order puts the newest change first', () => {
-  assert.deepEqual(paths([...notes].sort(compareNotes('updated'))), [
+await test('the date created order can put the oldest note first', () => {
+  assert.deepEqual(paths([...notes].sort(compareNotes('created-ascending'))), [
     'Apple.md',
     'cherry.md',
     'banana.md',
   ]);
 });
 
-await test('two notes of one instant take the name order', () => {
+await test('the date updated order can put the newest change first', () => {
+  assert.deepEqual(paths([...notes].sort(compareNotes('updated-descending'))), [
+    'Apple.md',
+    'cherry.md',
+    'banana.md',
+  ]);
+});
+
+await test('the date updated order can put the oldest change first', () => {
+  assert.deepEqual(paths([...notes].sort(compareNotes('updated-ascending'))), [
+    'banana.md',
+    'cherry.md',
+    'Apple.md',
+  ]);
+});
+
+await test('two notes of one instant take the name order in both directions', () => {
   const same = [
     note('b.md', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
     note('a.md', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ];
-  assert.deepEqual(paths([...same].sort(compareNotes('updated'))), [
-    'a.md',
-    'b.md',
-  ]);
+  for (const order of ['updated-descending', 'updated-ascending'] as const)
+    assert.deepEqual(paths([...same].sort(compareNotes(order))), [
+      'a.md',
+      'b.md',
+    ]);
 });
 
 await test('a note with a bad instant goes last in a date order', () => {
@@ -82,7 +107,7 @@ await test('a note with a bad instant goes last in a date order', () => {
     note('bad.md', 'not a date', 'not a date'),
     note('good.md', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'),
   ];
-  assert.deepEqual(paths([...mixed].sort(compareNotes('created'))), [
+  assert.deepEqual(paths([...mixed].sort(compareNotes('created-descending'))), [
     'good.md',
     'bad.md',
   ]);
@@ -93,15 +118,26 @@ await test('a stored order is read back', () => {
 });
 
 await test('an unknown or missing stored order falls back to the name', () => {
-  assert.equal(defaultNoteOrder, 'name');
-  assert.equal(parseNoteOrder(null), 'name');
-  assert.equal(parseNoteOrder('size'), 'name');
-  assert.equal(parseNoteOrder(''), 'name');
+  assert.equal(defaultNoteOrder, 'name-ascending');
+  assert.equal(parseNoteOrder(null), 'name-ascending');
+  assert.equal(parseNoteOrder('size'), 'name-ascending');
+  assert.equal(parseNoteOrder('name'), 'name-ascending');
+  assert.equal(parseNoteOrder(''), 'name-ascending');
 });
 
-await test('every order has a label and a direction', () => {
-  for (const order of noteOrders) {
-    assert.notEqual(noteOrderLabels[order].label, '');
-    assert.notEqual(noteOrderLabels[order].hint, '');
-  }
+await test('the menu offers each fact in both directions', () => {
+  assert.deepEqual(
+    noteOrders.map((order) => {
+      const { label, hint } = noteOrderLabel(order);
+      return `${label}, ${hint}`;
+    }),
+    [
+      'Name, A to Z',
+      'Name, Z to A',
+      'Date created, Newest first',
+      'Date created, Oldest first',
+      'Date updated, Newest first',
+      'Date updated, Oldest first',
+    ],
+  );
 });
