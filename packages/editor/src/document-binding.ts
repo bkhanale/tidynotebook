@@ -20,7 +20,12 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
 import {
+  encodeDocumentDelta,
   mergeDocumentUpdates,
+  openDocumentSession,
+  readDocumentText,
+  replaceDocumentText,
+  startDocument,
   type DocumentResult,
   type DocumentSession,
 } from '@notesapp/note-document';
@@ -138,5 +143,61 @@ export function bindDocument(session: DocumentSession): DocumentBinding {
         }
       }),
     ],
+  };
+}
+
+/** One open note, joined to one view, as a screen uses it. */
+export type BoundNote = {
+  /** The extensions that join the view to the document. */
+  readonly extension: Extension;
+  /** The text of the note now, which is the text of the view. */
+  text(): string;
+  /**
+   * Joins the document that this device stores into the open note.
+   *
+   * The screen calls this when the store reports a change. Only the work the
+   * open note lacks is applied, so a call that brings nothing new changes
+   * nothing.
+   */
+  join(stored: Uint8Array): void;
+  /** Runs on every change of the person, with the work that it added. */
+  onLocalWork(listener: (update: Uint8Array) => void): () => void;
+  /** Releases the binding and ends the note. Every later call throws. */
+  release(): void;
+};
+
+/**
+ * Opens one note for editing, from the document that this device stores.
+ *
+ * `text` is the text the screen shows. A device whose stored document does
+ * not hold that text yet, because an earlier release kept a text draft, gets
+ * the difference as local work, so nothing a person wrote is lost.
+ */
+export function openBoundNote(
+  stored: Uint8Array | null,
+  text: string,
+): BoundNote {
+  const bytes = stored ?? startDocument('');
+  const written =
+    readDocumentText(bytes) === text ? null : replaceDocumentText(bytes, text);
+  const session = openDocumentSession(
+    written !== null && written.ok ? written.value.document : bytes,
+  );
+  const binding = bindDocument(session);
+  return {
+    extension: binding.extension,
+    text: () => session.text(),
+    join(document: Uint8Array): void {
+      binding.applyRemote(encodeDocumentDelta(document, session.stateVector()));
+    },
+    onLocalWork(listener: (update: Uint8Array) => void): () => void {
+      return session.subscribe((change) => {
+        if (change.origin === 'local') listener(change.update);
+      });
+    },
+    release(): void {
+      binding.release();
+      session.destroy();
+    },
   };
 }

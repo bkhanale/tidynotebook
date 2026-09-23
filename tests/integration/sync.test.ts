@@ -37,6 +37,12 @@ import {
 } from '@notesapp/api-client';
 import { contentDigest } from '@notesapp/core';
 import {
+  documentStateVector,
+  encodeDocumentDelta,
+  readDocumentText,
+  replaceDocumentText,
+} from '@notesapp/note-document';
+import {
   bootstrapOwner,
   createAuth,
   createAuthPool,
@@ -1006,6 +1012,113 @@ await test('a save over work it never saw joins it and offers Review', async () 
     );
   } finally {
     await storeA.close();
+  }
+});
+
+await test('an open note keeps the work that arrives while it is edited', async () => {
+  // The screen binds the open note to its document (records 0081, 0082), so
+  // the text a person edits and the text of the note are one value. Work of
+  // another device joins the open editor, and the save that follows carries
+  // only the work of this device.
+  const file = await newFile('notes/open.md', '# Base\n');
+  const store = await openStore('open-a', 'device-open-a');
+  try {
+    await syncPull(store, ownerCookie, 'engine-open-a-pull');
+
+    // The person types. The editor writes that work into the document of
+    // this device at once, and no version is created yet.
+    const held = await store.readNoteDocument(
+      ownerAccountId,
+      workspaceId,
+      file.fileId,
+    );
+    assert.ok(held !== null, 'the pull must leave a document of the note');
+    const typed = replaceDocumentText(held.bytes, '# Base\nMine\n');
+    if (!typed.ok)
+      throw new Error(`the document refused the text: ${typed.refusal}`);
+    await store.mergeNoteWork(
+      ownerAccountId,
+      workspaceId,
+      file.fileId,
+      encodeDocumentDelta(
+        typed.value.document,
+        documentStateVector(held.bytes),
+      ),
+    );
+
+    // Another device writes the note while the editor stays open.
+    const elsewhere = await updateFile({
+      headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
+      path: { workspaceId, fileId: file.fileId },
+      body: {
+        document: await saveForHead(
+          workspaceId,
+          file.revisionId,
+          '# Base\nTheirs\n',
+        ),
+        revisionId: randomUUID(),
+        mutationId: randomUUID(),
+        deviceId: 'device-elsewhere',
+      },
+    });
+    assert.equal(elsewhere.error, undefined, JSON.stringify(elsewhere.error));
+
+    const feed = startEngine(store, ownerCookie, 'engine-open-a-feed');
+    try {
+      await waitFor(async () => {
+        const seen = await store.readFileSaveSnapshot(
+          ownerAccountId,
+          workspaceId,
+          file.fileId,
+        );
+        return seen.acceptedHeadRevisionId !== file.revisionId;
+      }, 'the open device reads the work of the other device');
+    } finally {
+      await stopEngine(feed);
+    }
+
+    // The open document now holds both texts, which is what the person reads.
+    const joined = await store.readNoteDocument(
+      ownerAccountId,
+      workspaceId,
+      file.fileId,
+    );
+    const onScreen = readDocumentText(joined?.bytes ?? new Uint8Array());
+    assert.ok(onScreen.includes('Mine'), onScreen);
+    assert.ok(onScreen.includes('Theirs'), onScreen);
+
+    // The save that follows sends the work of this device and nothing else,
+    // so the note on the server keeps both texts.
+    await checkpointText(
+      store,
+      draftOf(
+        ownerAccountId,
+        'working-open-a',
+        file.fileId,
+        file.revisionId,
+        onScreen,
+        'notes/open.md',
+        1,
+      ),
+    );
+    const run = startEngine(store, ownerCookie, 'engine-open-a');
+    try {
+      await waitFor(
+        async () => (await queuedOf(store)).length === 0,
+        'the open device drains its save',
+      );
+    } finally {
+      await stopEngine(run);
+    }
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    const text = live.data?.head?.text ?? '';
+    assert.ok(text.includes('Mine'), text);
+    assert.ok(text.includes('Theirs'), text);
+  } finally {
+    await store.close();
   }
 });
 

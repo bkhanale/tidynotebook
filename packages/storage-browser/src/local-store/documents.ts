@@ -16,6 +16,7 @@ import {
   applyDocumentUpdate,
   documentStateVector,
   encodeDocumentDelta,
+  mergeStateVectors,
   observeDocument,
   readDocumentText,
   replaceDocumentText,
@@ -169,7 +170,12 @@ export async function applyServerWork(
     ...key,
     bytes: applied.value.document,
     epoch,
-    appliedVector: documentStateVector(applied.value.document),
+    // Only the accepted work moves the state this device believes the server
+    // has. The unsent work of this device stays unsent (record 0085).
+    appliedVector: mergeStateVectors(
+      current.appliedVector,
+      documentStateVector(work.update),
+    ),
   };
   return { row, text: applied.value.text };
 }

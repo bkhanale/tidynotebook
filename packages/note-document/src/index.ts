@@ -18,6 +18,7 @@ export {
   documentStateVector,
   encodeDocumentDelta,
   mergeDocumentUpdates,
+  mergeStateVectors,
   noteTextRoot,
   readDocumentText,
   replaceDocumentText,

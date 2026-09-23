@@ -98,6 +98,8 @@ export {
 } from './widgets.ts';
 export {
   bindDocument,
+  openBoundNote,
+  type BoundNote,
   isRemoteChange,
   remoteWorkGate,
   type DocumentBinding,

@@ -25,13 +25,6 @@ import { finalizeAttachment, uploadAttachment } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { classifyUrl, portableRelativePath } from '@notesapp/markdown';
 import {
-  encodeDocumentDelta,
-  openDocumentSession,
-  readDocumentText,
-  replaceDocumentText,
-  startDocument,
-} from '@notesapp/note-document';
-import {
   isLocalStorageError,
   saveCheckpointMessage,
   type Draft,
@@ -41,8 +34,8 @@ import {
   type QueueEntry,
 } from '@notesapp/sync';
 import {
-  bindDocument,
   createEditor,
+  openBoundNote,
   setEditorRich,
   setEditorTheme,
   setNoteLinkSource,
@@ -262,17 +255,10 @@ function NoteEditorBody({
   // are one value (records 0081, 0082). A stored draft that the document does
   // not hold yet becomes local work of this device, so nothing is lost while
   // a device moves from a text draft to a document.
-  const liveDocument = useMemo(() => {
-    const bytes = initialDocument ?? startDocument('');
-    const written =
-      readDocumentText(bytes) === initialText
-        ? null
-        : replaceDocumentText(bytes, initialText);
-    const session = openDocumentSession(
-      written !== null && written.ok ? written.value.document : bytes,
-    );
-    return { session, binding: bindDocument(session) };
-  }, [initialDocument, initialText]);
+  const liveDocument = useMemo(
+    () => openBoundNote(initialDocument, initialText),
+    [initialDocument, initialText],
+  );
   const sessionRef = useRef(liveDocument);
   sessionRef.current = liveDocument;
   const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
@@ -433,11 +419,7 @@ function NoteEditorBody({
         current.fileId,
       );
       if (stored === null) return;
-      const missing = encodeDocumentDelta(
-        stored.bytes,
-        bound.session.stateVector(),
-      );
-      bound.binding.applyRemote(missing);
+      bound.join(stored.bytes);
     } catch {
       // A read that fails leaves the open document exactly as it is. The
       // next change of the store asks again.
@@ -755,7 +737,7 @@ function NoteEditorBody({
         },
         theme: themeRef.current,
         rich: richResolvers,
-        document: bound.binding,
+        document: bound,
         // Work of another device is not input of this device: the screen
         // shows it and schedules no save of its own (record 0085).
         onRemoteChange: (text) => {
@@ -772,7 +754,6 @@ function NoteEditorBody({
       viewRef.current = null;
       activeNote.current.register(null);
       view.destroy();
-      bound.binding.release();
     };
   }, [workingCopyId, documentWork]);
 
@@ -782,15 +763,14 @@ function NoteEditorBody({
   // path that follows sends exactly the work this device added.
   useEffect(() => {
     const bound = sessionRef.current;
-    const stop = bound.session.subscribe((change) => {
-      if (change.origin !== 'local') return;
+    const stop = bound.onLocalWork((update) => {
       const current = live.current;
       void current.store
         .mergeNoteWork(
           current.accountId,
           current.workspaceId,
           current.fileId,
-          change.update,
+          update,
         )
         .catch(() => {
           // A failed local write is reported by the draft write that follows
@@ -799,7 +779,7 @@ function NoteEditorBody({
     });
     return () => {
       stop();
-      bound.session.destroy();
+      bound.release();
     };
   }, [workingCopyId]);
 

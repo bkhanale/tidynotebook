@@ -97,6 +97,24 @@ export function encodeDocumentDelta(
   return Y.diffUpdate(document, stateVector);
 }
 
+/**
+ * The state vector that names the work of both, clock by clock.
+ *
+ * A device advances the state it believes the server has only by the work
+ * that the server accepted (record 0085). Reading the whole vector of the
+ * merged document would name the unsent work of this device as well, and the
+ * next save would then send nothing.
+ */
+export function mergeStateVectors(
+  one: Uint8Array,
+  other: Uint8Array,
+): Uint8Array {
+  const merged = new Map(Y.decodeStateVector(one));
+  for (const [client, clock] of Y.decodeStateVector(other))
+    merged.set(client, Math.max(merged.get(client) ?? 0, clock));
+  return Y.encodeStateVector(merged);
+}
+
 /** Merges several updates into one without loading a document. */
 export function mergeDocumentUpdates(
   updates: readonly Uint8Array[],

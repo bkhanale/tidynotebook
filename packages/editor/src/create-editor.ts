@@ -26,7 +26,13 @@ import {
   type EditorNavigation,
   type LinkTarget,
 } from './commands.ts';
-import { isRemoteChange, type DocumentBinding } from './document-binding.ts';
+import { isRemoteChange } from './document-binding.ts';
+
+/**
+ * What a bound editor needs of the open note: its extensions and nothing
+ * else. The screen holds the note itself.
+ */
+type BoundEditorDocument = { readonly extension: Extension };
 import { editorCommands } from './extensions.ts';
 import { editorTheme } from './editor-theme.ts';
 import { noteMarkdownExtensions } from './language.ts';
@@ -60,7 +66,7 @@ export type CreateEditorOptions = {
    * editor, which History and a diff use, leaves this absent and keeps the
    * CodeMirror history. `initialText` must state the text the binding holds.
    */
-  readonly document?: DocumentBinding | undefined;
+  readonly document?: BoundEditorDocument | undefined;
   /**
    * The text after work that came from the document rather than the person.
    *
