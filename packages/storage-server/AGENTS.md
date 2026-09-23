@@ -67,6 +67,8 @@ as well as the result: `row-access.test.ts` is the pattern.
 - No schema change without a migration file and a raised
   `requiredSchemaVersion`, and no edit of an applied migration.
 - No superuser and no `BYPASSRLS` on the migration role, and no browser import.
+- No `new pg.Pool` outside `src/pool.ts`. `openPool` keeps the error listener
+  of an idle client and waits for every socket on `end()` (0090).
 
 ## Key files
 
@@ -76,5 +78,6 @@ as well as the result: `row-access.test.ts` is the pattern.
 | `src/workspace-store/index.ts`       | The store and its per-context repositories |
 | `src/workspace-store/transaction.ts` | The transaction unit of work               |
 | `src/migrate.ts`                     | Migration run and `requiredSchemaVersion`  |
+| `src/pool.ts`                        | The one factory of a connection pool       |
 | `migrations/0000_initial.sql`        | The base schema, roles, and policies       |
 | `migrations/meta/_journal.json`      | The applied order and the version count    |

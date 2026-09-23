@@ -119,6 +119,7 @@ and needs no record.
 | [0087](0087-review-keeps-the-checkpoint-that-caused-it.md)                    | Review keeps the checkpoint that caused it                                      |
 | [0088](0088-an-earlier-browser-store-upgrades-through-placement.md)           | An earlier browser store upgrades through placement                             |
 | [0089](0089-an-ordered-item-shows-its-place-and-keeps-its-number.md)          | An ordered item shows its place and keeps its number                            |
+| [0090](0090-every-connection-pool-comes-from-one-factory.md)                  | Every connection pool comes from one factory                                    |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -310,3 +311,8 @@ receipts separate from applied state. Record 0086 requires compatibility before
 the new format and one complete application landing. Record 0087 binds Review
 to the checkpoint that caused it. These are target decisions; the plan stays
 active until the implementation and its release evidence are complete.
+
+Record 0090 makes one factory the only place that opens a connection pool,
+because a pool with no error listener stopped the process when the database
+ended an idle connection, and a pool that ended before its sockets closed made
+a test teardown fail.

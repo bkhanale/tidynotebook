@@ -12,6 +12,7 @@ import type { Readable } from 'node:stream';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
+import { openPool } from './pool.ts';
 import type {
   Actor,
   AttachmentMediaType,
@@ -172,7 +173,7 @@ export function openAttachmentStore(
   storageRoot: string,
   options: AttachmentStoreOptions = {},
 ): AttachmentStoreHandle {
-  const pool = new pg.Pool({
+  const pool = openPool({
     connectionString: databaseUrl,
     max: options.poolSize ?? 10,
     // Every pool of this server takes the same bound, for the reason stated

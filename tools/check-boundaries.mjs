@@ -640,6 +640,24 @@ for (const file of sources) {
         checkImport(file, source.value, isTest, isGenerated);
       else fail(file, 'require must use a literal module path.');
     }
+    // A bare pool has no listener for the error of an idle client, which
+    // stops the process, and its end resolves before its sockets close.
+    // `openPool` of `packages/storage-server/src/pool.ts` answers both, so it
+    // is the one place that constructs a pool.
+    if (
+      type === 'NewExpression' &&
+      !isTest &&
+      relative(directory, file).split(sep).join('/') !==
+        'packages/storage-server/src/pool.ts'
+    ) {
+      const target = record(node.callee);
+      const named =
+        target.name === 'Pool' ||
+        (String(target.type) === 'MemberExpression' &&
+          record(target.property).name === 'Pool');
+      if (named)
+        fail(file, 'Open a connection pool with openPool of storage-server.');
+    }
     if (!isApplication || isGenerated) return;
     const callee = String(record(node.callee).name);
     if (

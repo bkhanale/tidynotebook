@@ -25,6 +25,7 @@ import type {
 } from '@notesapp/core';
 import { isThemeFamilyId, OperationalError } from '@notesapp/core';
 import pg from 'pg';
+import { openPool } from './pool.ts';
 import { defaultQuotaBytes } from './provision.ts';
 import {
   defaultConnectionTimeoutMs,
@@ -156,7 +157,7 @@ export function openIdentityStore(
   databaseUrl: string,
   options: IdentityStoreOptions = {},
 ): IdentityStoreHandle {
-  const pool = new pg.Pool({
+  const pool = openPool({
     connectionString: databaseUrl,
     max: options.poolSize ?? 10,
     // Every pool of this server takes the same bound. A pool with no bound
