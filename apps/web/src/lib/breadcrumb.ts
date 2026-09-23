@@ -59,7 +59,7 @@ function isFramePage(value: unknown): value is FramePage {
 /** Reads the page one `handle` names, or `null` when it names none. */
 function pageOfHandle(handle: unknown): FramePage | null {
   if (handle === null || typeof handle !== 'object') return null;
-  const page = Object.fromEntries(Object.entries(handle))['page'];
+  const page: unknown = Object.fromEntries(Object.entries(handle))['page'];
   return isFramePage(page) ? page : null;
 }
 
