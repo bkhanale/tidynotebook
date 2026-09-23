@@ -5,6 +5,36 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.3 - 2026-09-23
+
+This patch release offers Review after two devices join their work, draws
+nested ordered lists in the style of their depth, and repairs workspace
+deletion.
+
+### Added
+
+- A note whose save joined the work of another device shows a notice with
+  Review and Dismiss. Review compares the text you saved with the note now.
+- History marks each version that joined the work of another device.
+- A nested ordered list reads 1, a, i, in the editor and on the published
+  page.
+- The editor keeps the numbers of an ordered list in sequence while you
+  write. One undo removes the edit and its new numbers.
+
+### Changed
+
+- Settings opens inside the workspace, with the sidebar in its place.
+
+### Fixed
+
+- A workspace that holds notes can be deleted again. Before, the delete
+  failed with a server error.
+- When this device cannot keep your work, the note and the sidebar state it
+  and give the step that helps. Before, the sidebar still read that
+  everything was saved.
+- The server keeps running when the database ends an idle connection.
+- A top level ordered item keeps its number on the same line as its text.
+
 ## 0.5.2 - 2026-09-23
 
 This patch release shows when each note was saved again, on every device.
