@@ -17,14 +17,14 @@ catalog:
   '@types/node': 26.6.2
   '@types/pg': 8.23.1
   '@types/react': 19.3.0
-  '@types/react-dom': 19.2.7
+  '@types/react-dom': 19.3.0
   diff: 9.0.0
   drizzle-orm: 0.45.2
   fastify: 5.12.5
   katex: 0.18.7
   pg: 8.23.0
   react: 19.3.0
-  react-dom: 19.2.8
+  react-dom: 19.3.0
   sharp: 0.35.4
   yjs: 13.6.32
 # TypeScript is the one shared name with two versions. The code generator reads
