@@ -59,7 +59,7 @@ import {
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
-import { openLocalStore } from '@notesapp/storage-browser';
+import { createDatabase, openLocalStore } from '@notesapp/storage-browser';
 import {
   createSyncEngine,
   type Draft,
@@ -69,6 +69,7 @@ import {
 } from '@notesapp/sync';
 import { createDisposableDatabase, openSession } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
+import { markRelease04, storeRelease04Save } from './support/release-0-4.ts';
 
 /** Reads one property of an unknown value without asserting its shape. */
 function readProperty(value: unknown, key: string): unknown {
@@ -573,16 +574,17 @@ await test('later local edits during acknowledgment join one atomic commit', asy
 
 await test('a late offline write after a purge is forgotten', async () => {
   const file = await newFile('notes/doomed.md', '# Doomed\n');
-  const purged = await purgeFiles({
-    headers: browser(ownerCookie),
-    path: { workspaceId },
-    body: { mutationId: randomUUID(), fileIds: [file.fileId] },
-  });
-  assert.equal(purged.error, undefined, JSON.stringify(purged.error));
-
   const store = await openStore('purge', 'device-purge');
   try {
+    // The device holds the note, then writes it offline while the note is
+    // purged on the server.
     await syncPull(store, ownerCookie, 'engine-purge-pull');
+    const purged = await purgeFiles({
+      headers: browser(ownerCookie),
+      path: { workspaceId },
+      body: { mutationId: randomUUID(), fileIds: [file.fileId] },
+    });
+    assert.equal(purged.error, undefined, JSON.stringify(purged.error));
     await checkpointText(
       store,
       draftOf(
@@ -1223,6 +1225,247 @@ await test('a note that another device makes reads its text here', async () => {
   } finally {
     await storeA.close();
     await storeB.close();
+  }
+});
+
+/** A device store that a test can also open raw, as release 0.4 left it. */
+type DeviceBackend = {
+  readonly open: () => Promise<LocalStore>;
+  readonly raw: () => ReturnType<typeof createDatabase>;
+};
+
+function deviceBackend(prefix: string): DeviceBackend {
+  const factory = new IDBFactory();
+  const databaseName = `notesapp-sync-${prefix}`;
+  return {
+    open: () =>
+      openLocalStore('https://notes.test', {
+        indexedDB: factory,
+        IDBKeyRange: FakeKeyRange,
+        databaseName,
+        deviceId: `device-${prefix}`,
+      }),
+    raw: () =>
+      createDatabase(databaseName, {
+        indexedDB: factory,
+        IDBKeyRange: FakeKeyRange,
+      }),
+  };
+}
+
+/**
+ * Leaves one queued save of release 0.4 in a device store (record 0088).
+ *
+ * The device pulled the note first, so its mirror names the head that the
+ * save was written over, as it did in 0.4.
+ */
+async function queueRelease04Save(
+  backend: DeviceBackend,
+  save: {
+    readonly fileId: string;
+    readonly head: string | null;
+    readonly path: string;
+    readonly text: string;
+    readonly state?: 'pending' | 'sending';
+    readonly digest?: string | null;
+  },
+): Promise<void> {
+  const raw = backend.raw();
+  await raw.db.open();
+  try {
+    await storeRelease04Save(raw, {
+      serverOrigin: 'https://notes.test',
+      accountId: ownerAccountId,
+      workspaceId,
+      fileId: save.fileId,
+      mutationId: randomUUID(),
+      revisionId: randomUUID(),
+      parentId: save.head,
+      expectedHead: save.head,
+      path: save.path,
+      text: save.text,
+      sequence: 1,
+      state: save.state ?? 'pending',
+      digest: save.digest ?? null,
+    });
+    await markRelease04(raw);
+  } finally {
+    raw.db.close();
+  }
+}
+
+/** Runs the engine of an upgraded device until its earlier work is done. */
+async function settleUpgrade(
+  store: LocalStore,
+  ownerId: string,
+): Promise<void> {
+  const run = startEngine(store, ownerCookie, ownerId);
+  try {
+    await waitFor(
+      async () =>
+        (await store.legacySaves(ownerAccountId, workspaceId)).length === 0 &&
+        (await queuedOf(store)).length === 0,
+      `the upgraded device ${ownerId} places and sends its earlier work`,
+    );
+  } finally {
+    await stopEngine(run);
+  }
+}
+
+await test('an upgraded device joins its earlier save with the work of another', async () => {
+  const path = 'notes/upgrade-joined.md';
+  const file = await newFile(path, 'alpha\nbeta\ngamma\ndelta\n');
+  const device = deviceBackend('upgrade-joined');
+  const before = await device.open();
+  await syncPull(before, ownerCookie, 'engine-upgrade-joined-pull');
+  await before.close();
+  // Release 0.4 queued this save and never sent it.
+  await queueRelease04Save(device, {
+    fileId: file.fileId,
+    head: file.revisionId,
+    path,
+    text: 'alpha, written offline\nbeta\ngamma\ndelta\n',
+  });
+  // Another device changed another line while this one waited for 0.5.
+  const elsewhere = await updateFile({
+    headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
+    path: { workspaceId, fileId: file.fileId },
+    body: {
+      document: await saveForHead(
+        workspaceId,
+        file.revisionId,
+        'alpha\nbeta\ngamma\ndelta, written elsewhere\n',
+      ),
+      revisionId: randomUUID(),
+      mutationId: randomUUID(),
+      deviceId: 'device-elsewhere',
+    },
+  });
+  assert.equal(elsewhere.error, undefined, JSON.stringify(elsewhere.error));
+
+  // Release 0.5.0 refused this store. The upgrade opens it and places the save.
+  const store = await device.open();
+  try {
+    await settleUpgrade(store, 'engine-upgrade-joined');
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(
+      live.data?.head?.text,
+      'alpha, written offline\nbeta\ngamma\ndelta, written elsewhere\n',
+    );
+    assert.deepEqual(await store.recover(ownerAccountId, workspaceId), []);
+  } finally {
+    await store.close();
+  }
+});
+
+await test('an upgraded device keeps an earlier save that overlaps another', async () => {
+  const path = 'notes/upgrade-kept.md';
+  const file = await newFile(path, 'alpha\nbeta\ngamma\n');
+  const device = deviceBackend('upgrade-kept');
+  const before = await device.open();
+  await syncPull(before, ownerCookie, 'engine-upgrade-kept-pull');
+  await before.close();
+  await queueRelease04Save(device, {
+    fileId: file.fileId,
+    head: file.revisionId,
+    path,
+    text: 'alpha\nbeta, written offline\ngamma\n',
+  });
+  const elsewhere = await updateFile({
+    headers: { ...browser(ownerCookie), 'if-match': `"${file.revisionId}"` },
+    path: { workspaceId, fileId: file.fileId },
+    body: {
+      document: await saveForHead(
+        workspaceId,
+        file.revisionId,
+        'alpha\nbeta, written elsewhere\ngamma\n',
+      ),
+      revisionId: randomUUID(),
+      mutationId: randomUUID(),
+      deviceId: 'device-elsewhere',
+    },
+  });
+  assert.equal(elsewhere.error, undefined, JSON.stringify(elsewhere.error));
+
+  const store = await device.open();
+  try {
+    await settleUpgrade(store, 'engine-upgrade-kept');
+    // The texts cannot say which change wins, so the note keeps the text of
+    // the server and Needs attention keeps the earlier text, once.
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(
+      live.data?.head?.text,
+      'alpha\nbeta, written elsewhere\ngamma\n',
+    );
+    const kept = await store.recover(ownerAccountId, workspaceId);
+    assert.equal(kept.length, 1);
+    assert.equal(kept[0]?.text, 'alpha\nbeta, written offline\ngamma\n');
+    assert.equal(kept[0]?.code, 'unplaced_work');
+  } finally {
+    await store.close();
+  }
+});
+
+await test('an upgraded device asks for the receipt of a save that 0.4 sent', async () => {
+  const path = 'notes/upgrade-receipt.md';
+  const file = await newFile(path, 'one\n');
+  const device = deviceBackend('upgrade-receipt');
+  const before = await device.open();
+  await syncPull(before, ownerCookie, 'engine-upgrade-receipt-pull');
+  await before.close();
+  // Release 0.4 froze a digest and may have sent the save. The server holds
+  // no receipt for it, so the save is unsent work and goes out once.
+  await queueRelease04Save(device, {
+    fileId: file.fileId,
+    head: file.revisionId,
+    path,
+    text: 'one\ntwo\n',
+    state: 'sending',
+    digest: 'a'.repeat(64),
+  });
+  const store = await device.open();
+  try {
+    await settleUpgrade(store, 'engine-upgrade-receipt');
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(live.data?.head?.text, 'one\ntwo\n');
+  } finally {
+    await store.close();
+  }
+});
+
+await test('an upgraded device sends a note that only it held', async () => {
+  const path = 'notes/upgrade-new.md';
+  const fileId = randomUUID();
+  const device = deviceBackend('upgrade-new');
+  const before = await device.open();
+  await syncPull(before, ownerCookie, 'engine-upgrade-new-pull');
+  await before.close();
+  await queueRelease04Save(device, {
+    fileId,
+    head: null,
+    path,
+    text: '# Made offline in 0.4\n',
+  });
+  const store = await device.open();
+  try {
+    await settleUpgrade(store, 'engine-upgrade-new');
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId },
+    });
+    assert.equal(live.data?.head?.text, '# Made offline in 0.4\n');
+    assert.equal(live.data?.path, path);
+  } finally {
+    await store.close();
   }
 });
 

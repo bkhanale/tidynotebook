@@ -18,6 +18,8 @@ import {
   LocalStorageError,
   type Draft,
   type FileSaveSnapshot,
+  type LegacyReceipt,
+  type LegacySave,
   type LocalAcceptedFile,
   type LocalConflict,
   type LocalFileSummary,
@@ -315,6 +317,37 @@ class FakeStore implements LocalStore {
     return Promise.resolve(moved);
   }
 
+  /** Moved saves of release 0.4, and how placement answers (record 0088). */
+  legacy: LegacySave[] = [];
+  settled: { readonly mutationId: string; readonly receipt: LegacyReceipt }[] =
+    [];
+  waitingWork = 0;
+  applyFailure: LocalStorageError | null = null;
+
+  legacySaves(): Promise<readonly LegacySave[]> {
+    return Promise.resolve([...this.legacy]);
+  }
+
+  settleLegacySave(
+    _account: string,
+    mutationId: string,
+    receipt: LegacyReceipt,
+  ): Promise<void> {
+    this.settled.push({ mutationId, receipt });
+    this.legacy = this.legacy.flatMap((save) =>
+      save.mutationId !== mutationId
+        ? [save]
+        : receipt.kind === 'absent'
+          ? [{ ...save, state: 'pending' as const, digest: null }]
+          : [],
+    );
+    return Promise.resolve();
+  }
+
+  placeLegacyWork(): Promise<{ readonly waiting: number }> {
+    return Promise.resolve({ waiting: this.waitingWork });
+  }
+
   acknowledge(_account: string, result: AcceptedChangeset): Promise<void> {
     if (!this.entries.has(result.mutationId)) return Promise.resolve();
     this.entries.delete(result.mutationId);
@@ -561,6 +594,11 @@ class FakeStore implements LocalStore {
     changes: readonly RemoteChange[],
     nextCursor: string,
   ): Promise<void> {
+    if (this.applyFailure !== null) {
+      const failure = this.applyFailure;
+      this.applyFailure = null;
+      return Promise.reject(failure);
+    }
     this.applied.push({ changes, nextCursor });
     this.cursors.set(this.key(account, workspace), nextCursor);
     return Promise.resolve();
@@ -652,6 +690,7 @@ function stubOperations(behavior: {
   readonly changes?: SnapshotNetwork['changes'];
   readonly verifySession?: EngineOperations['verifySession'];
   readonly syncProtocol?: EngineOperations['syncProtocol'];
+  readonly mutationReceipt?: QueueNetwork['mutationReceipt'];
 }): Stubs {
   const commitCalls: ChangesetInput[] = [];
   const queue: QueueNetwork = {
@@ -661,6 +700,11 @@ function stubOperations(behavior: {
       if (behavior.commit === undefined)
         return Promise.reject(new Error('unexpected commit call'));
       return behavior.commit(input);
+    },
+    mutationReceipt: (mutationId, digest, signal) => {
+      if (behavior.mutationReceipt === undefined)
+        return Promise.reject(new Error('unexpected receipt call'));
+      return behavior.mutationReceipt(mutationId, digest, signal);
     },
   };
   const snapshot: SnapshotNetwork = {
@@ -1447,6 +1491,151 @@ await test('an expired cursor restarts from a fresh snapshot and keeps the queue
     1,
   );
   assert.equal(store.queued()?.input.mutationId, 'mutation-1');
+});
+
+await test('accepted work that does not fit the document reads a snapshot', async () => {
+  // The feed states only the work. A device whose document cannot take it
+  // must read a snapshot, which carries the whole document, rather than fail
+  // on every cycle while the note shows stale text.
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '3');
+  store.applyFailure = new LocalStorageError(
+    'stale',
+    'the accepted work does not fit this document: missing-dependency',
+  );
+  const notices: SyncNotice[] = [];
+  const delays: number[] = [];
+  let starts = 0;
+  const ops = stubOperations({
+    changes: (cursor) =>
+      Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor === '3' ? '4' : cursor },
+      }),
+    start: () => {
+      starts += 1;
+      return Promise.resolve({
+        ok: true as const,
+        value: { token: 'token-gap', cursor: '9', itemCount: 0 },
+      });
+    },
+    page: (token) =>
+      Promise.resolve({
+        ok: true as const,
+        value: { token, cursor: '9', items: [], nextPosition: null },
+      }),
+  });
+  const outcome = await pullNew(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext(notices, delays),
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(starts, 1);
+  assert.deepEqual(
+    notices.filter((notice) => notice.kind === 'snapshot-restart'),
+    [{ kind: 'snapshot-restart', reason: 'document-gap' }],
+  );
+});
+
+await test('a moved save that the server accepted settles without a send', async () => {
+  // Release 0.4 froze the digest and sent the save, then lost the answer
+  // before the upgrade. Record 0084: accepted work is never sent again.
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '3');
+  store.legacy = [
+    { mutationId: 'mutation-sent', state: 'sending', digest: 'digest-0-4' },
+    { mutationId: 'mutation-lost', state: 'sending', digest: 'digest-lost' },
+  ];
+  const asked: string[] = [];
+  const ops = stubOperations({
+    mutationReceipt: (mutationId, digest) => {
+      asked.push(`${mutationId}:${digest}`);
+      return Promise.resolve({
+        ok: true as const,
+        value:
+          mutationId === 'mutation-sent'
+            ? {
+                status: 'accepted' as const,
+                accepted: accepted('mutation-sent', ['rev-sent'], '12'),
+              }
+            : { status: 'absent' as const, accepted: null },
+      });
+    },
+  });
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext([], []),
+    noPull,
+  );
+  assert.equal(outcome, 'done');
+  assert.deepEqual(asked, [
+    'mutation-sent:digest-0-4',
+    'mutation-lost:digest-lost',
+  ]);
+  assert.deepEqual(store.settled, [
+    {
+      mutationId: 'mutation-sent',
+      receipt: {
+        kind: 'accepted',
+        result: accepted('mutation-sent', ['rev-sent'], '12'),
+      },
+    },
+    { mutationId: 'mutation-lost', receipt: { kind: 'absent' } },
+  ]);
+  assert.equal(ops.commitCalls.length, 0);
+});
+
+await test('nothing is sent while earlier work waits for placement', async () => {
+  // A save made after the upgrade can build on a moved save, so the queue
+  // holds every send until the moved work is placed (record 0088).
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '3');
+  store.legacy = [
+    { mutationId: 'mutation-old', state: 'pending', digest: null },
+  ];
+  store.waitingWork = 1;
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-new'));
+  const ops = stubOperations({});
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    ops,
+    testContext([], []),
+    noPull,
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(ops.commitCalls.length, 0);
+  assert.equal(store.queued()?.input.mutationId, 'mutation-new');
+});
+
+await test('moved work reads the server before it is placed', async () => {
+  // The upgrade removed every cursor, so the documents that placement needs
+  // arrive only with the next snapshot.
+  const store = new FakeStore();
+  store.legacy = [
+    { mutationId: 'mutation-old', state: 'pending', digest: null },
+  ];
+  let pulls = 0;
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    stubOperations({}),
+    testContext([], []),
+    () => {
+      pulls += 1;
+      return Promise.resolve('deferred');
+    },
+  );
+  assert.equal(outcome, 'deferred');
+  assert.equal(pulls, 1);
 });
 
 await test('a purge in one change page supersedes its missing deletion revision', async () => {

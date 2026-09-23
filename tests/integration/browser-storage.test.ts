@@ -10,7 +10,12 @@
  *
  * Every test builds its own `IDBFactory`, so runs never share state.
  */
-import { startDocument } from '@notesapp/note-document';
+import {
+  documentStateVector,
+  readDocumentText,
+  startDocument,
+} from '@notesapp/note-document';
+import { markRelease04, storeRelease04Save } from './support/release-0-4.ts';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import process from 'node:process';
@@ -1609,6 +1614,8 @@ await test('a save names the accepted revision its content descends from', async
     revisionId: 'rev-1',
     digest: await contentDigest('one\n'),
     text: 'one\n',
+    document: startDocument('one\n'),
+    epoch: 1,
   });
   // The person types over the text of `rev-1`, and the ordered feed brings a
   // version of another device before the version of this device is written.
@@ -1668,6 +1675,8 @@ await test('a deletion names the revision it removes, not a newer head', async (
     revisionId: 'rev-1',
     digest: await contentDigest('one\n'),
     text: 'one\n',
+    document: startDocument('one\n'),
+    epoch: 1,
   });
   const typed = draftOf(account, workspace, file, 'copy-a', 'mine\n', {
     baseRevisionId: 'rev-1',
@@ -2442,7 +2451,7 @@ await test('an editor that has not learned of a deletion cannot undo it', async 
   await store.close();
 });
 
-await test('a note whose body this device lacks still reaches Trash', async () => {
+await test('a note whose document this device lacks does not reach Trash', async () => {
   const backend = createBackend('trash-without-body');
   const store = await openLocalStore(origin, backend.options());
   const account = randomUUID();
@@ -2480,17 +2489,19 @@ await test('a note whose body this device lacks still reaches Trash', async () =
     false,
   );
 
-  // A tombstone carries no text, so the deletion needs no body.
-  const [queued] = await store.trashFiles(account, workspace, [fileId]);
-  assert.ok(queued !== undefined);
-  assert.equal(queued.input.revisions[0]?.deleted, true);
-  assert.equal(queued.input.expectedHeads[fileId], 'server-1');
-  assert.deepEqual(
-    (await store.listLocalFiles(account, workspace)).filter(
-      (file) => !file.deleted,
-    ),
-    [],
+  // A deletion states the complete state that this device had seen, and a
+  // device without the document of the note has seen none of its text. The
+  // server refuses such a deletion (record 0083), so the store refuses it
+  // first and the note stays until its document arrives (record 0088).
+  await assert.rejects(
+    () => store.trashFiles(account, workspace, [fileId]),
+    (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
   );
+  assert.deepEqual(
+    (await store.listLocalFiles(account, workspace)).map((file) => file.path),
+    ['notes/one.md'],
+  );
+  assert.deepEqual(await store.pending(account, workspace), []);
   await store.close();
 });
 
@@ -2552,6 +2563,8 @@ await test('a note read from the server becomes one this device can act on', asy
     revisionId: 'server-head',
     digest,
     text,
+    document: startDocument(text),
+    epoch: 1,
   });
 
   const cached = await store.readCachedNote(account, workspace, fileId);
@@ -2590,4 +2603,298 @@ await test('a read of the server never writes over what this device holds', asyn
   assert.equal(cached?.text, 'mine\n', 'local work stays');
   assert.equal(cached?.path, 'notes/one.md');
   await store.close();
+});
+
+/** A store of release 0.4 with one queued save over a server head. */
+async function release04Store(
+  prefix: string,
+  texts: { readonly base: string; readonly local: string },
+): Promise<{
+  readonly backend: Backend;
+  readonly account: string;
+  readonly workspace: string;
+  readonly fileId: string;
+  readonly mutationId: string;
+}> {
+  const backend = createBackend(prefix);
+  await (await openLocalStore(origin, backend.options())).close();
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  const mutationId = randomUUID();
+  const baseDigest = await contentDigest(texts.base);
+  await withRawDatabase(backend, async (tables) => {
+    await tables.contents.put({
+      serverOrigin: origin,
+      accountId: account,
+      workspaceId: workspace,
+      digest: baseDigest,
+      text: texts.base,
+      bytes: null,
+      size: texts.base.length,
+    });
+    await tables.acceptedFiles.put({
+      serverOrigin: origin,
+      accountId: account,
+      workspaceId: workspace,
+      fileId,
+      kind: 'note',
+      path: 'notes/one.md',
+      deleted: false,
+      acceptedHeadRevisionId: 'server-head',
+      acceptedHeadDigest: baseDigest,
+      localHeadRevisionId: 'server-head',
+      updatedAt: '2026-09-06T10:00:00.000Z',
+    });
+    await tables.cursors.put({
+      serverOrigin: origin,
+      accountId: account,
+      workspaceId: workspace,
+      cursor: '41',
+      updatedAt: '2026-09-06T10:00:00.000Z',
+    });
+  });
+  const { db, tables } = createDatabase(backend.name, {
+    indexedDB: backend.factory,
+    IDBKeyRange: FakeKeyRange,
+  });
+  await db.open();
+  try {
+    await storeRelease04Save(
+      { db, tables },
+      {
+        serverOrigin: origin,
+        accountId: account,
+        workspaceId: workspace,
+        fileId,
+        mutationId,
+        revisionId: randomUUID(),
+        parentId: 'server-head',
+        expectedHead: 'server-head',
+        path: 'notes/one.md',
+        text: texts.local,
+        sequence: 1,
+        state: 'pending',
+        digest: null,
+      },
+    );
+    await markRelease04({ db, tables });
+  } finally {
+    db.close();
+  }
+  return { backend, account, workspace, fileId, mutationId };
+}
+
+/** Writes the document that a snapshot of the server brings. */
+async function snapshotBrings(
+  backend: Backend,
+  key: { account: string; workspace: string; fileId: string },
+  serverText: string,
+): Promise<void> {
+  await withRawDatabase(backend, async (tables) => {
+    const bytes = startDocument(serverText);
+    await tables.documents.put({
+      serverOrigin: origin,
+      accountId: key.account,
+      workspaceId: key.workspace,
+      fileId: key.fileId,
+      bytes,
+      epoch: 1,
+      appliedVector: documentStateVector(bytes),
+    });
+    await tables.cursors.put({
+      serverOrigin: origin,
+      accountId: key.account,
+      workspaceId: key.workspace,
+      cursor: '42',
+      updatedAt: '2026-09-06T10:00:00.000Z',
+    });
+  });
+}
+
+await test('a store of release 0.4 opens and keeps its work for placement', async () => {
+  // Release 0.5.0 refused this store with "no migration step leads away from
+  // schema version 4" (record 0088).
+  const legacy = await release04Store('release-0-4-opens', {
+    base: 'alpha\nbeta\ngamma\n',
+    local: 'alpha\nbeta, written offline\ngamma\n',
+  });
+  const store = await openLocalStore(origin, legacy.backend.options());
+  try {
+    const { account, workspace } = legacy;
+    assert.deepEqual(await store.pending(account, workspace), []);
+    assert.deepEqual(await store.legacySaves(account, workspace), [
+      { mutationId: legacy.mutationId, state: 'pending', digest: null },
+    ]);
+    // The next pull is a full snapshot, which carries every document.
+    assert.equal(await store.readCursor(account, workspace), null);
+    assert.deepEqual(await store.queuedWorkspaces(account), [workspace]);
+    // Nothing waits for a document before the snapshot runs.
+    assert.deepEqual(await store.placeLegacyWork(account, workspace), {
+      waiting: 2,
+    });
+  } finally {
+    await store.close();
+  }
+  await withRawDatabase(legacy.backend, async (tables) => {
+    const base = await tables.legacyBases.get([
+      origin,
+      legacy.account,
+      legacy.workspace,
+      'server-head',
+    ]);
+    assert.equal(base?.text, 'alpha\nbeta\ngamma\n');
+  });
+});
+
+await test('placement joins earlier work with the document of the server', async () => {
+  const legacy = await release04Store('release-0-4-joins', {
+    base: 'alpha\nbeta\ngamma\ndelta\n',
+    local: 'alpha, written offline\nbeta\ngamma\ndelta\n',
+  });
+  const { account, workspace, fileId } = legacy;
+  await (await openLocalStore(origin, legacy.backend.options())).close();
+  // Another device changed a line apart from it while this device waited.
+  await snapshotBrings(
+    legacy.backend,
+    legacy,
+    'alpha\nbeta\ngamma\ndelta, written elsewhere\n',
+  );
+  const store = await openLocalStore(origin, legacy.backend.options());
+  try {
+    assert.deepEqual(await store.placeLegacyWork(account, workspace), {
+      waiting: 0,
+    });
+    const joined =
+      'alpha, written offline\nbeta\ngamma\ndelta, written elsewhere\n';
+    const [entry] = await store.pending(account, workspace);
+    assert.equal(entry?.input.mutationId, legacy.mutationId);
+    assert.equal(entry?.state, 'pending');
+    const content = entry?.input.revisions[0]?.content;
+    assert.equal(content?.kind, 'markdown');
+    assert.equal(
+      content?.kind === 'markdown' ? content.document.work.kind : null,
+      'update',
+    );
+    const document = await store.readNoteDocument(account, workspace, fileId);
+    assert.equal(readDocumentText(document?.bytes ?? new Uint8Array()), joined);
+    const cached = await store.readCachedNote(account, workspace, fileId);
+    assert.equal(cached?.text, joined);
+    assert.deepEqual(await store.legacySaves(account, workspace), []);
+    assert.deepEqual(await store.recover(account, workspace), []);
+  } finally {
+    await store.close();
+  }
+});
+
+await test('earlier work that cannot be placed goes to Needs attention once', async () => {
+  const legacy = await release04Store('release-0-4-keeps', {
+    base: 'alpha\nbeta\ngamma\n',
+    local: 'alpha\nbeta, written offline\ngamma\n',
+  });
+  const { account, workspace, fileId } = legacy;
+  await (await openLocalStore(origin, legacy.backend.options())).close();
+  // Another device changed the same line, so the texts cannot say which wins.
+  await snapshotBrings(
+    legacy.backend,
+    legacy,
+    'alpha\nbeta, written elsewhere\ngamma\n',
+  );
+  const store = await openLocalStore(origin, legacy.backend.options());
+  try {
+    assert.deepEqual(await store.placeLegacyWork(account, workspace), {
+      waiting: 0,
+    });
+    const kept = await store.recover(account, workspace);
+    assert.equal(kept.length, 1);
+    assert.equal(kept[0]?.text, 'alpha\nbeta, written offline\ngamma\n');
+    assert.equal(kept[0]?.code, 'unplaced_work');
+    assert.deepEqual(await store.pending(account, workspace), []);
+    // The note reads the text of the server, which no work of this device
+    // replaced.
+    const document = await store.readNoteDocument(account, workspace, fileId);
+    assert.equal(
+      readDocumentText(document?.bytes ?? new Uint8Array()),
+      'alpha\nbeta, written elsewhere\ngamma\n',
+    );
+    assert.deepEqual(await store.placeLegacyWork(account, workspace), {
+      waiting: 0,
+    });
+    assert.equal((await store.recover(account, workspace)).length, 1);
+  } finally {
+    await store.close();
+  }
+});
+
+await test('a note of the server takes no save before its document is here', async () => {
+  const backend = createBackend('save-needs-document');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  try {
+    await store.cacheServerNote(account, workspace, {
+      fileId,
+      path: 'notes/one.md',
+      kind: 'note',
+      revisionId: 'server-head',
+      digest: await contentDigest('theirs\n'),
+      text: 'theirs\n',
+    });
+    const draft = draftOf(account, workspace, fileId, 'copy-a', 'mine\n', {
+      baseRevisionId: 'server-head',
+    });
+    await store.saveDraft(draft);
+    // A document started here would hold the text twice once it joins the
+    // document of the server (record 0084). Nothing is written.
+    await assert.rejects(
+      store.checkpoint(draft, null),
+      (error: unknown) =>
+        error instanceof LocalStorageError && error.kind === 'stale',
+    );
+    await assert.rejects(
+      store.trashFiles(account, workspace, [fileId]),
+      (error: unknown) =>
+        error instanceof LocalStorageError && error.kind === 'stale',
+    );
+    assert.deepEqual(await store.pending(account, workspace), []);
+    // The server read brings the document, and the save then works on it.
+    await store.cacheServerNote(account, workspace, {
+      fileId,
+      path: 'notes/one.md',
+      kind: 'note',
+      revisionId: 'server-head',
+      digest: await contentDigest('theirs\n'),
+      text: 'theirs\n',
+      document: startDocument('theirs\n'),
+      epoch: 1,
+    });
+    assert.ok((await store.checkpoint(draft, null)) !== null);
+  } finally {
+    await store.close();
+  }
+});
+
+await test('sign-out leaves no document of a note on the device', async () => {
+  const backend = createBackend('sign-out-documents');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  try {
+    const draft = draftOf(account, workspace, fileId, 'copy-a', 'private\n');
+    await store.saveDraft(draft);
+    await store.checkpoint(draft, null);
+    assert.ok(
+      (await store.readNoteDocument(account, workspace, fileId)) !== null,
+    );
+    await store.clearPrivateData(account);
+    // The document holds the text of the note, so it leaves with the rest.
+    assert.equal(
+      await store.readNoteDocument(account, workspace, fileId),
+      null,
+    );
+  } finally {
+    await store.close();
+  }
 });

@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { noteLoadStatusFor, type NoteLoadState } from './note-load-state.ts';
+import {
+  noteLoadStatusFor,
+  opensFromDevice,
+  type NoteLoadState,
+} from './note-load-state.ts';
 
 const current = {
   accountId: 'account-one',
@@ -55,4 +59,15 @@ await test('the current note can use its completed loader state', () => {
   };
 
   assert.equal(noteLoadStatusFor(ready, current), ready.status);
+});
+
+await test('a note of the server opens from the device only with its document', () => {
+  // A device that upgraded from release 0.4 holds its notes without their
+  // documents until the first snapshot. Such a note opens from the server
+  // read, so no editor starts it from Markdown (records 0084, 0088).
+  const bytes = new Uint8Array([1, 2, 3]);
+  assert.equal(opensFromDevice(bytes, 'revision-1'), true);
+  assert.equal(opensFromDevice(null, 'revision-1'), false);
+  // A note that only this device holds starts its own document.
+  assert.equal(opensFromDevice(null, null), true);
 });

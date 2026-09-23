@@ -36,144 +36,34 @@ import {
   type Tables,
   type DocumentRow,
 } from './database.ts';
+import {
+  addedBytes,
+  addedCount,
+  addedText,
+  byteString,
+  corrupt,
+  count,
+  flag,
+  isWritableRecord,
+  member,
+  object,
+  optionalText,
+  partition,
+  text,
+  textList,
+} from './record-fields.ts';
+import {
+  moveLegacyWork,
+  removeChangePositions,
+  validateLegacyBase,
+  validateLegacyDraft,
+  validateLegacySave,
+} from './legacy-records.ts';
 
 /** The schema version this application writes. */
 export const currentSchemaVersion: number = Math.max(
   ...schemaVersions.map((entry) => entry.version),
 );
-
-/** Refuses a stored value that does not match its declared shape. */
-function corrupt(detail: string): never {
-  throw new LocalStorageError('corrupt', detail);
-}
-
-/**
- * True when a stored value can be read and written by key.
- *
- * A migration step edits the stored record in place, so it cannot use
- * `object`, which copies. This guard proves only that the value holds
- * members; every member stays `unknown` until a reader checks it.
- */
-function isWritableRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/**
- * The value as a plain record, or a refusal.
- *
- * Only own enumerable members are kept, so an inherited member of a value that
- * some other tool wrote cannot pass a check.
- */
-function object(value: unknown, where: string): Record<string, unknown> {
-  if (typeof value !== 'object' || value === null || Array.isArray(value))
-    corrupt(`${where} is not a record`);
-  const members: Record<string, unknown> = Object.fromEntries(
-    Object.entries(value),
-  );
-  return members;
-}
-
-function text(
-  row: Record<string, unknown>,
-  field: string,
-  where: string,
-): string {
-  const value: unknown = row[field];
-  if (typeof value !== 'string') corrupt(`${where}.${field} is not text`);
-  return value;
-}
-
-function optionalText(
-  row: Record<string, unknown>,
-  field: string,
-  where: string,
-): string | null {
-  const value: unknown = row[field];
-  if (value === null) return null;
-  if (typeof value !== 'string')
-    corrupt(`${where}.${field} is not text or null`);
-  return value;
-}
-
-/**
- * Text, or `null` for a field that a record written before it existed omits.
- *
- * A stored recovery record from an earlier release carries no server answer
- * code. Reading it must keep the kept text usable, so an absent field reads
- * as `null` instead of refusing the record.
- */
-function addedText(
-  row: Record<string, unknown>,
-  field: string,
-  where: string,
-): string | null {
-  const value: unknown = row[field];
-  if (value === undefined || value === null) return null;
-  if (typeof value !== 'string')
-    corrupt(`${where}.${field} is not text or null`);
-  return value;
-}
-
-function flag(
-  row: Record<string, unknown>,
-  field: string,
-  where: string,
-): boolean {
-  const value: unknown = row[field];
-  if (typeof value !== 'boolean') corrupt(`${where}.${field} is not a flag`);
-  return value;
-}
-
-function count(
-  row: Record<string, unknown>,
-  field: string,
-  where: string,
-): number {
-  const value: unknown = row[field];
-  if (typeof value !== 'number' || !Number.isFinite(value))
-    corrupt(`${where}.${field} is not a finite number`);
-  return value;
-}
-
-function textList(
-  row: Record<string, unknown>,
-  field: string,
-  where: string,
-): readonly string[] {
-  const value: unknown = row[field];
-  if (!Array.isArray(value)) corrupt(`${where}.${field} is not a list`);
-  const list: unknown[] = value;
-  return list.map((entry: unknown, index: number) => {
-    if (typeof entry !== 'string')
-      corrupt(`${where}.${field}[${String(index)}] is not text`);
-    return entry;
-  });
-}
-
-function member<T extends string>(
-  row: Record<string, unknown>,
-  field: string,
-  allowed: readonly T[],
-  where: string,
-): T {
-  const value: unknown = row[field];
-  const found = allowed.find((entry) => entry === value);
-  if (found === undefined)
-    corrupt(`${where}.${field} is not one of the allowed values`);
-  return found;
-}
-
-/** The three partition members every private row carries. */
-function partition(
-  row: Record<string, unknown>,
-  where: string,
-): { serverOrigin: string; accountId: string; workspaceId: string } {
-  return {
-    serverOrigin: text(row, 'serverOrigin', where),
-    accountId: text(row, 'accountId', where),
-    workspaceId: text(row, 'workspaceId', where),
-  };
-}
 
 /** Narrows one stored working copy. */
 export function validateDraft(value: unknown): DraftRow {
@@ -424,47 +314,6 @@ export function validatePreference(value: unknown): PreferenceRow {
   };
 }
 
-/** Reads one stored byte string, or refuses the row. */
-function byteString(
-  row: Record<string, unknown>,
-  name: string,
-  table: string,
-): Uint8Array {
-  const value = row[name];
-  if (value instanceof Uint8Array) return value;
-  // A structured clone can return an ArrayBuffer for bytes that an older
-  // engine stored, so the value is read and never asserted.
-  if (value instanceof ArrayBuffer) return new Uint8Array(value);
-  throw new LocalStorageError('corrupt', `${table}.${name} is not bytes`);
-}
-
-/**
- * Bytes, or `null` for a field that a record written before it existed omits.
- *
- * A staged snapshot item of an earlier release carries no document, and the
- * item of an attachment never carries one.
- */
-function addedBytes(
-  row: Record<string, unknown>,
-  name: string,
-  table: string,
-): Uint8Array | null {
-  const value: unknown = row[name];
-  if (value === undefined || value === null) return null;
-  return byteString(row, name, table);
-}
-
-/** A number, or `null` for a field that a record omits. */
-function addedCount(
-  row: Record<string, unknown>,
-  name: string,
-  table: string,
-): number | null {
-  const value: unknown = row[name];
-  if (value === undefined || value === null) return null;
-  return count(row, name, table);
-}
-
 /** Narrows one stored document of a note. */
 export function validateDocument(value: unknown): DocumentRow {
   const row = object(value, 'document');
@@ -517,8 +366,11 @@ export function validateMeta(value: unknown): MetaRow {
  * Version 1 is the first released schema. Version 2 adds the sync worker
  * lease and the staged snapshot items; both tables start empty, so the step
  * only records the move. Version 4 removes what the conflict-branch feature
- * wrote. A gap between two stored versions with no step is a refusal, never
- * a silent continuation.
+ * wrote. Version 5 holds the document of each note, which only a snapshot
+ * brings, so its step removes every change position. Version 6 moves the saves
+ * and drafts of release 0.4 aside until they are placed (record 0088). A gap
+ * between two stored versions with no step is a refusal, never a silent
+ * continuation.
  */
 export const migrationSteps: readonly {
   readonly from: number;
@@ -563,6 +415,16 @@ export const migrationSteps: readonly {
         })
         .delete();
     },
+  },
+  {
+    from: 4,
+    to: 5,
+    run: removeChangePositions,
+  },
+  {
+    from: 5,
+    to: 6,
+    run: moveLegacyWork,
   },
 ];
 
@@ -609,6 +471,9 @@ async function revalidate(tables: Tables): Promise<void> {
   await validateTable(tables.preferences, validatePreference);
   await validateTable(tables.recovery, validateRecovery);
   await validateTable(tables.documents, validateDocument);
+  await validateTable(tables.legacySaves, validateLegacySave);
+  await validateTable(tables.legacyBases, validateLegacyBase);
+  await validateTable(tables.legacyDrafts, validateLegacyDraft);
 }
 
 /**

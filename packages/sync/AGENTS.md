@@ -19,6 +19,9 @@ local search, and local backlinks.
 - `src/protocol.ts` decides whether this client fits the sync protocol
   versions that the server serves. The engine reads them before every push
   and pull and sends nothing on a misfit (record 0086).
+- Before `src/queue.ts` sends anything in a workspace, it settles each moved
+  save of release 0.4 by its receipt and asks the store to place the moved
+  work. It sends nothing while any of it waits (record 0088).
 - `src/queue.ts`, `src/lease.ts`, `src/snapshot.ts`, `src/checkpoints.ts`,
   `src/local-search.ts`, and `src/local-backlinks.ts` hold their own rules.
   The last two are pure functions over the rows of `listSearchFiles`, and

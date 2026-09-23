@@ -13,7 +13,9 @@ area, preferences, and the offline snapshot.
 ## What lives here and what does not
 
 - `src/database.ts` and `src/migrations.ts` hold the schema and the record
-  upgrades. `src/local-store/` implements the port, split by area (0018, below).
+  upgrades, with the shared readers of `src/record-fields.ts`. The records of
+  release 0.4 and their steps are in `src/legacy-records.ts` (0088).
+  `src/local-store/` implements the port, split by area (0018, below).
 - No rule about what a save means lives here. That rule lives in
   `packages/sync` or `packages/core`. Nothing else opens a browser database.
 
@@ -34,6 +36,7 @@ over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 - `preferences.ts`: pins, the sign-out marker, the sync lease.
 - `files.ts`: the reads over the cached mirror of server state.
 - `snapshot.ts`: snapshots, remote changes, and the kept read of a screen.
+- `documents.ts`, `legacy.ts`: note documents; placing 0.4 work (0084, 0088).
 
 ## Allowed imports
 
@@ -46,7 +49,7 @@ only package, or a server only package.
 
 - **A table or an index.** Add the row type and the table name in
   `src/database.ts`, add the entry to `schemaVersions`, and add the record
-  upgrade in `src/migrations.ts`.
+  upgrade in `src/migrations.ts`. Each version needs a step (a test checks).
 - **A port method.** Add it to `LocalStore` in
   `packages/sync/src/local-port.ts` first, then implement it in the area
   module of `src/local-store/` that owns it and spread its slice from

@@ -8,6 +8,7 @@
  * mirror without overwriting unsubmitted local work.
  */
 import { applyServerWork } from './documents.ts';
+import { validateLegacySave } from '../legacy-records.ts';
 import {
   LocalStorageError,
   type LocalStore,
@@ -256,6 +257,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.checkpoints,
             tables.recovery,
             tables.documents,
+            tables.legacySaves,
           ],
           async () => {
             const plans: unknown[] = await tables.stagedSnapshots.toArray();
@@ -405,6 +407,14 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               .toArray())
               for (const revision of validateQueueRow(row).input.revisions)
                 queuedFiles.add(revision.fileId);
+            // A moved save of release 0.4 is queued work too. Placement
+            // decides its fate once this snapshot has run (record 0088).
+            for (const row of await tables.legacySaves
+              .where('[serverOrigin+accountId+workspaceId+sequence]')
+              .between(range.lower, range.upper, true, true)
+              .toArray())
+              for (const revision of validateLegacySave(row).revisions)
+                queuedFiles.add(revision.fileId);
             const forgotten: string[] = [];
             for (const row of await tables.acceptedFiles
               .where('[serverOrigin+accountId+workspaceId+fileId]')
@@ -466,8 +476,27 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             ]);
             // A file this device already holds keeps what it holds. This read
             // of the server is only for a note that reached the screen before
-            // the ordered feed reached the store.
-            if (known !== undefined) return false;
+            // the ordered feed reached the store. The one exception is the
+            // document of a note that this device holds without one, which
+            // only the server can give (records 0084, 0088).
+            if (known !== undefined) {
+              const held: unknown = await tables.documents.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                note.fileId,
+              ]);
+              const served = note.document ?? null;
+              if (held !== undefined || served === null) return false;
+              const applied = await applyServerWork(
+                tables,
+                { serverOrigin, accountId, workspaceId, fileId: note.fileId },
+                note.epoch ?? 1,
+                { kind: 'document', document: served },
+              );
+              await tables.documents.put(applied.row);
+              return true;
+            }
             await tables.contents.put({
               serverOrigin,
               accountId,

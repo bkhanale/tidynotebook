@@ -49,9 +49,30 @@ export async function readDocumentRow(
   return stored === undefined ? null : validateDocument(stored);
 }
 
+/**
+ * Refuses work on an existing note whose document this device does not hold.
+ *
+ * Record 0084: no device starts an existing note from Markdown. A document
+ * that this device started would hold characters that the server never saw,
+ * and joining it with the document of the server holds the text twice. The
+ * refusal writes nothing, so the text stays in the working copy until the
+ * document arrives with a snapshot or a server read.
+ */
+function refuseWithoutDocument(): never {
+  throw new LocalStorageError(
+    'stale',
+    'this device does not hold the document of this note yet',
+  );
+}
+
 /** The document that a note holds now, or a started one for a new note. */
-function documentOrStart(row: DocumentRow | null, text: string): DocumentRow {
+function documentOrStart(
+  row: DocumentRow | null,
+  text: string,
+  noteExists: boolean,
+): DocumentRow {
   if (row !== null) return row;
+  if (noteExists) refuseWithoutDocument();
   const bytes = startDocument(text);
   return {
     serverOrigin: '',
@@ -72,14 +93,17 @@ function documentOrStart(row: DocumentRow | null, text: string): DocumentRow {
  * The text of the working copy is the text a person sees. Writing it into the
  * document keeps every character that stayed, so the update that follows
  * names only what changed and merges with the work of another device.
+ * `noteExists` states that the server already holds the note, so this device
+ * must not start its document.
  */
 export async function foldTextIntoDocument(
   tables: Tables,
   key: DocumentKey,
   text: string,
+  noteExists: boolean,
 ): Promise<{ readonly row: DocumentRow; readonly save: DocumentSave }> {
   const current = await readDocumentRow(tables, key);
-  const base = documentOrStart(current, text);
+  const base = documentOrStart(current, text, noteExists);
   const written = replaceDocumentText(base.bytes, text);
   if (!written.ok)
     throw new LocalStorageError(
@@ -116,8 +140,12 @@ export async function foldTextIntoDocument(
 export async function deletionSave(
   tables: Tables,
   key: DocumentKey,
+  noteExists: boolean,
 ): Promise<DocumentSave> {
   const current = await readDocumentRow(tables, key);
+  // The state of a document that this device started names none of the text
+  // that the server holds, so the save would state that it saw nothing.
+  if (current === null && noteExists) refuseWithoutDocument();
   const bytes = current?.bytes ?? startDocument('');
   return {
     work: { kind: 'none' },

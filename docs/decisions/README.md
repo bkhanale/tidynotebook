@@ -117,6 +117,7 @@ and needs no record.
 | [0085](0085-local-document-writes-merge-and-receipts-do-not-advance-reads.md) | Local document writes merge and receipts do not advance reads                   |
 | [0086](0086-protocol-upgrades-precede-the-breaking-sync-format.md)            | Protocol upgrades precede the breaking sync format                              |
 | [0087](0087-review-keeps-the-checkpoint-that-caused-it.md)                    | Review keeps the checkpoint that caused it                                      |
+| [0088](0088-an-earlier-browser-store-upgrades-through-placement.md)           | An earlier browser store upgrades through placement                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the

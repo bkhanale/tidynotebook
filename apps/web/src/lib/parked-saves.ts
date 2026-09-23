@@ -35,6 +35,9 @@ const codeSentences: Readonly<Record<string, string>> = {
   unsupported_version: 'This device is too old for the server.',
   not_found: 'The server has no note to save this text into.',
   forbidden: 'The server does not allow a save of this note.',
+  // Kept by the upgrade from an earlier version of the app (record 0088).
+  unplaced_work:
+    'An earlier version of the app kept this text. The note changed after that, so the text does not fit it.',
 };
 
 /** One sentence for each reason a text reached the recovery area. */

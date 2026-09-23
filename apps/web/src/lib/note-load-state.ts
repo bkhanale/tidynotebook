@@ -52,3 +52,19 @@ export function noteLoadStatusFor(
   if (isSameNote(state.identity, identity)) return state.status;
   return { kind: 'loading' };
 }
+
+/**
+ * Whether a note that this device holds can open from the device alone.
+ *
+ * The editor binds to the document of the note. A note that the server holds
+ * and whose document this device lacks opens from the server read instead,
+ * which brings the document, because an editor bound to a document of its own
+ * would start that note from Markdown on this device (records 0084, 0088). A
+ * note that only this device holds starts its own document.
+ */
+export function opensFromDevice(
+  document: Uint8Array | null,
+  headRevisionId: string | null,
+): boolean {
+  return document !== null || headRevisionId === null;
+}

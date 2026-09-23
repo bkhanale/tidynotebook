@@ -8,16 +8,17 @@ See [decision 0007](../decisions/0007-keep-the-save-model.md).
 
 ## Where the code is
 
-| File                                         | Responsibility                       |
-| -------------------------------------------- | ------------------------------------ |
-| `packages/sync/src/local-port.ts`            | Local record shapes and storage port |
-| `packages/sync/src/checkpoints.ts`           | The explicit version rule            |
-| `packages/sync/src/engine.ts`                | Queue push and server pull           |
-| `packages/sync/src/protocol.ts`              | Whether client and server fit        |
-| `packages/storage-browser/src/database.ts`   | Dexie schema and row shapes          |
-| `packages/storage-browser/src/migrations.ts` | Validation and schema migration      |
-| `packages/storage-browser/src/local-store/`  | IndexedDB transactions               |
-| `apps/web/src/lib/save-state.ts`             | The state the person is shown        |
+| File                                             | Responsibility                        |
+| ------------------------------------------------ | ------------------------------------- |
+| `packages/sync/src/local-port.ts`                | Local record shapes and storage port  |
+| `packages/sync/src/checkpoints.ts`               | The explicit version rule             |
+| `packages/sync/src/engine.ts`                    | Queue push and server pull            |
+| `packages/sync/src/protocol.ts`                  | Whether client and server fit         |
+| `packages/storage-browser/src/database.ts`       | Dexie schema and row shapes           |
+| `packages/storage-browser/src/migrations.ts`     | Validation and schema migration       |
+| `packages/storage-browser/src/legacy-records.ts` | Records of release 0.4 and their move |
+| `packages/storage-browser/src/local-store/`      | IndexedDB transactions                |
+| `apps/web/src/lib/save-state.ts`                 | The state the person is shown         |
 
 ## The rule
 
@@ -105,3 +106,13 @@ The local database has no branch store and no conflict store. A schema version
 removed the branch table of the withdrawn conflict-branch feature. A queued
 mutation that the server refuses for good keeps the state name `conflict` with
 the reason of the refusal, which is the only meaning that word still has.
+
+## Upgrade from release 0.4
+
+A store of release 0.4 holds saves with text and no document of any note. The
+upgrade removes every cursor, so the next pull is a full snapshot, and it moves
+those saves and the drafts aside. `src/local-store/legacy.ts` places them once
+the documents are here, and the engine sends nothing in a workspace while any
+of them waits. Work that does not fit goes to Needs attention. No save of an
+existing note starts its document on the device. See
+[decision 0088](../decisions/0088-an-earlier-browser-store-upgrades-through-placement.md).

@@ -36,6 +36,7 @@ import { localChangeOf } from './channel.ts';
 import { createDraftsSlice } from './drafts.ts';
 import { createFilesSlice } from './files.ts';
 import { createFileActionsSlice } from './file-actions.ts';
+import { createLegacySlice } from './legacy.ts';
 import { createPreferencesSlice } from './preferences.ts';
 import { createQueueSlice } from './queue.ts';
 import { createRecoverySlice } from './recovery.ts';
@@ -182,6 +183,7 @@ export async function openLocalStore(
     ...createPreferencesSlice(ctx),
     ...createFilesSlice(ctx),
     ...createSnapshotSlice(ctx),
+    ...createLegacySlice(ctx),
 
     close(): Promise<void> {
       closeMessaging();

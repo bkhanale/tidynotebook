@@ -89,6 +89,28 @@ export type QueueEntry = {
 };
 
 /**
+ * A queued save of release 0.4 that waits for placement (record 0088).
+ *
+ * It holds text rather than work on a document, so it cannot be sent as it
+ * is. `sending` means release 0.4 froze `digest` and may have sent it, so the
+ * engine asks for its receipt before the store changes it.
+ */
+export type LegacySave = {
+  readonly mutationId: string;
+  readonly state: 'pending' | 'sending' | 'conflict';
+  readonly digest: string | null;
+};
+
+/** What the server knows about one moved save that release 0.4 sent. */
+export type LegacyReceipt =
+  /** The server accepted exactly this request. It is not sent again. */
+  | { readonly kind: 'accepted'; readonly result: AcceptedChangeset }
+  /** The server holds no receipt, so the save is unsent work. */
+  | { readonly kind: 'absent' }
+  /** The identity belongs to another request, so this one is kept aside. */
+  | { readonly kind: 'other-request' };
+
+/**
  * Content-free notice that durable local state changed.
  *
  * `conflict` names a change of the Needs attention list: a save the server
@@ -781,6 +803,41 @@ export type LocalStore = {
    * does nothing.
    */
   acknowledge(accountId: string, result: AcceptedChangeset): Promise<void>;
+
+  /** The moved saves of release 0.4 in one workspace, in their order. */
+  legacySaves(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<readonly LegacySave[]>;
+
+  /**
+   * Applies the receipt of one moved save that release 0.4 sent.
+   *
+   * An accepted save marks its checkpoints accepted and leaves the moved
+   * saves. An absent save becomes unsent. A save whose identity names another
+   * request goes to the recovery area with its text. Settling an unknown save
+   * does nothing.
+   */
+  settleLegacySave(
+    accountId: string,
+    mutationId: string,
+    receipt: LegacyReceipt,
+  ): Promise<void>;
+
+  /**
+   * Places the work of release 0.4 on the documents of its notes.
+   *
+   * Each moved save whose notes have their documents becomes a queued save
+   * under its own identity, and each moved draft takes the joined text. Work
+   * that cannot be placed goes to the recovery area. `waiting` counts the
+   * moved saves and drafts that still wait, for a document or a receipt.
+   * Nothing in the workspace may be sent while it is above zero, because a
+   * later save can depend on an earlier one.
+   */
+  placeLegacyWork(
+    accountId: string,
+    workspaceId: string,
+  ): Promise<{ readonly waiting: number }>;
 
   /** The local checkpoints of one file, oldest first. */
   listCheckpoints(

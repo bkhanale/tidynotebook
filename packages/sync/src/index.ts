@@ -17,6 +17,8 @@ export type {
   LocalCachedNote,
   LocalConflict,
   LocalContent,
+  LegacyReceipt,
+  LegacySave,
   LocalChange,
   LocalCursor,
   LocalFileKind,

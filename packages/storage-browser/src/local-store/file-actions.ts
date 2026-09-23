@@ -243,6 +243,7 @@ export function createFileActionsSlice(
           tables.acceptedFiles,
           tables.queue,
           tables.documents,
+          tables.legacySaves,
         ],
         async (): Promise<readonly QueueEntry[]> => {
           const entries: QueueEntry[] = [];
@@ -273,12 +274,16 @@ export function createFileActionsSlice(
               bytes: null,
               size: byteLength(action.text),
             });
-            const save = await deletionSave(tables, {
-              serverOrigin,
-              accountId,
-              workspaceId,
-              fileId: state.fileId,
-            });
+            const save = await deletionSave(
+              tables,
+              {
+                serverOrigin,
+                accountId,
+                workspaceId,
+                fileId: state.fileId,
+              },
+              (file?.acceptedHeadRevisionId ?? null) !== null,
+            );
             const checkpoint: CheckpointRow = {
               serverOrigin,
               accountId,

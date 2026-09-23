@@ -50,6 +50,22 @@ export type CommitResult = ServiceOutcome<AcceptedChangeset>;
 export type QueueNetwork = {
   prepareCommit(input: ChangesetInput): Promise<string>;
   commit(input: ChangesetInput, signal: AbortSignal): Promise<CommitResult>;
+  /**
+   * What the server knows about one mutation identity and request digest.
+   *
+   * The queue reads it before it changes work that an earlier release may
+   * already have sent (records 0084, 0088).
+   */
+  mutationReceipt(
+    mutationId: string,
+    digest: string,
+    signal: AbortSignal,
+  ): Promise<
+    ServiceOutcome<{
+      readonly status: 'accepted' | 'absent' | 'other_request';
+      readonly accepted: AcceptedChangeset | null;
+    }>
+  >;
 };
 
 /** A state change the sync run announces. Tab messages only announce. */
@@ -514,6 +530,58 @@ function takeBatchable(entries: readonly QueueEntry[]): QueueEntry[] {
 }
 
 /**
+ * Brings the work of release 0.4 to the point where the store can place it.
+ *
+ * Record 0084 forbids a change of work that may already have committed, so
+ * each moved save that 0.4 sent is settled by its receipt first: an accepted
+ * save is never sent again, and an absent one becomes unsent work. Placement
+ * needs the document of each note, which only a snapshot brings after the
+ * upgrade, so the queue reads the server before the store places anything.
+ * The caller then places the work and sends nothing while any of it waits,
+ * because a later save can depend on an earlier one (record 0088).
+ */
+async function placeEarlierWork(
+  local: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  net: QueueNetwork,
+  ctx: SyncContext,
+  pull: PullChanges,
+): Promise<PushOutcome> {
+  const moved = await local.legacySaves(accountId, workspaceId);
+  for (const save of moved) {
+    if (save.state !== 'sending' || save.digest === null) continue;
+    const { digest } = save;
+    const answer = await sendWithRetry(ctx, (signal) =>
+      net.mutationReceipt(save.mutationId, digest, signal),
+    );
+    if (answer === null) return 'deferred';
+    if (!answer.ok) {
+      if (answer.problem.status === 401) return 'paused';
+      if (answer.problem.status === 403 || answer.problem.status === 404)
+        return 'access-lost';
+      throw new SyncFailedError(answer.problem.code, answer.problem.status);
+    }
+    const { status, accepted } = answer.value;
+    await local.settleLegacySave(
+      accountId,
+      save.mutationId,
+      status === 'accepted' && accepted !== null
+        ? { kind: 'accepted', result: accepted }
+        : status === 'other_request'
+          ? { kind: 'other-request' }
+          : { kind: 'absent' },
+    );
+  }
+  if (
+    moved.length > 0 &&
+    (await local.readCursor(accountId, workspaceId)) === null
+  )
+    return pull();
+  return 'done';
+}
+
+/**
  * Submits every queued mutation of one workspace, in parent order.
  *
  * Returns `paused` when the session expired and `access-lost` when the
@@ -528,6 +596,17 @@ export async function pushQueue(
   ctx: SyncContext,
   pull: PullChanges,
 ): Promise<PushOutcome> {
+  const placed = await placeEarlierWork(
+    local,
+    accountId,
+    workspaceId,
+    net,
+    ctx,
+    pull,
+  );
+  if (placed !== 'done') return placed;
+  if ((await local.placeLegacyWork(accountId, workspaceId)).waiting > 0)
+    return 'done';
   const entries = await local.pending(accountId, workspaceId);
   const work = entries.filter((entry) => entry.state !== 'conflict');
   if (work.length === 0) return 'done';

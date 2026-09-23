@@ -155,6 +155,82 @@ export type DocumentRow = {
   readonly appliedVector: Uint8Array;
 };
 
+/**
+ * One revision of a save that an earlier release queued (record 0088).
+ *
+ * A note revision of release 0.4 carries its text and the digest of that text
+ * instead of work on the document of the note. The shape is kept exactly as
+ * it was stored, so the text reaches placement unchanged.
+ */
+export type LegacyRevision = {
+  readonly id: string;
+  readonly fileId: string;
+  readonly parents: readonly string[];
+  readonly path: string;
+  readonly deleted: boolean;
+  readonly content:
+    | {
+        readonly kind: 'markdown';
+        readonly digest: string;
+        readonly text: string;
+      }
+    | {
+        readonly kind: 'attachment';
+        readonly digest: string;
+        readonly objectId: string;
+      };
+  readonly clientTime: string;
+  readonly message: string | null;
+  readonly restoredFrom: string | null;
+};
+
+/**
+ * One queued save of an earlier release that waits for placement.
+ *
+ * `sending` means release 0.4 froze `digest` and may have sent the request, so
+ * the engine asks for its receipt before the save changes (record 0084).
+ * `conflict` means the server refused it for good, and release 0.4 already
+ * kept its text in the recovery area.
+ */
+export type LegacySaveRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly mutationId: string;
+  readonly sequence: number;
+  readonly deviceId: string;
+  readonly expectedHeads: Readonly<Record<string, string | null>>;
+  readonly revisions: readonly LegacyRevision[];
+  readonly state: 'pending' | 'sending' | 'conflict';
+  readonly digest: string | null;
+  readonly createdAt: string;
+};
+
+/**
+ * The text of one server revision that earlier work starts from.
+ *
+ * The mirror keeps only the current head of a file, and the snapshot after the
+ * upgrade moves it. The upgrade therefore keeps the text of each head that a
+ * moved save or a moved draft names as its parent, while the mirror still
+ * knows it.
+ */
+export type LegacyBaseRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly revisionId: string;
+  readonly text: string;
+};
+
+/** One working copy of an earlier release that waits for placement. */
+export type LegacyDraftRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly workingCopyId: string;
+  readonly fileId: string;
+};
+
 /** Whether the recorded schema change finished. */
 export type MigrationState = 'complete' | 'in-progress';
 
@@ -197,6 +273,12 @@ export type Tables = {
   readonly recovery: Table<RecoveryRow, [string, string, string, string]>;
   readonly meta: Table<MetaRow, string>;
   readonly documents: Table<DocumentRow, [string, string, string, string]>;
+  readonly legacySaves: Table<LegacySaveRow, [string, string, string, string]>;
+  readonly legacyBases: Table<LegacyBaseRow, [string, string, string, string]>;
+  readonly legacyDrafts: Table<
+    LegacyDraftRow,
+    [string, string, string, string]
+  >;
 };
 
 /**
@@ -208,7 +290,9 @@ export type Tables = {
  *
  * Version 2 adds the sync worker lease and the staged snapshot items. Both
  * tables start empty; the migration only revalidates. Version 4 drops the
- * `branches` table of the removed conflict-branch feature.
+ * `branches` table of the removed conflict-branch feature. Version 6 holds
+ * the work of release 0.4 until it is placed on the documents of version 5
+ * (record 0088).
  */
 export const schemaVersions: readonly {
   readonly version: number;
@@ -307,6 +391,18 @@ export const schemaVersions: readonly {
       documents: '[serverOrigin+accountId+workspaceId+fileId]',
     },
   },
+  {
+    version: 6,
+    stores: {
+      // Saves and drafts of release 0.4, and the base texts they start from,
+      // until the store places them on the documents of their notes (record
+      // 0088).
+      legacySaves:
+        '[serverOrigin+accountId+workspaceId+mutationId], [serverOrigin+accountId+workspaceId+sequence], [serverOrigin+accountId+mutationId]',
+      legacyBases: '[serverOrigin+accountId+workspaceId+revisionId]',
+      legacyDrafts: '[serverOrigin+accountId+workspaceId+workingCopyId]',
+    },
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */
@@ -325,6 +421,9 @@ export const tableNames: readonly string[] = [
   'recovery',
   'meta',
   'documents',
+  'legacySaves',
+  'legacyBases',
+  'legacyDrafts',
 ];
 
 /** The default database name. Tests pass their own to stay isolated. */
@@ -393,6 +492,15 @@ export function createDatabase(
       'recovery',
     ),
     meta: db.table<MetaRow, string>('meta'),
+    legacySaves: db.table<LegacySaveRow, [string, string, string, string]>(
+      'legacySaves',
+    ),
+    legacyBases: db.table<LegacyBaseRow, [string, string, string, string]>(
+      'legacyBases',
+    ),
+    legacyDrafts: db.table<LegacyDraftRow, [string, string, string, string]>(
+      'legacyDrafts',
+    ),
   };
   return { db, tables };
 }

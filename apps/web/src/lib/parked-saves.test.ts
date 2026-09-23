@@ -39,6 +39,11 @@ await test('a known refusal code reads as one sentence', () => {
     parkedSaveReason('save_refused', 'deleted_remotely'),
     'The note was deleted on the server.',
   );
+  // Work of release 0.4 that the upgrade could not place (record 0088).
+  assert.equal(
+    parkedSaveReason('save_refused', 'unplaced_work'),
+    'An earlier version of the app kept this text. The note changed after that, so the text does not fit it.',
+  );
 });
 
 await test('an unknown refusal code still reads as a sentence', () => {

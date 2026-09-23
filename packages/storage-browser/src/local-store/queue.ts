@@ -25,7 +25,12 @@ import {
   validateCheckpoint,
   validateQueueRow,
 } from '../migrations.ts';
-import { draftsOfFile, type LocalStoreContext } from './shared.ts';
+import { legacyWorkspaces } from './legacy.ts';
+import {
+  draftsOfFile,
+  forgetMutationWork,
+  type LocalStoreContext,
+} from './shared.ts';
 
 type QueueSlice = Pick<
   LocalStore,
@@ -81,20 +86,29 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
 
     queuedWorkspaces(accountId: string): Promise<readonly string[]> {
       return guard('reading the queued workspaces', () =>
-        db.transaction('r', tables.queue, async () => {
-          // The account wide index of the queue table answers this without a
-          // second index and without a scan of the whole store. Record 0050
-          // asks only which workspaces hold work, so the rows are reduced to
-          // their distinct workspace.
-          const range = accountRange(serverOrigin, accountId);
-          const rows: unknown[] = await tables.queue
-            .where('[serverOrigin+accountId+mutationId]')
-            .between(range.lower, range.upper, true, true)
-            .toArray();
-          const found = new Set<string>();
-          for (const row of rows) found.add(validateQueueRow(row).workspaceId);
-          return [...found];
-        }),
+        db.transaction(
+          'r',
+          [tables.queue, tables.legacySaves, tables.legacyDrafts],
+          async () => {
+            // The account wide index of the queue table answers this without a
+            // second index and without a scan of the whole store. Record 0050
+            // asks only which workspaces hold work, so the rows are reduced to
+            // their distinct workspace.
+            const range = accountRange(serverOrigin, accountId);
+            const rows: unknown[] = await tables.queue
+              .where('[serverOrigin+accountId+mutationId]')
+              .between(range.lower, range.upper, true, true)
+              .toArray();
+            const found = new Set<string>();
+            for (const row of rows)
+              found.add(validateQueueRow(row).workspaceId);
+            // Work of release 0.4 that waits for placement is a save as well,
+            // and only the engine of its workspace places it (record 0088).
+            for (const workspaceId of await legacyWorkspaces(ctx, accountId))
+              found.add(workspaceId);
+            return [...found];
+          },
+        ),
       );
     },
 
@@ -176,67 +190,15 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
               workspaceId,
               entry.mutationId,
             ]);
-            const rows: unknown[] = await tables.checkpoints
-              .where('[serverOrigin+accountId+workspaceId+mutationId]')
-              .equals([serverOrigin, accountId, workspaceId, entry.mutationId])
-              .toArray();
-            for (const row of rows) {
-              const checkpoint = validateCheckpoint(row);
-              await tables.checkpoints.delete([
-                serverOrigin,
+            changes.push(
+              ...(await forgetMutationWork(
+                ctx,
                 accountId,
                 workspaceId,
-                checkpoint.revisionId,
-              ]);
-            }
-            // The tip of the discarded mutation decides what it had set on the
-            // file row: a tombstone tip set the deletion flag, and every tip
-            // set the local head.
-            const tips = new Map<string, boolean>();
-            for (const revision of entry.input.revisions)
-              tips.set(revision.fileId, revision.deleted);
-            for (const [fileId, wasDeletion] of tips) {
-              const stored: unknown = await tables.acceptedFiles.get([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                fileId,
-              ]);
-              if (stored !== undefined) {
-                const file = validateAcceptedFile(stored);
-                await tables.acceptedFiles.put({
-                  ...file,
-                  deleted: wasDeletion ? false : file.deleted,
-                  localHeadRevisionId: file.acceptedHeadRevisionId,
-                  updatedAt: nowIso(),
-                });
-              }
-              // A refused deletion keeps the note live, because it was changed
-              // on another device. The tombstone draft that recorded the
-              // deletion is stale now, and a leftover would shadow the live
-              // note, so it goes with the deletion it recorded.
-              if (wasDeletion)
-                for (const draft of await draftsOfFile(
-                  ctx,
-                  accountId,
-                  workspaceId,
-                  fileId,
-                )) {
-                  if (!draft.deleted) continue;
-                  await tables.drafts.delete([
-                    serverOrigin,
-                    accountId,
-                    workspaceId,
-                    draft.workingCopyId,
-                  ]);
-                }
-              changes.push({
-                accountId,
-                workspaceId,
-                fileId,
-                kind: 'file',
-              });
-            }
+                entry.mutationId,
+                entry.input.revisions,
+              )),
+            );
             changes.push({
               accountId,
               workspaceId,

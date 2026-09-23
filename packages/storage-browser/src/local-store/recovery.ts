@@ -19,6 +19,7 @@ import {
   validateCheckpoint,
   validateContent,
   validateCursor,
+  validateDocument,
   validateDraft,
   validatePreference,
   validateQueueRow,
@@ -27,6 +28,11 @@ import {
   validateSnapshot,
   validateSnapshotItem,
 } from '../migrations.ts';
+import {
+  validateLegacyBase,
+  validateLegacyDraft,
+  validateLegacySave,
+} from '../legacy-records.ts';
 import {
   matchesAccount,
   matchesPartition,
@@ -130,6 +136,25 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
         ]);
     }
     await tables.cursors.delete([serverOrigin, accountId, workspaceId]);
+    // The document of a note holds its text, and the work of release 0.4
+    // holds text as well, so both leave with the partition.
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
+    await tables.documents
+      .where('[serverOrigin+accountId+workspaceId+fileId]')
+      .between(range.lower, range.upper, true, true)
+      .delete();
+    await tables.legacySaves
+      .where('[serverOrigin+accountId+workspaceId+mutationId]')
+      .between(range.lower, range.upper, true, true)
+      .delete();
+    await tables.legacyBases
+      .where('[serverOrigin+accountId+workspaceId+revisionId]')
+      .between(range.lower, range.upper, true, true)
+      .delete();
+    await tables.legacyDrafts
+      .where('[serverOrigin+accountId+workspaceId+workingCopyId]')
+      .between(range.lower, range.upper, true, true)
+      .delete();
     for (const row of await tables.recovery.toArray()) {
       const parsed = validateRecovery(row);
       if (matchesPartition(ctx, parsed, accountId, workspaceId))
@@ -189,6 +214,14 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       collect(validateRecovery(row));
     for (const row of await tables.preferences.toArray())
       collect(validatePreference(row));
+    for (const row of await tables.documents.toArray())
+      collect(validateDocument(row));
+    for (const row of await tables.legacySaves.toArray())
+      collect(validateLegacySave(row));
+    for (const row of await tables.legacyBases.toArray())
+      collect(validateLegacyBase(row));
+    for (const row of await tables.legacyDrafts.toArray())
+      collect(validateLegacyDraft(row));
     workspaces.delete(accountWide);
     for (const workspaceId of workspaces)
       await clearWorkspacePartition(accountId, workspaceId);
@@ -320,6 +353,10 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
             tables.cursors,
             tables.preferences,
             tables.recovery,
+            tables.documents,
+            tables.legacySaves,
+            tables.legacyBases,
+            tables.legacyDrafts,
           ],
           async () => {
             if (workspaceId === undefined) {

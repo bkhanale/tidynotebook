@@ -29,6 +29,7 @@ import { missingNoteNotice, resolveLinkAction } from '../../lib/note-link.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 import {
   noteLoadStatusFor,
+  opensFromDevice,
   type NoteLoadIdentity,
   type NoteLoadState,
   type NoteLoadStatus,
@@ -132,16 +133,22 @@ export function NoteEditorLoader({
               fileId,
             );
             if (cancelled) return;
-            setStatus({
-              kind: 'ready',
-              path: cached.path,
-              text: cached.text,
-              headRevisionId: cached.baseRevisionId,
-              workingCopyId: cached.workingCopyId,
-              sequence: cached.sequence,
-              document: document?.bytes ?? null,
-            });
-            return;
+            // A note that the server holds, and whose document this device
+            // does not hold yet, opens from the server read below.
+            if (
+              opensFromDevice(document?.bytes ?? null, cached.baseRevisionId)
+            ) {
+              setStatus({
+                kind: 'ready',
+                path: cached.path,
+                text: cached.text,
+                headRevisionId: cached.baseRevisionId,
+                workingCopyId: cached.workingCopyId,
+                sequence: cached.sequence,
+                document: document?.bytes ?? null,
+              });
+              return;
+            }
           }
         } catch {
           // A server read can still show content. A later local write failure
@@ -164,9 +171,10 @@ export function NoteEditorLoader({
         return;
       }
       // The screen reached this note before the ordered feed reached the
-      // store, so this device holds no row for it. Keep the read, so a later
-      // save, move, or deletion starts from a local row instead of naming a
-      // create precondition for a file the server already has.
+      // store, so this device holds no row for it, or no document for it.
+      // Keep the read, so a later save, move, or deletion starts from a local
+      // row and the document of the server instead of naming a create
+      // precondition for a file the server already has.
       const head = result.data.head;
       if (store !== null && head !== null && head !== undefined) {
         try {

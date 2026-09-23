@@ -133,26 +133,49 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
     ): Promise<NoteDocument> {
       const key = { serverOrigin, accountId, workspaceId, fileId };
       const merged = await guard('writing the document of a note', () =>
-        db.transaction('rw', tables.documents, async () => {
-          const row = await readDocumentRow(tables, key);
-          const before = row?.bytes ?? startDocument('');
-          const applied = applyDocumentUpdate(before, update);
-          if (!applied.ok)
-            throw new LocalStorageError(
-              'corrupt',
-              `the document of this note refused the work: ${applied.refusal}`,
-            );
-          const next = {
-            ...key,
-            bytes: applied.value.document,
-            epoch: row?.epoch ?? 1,
-            // The work of this device is not accepted work, so the state the
-            // server holds does not move (record 0085).
-            appliedVector: row?.appliedVector ?? documentStateVector(before),
-          };
-          await tables.documents.put(next);
-          return { bytes: next.bytes, epoch: next.epoch };
-        }),
+        db.transaction(
+          'rw',
+          [tables.documents, tables.acceptedFiles],
+          async () => {
+            const row = await readDocumentRow(tables, key);
+            if (row === null) {
+              // Work of an editor that started its own document for a note
+              // that the server holds would start that note from Markdown on
+              // this device (record 0084). The working copy keeps the text.
+              const stored: unknown = await tables.acceptedFiles.get([
+                serverOrigin,
+                accountId,
+                workspaceId,
+                fileId,
+              ]);
+              if (
+                stored !== undefined &&
+                validateAcceptedFile(stored).acceptedHeadRevisionId !== null
+              )
+                throw new LocalStorageError(
+                  'stale',
+                  'this device does not hold the document of this note yet',
+                );
+            }
+            const before = row?.bytes ?? startDocument('');
+            const applied = applyDocumentUpdate(before, update);
+            if (!applied.ok)
+              throw new LocalStorageError(
+                'corrupt',
+                `the document of this note refused the work: ${applied.refusal}`,
+              );
+            const next = {
+              ...key,
+              bytes: applied.value.document,
+              epoch: row?.epoch ?? 1,
+              // The work of this device is not accepted work, so the state the
+              // server holds does not move (record 0085).
+              appliedVector: row?.appliedVector ?? documentStateVector(before),
+            };
+            await tables.documents.put(next);
+            return { bytes: next.bytes, epoch: next.epoch };
+          },
+        ),
       );
       publish({ accountId, workspaceId, fileId, kind: 'file' });
       return merged;
@@ -187,6 +210,7 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             tables.acceptedFiles,
             tables.queue,
             tables.documents,
+            tables.legacySaves,
           ],
           async (): Promise<QueueEntry | null> => {
             const { accountId, workspaceId, fileId } = draft;
@@ -274,9 +298,19 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
             // note, inside this transaction, so a second tab that wrote first
             // keeps its work (records 0081, 0085).
             const key = { serverOrigin, accountId, workspaceId, fileId };
+            // A note that the server holds gets its document from the server,
+            // never from this text (record 0084).
+            const noteExists =
+              (file?.acceptedHeadRevisionId ?? null) !== null ||
+              draft.baseRevisionId !== null;
             const folded = draft.deleted
-              ? { row: null, save: await deletionSave(tables, key) }
-              : await foldTextIntoDocument(tables, key, revisionText);
+              ? { row: null, save: await deletionSave(tables, key, noteExists) }
+              : await foldTextIntoDocument(
+                  tables,
+                  key,
+                  revisionText,
+                  noteExists,
+                );
             if (folded.row !== null) await tables.documents.put(folded.row);
 
             const parentId = lastCheckpointId ?? draft.baseRevisionId;

@@ -31,10 +31,12 @@ import {
   commitChangeset,
   getAccount,
   getChanges,
+  getMutationReceipt,
   getRevision,
   getSnapshotPage,
   getSyncProtocol,
   startSnapshot,
+  type AcceptedChangeset as GeneratedAccepted,
 } from '@notesapp/api-client';
 import {
   generateUUID,
@@ -579,36 +581,26 @@ function createOperations(
       });
       if (sent.error !== undefined || sent.data === undefined)
         return { ok: false, problem: toProblem(sent.error, sent.response) };
+      return { ok: true, value: toAccepted(sent.data) };
+    },
+    async mutationReceipt(mutationId, digest, signal) {
+      const sent = await getMutationReceipt({
+        headers: extraHeaders(),
+        path: { workspaceId, mutationId },
+        query: { digest },
+        signal,
+      });
+      if (sent.error !== undefined || sent.data === undefined)
+        return {
+          ok: false as const,
+          problem: toProblem(sent.error, sent.response),
+        };
       return {
-        ok: true,
+        ok: true as const,
         value: {
-          mutationId: sent.data.mutationId,
-          revisionIds: [...sent.data.revisionIds],
-          cursor: sent.data.cursor,
-          revisions: sent.data.revisions.map((revision) => ({
-            epoch: revision.epoch,
-            acceptedState:
-              revision.acceptedState === null ||
-              revision.acceptedState === undefined
-                ? null
-                : bytesOfBase64(revision.acceptedState),
-            merged: revision.merged,
-            revisionId: revision.revisionId,
-            fileId: revision.fileId,
-            parents: [...revision.parents],
-            path: revision.path,
-            deleted: revision.deleted,
-            digest: revision.digest,
-            size: revision.size,
-            actorAccountId: revision.actorAccountId,
-            serverTime: revision.serverTime,
-            message: revision.message,
-          })),
-          superseded: sent.data.superseded.map((entry) => ({
-            fileId: entry.fileId,
-            previousHeadRevisionId: entry.previousHeadRevisionId,
-            acceptedRevisionId: entry.acceptedRevisionId,
-          })),
+          status: sent.data.status,
+          accepted:
+            sent.data.accepted === null ? null : toAccepted(sent.data.accepted),
         },
       };
     },
@@ -764,6 +756,38 @@ function createOperations(
         };
       return { ok: true as const, value: { accountId: sent.data.accountId } };
     },
+  };
+}
+
+/** The domain shape of one accepted changeset that the server answered. */
+function toAccepted(data: GeneratedAccepted): AcceptedChangeset {
+  return {
+    mutationId: data.mutationId,
+    revisionIds: [...data.revisionIds],
+    cursor: data.cursor,
+    revisions: data.revisions.map((revision) => ({
+      epoch: revision.epoch,
+      acceptedState:
+        revision.acceptedState === null || revision.acceptedState === undefined
+          ? null
+          : bytesOfBase64(revision.acceptedState),
+      merged: revision.merged,
+      revisionId: revision.revisionId,
+      fileId: revision.fileId,
+      parents: [...revision.parents],
+      path: revision.path,
+      deleted: revision.deleted,
+      digest: revision.digest,
+      size: revision.size,
+      actorAccountId: revision.actorAccountId,
+      serverTime: revision.serverTime,
+      message: revision.message,
+    })),
+    superseded: data.superseded.map((entry) => ({
+      fileId: entry.fileId,
+      previousHeadRevisionId: entry.previousHeadRevisionId,
+      acceptedRevisionId: entry.acceptedRevisionId,
+    })),
   };
 }
 

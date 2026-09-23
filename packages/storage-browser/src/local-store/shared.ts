@@ -16,12 +16,14 @@ import {
   type Tables,
 } from '../database.ts';
 import {
+  validateAcceptedFile,
   validateCheckpoint,
   validateContent,
   validateDraft,
   validateQueueRow,
   validateRecovery,
 } from '../migrations.ts';
+import { validateLegacySave } from '../legacy-records.ts';
 
 /**
  * The state every area module shares.
@@ -195,7 +197,18 @@ export const nextQueueSequence = async (
     .where('[serverOrigin+accountId+workspaceId+sequence]')
     .between(range.lower, range.upper, true, true)
     .last();
-  return last === undefined ? 1 : validateQueueRow(last).sequence + 1;
+  // A moved save of release 0.4 returns to the queue under its own order
+  // when it is placed, so a new save takes an order after it (record 0088).
+  const moved: unknown = await ctx.tables.legacySaves
+    .where('[serverOrigin+accountId+workspaceId+sequence]')
+    .between(range.lower, range.upper, true, true)
+    .last();
+  return (
+    Math.max(
+      last === undefined ? 0 : validateQueueRow(last).sequence,
+      moved === undefined ? 0 : validateLegacySave(moved).sequence,
+    ) + 1
+  );
 };
 
 /** The next checkpoint order number of one partition. */
@@ -324,3 +337,88 @@ export const matchesPartition = (
   row.serverOrigin === ctx.serverOrigin &&
   row.accountId === accountId &&
   row.workspaceId === workspaceId;
+
+/**
+ * Removes the local work that only one mutation held.
+ *
+ * The checkpoints of the mutation go, and each file it touched goes back to
+ * its accepted state: the local head returns to the accepted head, and a
+ * deletion flag that the mutation set is cleared, because the accepted head
+ * that the server kept is not a tombstone. The caller removes the mutation
+ * itself, from the queue or from the moved saves, in the same transaction.
+ * The answer names the files that changed.
+ */
+export const forgetMutationWork = async (
+  ctx: LocalStoreContext,
+  accountId: string,
+  workspaceId: string,
+  mutationId: string,
+  revisions: readonly {
+    readonly fileId: string;
+    readonly deleted: boolean;
+  }[],
+): Promise<LocalChange[]> => {
+  const { serverOrigin, tables, nowIso } = ctx;
+  const changes: LocalChange[] = [];
+  const rows: unknown[] = await tables.checkpoints
+    .where('[serverOrigin+accountId+workspaceId+mutationId]')
+    .equals([serverOrigin, accountId, workspaceId, mutationId])
+    .toArray();
+  for (const row of rows) {
+    const checkpoint = validateCheckpoint(row);
+    await tables.checkpoints.delete([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      checkpoint.revisionId,
+    ]);
+  }
+  // The tip of the discarded mutation decides what it had set on the
+  // file row: a tombstone tip set the deletion flag, and every tip
+  // set the local head.
+  const tips = new Map<string, boolean>();
+  for (const revision of revisions) tips.set(revision.fileId, revision.deleted);
+  for (const [fileId, wasDeletion] of tips) {
+    const stored: unknown = await tables.acceptedFiles.get([
+      serverOrigin,
+      accountId,
+      workspaceId,
+      fileId,
+    ]);
+    if (stored !== undefined) {
+      const file = validateAcceptedFile(stored);
+      await tables.acceptedFiles.put({
+        ...file,
+        deleted: wasDeletion ? false : file.deleted,
+        localHeadRevisionId: file.acceptedHeadRevisionId,
+        updatedAt: nowIso(),
+      });
+    }
+    // A refused deletion keeps the note live, because it was changed
+    // on another device. The tombstone draft that recorded the
+    // deletion is stale now, and a leftover would shadow the live
+    // note, so it goes with the deletion it recorded.
+    if (wasDeletion)
+      for (const draft of await draftsOfFile(
+        ctx,
+        accountId,
+        workspaceId,
+        fileId,
+      )) {
+        if (!draft.deleted) continue;
+        await tables.drafts.delete([
+          serverOrigin,
+          accountId,
+          workspaceId,
+          draft.workingCopyId,
+        ]);
+      }
+    changes.push({
+      accountId,
+      workspaceId,
+      fileId,
+      kind: 'file',
+    });
+  }
+  return changes;
+};
