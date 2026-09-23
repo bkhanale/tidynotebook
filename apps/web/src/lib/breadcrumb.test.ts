@@ -3,8 +3,12 @@ import test from 'node:test';
 import {
   breadcrumbKey,
   breadcrumbParts,
+  framePageOf,
+  framePages,
+  leafOf,
   type BreadcrumbPart,
   type BreadcrumbRoute,
+  type PageTitles,
 } from './breadcrumb.ts';
 
 /**
@@ -144,4 +148,80 @@ await test('a link part is identified by its place and its word', () => {
   );
   assert.equal(keyAt(parts, 0), '0:Personal');
   assert.equal(keyAt(parts, 1), '1:Work');
+});
+
+/** The words of the pages, as the shell passes them in. */
+const titles: PageTitles = {
+  notes: 'All notes',
+  trash: 'Trash',
+  published: 'Published links',
+  attention: 'Needs attention',
+  settings: 'Settings',
+  'not-found': 'Page not found',
+};
+
+await test('the deepest route that names a page decides the page', () => {
+  // The frame route names no page. Its child does, and it is the last match.
+  assert.equal(framePageOf([undefined, { page: 'settings' }]), 'settings');
+  assert.equal(
+    framePageOf([{ page: 'notes' }, { page: 'history' }]),
+    'history',
+  );
+});
+
+await test('every page of the frame is read back from its handle', () => {
+  for (const page of framePages) assert.equal(framePageOf([{ page }]), page);
+});
+
+await test('a handle that names no page of the frame is no page', () => {
+  // The route table is the one list of pages. A route that names none must not
+  // read as All notes, which is what an address the shell did not know read.
+  for (const handle of [
+    undefined,
+    null,
+    'settings',
+    {},
+    { page: 'Settings' },
+    { page: 3 },
+  ])
+    assert.equal(framePageOf([handle]), null, JSON.stringify(handle));
+  assert.equal(framePageOf([]), null);
+});
+
+await test('settings yields the workspace and Settings', () => {
+  const leaf = leafOf('settings', null, titles);
+  assert.deepEqual(breadcrumbParts(route({ leaf })), [
+    { label: 'Personal', to: '/w/w1', folder: '' },
+    { label: 'Settings', to: null, folder: null },
+  ]);
+});
+
+await test('an address the frame does not know reads Page not found', () => {
+  assert.equal(leafOf('not-found', null, titles), 'Page not found');
+});
+
+await test('a page that names no note takes its word from the titles', () => {
+  assert.equal(leafOf('notes', null, titles), 'All notes');
+  assert.equal(leafOf('trash', 'Roadmap', titles), 'Trash');
+});
+
+await test('the note pages take the name of the open note', () => {
+  assert.equal(leafOf('note', 'Roadmap', titles), 'Roadmap');
+  assert.equal(leafOf('history', 'Roadmap', titles), 'History of Roadmap');
+  assert.equal(leafOf('review', 'Roadmap', titles), 'Review of Roadmap');
+});
+
+await test('a note page before the name arrives still names the page', () => {
+  assert.equal(leafOf('note', null, titles), 'Note');
+  assert.equal(leafOf('history', null, titles), 'History of this note');
+  assert.equal(leafOf('review', null, titles), 'Review of this note');
+});
+
+await test('a route that names no page yields no last part', () => {
+  // Better the workspace alone than a word that names some other page.
+  const leaf = leafOf(null, null, titles);
+  assert.equal(leaf, '');
+  assert.deepEqual(breadcrumbParts(route({ leaf })), [
+    { label: 'Personal', to: '/w/w1', folder: '' },
+  ]);
 });

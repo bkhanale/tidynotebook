@@ -50,6 +50,7 @@ import {
   Link,
   Outlet,
   useLocation,
+  useMatches,
   useNavigate,
   useParams,
 } from 'react-router';
@@ -171,8 +172,13 @@ import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   breadcrumbKey,
   breadcrumbParts,
+  framePageOf,
+  leafOf,
   type BreadcrumbPart,
+  type PageTitles,
 } from '../lib/breadcrumb.ts';
+import { settingsTitle } from '../features/accounts/accounts.tsx';
+import { notFoundTitle } from './not-found.tsx';
 import {
   DeleteWorkspaceDialog,
   NewWorkspaceDialog,
@@ -281,6 +287,21 @@ const allNotesTitle = 'All notes';
 
 /** The name of the screen that holds the notes a person deleted. */
 const trashTitle = 'Trash';
+
+/**
+ * The word of each page of the frame that names no note.
+ *
+ * Each word comes from the screen that owns it, and the route table names
+ * which page is open (record 0091).
+ */
+const pageTitles: PageTitles = {
+  notes: allNotesTitle,
+  trash: trashTitle,
+  published: publishedLinksTitle,
+  attention: attentionTitle,
+  settings: settingsTitle,
+  'not-found': notFoundTitle,
+};
 
 /** The key line that shows or hides the sidebar, as the table writes it. */
 const sidebarKeys = 'Cmd or Ctrl + \\';
@@ -1204,6 +1225,7 @@ function ShellFrame({
   const location = useLocation();
   const navigate = useNavigate();
   const params = useParams();
+  const matches = useMatches();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -1383,7 +1405,7 @@ function ShellFrame({
       label: 'Settings',
       icon: actionIcon('settings'),
       onSelect: () => {
-        void navigate('/settings');
+        void navigate(`/w/${workspaceId}/settings`);
       },
     },
     {
@@ -1427,26 +1449,15 @@ function ShellFrame({
   );
 
   // The name of the page or the note that the route shows, which is the last
-  // part of the breadcrumb. Every other part comes from the workspace and
-  // from the path of the open note.
+  // part of the breadcrumb. The route table names the page, and every other
+  // part comes from the workspace and from the path of the open note.
   const noteName =
     openNotePath === null ? null : displayNoteName(baseNameOf(openNotePath));
-  const onHistory = location.pathname.endsWith('/history');
-  const onReview = location.pathname.endsWith('/review');
-  const routeName =
-    typeof params.fileId === 'string'
-      ? onHistory
-        ? `History of ${noteName ?? 'this note'}`
-        : onReview
-          ? `Review of ${noteName ?? 'this note'}`
-          : (noteName ?? 'Note')
-      : location.pathname === `/w/${workspaceId}/trash`
-        ? trashTitle
-        : location.pathname === `/w/${workspaceId}/published`
-          ? publishedLinksTitle
-          : location.pathname === `/w/${workspaceId}/attention`
-            ? attentionTitle
-            : allNotesTitle;
+  const routeName = leafOf(
+    framePageOf(matches.map((match) => match.handle)),
+    noteName,
+    pageTitles,
+  );
 
   // The avatar shows the first letter of the person, so the accessible name
   // holds the whole name: a control whose visible text is one letter has to
@@ -1612,7 +1623,7 @@ function ShellFrame({
         keywords: 'account theme sign out',
         icon: 'settings' as const,
         run: () => {
-          void navigate('/settings');
+          void navigate(`/w/${workspaceId}/settings`);
         },
       },
     ],

@@ -8,11 +8,14 @@
  * it is the one action.
  *
  * Settings is the one place for the profile, the palette, offline
- * availability, and sign-out. It reads as sections and not as a stack of
- * cards: each section states its name and its sentence in a column of its own
- * and holds its controls beside them, and a hairline separates one from the
- * next. Theme changes apply locally first and sync in the background through
- * the provider in `app.tsx`.
+ * availability, and sign-out. It is a page of the workspace frame (record
+ * 0091), so the breadcrumb and the sidebar are the way back, and the
+ * sections that act on one workspace act on the workspace of the address.
+ * It reads as sections and not as a stack of cards: each section states its
+ * name and its sentence in a column of its own and holds its controls beside
+ * them, and a hairline separates one from the next. Theme changes apply
+ * locally first and sync in the background through the provider in
+ * `app.tsx`.
  */
 import {
   useCallback,
@@ -21,7 +24,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { Navigate, useNavigate, useParams } from 'react-router';
 import {
   createOwner,
   getSetupStatus,
@@ -35,7 +38,6 @@ import {
   Card,
   Checkbox,
   CheckIcon,
-  ChevronLeftIcon,
   ComputerIcon,
   DownloadIcon,
   LoadingState,
@@ -57,7 +59,6 @@ import {
   useLocalStore,
   useSession,
   useTheme,
-  useWorkspace,
   useRequestSync,
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
@@ -67,6 +68,10 @@ import {
   revokeSessionViaClient,
 } from '../../pwa/lifecycle.ts';
 import { downloadAll, importAll } from '../export/export.ts';
+import { useDocumentTitle } from '../../shell/document-title.ts';
+
+/** The title of the settings page, which is also its breadcrumb part. */
+export const settingsTitle = 'Settings';
 
 /** Redirects to login when no session exists. */
 export function RequireSession({
@@ -620,8 +625,7 @@ function useOfflineChoices(
 export function AccountSettingsPage(): ReactNode {
   const session = useSession();
   const store = useLocalStore();
-  const workspace = useWorkspace();
-  const navigate = useNavigate();
+  const params = useParams();
   const [pending, setPending] = useState<PendingSaves>({ kind: 'loading' });
   const [signOutError, setSignOutError] = useState('');
   const [exporting, setExporting] = useState(false);
@@ -632,9 +636,12 @@ export function AccountSettingsPage(): ReactNode {
   const requestSync = useRequestSync();
   const account = session.account;
   const accountId = account?.accountId ?? null;
+  // The address names the workspace, as it does for every page of the frame.
+  // The frame only renders this once the account holds that workspace.
   const workspaceId =
-    workspace.state.status === 'ready' ? workspace.state.workspaceId : null;
+    typeof params.workspaceId === 'string' ? params.workspaceId : null;
   const offline = useOfflineChoices(store.store, accountId, workspaceId);
+  useDocumentTitle(settingsTitle);
 
   useEffect(() => {
     if (store.store === null || accountId === null || workspaceId === null) {
@@ -660,14 +667,6 @@ export function AccountSettingsPage(): ReactNode {
   // Only a count that arrived can offer the action that removes work. An
   // unknown count keeps the safe action alone (record 0038).
   const unsent = pending.kind === 'ready' && pending.count > 0;
-
-  function handleBack(): void {
-    if (window.history.length > 1) {
-      void navigate(-1);
-    } else {
-      void navigate('/');
-    }
-  }
 
   /**
    * Ends the session on this device.
@@ -703,23 +702,7 @@ export function AccountSettingsPage(): ReactNode {
 
   return (
     <Page>
-      <PageHeader
-        title="Settings"
-        actions={
-          // The frame header carries the breadcrumb of every route under the
-          // workspace, and this route renders outside that frame, so it keeps
-          // one quiet way back. It is the browser step back where there is
-          // one, so a person returns to the note they were reading.
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleBack}
-            icon={<ChevronLeftIcon />}
-          >
-            Back to your notes
-          </Button>
-        }
-      />
+      <PageHeader title={settingsTitle} />
       <div>
         <ThemeSettings />
 

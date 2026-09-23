@@ -79,6 +79,29 @@ export function workspaceAfterRemoval(
   );
 }
 
+/**
+ * The address that opens a path of no workspace inside the chosen one.
+ *
+ * Every page a signed in person opens is a page of the workspace frame
+ * (record 0091). The root address, a link from before that record such as
+ * `/settings`, and an address nobody knows each name no workspace, so each
+ * opens the same path under the chosen workspace. The frame then shows the
+ * page, or Page not found inside the frame, and the person still reads the
+ * address they opened. The search and the hash stay with it.
+ */
+export function addressInWorkspace(
+  workspaceId: string,
+  address: {
+    readonly pathname: string;
+    readonly search: string;
+    readonly hash: string;
+  },
+): string {
+  const home = `/w/${workspaceId}`;
+  const rest = address.pathname.replace(/^\/+/, '');
+  return `${rest === '' ? home : `${home}/${rest}`}${address.search}${address.hash}`;
+}
+
 /** Reads one member of an unknown stored value without claiming its shape. */
 function member(value: unknown, key: string): unknown {
   if (value === null || typeof value !== 'object') return undefined;

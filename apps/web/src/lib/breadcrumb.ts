@@ -8,13 +8,101 @@
  * This module decides the parts and which of them is a link. It does not
  * decide their words: the name of a workspace comes from the workspace list
  * and the name of a page comes from the screen that owns it, so each of those
- * facts stays where it already lives and the caller passes the last part in.
+ * facts stays where it already lives and the caller passes them in.
+ *
+ * Which page the frame shows is a fact of the route table. Each child route
+ * of the frame names its page in its `handle`, and `framePageOf` reads the
+ * deepest one (record 0091). The frame does not match the address a second
+ * time, so an address it does not know cannot read as another page.
  *
  * Every part but the last is a link, because the last part is where the
  * person already is. A folder part goes to the note list of the workspace and
  * selects that folder, which is what the folder row of the tree does, so the
  * two surfaces agree on what pressing a folder means.
  */
+
+/** Every page of the frame, as a child route names it in its `handle`. */
+export const framePages = [
+  'notes',
+  'note',
+  'history',
+  'review',
+  'trash',
+  'published',
+  'attention',
+  'settings',
+  'not-found',
+] as const;
+
+/** One page of the frame. */
+export type FramePage = (typeof framePages)[number];
+
+/** The `handle` of a child route of the frame. */
+export type FrameHandle = { readonly page: FramePage };
+
+/** The pages that take the name of the open note. */
+type NotePage = 'note' | 'history' | 'review';
+
+/**
+ * The word of every page that names no note.
+ *
+ * The record is total by its type, so a new page fails the typecheck until it
+ * has a word.
+ */
+export type PageTitles = Readonly<Record<Exclude<FramePage, NotePage>, string>>;
+
+/** Whether a value is one page of the frame. */
+function isFramePage(value: unknown): value is FramePage {
+  return framePages.some((page) => page === value);
+}
+
+/** Reads the page one `handle` names, or `null` when it names none. */
+function pageOfHandle(handle: unknown): FramePage | null {
+  if (handle === null || typeof handle !== 'object') return null;
+  const page = Object.fromEntries(Object.entries(handle))['page'];
+  return isFramePage(page) ? page : null;
+}
+
+/**
+ * The page the frame shows, from the handles of every matched route.
+ *
+ * The list runs from the outermost route to the deepest one, which is the
+ * order the router gives. The deepest route that names a page decides, and a
+ * route that names none answers `null`.
+ */
+export function framePageOf(handles: readonly unknown[]): FramePage | null {
+  for (let index = handles.length - 1; index >= 0; index -= 1) {
+    const page = pageOfHandle(handles[index]);
+    if (page !== null) return page;
+  }
+  return null;
+}
+
+/**
+ * The word of the last part of the breadcrumb.
+ *
+ * A note page takes the name of the open note, which can be missing for one
+ * render while the list fills. A page with no name answers no word, and
+ * `breadcrumbParts` then draws no last part.
+ */
+export function leafOf(
+  page: FramePage | null,
+  noteName: string | null,
+  titles: PageTitles,
+): string {
+  switch (page) {
+    case null:
+      return '';
+    case 'note':
+      return noteName ?? 'Note';
+    case 'history':
+      return `History of ${noteName ?? 'this note'}`;
+    case 'review':
+      return `Review of ${noteName ?? 'this note'}`;
+    default:
+      return titles[page];
+  }
+}
 
 /** One part of the breadcrumb. */
 export type BreadcrumbPart = {
@@ -88,6 +176,7 @@ export function breadcrumbParts(
     walked = walked === '' ? segment : `${walked}/${segment}`;
     parts.push({ label: segment, to: home, folder: walked });
   }
-  parts.push({ label: route.leaf, to: null, folder: null });
+  if (route.leaf !== '')
+    parts.push({ label: route.leaf, to: null, folder: null });
   return parts;
 }

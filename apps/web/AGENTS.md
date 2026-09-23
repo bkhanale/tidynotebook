@@ -38,8 +38,8 @@ those two alone.
 
 - **A screen.** Add `src/features/<feature>/<name>.tsx` from the `@notesapp/ui`
   primitives, with one primary button and a `Page` for every state, including
-  not found (0062). Route it in `src/router.tsx`, read and write through a
-  generated operation, and put a palette action in `lib/palette-items.ts`.
+  not found (0062). Route it under the frame with a `framePages` handle (0091),
+  call a generated operation, and add a palette action to `lib/palette-items.ts`.
 - **Testable logic.** Add a pure `src/lib/<name>.ts` and its `.test.ts`. A file
   that imports React is not `lib`; it stays with its feature.
 - **A move or a deletion.** Call `applyMoves` in `features/folders/` or

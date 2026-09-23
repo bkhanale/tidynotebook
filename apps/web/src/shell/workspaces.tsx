@@ -18,7 +18,7 @@
  * state and the browser storage live in `app.tsx`. This module is the screen.
  */
 import { useEffect, useState, type ReactNode } from 'react';
-import { Navigate, useNavigate } from 'react-router';
+import { Navigate, useLocation, useNavigate } from 'react-router';
 import {
   createWorkspace,
   deleteWorkspace,
@@ -40,7 +40,7 @@ import {
   TextField,
 } from '@notesapp/ui';
 import { problemMessage, useWorkspace } from '../app.tsx';
-import { isMemberOf } from '../lib/workspace-choice.ts';
+import { addressInWorkspace, isMemberOf } from '../lib/workspace-choice.ts';
 import { initialOf } from '../lib/initial.ts';
 import { actionIcon } from './action-icons.tsx';
 
@@ -48,19 +48,24 @@ import { actionIcon } from './action-icons.tsx';
 const nameLimit = 200;
 
 /**
- * Sends the root address to the notes of the chosen workspace.
+ * Sends an address that names no workspace into the chosen workspace.
  *
- * This screen has no sidebar and no rail: it is only the step between sign-in
- * and the notes of the workspace this device last opened.
+ * The root address goes to the notes of the workspace this device last
+ * opened, and any other path goes to the same path under it (record 0091), so
+ * `/settings` opens Settings inside the frame. This screen has no sidebar and
+ * no rail: it is only the step before the frame, while no workspace is known.
  */
 export function WorkspaceHome(): ReactNode {
   const { state, reload } = useWorkspace();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (state.status === 'ready')
-      void navigate(`/w/${state.workspaceId}`, { replace: true });
-  }, [state, navigate]);
+      void navigate(addressInWorkspace(state.workspaceId, location), {
+        replace: true,
+      });
+  }, [state, navigate, location]);
 
   if (state.status === 'error')
     return (

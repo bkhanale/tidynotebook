@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Workspace } from '@notesapp/api-client';
 import {
+  addressInWorkspace,
   chooseWorkspace,
   isMemberOf,
   parseCachedWorkspaces,
@@ -103,4 +104,54 @@ await test('one broken row drops the whole cached list', () => {
   // read, because a missing workspace reads as a workspace somebody deleted.
   const source = JSON.stringify([personal, { workspaceId: 'ws-work' }]);
   assert.deepEqual(parseCachedWorkspaces(source), []);
+});
+
+/** An address as the router states it, with no search and no hash. */
+function at(
+  pathname: string,
+  search = '',
+  hash = '',
+): {
+  readonly pathname: string;
+  readonly search: string;
+  readonly hash: string;
+} {
+  return { pathname, search, hash };
+}
+
+await test('the root address opens the note list of the workspace', () => {
+  assert.equal(addressInWorkspace('ws-work', at('/')), '/w/ws-work');
+});
+
+await test('an address with no workspace opens the same page under one', () => {
+  // A link to Settings from before record 0091 names no workspace. It opens
+  // Settings inside the frame, not a page that stands outside it.
+  assert.equal(
+    addressInWorkspace('ws-work', at('/settings')),
+    '/w/ws-work/settings',
+  );
+  assert.equal(addressInWorkspace('ws-work', at('/trash')), '/w/ws-work/trash');
+});
+
+await test('an unknown address keeps its path under the workspace', () => {
+  // The frame then shows Page not found, and the person still reads the
+  // address they opened.
+  assert.equal(
+    addressInWorkspace('ws-work', at('/no/such/page')),
+    '/w/ws-work/no/such/page',
+  );
+});
+
+await test('the search and the hash of the address stay', () => {
+  assert.equal(
+    addressInWorkspace('ws-work', at('/settings', '?from=mail', '#export')),
+    '/w/ws-work/settings?from=mail#export',
+  );
+});
+
+await test('a repeated separator yields one separator after the workspace', () => {
+  assert.equal(
+    addressInWorkspace('ws-work', at('//settings')),
+    '/w/ws-work/settings',
+  );
 });

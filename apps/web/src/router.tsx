@@ -4,24 +4,23 @@
  * The one workspace of the account keeps its identifier in the address, so a
  * note link stays stable, but no screen names the workspace. Session
  * protection wraps every private route. Login and first-run setup use the
- * only public page. The root address redirects to the note list, and that
- * redirect has no sidebar.
+ * only public page.
+ *
+ * Every page a signed in person opens is a child of the workspace frame, so
+ * each has the sidebar and the breadcrumb (record 0091). Each child names its
+ * page in its `handle`, which is how the frame names the last breadcrumb part.
+ * An address that names no workspace, the root address among them, opens the
+ * same path under the chosen workspace, and that step has no sidebar.
  */
 import { lazy, Suspense, type ReactNode } from 'react';
-import { Link, RouterProvider, createBrowserRouter } from 'react-router';
-import {
-  buttonClassName,
-  ChevronLeftIcon,
-  LoadingState,
-  Page,
-  PageHeader,
-} from '@notesapp/ui';
+import { RouterProvider, createBrowserRouter } from 'react-router';
+import { LoadingState, Page } from '@notesapp/ui';
 import {
   AccountSettingsPage,
   LoginPage,
   RequireSession,
 } from './features/accounts/accounts.tsx';
-import { useDocumentTitle } from './shell/document-title.ts';
+import type { FrameHandle } from './lib/breadcrumb.ts';
 const Shell = lazy(async () => ({
   default: (await import('./shell/shell.tsx')).Shell,
 }));
@@ -50,6 +49,9 @@ const PublishedLinksView = lazy(async () => ({
   default: (await import('./features/publishing/published-links.tsx'))
     .PublishedLinksView,
 }));
+const NotFoundView = lazy(async () => ({
+  default: (await import('./shell/not-found.tsx')).NotFoundView,
+}));
 
 /** Holds a route while its deferred module loads. */
 function deferred(element: ReactNode): ReactNode {
@@ -66,64 +68,70 @@ function deferred(element: ReactNode): ReactNode {
   );
 }
 
-/**
- * Shown for an address that names no route.
- *
- * It is a page of the application and not a bare sentence: the one page
- * frame, the one page title, one sentence and the one way out.
- */
-function NotFoundPage(): ReactNode {
-  useDocumentTitle('Page not found');
-  return (
-    <Page>
-      <PageHeader title="Page not found" />
-      <p className="mb-6 mt-0 text-control text-muted">
-        The address names no page of this application.
-      </p>
-      <Link className={buttonClassName({ variant: 'secondary' })} to="/">
-        <span className="inline-flex items-center" aria-hidden="true">
-          <ChevronLeftIcon />
-        </span>
-        <span>Back to your notes</span>
-      </Link>
-    </Page>
-  );
+/** The handle of a child route of the frame, checked against the page list. */
+function page(name: FrameHandle['page']): FrameHandle {
+  return { page: name };
 }
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },
   {
-    path: '/',
-    element: <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>,
-  },
-  {
-    path: '/settings',
-    element: (
-      <RequireSession>
-        <AccountSettingsPage />
-      </RequireSession>
-    ),
-  },
-  {
     path: '/w/:workspaceId',
     element: <RequireSession>{deferred(<Shell />)}</RequireSession>,
     children: [
-      { index: true, element: deferred(<NotesHomeView />) },
-      { path: 'notes/:fileId', element: deferred(<NoteView />) },
+      {
+        index: true,
+        element: deferred(<NotesHomeView />),
+        handle: page('notes'),
+      },
+      {
+        path: 'notes/:fileId',
+        element: deferred(<NoteView />),
+        handle: page('note'),
+      },
       {
         path: 'notes/:fileId/history',
         element: deferred(<HistoryView />),
+        handle: page('history'),
       },
       {
         path: 'notes/:fileId/review',
         element: deferred(<ReviewView />),
+        handle: page('review'),
       },
-      { path: 'trash', element: deferred(<TrashView />) },
-      { path: 'published', element: deferred(<PublishedLinksView />) },
-      { path: 'attention', element: deferred(<AttentionRoute />) },
+      {
+        path: 'trash',
+        element: deferred(<TrashView />),
+        handle: page('trash'),
+      },
+      {
+        path: 'published',
+        element: deferred(<PublishedLinksView />),
+        handle: page('published'),
+      },
+      {
+        path: 'attention',
+        element: deferred(<AttentionRoute />),
+        handle: page('attention'),
+      },
+      {
+        path: 'settings',
+        element: <AccountSettingsPage />,
+        handle: page('settings'),
+      },
+      {
+        path: '*',
+        element: deferred(<NotFoundView />),
+        handle: page('not-found'),
+      },
     ],
   },
-  { path: '*', element: <NotFoundPage /> },
+  // The root address, `/settings` from before record 0091 and every unknown
+  // address name no workspace. Each one opens under the chosen workspace.
+  {
+    path: '*',
+    element: <RequireSession>{deferred(<WorkspaceHome />)}</RequireSession>,
+  },
 ]);
 
 /** The routed application. */
