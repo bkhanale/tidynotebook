@@ -5,6 +5,15 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.2 - 2026-09-23
+
+This patch release shows when each note was saved again, on every device.
+
+### Fixed
+
+- The note list shows when each note was saved. Before, every note read "just
+  now" on a device that had just downloaded the workspace.
+
 ## 0.5.1 - 2026-09-23
 
 This patch release opens the local storage of an earlier version again, and
