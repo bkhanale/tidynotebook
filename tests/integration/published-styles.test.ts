@@ -42,6 +42,7 @@ import {
   transitionField,
   transitionSurface,
 } from '@notesapp/ui';
+import { orderedMarkerStyle, orderedMarkerStyles } from '@notesapp/markdown';
 import { loadCompiler, webRequire } from './support/tailwind.ts';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
@@ -145,6 +146,37 @@ await test('every class of the published document reaches the stylesheet', async
     css.includes('.max-w-note {\n    max-width: var(--container-note);'),
   );
   assert.ok(css.includes('--notes-accent-text'));
+});
+
+await test('a nested ordered list of the published page takes the one cycle', async () => {
+  // Record 0089. The live preview draws a nested ordered item in the style
+  // of its depth, and the published page is the other reader of the note, so
+  // it draws the same cycle. The page states each level as a literal class,
+  // because Tailwind emits a utility only when a source names it, so this
+  // test holds that copy to the cycle of `@notesapp/markdown`.
+  const classes = new Set(publishedDocumentClasses.join(' ').split(' '));
+  const css = await buildCss(publishedDocumentClasses);
+  for (let depth = 1; depth <= 6; depth += 1) {
+    const style = orderedMarkerStyle(depth - 1);
+    assert.ok(
+      classes.has(`[&${'_ol'.repeat(depth)}]:list-${style}`),
+      `depth ${String(depth)} names no ${style} class`,
+    );
+    // The compiled rule is the fact a browser reads. Tailwind writes decimal
+    // itself and reads the two other styles from the theme.
+    const value =
+      style === 'decimal' ? 'decimal' : `var(--list-style-type-${style})`;
+    const selector = Array.from({ length: depth }, () => 'ol').join(' ');
+    assert.ok(
+      css.includes(`${selector} {\n    list-style-type: ${value};`),
+      `depth ${String(depth)} draws no ${style} marker`,
+    );
+  }
+  for (const style of orderedMarkerStyles.filter((name) => name !== 'decimal'))
+    assert.ok(
+      css.includes(`--list-style-type-${style}: ${style};`),
+      `the theme names no ${style} style`,
+    );
 });
 
 await test('a class that no source names is not emitted', async () => {

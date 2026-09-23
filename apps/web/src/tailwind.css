@@ -213,6 +213,17 @@
   --tracking-heading: -0.011em;
   --tracking-display: -0.021em;
 
+  /*
+   * The ordered marker cycle of record 0089.
+   *
+   * A nested ordered list of the published page takes the next style of the
+   * cycle that `packages/markdown/src/ordered-markers.ts` names, which is also
+   * what the live preview draws. Tailwind names decimal itself, so the two
+   * other styles of the cycle are the two values here.
+   */
+  --list-style-type-upper-alpha: upper-alpha;
+  --list-style-type-lower-roman: lower-roman;
+
   --text-note: 1rem;
   --text-note--line-height: 1.65;
   --container-note: 40rem;

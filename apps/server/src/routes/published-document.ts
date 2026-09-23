@@ -137,6 +137,12 @@ const noteBodyClasses = [
   '[&_p]:my-4',
   '[&_ul]:my-4 [&_ul]:list-disc [&_ul]:pl-6',
   '[&_ol]:my-4 [&_ol]:list-decimal [&_ol]:pl-6',
+  // A nested ordered list takes the next style of the one cycle of
+  // `packages/markdown/src/ordered-markers.ts`, as the live preview draws it
+  // (record 0089). A deeper selector wins, so each level states its own style,
+  // through two turns of the cycle. `published-styles.test.ts` holds the copy.
+  '[&_ol_ol]:list-upper-alpha [&_ol_ol_ol]:list-lower-roman',
+  '[&_ol_ol_ol_ol]:list-decimal [&_ol_ol_ol_ol_ol]:list-upper-alpha [&_ol_ol_ol_ol_ol_ol]:list-lower-roman',
   '[&_li]:my-1',
   '[&_a]:text-accent [&_a]:underline',
   '[&_strong]:font-semibold',
