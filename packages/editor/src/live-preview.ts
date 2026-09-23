@@ -44,6 +44,7 @@ import {
   alertMarkerLength,
   alertTitle,
   alertToneOf,
+  orderedMarkerLabel,
   type AlertTone,
 } from '@notesapp/markdown';
 import { taskToggleAt } from './commands.ts';
@@ -57,6 +58,11 @@ export type PreviewNode =
       readonly kind: 'list-item';
       readonly depth: number;
       readonly ordered: boolean;
+      /**
+       * The value a reader shows for an ordered item, which is the start of
+       * its list plus its place in it, or `null` for a bullet item.
+       */
+      readonly value: number | null;
     }
   | { readonly kind: 'task'; readonly checked: boolean }
   | { readonly kind: 'code-block'; readonly info: string }
@@ -172,6 +178,36 @@ class BulletWidget extends WidgetType {
 
   override eq(): boolean {
     return true;
+  }
+}
+
+/**
+ * Draws the label of an ordered item in place of its written number.
+ *
+ * The source keeps a numeric CommonMark marker at every depth, and a reader
+ * numbers a list from its first item, so the written number of a later item
+ * can say something that no reader shows. The label is what a reader shows:
+ * the value of the item in the style of its depth (record 0089). It stays
+ * readable to a screen reader, because the number is part of what the list
+ * says.
+ */
+class OrderedMarkerWidget extends WidgetType {
+  readonly label: string;
+
+  constructor(label: string) {
+    super();
+    this.label = label;
+  }
+
+  override eq(other: OrderedMarkerWidget): boolean {
+    return other.label === this.label;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement('span');
+    span.className = 'cm-np-list-number';
+    span.textContent = this.label;
+    return span;
   }
 }
 
@@ -604,6 +640,43 @@ export function buildPreview(
     mark(content, line.to, 'cm-np-list-body');
   };
 
+  /** The values of the ordered items this build met, by item start. */
+  const orderedValues = new Map<number, number>();
+
+  /**
+   * The value a reader shows for one ordered item.
+   *
+   * CommonMark numbers a list from the number of its first item and counts
+   * every later item from there, whatever number the later item carries.
+   * The walk goes back to the nearest item it already knows, so a long list
+   * costs one step for each item and a build that starts inside the list
+   * still counts from its first item.
+   */
+  const orderedValue = (item: SyntaxNode): number => {
+    const unknown: SyntaxNode[] = [];
+    let value: number | null = null;
+    for (let at: SyntaxNode | null = item; at !== null; at = at.prevSibling) {
+      if (at.name !== 'ListItem') continue;
+      const known = orderedValues.get(at.from);
+      if (known !== undefined) {
+        value = known;
+        break;
+      }
+      unknown.push(at);
+    }
+    for (const at of unknown.reverse()) {
+      if (value === null) {
+        const mark = at.getChild('ListMark');
+        value =
+          mark === null
+            ? 1
+            : Number.parseInt(doc.sliceString(mark.from, mark.to), 10);
+      } else value += 1;
+      orderedValues.set(at.from, value);
+    }
+    return value ?? 1;
+  };
+
   /** The nesting depth of the given container kind on the current stack. */
   const depthOf = (...names: readonly string[]): number =>
     stack.reduce(
@@ -798,10 +871,12 @@ export function buildPreview(
     }
 
     if (name === 'ListItem') {
+      const ordered = parent === 'OrderedList';
       structure.push({
         kind: 'list-item',
         depth: depthOf('BulletList', 'OrderedList'),
-        ordered: parent === 'OrderedList',
+        ordered,
+        value: ordered ? orderedValue(node.node) : null,
       });
       hangingIndent(node.node);
       return true;
@@ -809,14 +884,30 @@ export function buildPreview(
 
     if (name === 'ListMark') {
       const text = doc.sliceString(node.from, node.to);
+      const item = node.node.parent;
       if (/^\d+[.)]$/.test(text)) {
-        mark(node.from, node.to, 'cm-np-list-number');
+        // The written number is the source, so it comes back under the caret
+        // like every other marker. Everywhere else the item shows the label
+        // a reader shows. The stack holds the list of this item, so the
+        // ordered lists around it are one fewer than the stack counts.
+        if (item === null || touchesLines(node.from, node.to)) {
+          mark(node.from, node.to, 'cm-np-list-number');
+          return false;
+        }
+        const label = orderedMarkerLabel(
+          orderedValue(item),
+          depthOf('OrderedList') - 1,
+        );
+        items.push(
+          Decoration.replace({
+            widget: new OrderedMarkerWidget(label),
+          }).range(node.from, node.to),
+        );
         return false;
       }
       // The bullet of a task item is the stem of its box. The box stays a box
       // while the line is edited, so the bullet stays hidden with it and the
       // item never grows a second marker under the caret.
-      const item = node.node.parent;
       if (item !== null && item.getChild('Task') !== null) {
         hide(node.from, node.to);
         return false;

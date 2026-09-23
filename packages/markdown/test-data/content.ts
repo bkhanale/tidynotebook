@@ -32,8 +32,10 @@ export const attachmentIdA = '0a1b2c3d-4e5f-4a6b-8c9d-0e1f2a3b4c5d';
  * malformed note identifier, blocked URL schemes, an attachment image, an
  * external image, a blocked image, raw HTML including a script element and an
  * `onerror` attribute, both inline math pairs, display math, a Mermaid fence,
- * a hard line break, six ATX heading levels, both setext heading levels, an ordered list
- * with a start number, an alert quote, both thematic break forms, an indented code block,
+ * a hard line break, six ATX heading levels, both setext heading levels, an
+ * ordered list with a start number, an ordered list nested three deep with a
+ * lazy number and a bullet list inside it, an alert quote, both thematic break
+ * forms, an indented code block,
  * pointy, bare, and email autolinks, a nested block quote, and an unclosed
  * code fence at the end.
  */
@@ -127,6 +129,15 @@ Setext heading level two
 
 3. third item
 4. fourth item
+
+1. first step
+   1. first detail
+      1. first point
+      1. second point
+   2. second detail
+      - a bullet between
+        1. inner step
+2. second step
 
 ***
 

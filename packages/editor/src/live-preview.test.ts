@@ -251,20 +251,139 @@ await test('leading YAML front matter stays editable and is not a heading', () =
   assert.ok(visibleText(doc).startsWith('---\ntitle: Example\n'));
 });
 
-await test('a bullet is replaced at every depth and an ordered marker is kept', () => {
+await test('a bullet is replaced at every depth', () => {
   const doc = '- a\n  - b\n    - c\n';
   const bullets = describe(doc).filter(
     (item) => item.kind === 'widget' && item.value === 'BulletWidget',
   );
   assert.equal(bullets.length, 3);
   assert.deepEqual(structureOf(doc), [
-    { kind: 'list-item', depth: 1, ordered: false },
-    { kind: 'list-item', depth: 2, ordered: false },
-    { kind: 'list-item', depth: 3, ordered: false },
+    { kind: 'list-item', depth: 1, ordered: false, value: null },
+    { kind: 'list-item', depth: 2, ordered: false, value: null },
+    { kind: 'list-item', depth: 3, ordered: false, value: null },
   ]);
-  const ordered = describe('3. three\n4. four\n');
-  assert.ok(has(ordered, 'mark', 'cm-np-list-number', 0, 2));
-  assert.equal(visibleText('3. three\n4. four\n'), '3. three\n4. four\n');
+});
+
+/**
+ * The drawn label of every ordered marker, in document order.
+ *
+ * A widget is data until a view renders it, so the label is read from the
+ * widget the decoration carries, and a widget of another shape fails.
+ */
+function orderedLabels(
+  doc: string,
+  selection?: { from: number; to: number },
+): readonly string[] {
+  const state = stateOf(doc);
+  const built = buildPreview(
+    state,
+    [{ from: 0, to: state.doc.length }],
+    selection ?? { from: state.doc.length, to: state.doc.length },
+  );
+  const labels: { from: number; label: string }[] = [];
+  built.decorations.between(0, state.doc.length, (from, _to, value) => {
+    const spec: unknown = value.spec;
+    if (typeof spec !== 'object' || spec === null || !('widget' in spec))
+      return;
+    const widget: unknown = spec.widget;
+    if (typeof widget !== 'object' || widget === null) return;
+    if (widget.constructor.name !== 'OrderedMarkerWidget') return;
+    assert.ok('label' in widget && typeof widget.label === 'string');
+    labels.push({ from, label: widget.label });
+  });
+  // A mark that holds a widget puts the widget on a layer of its own, so the
+  // set reports the layers one after the other. The document order is the
+  // order a person reads.
+  return labels
+    .sort((left, right) => left.from - right.from)
+    .map((entry) => entry.label);
+}
+
+await test('an ordered marker shows the style of its depth', () => {
+  // The defect this covers: every depth kept its written decimal number, so
+  // a nested list showed no hierarchy (record 0089).
+  const doc = [
+    '1. one',
+    '   1. one a',
+    '      1. one a i',
+    '         1. one a i 1',
+    '            1. one a i 1 A',
+    '      2. one a ii',
+    '   2. one b',
+    '2. two',
+    '',
+  ].join('\n');
+  assert.deepEqual(orderedLabels(doc), [
+    '1.',
+    'A.',
+    'i.',
+    '1.',
+    'A.',
+    'ii.',
+    'B.',
+    '2.',
+  ]);
+});
+
+await test('a bullet list between two ordered lists does not count as a level', () => {
+  const doc = '1. one\n   - bullet\n     1. inner\n';
+  assert.deepEqual(orderedLabels(doc), ['1.', 'A.']);
+});
+
+await test('an ordered item shows the value a reader gives it', () => {
+  // CommonMark numbers a list from its first item, so a later number in the
+  // source says nothing a reader shows. The label follows the reader.
+  const doc = '3. three\n3. four\n9. five\n';
+  assert.deepEqual(orderedLabels(doc), ['3.', '4.', '5.']);
+  assert.deepEqual(
+    structureOf(doc).map((node) =>
+      node.kind === 'list-item' ? node.value : null,
+    ),
+    [3, 4, 5],
+  );
+  // A nested list starts its own count and leaves its parent alone. The
+  // nested list starts at one, because CommonMark lets no other number start
+  // a list that interrupts the text of its item.
+  assert.deepEqual(
+    orderedLabels('2. two\n   1. inner\n   1. next\n3. three\n'),
+    ['2.', 'A.', 'B.', '3.'],
+  );
+});
+
+await test('an ordered marker shows its source while the caret is on its line', () => {
+  const doc = '1. one\n   1. inner\n2. two\n';
+  const inner = doc.indexOf('inner');
+  const found = describe(doc, { from: inner, to: inner });
+  assert.ok(has(found, 'mark', 'cm-np-list-number', 10, 12));
+  assert.deepEqual(orderedLabels(doc, { from: inner, to: inner }), [
+    '1.',
+    '2.',
+  ]);
+  assert.equal(
+    visibleText(doc, { from: inner, to: inner }),
+    ' one\n   1. inner\n two\n',
+  );
+});
+
+await test('the count of a long list starts at its first item inside the viewport', () => {
+  // A view builds the visible ranges only, so a build that starts inside a
+  // list must still count from the first item of that list.
+  const doc = Array.from(
+    { length: 40 },
+    (_, index) => `${String(index + 1)}. item`,
+  ).join('\n');
+  const state = stateOf(doc);
+  const from = state.doc.line(30).from;
+  const built = buildPreview(state, [{ from, to: state.doc.line(31).to }], {
+    from: -1,
+    to: -1,
+  });
+  assert.deepEqual(
+    built.structure.map((node) =>
+      node.kind === 'list-item' ? node.value : null,
+    ),
+    [30, 31],
+  );
 });
 
 await test('the marker line of an item is one row of a lead and a body', () => {

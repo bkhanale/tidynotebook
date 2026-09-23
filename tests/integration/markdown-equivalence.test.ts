@@ -9,7 +9,8 @@
  *
  * The shared corpus is read through both paths and reduced to the same list
  * of structural facts: headings with their level and text, list items with
- * their depth and their ordered flag, code blocks with their info string,
+ * their depth, their ordered flag, and the value a reader shows for an
+ * ordered item, code blocks with their info string,
  * tables with their row and column counts, block quotes with their depth,
  * task items with their checked flag, and thematic breaks. The two lists
  * must be equal, in order.
@@ -102,7 +103,7 @@ function attribute(tag: Tag, name: string): string | null {
 function renderedStructure(html: string): readonly PreviewNode[] {
   const found: PreviewNode[] = [];
   const tags = tagsOf(html);
-  const lists: boolean[] = [];
+  const lists: { ordered: boolean; next: number }[] = [];
   let quoteDepth = 0;
   let footnotes = 0;
   let table: { rows: number; columns: number; firstRow: boolean } | null = null;
@@ -136,15 +137,27 @@ function renderedStructure(html: string): readonly PreviewNode[] {
     }
     if (tag.name === 'ul' || tag.name === 'ol') {
       if (tag.closing) lists.pop();
-      else lists.push(tag.name === 'ol');
+      else {
+        // An ordered list states a start other than one in its attribute, and
+        // a reader counts every item from there.
+        const start = attribute(tag, 'start');
+        lists.push({
+          ordered: tag.name === 'ol',
+          next: start === null ? 1 : Number(start),
+        });
+      }
       continue;
     }
     if (tag.name === 'li' && !tag.closing) {
+      const list = lists[lists.length - 1];
+      const ordered = list?.ordered ?? false;
       found.push({
         kind: 'list-item',
         depth: lists.length,
-        ordered: lists[lists.length - 1] ?? false,
+        ordered,
+        value: ordered && list !== undefined ? list.next : null,
       });
+      if (list !== undefined) list.next += 1;
       if (attribute(tag, 'class') === 'task-list-item') {
         const box = tags[index + 1];
         found.push({
@@ -263,5 +276,17 @@ await test('the corpus keeps every construct the matrix covers', async () => {
   assert.ok(
     preview.some((node) => node.kind === 'list-item' && node.depth === 3),
     'the corpus lost its deep list',
+  );
+  assert.ok(
+    preview.some(
+      (node) => node.kind === 'list-item' && node.ordered && node.depth === 3,
+    ),
+    'the corpus lost its nested ordered list',
+  );
+  assert.ok(
+    preview.some(
+      (node) => node.kind === 'list-item' && node.ordered && node.value === 3,
+    ),
+    'the corpus lost its ordered list with a start number',
   );
 });
