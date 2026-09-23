@@ -19,6 +19,11 @@ export type NoteLoadStatus =
       readonly headRevisionId: string | null;
       readonly workingCopyId?: string | undefined;
       readonly sequence: number;
+      /**
+       * The document of the note on this device, or `null` when this device
+       * holds none yet (record 0081). The editor binds to it.
+       */
+      readonly document?: Uint8Array | null | undefined;
     };
 
 /** A loader result and the note that owns it. */

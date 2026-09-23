@@ -115,6 +115,14 @@ export function NoteEditorLoader({
               setStatus({ kind: 'deleted', path: cached.path });
               return;
             }
+            // The editor binds to the document of the note, so the loader
+            // reads it beside the text (record 0081).
+            const document = await store.readNoteDocument(
+              accountId,
+              workspaceId,
+              fileId,
+            );
+            if (cancelled) return;
             setStatus({
               kind: 'ready',
               path: cached.path,
@@ -122,6 +130,7 @@ export function NoteEditorLoader({
               headRevisionId: cached.baseRevisionId,
               workingCopyId: cached.workingCopyId,
               sequence: cached.sequence,
+              document: document?.bytes ?? null,
             });
             return;
           }
@@ -165,6 +174,10 @@ export function NoteEditorLoader({
           // not keep the read reports its failure on the next write.
         }
       }
+      const cachedDocument =
+        store === null
+          ? null
+          : await store.readNoteDocument(accountId, workspaceId, fileId);
       if (cancelled) return;
       setStatus({
         kind: 'ready',
@@ -172,6 +185,7 @@ export function NoteEditorLoader({
         text: result.data.head?.text ?? '',
         headRevisionId: result.data.headRevisionId,
         sequence: 0,
+        document: cachedDocument?.bytes ?? null,
       });
     }
     void load();
@@ -323,6 +337,7 @@ export function NoteEditorLoader({
         fileId={fileId}
         baseRevisionId={status.headRevisionId}
         initialText={status.text}
+        initialDocument={status.document ?? null}
         initialPath={status.path}
         initialWorkingCopyId={status.workingCopyId}
         initialSequence={status.sequence}

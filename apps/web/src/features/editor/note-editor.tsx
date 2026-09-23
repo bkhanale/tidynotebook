@@ -25,6 +25,13 @@ import { finalizeAttachment, uploadAttachment } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { classifyUrl, portableRelativePath } from '@notesapp/markdown';
 import {
+  encodeDocumentDelta,
+  openDocumentSession,
+  readDocumentText,
+  replaceDocumentText,
+  startDocument,
+} from '@notesapp/note-document';
+import {
   isLocalStorageError,
   saveCheckpointMessage,
   type Draft,
@@ -34,6 +41,7 @@ import {
   type QueueEntry,
 } from '@notesapp/sync';
 import {
+  bindDocument,
   createEditor,
   setEditorRich,
   setEditorTheme,
@@ -141,6 +149,16 @@ export type NoteEditorProps = {
   readonly fileId: string;
   readonly baseRevisionId: string | null;
   readonly initialText: string;
+  /**
+   * The document of the note as this device holds it, or `null` for a note it
+   * has not received yet (record 0081).
+   *
+   * The editor binds to this document, so the text a person edits and the
+   * text of the note are one value. Work from another device joins the open
+   * editor instead of waiting for a reload, and a save carries only the work
+   * of this device.
+   */
+  readonly initialDocument?: Uint8Array | null | undefined;
   readonly initialPath: string;
   readonly initialWorkingCopyId?: string | undefined;
   readonly initialSequence?: number | undefined;
@@ -196,6 +214,7 @@ function NoteEditorBody({
   fileId,
   baseRevisionId,
   initialText,
+  initialDocument = null,
   initialPath,
   initialWorkingCopyId,
   initialSequence = 0,
@@ -238,6 +257,24 @@ function NoteEditorBody({
   // adopt it and the typed name survives.
   const nameEditPendingRef = useRef(false);
   const sequenceRef = useRef(initialSequence);
+  // The live document of this note, built once for this working copy. The
+  // editor binds to it, so the text on the screen and the text of the note
+  // are one value (records 0081, 0082). A stored draft that the document does
+  // not hold yet becomes local work of this device, so nothing is lost while
+  // a device moves from a text draft to a document.
+  const liveDocument = useMemo(() => {
+    const bytes = initialDocument ?? startDocument('');
+    const written =
+      readDocumentText(bytes) === initialText
+        ? null
+        : replaceDocumentText(bytes, initialText);
+    const session = openDocumentSession(
+      written !== null && written.ok ? written.value.document : bytes,
+    );
+    return { session, binding: bindDocument(session) };
+  }, [initialDocument, initialText]);
+  const sessionRef = useRef(liveDocument);
+  sessionRef.current = liveDocument;
   const [name, setName] = useState(displayNoteName(baseNameOf(initialPath)));
   const [pathError, setPathError] = useState('');
   const [bufferText, setBufferText] = useState(initialText);
@@ -376,10 +413,42 @@ function NoteEditorBody({
   const bufferWasReplaced = (): boolean =>
     headReplacedRef.current && sequenceRef.current === initialSequence;
 
+  /**
+   * Joins the accepted work that this device received into the open document.
+   *
+   * The engine writes accepted work into the document row of the note. The
+   * open editor asks for the part it lacks and applies it through the gate,
+   * so the work reaches the screen as one transaction that keeps the
+   * selection, and an IME composition keeps its characters (records 0081,
+   * 0082).
+   */
+  const joinStoredWork = useRef((): Promise<void> => Promise.resolve());
+  joinStoredWork.current = async (): Promise<void> => {
+    const current = live.current;
+    const bound = sessionRef.current;
+    try {
+      const stored = await current.store.readNoteDocument(
+        current.accountId,
+        current.workspaceId,
+        current.fileId,
+      );
+      if (stored === null) return;
+      const missing = encodeDocumentDelta(
+        stored.bytes,
+        bound.session.stateVector(),
+      );
+      bound.binding.applyRemote(missing);
+    } catch {
+      // A read that fails leaves the open document exactly as it is. The
+      // next change of the store asks again.
+    }
+  };
+
   /** Re-reads the queue so the status reports pending and accepted saves. */
   const refreshQueue = useRef((): Promise<void> => Promise.resolve());
   refreshQueue.current = async (): Promise<void> => {
     const current = live.current;
+    await joinStoredWork.current();
     try {
       const [snapshot, checkpoints] = await Promise.all([
         current.store.readFileSaveSnapshot(
@@ -643,6 +712,7 @@ function NoteEditorBody({
   useEffect(() => {
     const container = containerRef.current;
     if (container === null) return;
+    const bound = sessionRef.current;
     const view = createEditor(
       container,
       bufferRef.current,
@@ -685,6 +755,15 @@ function NoteEditorBody({
         },
         theme: themeRef.current,
         rich: richResolvers,
+        document: bound.binding,
+        // Work of another device is not input of this device: the screen
+        // shows it and schedules no save of its own (record 0085).
+        onRemoteChange: (text) => {
+          bufferRef.current = text;
+          setBufferText(text);
+          documentWork.schedule(text);
+          void saveDraftNow.current();
+        },
       },
     );
     viewRef.current = view;
@@ -693,8 +772,36 @@ function NoteEditorBody({
       viewRef.current = null;
       activeNote.current.register(null);
       view.destroy();
+      bound.binding.release();
     };
   }, [workingCopyId, documentWork]);
+
+  // Every local change of the open document is written to this device at
+  // once, so a reload and a second tab both read the work of this editor
+  // (record 0085). The document is the one source of the text, so the save
+  // path that follows sends exactly the work this device added.
+  useEffect(() => {
+    const bound = sessionRef.current;
+    const stop = bound.session.subscribe((change) => {
+      if (change.origin !== 'local') return;
+      const current = live.current;
+      void current.store
+        .mergeNoteWork(
+          current.accountId,
+          current.workspaceId,
+          current.fileId,
+          change.update,
+        )
+        .catch(() => {
+          // A failed local write is reported by the draft write that follows
+          // it, so this path says nothing a second time.
+        });
+    });
+    return () => {
+      stop();
+      bound.session.destroy();
+    };
+  }, [workingCopyId]);
 
   // Theme changes reconfigure one compartment, keeping document, undo,
   // selection, and composition exactly where they are.

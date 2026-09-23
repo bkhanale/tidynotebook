@@ -14,6 +14,14 @@ completion, paste conversion, and the unified diff for History.
 
 - `create-editor.ts` builds one editor instance. `extensions.ts`,
   `language.ts`, `keymaps.ts`, and `commands.ts` build its behaviour.
+- `document-binding.ts` joins the live document of an open note to one view
+  (record 0082). A bound editor takes its undo from Yjs and the plain
+  CodeMirror history stays out, so one key never reaches two histories. A
+  plain editor, which History and a diff use, keeps that history. Remote work
+  reaches a bound document through the gate of this module only, because an
+  update that lands during an IME composition would lose the composed
+  characters. The gate holds one merged update and applies it at the end of
+  the composition.
 - `live-preview.ts` holds the decorations. `widgets.ts` holds the block
   widgets. `outline.ts` reads the same syntax tree.
 - `editor-theme.ts` is the typed CodeMirror adapter. It is the one place in

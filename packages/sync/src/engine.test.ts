@@ -22,6 +22,7 @@ import {
   type LocalConflict,
   type LocalFileSummary,
   type LocalStore,
+  type NoteDocument,
   type QueueEntry,
   type RecoveryInput,
   type RecoveryRecord,
@@ -92,6 +93,28 @@ class FakeStore implements LocalStore {
     revisionId: string,
   ): Promise<string | null> {
     return Promise.resolve(this.revisionTexts.get(revisionId) ?? null);
+  }
+
+  /** The document of each note, as this fake device holds it. */
+  readonly noteDocuments = new Map<string, Uint8Array>();
+
+  readNoteDocument(
+    _account: string,
+    _workspace: string,
+    fileId: string,
+  ): Promise<NoteDocument | null> {
+    const bytes = this.noteDocuments.get(fileId);
+    return Promise.resolve(bytes === undefined ? null : { bytes, epoch: 1 });
+  }
+
+  mergeNoteWork(
+    _account: string,
+    _workspace: string,
+    fileId: string,
+    update: Uint8Array,
+  ): Promise<NoteDocument> {
+    this.noteDocuments.set(fileId, update);
+    return Promise.resolve({ bytes: update, epoch: 1 });
   }
 
   subscribe(): () => void {

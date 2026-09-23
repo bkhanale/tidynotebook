@@ -96,4 +96,10 @@ export {
   richWidgets,
   shouldPreserveAsSource,
 } from './widgets.ts';
-export { documentBindingExtension } from './document-binding.ts';
+export {
+  bindDocument,
+  isRemoteChange,
+  remoteWorkGate,
+  type DocumentBinding,
+  type RemoteWorkGate,
+} from './document-binding.ts';

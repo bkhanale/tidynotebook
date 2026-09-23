@@ -364,6 +364,12 @@ export type SnapshotRevision = {
   readonly epoch: number | null;
 };
 
+/** The document of one note on this device, with its generation. */
+export type NoteDocument = {
+  readonly bytes: Uint8Array;
+  readonly epoch: number;
+};
+
 /**
  * One note that a screen read from the server, ready to cache.
  *
@@ -843,6 +849,34 @@ export type LocalStore = {
     workspaceId: string,
     fileId: string,
   ): Promise<LocalCachedNote | null>;
+
+  /**
+   * The live document of one note, as this device holds it (record 0081).
+   *
+   * The open editor binds to this document, so the text a person edits and
+   * the text of the note are one value. A note this device has not received
+   * yet answers `null`.
+   */
+  readNoteDocument(
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+  ): Promise<NoteDocument | null>;
+
+  /**
+   * Merges the work of the open editor into the stored document of a note.
+   *
+   * Every write reads the stored row again inside the same transaction and
+   * merges into it, so two tabs that write before either reads the other
+   * cannot lose work (record 0085). The answer is the document after the
+   * merge, so the caller can join the work of the other tab.
+   */
+  mergeNoteWork(
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+    update: Uint8Array,
+  ): Promise<NoteDocument>;
 
   /** Accepted local note bodies with current drafts applied over them. */
   listSearchFiles(

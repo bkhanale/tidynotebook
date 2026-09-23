@@ -32,6 +32,7 @@ export type {
   RecoveryInput,
   RecoveryReason,
   RecoveryRecord,
+  NoteDocument,
   ServerNote,
   StagedSnapshot,
 } from './local-port.ts';

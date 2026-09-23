@@ -26,6 +26,7 @@ import {
   type EditorNavigation,
   type LinkTarget,
 } from './commands.ts';
+import { isRemoteChange, type DocumentBinding } from './document-binding.ts';
 import { editorCommands } from './extensions.ts';
 import { editorTheme } from './editor-theme.ts';
 import { noteMarkdownExtensions } from './language.ts';
@@ -51,6 +52,23 @@ export type CreateEditorOptions = {
    * before the deferred modules arrive.
    */
   readonly rich?: RichWidgetResolvers | undefined;
+  /**
+   * The live document of the open note, bound to this view (record 0082).
+   *
+   * A bound editor holds no document of its own: the text of the view and the
+   * text of the note are one value, and Yjs holds the local undo. A plain
+   * editor, which History and a diff use, leaves this absent and keeps the
+   * CodeMirror history. `initialText` must state the text the binding holds.
+   */
+  readonly document?: DocumentBinding | undefined;
+  /**
+   * The text after work that came from the document rather than the person.
+   *
+   * A remote change and a repair reach a bound editor as a transaction of the
+   * binding. They are not input of this device, so they never schedule a save
+   * and never enter local undo. The screen reads the new text here.
+   */
+  readonly onRemoteChange?: ((text: string) => void) | undefined;
 };
 
 /** Re-resolution of a link target for keyboard activation. */
@@ -136,18 +154,30 @@ export function createEditor(
     },
   ]);
 
+  const bound = options.document;
   const state = EditorState.create({
     doc: initialText,
     extensions: [
-      history(),
+      // A bound editor takes its undo from Yjs, so the two histories never
+      // both answer the same key.
+      ...(bound === undefined ? [history()] : [bound.extension]),
       livePreviewExtensions(options.rich ?? {}),
       placeholder(emptyNoteHint),
       themeCompartment.of(editorTheme(options.theme ?? 'dark')),
       saveKeymap,
       editorCommands(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([
+        ...defaultKeymap,
+        ...(bound === undefined ? historyKeymap : []),
+      ]),
       EditorView.updateListener.of((update: ViewUpdate): void => {
-        if (update.docChanged) onChange(update.state.doc.toString());
+        if (!update.docChanged) return;
+        const text = update.state.doc.toString();
+        if (bound !== undefined && isRemoteChange(update)) {
+          options.onRemoteChange?.(text);
+          return;
+        }
+        onChange(text);
       }),
       EditorView.domEventHandlers({
         // A link opens on a plain click, which is what the pointer over it

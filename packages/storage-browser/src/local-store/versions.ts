@@ -7,7 +7,16 @@
  * refers to and a stored checkpoint always has a parent. `listCheckpoints`
  * reads the local history of one file.
  */
-import { deletionSave, foldTextIntoDocument } from './documents.ts';
+import {
+  deletionSave,
+  foldTextIntoDocument,
+  readDocumentRow,
+} from './documents.ts';
+import {
+  applyDocumentUpdate,
+  documentStateVector,
+  startDocument,
+} from '@notesapp/note-document';
 import { contentDigest } from '@notesapp/core';
 import type { ChangesetInput } from '@notesapp/core';
 import {
@@ -16,6 +25,7 @@ import {
   type CheckpointRecord,
   type Draft,
   type LocalStore,
+  type NoteDocument,
   type QueueEntry,
 } from '@notesapp/sync';
 import { guard, type CheckpointRow, type FileRow } from '../database.ts';
@@ -36,7 +46,11 @@ import {
 
 type VersionsSlice = Pick<
   LocalStore,
-  'checkpoint' | 'listCheckpoints' | 'readRevisionText'
+  | 'checkpoint'
+  | 'listCheckpoints'
+  | 'readRevisionText'
+  | 'readNoteDocument'
+  | 'mergeNoteWork'
 >;
 
 export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
@@ -91,6 +105,57 @@ export function createVersionsSlice(ctx: LocalStoreContext): VersionsSlice {
           return content === undefined ? null : validateContent(content).text;
         }),
       );
+    },
+
+    readNoteDocument(
+      accountId: string,
+      workspaceId: string,
+      fileId: string,
+    ): Promise<NoteDocument | null> {
+      return guard('reading the document of a note', () =>
+        db.transaction('r', tables.documents, async () => {
+          const row = await readDocumentRow(tables, {
+            serverOrigin,
+            accountId,
+            workspaceId,
+            fileId,
+          });
+          return row === null ? null : { bytes: row.bytes, epoch: row.epoch };
+        }),
+      );
+    },
+
+    async mergeNoteWork(
+      accountId: string,
+      workspaceId: string,
+      fileId: string,
+      update: Uint8Array,
+    ): Promise<NoteDocument> {
+      const key = { serverOrigin, accountId, workspaceId, fileId };
+      const merged = await guard('writing the document of a note', () =>
+        db.transaction('rw', tables.documents, async () => {
+          const row = await readDocumentRow(tables, key);
+          const before = row?.bytes ?? startDocument('');
+          const applied = applyDocumentUpdate(before, update);
+          if (!applied.ok)
+            throw new LocalStorageError(
+              'corrupt',
+              `the document of this note refused the work: ${applied.refusal}`,
+            );
+          const next = {
+            ...key,
+            bytes: applied.value.document,
+            epoch: row?.epoch ?? 1,
+            // The work of this device is not accepted work, so the state the
+            // server holds does not move (record 0085).
+            appliedVector: row?.appliedVector ?? documentStateVector(before),
+          };
+          await tables.documents.put(next);
+          return { bytes: next.bytes, epoch: next.epoch };
+        }),
+      );
+      publish({ accountId, workspaceId, fileId, kind: 'file' });
+      return merged;
     },
 
     async checkpoint(
