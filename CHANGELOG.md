@@ -5,6 +5,29 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.1 - 2026-09-23
+
+This patch release opens the local storage of an earlier version again, and
+it keeps the work that waited there.
+
+### Fixed
+
+- A browser that ran version 0.4 or earlier opens its local storage again.
+  Version 0.5.0 closed editing on such a browser with a storage error.
+- The work that such a browser kept and did not send reaches the server. When
+  the note changed on another device in the meantime, both texts stay. When
+  both changed the same lines, Needs attention keeps your text.
+- A note that another device makes shows its text on this device. Before, the
+  note could read as empty.
+- Two devices that write an older note at the same time no longer put its text
+  in the note twice. The server now prepares every existing note once.
+- A storage error states the cause and the step that helps, in words.
+
+### Security
+
+- Sign-out removes the text of every note from this device. Before, a copy of
+  each note stayed in the local storage.
+
 ## 0.5.0 - 2026-09-23
 
 This minor release keeps the work of every device. Two people who write the
