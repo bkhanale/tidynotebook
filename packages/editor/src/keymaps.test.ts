@@ -193,6 +193,44 @@ await test('indent and outdent move one list item', () => {
   assert.equal(applied(nested, outdentListSpec(nested)), '- one\n- t‸wo');
 });
 
+await test('indent nests an ordered item at the content column above it', () => {
+  // The defect this covers: the indent unit is two spaces and a `1. ` item
+  // holds its text at the third column, so Tab left an ordered item in the
+  // list it was in and the list gained no level (record 0089).
+  const ordered = stateOf('1. one\n2. t‸wo');
+  assert.equal(applied(ordered, indentListSpec(ordered)), '1. one\n   2. t‸wo');
+  const wide = stateOf('10. one\n11. t‸wo');
+  assert.equal(applied(wide, indentListSpec(wide)), '10. one\n    11. t‸wo');
+  // A deeper line above belongs to the item above, so the walk passes it.
+  const deep = stateOf('1. one\n   - inner\n\n2. t‸wo');
+  assert.equal(
+    applied(deep, indentListSpec(deep)),
+    '1. one\n   - inner\n\n   2. t‸wo',
+  );
+});
+
+await test('indent moves the lines of an item with it', () => {
+  const state = stateOf('1. one\n2. t‸wo\n   - child\n   more text\n3. three');
+  assert.equal(
+    applied(state, indentListSpec(state)),
+    '1. one\n   2. t‸wo\n      - child\n      more text\n3. three',
+  );
+});
+
+await test('outdent moves an item to the column of its parent', () => {
+  const state = stateOf('1. one\n   1. t‸wo\n      - child\n2. three');
+  assert.equal(
+    applied(state, outdentListSpec(state)),
+    '1. one\n1. t‸wo\n   - child\n2. three',
+  );
+});
+
+await test('the first item of a list takes one indent unit', () => {
+  // Nothing sits above the first item to nest under, so the unit applies.
+  const state = stateOf('1. o‸ne');
+  assert.equal(applied(state, indentListSpec(state)), '  1. o‸ne');
+});
+
 await test('indent declines outside a list, so Tab stays free', () => {
   const state = stateOf('plain text‸');
   assert.equal(indentListSpec(state), null);

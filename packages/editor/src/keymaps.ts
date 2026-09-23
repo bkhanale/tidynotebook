@@ -387,35 +387,128 @@ export function headingLevelSpec(
   return { changes };
 }
 
-/** Adds one indentation unit to every selected list line. */
-export function indentListSpec(state: EditorState): TransactionSpec | null {
-  const unit = state.facet(indentUnit);
+/** The leading white space of one line. */
+function indentOf(lineText: string): string {
+  return /^[ \t]*/.exec(lineText)?.[0] ?? '';
+}
+
+/**
+ * The indentation that nests one list line under the item above it.
+ *
+ * CommonMark nests an item only when it starts at the content column of the
+ * item above it, which is the width of that marker and its gap. For a `1. `
+ * item that is three spaces, so the indent unit alone left an ordered item
+ * where it was (record 0089). The walk goes up past blank lines and deeper
+ * lines, which belong to the item above, and stops at the first line that
+ * is not deeper. That line is the sibling when it is a list line at the same
+ * indentation. Returns `null` when no sibling is there, as for the first
+ * item of a list, which nothing can nest under.
+ */
+function nestedIndent(state: EditorState, number: number): string | null {
+  const indent = indentOf(state.doc.line(number).text);
+  if (indent.includes('\t')) return null;
+  for (let at = number - 1; at >= 1; at -= 1) {
+    const text = state.doc.line(at).text;
+    if (text.trim() === '') continue;
+    const above = indentOf(text);
+    if (above.length > indent.length) continue;
+    const parsed = parseListLine(text);
+    if (parsed === null || above !== indent) return null;
+    const column = indent.length + parsed.bullet.length + parsed.gap.length;
+    return ' '.repeat(column);
+  }
+  return null;
+}
+
+/**
+ * The indentation that moves one list line out to the item that holds it.
+ *
+ * The parent is the nearest list line above with less indentation. Returns
+ * `null` when no parent is there, and the caller then removes one unit.
+ */
+function parentIndent(state: EditorState, number: number): string | null {
+  const indent = indentOf(state.doc.line(number).text);
+  if (indent.includes('\t')) return null;
+  for (let at = number - 1; at >= 1; at -= 1) {
+    const text = state.doc.line(at).text;
+    if (text.trim() === '') continue;
+    const above = indentOf(text);
+    if (above.length >= indent.length) continue;
+    if (parseListLine(text) === null || above.includes('\t')) return null;
+    return above;
+  }
+  return null;
+}
+
+/**
+ * Moves every selected list item, with the lines that belong to it.
+ *
+ * `target` gives the new indentation of one list line. The lines below the
+ * item that are deeper than it are its text and its children, so they move
+ * by the same width and the item keeps its shape. A selected line that
+ * already moved with the item above it does not move twice.
+ */
+function moveListItems(
+  state: EditorState,
+  target: (number: number, indent: string) => string,
+): TransactionSpec | null {
   const changes: ChangeSpec[] = [];
+  const moved = new Set<number>();
   for (const number of blockTargets(state)) {
+    if (moved.has(number)) continue;
     const line = state.doc.line(number);
     if (parseListLine(line.text) === null) continue;
-    changes.push({ from: line.from, insert: unit });
+    const indent = indentOf(line.text);
+    const next = target(number, indent);
+    if (next === indent) continue;
+    changes.push({
+      from: line.from,
+      to: line.from + indent.length,
+      insert: next,
+    });
+    moved.add(number);
+    const width = next.length - indent.length;
+    if (indent.includes('\t') || next.includes('\t')) continue;
+    for (let at = number + 1; at <= state.doc.lines; at += 1) {
+      const below = state.doc.line(at);
+      if (below.text.trim() === '') continue;
+      const spaces = indentOf(below.text);
+      if (spaces.length <= indent.length || spaces.includes('\t')) break;
+      moved.add(at);
+      if (width > 0)
+        changes.push({ from: below.from, insert: ' '.repeat(width) });
+      else
+        changes.push({
+          from: below.from,
+          to: below.from + Math.min(spaces.length, -width),
+        });
+    }
   }
   if (changes.length === 0) return null;
   return { changes };
 }
 
-/** Removes up to one indentation unit from every selected list line. */
+/** Nests every selected list item under the item above it. */
+export function indentListSpec(state: EditorState): TransactionSpec | null {
+  const unit = state.facet(indentUnit);
+  return moveListItems(
+    state,
+    (number, indent) => nestedIndent(state, number) ?? `${unit}${indent}`,
+  );
+}
+
+/** Moves every selected list item out to the item that holds it. */
 export function outdentListSpec(state: EditorState): TransactionSpec | null {
   const unit = state.facet(indentUnit);
-  const changes: ChangeSpec[] = [];
-  for (const number of blockTargets(state)) {
-    const line = state.doc.line(number);
-    if (parseListLine(line.text) === null) continue;
-    const indent = /^[ \t]*/.exec(line.text)?.[0] ?? '';
-    if (indent === '') continue;
+  return moveListItems(state, (number, indent) => {
+    const parent = parentIndent(state, number);
+    if (parent !== null) return parent;
+    if (indent === '') return indent;
     const width = indent.startsWith('\t')
       ? 1
       : Math.min(unit.length, indent.length);
-    changes.push({ from: line.from, to: line.from + width, insert: '' });
-  }
-  if (changes.length === 0) return null;
-  return { changes };
+    return indent.slice(width);
+  });
 }
 
 /**

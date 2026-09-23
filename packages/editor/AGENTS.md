@@ -14,7 +14,7 @@ diff for History.
 ## What lives here and what does not
 
 - `create-editor.ts` builds one instance; `extensions.ts`, `language.ts`,
-  `keymaps.ts` and `commands.ts` build its behaviour.
+  `keymaps.ts`, `commands.ts` and `list-numbering.ts` (0089) build it.
 - `document-binding.ts` joins the live document of an open note to one view
   (record 0082). `openBoundNote` is what a screen uses, so no screen opens a
   document of its own. A bound editor takes its undo from Yjs and leaves the

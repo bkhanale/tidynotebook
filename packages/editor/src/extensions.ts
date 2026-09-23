@@ -2,8 +2,8 @@
  * The command surface of the note editor, as one extension bundle.
  *
  * `createEditor` adds this bundle and nothing else: formatting keys, find and
- * replace, note link completion, paste conversion, and the presentation of
- * the panels those features open. Keeping the bundle here lets the editor
+ * replace, note link completion, paste conversion, the numbering of ordered
+ * lists, and the presentation of the panels those features open. Keeping the bundle here lets the editor
  * composition stay one list, and lets every feature be tested on its own.
  *
  * Order inside the bundle is deliberate. Completion keys run before the
@@ -23,6 +23,7 @@ import {
   type NoteLinkSource,
 } from './completion.ts';
 import { formattingKeymap } from './keymaps.ts';
+import { orderedListNumbering } from './list-numbering.ts';
 import { markdownPaste } from './paste.ts';
 
 /**
@@ -156,6 +157,9 @@ export function editorCommands(): Extension {
     noteLinkCompartment.of(noteLinkSource({ notes: [], currentPath: '' })),
     pasteURLAsLink,
     markdownPaste,
+    // Every edit of a person, a paste included, renumbers the ordered lists
+    // it touched in the same transaction (record 0089).
+    orderedListNumbering(),
     // `markdown()` registers its own `Enter` handler with high precedence.
     // These two keymaps sit above it, so completion accepts first and the
     // list continuation of this package is the one that runs.
