@@ -120,6 +120,7 @@ and needs no record.
 | [0088](0088-an-earlier-browser-store-upgrades-through-placement.md)           | An earlier browser store upgrades through placement                             |
 | [0089](0089-an-ordered-item-shows-its-place-and-keeps-its-number.md)          | An ordered item shows its place and keeps its number                            |
 | [0090](0090-every-connection-pool-comes-from-one-factory.md)                  | Every connection pool comes from one factory                                    |
+| [0091](0091-every-signed-in-page-opens-in-the-workspace-frame.md)             | Every signed in page opens in the workspace frame                               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -316,3 +317,8 @@ Record 0090 makes one factory the only place that opens a connection pool,
 because a pool with no error listener stopped the process when the database
 ended an idle connection, and a pool that ended before its sockets closed made
 a test teardown fail.
+
+Record 0091 puts every page that a signed in person opens inside the workspace
+frame, because Settings and Page not found stood outside it with no sidebar and
+no breadcrumb. An address that names no workspace opens under the chosen one.
+It refines record 0064.
