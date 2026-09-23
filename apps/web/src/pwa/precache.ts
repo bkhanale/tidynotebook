@@ -25,6 +25,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';
 import { relative, resolve, sep } from 'node:path';
 import { build, type Plugin } from 'vite';
+import { isAssetPath } from './asset-kinds.ts';
 
 /** The served name of the worker. The server and the page both know it. */
 export const workerFileName = 'service-worker.js';
@@ -34,20 +35,6 @@ const workerEntry = 'src/pwa/service-worker.ts';
 
 /** The name of the cache that holds the precache, before its stamp. */
 export const appCachePrefix = 'notesapp-app-';
-
-/** The file kinds that the worker precaches. */
-const precachedKinds = new Set([
-  'css',
-  'html',
-  'ico',
-  'js',
-  'png',
-  'svg',
-  'ttf',
-  'webmanifest',
-  'woff',
-  'woff2',
-]);
 
 /**
  * The address prefix of the diagram frame.
@@ -94,13 +81,6 @@ export type Precache = {
   readonly oversize: readonly string[];
 };
 
-/** The kind of one address, from the text after its last dot. */
-function kindOf(url: string): string {
-  const name = url.slice(url.lastIndexOf('/') + 1);
-  const dot = name.lastIndexOf('.');
-  return dot === -1 ? '' : name.slice(dot + 1).toLowerCase();
-}
-
 /**
  * Whether the worker precaches one file at all.
  *
@@ -111,7 +91,7 @@ function kindOf(url: string): string {
 function isPrecached(file: BuiltFile): boolean {
   if (file.url === `/${workerFileName}`) return false;
   if (file.url.startsWith(excludedPrefix)) return false;
-  return precachedKinds.has(kindOf(file.url));
+  return isAssetPath(file.url);
 }
 
 /**

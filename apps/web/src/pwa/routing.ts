@@ -7,10 +7,7 @@
  * and this module holds the choices.
  */
 import { isReaderPath } from '../lib/reader-path.ts';
-
-/** Static application assets the worker may store. */
-const assetPattern =
-  /\.(?:js|css|woff2?|ttf|otf|svg|png|ico|webmanifest|html)$/;
+import { isAssetPath } from './asset-kinds.ts';
 
 /** What a routing decision reads from one request. */
 export type RoutedRequest = {
@@ -27,7 +24,7 @@ export function isCacheableAsset(
   if (request.method !== 'GET') return false;
   const url = new URL(request.url);
   if (url.origin !== origin) return false;
-  return assetPattern.test(url.pathname);
+  return isAssetPath(url.pathname);
 }
 
 /**
