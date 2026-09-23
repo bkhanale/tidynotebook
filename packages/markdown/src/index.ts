@@ -46,6 +46,12 @@ export {
   openingDisplayMathFence,
   singleDollarTextMath,
 } from './math-syntax.ts';
+export type { OrderedMarkerStyle } from './ordered-markers.ts';
+export {
+  orderedMarkerLabel,
+  orderedMarkerStyle,
+  orderedMarkerStyles,
+} from './ordered-markers.ts';
 export type { MathRenderReason } from './math.ts';
 export { mathLimits, MathRenderError, renderMath } from './math.ts';
 export type { NoteTarget, RenderMarkdownOptions } from './render.ts';
