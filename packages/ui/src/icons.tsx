@@ -357,6 +357,61 @@ export function ChevronsUpDownIcon(props: IconProps): ReactNode {
   );
 }
 
+/**
+ * Two arrows that point in opposite directions, for the sort notes action.
+ */
+export function SortIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="m3 16 4 4 4-4" />
+      <path d="M7 20V4" />
+      <path d="m21 8-4-4-4 4" />
+      <path d="M17 4v16" />
+    </IconFrame>
+  );
+}
+
+/**
+ * Two arrows that point away from a centre line, for the expand all folders
+ * action.
+ *
+ * It is not the chevron pair of the workspace switcher, because that glyph
+ * says that a menu opens, and the two sit in one sidebar.
+ */
+export function ExpandAllIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M12 22v-6" />
+      <path d="M12 8V2" />
+      <path d="M4 12H2" />
+      <path d="M10 12H8" />
+      <path d="M16 12h-2" />
+      <path d="M22 12h-2" />
+      <path d="m15 19-3 3-3-3" />
+      <path d="m15 5-3-3-3 3" />
+    </IconFrame>
+  );
+}
+
+/**
+ * Two arrows that point at a centre line, for the collapse all folders
+ * action.
+ */
+export function CollapseAllIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M12 22v-6" />
+      <path d="M12 8V2" />
+      <path d="M4 12H2" />
+      <path d="M10 12H8" />
+      <path d="M16 12h-2" />
+      <path d="M22 12h-2" />
+      <path d="m15 19-3-3-3 3" />
+      <path d="m15 5-3 3-3-3" />
+    </IconFrame>
+  );
+}
+
 /** A copy text clipboard icon. */
 export function CopyIcon(props: IconProps): ReactNode {
   return (

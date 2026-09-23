@@ -110,8 +110,10 @@ export function rankNotes(
  * component, because this module is pure and holds no JSX.
  */
 export const actionIconNames = [
+  'collapse-all',
   'delete',
   'duplicate',
+  'expand-all',
   'export',
   'history',
   'image',
@@ -126,6 +128,7 @@ export const actionIconNames = [
   'settings',
   'sidebar',
   'sign-out',
+  'sort',
   'theme-dark',
   'theme-light',
   'theme-system',

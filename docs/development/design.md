@@ -116,9 +116,9 @@ breadcrumb part through `HeaderLeafSlot`, both in
 field that renames it, and gives the header one control, its menu, with History
 and Publish as rows (record 0069). Every icon-only control of the row is
 compact, and the one at each end takes the pull of `edgeControlClassName`. The
-sidebar is rows on the chrome plane: the workspace switcher, New note, the
-Folders label with its New folder action, the tree without guide lines, and the
-footer rows. The wordmark belongs to the sign in and setup screens.
+sidebar is rows on the chrome plane: the workspace switcher, the one row of
+compact icon actions of the tree (record 0093), the tree without guide lines,
+and the footer rows. The wordmark belongs to the sign in and setup screens.
 
 ## Surfaces a person waits on or reads
 

@@ -1,12 +1,13 @@
 # Notes and folders
 
 This page is for the person who writes the notes. It covers how to make,
-name, move, find, and remove a note.
+name, sort, move, find, and remove a note.
 
 ## Make a note
 
 Select **All notes** or a folder name to choose where a new note goes. Then
-select **New note** in the sidebar or in the command palette. You can also use
+select **New note**, the plus button above the tree, or **New note** in the
+command palette. You can also use
 **New note in this folder** in a folder menu. The note opens at once with a
 name such as `New note`, and the name is selected so you can type over it. A
 new note is empty, and until you select Save it lives on your device only. The
@@ -27,14 +28,29 @@ type. The name is kept when you press **Enter** or select something else.
 
 ## Make a folder
 
-Select **All notes** or a folder name to choose the parent. Then select the
-folder icon beside **New note**, or **New folder** in the command palette. Type
-one child name and select **Make folder**. Select the chevron beside a folder
-to expand or collapse it.
+Select **All notes** or a folder name to choose the parent. Then select
+**New folder**, the folder button beside **New note**, or **New folder** in the
+command palette. Type one child name and select **Make folder**. Select the
+chevron beside a folder to expand or collapse it.
+
+**Expand all folders**, the last button above the tree, opens every folder.
+When a folder is open, the same button is **Collapse all folders** and closes
+every folder.
 
 A folder is only a path. A new folder writes nothing to the server. It stays
 visible on this device, becomes real as soon as a note lives in it, and stays
 after a note delete.
+
+## Sort the notes
+
+Select **Sort notes** above the tree and select an order:
+
+- **Name** puts the notes in alphabet order, from A to Z.
+- **Date created** puts the newest note first.
+- **Date updated** puts the note that you changed last first.
+
+The order applies to the notes in each folder. Folders stay above the notes,
+in alphabet order. This device keeps your order until you select another one.
 
 ## Move and rename
 

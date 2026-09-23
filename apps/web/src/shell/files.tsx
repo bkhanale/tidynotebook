@@ -39,6 +39,11 @@ import {
 import { msUntilRevalidate } from '../lib/revalidate.ts';
 import { mergeNotes, type NoteSummary } from '../lib/note-list.ts';
 import { folderPaths } from '../lib/note-name.ts';
+import {
+  noteOrderStorageKey,
+  parseNoteOrder,
+  type NoteOrder,
+} from '../lib/note-order.ts';
 
 /** What every screen reads about the notes of the open area. */
 export type FilesValue = {
@@ -332,6 +337,8 @@ export type OpenFoldersControl = {
   readonly openFolders: ReadonlySet<string>;
   readonly toggleFolder: (path: string) => void;
   readonly openFolder: (path: string) => void;
+  /** Puts the whole open set in place, for Expand or Collapse all folders. */
+  readonly setOpenFolders: (next: ReadonlySet<string>) => void;
 };
 
 /**
@@ -389,7 +396,57 @@ export function useOpenFolders(workspaceId: string): OpenFoldersControl {
     [workspaceId],
   );
 
-  return { openFolders, toggleFolder, openFolder };
+  const replaceOpenFolders = useCallback(
+    (next: ReadonlySet<string>): void => {
+      remember(next);
+      setOpenFolders(next);
+    },
+    [workspaceId],
+  );
+
+  return {
+    openFolders,
+    toggleFolder,
+    openFolder,
+    setOpenFolders: replaceOpenFolders,
+  };
+}
+
+/** Reads the order a person chose, without trusting the stored value. */
+function readNoteOrder(): NoteOrder {
+  try {
+    return parseNoteOrder(window.localStorage.getItem(noteOrderStorageKey));
+  } catch {
+    return parseNoteOrder(null);
+  }
+}
+
+/** The order of the notes in the tree, and how to change it. */
+export type NoteOrderControl = {
+  readonly order: NoteOrder;
+  readonly setOrder: (order: NoteOrder) => void;
+};
+
+/**
+ * Keeps the order of the notes in the tree across reloads (decision 0093).
+ *
+ * The order is a choice of this person on this device, like the open folders
+ * and the width of the sidebar, so it lives in browser settings and never
+ * reaches the account. It is one choice for every workspace.
+ */
+export function useNoteOrder(): NoteOrderControl {
+  const [order, setOrderState] = useState<NoteOrder>(readNoteOrder);
+
+  const setOrder = useCallback((next: NoteOrder): void => {
+    setOrderState(next);
+    try {
+      window.localStorage.setItem(noteOrderStorageKey, next);
+    } catch {
+      // The tree still sorts when browser preference storage fails.
+    }
+  }, []);
+
+  return { order, setOrder };
 }
 
 const emptyFoldersKey = 'notesapp.empty-folders:';

@@ -17,11 +17,12 @@
  * five controls where it carried seven, and the gap is one step below the
  * medium width, which is what leaves the name its room.
  *
- * The sidebar is a column of rows: the workspace switcher, New note, the
- * Folders label with its New folder action, the tree and the footer. Search
- * is not one of them: the header carries it at every width and `Cmd or
- * Ctrl + P` opens it from the keyboard, so the row it held is space the tree
- * has now (decision 0069). No row of it is a filled button, because the one
+ * The sidebar is a column of rows: the workspace switcher, one row of icon
+ * actions for the tree (New note, New folder, Sort notes, and Expand or
+ * Collapse all folders), the tree and the footer (decision 0093). Search is
+ * not one of them: the header carries it at every width and `Cmd or Ctrl + P`
+ * opens it from the keyboard, so the row it held is space the tree has now
+ * (decision 0069). No row of it is a filled button, because the one
  * action of a screen lives in the screen (decision 0062). Its width and its
  * collapse state belong to the person and live in browser settings, where
  * `./sidebar-size.ts` holds the steps and `./drawer.ts` turns one state into
@@ -101,9 +102,16 @@ import { CommandPalette } from './command-palette.tsx';
 import {
   FilesProvider,
   useFiles,
+  useNoteOrder,
   useOpenFolders,
   type OpenFoldersControl,
 } from './files.tsx';
+import {
+  expandedFolders,
+  folderExpansion,
+  folderExpansionLabels,
+} from '../lib/folder-expansion.ts';
+import { noteOrderLabels, noteOrders } from '../lib/note-order.ts';
 import {
   NewFolderDialog,
   RenameFolderDialog,
@@ -325,17 +333,6 @@ const rowActionClassName = buttonClassName({
 const rowSpacerClassName = 'size-11 shrink-0 md:size-7';
 
 /**
- * One row of the sidebar that is the whole control, such as New note.
- *
- * It stands in the column above the tree, which does not scroll, so it takes
- * the outward focus outline of every other control.
- */
-const sidebarRowClassName = rowClassName({
-  inset: false,
-  className: 'w-full text-left',
-});
-
-/**
  * Renders the tree nodes as interactive collapsible lists.
  *
  * A row is a drag source and a folder row is a drop target. The handlers stay
@@ -537,35 +534,6 @@ function TreeView({
 }
 
 /**
- * A quiet group label inside the sidebar, with one action at its end.
- *
- * The heading and the action are two elements of one row and not one inside
- * the other, because the section of the tree is named by this heading: an
- * action inside it would put the word New folder into the name of the region.
- *
- * The action appears on hover and on focus on a desktop, and it stays on the
- * screen under the medium width, where there is no pointer to hover with.
- */
-function GroupLabel({
-  id,
-  children,
-  action,
-}: {
-  readonly id: string;
-  readonly children: ReactNode;
-  readonly action?: ReactNode | undefined;
-}): ReactNode {
-  return (
-    <div className="group flex items-center justify-between gap-cluster px-2 pb-1 pt-3">
-      <h2 className="m-0 text-control font-medium text-muted" id={id}>
-        {children}
-      </h2>
-      {action}
-    </div>
-  );
-}
-
-/**
  * Where the person is, as one line of the header.
  *
  * The workspace, then the folders of the open note, then the name of the note
@@ -633,15 +601,15 @@ function Breadcrumb({
 /**
  * The sidebar: a column of rows on the chrome plane.
  *
- * The switcher, then New note, then the Folders label with its New folder
- * action, then the tree, then the footer rows (decisions 0064 and 0069). No
- * row of it is a filled button: the one action of a screen lives in the
- * screen (decision 0062).
+ * The switcher, then the row of tree actions, then the tree, then the footer
+ * rows (decisions 0064, 0069 and 0093). No row of it is a filled button: the
+ * one action of a screen lives in the screen (decision 0062).
  */
 function Sidebar({
   workspaceId,
   selectedFolder,
   folders,
+  knownFolders,
   newNoteProblem,
   onSelectFolder,
   onNavigate,
@@ -657,6 +625,8 @@ function Sidebar({
   readonly workspaceId: string;
   readonly selectedFolder: string;
   readonly folders: OpenFoldersControl;
+  /** Every folder the tree shows, which Expand all folders opens. */
+  readonly knownFolders: readonly string[];
   /** Why the last New note did not happen, when one did not. */
   readonly newNoteProblem: string | null;
   readonly onSelectFolder: (folder: string) => void;
@@ -678,7 +648,9 @@ function Sidebar({
   const sync = useSyncState();
   const files = useFiles();
   const online = useOnline();
-  const { openFolders, toggleFolder, openFolder } = folders;
+  const { openFolders, toggleFolder, openFolder, setOpenFolders } = folders;
+  const noteOrder = useNoteOrder();
+  const expansion = folderExpansion(openFolders, knownFolders);
   const drag = useTreeDrag({
     store: store.store,
     accountId: session.account?.accountId ?? null,
@@ -694,8 +666,8 @@ function Sidebar({
     workspaceId,
   );
   const tree = useMemo(
-    () => buildNoteTree(files.notes, files.emptyFolders),
-    [files.notes, files.emptyFolders],
+    () => buildNoteTree(files.notes, files.emptyFolders, noteOrder.order),
+    [files.notes, files.emptyFolders, noteOrder.order],
   );
   const openNotePath =
     fileId === null
@@ -836,20 +808,59 @@ function Sidebar({
         onDelete={onDeleteWorkspace}
       />
 
+      {/*
+        The actions of the tree are one row of icons (decision 0093). Each one
+        is a compact ghost control with a name and a title, so the row stays
+        quiet and every action stays in the tab order.
+      */}
       <div className="px-2 pt-1">
-        <button
-          type="button"
-          className={sidebarRowClassName}
-          onClick={() => onNewNoteIn(selectedFolder)}
-        >
-          <span
-            className="inline-flex shrink-0 items-center text-muted"
-            aria-hidden="true"
-          >
-            {actionIcon('new-note')}
-          </span>
-          <span className="min-w-0 flex-1 truncate">New note</span>
-        </button>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label="New note"
+            title="New note"
+            icon={actionIcon('new-note')}
+            onClick={() => onNewNoteIn(selectedFolder)}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label="New folder"
+            title="New folder"
+            icon={actionIcon('new-folder')}
+            onClick={() => onNewFolderIn(selectedFolder)}
+          />
+          <Menu
+            label="Sort notes"
+            icon={actionIcon('sort')}
+            compact
+            align="start"
+            items={noteOrders.map((order) => ({
+              id: order,
+              label: noteOrderLabels[order].label,
+              hint: noteOrderLabels[order].hint,
+              selected: order === noteOrder.order,
+              onSelect: () => noteOrder.setOrder(order),
+            }))}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label={folderExpansionLabels[expansion]}
+            title={folderExpansionLabels[expansion]}
+            icon={actionIcon(
+              expansion === 'expand' ? 'expand-all' : 'collapse-all',
+            )}
+            disabled={knownFolders.length === 0}
+            onClick={() =>
+              setOpenFolders(expandedFolders(expansion, knownFolders))
+            }
+          />
+        </div>
         {newNoteProblem === null ? null : (
           <p className="my-1 px-2 text-control text-danger" role="alert">
             {newNoteProblem}
@@ -858,23 +869,7 @@ function Sidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-2">
-        <section aria-labelledby="tree-heading">
-          <GroupLabel
-            id="tree-heading"
-            action={
-              <Button
-                variant="ghost"
-                size="sm"
-                className="size-11 shrink-0 px-0 opacity-0 focus-visible:opacity-100 group-hover:opacity-100 max-md:opacity-100 md:size-7"
-                label="New folder"
-                title="New folder"
-                icon={actionIcon('new-folder')}
-                onClick={() => onNewFolderIn(selectedFolder)}
-              />
-            }
-          >
-            Folders
-          </GroupLabel>
+        <section className="pt-1" aria-label="Folders">
           <div
             className={treeRowClassName({
               open: location.pathname === notesPath,
@@ -1795,6 +1790,7 @@ function ShellFrame({
               workspaceId={workspaceId}
               selectedFolder={selectedFolder}
               folders={folders}
+              knownFolders={allFolders}
               newNoteProblem={newNote.error}
               onSelectFolder={setSelectedFolder}
               onNavigate={() => setDrawerOpen(false)}

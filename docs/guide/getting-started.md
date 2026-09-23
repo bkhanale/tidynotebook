@@ -30,8 +30,9 @@ The screen has three parts.
 - The **header** says where you are: your workspace, the folders above the
   note, and the name of the note or the page. Then the actions of that page,
   then **Search** and your account.
-- The **sidebar** holds your workspace, **New note**, **New folder**, the whole
-  note tree under **All notes**, and at the bottom a line that says where your
+- The **sidebar** holds your workspace, a row of buttons for **New note**,
+  **New folder**, **Sort notes** and **Expand all folders**, the whole note
+  tree under **All notes**, and at the bottom a line that says where your
   saves are, plus **Trash**.
 - The rest of the screen is the note you have open.
 
@@ -40,7 +41,7 @@ it, and **Escape** or a tap outside it to close it.
 
 ## Your first note
 
-1. Select **New note** in the sidebar. The note opens at once and its name is
+1. Select **New note**, the plus button in the sidebar. The note opens at once and its name is
    selected, so you can type the name over it.
 2. Press **Tab** or select the text area, and start writing. Markdown works
    here. See [Markdown](markdown.md).

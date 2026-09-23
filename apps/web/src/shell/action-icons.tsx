@@ -13,9 +13,11 @@
  */
 import type { ReactNode } from 'react';
 import {
+  CollapseAllIcon,
   ComputerIcon,
   CopyIcon,
   DownloadIcon,
+  ExpandAllIcon,
   FolderPlusIcon,
   HistoryIcon,
   KeyboardIcon,
@@ -27,6 +29,7 @@ import {
   PlusIcon,
   SettingsIcon,
   SignOutIcon,
+  SortIcon,
   SunIcon,
   TrashIcon,
   UploadIcon,
@@ -36,8 +39,10 @@ import type { ActionIconName } from '../lib/palette-items.ts';
 
 /** The glyph of each action name. */
 const actionIcons: Readonly<Record<ActionIconName, ReactNode>> = {
+  'collapse-all': <CollapseAllIcon />,
   delete: <TrashIcon />,
   duplicate: <CopyIcon />,
+  'expand-all': <ExpandAllIcon />,
   export: <DownloadIcon />,
   history: <HistoryIcon />,
   image: <UploadIcon />,
@@ -52,6 +57,7 @@ const actionIcons: Readonly<Record<ActionIconName, ReactNode>> = {
   settings: <SettingsIcon />,
   sidebar: <PanelLeftIcon />,
   'sign-out': <SignOutIcon />,
+  sort: <SortIcon />,
   'theme-dark': <MoonIcon />,
   'theme-light': <SunIcon />,
   'theme-system': <ComputerIcon />,
