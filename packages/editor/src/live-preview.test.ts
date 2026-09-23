@@ -350,19 +350,27 @@ await test('an ordered item shows the value a reader gives it', () => {
   );
 });
 
-await test('an ordered marker shows its source while the caret is on its line', () => {
+await test('an ordered marker keeps its label while the caret edits its item', () => {
   const doc = '1. one\n   1. inner\n2. two\n';
   const inner = doc.indexOf('inner');
   const found = describe(doc, { from: inner, to: inner });
-  assert.ok(has(found, 'mark', 'cm-np-list-number', 10, 12));
   assert.deepEqual(orderedLabels(doc, { from: inner, to: inner }), [
     '1.',
+    'a.',
     '2.',
   ]);
-  assert.equal(
-    visibleText(doc, { from: inner, to: inner }),
-    ' one\n   1. inner\n two\n',
-  );
+  const marker = doc.indexOf('1. inner');
+  assert.ok(has(found, 'widget', 'OrderedMarkerWidget', marker, marker + 2));
+});
+
+await test('an ordered marker shows its source while the selection touches it', () => {
+  const doc = '1. one\n   1. inner\n2. two\n';
+  const marker = doc.indexOf('1. inner');
+  const selection = { from: marker, to: marker + 2 };
+  const found = describe(doc, selection);
+  assert.ok(has(found, 'mark', 'cm-np-list-number', marker, marker + 2));
+  assert.deepEqual(orderedLabels(doc, selection), ['1.', '2.']);
+  assert.equal(visibleText(doc, selection), ' one\n   1. inner\n two\n');
 });
 
 await test('the count of a long list starts at its first item inside the viewport', () => {

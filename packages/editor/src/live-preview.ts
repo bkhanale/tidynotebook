@@ -17,9 +17,11 @@
  *   selection is anywhere inside it.
  * - An inline construct shows its source when the selection touches the
  *   whole construct, so a cursor inside a bold word shows both `**` runs.
- * - A task box is the one exception. It is a control, so it stays a checkbox
- *   whatever the selection does, and its `- [ ]` source never comes back on
- *   screen. See decision record 0033.
+ * - A task box stays a checkbox whatever the selection does, and its `- [ ]`
+ *   source never comes back on screen. See decision record 0033.
+ * - An ordered marker keeps its rendered label while the selection touches
+ *   the item text. Its numeric source returns only when the selection touches
+ *   the marker itself. See decision record 0092.
  *
  * Cost. Only the visible ranges are walked, and only the tree is read: no
  * `doc.toString()` and no regular expression over the document. The walk
@@ -897,11 +899,13 @@ export function buildPreview(
       const text = doc.sliceString(node.from, node.to);
       const item = node.node.parent;
       if (/^\d+[.)]$/.test(text)) {
-        // The written number is the source, so it comes back under the caret
-        // like every other marker. Everywhere else the item shows the label
-        // a reader shows. The stack holds the list of this item, so the
-        // ordered lists around it are one fewer than the stack counts.
-        if (item === null || touchesLines(node.from, node.to)) {
+        // The item keeps the final label while its text is edited. The numeric
+        // source returns only when the selection touches the marker itself,
+        // so it stays directly editable without making the hierarchy change
+        // during ordinary typing (record 0092). The stack holds the list of
+        // this item, so the ordered lists around it are one fewer than the
+        // stack counts.
+        if (item === null || touches(node.from, node.to)) {
           mark(node.from, node.to, 'cm-np-list-number');
           return false;
         }

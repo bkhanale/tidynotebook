@@ -67,8 +67,8 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 
 - No second Markdown grammar and no second scanner: every decoration and the
   outline come from the Lezer tree.
-- No second exception to the reveal rule. A task box keeps its control under
-  the caret (record 0033); every other marker reveals its source.
+- A task box stays a control (0033). An ordered marker reveals its source only
+  when the selection touches it (0092). Other markers follow the reveal rule.
 - No widget outside an image, a Mermaid diagram and display math. A table
   stays editable text.
 - No single dollar inline math: use `$$...$$` or `\(...\)`.
