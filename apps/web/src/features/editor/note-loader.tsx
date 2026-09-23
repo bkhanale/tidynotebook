@@ -35,6 +35,15 @@ import {
 } from '../../lib/note-load-state.ts';
 import { NoteEditor, recordTiming } from './note-editor.tsx';
 
+/** The bytes of one base64 value that the contract states. */
+function bytesOfBase64(value: string): Uint8Array {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1)
+    bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
 /**
  * Loads one note and mounts its editor.
  *
@@ -168,24 +177,36 @@ export function NoteEditorLoader({
             revisionId: head.revisionId,
             digest: head.digest,
             text: head.text ?? '',
+            document:
+              head.document === null || head.document === undefined
+                ? null
+                : bytesOfBase64(head.document),
+            epoch: head.epoch ?? 1,
           });
         } catch {
           // The note still opens from the buffer above. A device that could
           // not keep the read reports its failure on the next write.
         }
       }
+      // The document of the note comes from this device when it holds one,
+      // and from the read otherwise. A device that started a document of its
+      // own here would hold characters that the server never saw, and joining
+      // the two would show the note twice (records 0081, 0084).
       const cachedDocument =
         store === null
           ? null
           : await store.readNoteDocument(accountId, workspaceId, fileId);
       if (cancelled) return;
+      const servedDocument = head?.document ?? null;
       setStatus({
         kind: 'ready',
         path: result.data.path,
         text: result.data.head?.text ?? '',
         headRevisionId: result.data.headRevisionId,
         sequence: 0,
-        document: cachedDocument?.bytes ?? null,
+        document:
+          cachedDocument?.bytes ??
+          (servedDocument === null ? null : bytesOfBase64(servedDocument)),
       });
     }
     void load();

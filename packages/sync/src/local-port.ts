@@ -385,6 +385,16 @@ export type ServerNote = {
   readonly revisionId: string;
   readonly digest: string;
   readonly text: string;
+  /**
+   * The document of the note at that revision, or `null` for an attachment.
+   *
+   * The device keeps it, so the editor it opens next starts from the document
+   * of the workspace. A device that started a document of its own would hold
+   * characters that the server never saw (records 0081, 0084).
+   */
+  readonly document?: Uint8Array | null | undefined;
+  /** The generation of that document, or `null`. */
+  readonly epoch?: number | null | undefined;
 };
 
 /**

@@ -456,7 +456,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
       const written = await guard('keeping a note of the server', () =>
         db.transaction(
           'rw',
-          [tables.acceptedFiles, tables.contents],
+          [tables.acceptedFiles, tables.contents, tables.documents],
           async (): Promise<boolean> => {
             const known: unknown = await tables.acceptedFiles.get([
               serverOrigin,
@@ -490,6 +490,23 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
               localHeadRevisionId: note.revisionId,
               updatedAt: nowIso(),
             });
+            // The document of the workspace comes with the read, so the
+            // editor that opens next merges instead of starting again.
+            const document = note.document ?? null;
+            if (document !== null) {
+              const applied = await applyServerWork(
+                tables,
+                {
+                  serverOrigin,
+                  accountId,
+                  workspaceId,
+                  fileId: note.fileId,
+                },
+                note.epoch ?? 1,
+                { kind: 'document', document },
+              );
+              await tables.documents.put(applied.row);
+            }
             return true;
           },
         ),
