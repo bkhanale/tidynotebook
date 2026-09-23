@@ -122,6 +122,7 @@ and needs no record.
 | [0090](0090-every-connection-pool-comes-from-one-factory.md)                  | Every connection pool comes from one factory                                    |
 | [0091](0091-every-signed-in-page-opens-in-the-workspace-frame.md)             | Every signed in page opens in the workspace frame                               |
 | [0092](0092-an-ordered-marker-keeps-its-preview-while-editing.md)             | An ordered marker keeps its preview while editing                               |
+| [0093](0093-the-tree-actions-are-one-row-of-icons.md)                         | The tree actions are one row of icons                                           |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -328,3 +329,8 @@ Record 0092 keeps the rendered marker of an ordered item while a person edits
 its text, because the numeric Markdown marker made a nested list lose its
 visible hierarchy until the caret left the line. The numeric source returns
 only when the selection touches the marker. It refines record 0089.
+
+Record 0093 puts the actions of the tree in one row of icons above it: New
+note, New folder, Sort notes, and Expand or collapse all folders. The order of
+the notes is a device choice. It refines records 0064 and 0069, and it answers
+[issue 139](https://github.com/bkhanale/notesapp/issues/139).
