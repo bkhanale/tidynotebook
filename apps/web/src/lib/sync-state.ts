@@ -26,8 +26,6 @@ export type SyncState =
   | { readonly kind: 'waiting' }
   /** A save was refused and waits in the Needs attention list. */
   | { readonly kind: 'attention'; readonly fileId: string | undefined }
-  /** A later save replaced text that another device had saved. */
-  | { readonly kind: 'superseded'; readonly path: string }
   /** A delete did not run because the note changed elsewhere. */
   | { readonly kind: 'delete-refused'; readonly path: string }
   /** The session ended, so sync stopped until the person signs in. */
@@ -54,8 +52,11 @@ export function syncStateOfNotice(notice: SyncNotice): SyncState | null {
   if (notice.kind === 'pushed') return { kind: 'in-step' };
   if (notice.kind === 'preserved')
     return { kind: 'attention', fileId: notice.fileIds[0] };
-  if (notice.kind === 'superseded')
-    return { kind: 'superseded', path: notice.path };
+  // A save that passed a newer head joins the work of that head, so nothing
+  // of the other device went to History alone. When the save joined work
+  // that this device had not seen, the note offers Review, and that is the
+  // one message of the cause (record 0087).
+  if (notice.kind === 'superseded') return null;
   if (notice.kind === 'delete-refused')
     return { kind: 'delete-refused', path: notice.path };
   if (notice.kind === 'retry') return { kind: 'waiting' };
@@ -103,8 +104,6 @@ export function syncStateMessage(
     return 'No connection. Your saves are on this device and go up when the connection returns.';
   if (state.kind === 'attention')
     return `${named} could not be saved to the server. Open Needs attention to keep the text.`;
-  if (state.kind === 'superseded')
-    return `Your save of ${named} is now the latest version. The text from the other device is in History.`;
   if (state.kind === 'delete-refused')
     return `${named} changed on another device, so it was not deleted.`;
   if (state.kind === 'signed-out')
@@ -181,16 +180,12 @@ export type SyncDot =
  * Which dot one state shows.
  *
  * A device with no connection is pending and not a failure: the saves are on
- * the device and they go up when the connection returns. A save that another
- * device superseded is saved, because the text of this device is the latest
- * version and the other one is in History.
+ * the device and they go up when the connection returns.
  */
 export function syncDot(state: SyncState, online: boolean): SyncDot {
   if (syncNeedsAttention(state)) return 'attention';
   if (!online) return 'pending';
-  return state.kind === 'in-step' || state.kind === 'superseded'
-    ? 'saved'
-    : 'pending';
+  return state.kind === 'in-step' ? 'saved' : 'pending';
 }
 
 /**

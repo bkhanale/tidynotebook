@@ -49,6 +49,21 @@ export function rowChangeText(change: RowChange): string {
   return 'Text changed';
 }
 
+/**
+ * The reading of one row, with the mark of a merged save.
+ *
+ * A save that joined work its device had not seen holds the work of another
+ * device as well, and History says so on every device (record 0087). A
+ * deletion and a first version never join anything, so they keep their one
+ * message.
+ */
+export function rowReading(change: RowChange, merged: boolean): string {
+  const text = rowChangeText(change);
+  if (!merged || change.kind === 'deleted' || change.kind === 'first')
+    return text;
+  return `${text}, with changes from another device`;
+}
+
 /** Lowers the first letter of a phrase that follows a comma. */
 function lowerFirst(text: string): string {
   return text.charAt(0).toLowerCase() + text.slice(1);

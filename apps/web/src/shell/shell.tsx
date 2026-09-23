@@ -1433,11 +1433,14 @@ function ShellFrame({
   const noteName =
     openNotePath === null ? null : displayNoteName(baseNameOf(openNotePath));
   const onHistory = location.pathname.endsWith('/history');
+  const onReview = location.pathname.endsWith('/review');
   const routeName =
     typeof params.fileId === 'string'
       ? onHistory
         ? `History of ${noteName ?? 'this note'}`
-        : (noteName ?? 'Note')
+        : onReview
+          ? `Review of ${noteName ?? 'this note'}`
+          : (noteName ?? 'Note')
       : location.pathname === `/w/${workspaceId}/trash`
         ? trashTitle
         : location.pathname === `/w/${workspaceId}/published`

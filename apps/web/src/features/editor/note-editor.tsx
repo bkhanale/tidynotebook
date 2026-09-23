@@ -86,6 +86,7 @@ import {
 import { createDocumentWorkQueue } from './document-work.ts';
 import { noteHeadWasReplaced } from './head-replaced.ts';
 import { Backlinks } from './backlinks.tsx';
+import { ReviewNoticeBar } from '../review/review-notice.tsx';
 
 /** Draft writes trail input by this long, inside the 150 ms target. */
 const draftSaveDelayMs = 120;
@@ -1272,6 +1273,16 @@ function NoteEditorBody({
             <Notice tone="problem" message={editorNotice} />
           </div>
         )}
+        {/*
+          A save of this device that joined work of another device offers
+          Review here, on the note it belongs to (record 0087).
+        */}
+        <ReviewNoticeBar
+          store={store}
+          accountId={accountId}
+          workspaceId={workspaceId}
+          fileId={fileId}
+        />
         <input
           ref={fileInputRef}
           className="hidden"

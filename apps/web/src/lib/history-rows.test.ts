@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { changeCountText, rowChangeOf, rowChangeText } from './history-rows.ts';
+import {
+  changeCountText,
+  rowChangeOf,
+  rowChangeText,
+  rowReading,
+} from './history-rows.ts';
 
 await test('a count reads as plain words in both numbers', () => {
   assert.equal(changeCountText({ added: 1, removed: 0 }), '1 line added');
@@ -79,4 +84,25 @@ await test('no row reading names a revision or an instant', () => {
     assert.doesNotMatch(reading, /[0-9a-f]{8}-[0-9a-f]{4}/);
     assert.doesNotMatch(reading, /\d{4}-\d{2}-\d{2}T/);
   }
+});
+
+await test('a merged version says that it holds changes of another device', () => {
+  const edited = rowChangeOf({
+    deleted: false,
+    restored: false,
+    first: false,
+    count: { added: 2, removed: 1 },
+  });
+  assert.equal(
+    rowReading(edited, true),
+    '2 lines added, 1 line removed, with changes from another device',
+  );
+  assert.equal(rowReading(edited, false), '2 lines added, 1 line removed');
+  assert.equal(
+    rowReading({ kind: 'unknown' }, true),
+    'Text changed, with changes from another device',
+  );
+  // A deletion and a first version keep their one message.
+  assert.equal(rowReading({ kind: 'deleted' }, true), 'Note deleted');
+  assert.equal(rowReading({ kind: 'first' }, true), 'First version');
 });

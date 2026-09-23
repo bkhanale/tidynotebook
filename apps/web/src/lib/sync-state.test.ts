@@ -40,7 +40,7 @@ const notices: readonly SyncNotice[] = [
 await test('every engine notice maps to a typed state or to nothing', () => {
   for (const notice of notices) {
     const state = syncStateOfNotice(notice);
-    if (notice.kind === 'snapshot-restart') {
+    if (notice.kind === 'snapshot-restart' || notice.kind === 'superseded') {
       assert.equal(state, null);
       continue;
     }
@@ -65,7 +65,6 @@ const states: readonly SyncState[] = [
   { kind: 'sending' },
   { kind: 'waiting' },
   { kind: 'attention', fileId: 'f2' },
-  { kind: 'superseded', path: 'plans/roadmap.md' },
   { kind: 'delete-refused', path: 'plans/old.md' },
   { kind: 'signed-out' },
   { kind: 'other-tab' },
@@ -172,7 +171,6 @@ await test('a refusal still says that saving stopped', () => {
 
 await test('the dot of the footer states where the work stands', () => {
   assert.equal(syncDot({ kind: 'in-step' }, true), 'saved');
-  assert.equal(syncDot({ kind: 'superseded', path: 'a.md' }, true), 'saved');
   assert.equal(syncDot({ kind: 'starting' }, true), 'pending');
   assert.equal(syncDot({ kind: 'sending' }, true), 'pending');
   assert.equal(syncDot({ kind: 'waiting' }, true), 'pending');
@@ -207,4 +205,18 @@ await test('every dot is one size and one token of the palette', () => {
   }
   // Three states, three fills: a dot that repeats a colour states nothing.
   assert.equal(fills.size, 3);
+});
+
+await test('a save that passed a newer head is not a message of its own', () => {
+  // The save joined the work of that head, so the text of the other device
+  // is in the note and not only in History. A merge offers Review on the
+  // note, and that is the one message of the cause (record 0087).
+  assert.equal(
+    syncStateOfNotice({
+      kind: 'superseded',
+      fileId: 'f3',
+      path: 'plans/roadmap.md',
+    }),
+    null,
+  );
 });

@@ -765,7 +765,7 @@ export function useWorkspaceSync(
         readQueue();
         return;
       }
-      if (next.kind === 'superseded' || next.kind === 'delete-refused') {
+      if (next.kind === 'delete-refused') {
         setNoteName(displayNoteName(next.path));
         return;
       }
