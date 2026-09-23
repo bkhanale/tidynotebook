@@ -7,6 +7,7 @@ import {
   notesInFolder,
   recentNotes,
   type NoteSummary,
+  type TreeNode,
 } from './note-list.ts';
 
 const note = (
@@ -16,6 +17,7 @@ const note = (
 ): NoteSummary => ({
   fileId,
   path,
+  createdAt: updatedAt,
   updatedAt,
   localOnly: false,
   unsent: false,
@@ -68,6 +70,24 @@ await test('a local draft marks the note as local only', () => {
   assert.equal(merged[0]?.localOnly, true);
 });
 
+await test('a note keeps the creation instant of the server', () => {
+  const merged = mergeNotes(
+    [
+      {
+        fileId: 'a',
+        path: 'one.md',
+        kind: 'note',
+        headRevisionId: 'r1',
+        createdAt: '2026-01-01T00:00:00Z',
+        updatedAt: '2026-01-04T00:00:00Z',
+      },
+    ],
+    [],
+  );
+  assert.equal(merged[0]?.createdAt, '2026-01-01T00:00:00Z');
+  assert.equal(merged[0]?.updatedAt, '2026-01-04T00:00:00Z');
+});
+
 await test('recent notes are the newest first', () => {
   const notes = [
     note('a', 'a.md', '2026-01-01T00:00:00Z'),
@@ -93,6 +113,74 @@ await test('the tree puts folders before notes at every level', () => {
   assert.equal(plans.fullPath, 'plans');
   assert.equal(plans.children[0]?.kind, 'folder');
   assert.equal(plans.children[1]?.kind, 'note');
+});
+
+/** The folder and note names of one level of the tree, in its order. */
+const namesOf = (nodes: readonly TreeNode[]): readonly string[] =>
+  nodes.map((node) => (node.kind === 'folder' ? node.name : node.basename));
+
+await test('the tree sorts folders and notes in alphabet order without case', () => {
+  const tree = buildNoteTree(
+    [
+      note('a', 'Banana.md', '2026-01-01T00:00:00Z'),
+      note('b', 'apple.md', '2026-01-01T00:00:00Z'),
+      note('c', 'Zoo/one.md', '2026-01-01T00:00:00Z'),
+      note('d', 'work/two.md', '2026-01-01T00:00:00Z'),
+    ],
+    [],
+    'name',
+  );
+  assert.deepEqual(namesOf(tree), ['work', 'Zoo', 'apple.md', 'Banana.md']);
+});
+
+await test('the tree sorts the notes of each folder in the chosen order', () => {
+  const notes = [
+    {
+      ...note('a', 'plans/old.md', '2026-01-09T00:00:00Z'),
+      createdAt: '2026-01-01T00:00:00Z',
+    },
+    {
+      ...note('b', 'plans/new.md', '2026-01-02T00:00:00Z'),
+      createdAt: '2026-01-02T00:00:00Z',
+    },
+    {
+      ...note('c', 'plans/mid.md', '2026-01-05T00:00:00Z'),
+      createdAt: '2026-01-01T12:00:00Z',
+    },
+  ];
+  const plansOf = (tree: readonly TreeNode[]): readonly string[] => {
+    const plans = tree[0];
+    assert.ok(plans?.kind === 'folder');
+    return namesOf(plans.children);
+  };
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'name')), [
+    'mid.md',
+    'new.md',
+    'old.md',
+  ]);
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'created')), [
+    'new.md',
+    'mid.md',
+    'old.md',
+  ]);
+  assert.deepEqual(plansOf(buildNoteTree(notes, [], 'updated')), [
+    'old.md',
+    'mid.md',
+    'new.md',
+  ]);
+});
+
+await test('a date order keeps the folders first and in name order', () => {
+  const tree = buildNoteTree(
+    [
+      note('a', 'loose.md', '2026-01-09T00:00:00Z'),
+      note('b', 'zoo/one.md', '2026-01-01T00:00:00Z'),
+      note('c', 'alpha/two.md', '2026-01-02T00:00:00Z'),
+    ],
+    ['Beta'],
+    'updated',
+  );
+  assert.deepEqual(namesOf(tree), ['alpha', 'Beta', 'zoo', 'loose.md']);
 });
 
 await test('a folder with no note still reaches the tree', () => {

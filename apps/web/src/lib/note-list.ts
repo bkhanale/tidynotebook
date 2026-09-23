@@ -9,11 +9,19 @@
 import type { WorkspaceFileSummary } from '@notesapp/api-client';
 import type { LocalFileSummary } from '@notesapp/sync';
 import { mergeFileSummaries } from '../local-state.ts';
+import {
+  compareNames,
+  compareNotes,
+  defaultNoteOrder,
+  type NoteOrder,
+} from './note-order.ts';
 
 /** One note of the open area, with the local facts the tree needs. */
 export type NoteSummary = {
   readonly fileId: string;
   readonly path: string;
+  /** The instant the note was made, which the date created order reads. */
+  readonly createdAt: string;
   readonly updatedAt: string;
   /** The note exists on this device only; the server has never seen it. */
   readonly localOnly: boolean;
@@ -40,6 +48,7 @@ export function mergeNotes(
       return {
         fileId: file.fileId,
         path: file.path,
+        createdAt: file.createdAt,
         updatedAt: file.updatedAt,
         localOnly: own?.localOnly ?? false,
         unsent:
@@ -117,10 +126,14 @@ export type TreeNode =
  * yet. A folder is only a part of a note path, so nothing on the server
  * describes such a folder; this device remembers it and the tree shows it
  * with no children.
+ *
+ * `order` is the order that the person chose for the notes of each folder
+ * (decision 0093). Folders have no date, so they always take the name order.
  */
 export function buildNoteTree(
   notes: readonly NoteSummary[],
   emptyFolders: readonly string[] = [],
+  order: NoteOrder = defaultNoteOrder,
 ): readonly TreeNode[] {
   type MutableFolder = {
     readonly folders: Map<string, MutableFolder>;
@@ -144,7 +157,7 @@ export function buildNoteTree(
     }
     return current;
   };
-  const ordered = [...notes].sort((a, b) => (a.path < b.path ? -1 : 1));
+  const ordered = [...notes].sort(compareNotes(order));
   for (const note of ordered) {
     const segments = note.path.split('/');
     const folder = reach(segments.slice(0, -1));
@@ -156,7 +169,7 @@ export function buildNoteTree(
     prefix: string,
   ): readonly TreeNode[] => {
     const folders = [...folder.folders.entries()]
-      .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+      .sort((a, b) => compareNames(a[0], b[0]))
       .map(([name, child]): TreeNode => {
         const fullPath = prefix === '' ? name : `${prefix}/${name}`;
         return {

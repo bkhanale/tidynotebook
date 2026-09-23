@@ -15,6 +15,7 @@ function note(fileId: string, updatedAt: string): NoteSummary {
   return {
     fileId,
     path: `${fileId}.md`,
+    createdAt: updatedAt,
     updatedAt,
     localOnly: false,
     unsent: false,
