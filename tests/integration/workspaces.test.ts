@@ -16,15 +16,24 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
-import { deleteWorkspace, listWorkspaces } from '@notesapp/core';
 import {
+  acceptWithDocuments,
+  deleteWorkspace,
+  listWorkspaces,
+} from '@notesapp/core';
+import {
+  createDocumentService,
   openIdentityStore,
+  openWorkspaceStore,
   type IdentityStoreHandle,
+  type WorkspaceStoreHandle,
 } from '@notesapp/storage-server';
 import {
+  changeset,
   createDisposableDatabase,
   memberActor,
   openSession,
+  revision,
   seedWorkspace,
   type TestDatabase,
 } from './support/database.ts';
@@ -33,6 +42,47 @@ const database: TestDatabase = await createDisposableDatabase();
 const store: IdentityStoreHandle = openIdentityStore(database.runtimeUrl, {
   poolSize: 4,
 });
+const content: WorkspaceStoreHandle = openWorkspaceStore(
+  database.runtimeUrl,
+  createDocumentService(),
+  { poolSize: 4 },
+);
+
+/**
+ * Every table that still holds a row of one workspace, with its count.
+ *
+ * The list of tables comes from the catalog, so a table that a later
+ * migration adds is checked too, and a delete that forgets it fails here.
+ */
+async function rowsLeftIn(
+  workspaceId: string,
+): Promise<Readonly<Record<string, number>>> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    const tables = await session.query<{ table_name: string }>(
+      `select table_name from information_schema.columns
+        where table_schema = 'public' and column_name = 'workspace_id'
+        order by table_name`,
+    );
+    const left: Record<string, number> = {};
+    for (const { table_name: table } of tables) {
+      const rows = await session.query<{ total: number }>(
+        `select count(*)::int as total from public.${table} where workspace_id = $1`,
+        [workspaceId],
+      );
+      const total = rows[0]?.total ?? 0;
+      if (total > 0) left[table] = total;
+    }
+    const own = await session.query<{ total: number }>(
+      'select count(*)::int as total from public.workspaces where id = $1',
+      [workspaceId],
+    );
+    if ((own[0]?.total ?? 0) > 0) left['workspaces'] = own[0]?.total ?? 0;
+    return left;
+  } finally {
+    await session.close();
+  }
+}
 
 /** How many workspace rows the database still holds for these identifiers. */
 async function survivingWorkspaces(
@@ -132,5 +182,52 @@ await test('the count reads this account and not the workspace table', async () 
   );
 });
 
+await test('an owner deletes a workspace that holds a note with History', async () => {
+  // A note has a document beside its revisions (record 0081), and a second
+  // save gives it History. The delete removes every row of the workspace in
+  // every table, so nothing of the note stays behind.
+  const accountId = randomUUID();
+  const doomed = randomUUID();
+  const kept = randomUUID();
+  await seedWorkspace(database, doomed, [{ accountId, role: 'owner' }]);
+  await seedWorkspace(database, kept, [{ accountId, role: 'owner' }]);
+  const actor = memberActor(accountId, doomed);
+  const fileId = randomUUID();
+  const first = revision({ fileId, path: 'notes/kept.md', text: '# One\n' });
+  const second = revision({
+    fileId,
+    parents: [first.id],
+    path: 'notes/kept.md',
+    text: '# One\n\nTwo\n',
+  });
+  for (const [entry, head] of [
+    [first, null],
+    [second, first.id],
+  ] as const) {
+    const input = changeset(doomed, [entry], {
+      expectedHeads: { [fileId]: head },
+    });
+    const saved = await content.transact(actor, doomed, (tx) =>
+      acceptWithDocuments(
+        content.documents,
+        tx,
+        actor,
+        input,
+        input.mutationId,
+      ),
+    );
+    assert.equal(saved.ok, true, JSON.stringify(saved));
+  }
+  const before = await rowsLeftIn(doomed);
+  assert.ok((before['note_documents'] ?? 0) > 0, JSON.stringify(before));
+  assert.equal(before['revisions'], 2);
+
+  const removed = await deleteWorkspace(store, actor, doomed);
+  assert.equal(removed.ok, true, JSON.stringify(removed));
+  assert.deepEqual(await rowsLeftIn(doomed), {});
+  assert.deepEqual(await survivingWorkspaces([doomed, kept].sort()), [kept]);
+});
+
+await content.close();
 await store.close();
 await database.destroy();

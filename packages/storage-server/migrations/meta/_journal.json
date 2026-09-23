@@ -57,6 +57,13 @@
       "when": 1790091707795,
       "tag": "0007_furry_multiple_man",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790156725448,
+      "tag": "0008_delete_workspace_documents",
+      "breakpoints": true
     }
   ]
 }
