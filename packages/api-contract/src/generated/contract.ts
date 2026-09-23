@@ -6427,7 +6427,8 @@ export const operations: readonly OperationEntry[] = [
                   "checkpointName",
                   "restoredFrom",
                   "text",
-                  "objectId"
+                  "objectId",
+                  "merged"
                 ],
                 "properties": {
                   "revisionId": {
@@ -6482,6 +6483,10 @@ export const operations: readonly OperationEntry[] = [
                   },
                   "objectId": {
                     "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared3"
+                  },
+                  "merged": {
+                    "type": "boolean",
+                    "description": "True when the save that made this revision joined work that its device had not seen. History marks the revision on every device."
                   }
                 }
               }

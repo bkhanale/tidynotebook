@@ -209,6 +209,7 @@ export function historyRepository(
           serverTime: revisions.serverTime,
           message: revisions.message,
           restoredFrom: revisions.restoredFrom,
+          merged: revisions.merged,
           size: contents.size,
           markdown: contents.markdown,
           objectId: contents.objectId,
@@ -275,6 +276,7 @@ export function historyRepository(
           restoredFrom: row.restoredFrom,
           text: row.markdown,
           objectId: row.objectId,
+          merged: row.merged,
         })),
         nextCursor: rows.length > limit ? (wanted.at(-1)?.id ?? null) : null,
       };

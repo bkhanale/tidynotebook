@@ -73,6 +73,7 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
             restoredFrom: r.restoredFrom ?? null,
             text: r.text ?? null,
             objectId: r.objectId ?? null,
+            merged: r.merged,
           })),
           nextCursor: page.nextCursor ?? null,
         },

@@ -681,6 +681,10 @@ export type HistoryRevisionItem = {
     restoredFrom: Uuid | null;
     text: string | null;
     objectId: Uuid | null;
+    /**
+     * True when the save that made this revision joined work that its device had not seen. History marks the revision on every device.
+     */
+    merged: boolean;
 };
 
 /**

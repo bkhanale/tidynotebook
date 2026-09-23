@@ -433,6 +433,12 @@ await test('a later offline save joins the work it never saw', async () => {
       path: { workspaceId, fileId: file.fileId },
     });
     assert.equal(history.data?.revisions.length, 3);
+    // History marks the merged revision on every device, newest first, and
+    // leaves the two saves that saw everything unmarked (record 0087).
+    assert.deepEqual(
+      history.data?.revisions.map((revision) => revision.merged),
+      [true, false, false],
+    );
   } finally {
     await storeA.close();
     await storeB.close();

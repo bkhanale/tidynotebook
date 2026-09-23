@@ -356,6 +356,7 @@ await test('listHistory: returns history page for existing file', async () => {
     restoredFrom: null,
     text: 'content',
     objectId: null,
+    merged: false,
   });
   const store = fakeStore(state);
   const user = buildActor(ownerId, 'owner');

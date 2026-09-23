@@ -18,6 +18,7 @@ required:
   - restoredFrom
   - text
   - objectId
+  - merged
 properties:
   revisionId:
     $ref: './Uuid.yaml'
@@ -61,3 +62,8 @@ properties:
     oneOf:
       - $ref: './Uuid.yaml'
       - type: 'null'
+  merged:
+    type: boolean
+    description: >-
+      True when the save that made this revision joined work that its device
+      had not seen. History marks the revision on every device.

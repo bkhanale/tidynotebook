@@ -428,6 +428,8 @@ export type HistoryRevision = {
   readonly restoredFrom: string | null;
   readonly text: string | null;
   readonly objectId: string | null;
+  /** True when the save joined work that its device had not seen (0087). */
+  readonly merged: boolean;
 };
 
 /** One page of history revisions. */
