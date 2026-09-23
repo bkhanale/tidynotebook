@@ -36,6 +36,20 @@ A task box is a real checkbox. Select it to tick the line. A table stays
 editable text, so you can change it in place. A table wider than the column
 keeps its shape, and the note scrolls sideways to reach the last column.
 
+## Ordered lists
+
+An ordered list shows numbers, a list inside it shows the letters A, B, C,
+and the next list inside shows the numerals i, ii, iii. Below that level the
+three styles start again. The note keeps plain numbers in the source, so the
+file reads the same in any other Markdown tool. You see the number of the
+source while your cursor is on its line.
+
+The editor keeps each list in sequence as you write. Enter, a paste, a
+deletion, Tab, and Shift and Tab all put the numbers of the list back in
+order, and one undo removes the change and the new numbers together. A list
+keeps the number it starts at. Tab puts an item inside the item above it, and
+a list that starts this way counts from one.
+
 ## Alerts
 
 A block quote whose first line is `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`,

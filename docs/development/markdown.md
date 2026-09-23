@@ -21,7 +21,8 @@ and [decision 0003](../decisions/0003-read-mode-uses-the-shared-renderer.md).
 `tests/integration/markdown-equivalence.test.ts` reads the shared corpus in
 `packages/markdown/test-data/content.ts` through both paths and reduces each
 result to the same list of structural facts. The two lists must be equal, in
-order.
+order. An ordered item carries the value a reader shows; its style and its
+renumber are in [decision 0089](../decisions/0089-an-ordered-item-shows-its-place-and-keeps-its-number.md).
 
 The editor side of that list comes out of the same function that builds the
 decorations, so a construct that stops being decorated also stops being
