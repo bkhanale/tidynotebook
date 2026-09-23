@@ -1,10 +1,10 @@
-# Local drafts and explicit saves
+# Local drafts and automatic versions
 
 The browser stores working text before it sends anything, so a lost connection
 or a page reload cannot take current work. Local browser data is a working
 copy, not a backup. The server holds the durable version history.
 
-See [decision 0007](../decisions/0007-keep-the-save-model.md).
+See [decision 0022](../decisions/0022-autosave-and-automatic-versions.md).
 
 ## Where the code is
 
@@ -18,32 +18,34 @@ See [decision 0007](../decisions/0007-keep-the-save-model.md).
 | `packages/storage-browser/src/migrations.ts`     | Validation and schema migration       |
 | `packages/storage-browser/src/legacy-records.ts` | Records of release 0.4 and their move |
 | `packages/storage-browser/src/local-store/`      | IndexedDB transactions                |
-| `apps/web/src/lib/save-state.ts`                 | The state the person is shown         |
+| `apps/web/src/lib/save-state.ts`                 | The save facts of the open note       |
+| `apps/web/src/lib/review.ts`                     | What Review offers and says           |
 
 ## The rule
 
-Typing writes a draft. Save creates a version. Nothing else creates a version:
-there is no idle timer, no interval timer, and no page-leave timer.
+Typing writes a draft. A version is a checkpoint on a natural boundary: a pause
+in typing, leaving the note, a hidden tab, or Ctrl + S. The timers live in
+`apps/web/src/features/editor/note-editor.tsx`.
 
-A draft write is coalesced, so typing does not write once per keystroke. Save
-first finishes the current draft write, then creates one immutable local
-version and wakes the sync engine. An unchanged manual Save still creates a
-version, because the person asked for one.
+A draft write is coalesced, so typing does not write once per keystroke. A
+checkpoint first finishes the current draft write, then creates one immutable
+local version and wakes the sync engine. The store suppresses a checkpoint
+whose content, path, and deletion state are unchanged.
 
 A draft write carries a sequence number, and storage ignores an older sequence,
 so a late transaction cannot replace newer text.
 
 ## The save transaction
 
-Save writes the content, the immutable local revision, the new local head, the
+A checkpoint writes the content, the immutable local revision, the new local head, the
 queue entry with its stable mutation identifier, and the draft link, in one
 IndexedDB transaction. The whole transaction succeeds or fails, so a queue
 entry can never refer to missing content.
 
-Save uses the working copy's last version as its parent. Two open tabs can
-still send versions based on the same accepted head, and the server places the
-later accepted save after its current head. Every explicit save therefore stays
-in one linear history, with no conflict workflow. See
+A checkpoint uses the working copy's last version as its parent. Two open tabs
+can still send versions based on the same accepted head, and the server places
+the later accepted save after its current head. Every save therefore stays in
+one linear history, with no conflict workflow. See
 [Files, revisions, and atomic changes](files-and-revisions.md).
 
 ## Queue and acknowledgment
@@ -61,12 +63,19 @@ is parked in the recovery area and listed on the "Needs attention" screen,
 where the person can retry it, keep it as a new note, copy it, or discard it.
 The editor keeps the current text either way.
 
-## Stale drafts
+## Review
 
-A draft written over an accepted head that the server has since moved is
-returned as stale, together with the current accepted head text. The note
-screen states that and lets the person choose. Taking the latest version copies
-the older draft into the recovery area before it rebases, so no text is lost.
+A save carries work on the document of the note, so a save over a head that
+moved joins that work and never replaces it (record 0081). The server marks a
+save that joined work its device had not seen as merged. `acknowledge` then
+records a Review in the transaction that applies the answer, naming the newest
+checkpoint of that save, so a later draft cannot become its base. The answers
+of one commit share its cursor, so a sent batch makes one Review. Placement
+records a Review for each text of release 0.4 that it keeps aside. A Review is
+cleared on this device only, when the person opens or dismisses it, and a later
+merge records a new one. `src/local-store/reviews.ts` holds the table, and
+`apps/web/src/lib/review.ts` decides what the note offers. See
+[decision 0087](../decisions/0087-review-keeps-the-checkpoint-that-caused-it.md).
 
 ## Offline behaviour
 

@@ -44,12 +44,12 @@ it, and **Escape** or a tap outside it to close it.
    selected, so you can type the name over it.
 2. Press **Tab** or select the text area, and start writing. Markdown works
    here. See [Markdown](markdown.md).
-3. Press **Ctrl + S**, or **Cmd + S** on a Mac, or select the **Save** button.
+3. Stop typing for a moment. The note saves itself and makes a version.
+   **Ctrl + S**, or **Cmd + S** on a Mac, makes a version at once.
 
-The Save button tells you where your work is. It reads **Saved on this device**
-while the version waits, and **Saved** when your server has it. Typing alone
-never makes a version, so nothing reaches your server until you select Save.
-See [Saving and history](saving-and-history.md).
+The line at the bottom of the sidebar tells you where your work is. It reads
+**Everything is saved to the server.** when your server has it. See
+[Saving and history](saving-and-history.md).
 
 ## Where to go next
 

@@ -4,8 +4,9 @@
   database, browser, or React code.
 - Use generated API client operations. Do not write request URLs or direct
   `fetch` calls in feature code.
-- Treat browser drafts as recovery data, not server versions. Only an explicit
-  Save action creates an immutable server version.
+- Treat browser drafts as recovery data, not server versions. Only a
+  checkpoint creates an immutable server version: a pause in typing, leaving
+  the note, or Ctrl + S (decision record 0022).
 - Keep one CodeMirror editor instance for an open working copy. Do not replace
   its document during a React render, theme change, or preview update.
 - Store note paths with one `.md` suffix. Hide this storage detail from the

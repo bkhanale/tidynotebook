@@ -1,29 +1,30 @@
 # Saving and history
 
-This page is for the person who writes the notes. It explains what Save does
-and how to bring an older version back.
+This page is for the person who writes the notes. It explains how a note saves
+itself, how to bring an older version back, and what Review shows when two
+devices change one note.
 
-## Typing and Save
+## The note saves itself
 
-Typing writes a draft on your device. A draft is not a version, so nothing
-reaches your server until you select **Save** or press **Ctrl + S**. There is
-no timer that saves for you.
+Typing writes your text to this device at once. A version is made for you when
+you stop typing for a moment, when you leave the note, and when you switch to
+another tab. **Ctrl + S**, or **Cmd + S** on a Mac, makes a version at once.
+There is no Save button.
 
-The Save button is the one place that reports your work.
+The versions go to your server when this device has a connection. The line at
+the bottom of the sidebar tells you where your work is:
 
-| The button reads     | Your text is                           |
-| -------------------- | -------------------------------------- |
-| Save                 | typed, with no version yet             |
-| Saving               | on its way                             |
-| Saved on this device | a version here, waiting for the server |
-| Saved                | a version on your server               |
-
-The footer of the note adds the word count and when the note was last saved.
+- **Sending your save to the server.** Your work is on its way.
+- **No connection. Your saves are on this device and go up when the connection
+  returns.** Your work waits on this device.
+- **Everything is saved to the server.** Your work is on your server.
 
 ## History
 
-Open the note menu in the header and select **History**. Each row says when that version was
-saved and what changed, for example `3 lines added, 1 line removed`.
+Open the note menu in the header and select **History**. Each row says when that
+version was saved and what changed, for example `3 lines added, 1 line removed`.
+A row that ends with `with changes from another device` is a version that holds
+the work of two devices.
 
 Select a row to open it. You get the difference between that version and the
 newest one, line by line, and the whole text of that version under **Whole text
@@ -35,17 +36,17 @@ Select **Restore** on any row. The old text comes back as a **new** newest
 version. Nothing is rewound and no version is removed, so you can always go
 back again. History needs a connection.
 
-## When two devices save the same note
+## When two devices change the same note
 
-Both saves are kept and History stays one line. If your note changed elsewhere
-after you started, your save still wins the newest position, and the
-application tells you that the other text is in History. Nothing is overwritten
-without a record.
+You never choose between two texts. The work of both devices goes into the
+note, and it appears in the open note on each device without a reload. Undo
+takes back only what you typed on this device.
 
-If this device holds unsaved text written over an older version, the note shows
-a bar with two choices. **Keep my text** keeps what is here. **Use the latest
-version** opens the newer text and keeps your older text under **Needs
-attention**, so neither is lost.
+If your save went into the note together with changes that this device had
+not seen, the note shows **This note has changes from another device.** Select
+**Review** to see what changed: the text of your save beside the note now, line
+by line. Opening Review, or selecting **Dismiss**, closes the notice on this
+device only. A later change from another device can show it again.
 
 ## Needs attention
 
@@ -53,3 +54,7 @@ A save that your server refuses for good is kept on your device and listed
 under **Needs attention** in the sidebar, which appears only while something is
 waiting there. Each row says why, shows the text, and offers four actions:
 **Retry**, **Save as new note**, **Copy text**, and **Discard**.
+
+After an update of Notesapp, earlier work on this device that could not go into
+its note waits there too. That note shows a notice, and its Review compares the
+earlier work with the note now and opens Needs attention.

@@ -23,13 +23,14 @@ of these reads from or writes to your server.
 ## What you see
 
 The bottom of the sidebar carries one sentence about your saves. Offline it
-reads "No connection. Your notes stay on this device." When the connection
-returns it changes to "Sending your save to the server." and then "Everything
-is saved to the server."
+reads "No connection. Your saves are on this device and go up when the
+connection returns." When the connection returns it changes to "Sending your
+save to the server." and then "Everything is saved to the server."
 
-The Save button reads **Saved on this device** for anything that is queued.
 There is no separate queue list and no retry button: the queue sends itself in
-order as soon as it can.
+order as soon as it can. If another device changed the same note meanwhile, the
+work of both goes into the note, and the note offers Review. See
+[Saving and history](saving-and-history.md).
 
 The command palette adds a line saying that its results come from this device.
 

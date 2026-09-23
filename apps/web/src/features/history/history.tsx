@@ -17,13 +17,7 @@
  * Every server action uses a generated operation. There is no handwritten
  * request, URL, or response shape here.
  */
-import {
-  Fragment,
-  useEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import {
   getFile,
