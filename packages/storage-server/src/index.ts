@@ -47,6 +47,10 @@ export {
   type PortableMarkdownMigrationResult,
 } from './portable-markdown-migration.ts';
 export {
+  migrateNoteDocuments,
+  type NoteDocumentMigrationResult,
+} from './note-document-migration.ts';
+export {
   assertProfileDatabase,
   databaseName,
   isTestDatabaseName,

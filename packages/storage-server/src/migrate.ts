@@ -24,6 +24,7 @@ import {
   type MigrationProfile,
 } from './profiles.ts';
 import { migratePortableMarkdown } from './portable-markdown-migration.ts';
+import { migrateNoteDocuments } from './note-document-migration.ts';
 
 /** The name of the runtime role that the migration creates. */
 export const runtimeRole = 'notesapp_app';
@@ -168,6 +169,7 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
         await setRolePassword(client, role, password);
       }
       await migratePortableMarkdown(run.databaseUrl, run.documents);
+      await migrateNoteDocuments(run.databaseUrl, run.documents);
     } finally {
       await client.query('select pg_advisory_unlock($1::bigint)', [
         migrationLockKey,

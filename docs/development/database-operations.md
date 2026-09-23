@@ -47,6 +47,11 @@ statements are written and reviewed by hand.
   command at an operator database. The deployment profile reads protected
   operator files rather than environment values, so a URL and a password never
   reach a process list or a shell history.
+- Two data migrations run after the SQL, under the same lock:
+  `src/portable-markdown-migration.ts` and `src/note-document-migration.ts`.
+  The second starts the document of every note that has none, from its last
+  live text, so no device starts an existing note from Markdown (record 0084).
+  Each one writes only what is missing, so a second run changes nothing.
 
 ## Search
 

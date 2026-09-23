@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { commitChangeset, listBacklinks, readFile } from '@notesapp/core';
+import { readDocumentText } from '@notesapp/note-document';
 import {
   createDocumentService,
+  migrateNoteDocuments,
   migratePortableMarkdown,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -132,6 +134,91 @@ await test('the data migration rewrites live legacy links and reports dead links
       rows.map((row) => row.reference),
       [`/notes/${deadId}`],
     );
+  } finally {
+    await session.close();
+  }
+});
+
+await test('the data migration starts the document of every note that has none', async () => {
+  const workspaceId = randomUUID();
+  const accountId = randomUUID();
+  await seedWorkspace(database, workspaceId, [{ accountId, role: 'owner' }]);
+  const actor = memberActor(accountId, workspaceId);
+  const live = revision({
+    fileId: randomUUID(),
+    path: 'live.md',
+    text: '# Live\r\n\nText with é and 🙂.\n',
+  });
+  const trashed = revision({
+    fileId: randomUUID(),
+    path: 'trashed.md',
+    text: '# Kept for Restore\n',
+  });
+  const seeded = await commitChangeset(
+    store,
+    actor,
+    changeset(workspaceId, [live, trashed]),
+    'documents-seed',
+  );
+  assert.equal(seeded.ok, true, JSON.stringify(seeded));
+  const tombstone = revision({
+    fileId: trashed.fileId,
+    parents: [trashed.id],
+    path: trashed.path,
+    deleted: true,
+    text: '',
+  });
+  const removed = await commitChangeset(
+    store,
+    actor,
+    changeset(workspaceId, [tombstone], {
+      expectedHeads: { [trashed.fileId]: trashed.id },
+    }),
+    'documents-trash',
+  );
+  assert.equal(removed.ok, true, JSON.stringify(removed));
+
+  // An earlier release wrote these notes, so neither holds a document.
+  const session = await openSession(database.migrationUrl);
+  try {
+    await session.query('delete from note_documents where workspace_id = $1', [
+      workspaceId,
+    ]);
+    const first = await migrateNoteDocuments(
+      database.migrationUrl,
+      createDocumentService(),
+    );
+    assert.equal(first.startedNotes, 2);
+    const rows = await session.query<{
+      file_id: string;
+      epoch: number;
+      bytes: Buffer;
+    }>(
+      `select file_id, epoch, bytes from note_documents
+       where workspace_id = $1`,
+      [workspaceId],
+    );
+    const texts = new Map(
+      rows.map((row) => [
+        row.file_id,
+        readDocumentText(new Uint8Array(row.bytes)),
+      ]),
+    );
+    // A live note starts from its head, with every line ending and every
+    // character as stored. A note in Trash starts from the text that Restore
+    // brings back, not from its empty tombstone (record 0084).
+    assert.equal(texts.get(live.fileId), '# Live\r\n\nText with é and 🙂.\n');
+    assert.equal(texts.get(trashed.fileId), '# Kept for Restore\n');
+    assert.deepEqual(
+      rows.map((row) => row.epoch),
+      [1, 1],
+    );
+    // A second run finds every note started and writes nothing.
+    const second = await migrateNoteDocuments(
+      database.migrationUrl,
+      createDocumentService(),
+    );
+    assert.equal(second.startedNotes, 0);
   } finally {
     await session.close();
   }
