@@ -8,7 +8,7 @@ this directory. The recipe for a whole feature is in
 
 The IndexedDB side. It implements the `LocalStore` port of `@notesapp/sync`
 with Dexie: drafts, local versions, the save queue, receipts, the recovery
-area, preferences, and the offline snapshot.
+area, the Reviews of this device, preferences, and the offline snapshot.
 
 ## What lives here and what does not
 
@@ -33,6 +33,7 @@ over the shared `LocalStoreContext` and kept small by `check-boundaries.mjs`:
 - `file-actions.ts`: move or trash a file, every working copy (0032).
 - `queue.ts`: the save queue, the receipts, the local conflicts.
 - `recovery.ts`: the recovery area and the private-data reset.
+- `reviews.ts`: the Reviews of this device, written with their cause (0087).
 - `preferences.ts`: pins, the sign-out marker, the sync lease.
 - `files.ts`: the reads over the cached mirror of server state.
 - `snapshot.ts`: snapshots, remote changes, and the kept read of a screen.

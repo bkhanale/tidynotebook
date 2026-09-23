@@ -114,14 +114,22 @@ export type LegacyReceipt =
  * Content-free notice that durable local state changed.
  *
  * `conflict` names a change of the Needs attention list: a save the server
- * refused for good, or a recovery copy that was kept or removed.
+ * refused for good, or a recovery copy that was kept or removed. `review`
+ * names a Review of the note that was recorded or cleared.
  */
 export type LocalChange = {
   readonly accountId: string;
   readonly workspaceId: string;
   readonly fileId: string | null;
   readonly kind:
-    'draft' | 'queue' | 'file' | 'purge' | 'conflict' | 'cursor' | 'reset';
+    | 'draft'
+    | 'queue'
+    | 'file'
+    | 'purge'
+    | 'conflict'
+    | 'review'
+    | 'cursor'
+    | 'reset';
 };
 
 /** One file as it must appear in local navigation. */
@@ -521,6 +529,35 @@ export type RecoveryRecord = {
 };
 
 /**
+ * The event that makes one note offer Review on this device (record 0087).
+ *
+ * `merge` is a save of this device that joined work the device had not seen.
+ * `revisionId` names the exact checkpoint of that save, so a later draft or a
+ * later save cannot become the base of the comparison. `recovery` is earlier
+ * work that the upgrade kept aside because it could not join the note.
+ * `recoveryId` names that kept text in the recovery area.
+ */
+export type ReviewCause =
+  | { readonly kind: 'merge'; readonly revisionId: string }
+  | { readonly kind: 'recovery'; readonly recoveryId: string };
+
+/**
+ * One Review that waits on this device.
+ *
+ * The record lives on this device only, so opening or dismissing it on one
+ * device leaves every other device as it is. `text` is the text that the
+ * event keeps, the checkpoint of the save or the kept text, read in the same
+ * transaction as the event. It is `null` when this device no longer holds it.
+ */
+export type ReviewRecord = {
+  readonly reviewId: string;
+  readonly fileId: string;
+  readonly cause: ReviewCause;
+  readonly text: string | null;
+  readonly createdAt: string;
+};
+
+/**
  * Why a local write failed.
  *
  * - `aborted`: the transaction did not commit. Nothing was written.
@@ -807,6 +844,11 @@ export type LocalStore = {
    * and stores the receipt, in one transaction. Drafts and checkpoints created
    * after the submission are preserved. Acknowledging the same mutation twice
    * does nothing.
+   *
+   * A note whose accepted revision is merged gets a Review that names the
+   * newest checkpoint of this mutation for that note. The answers of one
+   * commit share its cursor, so the mutations of one sent batch make one
+   * Review for a note and its base is the last checkpoint of the batch.
    */
   acknowledge(accountId: string, result: AcceptedChangeset): Promise<void>;
 
@@ -876,11 +918,43 @@ export type LocalStore = {
     entry: RecoveryInput,
   ): Promise<RecoveryRecord>;
 
-  /** Removes one recovery record of the calling account. */
+  /**
+   * Removes one recovery record of the calling account.
+   *
+   * A Review that names the record goes with it in the same transaction, so
+   * no note offers a comparison with text that is gone.
+   */
   removeRecovery(
     accountId: string,
     workspaceId: string,
     recoveryId: string,
+  ): Promise<void>;
+
+  /**
+   * The Reviews that wait for one note on this device, oldest first.
+   *
+   * `acknowledge` writes a merge event in the transaction that applies the
+   * answer, and the placement of earlier work writes a recovery event in the
+   * transaction that keeps the text, so an event exists exactly when its
+   * cause does (record 0087).
+   */
+  listReviews(
+    accountId: string,
+    workspaceId: string,
+    fileId: string,
+  ): Promise<readonly ReviewRecord[]>;
+
+  /**
+   * Clears one Review on this device. Every other Review stays.
+   *
+   * The work that the event names is not touched: a checkpoint stays in local
+   * history and kept text stays in the recovery area. Clearing an unknown
+   * Review does nothing.
+   */
+  clearReview(
+    accountId: string,
+    workspaceId: string,
+    reviewId: string,
   ): Promise<void>;
 
   /** The accepted file metadata of one workspace, ordered by path. */

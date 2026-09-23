@@ -439,6 +439,20 @@ await test('a later offline save joins the work it never saw', async () => {
       history.data?.revisions.map((revision) => revision.merged),
       [true, false, false],
     );
+    // Device B offers Review against the exact text that it sent, and device
+    // A, whose save saw everything, offers none.
+    const reviewsB = await storeB.listReviews(
+      ownerAccountId,
+      workspaceId,
+      file.fileId,
+    );
+    assert.equal(reviewsB.length, 1);
+    assert.deepEqual(reviewsB[0]?.cause, { kind: 'merge', revisionId: tipB });
+    assert.equal(reviewsB[0]?.text, '# Base\nFrom B\n');
+    assert.deepEqual(
+      await storeA.listReviews(ownerAccountId, workspaceId, file.fileId),
+      [],
+    );
   } finally {
     await storeA.close();
     await storeB.close();

@@ -397,6 +397,14 @@ class FakeStore implements LocalStore {
     return Promise.resolve();
   }
 
+  listReviews(): Promise<readonly []> {
+    return Promise.resolve([]);
+  }
+
+  clearReview(): Promise<void> {
+    return Promise.resolve();
+  }
+
   listAcceptedFiles(): Promise<readonly LocalAcceptedFile[]> {
     return Promise.resolve([]);
   }

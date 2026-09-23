@@ -51,6 +51,7 @@ await test('every kind of the port is accepted', () => {
     'file',
     'purge',
     'conflict',
+    'review',
     'cursor',
     'reset',
   ]) {

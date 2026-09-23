@@ -31,6 +31,7 @@ import {
   type QueueRow,
   type ReceiptRow,
   type RecoveryRow,
+  type ReviewRow,
   type SnapshotItemRow,
   type SnapshotRow,
   type Tables,
@@ -348,6 +349,25 @@ export function validateRecovery(value: unknown): RecoveryRow {
   };
 }
 
+/** Narrows one stored Review. */
+export function validateReview(value: unknown): ReviewRow {
+  const row = object(value, 'review');
+  const cause = member(row, 'cause', ['merge', 'recovery'] as const, 'review');
+  const cursor = optionalText(row, 'cursor', 'review');
+  // A merge names the commit of its save, and a recovery names none.
+  if ((cause === 'merge') !== (cursor !== null))
+    corrupt('review.cursor does not match its cause');
+  return {
+    ...partition(row, 'review'),
+    reviewId: text(row, 'reviewId', 'review'),
+    fileId: text(row, 'fileId', 'review'),
+    cause,
+    sourceId: text(row, 'sourceId', 'review'),
+    cursor,
+    createdAt: text(row, 'createdAt', 'review'),
+  };
+}
+
 /** Narrows the bookkeeping row. */
 export function validateMeta(value: unknown): MetaRow {
   const row = object(value, 'meta');
@@ -371,7 +391,8 @@ export function validateMeta(value: unknown): MetaRow {
  * brings, so its step removes every change position and moves the saves and
  * drafts of release 0.4 aside until they are placed (record 0088). Version 6
  * holds those tables, and its step reads a snapshot again for a store of
- * release 0.5.0, whose feed could leave a note empty. A gap
+ * release 0.5.0, whose feed could leave a note empty. Version 7 adds the
+Review table, which starts empty, so its step only records the move. A gap
  * between two stored versions with no step is a refusal, never a silent
  * continuation.
  */
@@ -429,6 +450,11 @@ export const migrationSteps: readonly {
     to: 6,
     run: removeChangePositions,
   },
+  {
+    from: 6,
+    to: 7,
+    run: () => Promise.resolve(),
+  },
 ];
 
 /** The most records held for validation at one time. */
@@ -477,6 +503,7 @@ async function revalidate(tables: Tables): Promise<void> {
   await validateTable(tables.legacySaves, validateLegacySave);
   await validateTable(tables.legacyBases, validateLegacyBase);
   await validateTable(tables.legacyDrafts, validateLegacyDraft);
+  await validateTable(tables.reviews, validateReview);
 }
 
 /**

@@ -20,6 +20,7 @@ const changeKinds = [
   'file',
   'purge',
   'conflict',
+  'review',
   'cursor',
   'reset',
 ] as const;

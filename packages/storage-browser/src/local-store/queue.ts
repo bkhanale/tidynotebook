@@ -26,6 +26,7 @@ import {
   validateQueueRow,
 } from '../migrations.ts';
 import { legacyWorkspaces } from './legacy.ts';
+import { recordMergeReview } from './reviews.ts';
 import {
   draftsOfFile,
   forgetMutationWork,
@@ -267,6 +268,7 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
             tables.acceptedFiles,
             tables.receipts,
             tables.drafts,
+            tables.reviews,
           ],
           async () => {
             const entry = await queueEntryOf(accountId, result.mutationId);
@@ -312,6 +314,29 @@ export function createQueueSlice(ctx: LocalStoreContext): QueueSlice {
                 newest.set(checkpoint.fileId, checkpoint);
             }
             for (const [fileId, checkpoint] of newest) {
+              // A save that joined work this device had not seen keeps its
+              // own checkpoint for Review, in the transaction that accepts it
+              // (record 0087).
+              const merged = result.revisions.some(
+                (revision) =>
+                  revision.revisionId === checkpoint.revisionId &&
+                  revision.merged,
+              );
+              if (merged) {
+                await recordMergeReview(
+                  ctx,
+                  accountId,
+                  workspaceId,
+                  checkpoint,
+                  result.cursor,
+                );
+                changes.push({
+                  accountId,
+                  workspaceId,
+                  fileId,
+                  kind: 'review',
+                });
+              }
               const stored: unknown = await tables.acceptedFiles.get([
                 serverOrigin,
                 accountId,

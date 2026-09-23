@@ -24,6 +24,7 @@ import {
   validateRecovery,
 } from '../migrations.ts';
 import { validateLegacySave } from '../legacy-records.ts';
+import { forgetReviews } from './reviews.ts';
 
 /**
  * The state every area module shares.
@@ -250,9 +251,10 @@ export const bodyOfDigest = async (
  * the next re-send, snapshot, or read. This deletes the accepted row, the
  * drafts, the checkpoints, the queued mutations, and the recovery copies of the
  * file. It never deletes a content body, because content is addressed by digest
- * and one body can back several files. The caller opens the transaction and
- * must cover the accepted files, the drafts, the checkpoints, the queue, and
- * the recovery tables.
+ * and one body can back several files. The Reviews of the file go as well,
+ * because they name its checkpoints and its kept text. The caller opens the
+ * transaction and must cover the accepted files, the drafts, the checkpoints,
+ * the queue, the recovery, and the Review tables.
  */
 export const forgetFileRows = async (
   ctx: LocalStoreContext,
@@ -317,6 +319,7 @@ export const forgetFileRows = async (
       record.recoveryId,
     ]);
   }
+  await forgetReviews(ctx, accountId, workspaceId, fileId);
 };
 
 /** Whether a stored row belongs to one account of this origin. */

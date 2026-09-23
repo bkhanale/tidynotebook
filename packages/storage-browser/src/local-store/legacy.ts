@@ -46,6 +46,7 @@ import {
   foldTextIntoDocument,
   readDocumentRow,
 } from './documents.ts';
+import { recordRecoveryReview } from './reviews.ts';
 import {
   expectedHeadOfParent,
   forgetMutationWork,
@@ -177,10 +178,12 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
    * A text that follows the text last kept for the same note, in the same
    * chain of saves, replaces it in the same record, because it holds that
    * earlier work too. A text of another working copy gets its own record, so
-   * no kept text is lost.
+   * no kept text is lost. The note offers Review of the kept text, so one
+   * action reaches it (record 0087).
    */
   const keep = async (
     kept: Map<string, KeptText>,
+    changes: LocalChange[],
     accountId: string,
     workspaceId: string,
     entry: {
@@ -216,6 +219,19 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
       mutationId: entry.mutationId,
       createdAt: nowIso(),
     });
+    await recordRecoveryReview(
+      ctx,
+      accountId,
+      workspaceId,
+      entry.fileId,
+      recoveryId,
+    );
+    changes.push({
+      accountId,
+      workspaceId,
+      fileId: entry.fileId,
+      kind: 'review',
+    });
   };
 
   /** Removes one moved save and the local work that only it held. */
@@ -249,7 +265,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
   ): Promise<void> => {
     for (const revision of save.revisions) {
       if (revision.content.kind !== 'markdown' || revision.deleted) continue;
-      await keep(kept, save.accountId, save.workspaceId, {
+      await keep(kept, changes, save.accountId, save.workspaceId, {
         fileId: revision.fileId,
         path: revision.path,
         text: revision.content.text,
@@ -565,7 +581,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
                 accepted,
               );
       if (joined === null) {
-        await keep(state.kept, accountId, workspaceId, {
+        await keep(state.kept, state.changes, accountId, workspaceId, {
           fileId: draft.fileId,
           path: draft.path,
           text: draft.text,
@@ -637,6 +653,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
             tables.drafts,
             tables.receipts,
             tables.recovery,
+            tables.reviews,
           ],
           async () => {
             const stored: unknown = await tables.legacySaves
@@ -774,6 +791,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
               tables.drafts,
               tables.documents,
               tables.recovery,
+              tables.reviews,
               tables.cursors,
             ],
             async (): Promise<number> => {

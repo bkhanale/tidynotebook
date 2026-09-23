@@ -259,6 +259,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.recovery,
             tables.documents,
             tables.legacySaves,
+            tables.reviews,
           ],
           async () => {
             const plans: unknown[] = await tables.stagedSnapshots.toArray();
@@ -578,6 +579,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.checkpoints,
             tables.recovery,
             tables.documents,
+            tables.reviews,
           ],
           async () => {
             for (const change of changes) {
@@ -736,6 +738,7 @@ export function createSnapshotSlice(ctx: LocalStoreContext): SnapshotSlice {
             tables.checkpoints,
             tables.queue,
             tables.recovery,
+            tables.reviews,
           ],
           async () => {
             for (const fileId of fileIds)

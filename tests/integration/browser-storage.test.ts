@@ -2830,10 +2830,26 @@ await test('earlier work that cannot be placed goes to Needs attention once', as
       readDocumentText(document?.bytes ?? new Uint8Array()),
       'alpha\nbeta, written elsewhere\ngamma\n',
     );
+    // The note offers Review of the kept text, so one action reaches it
+    // (record 0087).
+    const [offered] = await store.listReviews(account, workspace, fileId);
+    assert.deepEqual(offered?.cause, {
+      kind: 'recovery',
+      recoveryId: kept[0]?.recoveryId,
+    });
+    assert.equal(offered?.text, 'alpha\nbeta, written offline\ngamma\n');
     assert.deepEqual(await store.placeLegacyWork(account, workspace), {
       waiting: 0,
     });
     assert.equal((await store.recover(account, workspace)).length, 1);
+    assert.equal(
+      (await store.listReviews(account, workspace, fileId)).length,
+      1,
+      'a second placement run keeps one Review',
+    );
+    // A kept text that the person removes takes its Review with it.
+    await store.removeRecovery(account, workspace, kept[0]?.recoveryId ?? '');
+    assert.deepEqual(await store.listReviews(account, workspace, fileId), []);
   } finally {
     await store.close();
   }
@@ -3084,6 +3100,188 @@ await test('a snapshot keeps the instant each note was saved', async () => {
     await store.activateSnapshot('token-saved');
     const [listed] = await store.listLocalFiles(account, workspace);
     assert.equal(listed?.updatedAt, '2026-09-16T08:30:00.000Z');
+  } finally {
+    await store.close();
+  }
+});
+
+/** The same acceptance, with every note revision marked as merged. */
+function mergedAcceptanceOf(
+  entry: QueueEntry | null,
+  accountId: string,
+  cursor: string,
+): AcceptedChangeset {
+  const accepted = acceptanceOf(entry, accountId, cursor);
+  return {
+    ...accepted,
+    revisions: accepted.revisions.map((revision) => ({
+      ...revision,
+      merged: revision.epoch !== null,
+    })),
+  };
+}
+
+await test('a merged save keeps its own checkpoint for Review', async () => {
+  const backend = createBackend('review-merge');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  try {
+    const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
+    await store.saveDraft(first);
+    const created = await store.checkpoint(first, null);
+    // A save that saw everything is not a merge, so nothing waits.
+    await store.acknowledge(account, acceptanceOf(created, account, '1'));
+    assert.deepEqual(await store.listReviews(account, workspace, file), []);
+
+    const second = { ...first, text: 'one\ntwo\n', sequence: 2 };
+    await store.saveDraft(second);
+    const merging = await store.checkpoint(second, null);
+    const changes: LocalChange[] = [];
+    const unsubscribe = store.subscribe((change) => changes.push(change));
+    await store.acknowledge(account, mergedAcceptanceOf(merging, account, '2'));
+    unsubscribe();
+    assert.ok(
+      changes.some((change) => change.kind === 'review'),
+      'the answer announces the Review',
+    );
+
+    // Later work of this device never becomes the base: not a draft, and not
+    // a later save that saw everything.
+    const third = { ...first, text: 'one\ntwo\nthree\n', sequence: 3 };
+    await store.saveDraft(third);
+    const later = await store.checkpoint(third, null);
+    await store.saveDraft({ ...third, text: 'typing\n', sequence: 4 });
+    await store.acknowledge(account, acceptanceOf(later, account, '3'));
+
+    const reviews = await store.listReviews(account, workspace, file);
+    assert.equal(reviews.length, 1);
+    assert.deepEqual(reviews[0]?.cause, {
+      kind: 'merge',
+      revisionId: merging?.input.revisions[0]?.id,
+    });
+    assert.equal(reviews[0]?.text, 'one\ntwo\n');
+  } finally {
+    await store.close();
+  }
+});
+
+await test('one commit makes one Review and a later merge makes another', async () => {
+  const backend = createBackend('review-batch');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const file = randomUUID();
+  try {
+    const draft = draftOf(account, workspace, file, 'copy-a', 'a\n');
+    await store.saveDraft(draft);
+    const firstSave = await store.checkpoint(draft, null);
+    const next = { ...draft, text: 'a\nb\n', sequence: 2 };
+    await store.saveDraft(next);
+    const secondSave = await store.checkpoint(next, null);
+    // One sent batch is one commit, and every answer of it shares the cursor.
+    // The Review compares the last text that the batch sent.
+    await store.acknowledge(
+      account,
+      mergedAcceptanceOf(firstSave, account, '5'),
+    );
+    await store.acknowledge(
+      account,
+      mergedAcceptanceOf(secondSave, account, '5'),
+    );
+    const batch = await store.listReviews(account, workspace, file);
+    assert.equal(batch.length, 1);
+    assert.equal(batch[0]?.text, 'a\nb\n');
+
+    const last = { ...draft, text: 'a\nb\nc\n', sequence: 3 };
+    await store.saveDraft(last);
+    const thirdSave = await store.checkpoint(last, null);
+    await store.acknowledge(
+      account,
+      mergedAcceptanceOf(thirdSave, account, '6'),
+    );
+    const both = await store.listReviews(account, workspace, file);
+    assert.deepEqual(
+      both.map((review) => review.text),
+      ['a\nb\n', 'a\nb\nc\n'],
+      'the Reviews read oldest first',
+    );
+
+    // Clearing one Review leaves the other, and clearing it again does
+    // nothing.
+    const changes: LocalChange[] = [];
+    const unsubscribe = store.subscribe((change) => changes.push(change));
+    await store.clearReview(account, workspace, both[0]?.reviewId ?? '');
+    await store.clearReview(account, workspace, both[0]?.reviewId ?? '');
+    unsubscribe();
+    assert.deepEqual(changes, [
+      {
+        accountId: account,
+        workspaceId: workspace,
+        fileId: file,
+        kind: 'review',
+      },
+    ]);
+    const left = await store.listReviews(account, workspace, file);
+    assert.deepEqual(
+      left.map((review) => review.reviewId),
+      [both[1]?.reviewId],
+    );
+    // The checkpoint that the cleared Review named stays in local history.
+    assert.equal(
+      (await store.listCheckpoints(account, workspace, file)).length,
+      3,
+    );
+
+    // A later merge offers Review again.
+    await store.clearReview(account, workspace, both[1]?.reviewId ?? '');
+    const again = { ...draft, text: 'a\nb\nc\nd\n', sequence: 4 };
+    await store.saveDraft(again);
+    const fourthSave = await store.checkpoint(again, null);
+    await store.acknowledge(
+      account,
+      mergedAcceptanceOf(fourthSave, account, '7'),
+    );
+    const offered = await store.listReviews(account, workspace, file);
+    assert.deepEqual(
+      offered.map((review) => review.text),
+      ['a\nb\nc\nd\n'],
+    );
+  } finally {
+    await store.close();
+  }
+});
+
+await test('a purge and a reset take the Reviews of their notes', async () => {
+  const backend = createBackend('review-forget');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const purged = randomUUID();
+  const other = randomUUID();
+  try {
+    for (const file of [purged, other]) {
+      const draft = draftOf(account, workspace, file, `copy-${file}`, 'x\n');
+      await store.saveDraft(draft);
+      const entry = await store.checkpoint(draft, null);
+      await store.acknowledge(
+        account,
+        mergedAcceptanceOf(entry, account, file),
+      );
+    }
+    await store.forgetPurgedFiles(account, workspace, [purged]);
+    assert.deepEqual(await store.listReviews(account, workspace, purged), []);
+    assert.equal(
+      (await store.listReviews(account, workspace, other)).length,
+      1,
+    );
+
+    await store.clearPrivateData(account, workspace);
+    assert.deepEqual(await store.listReviews(account, workspace, other), []);
+    await withRawDatabase(backend, async (tables) => {
+      assert.deepEqual(await tables.reviews.toArray(), []);
+    });
   } finally {
     await store.close();
   }

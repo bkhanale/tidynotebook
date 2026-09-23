@@ -34,6 +34,8 @@ export type {
   RecoveryInput,
   RecoveryReason,
   RecoveryRecord,
+  ReviewCause,
+  ReviewRecord,
   NoteDocument,
   ServerNote,
   StagedSnapshot,

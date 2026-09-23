@@ -143,6 +143,26 @@ export type PreferenceRow = Preference;
 export type RecoveryRow = RecoveryRecord;
 
 /**
+ * One Review that waits on this device (record 0087).
+ *
+ * `sourceId` names what the event keeps: the checkpoint of a merged save, or
+ * the kept text of the recovery area. `cursor` is the commit of a merged
+ * save, so the saves of one sent batch make one event. A recovery event has
+ * none.
+ */
+export type ReviewRow = {
+  readonly serverOrigin: string;
+  readonly accountId: string;
+  readonly workspaceId: string;
+  readonly reviewId: string;
+  readonly fileId: string;
+  readonly cause: 'merge' | 'recovery';
+  readonly sourceId: string;
+  readonly cursor: string | null;
+  readonly createdAt: string;
+};
+
+/**
  * The document of one note on this device (records 0081, 0085).
  *
  * `bytes` is the whole document, which holds the text of the note and the
@@ -286,6 +306,7 @@ export type Tables = {
     LegacyDraftRow,
     [string, string, string, string]
   >;
+  readonly reviews: Table<ReviewRow, [string, string, string, string]>;
 };
 
 /**
@@ -299,7 +320,7 @@ export type Tables = {
  * tables start empty; the migration only revalidates. Version 4 drops the
  * `branches` table of the removed conflict-branch feature. Version 6 holds
  * the work of release 0.4 until it is placed on the documents of version 5
- * (record 0088).
+ * (record 0088). Version 7 holds the Reviews of this device (record 0087).
  */
 export const schemaVersions: readonly {
   readonly version: number;
@@ -410,6 +431,15 @@ export const schemaVersions: readonly {
       legacyDrafts: '[serverOrigin+accountId+workspaceId+workingCopyId]',
     },
   },
+  {
+    version: 7,
+    stores: {
+      // The Reviews that wait on this device, each with the checkpoint or
+      // the kept text that caused it (record 0087).
+      reviews:
+        '[serverOrigin+accountId+workspaceId+reviewId], [serverOrigin+accountId+workspaceId+fileId]',
+    },
+  },
 ];
 
 /** The names of every table, in the order a whole database transaction uses. */
@@ -431,6 +461,7 @@ export const tableNames: readonly string[] = [
   'legacySaves',
   'legacyBases',
   'legacyDrafts',
+  'reviews',
 ];
 
 /** The default database name. Tests pass their own to stay isolated. */
@@ -508,6 +539,7 @@ export function createDatabase(
     legacyDrafts: db.table<LegacyDraftRow, [string, string, string, string]>(
       'legacyDrafts',
     ),
+    reviews: db.table<ReviewRow, [string, string, string, string]>('reviews'),
   };
   return { db, tables };
 }

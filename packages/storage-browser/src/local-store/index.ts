@@ -21,7 +21,7 @@
  * `openLocalStore` is the composition root. It opens the database, checks the
  * schema, builds one `LocalStoreContext`, and assembles the full port from the
  * area modules: drafts, versions, file actions, queue and receipts, recovery,
- * preferences, and snapshot. The area modules never touch the invalidation
+ * Reviews, preferences, and snapshot. The area modules never touch the invalidation
  * channel, so the messaging and the subscription stay here.
  */
 import { generateUUID } from '@notesapp/core';
@@ -40,6 +40,7 @@ import { createLegacySlice } from './legacy.ts';
 import { createPreferencesSlice } from './preferences.ts';
 import { createQueueSlice } from './queue.ts';
 import { createRecoverySlice } from './recovery.ts';
+import { createReviewsSlice } from './reviews.ts';
 import { createSnapshotSlice } from './snapshot.ts';
 import type { LocalStoreContext } from './shared.ts';
 import { createVersionsSlice } from './versions.ts';
@@ -180,6 +181,7 @@ export async function openLocalStore(
     ...createFileActionsSlice(ctx),
     ...createQueueSlice(ctx),
     ...createRecoverySlice(ctx),
+    ...createReviewsSlice(ctx),
     ...createPreferencesSlice(ctx),
     ...createFilesSlice(ctx),
     ...createSnapshotSlice(ctx),

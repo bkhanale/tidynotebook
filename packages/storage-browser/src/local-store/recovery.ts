@@ -25,6 +25,7 @@ import {
   validateQueueRow,
   validateReceipt,
   validateRecovery,
+  validateReview,
   validateSnapshot,
   validateSnapshotItem,
 } from '../migrations.ts';
@@ -40,6 +41,7 @@ import {
   type AccountRow,
   type LocalStoreContext,
 } from './shared.ts';
+import { forgetReviews } from './reviews.ts';
 
 type RecoverySlice = Pick<
   LocalStore,
@@ -155,6 +157,12 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       .where('[serverOrigin+accountId+workspaceId+workingCopyId]')
       .between(range.lower, range.upper, true, true)
       .delete();
+    // A Review names a checkpoint or kept text of the partition, which go
+    // with it, so the event goes too.
+    await tables.reviews
+      .where('[serverOrigin+accountId+workspaceId+reviewId]')
+      .between(range.lower, range.upper, true, true)
+      .delete();
     for (const row of await tables.recovery.toArray()) {
       const parsed = validateRecovery(row);
       if (matchesPartition(ctx, parsed, accountId, workspaceId))
@@ -222,6 +230,8 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       collect(validateLegacyBase(row));
     for (const row of await tables.legacyDrafts.toArray())
       collect(validateLegacyDraft(row));
+    for (const row of await tables.reviews.toArray())
+      collect(validateReview(row));
     workspaces.delete(accountWide);
     for (const workspaceId of workspaces)
       await clearWorkspacePartition(accountId, workspaceId);
@@ -310,7 +320,7 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       const removed = await guard('removing a recovery copy', () =>
         db.transaction(
           'rw',
-          tables.recovery,
+          [tables.recovery, tables.reviews],
           async (): Promise<string | null> => {
             const stored: unknown = await tables.recovery.get([
               serverOrigin,
@@ -326,12 +336,21 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
               workspaceId,
               recoveryId,
             ]);
+            // No note may offer a comparison with text that is gone.
+            await forgetReviews(
+              ctx,
+              accountId,
+              workspaceId,
+              record.fileId,
+              recoveryId,
+            );
             return record.fileId;
           },
         ),
       );
       if (removed === null) return;
       publish({ accountId, workspaceId, fileId: removed, kind: 'conflict' });
+      publish({ accountId, workspaceId, fileId: removed, kind: 'review' });
     },
 
     async clearPrivateData(
@@ -357,6 +376,7 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
             tables.legacySaves,
             tables.legacyBases,
             tables.legacyDrafts,
+            tables.reviews,
           ],
           async () => {
             if (workspaceId === undefined) {
