@@ -17,6 +17,7 @@ import type {
   Tables,
 } from './database.ts';
 import {
+  addedText,
   corrupt,
   count,
   flag,
@@ -104,6 +105,7 @@ export function validateLegacySave(value: unknown): LegacySaveRow {
     revisions: revisionsOf(row, where),
     state: member(row, 'state', ['pending', 'sending', 'conflict'], where),
     digest: optionalText(row, 'digest', where),
+    errorCode: optionalText(row, 'errorCode', where),
     createdAt: text(row, 'createdAt', where),
   };
 }
@@ -158,7 +160,10 @@ function holdsLegacyText(value: Record<string, unknown>): boolean {
  *
  * The documents of version 5 arrive with a snapshot, and a cursor would make
  * the next pull read only the feed after it. Without a cursor the next pull
- * reads a full snapshot, which carries the whole document of every note.
+ * reads a full snapshot, which carries the whole document of every note. The
+ * step to version 6 runs it again for a store of release 0.5.0, whose feed
+ * dropped the first work of a note that another device made and kept the
+ * note empty; the snapshot replaces that document and that text.
  */
 export async function removeChangePositions(tables: Tables): Promise<void> {
   await tables.cursors.clear();
@@ -221,6 +226,18 @@ async function keepBaseText(
 }
 
 /**
+ * The step from the store of release 0.4 to version 5.
+ *
+ * It removes every change position, so the documents arrive, and it moves the
+ * work of 0.4 aside. Only this step knows that the store came from 0.4, so a
+ * draft of release 0.5 is never marked (record 0088).
+ */
+export async function upgradeRelease04(tables: Tables): Promise<void> {
+  await removeChangePositions(tables);
+  await moveLegacyWork(tables);
+}
+
+/**
  * Moves the saves and drafts of release 0.4 out of the way of version 5.
  *
  * Each queued save that holds text leaves the queue for `legacySaves`, with
@@ -229,7 +246,7 @@ async function keepBaseText(
  * the upgrade replaces. The base text of every such save and draft is kept
  * while the mirror still knows it.
  */
-export async function moveLegacyWork(tables: Tables): Promise<void> {
+async function moveLegacyWork(tables: Tables): Promise<void> {
   const queued: unknown[] = await tables.queue.toArray();
   for (const value of queued) {
     // A record that is not a record at all stays, and revalidation refuses it.
@@ -245,6 +262,7 @@ export async function moveLegacyWork(tables: Tables): Promise<void> {
       revisions: revisionsOf(input, `${where}.input`),
       state: member(value, 'state', ['pending', 'sending', 'conflict'], where),
       digest: optionalText(value, 'digest', where),
+      errorCode: addedText(value, 'errorCode', where),
       createdAt: text(value, 'createdAt', where),
     };
     await tables.legacySaves.put(save);

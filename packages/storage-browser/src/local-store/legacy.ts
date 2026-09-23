@@ -26,6 +26,7 @@ import {
   accountRange,
   guard,
   partitionRange,
+  type CheckpointRow,
   type LegacySaveRow,
 } from '../database.ts';
 import {
@@ -38,13 +39,18 @@ import {
   validateCheckpoint,
   validateContent,
   validateDraft,
+  validateRecovery,
 } from '../migrations.ts';
 import {
   deletionSave,
   foldTextIntoDocument,
   readDocumentRow,
 } from './documents.ts';
-import { forgetMutationWork, type LocalStoreContext } from './shared.ts';
+import {
+  expectedHeadOfParent,
+  forgetMutationWork,
+  type LocalStoreContext,
+} from './shared.ts';
 
 type LegacySlice = Pick<
   LocalStore,
@@ -74,6 +80,12 @@ function joinedText(
   const outcome = recoverLegacyText({ base, local, accepted });
   return outcome.kind === 'merged' ? outcome.text : null;
 }
+
+/** The record that last kept a text of one note in this placement run. */
+type KeptText = {
+  readonly revisionId: string | null;
+  readonly recoveryId: string;
+};
 
 /** What placement decided for one moved save. */
 type SavePlan =
@@ -160,13 +172,15 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
   };
 
   /**
-   * Keeps one text in the recovery area, one record for each note.
+   * Keeps one text in the recovery area.
    *
-   * A later text of the same note replaces the earlier one in the same
-   * record, because it holds that earlier work too.
+   * A text that follows the text last kept for the same note, in the same
+   * chain of saves, replaces it in the same record, because it holds that
+   * earlier work too. A text of another working copy gets its own record, so
+   * no kept text is lost.
    */
   const keep = async (
-    kept: Map<string, string>,
+    kept: Map<string, KeptText>,
     accountId: string,
     workspaceId: string,
     entry: {
@@ -175,10 +189,20 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
       readonly text: string;
       readonly code: string;
       readonly mutationId: string | null;
+      /** The revision this text is, or `null` for a draft. */
+      readonly revisionId: string | null;
+      /** The revision this text follows, or `null`. */
+      readonly follows: string | null;
     },
   ): Promise<void> => {
-    const recoveryId = kept.get(entry.fileId) ?? newId();
-    kept.set(entry.fileId, recoveryId);
+    const earlier = kept.get(entry.fileId);
+    const recoveryId =
+      earlier !== undefined &&
+      earlier.revisionId !== null &&
+      earlier.revisionId === entry.follows
+        ? earlier.recoveryId
+        : newId();
+    kept.set(entry.fileId, { revisionId: entry.revisionId, recoveryId });
     await tables.recovery.put({
       serverOrigin,
       accountId,
@@ -218,7 +242,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
 
   /** Keeps every text that one moved save changed, then removes the save. */
   const keepSave = async (
-    kept: Map<string, string>,
+    kept: Map<string, KeptText>,
     save: LegacySaveRow,
     code: string,
     changes: LocalChange[],
@@ -231,6 +255,8 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
         text: revision.content.text,
         code,
         mutationId: save.mutationId,
+        revisionId: revision.id,
+        follows: revision.parents[0] ?? null,
       });
     }
     await removeSave(save, changes);
@@ -285,6 +311,17 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
         onServer.set(fileId, held);
       }
       if (revision.deleted) {
+        // A deletion states what the device had seen. The document holds work
+        // that release 0.4 never saw when its text differs from the text that
+        // the deletion was written over, and a deletion must not hide such
+        // work (record 0083). The note then stays.
+        const seen = await baseTextOf(
+          accountId,
+          workspaceId,
+          revision.parents[0] ?? null,
+        );
+        if (seen === null || seen !== documentText.get(fileId))
+          return { kind: 'unplaced' };
         texts.push(null);
         continue;
       }
@@ -340,6 +377,18 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
       }
       revisions.push({ ...moved, content: { kind: 'markdown', document } });
     }
+    // Each precondition names the accepted revision that the parent chain of
+    // the note descends from, as a new save does (record 0073). A moved save
+    // whose parent the server accepted in the meantime names that parent.
+    const expectedHeads: Record<string, string | null> = {};
+    for (const revision of save.revisions)
+      if (!(revision.fileId in expectedHeads))
+        expectedHeads[revision.fileId] = await expectedHeadOfParent(
+          ctx,
+          accountId,
+          workspaceId,
+          revision.parents[0] ?? null,
+        );
     await tables.queue.put({
       serverOrigin,
       accountId,
@@ -350,7 +399,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
         workspaceId,
         mutationId: save.mutationId,
         deviceId: save.deviceId,
-        expectedHeads: { ...save.expectedHeads },
+        expectedHeads,
         revisions,
       },
       state: 'pending',
@@ -380,19 +429,36 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
       readonly snapshotRead: boolean;
       readonly blocked: Set<string>;
       readonly unplaced: Set<string>;
-      readonly kept: Map<string, string>;
+      readonly kept: Map<string, KeptText>;
       readonly changes: LocalChange[];
     },
   ): Promise<number> => {
     let waiting = 0;
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
     for (const save of await savesOf(accountId, workspaceId)) {
       const files = [
         ...new Set(save.revisions.map((revision) => revision.fileId)),
       ];
       // The server refused this save for good, and release 0.4 kept its text
-      // in the recovery area when it did.
+      // in the recovery area when it did. It wrote the two in separate
+      // transactions, so a copy that is not there is kept now.
       if (save.state === 'conflict') {
-        await removeSave(save, state.changes);
+        const copies: unknown[] = await tables.recovery
+          .where('[serverOrigin+accountId+workspaceId+recoveryId]')
+          .between(range.lower, range.upper, true, true)
+          .toArray();
+        const copied = copies.some(
+          (row: unknown) =>
+            validateRecovery(row).mutationId === save.mutationId,
+        );
+        if (copied) await removeSave(save, state.changes);
+        else
+          await keepSave(
+            state.kept,
+            save,
+            save.errorCode ?? unplacedWorkCode,
+            state.changes,
+          );
         continue;
       }
       const plan =
@@ -436,7 +502,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
       readonly snapshotRead: boolean;
       readonly blocked: ReadonlySet<string>;
       readonly unplaced: ReadonlySet<string>;
-      readonly kept: Map<string, string>;
+      readonly kept: Map<string, KeptText>;
       readonly changes: LocalChange[];
     },
   ): Promise<number> => {
@@ -505,6 +571,8 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
           text: draft.text,
           code: unplacedWorkCode,
           mutationId: null,
+          revisionId: null,
+          follows: draft.lastCheckpointId ?? draft.baseRevisionId,
         });
         await tables.drafts.delete(key);
         state.changes.push({
@@ -592,20 +660,50 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
             // The server accepted this save before release 0.4 read the
             // answer. It is never sent again: its checkpoints become
             // accepted, and the snapshot after the upgrade brings the heads.
+            // Release 0.4 sent a run of unsent saves as one request under the
+            // first identity, so every moved save whose revisions the answer
+            // names was accepted with it and settles too.
             const accepted = new Set(receipt.result.revisionIds);
-            const rows: unknown[] = await tables.checkpoints
-              .where('[serverOrigin+accountId+workspaceId+mutationId]')
-              .equals([serverOrigin, accountId, save.workspaceId, mutationId])
-              .toArray();
-            for (const row of rows) {
-              const checkpoint = validateCheckpoint(row);
-              if (!accepted.has(checkpoint.revisionId)) continue;
-              await tables.checkpoints.put({ ...checkpoint, accepted: true });
+            const covered = (await savesOf(accountId, save.workspaceId)).filter(
+              (candidate) =>
+                candidate.mutationId === mutationId ||
+                (candidate.revisions.length > 0 &&
+                  candidate.revisions.every((revision) =>
+                    accepted.has(revision.id),
+                  )),
+            );
+            const newest = new Map<string, CheckpointRow>();
+            for (const moved of covered) {
+              const rows: unknown[] = await tables.checkpoints
+                .where('[serverOrigin+accountId+workspaceId+mutationId]')
+                .equals([
+                  serverOrigin,
+                  accountId,
+                  save.workspaceId,
+                  moved.mutationId,
+                ])
+                .toArray();
+              for (const row of rows) {
+                const checkpoint = validateCheckpoint(row);
+                if (!accepted.has(checkpoint.revisionId)) continue;
+                await tables.checkpoints.put({ ...checkpoint, accepted: true });
+                const seen = newest.get(checkpoint.fileId);
+                if (seen === undefined || checkpoint.sequence > seen.sequence)
+                  newest.set(checkpoint.fileId, checkpoint);
+              }
+              await tables.legacySaves.delete([
+                serverOrigin,
+                accountId,
+                save.workspaceId,
+                moved.mutationId,
+              ]);
+            }
+            for (const [fileId, checkpoint] of newest) {
               const file: unknown = await tables.acceptedFiles.get([
                 serverOrigin,
                 accountId,
                 save.workspaceId,
-                checkpoint.fileId,
+                fileId,
               ]);
               if (file !== undefined)
                 await tables.acceptedFiles.put({
@@ -617,7 +715,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
               changes.push({
                 accountId,
                 workspaceId: save.workspaceId,
-                fileId: checkpoint.fileId,
+                fileId,
                 kind: 'file',
               });
             }
@@ -630,12 +728,6 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
               cursor: receipt.result.cursor,
               acknowledgedAt: nowIso(),
             });
-            await tables.legacySaves.delete([
-              serverOrigin,
-              accountId,
-              save.workspaceId,
-              mutationId,
-            ]);
           },
         ),
       );
@@ -696,7 +788,7 @@ export function createLegacySlice(ctx: LocalStoreContext): LegacySlice {
                 snapshotRead: cursor !== undefined,
                 blocked: new Set<string>(),
                 unplaced: new Set<string>(),
-                kept: new Map<string, string>(),
+                kept: new Map<string, KeptText>(),
                 changes,
               };
               const saves = await placeSaves(accountId, workspaceId, state);

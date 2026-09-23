@@ -1622,6 +1622,7 @@ await test('moved work reads the server before it is placed', async () => {
   store.legacy = [
     { mutationId: 'mutation-old', state: 'pending', digest: null },
   ];
+  store.waitingWork = 1;
   let pulls = 0;
   const outcome = await pushQueue(
     store,
@@ -1636,6 +1637,29 @@ await test('moved work reads the server before it is placed', async () => {
   );
   assert.equal(outcome, 'deferred');
   assert.equal(pulls, 1);
+});
+
+await test('moved work that needs no document is placed without the server', async () => {
+  // A note that only this device holds needs nothing from the server, so it
+  // is placed even when the pull cannot run (record 0088).
+  const store = new FakeStore();
+  store.legacy = [
+    { mutationId: 'mutation-new-note', state: 'pending', digest: null },
+  ];
+  let pulls = 0;
+  const outcome = await pushQueue(
+    store,
+    accountId,
+    workspaceId,
+    stubOperations({}),
+    testContext([], []),
+    () => {
+      pulls += 1;
+      return Promise.resolve('deferred');
+    },
+  );
+  assert.equal(outcome, 'done');
+  assert.equal(pulls, 0);
 });
 
 await test('a purge in one change page supersedes its missing deletion revision', async () => {

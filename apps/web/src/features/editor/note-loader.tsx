@@ -132,11 +132,19 @@ export function NoteEditorLoader({
               workspaceId,
               fileId,
             );
+            const held = await store.readFileSaveSnapshot(
+              accountId,
+              workspaceId,
+              fileId,
+            );
             if (cancelled) return;
             // A note that the server holds, and whose document this device
             // does not hold yet, opens from the server read below.
             if (
-              opensFromDevice(document?.bytes ?? null, cached.baseRevisionId)
+              opensFromDevice(
+                document?.bytes ?? null,
+                held.acceptedHeadRevisionId,
+              )
             ) {
               setStatus({
                 kind: 'ready',

@@ -530,15 +530,17 @@ function takeBatchable(entries: readonly QueueEntry[]): QueueEntry[] {
 }
 
 /**
- * Brings the work of release 0.4 to the point where the store can place it.
+ * Places the work of release 0.4, or states why the queue must wait.
  *
  * Record 0084 forbids a change of work that may already have committed, so
  * each moved save that 0.4 sent is settled by its receipt first: an accepted
- * save is never sent again, and an absent one becomes unsent work. Placement
- * needs the document of each note, which only a snapshot brings after the
- * upgrade, so the queue reads the server before the store places anything.
- * The caller then places the work and sends nothing while any of it waits,
- * because a later save can depend on an earlier one (record 0088).
+ * save is never sent again, and an absent one becomes unsent work. The store
+ * then places what it can. A note that only this device holds needs nothing
+ * from the server. Any other note needs its document, which only a snapshot
+ * brings after the upgrade, so the queue reads the server and places again.
+ * The answer is `waiting` while any moved work remains, and the caller then
+ * sends nothing, because a later save can depend on an earlier one (record
+ * 0088).
  */
 async function placeEarlierWork(
   local: LocalStore,
@@ -547,7 +549,7 @@ async function placeEarlierWork(
   net: QueueNetwork,
   ctx: SyncContext,
   pull: PullChanges,
-): Promise<PushOutcome> {
+): Promise<PushOutcome | 'waiting'> {
   const moved = await local.legacySaves(accountId, workspaceId);
   for (const save of moved) {
     if (save.state !== 'sending' || save.digest === null) continue;
@@ -573,12 +575,16 @@ async function placeEarlierWork(
           : { kind: 'absent' },
     );
   }
+  let placed = await local.placeLegacyWork(accountId, workspaceId);
   if (
-    moved.length > 0 &&
+    placed.waiting > 0 &&
     (await local.readCursor(accountId, workspaceId)) === null
-  )
-    return pull();
-  return 'done';
+  ) {
+    const pulled = await pull();
+    if (pulled !== 'done') return pulled;
+    placed = await local.placeLegacyWork(accountId, workspaceId);
+  }
+  return placed.waiting > 0 ? 'waiting' : 'done';
 }
 
 /**
@@ -604,9 +610,8 @@ export async function pushQueue(
     ctx,
     pull,
   );
+  if (placed === 'waiting') return 'done';
   if (placed !== 'done') return placed;
-  if ((await local.placeLegacyWork(accountId, workspaceId)).waiting > 0)
-    return 'done';
   const entries = await local.pending(accountId, workspaceId);
   const work = entries.filter((entry) => entry.state !== 'conflict');
   if (work.length === 0) return 'done';

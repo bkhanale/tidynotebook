@@ -28,8 +28,10 @@ export type Release04Save = {
   readonly path: string;
   readonly text: string;
   readonly sequence: number;
-  readonly state: 'pending' | 'sending';
+  readonly state: 'pending' | 'sending' | 'conflict';
   readonly digest: string | null;
+  /** Whether the save moves the note to Trash. Its text is then empty. */
+  readonly deleted?: boolean;
 };
 
 /**
@@ -43,6 +45,7 @@ export async function storeRelease04Save(
   save: Release04Save,
 ): Promise<void> {
   const { serverOrigin, accountId, workspaceId } = save;
+  const deleted = save.deleted ?? false;
   const digest = await contentDigest(save.text);
   const clientTime = new Date().toISOString();
   await raw.tables.contents.put({
@@ -63,7 +66,7 @@ export async function storeRelease04Save(
     workingCopyId: `copy-${save.fileId}`,
     parents: save.parentId === null ? [] : [save.parentId],
     path: save.path,
-    deleted: false,
+    deleted,
     digest,
     message: null,
     clientTime,
@@ -84,7 +87,7 @@ export async function storeRelease04Save(
     fileId: save.fileId,
     kind: 'note',
     path: save.path,
-    deleted: false,
+    deleted,
     acceptedHeadRevisionId: known?.acceptedHeadRevisionId ?? null,
     acceptedHeadDigest: known?.acceptedHeadDigest ?? null,
     localHeadRevisionId: save.revisionId,
@@ -107,7 +110,7 @@ export async function storeRelease04Save(
           fileId: save.fileId,
           parents: save.parentId === null ? [] : [save.parentId],
           path: save.path,
-          deleted: false,
+          deleted,
           content: { kind: 'markdown', digest, text: save.text },
           clientTime,
           message: null,
@@ -129,7 +132,7 @@ export async function storeRelease04Save(
     baseRevisionId: save.expectedHead,
     text: save.text,
     path: save.path,
-    deleted: false,
+    deleted,
     sequence: save.sequence,
     lastCheckpointId: save.revisionId,
     savedAt: clientTime,

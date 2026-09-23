@@ -68,6 +68,7 @@ await test('a note of the server opens from the device only with its document', 
   const bytes = new Uint8Array([1, 2, 3]);
   assert.equal(opensFromDevice(bytes, 'revision-1'), true);
   assert.equal(opensFromDevice(null, 'revision-1'), false);
-  // A note that only this device holds starts its own document.
+  // A note that only this device holds has no accepted head, even with a
+  // local version of release 0.4, and it starts its own document.
   assert.equal(opensFromDevice(null, null), true);
 });

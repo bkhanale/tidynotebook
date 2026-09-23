@@ -53,8 +53,8 @@ import {
   textList,
 } from './record-fields.ts';
 import {
-  moveLegacyWork,
   removeChangePositions,
+  upgradeRelease04,
   validateLegacyBase,
   validateLegacyDraft,
   validateLegacySave,
@@ -367,8 +367,10 @@ export function validateMeta(value: unknown): MetaRow {
  * lease and the staged snapshot items; both tables start empty, so the step
  * only records the move. Version 4 removes what the conflict-branch feature
  * wrote. Version 5 holds the document of each note, which only a snapshot
- * brings, so its step removes every change position. Version 6 moves the saves
- * and drafts of release 0.4 aside until they are placed (record 0088). A gap
+ * brings, so its step removes every change position and moves the saves and
+ * drafts of release 0.4 aside until they are placed (record 0088). Version 6
+ * holds those tables, and its step reads a snapshot again for a store of
+ * release 0.5.0, whose feed could leave a note empty. A gap
  * between two stored versions with no step is a refusal, never a silent
  * continuation.
  */
@@ -419,12 +421,12 @@ export const migrationSteps: readonly {
   {
     from: 4,
     to: 5,
-    run: removeChangePositions,
+    run: upgradeRelease04,
   },
   {
     from: 5,
     to: 6,
-    run: moveLegacyWork,
+    run: removeChangePositions,
   },
 ];
 

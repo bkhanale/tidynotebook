@@ -203,6 +203,8 @@ export type LegacySaveRow = {
   readonly revisions: readonly LegacyRevision[];
   readonly state: 'pending' | 'sending' | 'conflict';
   readonly digest: string | null;
+  /** Why the server refused a `conflict` save, or `null`. */
+  readonly errorCode: string | null;
   readonly createdAt: string;
 };
 
