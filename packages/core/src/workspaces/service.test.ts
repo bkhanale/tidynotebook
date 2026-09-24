@@ -16,6 +16,7 @@ import type {
   WorkspaceSummary,
 } from './ports.ts';
 import {
+  defaultSpellCheck,
   createWorkspace,
   deleteWorkspace,
   listWorkspaces,
@@ -118,6 +119,7 @@ function createFakeStore(): FakeStore {
           preferences.get(actor.accountId) ?? {
             appearance: 'system',
             themeFamily: 'tokyo-night',
+            spellCheck: defaultSpellCheck,
           },
         ),
       savePreferences: (value: Preferences) => {
@@ -305,7 +307,52 @@ await test('an appearance outside the union is rejected', async () => {
   assert.deepEqual(store.preferences.get(alice), {
     appearance: 'dark',
     themeFamily: 'nord',
+    spellCheck: true,
   });
+});
+
+await test('a change keeps every setting that it does not name', async () => {
+  const store = createFakeStore();
+  const off = await updatePreferences(store, actorFor(alice), {
+    spellCheck: false,
+  });
+  assert.equal(off.ok, true);
+  assert.deepEqual(store.preferences.get(alice), {
+    appearance: 'system',
+    themeFamily: 'tokyo-night',
+    spellCheck: false,
+  });
+  // A theme write that does not know the spell check leaves it off.
+  const theme = await updatePreferences(store, actorFor(alice), {
+    appearance: 'light',
+    themeFamily: 'nord',
+  });
+  assert.equal(theme.ok, true);
+  assert.deepEqual(store.preferences.get(alice), {
+    appearance: 'light',
+    themeFamily: 'nord',
+    spellCheck: false,
+  });
+  const on = await updatePreferences(store, actorFor(alice), {
+    spellCheck: true,
+  });
+  assert.equal(on.ok, true);
+  assert.deepEqual(store.preferences.get(alice), {
+    appearance: 'light',
+    themeFamily: 'nord',
+    spellCheck: true,
+  });
+});
+
+await test('a refused member stores no other member', async () => {
+  const store = createFakeStore();
+  const result = await updatePreferences(store, actorFor(alice), {
+    appearance: 'neon',
+    spellCheck: false,
+  });
+  assert.equal(result.ok, false);
+  assert.equal(result.ok ? '' : result.error.code, 'forbidden');
+  assert.equal(store.preferences.get(alice), undefined);
 });
 
 await test('a theme family that is not a slug is rejected', async () => {

@@ -21,24 +21,29 @@ export type AppearanceChoice = 'system' | 'light' | 'dark';
  * `themeFamily` names a palette family of the client theme registry. The
  * server keeps the identifier as an opaque slug: the registry lives in the
  * browser package, and a server that knew the palette names would have to be
- * released again for every new theme.
+ * released again for every new theme. `spellCheck` states whether the editor
+ * asks the browser to check the spelling of a note (record 0103).
  */
 export type Preferences = {
   readonly appearance: AppearanceChoice;
   readonly themeFamily: string;
+  readonly spellCheck: boolean;
 };
 
 /**
- * Settings as a caller read them, before the appearance is checked.
+ * The settings that one write changes, before they are checked.
  *
- * A preference reaches this package from a request body or from a stored row,
- * so the appearance can be a text that the union does not hold. A caller
- * states what it read and `updatePreferences` decides, instead of claiming a
- * shape that nothing proved.
+ * A member that is absent keeps its stored value, so each setting is written
+ * alone and a write never carries a stale value of another (record 0103). A
+ * member reaches this package from a request body, so the appearance can be
+ * a text that the union does not hold. A caller states what it read and
+ * `updatePreferences` decides, instead of claiming a shape that nothing
+ * proved.
  */
-export type StoredPreferences = {
-  readonly appearance: string;
-  readonly themeFamily: string;
+export type PreferencesChange = {
+  readonly appearance?: string | undefined;
+  readonly themeFamily?: string | undefined;
+  readonly spellCheck?: boolean | undefined;
 };
 
 /** One workspace as its member sees it. */
@@ -65,7 +70,7 @@ export type AccountTransaction = {
   memberships(): Promise<readonly { workspaceId: string; role: Role }[]>;
   /** The stored settings of the account. */
   preferences(): Promise<Preferences>;
-  /** Replaces the stored settings of the account. */
+  /** Replaces the stored settings of the account with a checked value. */
   savePreferences(preferences: Preferences): Promise<void>;
   /**
    * Creates a workspace whose only member is the account, as its owner.

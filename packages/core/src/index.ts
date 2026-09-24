@@ -139,7 +139,7 @@ export type {
   AccountTransaction,
   AppearanceChoice,
   Preferences,
-  StoredPreferences,
+  PreferencesChange,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
@@ -147,6 +147,7 @@ export type {
 export {
   appearanceChoices,
   createWorkspace,
+  defaultSpellCheck,
   deleteWorkspace,
   isThemeFamilyId,
   listWorkspaces,

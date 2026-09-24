@@ -17,7 +17,7 @@ import { fail, ok, type Result } from '../files/model.ts';
 import type {
   AppearanceChoice,
   Preferences,
-  StoredPreferences,
+  PreferencesChange,
   WorkspaceAdminStore,
   WorkspaceSummary,
 } from './ports.ts';
@@ -49,6 +49,14 @@ export function isThemeFamilyId(value: string): boolean {
     value.length <= themeFamilyMaximumLength && themeFamilyPattern.test(value)
   );
 }
+
+/**
+ * Whether an account that never chose has its spelling checked.
+ *
+ * The migration that adds the column states the same default, because SQL
+ * cannot read this value.
+ */
+export const defaultSpellCheck = true;
 
 /**
  * Both permission checks of one workspace action.
@@ -173,22 +181,34 @@ export function readPreferences(
   return store.account(actor, async (tx) => ok(await tx.preferences()));
 }
 
-/** Replaces the stored settings of the account. */
+/**
+ * Stores the settings that a change names and keeps every other one.
+ *
+ * The stored value is read inside the same transaction as the write, so two
+ * changes of two different settings never undo each other (record 0103).
+ * Every member that the change names is checked before anything is written.
+ */
 export function updatePreferences(
   store: WorkspaceAdminStore,
   actor: Actor,
-  preferences: StoredPreferences,
+  change: PreferencesChange,
 ): Promise<Result<Preferences>> {
   return store.account(actor, async (tx) => {
-    const appearance = appearanceChoices.find(
-      (choice) => choice === preferences.appearance,
-    );
-    if (appearance === undefined) return fail<Preferences>('forbidden');
-    if (!isThemeFamilyId(preferences.themeFamily))
-      return fail<Preferences>('forbidden');
+    const current = await tx.preferences();
+    let appearance = current.appearance;
+    if (change.appearance !== undefined) {
+      const known = appearanceChoices.find(
+        (choice) => choice === change.appearance,
+      );
+      if (known === undefined) return fail<Preferences>('forbidden');
+      appearance = known;
+    }
+    const themeFamily = change.themeFamily ?? current.themeFamily;
+    if (!isThemeFamilyId(themeFamily)) return fail<Preferences>('forbidden');
     const checked: Preferences = {
       appearance,
-      themeFamily: preferences.themeFamily,
+      themeFamily,
+      spellCheck: change.spellCheck ?? current.spellCheck,
     };
     await tx.savePreferences(checked);
     return ok(checked);
