@@ -231,10 +231,7 @@ function instantOfDate(date: CalendarDate): Date {
 }
 
 /** The title of a month, for example `September 2026`. */
-export function monthTitle(
-  month: CalendarMonth,
-  locale?: string,
-): string {
+export function monthTitle(month: CalendarMonth, locale?: string): string {
   return new Intl.DateTimeFormat(locale, {
     month: 'long',
     year: 'numeric',
@@ -243,10 +240,7 @@ export function monthTitle(
 }
 
 /** The whole name of a day, which a screen reader reads for its cell. */
-export function dayName(
-  date: CalendarDate,
-  locale?: string,
-): string {
+export function dayName(date: CalendarDate, locale?: string): string {
   return new Intl.DateTimeFormat(locale, {
     weekday: 'long',
     day: 'numeric',
