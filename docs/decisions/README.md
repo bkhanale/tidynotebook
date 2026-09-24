@@ -125,6 +125,7 @@ and needs no record.
 | [0093](0093-the-tree-actions-are-one-row-of-icons.md)                         | The tree actions are one row of icons                                           |
 | [0094](0094-the-note-has-one-row-of-formatting-tools.md)                      | The note has one row of formatting tools                                        |
 | [0095](0095-a-table-is-a-grid-over-its-text.md)                               | A table is a grid over its text                                                 |
+| [0096](0096-an-edit-keeps-the-structure-of-a-table.md)                        | An edit keeps the structure of a table                                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -346,3 +347,9 @@ table. Each tool runs the command of its key from one table in
 Record 0095 follows [design 014](../design/014-a-table-is-a-grid.md). It
 keeps a table as text in the one editor and presents it as a grid, with one
 block wrapper that scrolls each table on its own. It refines record 0002.
+
+Record 0096 answers the owner report on tables after 0.6.0. No edit of a person
+changes the rows or the columns of a table: an edit that meets its structure is
+expressed on the model of the table. A table carries its own controls that add
+a row and a column, and the table tools leave the formatting row. It refines
+records 0094 and 0095.
