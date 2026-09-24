@@ -13,6 +13,8 @@ import test from 'node:test';
 import { EditorState, type TransactionSpec } from '@codemirror/state';
 import {
   continueBlockSpec,
+  formatActionOf,
+  formatActions,
   formattingKeymap,
   hardBreakSpec,
   headingLevelSpec,
@@ -23,10 +25,13 @@ import {
   linkSpec,
   outdentListSpec,
   parseListLine,
+  shortcutKeys,
   shortcuts,
+  tableSpec,
   toggleInlineSpec,
   toggleListSpec,
   toggleQuoteSpec,
+  type FormatActionId,
 } from './keymaps.ts';
 
 /** Builds a state from text that marks its selection. */
@@ -401,4 +406,195 @@ await test('the link and command palette use separate shortcuts', () => {
       },
     ],
   );
+});
+
+/**
+ * What each format action writes, with an empty and a filled selection.
+ *
+ * The rows name the pure spec that the command of the action dispatches. The
+ * test below also proves that the table covers every action, so a new action
+ * cannot ship without its two cases.
+ */
+const formatCases: Readonly<
+  Record<
+    FormatActionId,
+    {
+      readonly spec: (state: EditorState) => TransactionSpec | null;
+      readonly empty: readonly [string, string];
+      readonly filled: readonly [string, string];
+    }
+  >
+> = {
+  'heading-1': {
+    spec: (state) => headingLevelSpec(state, 1),
+    empty: ['‸', '# ‸'],
+    filled: ['«Title»', '# «Title»'],
+  },
+  'heading-2': {
+    spec: (state) => headingLevelSpec(state, 2),
+    empty: ['‸', '## ‸'],
+    filled: ['«Title»', '## «Title»'],
+  },
+  'heading-3': {
+    spec: (state) => headingLevelSpec(state, 3),
+    empty: ['‸', '### ‸'],
+    filled: ['«Title»', '### «Title»'],
+  },
+  'heading-4': {
+    spec: (state) => headingLevelSpec(state, 4),
+    empty: ['‸', '#### ‸'],
+    filled: ['«Title»', '#### «Title»'],
+  },
+  'heading-5': {
+    spec: (state) => headingLevelSpec(state, 5),
+    empty: ['‸', '##### ‸'],
+    filled: ['«Title»', '##### «Title»'],
+  },
+  'heading-6': {
+    spec: (state) => headingLevelSpec(state, 6),
+    empty: ['‸', '###### ‸'],
+    filled: ['«Title»', '###### «Title»'],
+  },
+  bold: {
+    spec: (state) => toggleInlineSpec(state, '**'),
+    empty: ['say ‸', 'say **‸**'],
+    filled: ['say «hi»', 'say **«hi»**'],
+  },
+  italic: {
+    spec: (state) => toggleInlineSpec(state, '*'),
+    empty: ['say ‸', 'say *‸*'],
+    filled: ['say «hi»', 'say *«hi»*'],
+  },
+  strikethrough: {
+    spec: (state) => toggleInlineSpec(state, '~~'),
+    empty: ['say ‸', 'say ~~‸~~'],
+    filled: ['say «hi»', 'say ~~«hi»~~'],
+  },
+  'inline-code': {
+    spec: (state) => toggleInlineSpec(state, '`'),
+    empty: ['say ‸', 'say `‸`'],
+    filled: ['say «hi»', 'say `«hi»`'],
+  },
+  link: {
+    spec: (state) => linkSpec(state),
+    empty: ['see ‸', 'see [](‸)'],
+    filled: ['see «docs»', 'see [docs](‸)'],
+  },
+  'bullet-list': {
+    spec: (state) => toggleListSpec(state, 'bullet'),
+    empty: ['‸', '- ‸'],
+    filled: ['«one\ntwo»', '- «one\n- two»'],
+  },
+  'ordered-list': {
+    spec: (state) => toggleListSpec(state, 'ordered'),
+    empty: ['‸', '1. ‸'],
+    filled: ['«one\ntwo»', '1. «one\n2. two»'],
+  },
+  'task-list': {
+    spec: (state) => toggleListSpec(state, 'task'),
+    empty: ['‸', '- [ ] ‸'],
+    filled: ['«one\ntwo»', '- [ ] «one\n- [ ] two»'],
+  },
+  quote: {
+    spec: toggleQuoteSpec,
+    empty: ['‸', '> ‸'],
+    filled: ['«one\ntwo»', '> «one\n> two»'],
+  },
+  table: {
+    spec: tableSpec,
+    empty: [
+      '‸',
+      '| «Column 1» | Column 2 |\n| -------- | -------- |\n|          |          |',
+    ],
+    filled: [
+      '«Name»',
+      '| Name | «Column 2» |\n| ---- | -------- |\n|      |          |',
+    ],
+  },
+};
+
+await test('every format action writes its shape for both selections', () => {
+  assert.deepEqual(
+    formatActions.map((action) => action.id).sort(),
+    Object.keys(formatCases).sort(),
+  );
+  for (const action of formatActions) {
+    const cases = formatCases[action.id];
+    for (const [source, expected] of [cases.empty, cases.filled]) {
+      const state = stateOf(source);
+      assert.equal(applied(state, cases.spec(state)), expected, action.id);
+    }
+  }
+});
+
+await test('a tool runs the command that its key runs', () => {
+  // The toolbar and the palette run `command` of a format action, and the
+  // keymap is built from the same table, so both roads reach one function.
+  for (const action of formatActions) {
+    if (action.key === null) continue;
+    const bindings = formattingKeymap.filter(
+      (binding) => binding.key === action.key,
+    );
+    assert.equal(bindings.length, 1, `${action.key} is bound once`);
+    assert.equal(bindings[0]?.run, action.command, action.id);
+  }
+  assert.equal(formatActionOf('bold').key, 'Mod-b');
+  assert.equal(
+    formattingKeymap.find((binding) => binding.key === 'Mod-k')
+      ?.stopPropagation,
+    true,
+  );
+});
+
+await test('the shortcut table names the key of every format action', () => {
+  const documented = new Set(shortcuts.map((row) => row.keys));
+  for (const action of formatActions) {
+    if (action.keys === null) continue;
+    const heading = action.id.startsWith('heading-');
+    assert.ok(
+      documented.has(heading ? 'Cmd or Ctrl + 1 to 6' : action.keys),
+      `the shortcut table lacks ${action.keys}`,
+    );
+  }
+});
+
+await test('a key line reads the way the shortcut table writes it', () => {
+  assert.equal(shortcutKeys('Mod-b'), 'Cmd or Ctrl + B');
+  assert.equal(shortcutKeys('Mod-Shift-x'), 'Cmd or Ctrl + Shift + X');
+  assert.equal(shortcutKeys('Mod-Shift-.'), 'Cmd or Ctrl + Shift + .');
+  assert.equal(shortcutKeys('Mod-3'), 'Cmd or Ctrl + 3');
+});
+
+await test('a table stands on its own lines between blank lines', () => {
+  const table =
+    '| Column 1 | Column 2 |\n| -------- | -------- |\n|          |          |';
+  const selected = table.replace('Column 1', '«Column 1»');
+  const below = stateOf('Intro\n‸\nMore');
+  assert.equal(
+    applied(below, tableSpec(below)),
+    `Intro\n\n${selected}\n\nMore`,
+  );
+  const inline = stateOf('Intro ‸text');
+  assert.equal(
+    applied(inline, tableSpec(inline)),
+    `Intro\n\n${selected}\n\ntext`,
+  );
+  const blank = stateOf('Intro\n\n‸\n\nMore');
+  assert.equal(
+    applied(blank, tableSpec(blank)),
+    `Intro\n\n${selected}\n\nMore`,
+  );
+});
+
+await test('a selection becomes one header cell with its pipes escaped', () => {
+  const state = stateOf('«a | b\nc»');
+  assert.equal(
+    applied(state, tableSpec(state)),
+    '| a \\| b c | «Column 2» |\n| -------- | -------- |\n|          |          |',
+  );
+});
+
+await test('a table declines inside a code fence', () => {
+  const state = stateOf('```\n‸\n```');
+  assert.equal(tableSpec(state), null);
 });

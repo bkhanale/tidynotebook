@@ -20,7 +20,6 @@ import {
 } from '@codemirror/view';
 import {
   editingTransaction,
-  headingSpec,
   linkSpanAt,
   toggleTaskSpec,
   type EditorNavigation,
@@ -268,16 +267,4 @@ export function setEditorRich(
   view.dispatch({
     effects: richCompartment.reconfigure(richWidgets(resolvers)),
   });
-}
-
-/**
- * Applies one heading level to the current selection, if the view is live.
- *
- * Exported for future toolbar use. Returns false when no line changed.
- */
-export function applyHeading(view: EditorView, level: number): boolean {
-  const spec = headingSpec(view.state, level);
-  if (spec === null) return false;
-  view.dispatch(view.state.update(editingTransaction(spec)));
-  return true;
 }

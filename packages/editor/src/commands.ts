@@ -115,60 +115,6 @@ export function taskToggleAt(
   };
 }
 
-/**
- * Sets or clears the heading level of every selected line.
- *
- * A line already at `level` loses its markers and becomes a paragraph. Any
- * other line receives `level` markers, replacing its current ones. Returns
- * null when the selection covers no line, which cannot happen for a normal
- * cursor but keeps the helper total.
- */
-export function headingSpec(
-  state: EditorState,
-  level: number,
-): TransactionSpec | null {
-  const clamped = Math.min(6, Math.max(1, Math.floor(level)));
-  const changes: ChangeSpec[] = [];
-  const seen = new Set<number>();
-  for (const range of state.selection.ranges) {
-    const first = state.doc.lineAt(range.from);
-    const last = state.doc.lineAt(range.to);
-    for (let number = first.number; number <= last.number; number += 1) {
-      if (seen.has(number)) continue;
-      seen.add(number);
-      const line = state.doc.line(number);
-      const match = /^( {0,3})(#{1,6})([ \t]+|$)/.exec(line.text);
-      const indentLength = (match?.[1] ?? '').length;
-      if (match !== null && (match[2] ?? '').length === clamped) {
-        const markerFrom = line.from + indentLength;
-        const markerTo = markerFrom + (match[2] ?? '').length;
-        const gap = match[3] ?? '';
-        changes.push({
-          from: markerFrom,
-          to: markerTo + gap.length,
-          insert: '',
-        });
-      } else if (match !== null) {
-        const markerFrom = line.from + indentLength;
-        const markerTo = markerFrom + (match[2] ?? '').length;
-        changes.push({
-          from: markerFrom,
-          to: markerTo,
-          insert: '#'.repeat(clamped),
-        });
-      } else {
-        changes.push({
-          from: line.from,
-          to: line.from,
-          insert: `${'#'.repeat(clamped)} `,
-        });
-      }
-    }
-  }
-  if (changes.length === 0) return null;
-  return { changes };
-}
-
 /** One link the preview renders, with the range it covers. */
 export type LinkSpan = {
   /** The first offset of the link in the document. */

@@ -22,7 +22,6 @@ export {
 } from './unified-diff.ts';
 export type { CreateEditorOptions } from './create-editor.ts';
 export {
-  applyHeading,
   createEditor,
   emptyNoteHint,
   livePreviewExtensions,
@@ -39,14 +38,22 @@ export type {
 export type { NoteChoice, NoteLinkSource } from './completion.ts';
 export { noteLinkText, relativeNotePath } from './completion.ts';
 export { openFindAndReplace, setNoteLinkSource } from './extensions.ts';
-export type { EditorShortcut } from './keymaps.ts';
-export { shortcuts } from './keymaps.ts';
+export type {
+  EditorShortcut,
+  FormatAction,
+  FormatActionId,
+} from './keymaps.ts';
+export {
+  formatActionOf,
+  formatActions,
+  runFormatAction,
+  shortcuts,
+} from './keymaps.ts';
 export { htmlToMarkdown } from './paste.ts';
 export type { EditorState } from '@codemirror/state';
 export type { EditorView } from '@codemirror/view';
 export {
   findTaskBox,
-  headingSpec,
   linkSpanAt,
   taskToggleAt,
   toggleTaskSpec,

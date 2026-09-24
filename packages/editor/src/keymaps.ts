@@ -622,6 +622,82 @@ export function hardBreakSpec(state: EditorState): TransactionSpec | null {
   });
 }
 
+/** The header cells of a new table, until the person names them. */
+export const tableHeaderPlaceholders = ['Column 1', 'Column 2'] as const;
+
+/** The text of one table cell: one line, with its pipes escaped. */
+function tableCellText(text: string): string {
+  return text.replaceAll(/\s+/g, ' ').trim().replaceAll('|', '\\|');
+}
+
+/** One row of a table with padded cells. */
+function tableRow(cells: readonly string[]): string {
+  return `| ${cells.join(' | ')} |`;
+}
+
+/**
+ * Inserts the smallest useful GFM table: a header row, the delimiter row and
+ * one empty body row of two columns.
+ *
+ * A table is text, like every other construct (record 0002), so the person
+ * edits it in place and the live preview aligns it. The table stands on lines
+ * of its own with a blank line on each side, because a line of text next to
+ * a table row joins the table. Selected text becomes the first header cell.
+ * The first placeholder header cell is then selected, so the next key names
+ * the column.
+ *
+ * The command acts on the main selection. Inside a fenced code block it
+ * declines, because the table would be code there.
+ */
+export function tableSpec(state: EditorState): TransactionSpec | null {
+  const range = state.selection.main;
+  const startLine = state.doc.lineAt(range.from);
+  const endLine = state.doc.lineAt(range.to);
+  if (insideCodeFence(state, startLine.number)) return null;
+  const selected = tableCellText(state.doc.sliceString(range.from, range.to));
+  const headers: readonly string[] =
+    selected === ''
+      ? tableHeaderPlaceholders
+      : [selected, tableHeaderPlaceholders[1]];
+  const widths = headers.map((header) => Math.max(3, header.length));
+  const table = [
+    tableRow(headers.map((header, index) => header.padEnd(widths[index] ?? 3))),
+    tableRow(widths.map((width) => '-'.repeat(width))),
+    tableRow(widths.map((width) => ' '.repeat(width))),
+  ].join('\n');
+
+  const textBefore = state.doc.sliceString(startLine.from, range.from);
+  const textAfter = state.doc.sliceString(range.to, endLine.to);
+  // The white space between the table and the text beside it goes, so no
+  // line keeps a trailing space and no row starts with an indent.
+  const from = startLine.from + textBefore.trimEnd().length;
+  const to = endLine.to - textAfter.trimStart().length;
+  const lineAbove =
+    startLine.number > 1 ? state.doc.line(startLine.number - 1).text : '';
+  const lineBelow =
+    endLine.number < state.doc.lines
+      ? state.doc.line(endLine.number + 1).text
+      : '';
+  const before =
+    textBefore.trim() !== '' ? '\n\n' : lineAbove.trim() !== '' ? '\n' : '';
+  const after =
+    textAfter.trim() !== '' ? '\n\n' : lineBelow.trim() !== '' ? '\n' : '';
+
+  const named = selected === '' ? 0 : 1;
+  const cellStart =
+    from +
+    before.length +
+    2 +
+    widths.slice(0, named).reduce((sum, width) => sum + width + 3, 0);
+  return {
+    changes: { from, to, insert: `${before}${table}${after}` },
+    selection: EditorSelection.range(
+      cellStart,
+      cellStart + (headers[named] ?? '').length,
+    ),
+  };
+}
+
 /** Turns a spec producing function into a CodeMirror command. */
 function dispatching(
   build: (state: EditorState) => TransactionSpec | null,
@@ -744,6 +820,154 @@ export const insertLink: Command = (view: EditorView): boolean => {
   return true;
 };
 
+/** Inserts a small GFM table at the selection. */
+export const insertTable = dispatching(tableSpec);
+
+/** Every formatting action that a tool or the palette can run. */
+export type FormatActionId =
+  | 'heading-1'
+  | 'heading-2'
+  | 'heading-3'
+  | 'heading-4'
+  | 'heading-5'
+  | 'heading-6'
+  | 'bold'
+  | 'italic'
+  | 'strikethrough'
+  | 'inline-code'
+  | 'link'
+  | 'bullet-list'
+  | 'ordered-list'
+  | 'task-list'
+  | 'quote'
+  | 'table';
+
+/** One formatting action: its name, its key and its command. */
+export type FormatAction = {
+  readonly id: FormatActionId;
+  /** What a person reads on a control, in sentence case. */
+  readonly label: string;
+  /** The CodeMirror key of the action, or null when no key runs it. */
+  readonly key: string | null;
+  /** The key line for a reader, as the shortcut table writes it. */
+  readonly keys: string | null;
+  readonly command: Command;
+  /** Keeps the key from the window, as the link key must (record 0028). */
+  readonly stopPropagation?: true | undefined;
+};
+
+/**
+ * The key line of one CodeMirror key, as the shortcut table writes it.
+ *
+ * `Mod-Shift-x` reads `Cmd or Ctrl + Shift + X`, so the words of a key are
+ * derived from the binding and never written a second time.
+ */
+export function shortcutKeys(key: string): string {
+  return key
+    .split('-')
+    .map((part) =>
+      part === 'Mod'
+        ? 'Cmd or Ctrl'
+        : part.length === 1
+          ? part.toUpperCase()
+          : part,
+    )
+    .join(' + ');
+}
+
+/** The six heading actions, in the order of their level. */
+const headingActionIds = [
+  'heading-1',
+  'heading-2',
+  'heading-3',
+  'heading-4',
+  'heading-5',
+  'heading-6',
+] as const satisfies readonly FormatActionId[];
+
+/** One row of the format action table. */
+function formatAction(
+  id: FormatActionId,
+  label: string,
+  key: string | null,
+  command: Command,
+  stopPropagation?: true,
+): FormatAction {
+  return {
+    id,
+    label,
+    key,
+    keys: key === null ? null : shortcutKeys(key),
+    command,
+    stopPropagation,
+  };
+}
+
+/**
+ * The one table of the formatting actions.
+ *
+ * The formatting keymap is built from it, and the tools and the command
+ * palette of the web application read it, so a tool, a palette row and a key
+ * run one command (record 0094). A new formatting action is one row here.
+ */
+export const formatActions: readonly FormatAction[] = [
+  ...headingActionIds.map((id, index) =>
+    formatAction(
+      id,
+      `Heading ${String(index + 1)}`,
+      `Mod-${String(index + 1)}`,
+      setHeadingLevel(index + 1),
+    ),
+  ),
+  formatAction('bold', 'Bold', 'Mod-b', toggleBold),
+  formatAction('italic', 'Italic', 'Mod-i', toggleItalic),
+  formatAction(
+    'strikethrough',
+    'Strike through',
+    'Mod-Shift-x',
+    toggleStrikethrough,
+  ),
+  formatAction('inline-code', 'Inline code', 'Mod-e', toggleInlineCode),
+  formatAction('link', 'Link', 'Mod-k', insertLink, true),
+  formatAction('bullet-list', 'Bullet list', 'Mod-Shift-8', toggleBulletList),
+  formatAction(
+    'ordered-list',
+    'Ordered list',
+    'Mod-Shift-7',
+    toggleOrderedList,
+  ),
+  formatAction('task-list', 'Task list', 'Mod-Shift-9', toggleTaskList),
+  formatAction('quote', 'Block quote', 'Mod-Shift-.', toggleQuote),
+  formatAction('table', 'Table', null, insertTable),
+];
+
+/**
+ * The format action of one id.
+ *
+ * The table is total over its id type, which `keymaps.test.ts` proves, so a
+ * missing row is a defect of this module and it fails loudly.
+ */
+export function formatActionOf(id: FormatActionId): FormatAction {
+  const action = formatActions.find((candidate) => candidate.id === id);
+  if (action === undefined) throw new Error(`No format action ${id}.`);
+  return action;
+}
+
+/**
+ * Runs one format action on the view, the way a tool or the palette does.
+ *
+ * The action declines while the view composes, because a change inside an
+ * IME composition loses the composed characters (record 0082). The focus
+ * returns to the editor, so the person writes on where the action left the
+ * caret.
+ */
+export function runFormatAction(view: EditorView, id: FormatActionId): boolean {
+  if (view.composing) return false;
+  const ran = formatActionOf(id).command(view);
+  view.focus();
+  return ran;
+}
+
 /**
  * The formatting bindings.
  *
@@ -753,26 +977,20 @@ export const insertLink: Command = (view: EditorView): boolean => {
  * accessibility advice asks for.
  */
 export const formattingKeymap: readonly KeyBinding[] = [
-  { key: 'Mod-b', run: toggleBold, preventDefault: true },
-  { key: 'Mod-i', run: toggleItalic, preventDefault: true },
-  { key: 'Mod-e', run: toggleInlineCode, preventDefault: true },
-  {
-    key: 'Mod-k',
-    run: insertLink,
-    preventDefault: true,
-    stopPropagation: true,
-  },
-  { key: 'Mod-Shift-x', run: toggleStrikethrough, preventDefault: true },
-  { key: 'Mod-1', run: setHeadingLevel(1), preventDefault: true },
-  { key: 'Mod-2', run: setHeadingLevel(2), preventDefault: true },
-  { key: 'Mod-3', run: setHeadingLevel(3), preventDefault: true },
-  { key: 'Mod-4', run: setHeadingLevel(4), preventDefault: true },
-  { key: 'Mod-5', run: setHeadingLevel(5), preventDefault: true },
-  { key: 'Mod-6', run: setHeadingLevel(6), preventDefault: true },
-  { key: 'Mod-Shift-7', run: toggleOrderedList, preventDefault: true },
-  { key: 'Mod-Shift-8', run: toggleBulletList, preventDefault: true },
-  { key: 'Mod-Shift-9', run: toggleTaskList, preventDefault: true },
-  { key: 'Mod-Shift-.', run: toggleQuote, preventDefault: true },
+  ...formatActions.flatMap((action): KeyBinding[] =>
+    action.key === null
+      ? []
+      : [
+          {
+            key: action.key,
+            run: action.command,
+            preventDefault: true,
+            ...(action.stopPropagation === true
+              ? { stopPropagation: true }
+              : {}),
+          },
+        ],
+  ),
   { key: 'Mod-]', run: indentListItem, preventDefault: true },
   { key: 'Mod-[', run: outdentListItem, preventDefault: true },
   { key: 'Tab', run: indentListItem, shift: outdentListItem },
