@@ -16,7 +16,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { FormatActionId } from '@notesapp/editor';
+import type { FormatActionId, FormatContext } from '@notesapp/editor';
 
 /** What the open note screen can do on request. */
 export type NoteScreenActions = {
@@ -38,6 +38,8 @@ export type NoteScreenActions = {
    * (record 0094).
    */
   readonly format: ((id: FormatActionId) => void) | null;
+  /** Where the caret of the open editor stands, for the palette rows. */
+  readonly formatContext: FormatContext;
 };
 
 type NoteActionsChannel = {

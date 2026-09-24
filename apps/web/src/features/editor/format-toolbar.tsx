@@ -11,25 +11,35 @@
  * The row is one `toolbar` with one tab stop. The arrow keys, Home and End
  * move inside it, and the tab stop follows the focus, so Tab and Shift and
  * Tab leave the row from the tool a person is on. When the focus leaves, the
- * stop goes back to the first tool. Every tool is a button of the row, and a
- * row wider than the screen scrolls sideways, so no menu covers the text.
+ * stop goes back to the first tool that applies. Every tool is a button of
+ * the row, and a row wider than the screen scrolls sideways, so no menu covers
+ * the text.
+ *
+ * Where the caret stands decides the tools (record 0095). In a table the
+ * tools of the table join the end of the row, and a block tool is disabled,
+ * because a table line is a row. The tools before them never move.
  *
  * A tool takes the focus when it is pressed. That ends an IME composition in
  * the editor before the action runs, and the action then gives the focus back
  * to the editor.
  */
 import { useRef, useState, type ReactNode } from 'react';
-import { formatActionOf, type FormatActionId } from '@notesapp/editor';
+import {
+  formatActionOf,
+  type FormatActionId,
+  type FormatContext,
+} from '@notesapp/editor';
 import { Button } from '@notesapp/ui';
 import {
-  formatToolbar,
   formatToolbarClassName,
   formatToolbarColumnClassName,
   formatToolbarFrameClassName,
   formatToolbarLabel,
   formatToolGroupClassName,
   formatToolTitle,
+  toolApplies,
   toolbarFocusTarget,
+  toolbarGroups,
 } from '../../lib/format-toolbar.ts';
 import { actionIcon } from '../../shell/action-icons.tsx';
 import { appleKeyboard, keyHintParts } from '../../shell/modifier-key.ts';
@@ -48,18 +58,29 @@ function titleOf(id: FormatActionId): string {
 
 /** The row of formatting tools of one open note. */
 export function FormatToolbar({
+  context,
   onFormat,
 }: {
+  /** Where the caret stands, which decides the tools that apply. */
+  readonly context: FormatContext;
   /** Runs one format action on the editor of the open note. */
   readonly onFormat: (id: FormatActionId) => void;
 }): ReactNode {
   const rowRef = useRef<HTMLDivElement | null>(null);
-  // The place, in the order of the row, of the one tool in the tab order.
+  const groups = toolbarGroups(context);
+  const enabled = groups.flat().map((tool) => toolApplies(tool, context));
+  // The place, in the order of the row, of the one tool in the tab order. A
+  // disabled tool takes no focus, so the stop falls to the first tool that
+  // applies, and the row stays one press of Tab away.
   const [stop, setStop] = useState(0);
+  const firstEnabled = Math.max(0, enabled.indexOf(true));
+  const tabStop = enabled[stop] === true ? stop : firstEnabled;
 
-  /** Every tool of the row, in the order of the document. */
+  /** Every tool of the row that takes the focus, in the order of the row. */
   const tools = (): HTMLButtonElement[] =>
-    Array.from(rowRef.current?.querySelectorAll('button') ?? []);
+    Array.from(rowRef.current?.querySelectorAll('button') ?? []).filter(
+      (tool) => !tool.disabled,
+    );
 
   let place = 0;
   return (
@@ -75,14 +96,17 @@ export function FormatToolbar({
             // React types the target of a focus event as the row itself, but
             // a focus event bubbles up from the tool that took the focus.
             const focused: EventTarget = event.target;
-            const at = tools().findIndex((tool) => tool === focused);
+            const all = Array.from(
+              rowRef.current?.querySelectorAll('button') ?? [],
+            );
+            const at = all.findIndex((tool) => tool === focused);
             if (at !== -1) setStop(at);
           }}
           onBlur={(event): void => {
             const next = event.relatedTarget;
             if (next instanceof Node && rowRef.current?.contains(next) === true)
               return;
-            setStop(0);
+            setStop(firstEnabled);
           }}
           onKeyDown={(event): void => {
             const all = tools();
@@ -96,7 +120,7 @@ export function FormatToolbar({
             all[target]?.focus();
           }}
         >
-          {formatToolbar.map((group) => (
+          {groups.map((group) => (
             <div
               key={group.map((tool) => tool.id).join(' ')}
               className={formatToolGroupClassName()}
@@ -113,7 +137,8 @@ export function FormatToolbar({
                     label={formatActionOf(tool.id).label}
                     title={titleOf(tool.id)}
                     icon={actionIcon(tool.icon)}
-                    tabIndex={at === stop ? 0 : -1}
+                    tabIndex={at === tabStop ? 0 : -1}
+                    disabled={enabled[at] !== true}
                     onClick={() => onFormat(tool.id)}
                   />
                 );

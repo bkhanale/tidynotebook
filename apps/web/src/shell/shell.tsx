@@ -1576,7 +1576,7 @@ function ShellFrame({
             // editor takes the focus back.
             ...(noteActions.format === null
               ? []
-              : formatPaletteRows().map((row) => ({
+              : formatPaletteRows(noteActions.formatContext).map((row) => ({
                   id: row.id,
                   label: row.label,
                   keywords: row.keywords,

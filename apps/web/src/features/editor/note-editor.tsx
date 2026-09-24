@@ -36,6 +36,7 @@ import {
 import {
   createEditor,
   openBoundNote,
+  outsideTable,
   runFormatAction,
   setEditorRich,
   setEditorTheme,
@@ -44,6 +45,7 @@ import {
   type LinkTarget,
   type DiagramHandle,
   type FormatActionId,
+  type FormatContext,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, pageGutter } from '@notesapp/ui';
@@ -283,6 +285,9 @@ function NoteEditorBody({
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [storageError, setStorageError] =
     useState<LocalStorageErrorKind | null>(null);
+  // Where the caret stands, which decides the tools of the formatting row.
+  const [formatContext, setFormatContext] =
+    useState<FormatContext>(outsideTable);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   // The one problem line of the editor: an attachment, a paste, or an action
@@ -759,6 +764,7 @@ function NoteEditorBody({
         theme: themeRef.current,
         rich: richResolvers,
         document: bound,
+        onFormatContext: setFormatContext,
         // Work of another device is not input of this device: the screen
         // shows it and schedules no save of its own (record 0085).
         onRemoteChange: (text) => {
@@ -1270,6 +1276,7 @@ function NoteEditorBody({
       exportMarkdown,
       publish: publishNote,
       format: runFormat,
+      formatContext,
     }),
     [
       fileId,
@@ -1280,6 +1287,7 @@ function NoteEditorBody({
       exportMarkdown,
       publishNote,
       runFormat,
+      formatContext,
     ],
   );
   useRegisterNoteActions(noteScreenActions);
@@ -1389,7 +1397,7 @@ function NoteEditorBody({
               The row of formatting tools is the one band above the text
               (decision 0094). It holds no name and no note action.
             */}
-            <FormatToolbar onFormat={runFormat} />
+            <FormatToolbar context={formatContext} onFormat={runFormat} />
             <div
               ref={containerRef}
               className="min-h-0 flex-1 overflow-hidden"
