@@ -36,12 +36,14 @@ import {
 import {
   createEditor,
   openBoundNote,
+  runFormatAction,
   setEditorRich,
   setEditorTheme,
   setNoteLinkSource,
   type EditorView,
   type LinkTarget,
   type DiagramHandle,
+  type FormatActionId,
   type RichWidgetResolvers,
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, pageGutter } from '@notesapp/ui';
@@ -63,6 +65,7 @@ import {
   localWriteFailed,
   localWriteFailureMessage,
 } from '../../lib/local-write.ts';
+import { FormatToolbar } from './format-toolbar.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
@@ -1232,6 +1235,17 @@ function NoteEditorBody({
     nameInputRef.current?.select();
   }, []);
 
+  /**
+   * Runs one format action on the one editor view of this working copy.
+   *
+   * The row of tools and the command palette both call this, so each of them
+   * runs the command that the key of the action runs (record 0094).
+   */
+  const runFormat = useCallback((id: FormatActionId): void => {
+    const view = viewRef.current;
+    if (view !== null) runFormatAction(view, id);
+  }, []);
+
   /** Saves the open note as one Markdown file on this device. */
   const exportMarkdown = useCallback((): void => {
     void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
@@ -1255,6 +1269,7 @@ function NoteEditorBody({
       attachImage,
       exportMarkdown,
       publish: publishNote,
+      format: runFormat,
     }),
     [
       fileId,
@@ -1264,6 +1279,7 @@ function NoteEditorBody({
       attachImage,
       exportMarkdown,
       publishNote,
+      runFormat,
     ],
   );
   useRegisterNoteActions(noteScreenActions);
@@ -1369,6 +1385,11 @@ function NoteEditorBody({
         */}
         <div className="flex min-h-0 flex-1 gap-6">
           <div className={noteFrameClassName()}>
+            {/*
+              The row of formatting tools is the one band above the text
+              (decision 0094). It holds no name and no note action.
+            */}
+            <FormatToolbar onFormat={runFormat} />
             <div
               ref={containerRef}
               className="min-h-0 flex-1 overflow-hidden"

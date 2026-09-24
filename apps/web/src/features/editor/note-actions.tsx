@@ -16,6 +16,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import type { FormatActionId } from '@notesapp/editor';
 
 /** What the open note screen can do on request. */
 export type NoteScreenActions = {
@@ -32,6 +33,11 @@ export type NoteScreenActions = {
   readonly exportMarkdown: (() => void) | null;
   /** Opens the dialog that publishes the open note as a read-only link. */
   readonly publish: (() => void) | null;
+  /**
+   * Runs one format action on the open editor, as a tool of the row does
+   * (record 0094).
+   */
+  readonly format: ((id: FormatActionId) => void) | null;
 };
 
 type NoteActionsChannel = {

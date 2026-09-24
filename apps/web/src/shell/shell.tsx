@@ -112,6 +112,7 @@ import {
   folderExpansionLabels,
 } from '../lib/folder-expansion.ts';
 import { noteOrderLabel, noteOrders } from '../lib/note-order.ts';
+import { formatPaletteRows } from '../lib/format-toolbar.ts';
 import {
   NewFolderDialog,
   RenameFolderDialog,
@@ -1569,6 +1570,27 @@ function ShellFrame({
                     run: noteActions.duplicate,
                   },
                 ]),
+            // Every tool of the row of formatting tools is a row here as
+            // well, from the one list of `lib/format-toolbar.ts` (record
+            // 0094). The palette makes the page inert while it is open and
+            // gives the focus back to what opened it when it closes, so the
+            // action waits for the frame after the close, and the editor
+            // then takes the focus.
+            ...(noteActions.format === null
+              ? []
+              : formatPaletteRows().map((row) => ({
+                  id: row.id,
+                  label: row.label,
+                  keywords: row.keywords,
+                  icon: row.icon,
+                  keys: row.keys,
+                  run: (): void => {
+                    const format = noteActions.format;
+                    window.requestAnimationFrame(() => {
+                      format?.(row.action);
+                    });
+                  },
+                }))),
             ...(noteActions.deleteAndLeave === null
               ? []
               : [
