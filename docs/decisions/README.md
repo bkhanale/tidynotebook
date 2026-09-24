@@ -132,6 +132,7 @@ and needs no record.
 | [0100](0100-the-calendar-is-a-section-of-the-sidebar.md)                           | The calendar is a section of the sidebar                                        |
 | [0101](0101-a-daily-note-takes-its-path-from-a-folder-and-a-name-format.md)        | A daily note takes its path from a folder and a name format                     |
 | [0102](0102-a-template-fills-its-placeholders-once.md)                             | A template fills its placeholders once                                          |
+| [0103](0103-the-browser-checks-the-spelling-of-a-note.md)                          | The browser checks the spelling of a note                                       |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -388,3 +389,8 @@ layout of Obsidian. It refines record 0099.
 Record 0102 lets a template write the date and the name of a new daily note
 through placeholders in double braces, filled once when the note is made. It
 replaces the placeholder bullet of record 0099.
+
+Record 0103 answers
+[issue 141](https://github.com/bkhanale/notesapp/issues/141). The spell checker
+of the browser checks the prose of a note, the code and the addresses stay out
+of it, and one setting of the account turns it off.
