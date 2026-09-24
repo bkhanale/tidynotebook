@@ -27,6 +27,22 @@ import {
 } from '@codemirror/state';
 import { EditorView, type Command, type KeyBinding } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
+import {
+  addColumnEdit,
+  addRowEdit,
+  cellAboveEdit,
+  cellBelowEdit,
+  inTableCell,
+  nextCellEdit,
+  previousCellEdit,
+  removeColumnEdit,
+  removeRowEdit,
+  tableAt,
+  tableEditSpec,
+  tablesIn,
+  writeTable,
+  type FormatContext,
+} from './table-grid.ts';
 
 /** One row of the shortcut table that the shell renders. */
 export type EditorShortcut = {
@@ -301,6 +317,24 @@ function markerSpec(
 }
 
 /**
+ * Whether the selection touches a table.
+ *
+ * A heading, a list or a quote marker at the start of a table line would end
+ * the table, so the block commands decline there and the grid keeps its rows
+ * (record 0095).
+ */
+function selectionTouchesTable(state: EditorState): boolean {
+  return state.selection.ranges.some(
+    (range) =>
+      tablesIn(
+        state,
+        state.doc.lineAt(range.from).from,
+        state.doc.lineAt(range.to).to,
+      ).length > 0,
+  );
+}
+
+/**
  * Turns every selected line into the requested list shape, or back.
  *
  * When every selected line already has that shape the markers are removed,
@@ -312,6 +346,7 @@ export function toggleListSpec(
   state: EditorState,
   kind: ListKind,
 ): TransactionSpec | null {
+  if (selectionTouchesTable(state)) return null;
   const targets = blockTargets(state);
   if (targets.length === 0) return null;
   const parsedLines = targets.map((number) =>
@@ -345,6 +380,7 @@ export function toggleListSpec(
  * place in the surrounding text.
  */
 export function toggleQuoteSpec(state: EditorState): TransactionSpec | null {
+  if (selectionTouchesTable(state)) return null;
   const targets = blockTargets(state);
   if (targets.length === 0) return null;
   const matches = targets.map((number) =>
@@ -378,6 +414,7 @@ export function headingLevelSpec(
   state: EditorState,
   level: number,
 ): TransactionSpec | null {
+  if (selectionTouchesTable(state)) return null;
   const clamped = Math.min(6, Math.max(1, Math.floor(level)));
   const targets = blockTargets(state);
   if (targets.length === 0) return null;
@@ -618,6 +655,9 @@ function continuationOf(lineText: string): string {
  * no backslash lands in the code.
  */
 export function hardBreakSpec(state: EditorState): TransactionSpec | null {
+  // A cell holds one line, so a break inside it would end the row.
+  if (state.selection.ranges.some((range) => inTableCell(state, range.from)))
+    return null;
   const insideFence = state.selection.ranges.some((range) =>
     insideCodeFence(state, state.doc.lineAt(range.from).number),
   );
@@ -640,41 +680,39 @@ function tableCellText(text: string): string {
   return text.replaceAll(/\s+/g, ' ').trim().replaceAll('|', '\\|');
 }
 
-/** One row of a table with padded cells. */
-function tableRow(cells: readonly string[]): string {
-  return `| ${cells.join(' | ')} |`;
-}
-
 /**
  * Inserts the smallest useful GFM table: a header row, the delimiter row and
  * one empty body row of two columns.
  *
- * A table is text, like every other construct (record 0002), so the person
- * edits it in place and the live preview aligns it. The table stands on lines
- * of its own with a blank line on each side, because a line of text next to
- * a table row joins the table. Selected text becomes the first header cell.
- * The first placeholder header cell is then selected, so the next key names
- * the column.
+ * `writeTable` of `table-grid.ts` writes it, the writer every table command
+ * uses, so a new table and an edited one have one shape. The table stands on
+ * lines of its own with a blank line on each side, because a line of text
+ * next to a table row joins the table. A table at the end of the note gets a
+ * blank line and an empty line after it, so the caret has a line to leave the
+ * grid for. Selected text becomes the first header cell. The first
+ * placeholder header cell is then selected, so the next key names the column.
  *
- * The command acts on the main selection. Inside a fenced code block it
- * declines, because the table would be code there.
+ * The command acts on the main selection. Inside a fenced code block and
+ * inside a table it declines, because the table would be code or a broken
+ * row there.
  */
 export function tableSpec(state: EditorState): TransactionSpec | null {
   const range = state.selection.main;
   const startLine = state.doc.lineAt(range.from);
   const endLine = state.doc.lineAt(range.to);
   if (insideCodeFence(state, startLine.number)) return null;
+  if (tableAt(state, range.from) !== null || tableAt(state, range.to) !== null)
+    return null;
   const selected = tableCellText(state.doc.sliceString(range.from, range.to));
-  const headers: readonly string[] =
-    selected === ''
-      ? tableHeaderPlaceholders
-      : [selected, tableHeaderPlaceholders[1]];
-  const widths = headers.map((header) => Math.max(3, header.length));
-  const table = [
-    tableRow(headers.map((header, index) => header.padEnd(widths[index] ?? 3))),
-    tableRow(widths.map((width) => '-'.repeat(width))),
-    tableRow(widths.map((width) => ' '.repeat(width))),
-  ].join('\n');
+  const written = writeTable({
+    lead: '',
+    alignments: [null, null],
+    header:
+      selected === ''
+        ? tableHeaderPlaceholders
+        : [selected, tableHeaderPlaceholders[1]],
+    body: [['', '']],
+  });
 
   const textBefore = state.doc.sliceString(startLine.from, range.from);
   const textAfter = state.doc.sliceString(range.to, endLine.to);
@@ -684,27 +722,45 @@ export function tableSpec(state: EditorState): TransactionSpec | null {
   const to = endLine.to - textAfter.trimStart().length;
   const lineAbove =
     startLine.number > 1 ? state.doc.line(startLine.number - 1).text : '';
-  const lineBelow =
-    endLine.number < state.doc.lines
-      ? state.doc.line(endLine.number + 1).text
-      : '';
+  const lastLine = endLine.number === state.doc.lines;
+  const lineBelow = lastLine ? '' : state.doc.line(endLine.number + 1).text;
   const before =
     textBefore.trim() !== '' ? '\n\n' : lineAbove.trim() !== '' ? '\n' : '';
   const after =
-    textAfter.trim() !== '' ? '\n\n' : lineBelow.trim() !== '' ? '\n' : '';
+    textAfter.trim() !== '' || lastLine
+      ? '\n\n'
+      : lineBelow.trim() !== ''
+        ? '\n'
+        : '';
 
-  const named = selected === '' ? 0 : 1;
-  const cellStart =
-    from +
-    before.length +
-    2 +
-    widths.slice(0, named).reduce((sum, width) => sum + width + 3, 0);
+  const cell = written.cell({ row: 0, column: selected === '' ? 0 : 1 });
+  const start = from + before.length;
   return {
-    changes: { from, to, insert: `${before}${table}${after}` },
-    selection: EditorSelection.range(
-      cellStart,
-      cellStart + (headers[named] ?? '').length,
-    ),
+    changes: { from, to, insert: `${before}${written.text}${after}` },
+    selection: EditorSelection.range(start + cell.from, start + cell.to),
+  };
+}
+
+/**
+ * Opens a line under a table that ends the note, for Arrow Down.
+ *
+ * The caret stays in the cells of a table, so a table at the end of the note
+ * left no line to move to. A blank line ends the table in GFM, so the new
+ * line comes after one. Anywhere else the command declines and the arrow
+ * moves the caret as it always does.
+ */
+export function leaveTableBelowSpec(
+  state: EditorState,
+): TransactionSpec | null {
+  const range = state.selection.main;
+  if (!range.empty) return null;
+  const table = tableAt(state, range.head);
+  if (table === null || table.to !== state.doc.length) return null;
+  if (state.doc.lineAt(range.head).number !== state.doc.lineAt(table.to).number)
+    return null;
+  return {
+    changes: { from: table.to, insert: '\n\n' },
+    selection: EditorSelection.cursor(table.to + 2),
   };
 }
 
@@ -836,6 +892,43 @@ export const insertLink: Command = (view: EditorView): boolean => {
   return true;
 };
 
+/** A table command, which declines outside a table. */
+function tableCommand(edit: Parameters<typeof tableEditSpec>[1]): Command {
+  return dispatching((state) => tableEditSpec(state, edit));
+}
+
+/** Moves to the next cell of a table, and adds a row after the last one. */
+export const nextTableCell = tableCommand(nextCellEdit);
+
+/** Moves to the previous cell of a table. */
+export const previousTableCell = tableCommand(previousCellEdit);
+
+/** Moves to the cell below, and adds a row under the last one. */
+export const tableCellBelow = tableCommand(cellBelowEdit);
+
+/** Moves to the cell above. */
+export const tableCellAbove = tableCommand(cellAboveEdit);
+
+/** Adds a row under the row of the caret. */
+export const addTableRow = tableCommand(addRowEdit);
+
+/** Adds a column after the column of the caret. */
+export const addTableColumn = tableCommand(addColumnEdit);
+
+/** Removes the body row of the caret. */
+export const removeTableRow = tableCommand(removeRowEdit);
+
+/** Removes the column of the caret. */
+export const removeTableColumn = tableCommand(removeColumnEdit);
+
+/** Opens a line under a table that ends the note. */
+export const leaveTableBelow = dispatching(leaveTableBelowSpec);
+
+/** Runs the first command that applies. */
+function either(first: Command, second: Command): Command {
+  return (view) => first(view) || second(view);
+}
+
 /** Inserts a small GFM table at the selection. */
 export const insertTable = dispatching(tableSpec);
 
@@ -856,7 +949,20 @@ export type FormatActionId =
   | 'ordered-list'
   | 'task-list'
   | 'quote'
-  | 'table';
+  | 'table'
+  | 'table-add-row'
+  | 'table-add-column'
+  | 'table-remove-row'
+  | 'table-remove-column';
+
+/**
+ * Where a format action applies.
+ *
+ * `inline` marks text and applies everywhere. `block` shapes whole lines, so
+ * it does nothing inside a table, whose lines are rows. `table` changes a
+ * table and applies only inside one (record 0095).
+ */
+export type FormatScope = 'inline' | 'block' | 'table';
 
 /** One formatting action: its name, its key and its command. */
 export type FormatAction = {
@@ -868,6 +974,7 @@ export type FormatAction = {
   /** The key line for a reader, as the shortcut table writes it. */
   readonly keys: string | null;
   readonly command: Command;
+  readonly scope: FormatScope;
   /** Keeps the key from the window, as the link key must (record 0028). */
   readonly stopPropagation?: true | undefined;
 };
@@ -907,6 +1014,7 @@ function formatAction(
   label: string,
   key: string | null,
   command: Command,
+  scope: FormatScope,
   stopPropagation?: true,
 ): FormatAction {
   return {
@@ -915,6 +1023,7 @@ function formatAction(
     key,
     keys: key === null ? null : shortcutKeys(key),
     command,
+    scope,
     stopPropagation,
   };
 }
@@ -933,29 +1042,91 @@ export const formatActions: readonly FormatAction[] = [
       `Heading ${String(index + 1)}`,
       `Mod-${String(index + 1)}`,
       setHeadingLevel(index + 1),
+      'block',
     ),
   ),
-  formatAction('bold', 'Bold', 'Mod-b', toggleBold),
-  formatAction('italic', 'Italic', 'Mod-i', toggleItalic),
+  formatAction('bold', 'Bold', 'Mod-b', toggleBold, 'inline'),
+  formatAction('italic', 'Italic', 'Mod-i', toggleItalic, 'inline'),
   formatAction(
     'strikethrough',
     'Strike through',
     'Mod-Shift-x',
     toggleStrikethrough,
+    'inline',
   ),
-  formatAction('inline-code', 'Inline code', 'Mod-e', toggleInlineCode),
-  formatAction('link', 'Link', 'Mod-k', insertLink, true),
-  formatAction('bullet-list', 'Bullet list', 'Mod-Shift-8', toggleBulletList),
+  formatAction(
+    'inline-code',
+    'Inline code',
+    'Mod-e',
+    toggleInlineCode,
+    'inline',
+  ),
+  formatAction('link', 'Link', 'Mod-k', insertLink, 'inline', true),
+  formatAction(
+    'bullet-list',
+    'Bullet list',
+    'Mod-Shift-8',
+    toggleBulletList,
+    'block',
+  ),
   formatAction(
     'ordered-list',
     'Ordered list',
     'Mod-Shift-7',
     toggleOrderedList,
+    'block',
   ),
-  formatAction('task-list', 'Task list', 'Mod-Shift-9', toggleTaskList),
-  formatAction('quote', 'Block quote', 'Mod-Shift-.', toggleQuote),
-  formatAction('table', 'Table', null, insertTable),
+  formatAction(
+    'task-list',
+    'Task list',
+    'Mod-Shift-9',
+    toggleTaskList,
+    'block',
+  ),
+  formatAction('quote', 'Block quote', 'Mod-Shift-.', toggleQuote, 'block'),
+  formatAction('table', 'Table', null, insertTable, 'block'),
+  formatAction('table-add-row', 'Add a row', null, addTableRow, 'table'),
+  formatAction(
+    'table-add-column',
+    'Add a column',
+    null,
+    addTableColumn,
+    'table',
+  ),
+  formatAction(
+    'table-remove-row',
+    'Remove the row',
+    null,
+    removeTableRow,
+    'table',
+  ),
+  formatAction(
+    'table-remove-column',
+    'Remove the column',
+    null,
+    removeTableColumn,
+    'table',
+  ),
 ];
+
+/**
+ * Whether one format action applies where the caret of a state stands.
+ *
+ * The tools and the palette read this, so a tool that cannot apply is never
+ * offered as if it could. The header row of a table and its last column stay,
+ * so their removal never applies.
+ */
+export function formatActionApplies(
+  action: FormatAction,
+  context: FormatContext,
+): boolean {
+  if (action.scope === 'block') return !context.table;
+  if (action.scope === 'inline') return true;
+  if (!context.table) return false;
+  if (action.id === 'table-remove-row') return context.bodyRow;
+  if (action.id === 'table-remove-column') return context.columns > 1;
+  return true;
+}
 
 /**
  * The format action of one id.
@@ -1009,9 +1180,16 @@ export const formattingKeymap: readonly KeyBinding[] = [
   ),
   { key: 'Mod-]', run: indentListItem, preventDefault: true },
   { key: 'Mod-[', run: outdentListItem, preventDefault: true },
-  { key: 'Tab', run: indentListItem, shift: outdentListItem },
-  { key: 'Enter', run: continueBlock },
-  { key: 'Shift-Enter', run: insertHardBreak },
+  // Inside a table these keys move between cells, the way a spreadsheet
+  // does, and a list or a paragraph gets them otherwise (record 0095).
+  {
+    key: 'Tab',
+    run: either(nextTableCell, indentListItem),
+    shift: either(previousTableCell, outdentListItem),
+  },
+  { key: 'Enter', run: either(tableCellBelow, continueBlock) },
+  { key: 'Shift-Enter', run: either(tableCellAbove, insertHardBreak) },
+  { key: 'ArrowDown', run: leaveTableBelow },
 ];
 
 /**
@@ -1047,6 +1225,12 @@ export const shortcuts: readonly EditorShortcut[] = [
     description: 'Outdent the list item',
   },
   { keys: 'Shift + Enter', description: 'Break the line inside the paragraph' },
+  { keys: 'Tab', description: 'Move to the next cell of a table' },
+  { keys: 'Shift + Tab', description: 'Move to the previous cell of a table' },
+  {
+    keys: 'Enter',
+    description: 'Move to the cell below in a table, or add a row',
+  },
   { keys: 'Cmd or Ctrl + Enter', description: 'Toggle the task box' },
   { keys: 'Alt + Enter', description: 'Open the link at the cursor' },
 ];

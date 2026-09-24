@@ -601,85 +601,99 @@ await test('nested quotes nest and each level gets a bar', () => {
   assert.equal(visibleText(doc), 'outer\n\ninner\n');
 });
 
-await test('a table stays text with quiet separators and per column alignment', () => {
+await test('a table is a grid: its separators never show, its columns align', () => {
   const doc = '| a | b | c |\n| :- | :-: | -: |\n| 1 | 2 | 3 |\n';
   const found = describe(doc);
   assert.ok(has(found, 'line', 'cm-np-table-line'));
   assert.ok(has(found, 'mark', 'cm-np-table-head'));
-  assert.ok(has(found, 'mark', 'cm-np-table-pipe'));
   assert.ok(has(found, 'mark', 'cm-np-align-left'));
   assert.ok(has(found, 'mark', 'cm-np-align-center'));
   assert.ok(has(found, 'mark', 'cm-np-align-right'));
-  // Every cell keeps its text, so a cell is edited where it stands. Only the
-  // delimiter row steps aside, because the columns already state what it
-  // says.
-  assert.equal(visibleText(doc), '| a | b | c |\n\n| 1 | 2 | 3 |\n');
+  // Record 0095: the cells draw the outline, so neither a separator nor the
+  // delimiter row is on the screen. Every cell keeps its text, so a cell is
+  // edited where it stands.
+  assert.ok(!found.some((item) => item.value.includes('cm-np-table-pipe')));
+  assert.equal(visibleText(doc), ' a  b  c \n\n 1  2  3 \n');
   assert.deepEqual(structureOf(doc), [{ kind: 'table', rows: 2, columns: 3 }]);
 });
 
-await test('the delimiter row comes back when the selection reaches it', () => {
+await test('the delimiter row stays hidden under the selection', () => {
+  // The caret never stands on the delimiter row, and a selection that
+  // crosses it does not bring the dashes back.
   const doc = '| a | b |\n| :- | -: |\n| 1 | 2 |\n';
   const onTheRow = doc.indexOf('| :-') + 3;
-  assert.equal(visibleText(doc, { from: onTheRow, to: onTheRow }), doc);
-  const found = describe(doc, { from: onTheRow, to: onTheRow });
-  assert.ok(has(found, 'mark', 'cm-np-table-rule'));
+  assert.equal(
+    visibleText(doc, { from: onTheRow, to: onTheRow }),
+    visibleText(doc),
+  );
+  assert.ok(
+    has(
+      describe(doc, { from: onTheRow, to: onTheRow }),
+      'line',
+      'cm-np-table-closed',
+    ),
+  );
 });
 
-await test('a separator keeps its box and only changes how visible it is', () => {
-  // The columns must not move while a person edits one row, so the box of a
-  // separator is there at every moment and only its class changes.
+await test('a separator stays hidden on the row of the caret', () => {
   const doc = '| a | b |\n| :- | -: |\n| 1 | 2 |\n';
   const onFirstRow = doc.indexOf('| a') + 3;
-  const quiet = describe(doc).filter(
-    (item) => item.kind === 'mark' && item.value.startsWith('cm-np-table-pipe'),
-  );
-  const shown = describe(doc, { from: onFirstRow, to: onFirstRow }).filter(
-    (item) => item.kind === 'mark' && item.value.startsWith('cm-np-table-pipe'),
-  );
-  assert.equal(quiet.length, 6);
-  assert.ok(
-    shown.some((item) => item.value.includes('cm-np-table-shown')),
-    'the row under the selection shows its separators',
-  );
+  const firstRow = visibleText(doc, { from: onFirstRow, to: onFirstRow }).split(
+    '\n',
+  )[0];
+  assert.equal(firstRow, ' a  b ');
 });
 
-await test('every row of a table carries the same boxes', () => {
+await test('every row of a table carries one box for each column', () => {
   // The columns line up only when each row is cut into the same number of
-  // pieces. A cell holds its padding spaces, so no text of a row sits
-  // outside a cell and the delimiter row is cut the same way.
+  // cells. A cell holds its padding spaces, so no text of a row sits outside
+  // a cell.
   const doc = '| a | bbbb |\n| :- | ---: |\n| cc |  d  |\n';
   const found = describe(doc);
-  const boxKinds = [
-    'cm-np-table-head',
-    'cm-np-table-cell',
-    'cm-np-table-pipe',
-    'cm-np-table-rule',
-  ];
   const boxes = (from: number, to: number): number =>
     found.filter(
       (item) =>
         item.kind === 'mark' &&
         item.from >= from &&
         item.to <= to &&
-        item.value.split(' ').some((name) => boxKinds.includes(name)),
+        item.value
+          .split(' ')
+          .some(
+            (name) =>
+              name === 'cm-np-table-head' || name === 'cm-np-table-cell',
+          ),
     ).length;
   const header = doc.indexOf('\n');
   const delimiter = doc.indexOf('\n', header + 1);
   const row = doc.indexOf('\n', delimiter + 1);
-  assert.equal(boxes(0, header), 5);
-  assert.equal(boxes(delimiter + 1, row), 5);
-  // The delimiter row steps aside while the selection is away from it, and
-  // it comes back with the same five boxes when the selection reaches it.
-  const onTheRow = header + 3;
-  const revealed = describe(doc, { from: onTheRow, to: onTheRow }).filter(
-    (item) =>
-      item.kind === 'mark' &&
-      item.from >= header + 1 &&
-      item.to <= delimiter &&
-      (item.value === 'cm-np-table-rule' ||
-        item.value.startsWith('cm-np-table-pipe')),
+  assert.equal(boxes(0, header), 2);
+  assert.equal(boxes(header + 1, delimiter), 0);
+  assert.equal(boxes(delimiter + 1, row), 2);
+});
+
+await test('the cell that holds the caret is the active cell', () => {
+  const doc = '| a | b |\n| --- | --- |\n| 1 | 2 |\n';
+  const inTwo = doc.indexOf('2') + 1;
+  const active = describe(doc, { from: inTwo, to: inTwo }).filter((item) =>
+    item.value.includes('cm-np-table-active'),
   );
-  assert.equal(revealed.length, 5);
+  assert.equal(active.length, 1);
+  assert.equal(doc.slice(active[0]?.from, active[0]?.to).trim(), '2');
+  // A range marks no single cell, because it is not one place to write.
+  const range = describe(doc, { from: doc.indexOf('1'), to: inTwo });
+  assert.ok(!range.some((item) => item.value.includes('cm-np-table-active')));
+});
+
+await test('an escaped pipe in a cell shows as a pipe', () => {
+  const doc = '| a \\| b | c |\n| --- | --- |\n| 1 | 2 |\n';
+  assert.equal(visibleText(doc).split('\n')[0], ' a | b  c ');
+  // The backslash comes back under the selection, so the source stays
+  // editable, and an escape outside a table keeps it at every moment.
+  const onEscape = doc.indexOf('\\') + 1;
+  assert.equal(
+    visibleText(doc, { from: onEscape, to: onEscape }).split('\n')[0],
+    ' a \\| b  c ',
+  );
 });
 
 await test('a table row without edge separators keeps its two cells', () => {
@@ -689,7 +703,7 @@ await test('a table row without edge separators keeps its two cells', () => {
     (item) => item.kind === 'mark' && item.value.startsWith('cm-np-table-head'),
   );
   assert.equal(cells.length, 2);
-  assert.equal(visibleText(doc), 'a | b\n\n1 | 2\n');
+  assert.equal(visibleText(doc), 'a  b\n\n1  2\n');
 });
 
 await test('the delimiter row is cut at every separator', () => {

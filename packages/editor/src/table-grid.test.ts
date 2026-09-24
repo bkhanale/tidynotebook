@@ -1,0 +1,414 @@
+/**
+ * The table grid checks (record 0095).
+ *
+ * The model, the writer, the commands and the three filters are functions of
+ * `EditorState`, so every rule is proved here without a view. The notation
+ * marks the selection inside the source: `‸` is a cursor, `«text»` a range.
+ */
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import {
+  EditorSelection,
+  EditorState,
+  type TransactionSpec,
+} from '@codemirror/state';
+import { noteMarkdownExtensions } from './language.ts';
+import {
+  addColumnEdit,
+  cellAboveEdit,
+  cellBelowEdit,
+  cellText,
+  formatContextOf,
+  gridParts,
+  nextCellEdit,
+  previousCellEdit,
+  removeColumnEdit,
+  removeRowEdit,
+  tableAt,
+  tableData,
+  tableEditSpec,
+  tableGridEditing,
+  writeTable,
+} from './table-grid.ts';
+
+/** Builds a state from text that marks its selection. */
+function stateOf(source: string, editing = false): EditorState {
+  const extensions = [
+    noteMarkdownExtensions(),
+    editing ? tableGridEditing() : [],
+  ];
+  const start = source.indexOf('«');
+  if (start !== -1) {
+    const rest = source.replace('«', '');
+    const end = rest.indexOf('»');
+    return EditorState.create({
+      doc: rest.replace('»', ''),
+      selection: { anchor: start, head: end },
+      extensions,
+    });
+  }
+  const cursor = source.indexOf('‸');
+  assert.notEqual(cursor, -1, 'the source needs a cursor or a range');
+  return EditorState.create({
+    doc: source.replace('‸', ''),
+    selection: { anchor: cursor },
+    extensions,
+  });
+}
+
+/** The document of a state with its selection marked. */
+function marked(state: EditorState): string {
+  const { from, to } = state.selection.main;
+  const text = state.doc.toString();
+  return from === to
+    ? `${text.slice(0, from)}‸${text.slice(from)}`
+    : `${text.slice(0, from)}«${text.slice(from, to)}»${text.slice(to)}`;
+}
+
+/** Applies a spec and returns the marked document. */
+function applied(state: EditorState, spec: TransactionSpec | null): string {
+  assert.notEqual(spec, null, 'the command declined');
+  if (spec === null) return '';
+  return marked(state.update(spec).state);
+}
+
+/** An aligned table of two columns and one body row. */
+const aligned = '| a   | b   |\n| --- | --- |\n| 1   | 2   |';
+
+/** The table of a state, read and written again. */
+function rewritten(source: string): string {
+  const state = stateOf(`${source}‸`);
+  const table = tableAt(state, 1);
+  assert.notEqual(table, null, 'no table');
+  if (table === null) return '';
+  return writeTable(tableData(state, table)).text;
+}
+
+await test('an aligned table is written back as it is', () => {
+  assert.equal(rewritten(aligned), aligned);
+});
+
+await test('the writer aligns the columns and keeps the colons', () => {
+  assert.equal(
+    rewritten('| a | bbbbb |\n|:-|--:|\n|1|2|'),
+    '| a   | bbbbb |\n| :-- | ----: |\n| 1   | 2     |',
+  );
+  assert.equal(
+    rewritten('a | b\n:-: | ---\n1 | 2'),
+    '| a   | b   |\n| :-: | --- |\n| 1   | 2   |',
+  );
+});
+
+await test('a cell that a row holds beyond the header is kept', () => {
+  assert.equal(
+    rewritten('| a | b |\n| --- | --- |\n| 1 | 2 | 3 |'),
+    '| a   | b   |     |\n| --- | --- | --- |\n| 1   | 2   | 3   |',
+  );
+});
+
+await test('a table in a quote keeps its quote on every line', () => {
+  const state = stateOf('> | a | b |\n> | --- | --- |\n> | 1 | 2 |‸');
+  const table = tableAt(state, 4);
+  assert.notEqual(table, null);
+  if (table === null) return;
+  assert.equal(
+    writeTable(tableData(state, table)).text,
+    '| a   | b   |\n> | --- | --- |\n> | 1   | 2   |',
+  );
+});
+
+await test('Tab moves to the next cell and selects its text', () => {
+  const state = stateOf('| a‸   | b   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(
+    applied(state, tableEditSpec(state, nextCellEdit)),
+    '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+  );
+  const endOfRow = stateOf('| a   | b‸   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(
+    applied(endOfRow, tableEditSpec(endOfRow, nextCellEdit)),
+    '| a   | b   |\n| --- | --- |\n| «1»   | 2   |',
+  );
+});
+
+await test('Tab in the last cell adds a row', () => {
+  const state = stateOf('| a   | b   |\n| --- | --- |\n| 1   | 2‸   |');
+  assert.equal(
+    applied(state, tableEditSpec(state, nextCellEdit)),
+    '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| ‸    |     |',
+  );
+});
+
+await test('Shift and Tab moves back and declines in the first cell', () => {
+  const state = stateOf('| a   | b   |\n| --- | --- |\n| 1‸   | 2   |');
+  assert.equal(
+    applied(state, tableEditSpec(state, previousCellEdit)),
+    '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+  );
+  const first = stateOf('| a‸   | b   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(tableEditSpec(first, previousCellEdit), null);
+});
+
+await test('Enter moves down, and adds a row under the last one', () => {
+  const header = stateOf('| a   | b‸   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(
+    applied(header, tableEditSpec(header, cellBelowEdit)),
+    '| a   | b   |\n| --- | --- |\n| 1   | 2‸   |',
+  );
+  const last = stateOf('| a   | b   |\n| --- | --- |\n| 1   | 2‸   |');
+  assert.equal(
+    applied(last, tableEditSpec(last, cellBelowEdit)),
+    '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n|     | ‸    |',
+  );
+});
+
+await test('Shift and Enter moves up, and stays in the header', () => {
+  const body = stateOf('| a   | b   |\n| --- | --- |\n| 1‸   | 2   |');
+  assert.equal(
+    applied(body, tableEditSpec(body, cellAboveEdit)),
+    '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |',
+  );
+  const header = stateOf('| a‸   | b   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(
+    applied(header, tableEditSpec(header, cellAboveEdit)),
+    '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |',
+  );
+});
+
+await test('the header row and the last column cannot be removed', () => {
+  const header = stateOf('| a‸   | b   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(tableEditSpec(header, removeRowEdit), null);
+  const one = stateOf('| a‸   |\n| --- |\n| 1   |');
+  assert.equal(tableEditSpec(one, removeColumnEdit), null);
+});
+
+await test('a command writes a messy table aligned', () => {
+  const state = stateOf('|a|bb|\n|-|-|\n|1‸|2|');
+  assert.equal(
+    applied(state, tableEditSpec(state, cellAboveEdit)),
+    '| a‸   | bb  |\n| --- | --- |\n| 1   | 2   |',
+  );
+});
+
+await test('a command outside a table declines', () => {
+  const state = stateOf('Text‸');
+  assert.equal(tableEditSpec(state, nextCellEdit), null);
+});
+
+await test('a command changes no character that it keeps', () => {
+  // The changes are the smallest ones, so the text of a cell the command did
+  // not touch is never replaced, and a remote edit of it survives.
+  const moved = stateOf(`${aligned.replace('| a   ', '| a‸   ')}`);
+  const move = tableEditSpec(moved, nextCellEdit);
+  assert.notEqual(move, null);
+  assert.equal(moved.update(move ?? {}).changes.empty, true);
+
+  const state = stateOf(aligned.replace('| a   ', '| a‸   '));
+  const spec = tableEditSpec(state, addColumnEdit);
+  assert.notEqual(spec, null);
+  const changes = state.update(spec ?? {}).changes;
+  const kept = [
+    aligned.indexOf('b'),
+    aligned.indexOf('1'),
+    aligned.indexOf('2'),
+  ];
+  changes.iterChangedRanges((fromA, toA) => {
+    for (const at of kept)
+      assert.ok(
+        at < fromA || at >= toA,
+        `the change covers ${aligned[at] ?? ''}`,
+      );
+  });
+});
+
+/** The head after one move of a person to `pos`. */
+function moved(
+  source: string,
+  pos: number,
+  userEvent: 'select' | 'select.pointer',
+): number {
+  const state = stateOf(source, true);
+  return state.update({ selection: { anchor: pos }, userEvent }).state.selection
+    .main.head;
+}
+
+await test('a pointer in the padding of a cell places the caret at its text', () => {
+  const at = '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |';
+  const doc = aligned;
+  // After the text of `b`, in its padding.
+  assert.equal(
+    moved(at, doc.indexOf('b') + 2, 'select.pointer'),
+    doc.indexOf('b') + 1,
+  );
+  // In the padding before the text of `b`.
+  assert.equal(
+    moved(at, doc.indexOf('b') - 1, 'select.pointer'),
+    doc.indexOf('b'),
+  );
+});
+
+await test('an empty cell takes the caret one space after its separator', () => {
+  const doc = '| a   | b   |\n| --- | --- |\n|     | 2   |';
+  const source = doc.replace('| a', '| a‸');
+  const row = doc.lastIndexOf('\n') + 1;
+  assert.equal(moved(source, row + 4, 'select.pointer'), row + 2);
+});
+
+await test('the caret never stands on the delimiter row', () => {
+  const source = aligned.replace('| b   ', '| b‸   ');
+  const delimiter = aligned.indexOf('| ---', 5);
+  // A move down from the header lands in the body, in the same column.
+  assert.equal(
+    moved(source, delimiter + 9, 'select'),
+    aligned.indexOf('2') + 1,
+  );
+});
+
+await test('an arrow along a row steps from one cell text to the next', () => {
+  const source = aligned.replace('| a   ', '| a‸   ');
+  const doc = aligned;
+  // Right from the end of `a` lands in the padding, and goes on to `b`.
+  assert.equal(moved(source, doc.indexOf('a') + 2, 'select'), doc.indexOf('b'));
+  // Right from the end of the last cell of a row goes to the next row.
+  const endOfB = aligned.replace('| b   ', '| b‸   ');
+  assert.equal(moved(endOfB, doc.indexOf('b') + 2, 'select'), doc.indexOf('1'));
+  // Left from the start of `b` goes to the end of `a`.
+  const startOfB = aligned.replace('| b', '| ‸b');
+  assert.equal(
+    moved(startOfB, doc.indexOf('b') - 1, 'select'),
+    doc.indexOf('a') + 1,
+  );
+});
+
+await test('End stops at the last cell of the row', () => {
+  const source = aligned.replace('| a   ', '| a‸   ');
+  const lineEnd = aligned.indexOf('\n');
+  assert.equal(moved(source, lineEnd, 'select'), aligned.indexOf('b') + 1);
+});
+
+await test('a selected range and a move by a program keep their place', () => {
+  const state = stateOf(aligned.replace('| a', '| ‸a'), true);
+  const range = state.update({
+    selection: EditorSelection.range(0, 12),
+    userEvent: 'select',
+  }).state.selection.main;
+  assert.deepEqual([range.from, range.to], [0, 12]);
+  const program = state.update({ selection: { anchor: 4 } }).state.selection
+    .main;
+  assert.equal(program.head, 4);
+});
+
+await test('a deletion of a person keeps the separators of the table', () => {
+  const state = stateOf(aligned.replace('| a', '| ‸a'), true);
+  // Two backspaces from the start of `a` reach the space and the pipe.
+  const next = state.update({
+    changes: { from: 0, to: 2 },
+    userEvent: 'delete.backward',
+  }).state;
+  assert.equal(
+    next.doc.toString(),
+    `|a   | b   |\n| --- | --- |\n| 1   | 2   |`,
+  );
+  // A range across two cells clears their text and keeps the separator.
+  const across = state.update({
+    changes: { from: 2, to: 9 },
+    userEvent: 'delete.selection',
+  }).state;
+  assert.equal(across.doc.toString(), `| |   |\n| --- | --- |\n| 1   | 2   |`);
+});
+
+await test('a deletion of the whole table removes it', () => {
+  const doc = `Intro\n\n${aligned}\n\nOutro`;
+  const state = stateOf(`${doc}‸`, true);
+  const from = doc.indexOf('| a');
+  const to = from + aligned.length;
+  const next = state.update({
+    changes: { from, to },
+    userEvent: 'delete.selection',
+  }).state;
+  assert.equal(next.doc.toString(), 'Intro\n\n\n\nOutro');
+});
+
+await test('work of another device may change the separators', () => {
+  const state = stateOf(aligned.replace('| a', '| ‸a'), true);
+  const next = state.update({ changes: { from: 0, to: 1 } }).state;
+  assert.equal(next.doc.toString(), aligned.slice(1));
+});
+
+await test('a pipe typed into a cell is escaped', () => {
+  const state = stateOf(aligned.replace('| a', '| a‸'), true);
+  const at = aligned.indexOf('a') + 1;
+  const next = state.update({
+    changes: { from: at, insert: '|' },
+    selection: { anchor: at + 1 },
+    userEvent: 'input.type',
+  }).state;
+  assert.equal(marked(next).split('\n')[0], '| a\\|‸   | b   |');
+});
+
+await test('a pasted line break in a cell becomes a space', () => {
+  const state = stateOf(aligned.replace('| a', '| a‸'), true);
+  const at = aligned.indexOf('a') + 1;
+  const next = state.update({
+    changes: { from: at, insert: 'x\ny' },
+    selection: { anchor: at + 3 },
+    userEvent: 'input.paste',
+  }).state;
+  assert.equal(marked(next).split('\n')[0], '| ax y‸   | b   |');
+});
+
+await test('text typed outside a table is left as it is', () => {
+  const state = stateOf(`Text‸\n\n${aligned}`, true);
+  const next = state.update({
+    changes: { from: 4, insert: '|\n' },
+    userEvent: 'input.type',
+  }).state;
+  assert.ok(next.doc.toString().startsWith('Text|\n'));
+});
+
+await test('the text of a cell escapes a bare pipe and joins its lines', () => {
+  assert.equal(cellText('a|b', false), 'a\\|b');
+  assert.equal(cellText('a\\|b', false), 'a\\|b');
+  assert.equal(cellText('|b', true), '|b');
+  assert.equal(cellText('a\r\nb\nc', false), 'a b c');
+});
+
+await test('the format context states the row and the columns of the caret', () => {
+  assert.deepEqual(formatContextOf(stateOf(aligned.replace('| a', '| a‸'))), {
+    table: true,
+    bodyRow: false,
+    columns: 2,
+  });
+  assert.deepEqual(formatContextOf(stateOf(aligned.replace('| 1', '| 1‸'))), {
+    table: true,
+    bodyRow: true,
+    columns: 2,
+  });
+});
+
+await test('the format context states whether the caret is in a table', () => {
+  assert.equal(
+    formatContextOf(stateOf(aligned.replace('| a', '| a‸'))).table,
+    true,
+  );
+  assert.equal(formatContextOf(stateOf(`Text‸\n\n${aligned}`)).table, false);
+});
+
+await test('each table gets one wrapper and atomic separators', () => {
+  const doc = `${aligned}\n\nText\n\n${aligned}`;
+  const state = stateOf(`${doc}‸`);
+  const parts = gridParts(state, [{ from: 0, to: doc.length }]);
+  const wrappers: [number, number][] = [];
+  for (let cursor = parts.wrappers.iter(); cursor.value !== null; cursor.next())
+    wrappers.push([cursor.from, cursor.to]);
+  const second = doc.lastIndexOf('| a');
+  assert.deepEqual(wrappers, [
+    [0, aligned.length],
+    [second, second + aligned.length],
+  ]);
+  const atomic: string[] = [];
+  parts.atomic.between(0, aligned.length, (from, to) => {
+    atomic.push(doc.slice(from, to));
+  });
+  // Three pipes for each of two rows, and the whole delimiter row.
+  assert.deepEqual(atomic, ['|', '|', '|', '| --- | --- |', '|', '|', '|']);
+});

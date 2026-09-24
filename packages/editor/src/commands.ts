@@ -7,7 +7,11 @@
  * imports the API client or a storage package.
  */
 import { syntaxTree } from '@codemirror/language';
-import type { ChangeSpec, TransactionSpec } from '@codemirror/state';
+import type {
+  ChangeSpec,
+  Transaction,
+  TransactionSpec,
+} from '@codemirror/state';
 import { EditorState } from '@codemirror/state';
 import type { SyntaxNode } from '@lezer/common';
 
@@ -26,6 +30,22 @@ import type { SyntaxNode } from '@lezer/common';
  */
 export function editingTransaction(spec: TransactionSpec): TransactionSpec {
   return { ...spec, userEvent: 'input.format', scrollIntoView: true };
+}
+
+/**
+ * Whether one transaction is the edit of a person on this device.
+ *
+ * A remote change and a repair reach the view with no user event, an undo
+ * and a redo carry their own, and a composition is left alone because a
+ * change beside the composing range can end it.
+ */
+export function isEditOfAPerson(transaction: Transaction): boolean {
+  if (transaction.isUserEvent('input.type.compose')) return false;
+  return (
+    transaction.isUserEvent('input') ||
+    transaction.isUserEvent('delete') ||
+    transaction.isUserEvent('move')
+  );
 }
 
 /** A link found at one document position. */

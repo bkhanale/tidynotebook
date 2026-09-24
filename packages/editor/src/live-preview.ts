@@ -102,7 +102,7 @@ export type PreviewBuild = {
 export type PreviewRange = { readonly from: number; readonly to: number };
 
 /** Column alignment taken from the delimiter row of a table. */
-type ColumnAlign = 'left' | 'center' | 'right' | null;
+export type ColumnAlign = 'left' | 'center' | 'right' | null;
 
 /** Reads the per-column alignment of one GFM delimiter row. */
 export function tableAlignments(row: string): readonly ColumnAlign[] {
@@ -556,8 +556,7 @@ export function buildPreview(
    *
    * The range runs from one separator to the next, so it holds the padding
    * spaces of the cell as well as its text. A row therefore has no text
-   * outside a cell and every row of the table carries the same boxes, which
-   * is what lets the columns line up.
+   * outside a cell, which is what lets the columns line up.
    */
   const tableCellMark = (
     from: number,
@@ -566,12 +565,17 @@ export function buildPreview(
     column: number,
   ): void => {
     const align = alignments[column] ?? null;
+    // The cell that holds the caret carries the mark of the active cell, as
+    // a spreadsheet marks it, so a person sees which cell the next key
+    // writes into.
+    const active = selection.from === selection.to && touches(from, to);
     mark(
       from,
       to,
       [
         header ? 'cm-np-table-head' : 'cm-np-table-cell',
         align === null ? '' : `cm-np-align-${align}`,
+        active ? 'cm-np-table-active' : '',
       ]
         .filter((part) => part !== '')
         .join(' '),
@@ -990,18 +994,9 @@ export function buildPreview(
 
     if (name === 'TableHeader' || name === 'TableRow') {
       const header = name === 'TableHeader';
-      // A separator keeps its box at every moment and only changes how
-      // visible it is, so the columns never move when a row shows its
-      // source. It carries the rule of its row as well, because the rule of a
-      // table is drawn cell by cell and a separator that drew none left a gap
-      // in the line between two columns.
-      const pipeClass = [
-        'cm-np-table-pipe',
-        header ? 'cm-np-table-head-pipe' : 'cm-np-table-cell-pipe',
-        touchesLines(node.from, node.to) ? 'cm-np-table-shown' : '',
-      ]
-        .filter((part) => part !== '')
-        .join(' ');
+      // A table is a grid over its text (record 0095). A separator never
+      // shows: the cells draw the outline of the table, and the caret never
+      // stands on a separator, so nothing asks for it.
       tableLeadMark(node.from, depthOf('Blockquote'));
       let column = 0;
       let at = node.from;
@@ -1015,7 +1010,7 @@ export function buildPreview(
           tableCellMark(at, child.from, header, column);
           column += 1;
         }
-        mark(child.from, child.to, pipeClass);
+        hide(child.from, child.to);
         at = child.to;
       }
       if (node.to > at) tableCellMark(at, node.to, header, column);
@@ -1027,31 +1022,30 @@ export function buildPreview(
     // text inside a cell carries its own decorations.
     if (name === 'TableCell') return true;
 
+    // A pipe in a cell is text a person wrote, and its backslash exists only
+    // because a bare pipe would start a new cell in the source. The grid
+    // shows the pipe alone (record 0095), and the backslash comes back when
+    // the selection touches it, as the source of every inline construct does.
+    // An escape anywhere else keeps its backslash.
+    if (
+      name === 'Escape' &&
+      parent === 'TableCell' &&
+      doc.sliceString(node.from, node.to) === '\\|' &&
+      !touches(node.from, node.to)
+    ) {
+      hide(node.from, node.from + 1);
+      return false;
+    }
+
     if (name === 'TableDelimiter') {
-      // A separator inside a row is marked by the row itself. Only the
+      // A separator inside a row is hidden by the row itself. Only the
       // delimiter row of the table reaches this point, and the parser reports
-      // it as one node, so its columns come from its own text.
+      // it as one node. The columns already state its alignment, and the
+      // caret never stands on it, so the row never shows. Its line closes to
+      // nothing, because an empty row still holds one line box.
       if (parent !== 'Table') return false;
-      // The dashes state the alignment, which the columns already show, so
-      // the row stays out of the way until the selection reaches its line.
-      if (!touchesLines(node.from, node.to)) {
-        hide(node.from, node.to);
-        // An empty row still holds one line box, which would leave a band
-        // under the header. The line closes to nothing and opens again with
-        // the source when the selection reaches it.
-        lineClass(node.from, node.to, 'cm-np-table-closed');
-        return false;
-      }
-      tableLeadMark(node.from, depthOf('Blockquote'));
-      for (const part of delimiterRowParts(
-        doc.sliceString(node.from, node.to),
-        node.from,
-      ))
-        mark(
-          part.from,
-          part.to,
-          part.pipe ? 'cm-np-table-pipe cm-np-table-shown' : 'cm-np-table-rule',
-        );
+      hide(node.from, node.to);
+      lineClass(node.from, node.to, 'cm-np-table-closed');
       return false;
     }
 

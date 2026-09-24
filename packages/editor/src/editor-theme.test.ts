@@ -251,27 +251,32 @@ await test('a link states itself with the accent and a quiet underline', () => {
   assert.equal(link.textUnderlineOffset, '3px');
 });
 
-await test('a table rules its header row and never its columns', () => {
+await test('a table is a grid of outlined cells that scrolls on its own', () => {
+  // Record 0095. One element wraps the lines of a table, so the table moves
+  // inside its outline and the rest of the note stays where it is.
+  const wrapper = rule('.cm-np-table');
+  assert.equal(wrapper.overflowX, 'auto');
+  assert.equal(wrapper.borderCollapse, 'collapse');
   const head = rule('.cm-np-table-head');
   const cell = rule('.cm-np-table-cell');
-  assert.equal(head.borderBottom, '1px solid var(--notes-border-line)');
-  assert.equal(cell.borderBottom, '1px solid var(--notes-border-subtle)');
   for (const box of [head, cell]) {
-    assert.equal(box.borderInline, undefined);
-    assert.equal(box.borderInlineStart, undefined);
-    assert.equal(box.borderInlineEnd, undefined);
-    // The first column starts on the same edge as every other line.
-    assert.equal(box.paddingInlineStart, '0');
+    // The outline is the one divider of the palette (record 0063).
+    assert.equal(box.border, '1px solid var(--notes-border-line)');
+    assert.equal(box.whiteSpace, 'pre');
+    assert.ok(box.minWidth !== undefined, 'an empty cell keeps a width');
   }
-  // The rule of a table is drawn cell by cell, so the separator between two
-  // columns carries the rule of its own row, and it hides its ink with the
-  // colour and never with the opacity, which would fade that rule with it.
-  // Without both, the line under the header row was a row of dashes with a
-  // gap at every column.
-  assert.equal(rule('.cm-np-table-head-pipe').borderBottom, head.borderBottom);
-  assert.equal(rule('.cm-np-table-cell-pipe').borderBottom, cell.borderBottom);
-  assert.equal(rule('.cm-np-table-pipe').color, 'transparent');
-  assert.equal(rule('.cm-np-table-pipe').opacity, undefined);
+  // The head differs by fill before it differs by a line.
+  assert.equal(head.backgroundColor, 'var(--notes-surface-hover)');
+  // The active cell takes the one focus treatment, inside its own edge.
+  assert.equal(
+    rule('.cm-np-table-active').outline,
+    '2px solid var(--notes-focus)',
+  );
+  // No rule draws a separator, because no separator is on the screen.
+  const style = noteSurfaceStyle();
+  assert.ok(
+    !Object.keys(style).some((selector) => selector.includes('table-pipe')),
+  );
 });
 
 await test('the language of a fence is a value and not a label', () => {

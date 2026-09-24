@@ -38,6 +38,7 @@ import {
   type TransactionSpec,
 } from '@codemirror/state';
 import type { SyntaxNode, Tree } from '@lezer/common';
+import { isEditOfAPerson } from './commands.ts';
 import { parseListLine } from './keymaps.ts';
 
 /**
@@ -57,22 +58,6 @@ type Changed = {
   readonly fromB: number;
   readonly toB: number;
 };
-
-/**
- * Whether one transaction is the edit of a person on this device.
- *
- * A remote change and a repair reach the view with no user event, an undo
- * and a redo carry their own, and a composition is left alone because a
- * change beside the composing range can end it.
- */
-function isEditOfAPerson(transaction: Transaction): boolean {
-  if (transaction.isUserEvent('input.type.compose')) return false;
-  return (
-    transaction.isUserEvent('input') ||
-    transaction.isUserEvent('delete') ||
-    transaction.isUserEvent('move')
-  );
-}
 
 /** The ranges one transaction changed, in both documents. */
 function changedRanges(transaction: Transaction): readonly Changed[] {

@@ -42,13 +42,17 @@ export type {
   EditorShortcut,
   FormatAction,
   FormatActionId,
+  FormatScope,
 } from './keymaps.ts';
 export {
+  formatActionApplies,
   formatActionOf,
   formatActions,
   runFormatAction,
   shortcuts,
 } from './keymaps.ts';
+export type { FormatContext } from './table-grid.ts';
+export { outsideTable } from './table-grid.ts';
 export { htmlToMarkdown } from './paste.ts';
 export type { EditorState } from '@codemirror/state';
 export type { EditorView } from '@codemirror/view';

@@ -25,6 +25,7 @@ import {
 import { formattingKeymap } from './keymaps.ts';
 import { orderedListNumbering } from './list-numbering.ts';
 import { markdownPaste } from './paste.ts';
+import { tableGridEditing } from './table-grid.ts';
 
 /**
  * Presentation of the editor panels and tooltips.
@@ -160,6 +161,9 @@ export function editorCommands(): Extension {
     // Every edit of a person, a paste included, renumbers the ordered lists
     // it touched in the same transaction (record 0089).
     orderedListNumbering(),
+    // A table is a grid over its text: the caret stays in a cell, and the
+    // edit of a person keeps the pipes of the table (record 0095).
+    tableGridEditing(),
     // `markdown()` registers its own `Enter` handler with high precedence.
     // These two keymaps sit above it, so completion accepts first and the
     // list continuation of this package is the one that runs.

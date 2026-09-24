@@ -36,6 +36,12 @@ import { editorCommands } from './extensions.ts';
 import { editorTheme } from './editor-theme.ts';
 import { noteMarkdownExtensions } from './language.ts';
 import { livePreview } from './live-preview.ts';
+import {
+  formatContextOf,
+  sameFormatContext,
+  tableGridView,
+  type FormatContext,
+} from './table-grid.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
 /** Optional behavior beyond the required creation signature. */
@@ -74,6 +80,13 @@ export type CreateEditorOptions = {
    * and never enter local undo. The screen reads the new text here.
    */
   readonly onRemoteChange?: ((text: string) => void) | undefined;
+  /**
+   * Hears where the caret stands for the formatting row: in a table or not.
+   *
+   * It runs once when the editor starts and again each time the answer
+   * changes, so the row can show the tools that apply (record 0095).
+   */
+  readonly onFormatContext?: ((context: FormatContext) => void) | undefined;
 };
 
 /** Re-resolution of a link target for keyboard activation. */
@@ -106,6 +119,7 @@ export function livePreviewExtensions(
     noteMarkdownExtensions(),
     livePreview(),
     richCompartment.of(richWidgets(resolvers)),
+    tableGridView(),
     highlightActiveLine(),
     EditorView.lineWrapping,
   ];
@@ -176,6 +190,11 @@ export function createEditor(
         ...(bound === undefined ? historyKeymap : []),
       ]),
       EditorView.updateListener.of((update: ViewUpdate): void => {
+        if (update.selectionSet || update.docChanged) {
+          const context = formatContextOf(update.state);
+          if (!sameFormatContext(context, formatContextOf(update.startState)))
+            options.onFormatContext?.(context);
+        }
         if (!update.docChanged) return;
         const text = update.state.doc.toString();
         if (bound !== undefined && isRemoteChange(update)) {
@@ -221,6 +240,7 @@ export function createEditor(
 
   const view = new EditorView({ state, parent });
   view.dom.setAttribute('data-notesapp-theme', options.theme ?? 'dark');
+  options.onFormatContext?.(formatContextOf(state));
   return view;
 }
 

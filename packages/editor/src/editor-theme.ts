@@ -525,48 +525,60 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderTop: '1px solid var(--notes-border-line)',
     },
 
-    // A table reads as a table. Each line of the table is a table row and
-    // each cell is a table cell, so the browser sizes the columns and every
-    // row lines up under the header. The rows of one table are neighbouring
-    // line elements, so the browser groups them into one anonymous table
-    // without a wrapper element, and the source stays editable text: no
-    // widget replaces the table and nothing of it is hidden.
+    // A table is a grid over its text (record 0095). A block wrapper of
+    // `table-grid.ts` puts one element around the lines of each table. The
+    // element scrolls sideways on its own, so a wide table moves inside its
+    // outline and never moves the rest of the note, and its collapsed
+    // borders pass to the anonymous table the rows form inside it. The rows
+    // are lines of the editor, so the source stays editable text and no
+    // widget replaces the table.
+    '.cm-np-table': {
+      display: 'block',
+      overflowX: 'auto',
+      borderCollapse: 'collapse',
+      marginBlock: 'var(--spacing-note-block)',
+      // The last column keeps room for the focus mark of its active cell.
+      paddingBlockEnd: 'calc(var(--spacing) * 1)',
+    },
     '.cm-np-table-line': {
       display: 'table-row',
       fontSize: 'var(--text-note-mono)',
       paddingBlock: '0',
     },
-    // A cell keeps its space to the right of its own text and none to the
-    // left, so the first column starts on the same edge as every other line
-    // of the note. The rule under the header row states where the head of the
-    // table ends, the hairline between two rows separates them, and no line
-    // runs down the columns: the space between them already does that.
-    //
-    // A cell keeps its text on one line. The editor wraps every line of a
-    // note, and that wrap squeezed a wide table into the measure and broke a
-    // column mid word. A cell that never wraps keeps the table the shape its
-    // source states, and the note scrolls sideways to reach the last column.
-    // `pre` and not `nowrap`, because the spaces inside a cell belong to the
-    // source and the editor shows the source.
+    // Every cell draws its outline in the one divider of the palette, so the
+    // table reads as a grid of cells a person writes into. A cell keeps its
+    // text on one line, because a wrap squeezed a wide table into the measure
+    // and broke a column mid word; the wrapper scrolls instead. `pre` and not
+    // `nowrap`, because the spaces inside a cell belong to the source. An
+    // empty cell keeps a width a pointer can reach.
     '.cm-np-table-cell': {
       display: 'table-cell',
-      paddingInlineStart: '0',
-      paddingInlineEnd: 'calc(var(--spacing) * 3)',
+      paddingInline: 'calc(var(--spacing) * 3)',
       paddingBlock: 'calc(var(--spacing) * 1.5)',
+      minWidth: 'calc(var(--spacing) * 16)',
       verticalAlign: 'top',
-      borderBottom: '1px solid var(--notes-border-subtle)',
+      border: '1px solid var(--notes-border-line)',
       whiteSpace: 'pre',
     },
+    // The header row takes the hover fill and the heading weight, so the head
+    // of the table differs by fill before it differs by a line.
     '.cm-np-table-head': {
       display: 'table-cell',
-      paddingInlineStart: '0',
-      paddingInlineEnd: 'calc(var(--spacing) * 3)',
+      paddingInline: 'calc(var(--spacing) * 3)',
       paddingBlock: 'calc(var(--spacing) * 1.5)',
+      minWidth: 'calc(var(--spacing) * 16)',
       verticalAlign: 'top',
-      borderBottom: '1px solid var(--notes-border-line)',
+      border: '1px solid var(--notes-border-line)',
+      backgroundColor: 'var(--notes-surface-hover)',
       fontWeight: 'var(--font-weight-note-heading)',
       color: 'var(--notes-text-strong)',
       whiteSpace: 'pre',
+    },
+    // The cell that holds the caret carries the one focus treatment, drawn
+    // inside its edge so the outline of its neighbours stays whole.
+    '.cm-np-table-active': {
+      outline: '2px solid var(--notes-focus)',
+      outlineOffset: '-2px',
     },
     // What stands between the start of a line and the start of its row: the
     // indentation of a list item and the marks of a quote. A row is a
@@ -585,40 +597,7 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     '.cm-np-table-quoted-4': {
       paddingInlineStart: `calc(var(--spacing) * ${String(quoteBarStep * 4)})`,
     },
-    // The cell separators of a table carry no meaning once the columns show
-    // it, so they keep their box and lose their ink. They come back on the
-    // row that the selection touches, and the box never changes, so the
-    // columns do not move while a person edits a row.
-    //
-    // A separator carries the rule of its row as well. The rule of a table is
-    // drawn cell by cell, because the rows form an anonymous table and no
-    // element of the row exists to carry one, so a separator that drew no
-    // rule left a gap in the line between every two columns.
-    '.cm-np-table-pipe': {
-      display: 'table-cell',
-      // The ink goes and the box stays. It cannot go by opacity: that fades
-      // the whole element, so the separator took the rule of its row with it
-      // and left a gap in the line at every column.
-      color: 'transparent',
-    },
-    '.cm-np-table-cell-pipe': {
-      borderBottom: '1px solid var(--notes-border-subtle)',
-    },
-    '.cm-np-table-head-pipe': {
-      borderBottom: '1px solid var(--notes-border-line)',
-    },
-    '.cm-np-table-rule': {
-      display: 'table-cell',
-      paddingInline: 'calc(var(--spacing) * 2)',
-      color: 'var(--notes-text-muted)',
-      opacity: '0.45',
-    },
-    '.cm-np-table-shown': {
-      color: 'var(--notes-text-muted)',
-      opacity: '0.45',
-    },
-    '.cm-np-table-align': { color: 'var(--notes-text-muted)' },
-    // The delimiter row that stepped aside keeps no height of its own.
+    // The delimiter row keeps no height of its own.
     '.cm-np-table-closed': { fontSize: '0', lineHeight: '0' },
     '.cm-np-align-left': { textAlign: 'left' },
     '.cm-np-align-center': { textAlign: 'center' },

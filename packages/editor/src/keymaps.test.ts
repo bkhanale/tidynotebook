@@ -11,6 +11,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EditorState, type TransactionSpec } from '@codemirror/state';
+import { noteMarkdownExtensions } from './language.ts';
+import {
+  addColumnEdit,
+  addRowEdit,
+  removeColumnEdit,
+  removeRowEdit,
+  tableEditSpec,
+} from './table-grid.ts';
 import {
   continueBlockSpec,
   formatActionOf,
@@ -22,6 +30,7 @@ import {
   inListItem,
   insideCodeFence,
   isLinkDestination,
+  leaveTableBelowSpec,
   linkDestinationSpec,
   linkSpec,
   outdentListSpec,
@@ -45,6 +54,7 @@ function stateOf(source: string): EditorState {
     return EditorState.create({
       doc: withoutStart.replace('»', ''),
       selection: { anchor: rangeStart, head: rangeEnd },
+      extensions: [noteMarkdownExtensions()],
     });
   }
   const cursor = source.indexOf('‸');
@@ -52,6 +62,7 @@ function stateOf(source: string): EditorState {
   return EditorState.create({
     doc: source.replace('‸', ''),
     selection: { anchor: cursor },
+    extensions: [noteMarkdownExtensions()],
   });
 }
 
@@ -518,13 +529,58 @@ const formatCases: Readonly<
   },
   table: {
     spec: tableSpec,
+    // A table at the end of the note gets a line to leave it for.
     empty: [
       '‸',
-      '| «Column 1» | Column 2 |\n| -------- | -------- |\n|          |          |',
+      '| «Column 1» | Column 2 |\n| -------- | -------- |\n|          |          |\n\n',
     ],
     filled: [
       '«Name»',
-      '| Name | «Column 2» |\n| ---- | -------- |\n|      |          |',
+      '| Name | «Column 2» |\n| ---- | -------- |\n|      |          |\n\n',
+    ],
+  },
+  'table-add-row': {
+    spec: (state) => tableEditSpec(state, addRowEdit),
+    empty: [
+      '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |',
+      '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| ‸    |     |',
+    ],
+    filled: [
+      '| a   | b   |\n| --- | --- |\n| «1»   | 2   |',
+      '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| ‸    |     |',
+    ],
+  },
+  'table-add-column': {
+    spec: (state) => tableEditSpec(state, addColumnEdit),
+    empty: [
+      '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | ‸    | b   |\n| --- | --- | --- |\n| 1   |     | 2   |',
+    ],
+    filled: [
+      '| «a»   | b   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | ‸    | b   |\n| --- | --- | --- |\n| 1   |     | 2   |',
+    ],
+  },
+  'table-remove-row': {
+    spec: (state) => tableEditSpec(state, removeRowEdit),
+    empty: [
+      '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |',
+      '| a‸   | b   |\n| --- | --- |',
+    ],
+    filled: [
+      '| a   | b   |\n| --- | --- |\n| «1»   | 2   |',
+      '| a‸   | b   |\n| --- | --- |',
+    ],
+  },
+  'table-remove-column': {
+    spec: (state) => tableEditSpec(state, removeColumnEdit),
+    empty: [
+      '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
+      '| a‸   |\n| --- |\n| 1   |',
+    ],
+    filled: [
+      '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+      '| a‸   |\n| --- |\n| 1   |',
     ],
   },
 };
@@ -606,11 +662,35 @@ await test('a selection becomes one header cell with its pipes escaped', () => {
   const state = stateOf('«a | b\nc»');
   assert.equal(
     applied(state, tableSpec(state)),
-    '| a \\| b c | «Column 2» |\n| -------- | -------- |\n|          |          |',
+    '| a \\| b c | «Column 2» |\n| -------- | -------- |\n|          |          |\n\n',
   );
 });
 
 await test('a table declines inside a code fence', () => {
   const state = stateOf('```\n‸\n```');
   assert.equal(tableSpec(state), null);
+});
+
+await test('the block commands leave a table alone', () => {
+  // A marker at the start of a table line would end the table (record 0095).
+  const state = stateOf('| a   | b‸   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(headingLevelSpec(state, 2), null);
+  assert.equal(toggleListSpec(state, 'bullet'), null);
+  assert.equal(toggleQuoteSpec(state), null);
+  assert.equal(tableSpec(state), null);
+  assert.equal(hardBreakSpec(state), null);
+});
+
+await test('Arrow Down opens a line under a table that ends the note', () => {
+  // The caret stays in the cells, so the note needs a line to leave for, and
+  // a blank line ends the table in GFM.
+  const last = stateOf('| a   |\n| --- |\n| 1‸   |');
+  assert.equal(
+    applied(last, leaveTableBelowSpec(last)),
+    '| a   |\n| --- |\n| 1   |\n\n‸',
+  );
+  const header = stateOf('| a‸   |\n| --- |\n| 1   |');
+  assert.equal(leaveTableBelowSpec(header), null);
+  const followed = stateOf('| a   |\n| --- |\n| 1‸   |\n\nText');
+  assert.equal(leaveTableBelowSpec(followed), null);
 });
