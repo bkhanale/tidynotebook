@@ -25,7 +25,6 @@ import type {
   Actor,
   PasswordHasher,
   PublishedLink,
-  Result,
   SecretDigest,
 } from '@notesapp/core';
 import type {
@@ -33,7 +32,7 @@ import type {
   PublishedLinkStore,
 } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
-import { DomainProblemError, ForbiddenError } from '../plugins/problem.ts';
+import { ForbiddenError, unwrapDomain } from '../plugins/problem.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
 import { readOptionalText, readText } from './files.ts';
 import { newPublishedSecret } from '../auth/publication-secrets.ts';
@@ -61,12 +60,6 @@ function permit(actor: Actor, workspaceId: string, action: Action): void {
   const grant = actor.grants.find((entry) => entry.workspaceId === workspaceId);
   if (grant === undefined || !grant.actions.includes(action))
     throw new ForbiddenError();
-}
-
-/** Turns a domain result into its value, or into a problem response. */
-function unwrap<T>(result: Result<T>): T {
-  if (result.ok) return result.value;
-  throw new DomainProblemError(result.error);
 }
 
 /** One link as the contract reports it. No member of it opens anything. */
@@ -114,7 +107,7 @@ export function createPublicationHandlers(
       // The token exists in this process and in the address that the owner
       // copies. The store receives its digest and never the value.
       const token = newPublishedSecret();
-      const link = unwrap(
+      const link = unwrapDomain(
         await parts.links.create(actor, workspaceId, {
           tokenDigest: parts.secrets.digest(token),
           scope: readScope(request.body),
@@ -147,7 +140,7 @@ export function createPublicationHandlers(
       const workspaceId = readText(request.params, 'workspaceId');
       const publicationId = readText(request.params, 'publicationId');
       permit(actor, workspaceId, 'write');
-      unwrap(
+      unwrapDomain(
         await parts.links.revoke(
           actor,
           workspaceId,

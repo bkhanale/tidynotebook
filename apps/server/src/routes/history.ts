@@ -5,7 +5,7 @@
  * revisions, restore, and permanent deletion.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
-import type { Result, WorkspaceStore } from '@notesapp/core';
+import type { WorkspaceStore } from '@notesapp/core';
 import {
   listHistory,
   previewPurge,
@@ -16,7 +16,7 @@ import {
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
-import { DomainProblemError } from '../plugins/problem.ts';
+import { unwrapDomain } from '../plugins/problem.ts';
 import {
   acceptedBody,
   header,
@@ -27,12 +27,6 @@ import {
 } from './files.ts';
 
 const jsonMediaType = 'application/json';
-
-/** Unwraps a domain result or throws the mapped domain problem error. */
-function unwrap<T>(result: Result<T>): T {
-  if (result.ok) return result.value;
-  throw new DomainProblemError(result.error);
-}
 
 /** Builds the history, restore, and purge handlers. */
 export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
@@ -45,7 +39,7 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
       const limitRaw = readProperty(request.query, 'limit');
       const limit = typeof limitRaw === 'number' ? limitRaw : undefined;
 
-      const page = unwrap(
+      const page = unwrapDomain(
         await listHistory(store, actor, workspaceId, fileId, {
           cursor,
           ...(limit !== undefined ? { limit } : {}),
@@ -111,7 +105,7 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
         body,
       );
 
-      const outcome = unwrap(
+      const outcome = unwrapDomain(
         await restoreRevision(
           store,
           actor,
@@ -150,7 +144,7 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
         return id;
       });
 
-      const preview = unwrap(
+      const preview = unwrapDomain(
         await previewPurge(store, actor, workspaceId, fileIds),
       );
 
@@ -191,7 +185,7 @@ export function createHistoryHandlers(store: WorkspaceStore): HandlerMap {
 
       const digest = await requestDigest('purgeFiles', { workspaceId }, body);
 
-      const outcome = unwrap(
+      const outcome = unwrapDomain(
         await purgeFiles(
           store,
           actor,

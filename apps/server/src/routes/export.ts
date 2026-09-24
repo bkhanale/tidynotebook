@@ -14,12 +14,12 @@
 import { Buffer } from 'node:buffer';
 import type { Readable } from 'node:stream';
 import type { FastifyRequest } from 'fastify';
-import type { FilePage, Result, WorkspaceStore } from '@notesapp/core';
+import type { FilePage, WorkspaceStore } from '@notesapp/core';
 import { listFiles, readFile, readRevision } from '@notesapp/core';
 import type { AttachmentStore } from '@notesapp/storage-server';
 import { requireActor } from '../auth/actor.ts';
 import { readText } from './files.ts';
-import { DomainProblemError, NotFoundError } from '../plugins/problem.ts';
+import { NotFoundError, unwrapDomain } from '../plugins/problem.ts';
 import {
   contentDisposition,
   dispositionKind,
@@ -39,12 +39,6 @@ const archiveName = 'notes.zip';
 
 /** How many files one page of the export listing reads. */
 const exportPageSize = 200;
-
-/** Returns the value of a domain result, or answers with its failure. */
-function unwrap<T>(result: Result<T>): T {
-  if (result.ok) return result.value;
-  throw new DomainProblemError(result.error);
-}
 
 /**
  * The header of one export download.
@@ -92,7 +86,7 @@ export function createExportHandlers(
     const actor = requireActor(request).actor;
     let cursor: string | null = null;
     for (;;) {
-      const page: FilePage = unwrap(
+      const page: FilePage = unwrapDomain(
         await listFiles(store, actor, workspaceId, {
           cursor,
           limit: exportPageSize,
@@ -115,7 +109,7 @@ export function createExportHandlers(
             };
           continue;
         }
-        const head = unwrap(
+        const head = unwrapDomain(
           await readRevision(store, actor, workspaceId, file.headRevisionId),
         );
         const text = head.text ?? '';
@@ -135,7 +129,9 @@ export function createExportHandlers(
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
       const fileId = readText(request.params, 'fileId');
-      const found = unwrap(await readFile(store, actor, workspaceId, fileId));
+      const found = unwrapDomain(
+        await readFile(store, actor, workspaceId, fileId),
+      );
       const text = found.head?.text;
       if (found.file.kind !== 'note' || typeof text !== 'string')
         throw new NotFoundError('This file holds no Markdown to export.');

@@ -8,7 +8,7 @@
  * no request digest is needed.
  */
 import type { FastifyRequest } from 'fastify';
-import type { Result, WorkspaceStore } from '@notesapp/core';
+import type { WorkspaceStore } from '@notesapp/core';
 import {
   getChanges,
   getSnapshotPage,
@@ -18,19 +18,10 @@ import {
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
-import {
-  DomainProblemError,
-  RequestContractError,
-} from '../plugins/problem.ts';
+import { RequestContractError, unwrapDomain } from '../plugins/problem.ts';
 import { readOptionalText, readText } from './files.ts';
 
 const jsonMediaType = 'application/json';
-
-/** Unwraps a domain result or throws the mapped domain problem error. */
-function unwrap<T>(result: Result<T>): T {
-  if (result.ok) return result.value;
-  throw new DomainProblemError(result.error);
-}
 
 /** An optional integer query value, or undefined when it is absent. */
 function readOptionalInteger(value: unknown, key: string): number | undefined {
@@ -74,7 +65,7 @@ export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
       }
       const pageSize = readOptionalInteger(body, 'pageSize');
 
-      const started = unwrap(
+      const started = unwrapDomain(
         await startSnapshot(store, actor, workspaceId, {
           syncVersion: version,
           ...(pageSize === undefined ? {} : { pageSize }),
@@ -103,7 +94,7 @@ export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
       const position = readOptionalInteger(request.query, 'position');
       const limit = readOptionalInteger(request.query, 'limit');
 
-      const page = unwrap(
+      const page = unwrapDomain(
         await getSnapshotPage(store, actor, workspaceId, {
           token,
           ...(position === undefined ? {} : { position }),
@@ -144,7 +135,7 @@ export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
         })();
       const limit = readOptionalInteger(request.query, 'limit');
 
-      const page = unwrap(
+      const page = unwrapDomain(
         await getChanges(store, actor, workspaceId, {
           cursor,
           ...(limit === undefined ? {} : { limit }),

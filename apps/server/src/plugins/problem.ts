@@ -6,7 +6,7 @@
  * rejected value, or a stack trace.
  */
 import type { ValidationIssue } from '@notesapp/api-contract';
-import type { DomainError, DomainErrorCode } from '@notesapp/core';
+import type { DomainError, DomainErrorCode, Result } from '@notesapp/core';
 import {
   markdownLimitCode,
   WorkspaceUnavailableError,
@@ -256,6 +256,17 @@ export class DomainProblemError extends Error {
     this.name = 'DomainProblemError';
     this.domain = error;
   }
+}
+
+/**
+ * The value of a domain result, or its failure as a problem response.
+ *
+ * Every handler that answers a domain failure with the table below reads its
+ * result through this one function.
+ */
+export function unwrapDomain<T>(result: Result<T>): T {
+  if (result.ok) return result.value;
+  throw new DomainProblemError(result.error);
 }
 
 /**

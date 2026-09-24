@@ -38,7 +38,6 @@ import {
   type ContentRef,
   type DocumentSave,
   type FilePageRequest,
-  type Result,
   type RevisionInput,
   type RevisionRecord,
   type WorkspaceStore,
@@ -51,6 +50,7 @@ import {
   DomainProblemError,
   PreconditionRequiredError,
   RequestContractError,
+  unwrapDomain,
 } from '../plugins/problem.ts';
 
 /** Media type of every answer in this module. */
@@ -114,12 +114,6 @@ export function readText(value: unknown, key: string): string {
 export function readOptionalText(value: unknown, key: string): string | null {
   const member = readProperty(value, key);
   return typeof member === 'string' ? member : null;
-}
-
-/** Turns a domain result into its value, or into a problem response. */
-function unwrap<T>(result: Result<T>): T {
-  if (result.ok) return result.value;
-  throw new DomainProblemError(result.error);
 }
 
 /** Fails with the domain code and the files that the failure refers to. */
@@ -481,7 +475,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     },
   ): Promise<HandlerResult | null> {
     const actor = requireActor(request).actor;
-    const receipt = unwrap(
+    const receipt = unwrapDomain(
       await readMutationReceipt(
         store,
         actor,
@@ -515,7 +509,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     tags: readonly string[],
   ): Promise<RevisionRecord> {
     const actor = requireActor(request).actor;
-    const head = unwrap(
+    const head = unwrapDomain(
       await readHeadForWrite(store, actor, workspaceId, fileId),
     );
     if (!tags.includes(head.revisionId)) refuse('stale_head', [fileId]);
@@ -534,7 +528,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     },
   ): Promise<HandlerResult> {
     const actor = requireActor(request).actor;
-    const accepted = unwrap(
+    const accepted = unwrapDomain(
       await commitChangeset(store, actor, input.changeset, input.digest),
     );
     return answerAccepted(reply, accepted, input.status);
@@ -554,7 +548,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
       const workspaceId = readText(request.params, 'workspaceId');
       const mutationId = readText(request.params, 'mutationId');
       const digest = readText(request.query, 'digest');
-      const receipt = unwrap(
+      const receipt = unwrapDomain(
         await readMutationReceipt(store, actor, workspaceId, mutationId),
       );
       const accepted = receipt !== null && receipt.digest === digest;
@@ -578,7 +572,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     listFiles: async (request): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
-      const page = unwrap(
+      const page = unwrapDomain(
         await listFiles(store, actor, workspaceId, listingRequest(request)),
       );
       return {
@@ -601,7 +595,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
     listDeletedFiles: async (request): Promise<HandlerResult> => {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
-      const page = unwrap(
+      const page = unwrapDomain(
         await listDeletedFiles(
           store,
           actor,
@@ -647,7 +641,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
       });
       if (replayed !== null) return replayed;
       const actor = requireActor(request).actor;
-      const accepted = unwrap(
+      const accepted = unwrapDomain(
         await restoreFile(
           store,
           actor,
@@ -671,7 +665,9 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
       const fileId = readText(request.params, 'fileId');
-      const found = unwrap(await readFile(store, actor, workspaceId, fileId));
+      const found = unwrapDomain(
+        await readFile(store, actor, workspaceId, fileId),
+      );
       const head = found.head;
       if (head !== null) {
         const tag = revisionTag(head.revisionId);
@@ -699,7 +695,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
       const revisionId = readText(request.params, 'revisionId');
-      const revision = unwrap(
+      const revision = unwrapDomain(
         await readRevision(store, actor, workspaceId, revisionId),
       );
       return {
@@ -856,7 +852,7 @@ export function createFileHandlers(store: WorkspaceStore): HandlerMap {
         { workspaceId },
         body,
       );
-      const accepted = unwrap(
+      const accepted = unwrapDomain(
         await commitChangeset(store, actor, changeset, digest),
       );
       return {

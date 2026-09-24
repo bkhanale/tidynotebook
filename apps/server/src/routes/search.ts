@@ -1,20 +1,14 @@
 /** HTTP adapter for accepted workspace search. */
 import type { FastifyRequest } from 'fastify';
-import type { Result, WorkspaceStore } from '@notesapp/core';
+import type { WorkspaceStore } from '@notesapp/core';
 import { searchFiles } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import { readText } from './files.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
-import { DomainProblemError } from '../plugins/problem.ts';
+import { unwrapDomain } from '../plugins/problem.ts';
 
 const jsonMediaType = 'application/json';
-
-/** Returns the domain value or maps its expected failure to Problem Details. */
-function unwrap<T>(result: Result<T>): T {
-  if (result.ok) return result.value;
-  throw new DomainProblemError(result.error);
-}
 
 /** Optional validated integer query member. */
 function optionalLimit(query: unknown): number | null {
@@ -29,7 +23,7 @@ export function createSearchHandlers(store: WorkspaceStore): HandlerMap {
       const actor = requireActor(request).actor;
       const workspaceId = readText(request.params, 'workspaceId');
       const query = readText(request.query, 'query');
-      const hits = unwrap(
+      const hits = unwrapDomain(
         await searchFiles(
           store,
           actor,
