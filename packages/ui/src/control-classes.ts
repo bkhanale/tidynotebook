@@ -376,8 +376,11 @@ export function badgeClassName(): string {
 /**
  * The appearance of one day of a month calendar, as classes.
  *
- * A day is a square control of the one row scale: 44 px under touch and
- * 36 px from the medium width up, `rounded-md` and the row hover. Every state
+ * A day fills the width of its cell of the sidebar calendar and is 28 px
+ * high on a desktop, the height of a row, and 32 px under touch. Seven cells
+ * of 44 px do not fit the narrowest sidebar, and the target stays above the
+ * 24 px minimum of WCAG 2.5.8 (record 0100). It takes `rounded-md` and the row
+ * hover. Every state
  * is a fact a person reads without colour alone (decision 0062 keeps the
  * accent for a link, a focus ring, a caret and a selection):
  *
@@ -402,7 +405,7 @@ export function calendarDayClassName(options: {
         ? 'text-ink'
         : 'text-muted';
   return [
-    `relative inline-flex size-11 cursor-pointer items-center justify-center rounded-md border text-control tabular-nums ${transitionSurface} ${focusOutline} md:size-9`,
+    `relative inline-flex h-8 w-full cursor-pointer items-center justify-center rounded-md border text-control tabular-nums ${transitionSurface} ${focusOutlineInset} md:h-7`,
     options.today ? 'border-edge-line font-semibold' : 'border-transparent',
     options.selected
       ? 'bg-active font-medium'
@@ -419,7 +422,7 @@ export function calendarDayClassName(options: {
  * the name of the day states it to a person who cannot see it.
  */
 export function calendarNoteMarkClassName(): string {
-  return 'pointer-events-none absolute bottom-1 size-1 rounded-full bg-muted';
+  return 'pointer-events-none absolute bottom-0.5 size-1 rounded-full bg-muted';
 }
 
 /** The accessible name and the tooltip of one button. */

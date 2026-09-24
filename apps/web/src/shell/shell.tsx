@@ -123,7 +123,9 @@ import {
   today,
   useDailyNotes,
 } from '../features/daily-notes/daily-notes.tsx';
-import { dailyNotesTitle } from '../lib/daily-note.ts';
+import { daysWithNotes } from '../lib/daily-note.ts';
+import { SidebarCalendar } from '../features/daily-notes/calendar.tsx';
+import { dailyNoteDate } from '@notesapp/core';
 import { PublishDialog } from '../features/publishing/publish-dialog.tsx';
 import { publishedLinksTitle } from '../features/publishing/publishing.ts';
 import {
@@ -183,6 +185,7 @@ import {
 import { KeyHint } from './key-hint.tsx';
 import { ShortcutsDialog } from './shortcuts.tsx';
 import { syncDotClassName, syncFooter } from '../lib/sync-state.ts';
+import type { CalendarMonth } from '../lib/calendar-month.ts';
 import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   breadcrumbKey,
@@ -311,7 +314,6 @@ const trashTitle = 'Trash';
  */
 const pageTitles: PageTitles = {
   notes: allNotesTitle,
-  daily: dailyNotesTitle,
   trash: trashTitle,
   published: publishedLinksTitle,
   attention: attentionTitle,
@@ -681,6 +683,11 @@ function Sidebar({
     fileId === null
       ? null
       : (files.notes.find((note) => note.fileId === fileId)?.path ?? null);
+  const daily = useDailyNotes();
+  const markedDays = useCallback(
+    (month: CalendarMonth) => daysWithNotes(files.notes, month),
+    [files.notes],
+  );
 
   // Open the folders that hold the note, so a note opened from the palette or
   // a link is shown in the tree. A collapse the person makes later stays,
@@ -690,7 +697,6 @@ function Sidebar({
     for (const folder of ancestorFolders(openNotePath)) openFolder(folder);
   }, [openNotePath, openFolder]);
   const notesPath = `/w/${workspaceId}`;
-  const dailyPath = `/w/${workspaceId}/daily`;
   const trashPath = `/w/${workspaceId}/trash`;
   const publishedPath = `/w/${workspaceId}/published`;
   const attentionPath = `/w/${workspaceId}/attention`;
@@ -986,6 +992,26 @@ function Sidebar({
         )}
       </div>
 
+      {/*
+        The calendar of daily notes sits under the tree (record 0100). The
+        tree scrolls, so the resting divider marks where it ends.
+      */}
+      <div className="shrink-0 border-t border-edge-subtle px-2 py-1">
+        <SidebarCalendar
+          today={today()}
+          openNoteDate={
+            openNotePath === null ? null : dailyNoteDate(openNotePath)
+          }
+          daysWithNotes={markedDays}
+          onOpen={daily.open}
+        />
+        {daily.openProblem === null ? null : (
+          <p className="my-1 px-2 text-control text-danger" role="alert">
+            {daily.openProblem}
+          </p>
+        )}
+      </div>
+
       <div className="border-t border-edge-subtle p-2">
         <div className={rowClassName({ interactive: false })}>
           <span className={syncDotClassName(footer.dot)} aria-hidden="true" />
@@ -993,23 +1019,6 @@ function Sidebar({
             {syncLine}
           </span>
         </div>
-        <Link
-          className={rowClassName({
-            current: location.pathname === dailyPath,
-            inset: false,
-          })}
-          to={dailyPath}
-          onClick={onNavigate}
-          aria-current={location.pathname === dailyPath ? 'page' : undefined}
-        >
-          <span
-            className="inline-flex shrink-0 items-center"
-            aria-hidden="true"
-          >
-            {actionIcon('daily-notes')}
-          </span>
-          <span className="min-w-0 flex-1 truncate">{dailyNotesTitle}</span>
-        </Link>
         <Link
           className={rowClassName({
             current: location.pathname === trashPath,
@@ -1633,15 +1642,6 @@ function ShellFrame({
                   },
                 ]),
           ]),
-      {
-        id: 'daily-notes',
-        label: `Go to ${dailyNotesTitle}`,
-        keywords: 'daily journal calendar day date month',
-        icon: 'daily-notes' as const,
-        run: () => {
-          void navigate(`/w/${workspaceId}/daily`);
-        },
-      },
       {
         id: 'trash',
         label: 'Go to Trash',

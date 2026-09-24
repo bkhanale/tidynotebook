@@ -9,10 +9,12 @@ import {
   dailyNoteSettingsKey,
   daysWithNotes,
   effectiveTemplateId,
+  formatCalendarOpen,
   formatCachedSettings,
   noTemplateValue,
   opensTodayAtStart,
   parseCachedSettings,
+  parseCalendarOpen,
   settingsProblem,
   templateChoices,
   templateOfChoice,
@@ -143,4 +145,11 @@ await test('every sentence of a daily note problem names no code', () => {
     assert.match(sentence, /\.$/);
     assert.doesNotMatch(sentence, /_|\d{3}/);
   }
+});
+
+await test('the month shows unless the device stored that it is hidden', () => {
+  assert.equal(parseCalendarOpen(null), true);
+  assert.equal(parseCalendarOpen('something else'), true);
+  assert.equal(parseCalendarOpen(formatCalendarOpen(true)), true);
+  assert.equal(parseCalendarOpen(formatCalendarOpen(false)), false);
 });

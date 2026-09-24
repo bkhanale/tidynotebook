@@ -132,7 +132,6 @@ export {
   BoldIcon,
   BulletListIcon,
   CalendarDayIcon,
-  CalendarIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,

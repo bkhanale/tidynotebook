@@ -68,6 +68,7 @@ import {
   revokeSessionViaClient,
 } from '../../pwa/lifecycle.ts';
 import { downloadAll, importAll } from '../export/export.ts';
+import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 
 /** The title of the settings page, which is also its breadcrumb part. */
@@ -705,6 +706,14 @@ export function AccountSettingsPage(): ReactNode {
       <PageHeader title={settingsTitle} />
       <div>
         <ThemeSettings />
+
+        <SettingsSection
+          title="Daily notes"
+          titleId="daily-notes-heading"
+          description="Each day has one note in the folder Daily notes. These settings apply to this workspace and follow you to every device."
+        >
+          <DailyNoteSettingsFields />
+        </SettingsSection>
 
         <SettingsSection
           title="Available offline"

@@ -39,10 +39,6 @@ const HistoryView = lazy(async () => ({
 const ReviewView = lazy(async () => ({
   default: (await import('./features/review/review.tsx')).ReviewView,
 }));
-const DailyNotesPage = lazy(async () => ({
-  default: (await import('./features/daily-notes/daily-notes-page.tsx'))
-    .DailyNotesPage,
-}));
 const TrashView = lazy(async () => ({
   default: (await import('./features/trash/trash.tsx')).TrashView,
 }));
@@ -102,11 +98,6 @@ const router = createBrowserRouter([
         path: 'notes/:fileId/review',
         element: deferred(<ReviewView />),
         handle: page('review'),
-      },
-      {
-        path: 'daily',
-        element: deferred(<DailyNotesPage />),
-        handle: page('daily'),
       },
       {
         path: 'trash',

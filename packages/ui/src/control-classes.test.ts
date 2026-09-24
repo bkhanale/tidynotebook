@@ -562,10 +562,12 @@ await test('a day of the calendar keeps one size in every state', () => {
     ),
   );
   for (const parts of states) {
-    // The touch target, the desktop square, and one edge width, so a day
-    // that becomes today or selected moves no neighbour.
-    assert.ok(parts.includes('size-11'));
-    assert.ok(parts.includes('md:size-9'));
+    // The width of its cell, the touch height, the row height of a desktop,
+    // and one edge width, so a day that becomes today or selected moves no
+    // neighbour.
+    assert.ok(parts.includes('w-full'));
+    assert.ok(parts.includes('h-8'));
+    assert.ok(parts.includes('md:h-7'));
     assert.ok(parts.includes('border'));
     assert.ok(parts.includes('rounded-md'));
     // One colour utility for one element.

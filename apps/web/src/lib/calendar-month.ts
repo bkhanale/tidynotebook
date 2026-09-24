@@ -230,10 +230,17 @@ function instantOfDate(date: CalendarDate): Date {
   return instant;
 }
 
-/** The title of a month, for example `September 2026`. */
-export function monthTitle(month: CalendarMonth, locale?: string): string {
+/**
+ * The title of a month, for example `September 2026`, or `Sep 2026` in the
+ * short form that the title row of the sidebar has room for.
+ */
+export function monthTitle(
+  month: CalendarMonth,
+  locale?: string,
+  length: 'long' | 'short' = 'long',
+): string {
   return new Intl.DateTimeFormat(locale, {
-    month: 'long',
+    month: length,
     year: 'numeric',
     timeZone: 'UTC',
   }).format(instantOfDate({ ...month, day: 1 }));
@@ -250,19 +257,24 @@ export function dayName(date: CalendarDate, locale?: string): string {
   }).format(instantOfDate(date));
 }
 
-/** The short and the whole name of a weekday, for the head of a column. */
+/**
+ * The narrow and the whole name of a weekday, for the head of a column.
+ *
+ * A column of the sidebar calendar is as narrow as one letter, so the head
+ * shows the narrow name and states the whole one to a screen reader.
+ */
 export function weekdayNames(
   weekday: Weekday,
   locale?: string,
-): { readonly short: string; readonly long: string } {
+): { readonly narrow: string; readonly long: string } {
   // 2024-01-01 was a Monday, so the day of that week names each weekday.
   const date: CalendarDate = { year: 2024, month: 1, day: weekday };
-  const format = (style: 'short' | 'long'): string =>
+  const format = (style: 'narrow' | 'long'): string =>
     new Intl.DateTimeFormat(locale, {
       weekday: style,
       timeZone: 'UTC',
     }).format(instantOfDate(date));
-  return { short: format('short'), long: format('long') };
+  return { narrow: format('narrow'), long: format('long') };
 }
 
 /**

@@ -153,7 +153,6 @@ await test('a link part is identified by its place and its word', () => {
 /** The words of the pages, as the shell passes them in. */
 const titles: PageTitles = {
   notes: 'All notes',
-  daily: 'Daily notes',
   trash: 'Trash',
   published: 'Published links',
   attention: 'Needs attention',

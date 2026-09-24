@@ -18,9 +18,6 @@ import {
 import type { CalendarMonth } from './calendar-month.ts';
 import { baseNameOf, displayNoteName, folderOf } from './note-name.ts';
 
-/** The name of the page of the calendar, in the breadcrumb and the sidebar. */
-export const dailyNotesTitle = 'Daily notes';
-
 /** The facts of a note that these rules read. */
 export type DailyNoteCandidate = {
   readonly fileId: string;
@@ -116,6 +113,24 @@ export function opensTodayAtStart(input: {
   readonly stillOnStart: boolean;
 }): boolean {
   return input.openOnStart && input.startedOnNoteList && input.stillOnStart;
+}
+
+/** The browser settings key of whether the sidebar shows the month. */
+export const calendarOpenStorageKey = 'notesapp.calendar-open';
+
+/**
+ * Whether the sidebar shows the month, from the stored value.
+ *
+ * The month shows by default (record 0100), so only the stored word for a
+ * hidden month hides it and any other value shows it.
+ */
+export function parseCalendarOpen(stored: string | null): boolean {
+  return stored !== 'hidden';
+}
+
+/** The stored value of one choice. */
+export function formatCalendarOpen(open: boolean): string {
+  return open ? 'shown' : 'hidden';
 }
 
 /** The browser settings key of the cached settings of one member. */

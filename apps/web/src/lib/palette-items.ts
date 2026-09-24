@@ -116,7 +116,6 @@ export const actionIconNames = [
   'bold',
   'bullet-list',
   'collapse-all',
-  'daily-notes',
   'delete',
   'duplicate',
   'expand-all',

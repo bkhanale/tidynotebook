@@ -1,7 +1,7 @@
 # Daily notes
 
 This page is for the person who writes the notes. It explains the note of each
-day and the calendar that opens it.
+day and the calendar in the sidebar that opens it.
 
 ## The note of a day
 
@@ -12,34 +12,27 @@ link, export and delete it like any other note.
 If you rename the note or move it to another folder, it is no longer the note
 of its day. The next time you open that day, a new note is made.
 
-## Open the note of today
-
-Use one of these:
-
-- Select **Daily notes** at the bottom of the sidebar, then select **Open
-  today's note**.
-- Open the command palette and select **Open today's note**.
-
-If the note of today is not there yet, it is made and opens. The date comes
-from the clock of your device.
-
 ## The calendar
 
-The **Daily notes** page shows one month. A day with a note has a dot under
-its number, and today has an edge around it.
+The calendar is in the sidebar, below the folders. It shows one month. A day
+with a note has a dot under its number, and today has an edge around it.
 
 - Select a day to open its note. If the day has no note, a new one is made.
-- Select the arrows to go to the previous or the next month, and **Today** to
-  go back to the current month.
+- Select the calendar icon to open the note of today.
+- Select the arrows to go to the previous or the next month.
+- Select the name of the month to hide the month or show it again.
 - With the keyboard, the arrow keys move one day or one week, **Home** and
   **End** move to the start and the end of the week, and **Page Up** and **Page
   Down** move one month. Hold **Shift** with **Page Up** or **Page Down** to
   move one year. Press **Enter** to open the note of the selected day.
 
+You can also open the command palette and select **Open today's note**. The
+date comes from the clock of your device.
+
 ## Settings
 
-The settings are below the calendar. They apply to the open workspace, and
-they follow your account to every device.
+Open **Settings** and go to **Daily notes**. The settings apply to the open
+workspace, and they follow your account to every device.
 
 - **Template** is a note whose text a new daily note starts with. The text is
   copied once, when the daily note is made. A later change to the template

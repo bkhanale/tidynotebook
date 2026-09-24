@@ -115,7 +115,7 @@ The note route writes its name in that part and gives the header one menu, with
 History and Publish as rows (record 0069). An icon-only control there is
 compact, and one at an end takes the pull of `edgeControlClassName`. The
 sidebar is rows on the chrome plane: the workspace switcher, the row of tree
-actions (record 0093), the tree without guide lines, and the footer rows. The
+actions (record 0093), the tree without guide lines, the calendar of daily notes (record 0100), and the footer rows. The
 wordmark belongs to sign in and setup. The note has one row of formatting
 tools above its text (record 0094), and `apps/web/src/lib/format-toolbar.ts` is
 the one list that the row and the command palette read.

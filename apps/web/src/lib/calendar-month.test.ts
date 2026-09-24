@@ -173,14 +173,20 @@ await test('an instant reads as the day of this device', () => {
 
 await test('the words of the calendar name the day in any time zone', () => {
   assert.equal(monthTitle({ year: 2026, month: 9 }, 'en-GB'), 'September 2026');
+  // The short month name belongs to the ICU data of the runtime (`Sep` or
+  // `Sept`), so the test reads its start and its length.
+  const short = monthTitle({ year: 2026, month: 9 }, 'en-GB', 'short');
+  assert.match(short, /^Sep/);
+  assert.ok(short.endsWith('2026'));
+  assert.ok(short.length < 'September 2026'.length);
   // The punctuation between the parts belongs to the ICU data of the
   // runtime, so the test reads the parts and not the separators.
   const name = dayName({ year: 2026, month: 9, day: 24 }, 'en-GB');
   for (const part of ['Thursday', '24', 'September', '2026'])
     assert.ok(name.includes(part), `${part} in ${name}`);
   assert.ok(name.indexOf('Thursday') < name.indexOf('September'));
-  assert.deepEqual(weekdayNames(1, 'en-GB'), { short: 'Mon', long: 'Monday' });
-  assert.deepEqual(weekdayNames(7, 'en-GB'), { short: 'Sun', long: 'Sunday' });
+  assert.deepEqual(weekdayNames(1, 'en-GB'), { narrow: 'M', long: 'Monday' });
+  assert.deepEqual(weekdayNames(7, 'en-GB'), { narrow: 'S', long: 'Sunday' });
 });
 
 await test('the week of a locale starts on its first day, and Monday otherwise', () => {
