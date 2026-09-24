@@ -33,6 +33,7 @@ import { createSyncHandlers } from './sync.ts';
 import { createSearchHandlers } from './search.ts';
 import { createImportHandlers } from './import.ts';
 import { createBacklinkHandlers } from './backlinks.ts';
+import { createDailyNoteHandlers } from './daily-notes.ts';
 import { secretDigest } from '../auth/publication-secrets.ts';
 import { createPublicationHandlers } from './publications.ts';
 import { createPublishedHandlers } from './published.ts';
@@ -141,6 +142,7 @@ export function createHandlers(
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSearchHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createBacklinkHandlers(dependencies.content ?? missingWorkspaceStore()),
+    ...createDailyNoteHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createAttachmentHandlers(
       dependencies.content ?? missingWorkspaceStore(),
       dependencies.attachments ?? missingAttachmentStore(),
