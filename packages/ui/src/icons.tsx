@@ -574,6 +574,52 @@ export function TableIcon(props: IconProps): ReactNode {
   );
 }
 
+/** A table with a plus under it, for a new row. */
+export function TableRowAddIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="3" width="18" height="11" rx="2" />
+      <path d="M3 8.5h18" />
+      <path d="M12 17v4" />
+      <path d="M10 19h4" />
+    </IconFrame>
+  );
+}
+
+/** A table with a minus under it, for the removal of a row. */
+export function TableRowRemoveIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="3" width="18" height="11" rx="2" />
+      <path d="M3 8.5h18" />
+      <path d="M10 19h4" />
+    </IconFrame>
+  );
+}
+
+/** A table with a plus beside it, for a new column. */
+export function TableColumnAddIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="3" width="11" height="18" rx="2" />
+      <path d="M8.5 3v18" />
+      <path d="M17 12h4" />
+      <path d="M19 10v4" />
+    </IconFrame>
+  );
+}
+
+/** A table with a minus beside it, for the removal of a column. */
+export function TableColumnRemoveIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="3" width="11" height="18" rx="2" />
+      <path d="M8.5 3v18" />
+      <path d="M17 12h4" />
+    </IconFrame>
+  );
+}
+
 /** A check mark icon. */
 export function CheckIcon(props: IconProps): ReactNode {
   return (
