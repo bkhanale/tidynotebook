@@ -316,7 +316,7 @@ export const getDailyNoteSettings = <ThrowOnError extends boolean = false>(optio
 /**
  * Replace the daily note settings of the signed in member.
  *
- * Replaces the settings of daily notes that the signed in account keeps in this workspace. A template must name a live note of this workspace, and a template that names no such note is refused as not found. The settings of another member do not change.
+ * Replaces the settings of daily notes that the signed in account keeps in this workspace. A template must name a live note of this workspace, and a template that names no such note is refused as not found. A folder and a name format that cannot make a note path for every date are refused as an invalid path. The settings of another member do not change.
  */
 export const updateDailyNoteSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateDailyNoteSettingsData, ThrowOnError>): RequestResult<UpdateDailyNoteSettingsResponses, UpdateDailyNoteSettingsErrors, ThrowOnError> => (options.client ?? client).put<UpdateDailyNoteSettingsResponses, UpdateDailyNoteSettingsErrors, ThrowOnError>({
     security: [{

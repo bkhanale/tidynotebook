@@ -5,6 +5,8 @@ additionalProperties: false
 required:
   - templateFileId
   - openOnStart
+  - folder
+  - format
 properties:
   templateFileId:
     oneOf:
@@ -18,3 +20,18 @@ properties:
     type: boolean
     readOnly: true
     description: True when the note of today opens when the application starts.
+  folder:
+    type: string
+    readOnly: true
+    description: >-
+      The folder that holds every daily note, or an empty text for the top of
+      the workspace.
+    maxLength: 1024
+  format:
+    type: string
+    readOnly: true
+    description: >-
+      The name of a daily note as date tokens, where a slash makes folders,
+      for example YYYY/MM/YYYY-MM-DD dddd.
+    minLength: 1
+    maxLength: 255

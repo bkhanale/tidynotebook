@@ -316,7 +316,9 @@ export const sharedDefinitions: JsonSchema = {
       "additionalProperties": false,
       "required": [
         "templateFileId",
-        "openOnStart"
+        "openOnStart",
+        "folder",
+        "format"
       ],
       "properties": {
         "templateFileId": {
@@ -326,6 +328,12 @@ export const sharedDefinitions: JsonSchema = {
           "type": "boolean",
           "readOnly": true,
           "description": "True when the note of today opens when the application starts."
+        },
+        "folder": {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared58"
+        },
+        "format": {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared59"
         }
       }
     },
@@ -437,16 +445,16 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "properties": {
         "revisionId": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared62"
-        },
-        "fileId": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared63"
-        },
-        "path": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared64"
         },
-        "kind": {
+        "fileId": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared65"
+        },
+        "path": {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared66"
+        },
+        "kind": {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared67"
         },
         "deleted": {
           "type": "boolean",
@@ -454,10 +462,10 @@ export const sharedDefinitions: JsonSchema = {
           "description": "True for a tombstone, which is how a deletion is recorded."
         },
         "parents": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared66"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared68"
         },
         "digest": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared67"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared69"
         },
         "size": {
           "type": "integer",
@@ -466,31 +474,31 @@ export const sharedDefinitions: JsonSchema = {
           "minimum": 0
         },
         "text": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared68"
-        },
-        "attachmentObjectId": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared69"
-        },
-        "message": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared70"
         },
-        "restoredFrom": {
+        "attachmentObjectId": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared71"
         },
-        "clientTime": {
+        "message": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared72"
+        },
+        "restoredFrom": {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared73"
+        },
+        "clientTime": {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared74"
         },
         "serverTime": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared18"
         },
         "document": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared73"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared75"
         },
         "epoch": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared74"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared76"
         },
         "merged": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared75"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared77"
         }
       }
     },
@@ -685,10 +693,10 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "properties": {
         "type": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared76"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared78"
         },
         "title": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared77"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared79"
         },
         "status": {
           "type": "integer",
@@ -697,13 +705,13 @@ export const sharedDefinitions: JsonSchema = {
           "const": 404
         },
         "detail": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared78"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared80"
         },
         "instance": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared79"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared81"
         },
         "code": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared80"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared82"
         },
         "requestId": {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared31"
@@ -737,7 +745,7 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "properties": {
         "name": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared84"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared86"
         },
         "status": {
           "type": "string",
@@ -749,7 +757,7 @@ export const sharedDefinitions: JsonSchema = {
           ]
         },
         "detail": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared85"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared87"
         }
       }
     },
@@ -763,10 +771,10 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "properties": {
         "status": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared82"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared84"
         },
         "checks": {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared83"
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared85"
         }
       }
     },
@@ -1282,6 +1290,27 @@ export const sharedDefinitions: JsonSchema = {
       "description": "The note whose text a new daily note starts with, or null for a daily note that starts empty."
     },
     "Shared58": {
+      "type": "string",
+      "readOnly": true,
+      "description": "The folder that holds every daily note, or an empty text for the top of the workspace.",
+      "maxLength": 1024
+    },
+    "Shared59": {
+      "type": "string",
+      "readOnly": true,
+      "description": "The name of a daily note as date tokens, where a slash makes folders, for example YYYY/MM/YYYY-MM-DD dddd.",
+      "minLength": 1,
+      "maxLength": 255
+    },
+    "Shared6": {
+      "allOf": [
+        {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/DocumentObservedState"
+        }
+      ],
+      "description": "The complete state that the device had seen at the save. The workspace reads it to decide whether the save joins unseen work, and whether a deletion would hide an edit that the device never saw."
+    },
+    "Shared60": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/FilePath"
@@ -1290,7 +1319,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The accepted path of the file."
     },
-    "Shared59": {
+    "Shared61": {
       "allOf": [
         {
           "type": "string",
@@ -1304,29 +1333,21 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "Whether the file holds Markdown or an attachment."
     },
-    "Shared6": {
-      "allOf": [
-        {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/DocumentObservedState"
-        }
-      ],
-      "description": "The complete state that the device had seen at the save. The workspace reads it to decide whether the save joins unseen work, and whether a deletion would hide an edit that the device never saw."
-    },
-    "Shared60": {
+    "Shared62": {
       "type": "string",
       "readOnly": true,
       "description": "Instant at which the file was created.",
       "format": "date-time",
       "maxLength": 64
     },
-    "Shared61": {
+    "Shared63": {
       "type": "string",
       "readOnly": true,
       "description": "Instant at which the workspace accepted the last change.",
       "format": "date-time",
       "maxLength": 64
     },
-    "Shared62": {
+    "Shared64": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -1335,7 +1356,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "Identifier of this revision."
     },
-    "Shared63": {
+    "Shared65": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -1344,7 +1365,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The file that this revision belongs to."
     },
-    "Shared64": {
+    "Shared66": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/FilePath"
@@ -1353,7 +1374,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The path of the file at this revision."
     },
-    "Shared65": {
+    "Shared67": {
       "allOf": [
         {
           "type": "string",
@@ -1367,7 +1388,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "Whether this revision holds Markdown or an attachment."
     },
-    "Shared66": {
+    "Shared68": {
       "type": "array",
       "readOnly": true,
       "description": "The parents of this revision, in submitted order. A first revision has none, a normal revision has one, and an explicit merge has two.",
@@ -1376,7 +1397,7 @@ export const sharedDefinitions: JsonSchema = {
         "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
       }
     },
-    "Shared67": {
+    "Shared69": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ContentDigest"
@@ -1385,7 +1406,15 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "Digest of the content of this revision."
     },
-    "Shared68": {
+    "Shared7": {
+      "allOf": [
+        {
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/CheckpointMessage"
+        }
+      ],
+      "description": "Name of this checkpoint, or null."
+    },
+    "Shared70": {
       "oneOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/MarkdownText"
@@ -1397,7 +1426,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The Markdown of this revision, or null for an attachment revision."
     },
-    "Shared69": {
+    "Shared71": {
       "oneOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -1409,15 +1438,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The immutable attachment object of this revision, or null for a Markdown revision. Its bytes are transferred separately."
     },
-    "Shared7": {
-      "allOf": [
-        {
-          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/CheckpointMessage"
-        }
-      ],
-      "description": "Name of this checkpoint, or null."
-    },
-    "Shared70": {
+    "Shared72": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/CheckpointMessage"
@@ -1426,7 +1447,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The checkpoint name of this revision, or null."
     },
-    "Shared71": {
+    "Shared73": {
       "oneOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -1438,14 +1459,14 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The historic revision that this one restored, or null. A restore never rewinds history; it adds a revision."
     },
-    "Shared72": {
+    "Shared74": {
       "type": "string",
       "readOnly": true,
       "description": "The clock of the device that wrote the revision. It stays informational, because a device clock cannot be trusted.",
       "format": "date-time",
       "maxLength": 64
     },
-    "Shared73": {
+    "Shared75": {
       "oneOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/DocumentUpdate"
@@ -1457,7 +1478,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The whole document of the note at this revision, so a reader can start from it and stay able to merge later work. Null for an attachment revision."
     },
-    "Shared74": {
+    "Shared76": {
       "oneOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/DocumentEpoch"
@@ -1469,12 +1490,12 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "The generation of that document, or null for an attachment revision."
     },
-    "Shared75": {
+    "Shared77": {
       "type": "boolean",
       "readOnly": true,
       "description": "True when the save that made this revision joined work that its device had not seen. Every device reads the mark in History, and the device that saved keeps its own checkpoint for Review."
     },
-    "Shared76": {
+    "Shared78": {
       "type": "string",
       "readOnly": true,
       "description": "Stable URI reference that identifies the problem type.",
@@ -1482,26 +1503,12 @@ export const sharedDefinitions: JsonSchema = {
       "format": "uri-reference",
       "maxLength": 256
     },
-    "Shared77": {
+    "Shared79": {
       "type": "string",
       "readOnly": true,
       "description": "The one sentence of this refusal. It repeats the detail, because a difference between the two would be a place to hide a cause.",
       "const": "This link is not available.",
       "maxLength": 256
-    },
-    "Shared78": {
-      "type": "string",
-      "readOnly": true,
-      "description": "The one sentence of this refusal.",
-      "const": "This link is not available.",
-      "maxLength": 1024
-    },
-    "Shared79": {
-      "type": "string",
-      "readOnly": true,
-      "description": "Address of the request, without its query. It repeats what the caller sent and it adds nothing.",
-      "format": "uri-reference",
-      "maxLength": 1024
     },
     "Shared8": {
       "allOf": [
@@ -1515,11 +1522,25 @@ export const sharedDefinitions: JsonSchema = {
     "Shared80": {
       "type": "string",
       "readOnly": true,
+      "description": "The one sentence of this refusal.",
+      "const": "This link is not available.",
+      "maxLength": 1024
+    },
+    "Shared81": {
+      "type": "string",
+      "readOnly": true,
+      "description": "Address of the request, without its query. It repeats what the caller sent and it adds nothing.",
+      "format": "uri-reference",
+      "maxLength": 1024
+    },
+    "Shared82": {
+      "type": "string",
+      "readOnly": true,
       "description": "The one code of every reader refusal.",
       "const": "published_link_unavailable",
       "maxLength": 64
     },
-    "Shared81": {
+    "Shared83": {
       "type": "object",
       "properties": {
         "token": {
@@ -1531,7 +1552,7 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "additionalProperties": false
     },
-    "Shared82": {
+    "Shared84": {
       "type": "string",
       "readOnly": true,
       "description": "Overall readiness. The value is degraded when at least one check is degraded.",
@@ -1540,7 +1561,7 @@ export const sharedDefinitions: JsonSchema = {
         "degraded"
       ]
     },
-    "Shared83": {
+    "Shared85": {
       "type": "array",
       "readOnly": true,
       "description": "One entry for every startup requirement that was checked.",
@@ -1550,20 +1571,20 @@ export const sharedDefinitions: JsonSchema = {
         "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ReadinessCheck"
       }
     },
-    "Shared84": {
+    "Shared86": {
       "type": "string",
       "readOnly": true,
       "description": "Stable name of the requirement, for example configuration.",
       "minLength": 1,
       "maxLength": 64
     },
-    "Shared85": {
+    "Shared87": {
       "type": "string",
       "readOnly": true,
       "description": "Operator readable explanation. The field is absent in a summary report and it never contains note content or a secret.",
       "maxLength": 512
     },
-    "Shared86": {
+    "Shared88": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -1571,7 +1592,7 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "readOnly": true
     },
-    "Shared87": {
+    "Shared89": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/FilePath"
@@ -1579,7 +1600,17 @@ export const sharedDefinitions: JsonSchema = {
       ],
       "readOnly": true
     },
-    "Shared88": {
+    "Shared9": {
+      "type": "array",
+      "readOnly": true,
+      "description": "Every revision that this changeset accepted, in submitted order. A retry of the same mutation returns exactly these identifiers again.",
+      "minItems": 1,
+      "maxItems": 4000,
+      "items": {
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
+      }
+    },
+    "Shared90": {
       "type": "object",
       "properties": {
         "cursor": {
@@ -1596,7 +1627,7 @@ export const sharedDefinitions: JsonSchema = {
       },
       "additionalProperties": false
     },
-    "Shared89": {
+    "Shared91": {
       "allOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
@@ -1605,17 +1636,7 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "Stable identifier of the file. A rename never changes it."
     },
-    "Shared9": {
-      "type": "array",
-      "readOnly": true,
-      "description": "Every revision that this changeset accepted, in submitted order. A retry of the same mutation returns exactly these identifiers again.",
-      "minItems": 1,
-      "maxItems": 4000,
-      "items": {
-        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
-      }
-    },
-    "Shared90": {
+    "Shared92": {
       "oneOf": [
         {
           "$ref": "https://notesapp.invalid/contract-definitions#/$defs/FilePageToken"
@@ -1627,13 +1648,13 @@ export const sharedDefinitions: JsonSchema = {
       "readOnly": true,
       "description": "Cursor of the next page, or null when this page is the last one. It continues the sort that produced it."
     },
-    "Shared91": {
+    "Shared93": {
       "type": "array",
       "items": {
         "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
       }
     },
-    "Shared92": {
+    "Shared94": {
       "type": "array",
       "minItems": 1,
       "maxItems": 1000,
@@ -4476,10 +4497,10 @@ export const operations: readonly OperationEntry[] = [
               "description": "Stable identifier of the file."
             },
             "path": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared58"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared60"
             },
             "kind": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared59"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared61"
             },
             "headRevisionId": {
               "oneOf": [
@@ -4494,10 +4515,10 @@ export const operations: readonly OperationEntry[] = [
               "description": "The accepted head, which is also the entity tag."
             },
             "createdAt": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared60"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared62"
             },
             "updatedAt": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared61"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared63"
             },
             "head": {
               "oneOf": [
@@ -4993,7 +5014,7 @@ export const operations: readonly OperationEntry[] = [
     "request": {
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared81"
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared83"
       },
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6034,13 +6055,13 @@ export const operations: readonly OperationEntry[] = [
                 ],
                 "properties": {
                   "fileId": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared86"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared88"
                   },
                   "path": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared87"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared89"
                   },
                   "revisionId": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared86"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared88"
                   }
                 }
               }
@@ -6145,7 +6166,7 @@ export const operations: readonly OperationEntry[] = [
       },
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared88"
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared90"
       },
       "headers": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6187,7 +6208,7 @@ export const operations: readonly OperationEntry[] = [
                 ],
                 "properties": {
                   "fileId": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared89"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
                   },
                   "path": {
                     "allOf": [
@@ -6199,7 +6220,7 @@ export const operations: readonly OperationEntry[] = [
                     "description": "The path that the file held when it was deleted."
                   },
                   "kind": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared59"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared61"
                   },
                   "headRevisionId": {
                     "allOf": [
@@ -6211,7 +6232,7 @@ export const operations: readonly OperationEntry[] = [
                     "description": "The tombstone revision that deleted the file, which is its accepted head and its entity tag. A restore states it as the expected head."
                   },
                   "createdAt": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared60"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared62"
                   },
                   "deletedAt": {
                     "type": "string",
@@ -6224,7 +6245,7 @@ export const operations: readonly OperationEntry[] = [
               }
             },
             "nextCursor": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared90"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared92"
             }
           }
         }
@@ -6326,7 +6347,7 @@ export const operations: readonly OperationEntry[] = [
       },
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared88"
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared90"
       },
       "headers": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -6368,13 +6389,13 @@ export const operations: readonly OperationEntry[] = [
                 ],
                 "properties": {
                   "fileId": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared89"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
                   },
                   "path": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared58"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared60"
                   },
                   "kind": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared59"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared61"
                   },
                   "headRevisionId": {
                     "oneOf": [
@@ -6389,16 +6410,16 @@ export const operations: readonly OperationEntry[] = [
                     "description": "The accepted head of the file, which is also its entity tag, or null for a file that has no accepted revision yet."
                   },
                   "createdAt": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared60"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared62"
                   },
                   "updatedAt": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared61"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared63"
                   }
                 }
               }
             },
             "nextCursor": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared90"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared92"
             }
           }
         }
@@ -6573,7 +6594,7 @@ export const operations: readonly OperationEntry[] = [
                     "type": "boolean"
                   },
                   "parents": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared93"
                   },
                   "digest": {
                     "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ContentDigest"
@@ -6920,7 +6941,7 @@ export const operations: readonly OperationEntry[] = [
     "request": {
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared81"
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared83"
       },
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -7058,7 +7079,7 @@ export const operations: readonly OperationEntry[] = [
         ],
         "properties": {
           "fileIds": {
-            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared92"
+            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared94"
           }
         }
       },
@@ -7085,10 +7106,10 @@ export const operations: readonly OperationEntry[] = [
           ],
           "properties": {
             "fileIds": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared93"
             },
             "revisionIds": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared93"
             },
             "contentDigests": {
               "type": "array",
@@ -7097,7 +7118,7 @@ export const operations: readonly OperationEntry[] = [
               }
             },
             "attachmentObjectIds": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared93"
             },
             "blockingReferences": {
               "type": "array",
@@ -7256,7 +7277,7 @@ export const operations: readonly OperationEntry[] = [
             "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
           },
           "fileIds": {
-            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared92"
+            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared94"
           }
         }
       },
@@ -7282,10 +7303,10 @@ export const operations: readonly OperationEntry[] = [
               "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
             },
             "purgedFileIds": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared93"
             },
             "purgedRevisionIds": {
-              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared91"
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared93"
             },
             "reclaimedBytes": {
               "type": "integer"
@@ -8200,13 +8221,13 @@ export const operations: readonly OperationEntry[] = [
                 ],
                 "properties": {
                   "fileId": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared86"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared88"
                   },
                   "path": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared87"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared89"
                   },
                   "revisionId": {
-                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared86"
+                    "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared88"
                   },
                   "excerpt": {
                     "type": "array",
@@ -8789,7 +8810,7 @@ export const operations: readonly OperationEntry[] = [
     "request": {
       "params": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
-        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared81"
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared83"
       },
       "query": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -8957,7 +8978,9 @@ export const operations: readonly OperationEntry[] = [
         "additionalProperties": false,
         "required": [
           "templateFileId",
-          "openOnStart"
+          "openOnStart",
+          "folder",
+          "format"
         ],
         "properties": {
           "templateFileId": {
@@ -8974,6 +8997,17 @@ export const operations: readonly OperationEntry[] = [
           "openOnStart": {
             "type": "boolean",
             "description": "True to open the note of today when the application starts."
+          },
+          "folder": {
+            "type": "string",
+            "description": "The folder that holds every daily note, or an empty text for the top of the workspace.",
+            "maxLength": 1024
+          },
+          "format": {
+            "type": "string",
+            "description": "The name of a daily note as date tokens, where a slash makes folders, for example YYYY/MM/YYYY-MM-DD dddd.",
+            "minLength": 1,
+            "maxLength": 255
           }
         }
       },
@@ -9030,6 +9064,14 @@ export const operations: readonly OperationEntry[] = [
       },
       {
         "status": 415,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 422,
         "mediaType": "application/problem+json",
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -313,16 +313,58 @@ await test('the daily note settings name a note or no template', () => {
   const validate = requestValidator('updateDailyNoteSettings', 'body');
   assert.ok(validate !== undefined);
   const note = '00000000-0000-4000-8000-000000000001';
-  assert.equal(validate({ templateFileId: note, openOnStart: true }), true);
-  assert.equal(validate({ templateFileId: null, openOnStart: false }), true);
-  // Both members are stated, so a write never leaves one at a stale value.
-  assert.equal(validate({ templateFileId: note }), false);
-  assert.equal(validate({ openOnStart: true }), false);
-  assert.equal(validate({ templateFileId: 'Daily', openOnStart: true }), false);
-  assert.equal(validate({ templateFileId: null, openOnStart: 'yes' }), false);
+  const layout = { folder: 'Daily notes', format: 'YYYY-MM-DD' };
+  assert.equal(
+    validate({ templateFileId: note, openOnStart: true, ...layout }),
+    true,
+  );
+  assert.equal(
+    validate({ templateFileId: null, openOnStart: false, ...layout }),
+    true,
+  );
+  // The top of the workspace is an empty folder.
+  assert.equal(
+    validate({
+      templateFileId: null,
+      openOnStart: false,
+      folder: '',
+      format: 'YYYY/MM/DD',
+    }),
+    true,
+  );
+  // Every member is stated, so a write never leaves one at a stale value.
+  assert.equal(validate({ templateFileId: note, ...layout }), false);
+  assert.equal(validate({ openOnStart: true, ...layout }), false);
+  assert.equal(
+    validate({ templateFileId: null, openOnStart: true, folder: 'Daily' }),
+    false,
+  );
+  assert.equal(
+    validate({ templateFileId: 'Daily', openOnStart: true, ...layout }),
+    false,
+  );
+  assert.equal(
+    validate({ templateFileId: null, openOnStart: 'yes', ...layout }),
+    false,
+  );
+  // A name needs at least one character.
+  assert.equal(
+    validate({
+      templateFileId: null,
+      openOnStart: true,
+      folder: '',
+      format: '',
+    }),
+    false,
+  );
   // The settings belong to the caller, so a body cannot name an account.
   assert.equal(
-    validate({ templateFileId: null, openOnStart: true, accountId: note }),
+    validate({
+      templateFileId: null,
+      openOnStart: true,
+      ...layout,
+      accountId: note,
+    }),
     false,
   );
 });

@@ -32,8 +32,9 @@ put:
   description: >-
     Replaces the settings of daily notes that the signed in account keeps in
     this workspace. A template must name a live note of this workspace, and a
-    template that names no such note is refused as not found. The settings of
-    another member do not change.
+    template that names no such note is refused as not found. A folder and a
+    name format that cannot make a note path for every date are refused as an
+    invalid path. The settings of another member do not change.
   tags:
     - workspaces
   parameters:
@@ -56,5 +57,7 @@ put:
       $ref: '../components/responses/PayloadTooLarge.yaml'
     '415':
       $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/UnprocessableContent.yaml'
     '500':
       $ref: '../components/responses/ServerError.yaml'
