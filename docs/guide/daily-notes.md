@@ -5,9 +5,10 @@ day and the calendar in the sidebar that opens it.
 
 ## The note of a day
 
-Each day has one note. Its name is the date, for example `2026-09-24`, and it
-is in the folder **Daily notes**. It is an ordinary note: you edit, search,
-link, export and delete it like any other note.
+Each day has one note. By default its name is the date, for example
+`2026-09-24`, and it is in the folder **Daily notes**. You can change the folder
+and the name in the settings. It is an ordinary note: you edit, search, link,
+export and delete it like any other note.
 
 If you rename the note or move it to another folder, it is no longer the note
 of its day. The next time you open that day, a new note is made.
@@ -41,6 +42,43 @@ workspace, and they follow your account to every device.
 - **Open today's note when the app opens** opens the note of today each time
   the app starts on the note list. If you open the app with the address of a
   note or of another page, that page opens instead.
+
+- **Folder** is the folder that holds the daily notes. Leave it empty to keep
+  them at the top of the workspace.
+- **Name format** is the name of each daily note, written with date tokens.
+  Select **Save** to use a new folder or format. The line under the fields
+  shows the name of today's note before you save.
+
+### Date tokens
+
+The name format uses the same tokens as Obsidian.
+
+| Token  | Example for Friday 25 September 2026 |
+| ------ | ------------------------------------ |
+| `YYYY` | `2026`                               |
+| `YY`   | `26`                                 |
+| `Q`    | `3`, the quarter                     |
+| `MMMM` | `September`                          |
+| `MMM`  | `Sep`                                |
+| `MM`   | `09`                                 |
+| `M`    | `9`                                  |
+| `DD`   | `25`                                 |
+| `D`    | `25`                                 |
+| `Do`   | `25th`                               |
+| `dddd` | `Friday`                             |
+| `ddd`  | `Fri`                                |
+| `dd`   | `Fr`                                 |
+| `d`    | `5`, where Sunday is `0`             |
+
+- A `/` makes a folder. For example, `YYYY/MM/YYYY-MM-DD dddd` puts the note of
+  today at `2026/09/2026-09-25 Friday` in the daily notes folder.
+- Put other text in square brackets, for example `[Journal] YYYY-MM-DD`. A
+  letter outside brackets can be a token: `D` in `Day` writes the day.
+- The format must have a year, a month and a day of the month.
+- The names of months and days are in English on every device.
+
+If you change the folder or the format, the notes you already have stay where
+they are. The calendar marks only the notes that have the new name.
 
 If you move the template note to Trash, a new daily note starts empty. When you
 restore the template, it is the template again.
