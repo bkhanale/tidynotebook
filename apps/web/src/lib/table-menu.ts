@@ -27,7 +27,7 @@ export type TableActionRow = {
   readonly icon: ActionIconName;
   readonly kind: TableMenuKind;
   /** The group of the menu: rows of one group stand together. */
-  readonly group: 'insert' | 'align' | 'delete';
+  readonly group: 'insert' | 'move' | 'align' | 'delete';
 };
 
 /** Every table action, in the order the menus and the palette show them. */
@@ -55,6 +55,30 @@ export const tableActionRows: readonly TableActionRow[] = [
     icon: 'table-add-column',
     kind: 'column',
     group: 'insert',
+  },
+  {
+    id: 'table-move-row-up',
+    icon: 'move-up',
+    kind: 'row',
+    group: 'move',
+  },
+  {
+    id: 'table-move-row-down',
+    icon: 'move-down',
+    kind: 'row',
+    group: 'move',
+  },
+  {
+    id: 'table-move-column-left',
+    icon: 'move-left',
+    kind: 'column',
+    group: 'move',
+  },
+  {
+    id: 'table-move-column-right',
+    icon: 'move-right',
+    kind: 'column',
+    group: 'move',
   },
   {
     id: 'table-align-left',
@@ -113,7 +137,8 @@ export type TableMenuEntry = {
  * The rows of the menu of one handle, for the cell it names.
  *
  * An action that the cell does not allow is absent: the header row takes no
- * row above it and is never deleted, and the last column is never deleted.
+ * row above it, never moves and is never deleted, a row or a column at an end
+ * does not move past it, and the last column is never deleted.
  */
 export function tableMenuEntries(
   kind: TableMenuKind,

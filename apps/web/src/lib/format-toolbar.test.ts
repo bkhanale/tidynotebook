@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatActionOf, formatActions, outsideTable } from '@notesapp/editor';
+import {
+  formatActionOf,
+  formatActions,
+  outsideTable,
+  type FormatContext,
+} from '@notesapp/editor';
 import { controlStripClassName } from '@notesapp/ui';
 import { actionIconNames } from './palette-items.ts';
 import { noteColumnClassName } from './note-column.ts';
@@ -19,14 +24,17 @@ import {
 
 /** The caret outside a table, in a body row, and in the header row. */
 const outside = outsideTable;
-const inside = { table: true, bodyRow: true, columns: 2, align: null } as const;
-const inHeader = {
+const inside = {
   table: true,
-  bodyRow: false,
+  bodyRow: true,
+  row: 1,
+  rows: 2,
+  column: 0,
   columns: 2,
   align: null,
 } as const;
-type Context = typeof outside;
+const inHeader = { ...inside, bodyRow: false, row: 0 } as const;
+type Context = FormatContext;
 
 /** Every format action that the row reaches, in the order of the row. */
 const rowActions = formatToolbar.flat().map((tool) => tool.id);
@@ -138,6 +146,10 @@ await test('the table actions are palette rows and not tools of the row', () => 
       'table-row-below',
       'table-column-left',
       'table-column-right',
+      'table-move-row-up',
+      'table-move-row-down',
+      'table-move-column-left',
+      'table-move-column-right',
       'table-align-left',
       'table-align-center',
       'table-align-right',
