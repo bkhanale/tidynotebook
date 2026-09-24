@@ -14,7 +14,9 @@ import {
 } from '@codemirror/state';
 import { noteMarkdownExtensions } from './language.ts';
 import {
+  addColumnAtEndEdit,
   addColumnEdit,
+  addRowAtEndEdit,
   cellAboveEdit,
   cellBelowEdit,
   cellText,
@@ -541,4 +543,36 @@ await test('each table gets one wrapper and atomic separators', () => {
   });
   // Three pipes for each of two rows, and the whole delimiter row.
   assert.deepEqual(atomic, ['|', '|', '|', '| --- | --- |', '|', '|', '|']);
+});
+
+await test('the controls add a row and a column at the end of their table', () => {
+  // A control names its table by a position in it, wherever the caret is.
+  const doc = `Text‸\n\n${aligned}`;
+  const state = stateOf(doc);
+  const table = doc.indexOf('|') + 1;
+  assert.equal(
+    applied(state, tableEditSpec(state, addRowAtEndEdit, table)),
+    `Text\n\n${aligned}\n| ‸    |     |`,
+  );
+  assert.equal(
+    applied(state, tableEditSpec(state, addColumnAtEndEdit, table)),
+    'Text\n\n| a   | b   | ‸    |\n| --- | --- | --- |\n| 1   | 2   |     |',
+  );
+});
+
+await test('a space typed at the end of a cell stays before the next text', () => {
+  // A rewrite reads the whole text of a cell, so the space that a person just
+  // typed is text and not padding.
+  const doc = aligned;
+  const at = doc.indexOf('a') + 1;
+  const spaced = edited(
+    `${doc}‸`,
+    { from: at, to: at, insert: ' ' },
+    'input.type',
+  );
+  const head = spaced.indexOf('‸');
+  assert.equal(
+    edited(spaced, { from: head, to: head, insert: '|' }, 'input.type'),
+    '| a \\|‸ | b   |\n| ---- | --- |\n| 1    | 2   |',
+  );
 });

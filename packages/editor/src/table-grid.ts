@@ -400,11 +400,11 @@ type TableEdit = (data: TableData, at: CellRef) => TableEditResult | null;
 function tableCommandSpec(
   state: EditorState,
   edit: TableEdit,
+  pos: number = state.selection.main.head,
 ): TransactionSpec | null {
-  const head = state.selection.main.head;
-  const table = tableAt(state, head);
+  const table = tableAt(state, pos);
   if (table === null) return null;
-  const at = cellAt(table, head);
+  const at = cellAt(table, pos) ?? { row: 0, column: 0 };
   if (at === null) return null;
   const result = edit(tableData(state, table), at);
   if (result === null) return null;
@@ -539,12 +539,29 @@ export const removeColumnEdit: TableEdit = (data, at) => {
   };
 };
 
-/** The transaction of one table edit at the main selection, or null. */
+/** Adds an empty row after the last one, for the control under a table. */
+export const addRowAtEndEdit: TableEdit = (data) => ({
+  data: withRow(data, data.body.length),
+  target: { row: rowCount(data), column: 0 },
+  select: 'end',
+});
+
+/** Adds an empty column after the last one, for the control beside a table. */
+export const addColumnAtEndEdit: TableEdit = (data) =>
+  addColumnEdit(data, { row: 0, column: data.alignments.length - 1 });
+
+/**
+ * The transaction of one table edit, or null outside a table.
+ *
+ * The edit acts at the main selection, or at `pos` for a control that names
+ * its table, such as the bar that adds a row.
+ */
 export function tableEditSpec(
   state: EditorState,
   edit: TableEdit,
+  pos?: number,
 ): TransactionSpec | null {
-  return tableCommandSpec(state, edit);
+  return tableCommandSpec(state, edit, pos);
 }
 
 /**
@@ -702,6 +719,19 @@ function ownerCell(
   return { ref: { row: rows.indexOf(row), column }, cell };
 }
 
+/** The text of a cell without the one space of padding at each side. */
+function innerRange(state: EditorState, cell: TableCellBox): Span {
+  const from =
+    state.doc.sliceString(cell.from, cell.from + 1) === ' '
+      ? cell.from + 1
+      : cell.from;
+  const to =
+    cell.to > from && state.doc.sliceString(cell.to - 1, cell.to) === ' '
+      ? cell.to - 1
+      : cell.to;
+  return { from, to: Math.max(from, to) };
+}
+
 /** The edit of one table, as new cell texts and the place of the caret. */
 type TableRewrite = {
   readonly data: TableData;
@@ -729,21 +759,22 @@ function rewriteCells(
     data.alignments.map((_, column) => {
       const cell = row.cells[column];
       if (cell === undefined) return '';
+      // The text of a cell for an edit is all of it but the one space of
+      // padding at each side, so a space that a person just typed at the end
+      // of the text stays text.
+      const inner = innerRange(state, cell);
       let out = '';
-      let at = cell.textFrom;
+      let at = inner.from;
       for (const change of changes) {
         const owner = ownerCell(table, change.from);
         const owns =
           owner !== null &&
           owner.ref.row === rowIndex &&
           owner.ref.column === column;
-        const deletes = change.to > cell.textFrom && change.from < cell.textTo;
+        const deletes = change.to > inner.from && change.from < inner.to;
         if (!owns && !deletes) continue;
-        const from = Math.min(
-          Math.max(change.from, cell.textFrom),
-          cell.textTo,
-        );
-        const to = Math.min(Math.max(change.to, cell.textFrom), cell.textTo);
+        const from = Math.min(Math.max(change.from, inner.from), inner.to);
+        const to = Math.min(Math.max(change.to, inner.from), inner.to);
         if (from > at) {
           out += state.doc.sliceString(at, from);
           at = from;
@@ -753,7 +784,7 @@ function rewriteCells(
           caret = { ref: { row: rowIndex, column }, offset: out.length };
         at = Math.max(at, to);
       }
-      out += state.doc.sliceString(at, cell.textTo);
+      out += state.doc.sliceString(at, inner.to);
       // Spaces at either end are padding and not text of the cell.
       if (
         caret !== null &&
