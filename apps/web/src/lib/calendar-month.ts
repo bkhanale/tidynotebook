@@ -233,7 +233,7 @@ function instantOfDate(date: CalendarDate): Date {
 /** The title of a month, for example `September 2026`. */
 export function monthTitle(
   month: CalendarMonth,
-  locale: string | undefined = undefined,
+  locale?: string,
 ): string {
   return new Intl.DateTimeFormat(locale, {
     month: 'long',
@@ -245,7 +245,7 @@ export function monthTitle(
 /** The whole name of a day, which a screen reader reads for its cell. */
 export function dayName(
   date: CalendarDate,
-  locale: string | undefined = undefined,
+  locale?: string,
 ): string {
   return new Intl.DateTimeFormat(locale, {
     weekday: 'long',
@@ -259,7 +259,7 @@ export function dayName(
 /** The short and the whole name of a weekday, for the head of a column. */
 export function weekdayNames(
   weekday: Weekday,
-  locale: string | undefined = undefined,
+  locale?: string,
 ): { readonly short: string; readonly long: string } {
   // 2024-01-01 was a Monday, so the day of that week names each weekday.
   const date: CalendarDate = { year: 2024, month: 1, day: weekday };
