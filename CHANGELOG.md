@@ -5,6 +5,45 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.6.0 - 2026-09-24
+
+This minor release adds a row of formatting tools above the note, so you can
+format a note without Markdown. A table now shows as a grid of cells that you
+fill in like a spreadsheet.
+
+### Added
+
+- **Formatting tools.** A row above the note holds Heading 1, Heading 2,
+  Heading 3, Bold, Italic, Strike through, Inline code, Link, Bullet list,
+  Ordered list, Task list, Block quote and Table. Select text and then a tool,
+  or select a tool and then type. Select a tool again to remove its format.
+- Each formatting tool is also in the command palette.
+- On a narrow screen, the row of tools scrolls sideways.
+- Table writes a small table with two columns and one empty row.
+- **Tables as a grid.** A table shows its cells and never its Markdown
+  source. Tab and Shift + Tab move between cells. Enter and Shift + Enter move
+  down and up. Tab in the last cell and Enter in the last row add a row.
+- While the cursor is in a table, Add a row, Add a column, Remove the row and
+  Remove the column join the row of tools and the command palette.
+
+### Changed
+
+- A wide table scrolls sideways inside its own outline. The rest of the note
+  stays where it is.
+- The tools that change whole lines, such as Heading and Bullet list, show
+  disabled in a table.
+- The name field keeps a new note name when you press Enter or leave the
+  field. Enter then moves the cursor into the note, and Escape gives back the
+  name the note has.
+
+### Fixed
+
+- A duplicated note shows its text once.
+- A heading, a list or a quote that you start on an empty line puts the cursor
+  after its marker.
+- A link writes itself at once, so the text you type next lands after it.
+- An action from the command palette keeps the cursor in the note.
+
 ## 0.5.4 - 2026-09-24
 
 This patch release adds note sorting and tree actions. It also keeps nested
