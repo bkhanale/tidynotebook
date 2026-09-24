@@ -42,6 +42,7 @@ import {
   tableGridView,
   type FormatContext,
 } from './table-grid.ts';
+import { tableMenuOpener, type TableMenuOpener } from './table-controls.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 
 /** Optional behavior beyond the required creation signature. */
@@ -87,6 +88,12 @@ export type CreateEditorOptions = {
    * changes, so the row can show the tools that apply (record 0095).
    */
   readonly onFormatContext?: ((context: FormatContext) => void) | undefined;
+  /**
+   * Opens the menu of a row or a column of a table, for its handle (record
+   * 0097). The application renders the menu, and runs its actions with
+   * `runTableAction`.
+   */
+  readonly onTableMenu?: TableMenuOpener | undefined;
 };
 
 /** Re-resolution of a link target for keyboard activation. */
@@ -185,6 +192,9 @@ export function createEditor(
       themeCompartment.of(editorTheme(options.theme ?? 'dark')),
       saveKeymap,
       editorCommands(),
+      ...(options.onTableMenu === undefined
+        ? []
+        : [tableMenuOpener.of(options.onTableMenu)]),
       keymap.of([
         ...defaultKeymap,
         ...(bound === undefined ? historyKeymap : []),

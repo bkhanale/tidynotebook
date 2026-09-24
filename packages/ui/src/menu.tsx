@@ -124,6 +124,221 @@ function MenuRow({
   );
 }
 
+/** A place on the screen that a menu opens beside. */
+export type MenuAnchor = {
+  readonly top: number;
+  readonly left: number;
+  readonly width: number;
+  readonly height: number;
+};
+
+/**
+ * The open list of a menu: its rows, its keys, its place and its close.
+ *
+ * `Menu` renders it under its trigger and `AnchoredMenu` renders it at a place
+ * that a caller names, so both menus share one behaviour for the keys, the
+ * placement and a press outside.
+ */
+function MenuList({
+  id,
+  label,
+  items,
+  pinned,
+  anchor,
+  align,
+  matchWidth,
+  initialIndex,
+  onClose,
+  isInside,
+}: {
+  readonly id: string;
+  readonly label: string;
+  readonly items: readonly MenuItem[];
+  readonly pinned: readonly MenuItem[];
+  /** Reads the place the list opens beside, at the time it is placed. */
+  readonly anchor: () => MenuAnchor | null;
+  readonly align: MenuAlign;
+  readonly matchWidth: boolean;
+  readonly initialIndex: number;
+  /** Closes the list. `restoreFocus` is true after a key or a chosen row. */
+  readonly onClose: (restoreFocus: boolean) => void;
+  /** A press here does not count as a press outside, such as the trigger. */
+  readonly isInside?: ((target: Node) => boolean) | undefined;
+}): ReactNode {
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
+  const listRef = useRef<HTMLDivElement | null>(null);
+
+  // The arrow keys run over both regions in the order they are on the screen,
+  // so a pinned row is reached by pressing End and never disappears from the
+  // keyboard order when the scrolling list grows.
+  const enabled = [...items, ...pinned].filter(
+    (item) => item.disabled !== true,
+  );
+
+  useEffect(() => {
+    const onPointerDown = (event: MouseEvent): void => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (isInside?.(target) === true) return;
+      if (listRef.current?.contains(target) === true) return;
+      onClose(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => {
+      document.removeEventListener('mousedown', onPointerDown);
+    };
+  }, [onClose, isInside]);
+
+  // Escape closes the open list wherever the focus is, because the list takes
+  // the focus one frame after it opens and a key pressed before that reaches
+  // what had it. The capture phase, so Escape closes the innermost thing and
+  // nothing above it: an open menu inside the navigation drawer would
+  // otherwise close the drawer as well, because the drawer listens for the key
+  // on the window, and focus would have nowhere to return to.
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose(true);
+    };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [onClose]);
+
+  useEffect(() => {
+    window.requestAnimationFrame(() => {
+      listRef.current
+        ?.querySelectorAll<HTMLElement>(
+          '[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])',
+        )
+        [activeIndex]?.focus();
+    });
+  }, [activeIndex]);
+
+  /**
+   * Writes the place of the open list.
+   *
+   * The height bound of the last placement is cleared first, so the list
+   * reports the height it wants and not the height it was given. Nothing else
+   * about the list is written here: its colour, its edge, its radius, its
+   * padding and its depth all stay in the named scales.
+   */
+  const place = useCallback((): void => {
+    const list = listRef.current;
+    const spot = anchor();
+    if (list === null || spot === null) return;
+    list.style.maxHeight = '';
+    if (matchWidth) list.style.width = `${String(spot.width)}px`;
+    const size = list.getBoundingClientRect();
+    const placed = placeOverlay({
+      anchor: spot,
+      overlay: { width: size.width, height: size.height },
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      align,
+    });
+    list.style.top = `${String(placed.top)}px`;
+    list.style.left = `${String(placed.left)}px`;
+    list.style.maxHeight = `${String(placed.maxHeight)}px`;
+  }, [align, matchWidth, anchor]);
+
+  useLayoutEffect(() => {
+    place();
+    const follow = (): void => {
+      place();
+    };
+    window.addEventListener('resize', follow);
+    // The capture phase, because the trigger can sit in a box that scrolls,
+    // such as the folder tree, and a scroll there does not reach the window.
+    window.addEventListener('scroll', follow, true);
+    return () => {
+      window.removeEventListener('resize', follow);
+      window.removeEventListener('scroll', follow, true);
+    };
+  }, [place]);
+
+  const move = (delta: number): void => {
+    setActiveIndex((current) => {
+      const count = enabled.length;
+      if (count === 0) return 0;
+      return (current + delta + count) % count;
+    });
+  };
+
+  // A menu states a selection only when a row claims one, so every menu that
+  // runs actions keeps the plain `menuitem` role it had.
+  const choosing = [...items, ...pinned].some(
+    (item) => item.selected !== undefined,
+  );
+
+  const run = (item: MenuItem): void => {
+    onClose(true);
+    item.onSelect();
+  };
+
+  return createPortal(
+    <div
+      ref={listRef}
+      id={id}
+      className={`fixed z-50 flex flex-col rounded-lg border border-edge-subtle bg-card p-1 shadow-overlay ${transitionRaise} ${matchWidth ? '' : 'min-w-56'}`}
+      role="menu"
+      aria-label={label}
+      onKeyDown={(event): void => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          move(1);
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          move(-1);
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          setActiveIndex(0);
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          setActiveIndex(Math.max(enabled.length - 1, 0));
+        } else if (event.key === 'Tab') {
+          event.preventDefault();
+          onClose(true);
+        }
+      }}
+    >
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {items.map((item, index) => (
+          <Fragment key={item.id}>
+            {startsGroup(items, index) ? (
+              <div
+                role="separator"
+                className={`my-1 ${menuDividerClassName}`}
+              />
+            ) : null}
+            <MenuRow item={item} choosing={choosing} onRun={run} />
+          </Fragment>
+        ))}
+      </div>
+      {pinned.length === 0 ? null : (
+        <div className={`mt-1 shrink-0 pt-1 ${menuDividerClassName}`}>
+          {pinned.map((item) => (
+            <MenuRow
+              key={item.id}
+              item={item}
+              choosing={choosing}
+              onRun={run}
+            />
+          ))}
+        </div>
+      )}
+    </div>,
+    document.body,
+  );
+}
+
+/** The id of the list of one menu, from its name. */
+function menuIdOf(label: string): string {
+  return `${label.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-menu`;
+}
+
 /** A button that opens one menu of actions. */
 export function Menu({
   label,
@@ -173,119 +388,31 @@ export function Menu({
   readonly children?: ReactNode | undefined;
 }): ReactNode {
   const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(0);
+  const [startIndex, setStartIndex] = useState(0);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
-  const listRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
 
-  // The arrow keys run over both regions in the order they are on the screen,
-  // so a pinned row is reached by pressing End and never disappears from the
-  // keyboard order when the scrolling list grows.
-  const enabled = [...items, ...pinned].filter(
+  const enabledCount = [...items, ...pinned].filter(
     (item) => item.disabled !== true,
-  );
+  ).length;
 
   const close = useCallback((restoreFocus: boolean): void => {
     setOpen(false);
     if (restoreFocus) triggerRef.current?.focus();
   }, []);
-
-  useEffect(() => {
-    if (!open) return;
-    const onPointerDown = (event: MouseEvent): void => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      // The list is not a child of the trigger in the document, so a press
-      // inside it has to be read against both.
-      if (rootRef.current?.contains(target) === true) return;
-      if (listRef.current?.contains(target) === true) return;
-      setOpen(false);
-    };
-    document.addEventListener('mousedown', onPointerDown);
-    return () => {
-      document.removeEventListener('mousedown', onPointerDown);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    window.requestAnimationFrame(() => {
-      listRef.current
-        ?.querySelectorAll<HTMLElement>(
-          '[role="menuitem"]:not([disabled]),[role="menuitemradio"]:not([disabled])',
-        )
-        [activeIndex]?.focus();
-    });
-    // The effect runs for the open state and for every move of the cursor.
-  }, [open, activeIndex]);
-
-  /**
-   * Writes the place of the open list.
-   *
-   * The height bound of the last placement is cleared first, so the list
-   * reports the height it wants and not the height it was given. Nothing else
-   * about the list is written here: its colour, its edge, its radius, its
-   * padding and its depth all stay in the named scales.
-   */
-  const place = useCallback((): void => {
-    const trigger = triggerRef.current;
-    const list = listRef.current;
-    if (trigger === null || list === null) return;
-    list.style.maxHeight = '';
-    const anchor = trigger.getBoundingClientRect();
-    if (matchTrigger) list.style.width = `${String(anchor.width)}px`;
-    const size = list.getBoundingClientRect();
-    const spot = placeOverlay({
-      anchor: {
-        top: anchor.top,
-        left: anchor.left,
-        width: anchor.width,
-        height: anchor.height,
-      },
-      overlay: { width: size.width, height: size.height },
-      viewport: { width: window.innerWidth, height: window.innerHeight },
-      align,
-    });
-    list.style.top = `${String(spot.top)}px`;
-    list.style.left = `${String(spot.left)}px`;
-    list.style.maxHeight = `${String(spot.maxHeight)}px`;
-  }, [align, matchTrigger]);
-
-  useLayoutEffect(() => {
-    if (!open) return;
-    place();
-    const follow = (): void => {
-      place();
-    };
-    window.addEventListener('resize', follow);
-    // The capture phase, because the trigger can sit in a box that scrolls,
-    // such as the folder tree, and a scroll there does not reach the window.
-    window.addEventListener('scroll', follow, true);
-    return () => {
-      window.removeEventListener('resize', follow);
-      window.removeEventListener('scroll', follow, true);
-    };
-  }, [open, place]);
-
-  const move = (delta: number): void => {
-    setActiveIndex((current) => {
-      const count = enabled.length;
-      if (count === 0) return 0;
-      return (current + delta + count) % count;
-    });
-  };
-
-  const menuId = `${label.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-menu`;
-  // A menu states a selection only when a row claims one, so every menu that
-  // runs actions keeps the plain `menuitem` role it had.
-  const choosing = [...items, ...pinned].some(
-    (item) => item.selected !== undefined,
+  const anchor = useCallback(
+    (): MenuAnchor | null =>
+      triggerRef.current?.getBoundingClientRect() ?? null,
+    [],
+  );
+  // The list is not a child of the trigger in the document, so a press on the
+  // trigger has to be read as inside, or the press would close and reopen it.
+  const isInside = useCallback(
+    (target: Node): boolean => rootRef.current?.contains(target) === true,
+    [],
   );
 
-  const run = (item: MenuItem): void => {
-    close(true);
-    item.onSelect();
-  };
+  const menuId = menuIdOf(label);
 
   const triggerContent = (
     <>
@@ -336,13 +463,13 @@ export function Menu({
         // because nothing else on the screen states its purpose.
         title={children === undefined ? label : undefined}
         onClick={() => {
-          setActiveIndex(0);
+          setStartIndex(0);
           setOpen((value) => !value);
         }}
         onKeyDown={(event): void => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
-            setActiveIndex(event.key === 'ArrowDown' ? 0 : enabled.length - 1);
+            setStartIndex(event.key === 'ArrowDown' ? 0 : enabledCount - 1);
             setOpen(true);
           }
         }}
@@ -361,71 +488,58 @@ export function Menu({
           triggerContent
         )}
       </button>
-      {open
-        ? createPortal(
-            <div
-              ref={listRef}
-              id={menuId}
-              className={`fixed z-50 flex flex-col rounded-lg border border-edge-subtle bg-card p-1 shadow-overlay ${transitionRaise} ${matchTrigger ? '' : 'min-w-56'}`}
-              role="menu"
-              aria-label={label}
-              onKeyDown={(event): void => {
-                if (event.key === 'Escape') {
-                  event.preventDefault();
-                  // Escape closes the innermost thing and nothing above it. An
-                  // open menu inside the navigation drawer would otherwise
-                  // close the drawer as well, because the drawer listens for
-                  // the key on the window, and focus would have nowhere to
-                  // return to.
-                  event.stopPropagation();
-                  close(true);
-                } else if (event.key === 'ArrowDown') {
-                  event.preventDefault();
-                  move(1);
-                } else if (event.key === 'ArrowUp') {
-                  event.preventDefault();
-                  move(-1);
-                } else if (event.key === 'Home') {
-                  event.preventDefault();
-                  setActiveIndex(0);
-                } else if (event.key === 'End') {
-                  event.preventDefault();
-                  setActiveIndex(Math.max(enabled.length - 1, 0));
-                } else if (event.key === 'Tab') {
-                  event.preventDefault();
-                  close(true);
-                }
-              }}
-            >
-              <div className="min-h-0 flex-1 overflow-y-auto">
-                {items.map((item, index) => (
-                  <Fragment key={item.id}>
-                    {startsGroup(items, index) ? (
-                      <div
-                        role="separator"
-                        className={`my-1 ${menuDividerClassName}`}
-                      />
-                    ) : null}
-                    <MenuRow item={item} choosing={choosing} onRun={run} />
-                  </Fragment>
-                ))}
-              </div>
-              {pinned.length === 0 ? null : (
-                <div className={`mt-1 shrink-0 pt-1 ${menuDividerClassName}`}>
-                  {pinned.map((item) => (
-                    <MenuRow
-                      key={item.id}
-                      item={item}
-                      choosing={choosing}
-                      onRun={run}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>,
-            document.body,
-          )
-        : null}
+      {open ? (
+        <MenuList
+          id={menuId}
+          label={label}
+          items={items}
+          pinned={pinned}
+          anchor={anchor}
+          align={align}
+          matchWidth={matchTrigger}
+          initialIndex={Math.max(0, startIndex)}
+          onClose={close}
+          isInside={isInside}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * A menu that opens at a place a caller names, with no trigger of its own.
+ *
+ * A control that the editor draws, such as the handle of a table row, is no
+ * React element, so it cannot own a `Menu`. It names its place on the screen,
+ * and this menu opens there with the rows, the keys and the placement of every
+ * other menu. `onClose` runs when the list closes; `restoreFocus` is true when
+ * a key or a chosen row closed it, and the caller gives the focus back.
+ */
+export function AnchoredMenu({
+  label,
+  items,
+  anchor,
+  align = 'start',
+  onClose,
+}: {
+  readonly label: string;
+  readonly items: readonly MenuItem[];
+  readonly anchor: MenuAnchor;
+  readonly align?: MenuAlign | undefined;
+  readonly onClose: (restoreFocus: boolean) => void;
+}): ReactNode {
+  const place = useCallback((): MenuAnchor => anchor, [anchor]);
+  return (
+    <MenuList
+      id={menuIdOf(label)}
+      label={label}
+      items={items}
+      pinned={[]}
+      anchor={place}
+      align={align}
+      matchWidth={false}
+      initialIndex={0}
+      onClose={onClose}
+    />
   );
 }

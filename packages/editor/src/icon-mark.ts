@@ -12,9 +12,16 @@
 /** The namespace of an SVG element. */
 const svgNamespace = 'http://www.w3.org/2000/svg';
 
-/** One path of a glyph, as the `d` of an SVG path, or the points of a line. */
+/** One part of a glyph: an SVG path, a line through points, or a dot. */
 export type GlyphPart =
-  { readonly path: string } | { readonly polyline: string };
+  | { readonly kind: 'path'; readonly d: string }
+  | { readonly kind: 'polyline'; readonly points: string }
+  | {
+      readonly kind: 'circle';
+      readonly cx: number;
+      readonly cy: number;
+      readonly r: number;
+    };
 
 /** Draws one glyph of the icon grid, hidden from assistive software. */
 export function glyph(
@@ -31,12 +38,15 @@ export function glyph(
   mark.setAttribute('stroke-linejoin', 'round');
   mark.setAttribute('aria-hidden', 'true');
   for (const part of parts) {
-    const element =
-      'path' in part
-        ? document.createElementNS(svgNamespace, 'path')
-        : document.createElementNS(svgNamespace, 'polyline');
-    if ('path' in part) element.setAttribute('d', part.path);
-    else element.setAttribute('points', part.polyline);
+    const element = document.createElementNS(svgNamespace, part.kind);
+    if (part.kind === 'path') element.setAttribute('d', part.d);
+    else if (part.kind === 'polyline')
+      element.setAttribute('points', part.points);
+    else {
+      element.setAttribute('cx', String(part.cx));
+      element.setAttribute('cy', String(part.cy));
+      element.setAttribute('r', String(part.r));
+    }
     mark.append(element);
   }
   return mark;

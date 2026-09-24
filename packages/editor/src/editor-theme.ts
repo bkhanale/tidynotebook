@@ -615,35 +615,51 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       zIndex: '2',
       pointerEvents: 'none',
     },
-    '.cm-np-table-add': {
+    // Every control of a table takes the look of the table itself: the one
+    // divider as its edge, square corners, and the page as its fill. It
+    // fills on hover, as a ghost control does.
+    // A control that does not show keeps its box and hides it, so the layer
+    // can read the size of every control to place it; a box with no display
+    // has no size.
+    '.cm-np-table-add, .cm-np-table-handle': {
       position: 'absolute',
-      display: 'none',
+      display: 'flex',
+      visibility: 'hidden',
       alignItems: 'center',
       justifyContent: 'center',
       padding: '0',
       margin: '0',
       border: '1px solid var(--notes-border-line)',
-      borderRadius: 'var(--radius-sm)',
+      borderRadius: '0',
       backgroundColor: 'var(--notes-bg)',
       color: 'var(--notes-text-muted)',
       cursor: 'pointer',
       pointerEvents: 'auto',
     },
-    '.cm-np-table-controls-shown .cm-np-table-add': { display: 'flex' },
-    '.cm-np-table-add:hover': {
+    '.cm-np-table-controls-shown .cm-np-table-add, .cm-np-table-controls-shown .cm-np-table-handle':
+      { visibility: 'visible' },
+    '.cm-np-table-controls-shown .cm-np-table-control-off': {
+      visibility: 'hidden',
+    },
+    '.cm-np-table-add:hover, .cm-np-table-handle:hover': {
       backgroundColor: 'var(--notes-surface-hover)',
       color: 'var(--notes-text-strong)',
     },
     '.cm-np-table-add-row': { height: 'calc(var(--spacing) * 5)' },
     '.cm-np-table-add-column': { width: 'calc(var(--spacing) * 5)' },
-    '.cm-np-table-add-mark': {
+    '.cm-np-table-handle-row': { width: 'calc(var(--spacing) * 4)' },
+    '.cm-np-table-handle-column': { height: 'calc(var(--spacing) * 4)' },
+    '.cm-np-table-control-mark': {
       width: 'calc(var(--spacing) * 4)',
       height: 'calc(var(--spacing) * 4)',
+      flexShrink: '0',
     },
     '@media (pointer: coarse)': {
       '.cm-np-table': { paddingBlockEnd: 'calc(var(--spacing) * 12)' },
       '.cm-np-table-add-row': { height: 'calc(var(--spacing) * 11)' },
       '.cm-np-table-add-column': { width: 'calc(var(--spacing) * 11)' },
+      '.cm-np-table-handle-row': { width: 'calc(var(--spacing) * 5)' },
+      '.cm-np-table-handle-column': { height: 'calc(var(--spacing) * 5)' },
     },
     '.cm-np-align-left': { textAlign: 'left' },
     '.cm-np-align-center': { textAlign: 'center' },

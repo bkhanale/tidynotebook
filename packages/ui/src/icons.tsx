@@ -620,6 +620,39 @@ export function TableColumnRemoveIcon(props: IconProps): ReactNode {
   );
 }
 
+/** Lines that start at one edge, for a column aligned to the left. */
+export function AlignLeftIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 6h16" />
+      <path d="M4 12h10" />
+      <path d="M4 18h13" />
+    </IconFrame>
+  );
+}
+
+/** Lines centred on one axis, for a column aligned to the centre. */
+export function AlignCenterIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 6h16" />
+      <path d="M7 12h10" />
+      <path d="M5.5 18h13" />
+    </IconFrame>
+  );
+}
+
+/** Lines that end at one edge, for a column aligned to the right. */
+export function AlignRightIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 6h16" />
+      <path d="M10 12h10" />
+      <path d="M7 18h13" />
+    </IconFrame>
+  );
+}
+
 /** A check mark icon. */
 export function CheckIcon(props: IconProps): ReactNode {
   return (

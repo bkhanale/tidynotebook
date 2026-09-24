@@ -269,7 +269,9 @@ class RuleWidget extends WidgetType {
  * which `./icon-mark.ts` holds for the editor.
  */
 function taskCheckMark(): SVGElement {
-  return glyph('cm-np-task-mark', [{ polyline: '20 6 9 17 4 12' }]);
+  return glyph('cm-np-task-mark', [
+    { kind: 'polyline', points: '20 6 9 17 4 12' },
+  ]);
 }
 
 /**

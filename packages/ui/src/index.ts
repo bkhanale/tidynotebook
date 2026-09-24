@@ -111,14 +111,17 @@ export {
 } from './motion.ts';
 export type { DialogWidth } from './dialog.tsx';
 export { Dialog, DialogBody, DialogFooter } from './dialog.tsx';
-export type { MenuAlign, MenuItem } from './menu.tsx';
-export { Menu } from './menu.tsx';
+export type { MenuAlign, MenuAnchor, MenuItem } from './menu.tsx';
+export { AnchoredMenu, Menu } from './menu.tsx';
 export type { NoticeTone } from './notice.tsx';
 export { Notice } from './notice.tsx';
 export { Toast } from './toast.tsx';
 export type { IconProps } from './icons.tsx';
 export {
   AlertCircleIcon,
+  AlignCenterIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
   AppMarkIcon,
   BoldIcon,
   BulletListIcon,
