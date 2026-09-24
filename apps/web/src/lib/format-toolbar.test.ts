@@ -12,10 +12,9 @@ import {
   formatToolbarFrameClassName,
   formatToolGroupClassName,
   formatToolTitle,
-  tableTools,
+  tableActions,
   toolApplies,
   toolbarFocusTarget,
-  toolbarGroups,
 } from './format-toolbar.ts';
 
 /** The caret outside a table, in a body row, and in the header row. */
@@ -41,7 +40,7 @@ await test('the row holds the tools that issue 153 asks for, in four groups', ()
 
 await test('every tool is a format action of the editor, reached once', () => {
   const known = new Set(formatActions.map((action) => action.id));
-  const all = [...rowActions, ...tableTools.map((tool) => tool.id)];
+  const all = [...rowActions, ...tableActions.map((tool) => tool.id)];
   for (const id of all) assert.ok(known.has(id), `${id} is unknown`);
   assert.equal(new Set(all).size, all.length);
   // Every format action is a tool except the heading levels four to six,
@@ -51,9 +50,9 @@ await test('every tool is a format action of the editor, reached once', () => {
 
 await test('every tool draws a glyph of its own', () => {
   const glyphs = new Set<string>(actionIconNames);
-  const icons = toolbarGroups(inside)
-    .flat()
-    .map((tool) => tool.icon);
+  const icons = [...formatToolbar.flat(), ...tableActions].map(
+    (tool) => tool.icon,
+  );
   for (const icon of icons) assert.ok(glyphs.has(icon), `${icon} is no glyph`);
   assert.equal(new Set(icons).size, icons.length);
 });
@@ -121,12 +120,13 @@ await test('the row scrolls sideways and never moves a tool out of it', () => {
   );
 });
 
-await test('the table tools join the end of the row inside a table only', () => {
-  // Record 0095. The tools before them never move.
-  assert.deepEqual(toolbarGroups(outside), formatToolbar);
-  assert.deepEqual(toolbarGroups(inside), [...formatToolbar, tableTools]);
+await test('the table actions are palette rows and not tools of the row', () => {
+  // Record 0096. A table carries its own controls for a row and a column, so
+  // the row keeps the tools that format text.
+  const tools = formatToolbar.flat().map((tool) => tool.id);
+  for (const action of tableActions) assert.ok(!tools.includes(action.id));
   assert.deepEqual(
-    tableTools.map((tool) => tool.id),
+    tableActions.map((tool) => tool.id),
     [
       'table-add-row',
       'table-add-column',
@@ -138,9 +138,9 @@ await test('the table tools join the end of the row inside a table only', () => 
 
 await test('a block tool does not apply inside a table', () => {
   const applies = (id: string, context: Context): boolean => {
-    const tool = toolbarGroups(inside)
-      .flat()
-      .find((candidate) => candidate.id === id);
+    const tool = [...formatToolbar.flat(), ...tableActions].find(
+      (candidate) => candidate.id === id,
+    );
     assert.ok(tool !== undefined, id);
     return tool !== undefined && toolApplies(tool, context);
   };
@@ -166,7 +166,7 @@ await test('the palette offers the tools that apply where the caret stands', () 
 
 await test('the header row and the last column are never offered for removal', () => {
   const tool = (id: string) =>
-    tableTools.find((candidate) => candidate.id === id);
+    tableActions.find((candidate) => candidate.id === id);
   const removeRow = tool('table-remove-row');
   const removeColumn = tool('table-remove-column');
   assert.ok(removeRow !== undefined && removeColumn !== undefined);

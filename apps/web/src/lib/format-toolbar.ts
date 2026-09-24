@@ -70,23 +70,17 @@ export const formatToolbar: readonly (readonly FormatTool[])[] = [
 ];
 
 /**
- * The tools of a table, which join the row while the caret is in a table
- * (record 0095). They are a group of their own at the end of the row, so the
- * tools before them never move.
+ * The actions of a table, which the command palette offers while the caret is
+ * in a table (record 0096). They are not tools of the row: a table carries its
+ * own controls that add a row and a column, and the palette removes one, so
+ * the row keeps the tools that format text.
  */
-export const tableTools: readonly FormatTool[] = [
+export const tableActions: readonly FormatTool[] = [
   tool('table-add-row', 'table-add-row'),
   tool('table-add-column', 'table-add-column'),
   tool('table-remove-row', 'table-remove-row'),
   tool('table-remove-column', 'table-remove-column'),
 ];
-
-/** The groups of the row where the caret stands. */
-export function toolbarGroups(
-  context: FormatContext,
-): readonly (readonly FormatTool[])[] {
-  return context.table ? [...formatToolbar, tableTools] : formatToolbar;
-}
 
 /**
  * Whether one tool applies where the caret stands.
@@ -134,14 +128,13 @@ const paletteWords: Readonly<Partial<Record<FormatActionId, string>>> = {
 };
 
 /**
- * The palette rows of every tool of the row that applies where the caret
- * stands, in the order of the row.
+ * The palette rows of every tool of the row and every table action that
+ * applies where the caret stands, in that order.
  */
 export function formatPaletteRows(
   context: FormatContext,
 ): readonly FormatPaletteRow[] {
-  return toolbarGroups(context)
-    .flat()
+  return [...formatToolbar.flat(), ...tableActions]
     .filter((tool) => toolApplies(tool, context))
     .map(({ id, icon }) => {
       const action = formatActionOf(id);

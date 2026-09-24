@@ -15,9 +15,9 @@
  * the row, and a row wider than the screen scrolls sideways, so no menu covers
  * the text.
  *
- * Where the caret stands decides the tools (record 0095). In a table the
- * tools of the table join the end of the row, and a block tool is disabled,
- * because a table line is a row. The tools before them never move.
+ * Where the caret stands decides which tools apply. In a table a block tool
+ * is disabled, because a table line is a row. A table carries its own
+ * controls for rows and columns, so the row never changes (record 0096).
  *
  * A tool takes the focus when it is pressed. That ends an IME composition in
  * the editor before the action runs, and the action then gives the focus back
@@ -37,9 +37,9 @@ import {
   formatToolbarLabel,
   formatToolGroupClassName,
   formatToolTitle,
+  formatToolbar,
   toolApplies,
   toolbarFocusTarget,
-  toolbarGroups,
 } from '../../lib/format-toolbar.ts';
 import { actionIcon } from '../../shell/action-icons.tsx';
 import { appleKeyboard, keyHintParts } from '../../shell/modifier-key.ts';
@@ -67,7 +67,7 @@ export function FormatToolbar({
   readonly onFormat: (id: FormatActionId) => void;
 }): ReactNode {
   const rowRef = useRef<HTMLDivElement | null>(null);
-  const groups = toolbarGroups(context);
+  const groups = formatToolbar;
   const enabled = groups.flat().map((tool) => toolApplies(tool, context));
   // The place, in the order of the row, of the one tool in the tab order. A
   // disabled tool takes no focus, so the stop falls to the first tool that
@@ -115,9 +115,12 @@ export function FormatToolbar({
             const target = toolbarFocusTarget(event.key, at, all.length);
             if (target === null) return;
             event.preventDefault();
-            // The browser scrolls the row to a tool that takes the focus, so
-            // the keyboard reaches a tool past the edge of a phone.
-            all[target]?.focus();
+            // A browser scrolls a tool that takes the focus only when the tool
+            // is out of view, and a tool at the edge of a phone is half in
+            // view, so the row brings the whole tool into view itself.
+            const next = all[target];
+            next?.focus();
+            next?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
           }}
         >
           {groups.map((group) => (
