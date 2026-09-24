@@ -27,6 +27,8 @@ For the person who writes the notes.
   person who has no account.
 - [Appearance and shortcuts](appearance-and-shortcuts.md) - themes, light and
   dark, and the keyboard.
+- [Spelling](spelling.md) - the spell check of the editor, and how to turn it
+  off.
 - [Export](export.md) - take every note out as plain Markdown files.
 
 ## Hosting a server
