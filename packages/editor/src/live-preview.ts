@@ -42,6 +42,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import type { SyntaxNode, SyntaxNodeRef } from '@lezer/common';
+import { glyph } from './icon-mark.ts';
 import {
   alertMarkerLength,
   alertTitle,
@@ -255,9 +256,6 @@ class RuleWidget extends WidgetType {
   }
 }
 
-/** The namespace every element of a drawing belongs to. */
-const svgNamespace = 'http://www.w3.org/2000/svg';
-
 /**
  * The check mark inside a task box that is done.
  *
@@ -267,26 +265,11 @@ const svgNamespace = 'http://www.w3.org/2000/svg';
  * this element while the box beside it is checked and paints it in the label
  * colour of the ink fill.
  *
- * The drawing follows the one grid of the icon set: the 24 viewport and the
- * stroke of 1.5 of `packages/ui/src/icon-grid.ts`, and the same line as
- * `CheckIcon` there. The editor builds plain DOM and reads no React
- * component, so the two hold one glyph in two places; the clean fix is one
- * exported geometry in `packages/ui`, which this change does not own.
+ * The drawing is the line of `CheckIcon` on the one grid of the icon set,
+ * which `./icon-mark.ts` holds for the editor.
  */
 function taskCheckMark(): SVGElement {
-  const mark = document.createElementNS(svgNamespace, 'svg');
-  mark.setAttribute('class', 'cm-np-task-mark');
-  mark.setAttribute('viewBox', '0 0 24 24');
-  mark.setAttribute('fill', 'none');
-  mark.setAttribute('stroke', 'currentColor');
-  mark.setAttribute('stroke-width', '1.5');
-  mark.setAttribute('stroke-linecap', 'round');
-  mark.setAttribute('stroke-linejoin', 'round');
-  mark.setAttribute('aria-hidden', 'true');
-  const line = document.createElementNS(svgNamespace, 'polyline');
-  line.setAttribute('points', '20 6 9 17 4 12');
-  mark.append(line);
-  return mark;
+  return glyph('cm-np-task-mark', [{ polyline: '20 6 9 17 4 12' }]);
 }
 
 /**
