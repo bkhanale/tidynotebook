@@ -1,9 +1,10 @@
 type: object
-description: Settings to store for the signed in account.
+description: >-
+  Settings to store for the signed in account. A member that the body
+  leaves out keeps its stored value, so a client changes one setting
+  without the others.
 additionalProperties: false
-required:
-  - appearance
-  - themeFamily
+minProperties: 1
 properties:
   appearance:
     allOf:
@@ -13,3 +14,6 @@ properties:
     allOf:
       - $ref: './ThemeFamily.yaml'
     description: The theme family to store.
+  spellCheck:
+    type: boolean
+    description: Whether the editor checks the spelling of a note.

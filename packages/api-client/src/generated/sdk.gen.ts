@@ -34,9 +34,9 @@ export const getAccount = <ThrowOnError extends boolean = false>(options?: Optio
 });
 
 /**
- * Replace the stored settings of the signed in account.
+ * Change the stored settings of the signed in account.
  *
- * Replaces the settings that follow the account to every device. The theme family selects the palette, and the appearance selects the light variant, the dark variant, or the one that matches the device.
+ * Stores the settings that the body names, and they follow the account to every device. A member that the body leaves out keeps its stored value. The theme family selects the palette, the appearance selects the light variant, the dark variant, or the one that matches the device, and the spell check turns the spelling marks of the editor on or off.
  */
 export const updatePreferences = <ThrowOnError extends boolean = false>(options: Options<UpdatePreferencesData, ThrowOnError>): RequestResult<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError> => (options.client ?? client).put<UpdatePreferencesResponses, UpdatePreferencesErrors, ThrowOnError>({
     security: [{

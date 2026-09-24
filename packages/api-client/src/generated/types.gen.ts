@@ -798,20 +798,28 @@ export type Preferences = {
      * The stored theme family of the account.
      */
     readonly themeFamily: ThemeFamily;
+    /**
+     * True when the editor asks the browser to check the spelling of a note.
+     */
+    readonly spellCheck: boolean;
 };
 
 /**
- * Settings to store for the signed in account.
+ * Settings to store for the signed in account. A member that the body leaves out keeps its stored value, so a client changes one setting without the others.
  */
 export type PreferencesInput = {
     /**
      * The appearance choice to store.
      */
-    appearance: Appearance;
+    appearance?: Appearance;
     /**
      * The theme family to store.
      */
-    themeFamily: ThemeFamily;
+    themeFamily?: ThemeFamily;
+    /**
+     * Whether the editor checks the spelling of a note.
+     */
+    spellCheck?: boolean;
 };
 
 /**

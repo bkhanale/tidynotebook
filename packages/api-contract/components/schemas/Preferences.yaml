@@ -4,6 +4,7 @@ additionalProperties: false
 required:
   - appearance
   - themeFamily
+  - spellCheck
 properties:
   appearance:
     allOf:
@@ -15,3 +16,9 @@ properties:
       - $ref: './ThemeFamily.yaml'
     readOnly: true
     description: The stored theme family of the account.
+  spellCheck:
+    type: boolean
+    readOnly: true
+    description: >-
+      True when the editor asks the browser to check the spelling of a
+      note.

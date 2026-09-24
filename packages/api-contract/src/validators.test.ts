@@ -368,3 +368,21 @@ await test('the daily note settings name a note or no template', () => {
     false,
   );
 });
+
+await test('a settings write names only the settings it changes', () => {
+  const validate = requestValidator('updatePreferences', 'body');
+  assert.ok(validate !== undefined);
+  assert.equal(validate({ appearance: 'dark', themeFamily: 'ink' }), true);
+  // The spell check is written alone, so it never carries a stale theme,
+  // and a theme write never carries a stale spell check (record 0103).
+  assert.equal(validate({ spellCheck: false }), true);
+  assert.equal(validate({ appearance: 'light' }), true);
+  assert.equal(
+    validate({ appearance: 'system', themeFamily: 'ink', spellCheck: true }),
+    true,
+  );
+  // A write that names nothing is not a write.
+  assert.equal(validate({}), false);
+  assert.equal(validate({ spellCheck: 'no' }), false);
+  assert.equal(validate({ spellCheck: true, language: 'en' }), false);
+});
