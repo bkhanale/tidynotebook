@@ -124,6 +124,7 @@ and needs no record.
 | [0092](0092-an-ordered-marker-keeps-its-preview-while-editing.md)             | An ordered marker keeps its preview while editing                               |
 | [0093](0093-the-tree-actions-are-one-row-of-icons.md)                         | The tree actions are one row of icons                                           |
 | [0094](0094-the-note-has-one-row-of-formatting-tools.md)                      | The note has one row of formatting tools                                        |
+| [0095](0095-a-table-is-a-grid-over-its-text.md)                               | A table is a grid over its text (proposed)                                      |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -341,3 +342,7 @@ person who does not know Markdown had no way to make a list, a heading or a
 table. Each tool runs the command of its key from one table in
 `packages/editor/src/keymaps.ts`. It refines record 0069, and it answers
 [issue 153](https://github.com/bkhanale/notesapp/issues/153).
+
+Record 0095 is proposed by [design 014](../design/014-a-table-is-a-grid.md). It
+keeps a table as text in the one editor and presents it as a grid, with one
+block wrapper that scrolls each table on its own. It refines record 0002.
