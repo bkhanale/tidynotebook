@@ -71,6 +71,13 @@
       "when": 1790272731478,
       "tag": "0009_daily_note_settings",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790275396498,
+      "tag": "0010_daily_note_layout",
+      "breakpoints": true
     }
   ]
 }

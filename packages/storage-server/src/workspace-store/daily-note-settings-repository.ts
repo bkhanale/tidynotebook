@@ -24,6 +24,8 @@ export function dailyNoteSettingsRepository(
         .select({
           templateFileId: dailyNoteSettings.templateFileId,
           openOnStart: dailyNoteSettings.openOnStart,
+          folder: dailyNoteSettings.folder,
+          format: dailyNoteSettings.format,
         })
         .from(dailyNoteSettings)
         .where(
@@ -35,7 +37,12 @@ export function dailyNoteSettingsRepository(
       const row = rows[0];
       return row === undefined
         ? null
-        : { templateFileId: row.templateFileId, openOnStart: row.openOnStart };
+        : {
+            templateFileId: row.templateFileId,
+            openOnStart: row.openOnStart,
+            folder: row.folder,
+            format: row.format,
+          };
     },
 
     async saveDailyNoteSettings(settings: DailyNoteSettings): Promise<void> {
@@ -48,12 +55,16 @@ export function dailyNoteSettingsRepository(
           accountId: actor.accountId,
           templateFileId: settings.templateFileId,
           openOnStart: settings.openOnStart,
+          folder: settings.folder,
+          format: settings.format,
         })
         .onConflictDoUpdate({
           target: [dailyNoteSettings.workspaceId, dailyNoteSettings.accountId],
           set: {
             templateFileId: settings.templateFileId,
             openOnStart: settings.openOnStart,
+            folder: settings.folder,
+            format: settings.format,
             updatedAt: sql`now()`,
           },
         });

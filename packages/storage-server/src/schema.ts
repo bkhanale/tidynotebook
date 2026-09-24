@@ -1016,6 +1016,9 @@ export const accountPreferences = pgTable('account_preferences', {
  * every row. The row policy binds a row to the account of the transaction, so
  * one member never reads the settings of another.
  *
+ * The folder and the format are the layout of record 0101. Their defaults are
+ * the fixed path of record 0099, so a row written before them keeps its path.
+ *
  * The template is a note of the same workspace. A permanent deletion of that
  * note removes its `files` row, and the reference then clears the template
  * column alone. Drizzle states that action as `set null` over both columns,
@@ -1029,6 +1032,10 @@ export const dailyNoteSettings = pgTable(
     accountId: uuid('account_id').notNull(),
     templateFileId: uuid('template_file_id'),
     openOnStart: boolean('open_on_start').notNull().default(false),
+    /** The folder of the daily notes, or an empty text for the top. */
+    folder: text('folder').notNull().default('Daily notes'),
+    /** The name format of a daily note, as the tokens of record 0101. */
+    format: text('format').notNull().default('YYYY-MM-DD'),
     updatedAt: timestamp('updated_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -1048,6 +1055,16 @@ export const dailyNoteSettings = pgTable(
     index('daily_note_settings_template_idx').on(
       table.workspaceId,
       table.templateFileId,
+    ),
+    // The contract bounds both texts, and the database holds the same bounds,
+    // so no statement can store a layout that no answer could carry.
+    check(
+      'daily_note_settings_folder_check',
+      sql`char_length(${table.folder}) <= 1024`,
+    ),
+    check(
+      'daily_note_settings_format_check',
+      sql`char_length(${table.format}) between 1 and 255`,
     ),
   ],
 );
