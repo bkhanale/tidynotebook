@@ -65,6 +65,8 @@ function fakeStore(
 ): WorkspaceStore {
   const tx: WorkspaceTransaction = {
     search: () => Promise.resolve([]),
+    dailyNoteSettings: () => Promise.resolve(null),
+    saveDailyNoteSettings: () => Promise.resolve(),
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     documents: () => Promise.resolve(new Map()),

@@ -84,6 +84,8 @@ class FakeWorkspace {
 function fakeStore(state: FakeWorkspace): WorkspaceStore {
   const tx: WorkspaceTransaction = {
     search: () => Promise.resolve([]),
+    dailyNoteSettings: () => Promise.resolve(null),
+    saveDailyNoteSettings: () => Promise.resolve(),
     backlinks: () => Promise.resolve([]),
     isAcceptedRevision: () => Promise.resolve(false),
     documents: (fileIds: readonly string[]) =>

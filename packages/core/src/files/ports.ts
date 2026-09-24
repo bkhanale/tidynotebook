@@ -18,6 +18,7 @@ import type {
   Result,
   SupersededHead,
 } from './model.ts';
+import type { DailyNoteSettings } from '../daily-notes/model.ts';
 import type { SearchHit } from '../search/service.ts';
 import type { Backlink } from './backlinks.ts';
 
@@ -317,6 +318,13 @@ export type WorkspaceTransaction = {
   takenPaths(paths: readonly string[]): Promise<readonly string[]>;
   /** One file of this workspace, or `null` when it holds no such file. */
   file(fileId: string): Promise<FileRecord | null>;
+  /**
+   * The daily note settings that the actor of this transaction keeps in this
+   * workspace, or `null` when the actor stored none (record 0099).
+   */
+  dailyNoteSettings(): Promise<DailyNoteSettings | null>;
+  /** Replaces the daily note settings of the actor of this transaction. */
+  saveDailyNoteSettings(settings: DailyNoteSettings): Promise<void>;
   /** One revision of this workspace, or `null` when it holds no such one. */
   revision(revisionId: string): Promise<RevisionRecord | null>;
   /** Searches the accepted live note index of this workspace. */

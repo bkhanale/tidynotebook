@@ -251,3 +251,21 @@ export type {
   PublishedAttachmentRequest,
 } from './publications/attachment-reference.ts';
 export { resolvePublishedAttachment } from './publications/attachment-reference.ts';
+export type { DailyNoteSettings } from './daily-notes/model.ts';
+export { defaultDailyNoteSettings } from './daily-notes/model.ts';
+export type { CalendarDate } from './daily-notes/path.ts';
+export {
+  dailyNoteDate,
+  dailyNoteFolder,
+  dailyNotePath,
+  daysInMonth,
+  formatCalendarDate,
+  isCalendarDate,
+  parseCalendarDate,
+  sameCalendarDate,
+} from './daily-notes/path.ts';
+export {
+  isTemplateNote,
+  readDailyNoteSettings,
+  updateDailyNoteSettings,
+} from './daily-notes/settings.ts';
