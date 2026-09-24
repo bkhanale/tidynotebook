@@ -641,40 +641,6 @@ function caretFilter(
 }
 
 /**
- * The ranges of the start document that the edit of a person may not change.
- *
- * They are the pipes, the delimiter row, and the line break and the lead
- * between two rows, of every table the edit meets. A table that one change
- * covers from its first line to its end is removed as a whole, so it keeps
- * nothing.
- */
-function protectedRanges(transaction: Transaction): readonly number[] | true {
-  if (!isEditOfAPerson(transaction)) return true;
-  const touched: Span[] = [];
-  transaction.changes.iterChangedRanges((fromA, toA) => {
-    touched.push({ from: fromA, to: toA });
-  });
-  if (touched.length === 0) return true;
-  const low = Math.min(...touched.map((span) => span.from));
-  const high = Math.max(...touched.map((span) => span.to));
-  const ranges: number[] = [];
-  for (const table of tablesIn(transaction.startState, low, high)) {
-    const start = table.rows[0]?.lineFrom ?? table.from;
-    if (touched.some((span) => span.from <= start && span.to >= table.to))
-      continue;
-    table.rows.forEach((row, index) => {
-      if (index > 0) {
-        const above = table.rows[index - 1];
-        if (above !== undefined) ranges.push(above.to, row.from);
-      }
-      if (row.kind === 'delimiter') ranges.push(row.from, row.to);
-      else for (const pipe of row.pipes) ranges.push(pipe.from, pipe.to);
-    });
-  }
-  return ranges.length === 0 ? true : ranges;
-}
-
-/**
  * The text a person writes into a cell, made to stay in that cell.
  *
  * A pipe that no backslash escapes would start a new cell, so it gets one. A
@@ -690,37 +656,266 @@ export function cellText(text: string, escaped: boolean): string {
   return out;
 }
 
-/** Keeps what a person types or pastes into a cell inside that cell. */
-function cellInputFilter(
+/** One change of a transaction, in the start document. */
+type EditChange = {
+  readonly from: number;
+  readonly to: number;
+  readonly insert: string;
+};
+
+/** The first line and the end of one table: the range its structure holds. */
+function tableRegion(table: TableBox): Span {
+  return { from: table.rows[0]?.lineFrom ?? table.from, to: table.to };
+}
+
+/** Whether a change stays inside the text of one cell and keeps it a cell. */
+function changeInCellText(
+  state: EditorState,
+  table: TableBox,
+  change: EditChange,
+): boolean {
+  const cell = gridRows(table)
+    .flatMap((row) => row.cells)
+    .find((box) => change.from >= box.textFrom && change.to <= box.textTo);
+  if (cell === undefined) return false;
+  const escaped = state.doc.sliceString(change.from - 1, change.from) === '\\';
+  if (cellText(change.insert, escaped) !== change.insert) return false;
+  // A cell that loses every character between its separators has no width,
+  // and the parser no longer reads it as a cell.
+  return (
+    cell.to - cell.from - (change.to - change.from) + change.insert.length > 0
+  );
+}
+
+/** The cell of a grid row that a position belongs to, for an insertion. */
+function ownerCell(
+  table: TableBox,
+  pos: number,
+): { readonly ref: CellRef; readonly cell: TableCellBox } | null {
+  const rows = gridRows(table);
+  const row = rowAt(table, pos);
+  if (row === null || row.kind === 'delimiter' || row.cells.length === 0)
+    return null;
+  const column = columnAt(row, pos);
+  const cell = row.cells[column];
+  if (cell === undefined) return null;
+  return { ref: { row: rows.indexOf(row), column }, cell };
+}
+
+/** The edit of one table, as new cell texts and the place of the caret. */
+type TableRewrite = {
+  readonly data: TableData;
+  /** The cell and the offset in its new text where the caret stands. */
+  readonly caret: { readonly ref: CellRef; readonly offset: number } | null;
+};
+
+/**
+ * The new text of every cell after changes that touch the structure.
+ *
+ * A change deletes the text of each cell it covers and nothing else, so the
+ * rows and the columns of the table stay. Its insertion lands in the cell of
+ * its start. The caret follows the main change.
+ */
+function rewriteCells(
+  state: EditorState,
+  table: TableBox,
+  changes: readonly EditChange[],
+  main: EditChange | null,
+): TableRewrite {
+  const data = tableData(state, table);
+  const rows = gridRows(table);
+  let caret: TableRewrite['caret'] = null;
+  const texts = rows.map((row, rowIndex) =>
+    data.alignments.map((_, column) => {
+      const cell = row.cells[column];
+      if (cell === undefined) return '';
+      let out = '';
+      let at = cell.textFrom;
+      for (const change of changes) {
+        const owner = ownerCell(table, change.from);
+        const owns =
+          owner !== null &&
+          owner.ref.row === rowIndex &&
+          owner.ref.column === column;
+        const deletes = change.to > cell.textFrom && change.from < cell.textTo;
+        if (!owns && !deletes) continue;
+        const from = Math.min(
+          Math.max(change.from, cell.textFrom),
+          cell.textTo,
+        );
+        const to = Math.min(Math.max(change.to, cell.textFrom), cell.textTo);
+        if (from > at) {
+          out += state.doc.sliceString(at, from);
+          at = from;
+        }
+        if (owns) out += cellText(change.insert, out.endsWith('\\'));
+        if (owns && change === main)
+          caret = { ref: { row: rowIndex, column }, offset: out.length };
+        at = Math.max(at, to);
+      }
+      out += state.doc.sliceString(at, cell.textTo);
+      // Spaces at either end are padding and not text of the cell.
+      if (
+        caret !== null &&
+        caret.ref.row === rowIndex &&
+        caret.ref.column === column
+      )
+        caret = {
+          ...caret,
+          offset: Math.min(
+            Math.max(0, caret.offset - (out.length - out.trimStart().length)),
+            out.trim().length,
+          ),
+        };
+      return out.trim();
+    }),
+  );
+  return {
+    data: { ...data, header: texts[0] ?? data.header, body: texts.slice(1) },
+    caret,
+  };
+}
+
+/**
+ * Keeps the structure of every table under the edit of a person.
+ *
+ * An edit inside the text of one cell passes as it is. An edit that reaches
+ * the padding, a separator, a line break of the table, the delimiter row, or
+ * more than one cell is expressed on the model instead: the text of the cells
+ * it covers changes, and the table is written again. A backspace can
+ * therefore empty a cell and never remove it, and a selection across cells
+ * clears them and keeps every row and column. Only a table command adds or
+ * removes a row or a column (record 0096).
+ *
+ * A change that covers a whole table removes it, as a person expects. The
+ * part of a change that lies outside a table applies as it is, except the line
+ * break that separates the table from the text beside it, which stays.
+ */
+function tableEditFilter(
   transaction: Transaction,
 ): TransactionSpec | readonly TransactionSpec[] {
+  if (!isEditOfAPerson(transaction) || transaction.changes.empty)
+    return transaction;
+  const start = transaction.startState;
+  const all: EditChange[] = [];
+  transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
+    all.push({ from: fromA, to: toA, insert: inserted.toString() });
+  });
+  const low = Math.min(...all.map((change) => change.from));
+  const high = Math.max(...all.map((change) => change.to));
+  const tables = tablesIn(start, Math.max(0, low - 1), high);
+  if (tables.length === 0) return transaction;
+
+  const head = start.selection.main.head;
+  const mainChange =
+    all.find((change) => head >= change.from && head <= change.to) ??
+    all[0] ??
+    null;
+  // Typing with several carets writes into the cell of the main one alone, as
+  // a spreadsheet writes into the active cell.
+  const typing = transaction.isUserEvent('input.type') && all.length > 1;
+
+  const kept: EditChange[] = [];
+  const rewrites = new Map<TableBox, EditChange[]>();
+  for (const change of all) {
+    if (typing && change !== mainChange) continue;
+    const table = tables.find((candidate) => {
+      const region = tableRegion(candidate);
+      return change.to >= region.from && change.from <= region.to;
+    });
+    if (table === undefined) {
+      kept.push(change);
+      continue;
+    }
+    const region = tableRegion(table);
+    if (
+      change.from <= region.from &&
+      change.to >= region.to &&
+      change.to > change.from
+    ) {
+      kept.push(change);
+      continue;
+    }
+    if (change.from < region.from) {
+      // Keep the line break before the table, so no text joins its header.
+      const to = Math.max(change.from, region.from - 1);
+      kept.push({ from: change.from, to, insert: change.insert });
+      const inside = { from: region.from, to: change.to, insert: '' };
+      rewrites.set(table, [...(rewrites.get(table) ?? []), inside]);
+      continue;
+    }
+    if (change.to > region.to) {
+      // Keep the line break after the table, so no text joins its last row.
+      const inside = {
+        from: change.from,
+        to: region.to,
+        insert: change.insert,
+      };
+      rewrites.set(table, [...(rewrites.get(table) ?? []), inside]);
+      const from = Math.min(change.to, region.to + 1);
+      if (change.to > from) kept.push({ from, to: change.to, insert: '' });
+      continue;
+    }
+    rewrites.set(table, [...(rewrites.get(table) ?? []), change]);
+  }
+
+  // The common case: every change of every table stays inside the text of
+  // one cell, so nothing is rewritten.
+  const plain = [...rewrites].every(([table, changes]) =>
+    changes.every((change) => changeInCellText(start, table, change)),
+  );
   if (
-    !transaction.isUserEvent('input.type') &&
-    !transaction.isUserEvent('input.paste') &&
-    !transaction.isUserEvent('input.drop')
+    plain &&
+    !typing &&
+    kept.length + [...rewrites.values()].flat().length === all.length
   )
     return transaction;
-  if (transaction.isUserEvent('input.type.compose')) return transaction;
-  const start = transaction.startState;
-  const changes: ChangeSpec[] = [];
-  let rewritten = false;
-  transaction.changes.iterChanges((fromA, toA, _fromB, _toB, inserted) => {
-    const text = inserted.toString();
-    if (/[\n|]/.test(text) && inTableCell(start, fromA)) {
-      const escaped = start.doc.sliceString(fromA - 1, fromA) === '\\';
-      const safe = cellText(text, escaped);
-      if (safe !== text) rewritten = true;
-      changes.push({ from: fromA, to: toA, insert: safe });
-      return;
-    }
-    changes.push({ from: fromA, to: toA, insert: text });
-  });
-  if (!rewritten) return transaction;
-  const set = start.changes(changes);
+
+  const specs: ChangeSpec[] = [...kept];
+  // Where the caret lands: an offset from the start of its table, which the
+  // changes before the table then move.
+  let caret: { readonly tableFrom: number; readonly offset: number } | null =
+    null;
+  for (const [table, changes] of rewrites) {
+    // The caret follows the main change into the table only when that change
+    // starts in the table. A change from the text above keeps its caret in
+    // that text.
+    const main =
+      mainChange !== null && mainChange.from >= tableRegion(table).from
+        ? changes.find(
+            (change) =>
+              change.from >= mainChange.from && change.to <= mainChange.to,
+          )
+        : undefined;
+    const rewrite = rewriteCells(start, table, changes, main ?? null);
+    const written = writeTable(rewrite.data);
+    specs.push(...tableChanges(start, table, written.text));
+    if (rewrite.caret !== null)
+      caret = {
+        tableFrom: table.from,
+        offset: written.cell(rewrite.caret.ref).from + rewrite.caret.offset,
+      };
+  }
+  const set = start.changes(specs);
   const userEvent = transaction.annotation(Transaction.userEvent);
   return {
     changes: set,
-    selection: start.selection.map(set, 1),
+    // A caret in a rewritten table stands where the model put it. The start
+    // of the table moves with the changes before it, and those are all kept
+    // changes outside it, so the start maps with them. A caret outside every
+    // table stands where the main change ends.
+    selection:
+      caret === null
+        ? mainChange === null
+          ? start.selection.map(set, 1)
+          : EditorSelection.create([
+              EditorSelection.cursor(set.mapPos(mainChange.from, 1)),
+            ])
+        : EditorSelection.create([
+            EditorSelection.cursor(
+              set.mapPos(caret.tableFrom, -1) + caret.offset,
+            ),
+          ]),
     ...(userEvent === undefined ? {} : { userEvent }),
     scrollIntoView: transaction.scrollIntoView,
   };
@@ -863,7 +1058,6 @@ export function tableGridView(): Extension {
 export function tableGridEditing(): Extension {
   return [
     EditorState.transactionFilter.of(caretFilter),
-    EditorState.transactionFilter.of(cellInputFilter),
-    EditorState.changeFilter.of(protectedRanges),
+    EditorState.transactionFilter.of(tableEditFilter),
   ];
 }

@@ -297,23 +297,157 @@ await test('a selected range and a move by a program keep their place', () => {
   assert.equal(program.head, 4);
 });
 
-await test('a deletion of a person keeps the separators of the table', () => {
-  const state = stateOf(aligned.replace('| a', '| ‸a'), true);
-  // Two backspaces from the start of `a` reach the space and the pipe.
-  const next = state.update({
-    changes: { from: 0, to: 2 },
-    userEvent: 'delete.backward',
-  }).state;
-  assert.equal(
-    next.doc.toString(),
-    `|a   | b   |\n| --- | --- |\n| 1   | 2   |`,
+/**
+ * The marked document after one edit of a person at `from` to `to`.
+ *
+ * The edit runs through the editing extensions, so the filters of the table
+ * decide what it does, as they do for a key press.
+ */
+function edited(
+  source: string,
+  change: {
+    readonly from: number;
+    readonly to: number;
+    readonly insert?: string;
+  },
+  userEvent: string,
+): string {
+  const state = stateOf(source, true);
+  const insert = change.insert ?? '';
+  return marked(
+    state.update({
+      changes: { from: change.from, to: change.to, insert },
+      selection: { anchor: change.from + insert.length },
+      userEvent,
+    }).state,
   );
-  // A range across two cells clears their text and keeps the separator.
-  const across = state.update({
-    changes: { from: 2, to: 9 },
-    userEvent: 'delete.selection',
-  }).state;
-  assert.equal(across.doc.toString(), `| |   |\n| --- | --- |\n| 1   | 2   |`);
+}
+
+/** Backspace at the caret of a marked source, `times` times. */
+function backspaces(source: string, times: number): string {
+  let current = source;
+  for (let index = 0; index < times; index += 1) {
+    const head = current.indexOf('‸');
+    if (head === 0) break;
+    current = edited(current, { from: head - 1, to: head }, 'delete.backward');
+  }
+  return current;
+}
+
+await test('Backspace through a cell empties it and never removes it', () => {
+  // The fault the owner met: the padding went after the text, the cell was
+  // left with no width, and the row lost it (record 0096).
+  const start = '| ab‸  | c   |\n| --- | --- |\n| 1   | 2   |';
+  assert.equal(
+    backspaces(start, 8),
+    '| ‸    | c   |\n| --- | --- |\n| 1   | 2   |',
+  );
+  const tight = '|a‸|b|\n|-|-|\n|1|2|';
+  assert.equal(
+    backspaces(tight, 3),
+    '| ‸    | b   |\n| --- | --- |\n| 1   | 2   |',
+  );
+});
+
+await test('Delete at the end of a cell keeps the next cell', () => {
+  const start = '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |';
+  let current = start;
+  for (let index = 0; index < 6; index += 1) {
+    const head = current.indexOf('‸');
+    current = edited(current, { from: head, to: head + 1 }, 'delete.forward');
+  }
+  assert.equal(current, start);
+});
+
+await test('a selection across two cells clears their text', () => {
+  const doc = aligned;
+  assert.equal(
+    edited(
+      `${doc}‸`,
+      { from: doc.indexOf('a'), to: doc.indexOf('b') + 1 },
+      'delete.selection',
+    ),
+    '| ‸    |     |\n| --- | --- |\n| 1   | 2   |',
+  );
+});
+
+await test('a selection across two rows clears their text and keeps both', () => {
+  const doc = aligned;
+  assert.equal(
+    edited(
+      `${doc}‸`,
+      { from: doc.indexOf('b'), to: doc.indexOf('1') + 1 },
+      'delete.selection',
+    ),
+    '| a   | ‸    |\n| --- | --- |\n|     | 2   |',
+  );
+});
+
+await test('a cut of a whole row leaves the row with empty cells', () => {
+  const doc = `${aligned}\n| 3   | 4   |`;
+  const row = doc.lastIndexOf('\n') + 1;
+  assert.equal(
+    edited(`${doc}‸`, { from: row, to: doc.length }, 'delete.cut'),
+    '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| ‸    |     |',
+  );
+});
+
+await test('a selection from the text above into a table keeps the table', () => {
+  const doc = `Intro\n\n${aligned}`;
+  assert.equal(
+    edited(
+      `${doc}‸`,
+      { from: 0, to: doc.indexOf('a') + 1 },
+      'delete.selection',
+    ),
+    '‸\n|     | b   |\n| --- | --- |\n| 1   | 2   |',
+  );
+});
+
+await test('a selection from a table into the text below keeps the table', () => {
+  const doc = `${aligned}\n\nOutro`;
+  assert.equal(
+    edited(
+      `${doc}‸`,
+      { from: doc.indexOf('2'), to: doc.indexOf('tro') },
+      'delete.selection',
+    ),
+    '| a   | b   |\n| --- | --- |\n| 1   | ‸    |\ntro',
+  );
+});
+
+await test('the line break between two rows and the delimiter row stay', () => {
+  const doc = aligned;
+  const text = (source: string): string => source.replace('‸', '');
+  const header = doc.indexOf('\n');
+  assert.equal(
+    text(
+      edited(`${doc}‸`, { from: header, to: header + 1 }, 'delete.backward'),
+    ),
+    aligned,
+  );
+  const delimiter = doc.indexOf('| ---');
+  assert.equal(
+    text(
+      edited(
+        `${doc}‸`,
+        { from: delimiter, to: delimiter + 13 },
+        'delete.selection',
+      ),
+    ),
+    aligned,
+  );
+});
+
+await test('typing inside the text of a cell is left as it is', () => {
+  // The common case is not rewritten, so it costs nothing and an IME or an
+  // undo meets the plain edit.
+  const doc = aligned;
+  const at = doc.indexOf('a') + 1;
+  assert.equal(
+    edited(`${doc}‸`, { from: at, to: at, insert: 'x' }, 'input.type'),
+    '| ax‸   | b   |\n| --- | --- |\n| 1   | 2   |',
+  );
 });
 
 await test('a deletion of the whole table removes it', () => {
@@ -335,25 +469,21 @@ await test('work of another device may change the separators', () => {
 });
 
 await test('a pipe typed into a cell is escaped', () => {
-  const state = stateOf(aligned.replace('| a', '| a‸'), true);
-  const at = aligned.indexOf('a') + 1;
-  const next = state.update({
-    changes: { from: at, insert: '|' },
-    selection: { anchor: at + 1 },
-    userEvent: 'input.type',
-  }).state;
-  assert.equal(marked(next).split('\n')[0], '| a\\|‸   | b   |');
+  const doc = aligned;
+  const at = doc.indexOf('a') + 1;
+  assert.equal(
+    edited(`${doc}‸`, { from: at, to: at, insert: '|' }, 'input.type'),
+    '| a\\|‸ | b   |\n| --- | --- |\n| 1   | 2   |',
+  );
 });
 
 await test('a pasted line break in a cell becomes a space', () => {
-  const state = stateOf(aligned.replace('| a', '| a‸'), true);
-  const at = aligned.indexOf('a') + 1;
-  const next = state.update({
-    changes: { from: at, insert: 'x\ny' },
-    selection: { anchor: at + 3 },
-    userEvent: 'input.paste',
-  }).state;
-  assert.equal(marked(next).split('\n')[0], '| ax y‸   | b   |');
+  const doc = aligned;
+  const at = doc.indexOf('a') + 1;
+  assert.equal(
+    edited(`${doc}‸`, { from: at, to: at, insert: 'x\ny' }, 'input.paste'),
+    '| ax y‸ | b   |\n| ---- | --- |\n| 1    | 2   |',
+  );
 });
 
 await test('text typed outside a table is left as it is', () => {
