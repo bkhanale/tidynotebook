@@ -432,6 +432,123 @@ export function LinkIcon(props: IconProps): ReactNode {
   );
 }
 
+/** A capital H, for a heading. */
+export function HeadingIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M6 5v14" />
+      <path d="M18 5v14" />
+      <path d="M6 12h12" />
+    </IconFrame>
+  );
+}
+
+/** A heavy capital B, for bold text. */
+export function BoldIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M7 5h5.5a3.5 3.5 0 0 1 0 7H7z" />
+      <path d="M7 12h6.5a3.5 3.5 0 0 1 0 7H7z" />
+    </IconFrame>
+  );
+}
+
+/** A slanted capital I, for italic text. */
+export function ItalicIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M10 5h8" />
+      <path d="M6 19h8" />
+      <path d="M14 5l-4 14" />
+    </IconFrame>
+  );
+}
+
+/** A capital S with a line through it, for struck through text. */
+export function StrikethroughIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M16.5 7.5C15.8 6 14.2 5 12 5 9.2 5 7.5 6.4 7.5 8.3c0 1.5 1 2.6 3.2 3.2" />
+      <path d="M4 12h16" />
+      <path d="M7.5 16.5C8.2 18 9.8 19 12 19c2.8 0 4.5-1.4 4.5-3.3 0-.9-.3-1.6-1-2.2" />
+    </IconFrame>
+  );
+}
+
+/** Two angle brackets, for inline code. */
+export function CodeIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <polyline points="8 7 3 12 8 17" />
+      <polyline points="16 7 21 12 16 17" />
+    </IconFrame>
+  );
+}
+
+/** Three lines with a dot before each, for a bullet list. */
+export function BulletListIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <circle cx="5" cy="6" r="1" />
+      <circle cx="5" cy="12" r="1" />
+      <circle cx="5" cy="18" r="1" />
+      <path d="M10 6h10" />
+      <path d="M10 12h10" />
+      <path d="M10 18h10" />
+    </IconFrame>
+  );
+}
+
+/** Three lines with a number before them, for an ordered list. */
+export function OrderedListIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 5h1v5" />
+      <path d="M4 10h2" />
+      <path d="M4 15.5c0-.8.7-1.5 1.5-1.5S7 14.6 7 15.4c0 1.4-3 2-3 3.6h3" />
+      <path d="M11 6h9" />
+      <path d="M11 12h9" />
+      <path d="M11 18h9" />
+    </IconFrame>
+  );
+}
+
+/** Two ticked boxes with lines, for a task list. */
+export function TaskListIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="4" width="6" height="6" rx="1" />
+      <polyline points="4.5 7 5.6 8.1 7.5 6" />
+      <rect x="3" y="14" width="6" height="6" rx="1" />
+      <path d="M13 7h8" />
+      <path d="M13 17h8" />
+    </IconFrame>
+  );
+}
+
+/** A bar beside three lines, for a block quote. */
+export function QuoteIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 5v14" />
+      <path d="M9 7h11" />
+      <path d="M9 12h11" />
+      <path d="M9 17h7" />
+    </IconFrame>
+  );
+}
+
+/** A grid of two columns under a header row, for a table. */
+export function TableIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M12 4v16" />
+    </IconFrame>
+  );
+}
+
 /** A check mark icon. */
 export function CheckIcon(props: IconProps): ReactNode {
   return (

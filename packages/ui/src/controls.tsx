@@ -47,6 +47,7 @@ export function Button({
   buttonRef,
   ariaControls,
   ariaExpanded,
+  tabIndex,
   compact = false,
 }: {
   readonly type?: 'button' | 'submit' | undefined;
@@ -63,6 +64,11 @@ export function Button({
   readonly buttonRef?: Ref<HTMLButtonElement> | undefined;
   readonly ariaControls?: string | undefined;
   readonly ariaExpanded?: boolean | undefined;
+  /**
+   * The place of the button in the tab order. A group with one tab stop,
+   * such as a toolbar, passes -1 to every button but the one in reach.
+   */
+  readonly tabIndex?: number | undefined;
   /** Keeps the touch target and draws a smaller surface inside it. */
   readonly compact?: boolean | undefined;
 }): ReactNode {
@@ -101,6 +107,7 @@ export function Button({
       aria-label={name.ariaLabel}
       aria-controls={ariaControls}
       aria-expanded={ariaExpanded}
+      tabIndex={tabIndex}
       title={name.title}
     >
       {compact ? (
