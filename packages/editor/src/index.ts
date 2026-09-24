@@ -43,14 +43,22 @@ export type {
   FormatAction,
   FormatActionId,
   FormatScope,
+  TableActionId,
 } from './keymaps.ts';
 export {
   formatActionApplies,
   formatActionOf,
   formatActions,
   runFormatAction,
+  runTableAction,
   shortcuts,
 } from './keymaps.ts';
+export type {
+  ScreenRect,
+  TableMenuOpener,
+  TableMenuRequest,
+} from './table-controls.ts';
+export { tableControlLabels } from './table-controls.ts';
 export type { FormatContext } from './table-grid.ts';
 export { outsideTable } from './table-grid.ts';
 export { htmlToMarkdown } from './paste.ts';

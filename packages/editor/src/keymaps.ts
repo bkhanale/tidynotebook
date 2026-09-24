@@ -30,8 +30,11 @@ import { editingTransaction } from './commands.ts';
 import {
   addColumnEdit,
   addRowEdit,
+  alignColumnEdit,
   cellAboveEdit,
   cellBelowEdit,
+  insertColumnLeftEdit,
+  insertRowAboveEdit,
   inTableCell,
   nextCellEdit,
   previousCellEdit,
@@ -42,6 +45,7 @@ import {
   tablesIn,
   writeTable,
   type FormatContext,
+  type TableEdit,
 } from './table-grid.ts';
 
 /** One row of the shortcut table that the shell renders. */
@@ -909,18 +913,6 @@ export const tableCellBelow = tableCommand(cellBelowEdit);
 /** Moves to the cell above. */
 export const tableCellAbove = tableCommand(cellAboveEdit);
 
-/** Adds a row under the row of the caret. */
-export const addTableRow = tableCommand(addRowEdit);
-
-/** Adds a column after the column of the caret. */
-export const addTableColumn = tableCommand(addColumnEdit);
-
-/** Removes the body row of the caret. */
-export const removeTableRow = tableCommand(removeRowEdit);
-
-/** Removes the column of the caret. */
-export const removeTableColumn = tableCommand(removeColumnEdit);
-
 /** Opens a line under a table that ends the note. */
 export const leaveTableBelow = dispatching(leaveTableBelowSpec);
 
@@ -950,10 +942,66 @@ export type FormatActionId =
   | 'task-list'
   | 'quote'
   | 'table'
-  | 'table-add-row'
-  | 'table-add-column'
-  | 'table-remove-row'
-  | 'table-remove-column';
+  | TableActionId;
+
+/** Every action on the rows and the columns of a table. */
+export type TableActionId =
+  | 'table-row-above'
+  | 'table-row-below'
+  | 'table-column-left'
+  | 'table-column-right'
+  | 'table-delete-row'
+  | 'table-delete-column'
+  | 'table-align-left'
+  | 'table-align-center'
+  | 'table-align-right';
+
+/**
+ * The edit of each table action, and its name.
+ *
+ * The command palette runs one at the caret, and the menu of a row or a
+ * column runs one at the cell of its handle (record 0097), so both run one
+ * edit of `table-grid.ts`.
+ */
+const tableActionRows: readonly {
+  readonly id: TableActionId;
+  readonly label: string;
+  readonly edit: TableEdit;
+}[] = [
+  {
+    id: 'table-row-above',
+    label: 'Insert row above',
+    edit: insertRowAboveEdit,
+  },
+  { id: 'table-row-below', label: 'Insert row below', edit: addRowEdit },
+  {
+    id: 'table-column-left',
+    label: 'Insert column left',
+    edit: insertColumnLeftEdit,
+  },
+  {
+    id: 'table-column-right',
+    label: 'Insert column right',
+    edit: addColumnEdit,
+  },
+  { id: 'table-delete-row', label: 'Delete row', edit: removeRowEdit },
+  { id: 'table-delete-column', label: 'Delete column', edit: removeColumnEdit },
+  {
+    id: 'table-align-left',
+    label: 'Align left',
+    edit: alignColumnEdit('left'),
+  },
+  {
+    id: 'table-align-center',
+    label: 'Align center',
+    edit: alignColumnEdit('center'),
+  },
+  {
+    id: 'table-align-right',
+    label: 'Align right',
+    edit: alignColumnEdit('right'),
+  },
+];
 
 /**
  * Where a format action applies.
@@ -1085,27 +1133,14 @@ export const formatActions: readonly FormatAction[] = [
   ),
   formatAction('quote', 'Block quote', 'Mod-Shift-.', toggleQuote, 'block'),
   formatAction('table', 'Table', null, insertTable, 'block'),
-  formatAction('table-add-row', 'Add a row', null, addTableRow, 'table'),
-  formatAction(
-    'table-add-column',
-    'Add a column',
-    null,
-    addTableColumn,
-    'table',
-  ),
-  formatAction(
-    'table-remove-row',
-    'Remove the row',
-    null,
-    removeTableRow,
-    'table',
-  ),
-  formatAction(
-    'table-remove-column',
-    'Remove the column',
-    null,
-    removeTableColumn,
-    'table',
+  ...tableActionRows.map((row) =>
+    formatAction(
+      row.id,
+      row.label,
+      null,
+      dispatching((state) => tableEditSpec(state, row.edit)),
+      'table',
+    ),
   ),
 ];
 
@@ -1123,9 +1158,28 @@ export function formatActionApplies(
   if (action.scope === 'block') return !context.table;
   if (action.scope === 'inline') return true;
   if (!context.table) return false;
-  if (action.id === 'table-remove-row') return context.bodyRow;
-  if (action.id === 'table-remove-column') return context.columns > 1;
+  if (action.id === 'table-row-above') return context.bodyRow;
+  if (action.id === 'table-delete-row') return context.bodyRow;
+  if (action.id === 'table-delete-column') return context.columns > 1;
   return true;
+}
+
+/**
+ * Runs one table action on the cell at `pos`, for the menu of a row or a
+ * column, whose handle names its cell wherever the caret is.
+ */
+export function runTableAction(
+  view: EditorView,
+  id: TableActionId,
+  pos: number,
+): boolean {
+  if (view.state.readOnly) return false;
+  const row = tableActionRows.find((candidate) => candidate.id === id);
+  if (row === undefined) return false;
+  const spec = tableEditSpec(view.state, row.edit, pos);
+  if (spec !== null) view.dispatch(view.state.update(editingTransaction(spec)));
+  view.focus();
+  return spec !== null;
 }
 
 /**

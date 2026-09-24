@@ -15,6 +15,9 @@ import { noteMarkdownExtensions } from './language.ts';
 import {
   addColumnEdit,
   addRowEdit,
+  alignColumnEdit,
+  insertColumnLeftEdit,
+  insertRowAboveEdit,
   removeColumnEdit,
   removeRowEdit,
   tableEditSpec,
@@ -539,7 +542,18 @@ const formatCases: Readonly<
       '| Name | «Column 2» |\n| ---- | -------- |\n|      |          |\n\n',
     ],
   },
-  'table-add-row': {
+  'table-row-above': {
+    spec: (state) => tableEditSpec(state, insertRowAboveEdit),
+    empty: [
+      '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |',
+      '| a   | b   |\n| --- | --- |\n| ‸    |     |\n| 1   | 2   |',
+    ],
+    filled: [
+      '| a   | b   |\n| --- | --- |\n| «1»   | 2   |',
+      '| a   | b   |\n| --- | --- |\n| ‸    |     |\n| 1   | 2   |',
+    ],
+  },
+  'table-row-below': {
     spec: (state) => tableEditSpec(state, addRowEdit),
     empty: [
       '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |',
@@ -550,7 +564,18 @@ const formatCases: Readonly<
       '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| ‸    |     |',
     ],
   },
-  'table-add-column': {
+  'table-column-left': {
+    spec: (state) => tableEditSpec(state, insertColumnLeftEdit),
+    empty: [
+      '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |',
+      '| ‸    | a   | b   |\n| --- | --- | --- |\n|     | 1   | 2   |',
+    ],
+    filled: [
+      '| «a»   | b   |\n| --- | --- |\n| 1   | 2   |',
+      '| ‸    | a   | b   |\n| --- | --- | --- |\n|     | 1   | 2   |',
+    ],
+  },
+  'table-column-right': {
     spec: (state) => tableEditSpec(state, addColumnEdit),
     empty: [
       '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |',
@@ -561,7 +586,7 @@ const formatCases: Readonly<
       '| a   | ‸    | b   |\n| --- | --- | --- |\n| 1   |     | 2   |',
     ],
   },
-  'table-remove-row': {
+  'table-delete-row': {
     spec: (state) => tableEditSpec(state, removeRowEdit),
     empty: [
       '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |',
@@ -572,7 +597,7 @@ const formatCases: Readonly<
       '| a‸   | b   |\n| --- | --- |',
     ],
   },
-  'table-remove-column': {
+  'table-delete-column': {
     spec: (state) => tableEditSpec(state, removeColumnEdit),
     empty: [
       '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
@@ -581,6 +606,39 @@ const formatCases: Readonly<
     filled: [
       '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
       '| a‸   |\n| --- |\n| 1   |',
+    ],
+  },
+  'table-align-left': {
+    spec: (state) => tableEditSpec(state, alignColumnEdit('left')),
+    empty: [
+      '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | b‸   |\n| --- | :-- |\n| 1   | 2   |',
+    ],
+    filled: [
+      '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | b‸   |\n| --- | :-- |\n| 1   | 2   |',
+    ],
+  },
+  'table-align-center': {
+    spec: (state) => tableEditSpec(state, alignColumnEdit('center')),
+    empty: [
+      '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | b‸   |\n| --- | :-: |\n| 1   | 2   |',
+    ],
+    filled: [
+      '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | b‸   |\n| --- | :-: |\n| 1   | 2   |',
+    ],
+  },
+  'table-align-right': {
+    spec: (state) => tableEditSpec(state, alignColumnEdit('right')),
+    empty: [
+      '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | b‸   |\n| --- | --: |\n| 1   | 2   |',
+    ],
+    filled: [
+      '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+      '| a   | b‸   |\n| --- | --: |\n| 1   | 2   |',
     ],
   },
 };

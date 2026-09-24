@@ -14,12 +14,16 @@ import {
 } from '@codemirror/state';
 import { noteMarkdownExtensions } from './language.ts';
 import {
+  alignColumnEdit,
+  insertColumnLeftEdit,
+  insertRowAboveEdit,
   addColumnAtEndEdit,
   addColumnEdit,
   addRowAtEndEdit,
   cellAboveEdit,
   cellBelowEdit,
   cellText,
+  pastedCells,
   formatContextOf,
   gridParts,
   nextCellEdit,
@@ -509,11 +513,13 @@ await test('the format context states the row and the columns of the caret', () 
     table: true,
     bodyRow: false,
     columns: 2,
+    align: null,
   });
   assert.deepEqual(formatContextOf(stateOf(aligned.replace('| 1', '| 1‸'))), {
     table: true,
     bodyRow: true,
     columns: 2,
+    align: null,
   });
 });
 
@@ -574,5 +580,87 @@ await test('a space typed at the end of a cell stays before the next text', () =
   assert.equal(
     edited(spaced, { from: head, to: head, insert: '|' }, 'input.type'),
     '| a \\|‸ | b   |\n| ---- | --- |\n| 1    | 2   |',
+  );
+});
+
+await test('pasted text that holds cells is read as rows of cells', () => {
+  // A copied row of this editor, a copied table, and a range of a
+  // spreadsheet, which arrives with tabs.
+  assert.deepEqual(pastedCells('Alice | Engineer | Core'), [
+    ['Alice', 'Engineer', 'Core'],
+  ]);
+  assert.deepEqual(
+    pastedCells('| a   | b   |\n| --- | --- |\n| 1   | 2   |\n'),
+    [
+      ['a', 'b'],
+      ['1', '2'],
+    ],
+  );
+  assert.deepEqual(pastedCells('x\ty\r\nz\tw'), [
+    ['x', 'y'],
+    ['z', 'w'],
+  ]);
+  // An escaped pipe is text of its cell.
+  assert.deepEqual(pastedCells('a \\| b | c'), [['a \\| b', 'c']]);
+  // Text of one cell is not a grid, even with line breaks: a paragraph
+  // pasted into a cell stays in that cell.
+  assert.equal(pastedCells('plain words'), null);
+  assert.equal(pastedCells('two\nlines'), null);
+});
+
+await test('a copied row pasted into a row fills its cells', () => {
+  const doc = `${aligned}\n| 3   | 4   |`;
+  const at = doc.lastIndexOf('| 3') + 2;
+  assert.equal(
+    edited(
+      `${doc}‸`,
+      { from: at, to: at + 1, insert: '| x   | y   |' },
+      'input.paste',
+    ),
+    '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| x   | y‸   |',
+  );
+});
+
+await test('a paste of more cells than the table holds grows the table', () => {
+  const doc = aligned;
+  const at = doc.indexOf('2');
+  assert.equal(
+    edited(
+      `${doc}‸`,
+      { from: at, to: at + 1, insert: 'p\tq\nr\ts' },
+      'input.paste',
+    ),
+    '| a   | b   |     |\n| --- | --- | --- |\n| 1   | p   | q   |\n|     | r   | s‸   |',
+  );
+});
+
+await test('a row goes above the row of the caret, never above the header', () => {
+  const body = stateOf('| a   | b   |\n| --- | --- |\n| 1‸   | 2   |');
+  assert.equal(
+    applied(body, tableEditSpec(body, insertRowAboveEdit)),
+    '| a   | b   |\n| --- | --- |\n| ‸    |     |\n| 1   | 2   |',
+  );
+  const header = stateOf('| a‸   | b   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(tableEditSpec(header, insertRowAboveEdit), null);
+});
+
+await test('a column goes left of the column of the caret', () => {
+  const state = stateOf('| a‸   | b   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(
+    applied(state, tableEditSpec(state, insertColumnLeftEdit)),
+    '| ‸    | a   | b   |\n| --- | --- | --- |\n|     | 1   | 2   |',
+  );
+});
+
+await test('a column takes the alignment a person sets', () => {
+  const state = stateOf('| a   | b‸   |\n| --- | --- |\n| 1   | 2   |');
+  assert.equal(
+    applied(state, tableEditSpec(state, alignColumnEdit('right'))),
+    '| a   | b‸   |\n| --- | --: |\n| 1   | 2   |',
+  );
+  const centred = stateOf('| a   | b‸   |\n| --- | --: |\n| 1   | 2   |');
+  assert.equal(
+    applied(centred, tableEditSpec(centred, alignColumnEdit(null))),
+    '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
   );
 });

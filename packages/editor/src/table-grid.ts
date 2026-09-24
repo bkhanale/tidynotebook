@@ -389,7 +389,10 @@ type TableEditResult = {
 };
 
 /** One table command, as a change of the data at one cell. */
-type TableEdit = (data: TableData, at: CellRef) => TableEditResult | null;
+export type TableEdit = (
+  data: TableData,
+  at: CellRef,
+) => TableEditResult | null;
 
 /**
  * The transaction of one table command at the main selection.
@@ -501,25 +504,58 @@ export const removeRowEdit: TableEdit = (data, at) => {
   };
 };
 
-/** Adds an empty column after the column of the caret. */
-export const addColumnEdit: TableEdit = (data, at) => {
-  const index = at.column + 1;
+/** The data with one more empty column at `index`. */
+function withColumn(data: TableData, index: number): TableData {
   const insert = <T>(cells: readonly T[], value: T): readonly T[] => [
     ...cells.slice(0, index),
     value,
     ...cells.slice(index),
   ];
   return {
-    data: {
-      ...data,
-      alignments: insert(data.alignments, null),
-      header: insert(data.header, ''),
-      body: data.body.map((row) => insert(row, '')),
-    },
-    target: { row: 0, column: index },
+    ...data,
+    alignments: insert(data.alignments, null),
+    header: insert(data.header, ''),
+    body: data.body.map((row) => insert(row, '')),
+  };
+}
+
+/** Adds an empty column after the column of the caret. */
+export const addColumnEdit: TableEdit = (data, at) => ({
+  data: withColumn(data, at.column + 1),
+  target: { row: 0, column: at.column + 1 },
+  select: 'end',
+});
+
+/** Adds an empty row over the body row of the caret. The header stays first. */
+export const insertRowAboveEdit: TableEdit = (data, at) => {
+  if (at.row === 0) return null;
+  return {
+    data: withRow(data, at.row - 1),
+    target: { row: at.row, column: at.column },
     select: 'end',
   };
 };
+
+/** Adds an empty column before the column of the caret. */
+export const insertColumnLeftEdit: TableEdit = (data, at) => ({
+  data: withColumn(data, at.column),
+  target: { row: 0, column: at.column },
+  select: 'end',
+});
+
+/** Sets the alignment of the column of the caret. */
+export function alignColumnEdit(align: ColumnAlign): TableEdit {
+  return (data, at) => ({
+    data: {
+      ...data,
+      alignments: data.alignments.map((current, column) =>
+        column === at.column ? align : current,
+      ),
+    },
+    target: at,
+    select: 'end',
+  });
+}
 
 /** Removes the column of the caret. The last column stays. */
 export const removeColumnEdit: TableEdit = (data, at) => {
@@ -671,6 +707,96 @@ export function cellText(text: string, escaped: boolean): string {
     previousBackslash = char === '\\' && !previousBackslash;
   }
   return out;
+}
+
+/** A delimiter row of a pasted table, which states no cell of its own. */
+const pastedDelimiterRow = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/** The cells of one pasted line: tab separated, or pipe separated. */
+function pastedLine(line: string): readonly string[] {
+  if (line.includes('\t')) return line.split('\t').map((cell) => cell.trim());
+  const cells: string[] = [];
+  let cell = '';
+  let escaped = false;
+  for (const char of line) {
+    if (char === '|' && !escaped) {
+      cells.push(cell);
+      cell = '';
+    } else cell += char;
+    escaped = char === '\\' && !escaped;
+  }
+  cells.push(cell);
+  // The pipes at the edges of a row start and end it and hold no cell.
+  const trimmed = line.trim();
+  if (trimmed.startsWith('|') && cells.length > 1) cells.shift();
+  if (trimmed.endsWith('|') && !trimmed.endsWith('\\|') && cells.length > 1)
+    cells.pop();
+  return cells.map((text) => text.trim());
+}
+
+/**
+ * The rows of cells that pasted text holds, or null for the text of one cell.
+ *
+ * Text holds cells when it has a tab or a pipe that no backslash escapes.
+ * That is a row copied from a table of a note, a whole table, and a range
+ * copied from a spreadsheet, which separates its cells with tabs. Plain text
+ * with line breaks holds no cells: it is text for the one cell, and its lines
+ * join there. The delimiter row of a pasted table is left out, because the
+ * columns of the table it lands in already have one.
+ */
+export function pastedCells(
+  text: string,
+): readonly (readonly string[])[] | null {
+  const lines = text
+    .replaceAll(/\r\n?/g, '\n')
+    .replace(/\n+$/, '')
+    .split('\n')
+    .filter((line) => !pastedDelimiterRow.test(line) || !line.includes('-'));
+  const rows = lines.map(pastedLine);
+  if (!rows.some((row) => row.length > 1)) return null;
+  return rows;
+}
+
+/**
+ * Writes pasted rows of cells into a table from one cell to the right and
+ * down, as a spreadsheet pastes a range. The table grows by the rows and the
+ * columns the paste needs, and the caret stands after the last cell written.
+ */
+function pasteIntoTable(
+  data: TableData,
+  at: CellRef,
+  cells: readonly (readonly string[])[],
+): { readonly data: TableData; readonly target: CellRef } {
+  const width = Math.max(...cells.map((row) => row.length));
+  const columns = Math.max(data.alignments.length, at.column + width);
+  const rows = [data.header, ...data.body].map((row) =>
+    Array.from({ length: columns }, (_, column) => row[column] ?? ''),
+  );
+  while (rows.length < at.row + cells.length)
+    rows.push(Array.from({ length: columns }, () => ''));
+  cells.forEach((row, offset) => {
+    const target = rows[at.row + offset];
+    if (target === undefined) return;
+    row.forEach((text, column) => {
+      target[at.column + column] = cellText(text, false);
+    });
+  });
+  const last = cells[cells.length - 1] ?? [];
+  return {
+    data: {
+      ...data,
+      alignments: Array.from(
+        { length: columns },
+        (_, column) => data.alignments[column] ?? null,
+      ),
+      header: rows[0] ?? data.header,
+      body: rows.slice(1),
+    },
+    target: {
+      row: at.row + cells.length - 1,
+      column: at.column + Math.max(0, last.length - 1),
+    },
+  };
 }
 
 /** One change of a transaction, in the start document. */
@@ -918,7 +1044,32 @@ function tableEditFilter(
               change.from >= mainChange.from && change.to <= mainChange.to,
           )
         : undefined;
-    const rewrite = rewriteCells(start, table, changes, main ?? null);
+    // A paste of rows of cells fills the cells from the cell of the caret,
+    // as a spreadsheet pastes a range. Its own text then takes no part in the
+    // rewrite of the cells it covers.
+    const cells =
+      main !== undefined && transaction.isUserEvent('input.paste')
+        ? pastedCells(main.insert)
+        : null;
+    const owner = main === undefined ? null : ownerCell(table, main.from);
+    const grid = cells !== null && owner !== null ? cells : null;
+    const rewrite = rewriteCells(
+      start,
+      table,
+      grid === null
+        ? changes
+        : changes.map((change) =>
+            change === main ? { ...change, insert: '' } : change,
+          ),
+      grid === null ? (main ?? null) : null,
+    );
+    if (grid !== null && owner !== null) {
+      const pasted = pasteIntoTable(rewrite.data, owner.ref, grid);
+      const written = writeTable(pasted.data);
+      specs.push(...tableChanges(start, table, written.text));
+      caret = { tableFrom: table.from, offset: written.cell(pasted.target).to };
+      continue;
+    }
     const written = writeTable(rewrite.data);
     specs.push(...tableChanges(start, table, written.text));
     if (rewrite.caret !== null)
@@ -963,6 +1114,8 @@ export type FormatContext = {
   readonly table: boolean;
   readonly bodyRow: boolean;
   readonly columns: number;
+  /** The alignment of the column, which a menu marks as the one in force. */
+  readonly align: ColumnAlign;
 };
 
 /** The format context of a caret outside every table. */
@@ -970,20 +1123,27 @@ export const outsideTable: FormatContext = {
   table: false,
   bodyRow: false,
   columns: 0,
+  align: null,
 };
 
-/** The format context of one state. */
-export function formatContextOf(state: EditorState): FormatContext {
-  const head = state.selection.main.head;
-  if (!inTableCell(state, head)) return outsideTable;
-  const table = tableAt(state, head);
-  const cell = table === null ? null : cellAt(table, head);
+/** The format context of one position of a state. */
+export function tableContextAt(state: EditorState, pos: number): FormatContext {
+  if (!inTableCell(state, pos)) return outsideTable;
+  const table = tableAt(state, pos);
+  const cell = table === null ? null : cellAt(table, pos);
   if (table === null || cell === null) return outsideTable;
+  const data = tableData(state, table);
   return {
     table: true,
     bodyRow: cell.row > 0,
-    columns: tableData(state, table).alignments.length,
+    columns: data.alignments.length,
+    align: data.alignments[cell.column] ?? null,
   };
+}
+
+/** The format context of the caret of one state. */
+export function formatContextOf(state: EditorState): FormatContext {
+  return tableContextAt(state, state.selection.main.head);
 }
 
 /** Whether two format contexts state the same place. */
@@ -994,7 +1154,8 @@ export function sameFormatContext(
   return (
     left.table === right.table &&
     left.bodyRow === right.bodyRow &&
-    left.columns === right.columns
+    left.columns === right.columns &&
+    left.align === right.align
   );
 }
 
