@@ -131,6 +131,7 @@ and needs no record.
 | [0099](0099-a-daily-note-is-a-dated-note-and-its-settings-belong-to-the-member.md) | A daily note is a dated note and its settings belong to the member              |
 | [0100](0100-the-calendar-is-a-section-of-the-sidebar.md)                           | The calendar is a section of the sidebar                                        |
 | [0101](0101-a-daily-note-takes-its-path-from-a-folder-and-a-name-format.md)        | A daily note takes its path from a folder and a name format                     |
+| [0102](0102-a-template-fills-its-placeholders-once.md)                             | A template fills its placeholders once                                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -383,3 +384,7 @@ page. The two settings move to the Settings page. It refines records 0093 and 00
 Record 0101 makes the folder and the name of a daily note two settings of the
 member, with the date tokens of Obsidian, because the owner asked for the
 layout of Obsidian. It refines record 0099.
+
+Record 0102 lets a template write the date and the name of a new daily note
+through placeholders in double braces, filled once when the note is made. It
+replaces the placeholder bullet of record 0099.
