@@ -179,16 +179,31 @@ export function CommandPalette({
       ?.scrollIntoView({ block: 'nearest' });
   }, [open, selected, rows]);
 
+  // The row a person chose. It runs once the dialog has closed, and not in the
+  // press that chose it. The dialog makes the page inert while it is open and
+  // gives the focus back to what opened it as it closes, so an action that
+  // ran inside the dialog could not take the focus: a format action lost the
+  // caret of the note, and a dialog that an action opened lost its field.
+  // React runs the clean up of the dialog that closes before the effects of
+  // the same commit, so this effect runs on a page that is live again, with
+  // the focus back where it was.
+  const [chosen, setChosen] = useState<Row | null>(null);
+  useEffect(() => {
+    if (open || chosen === null) return;
+    setChosen(null);
+    if (chosen.kind === 'note') {
+      void navigate(`/w/${workspaceId}/notes/${chosen.match.fileId}`);
+      return;
+    }
+    chosen.action.run();
+  }, [open, chosen, navigate, workspaceId]);
+
   if (!open) return null;
 
   const run = (row: Row | undefined): void => {
     if (row === undefined) return;
+    setChosen(row);
     onOpenChange(false);
-    if (row.kind === 'note') {
-      void navigate(`/w/${workspaceId}/notes/${row.match.fileId}`);
-      return;
-    }
-    row.action.run();
   };
 
   const activeId = rows[selected]?.id;

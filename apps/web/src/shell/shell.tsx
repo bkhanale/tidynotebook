@@ -1572,10 +1572,8 @@ function ShellFrame({
                 ]),
             // Every tool of the row of formatting tools is a row here as
             // well, from the one list of `lib/format-toolbar.ts` (record
-            // 0094). The palette makes the page inert while it is open and
-            // gives the focus back to what opened it when it closes, so the
-            // action waits for the frame after the close, and the editor
-            // then takes the focus.
+            // 0094). The palette runs an action after it has closed, so the
+            // editor takes the focus back.
             ...(noteActions.format === null
               ? []
               : formatPaletteRows().map((row) => ({
@@ -1585,10 +1583,7 @@ function ShellFrame({
                   icon: row.icon,
                   keys: row.keys,
                   run: (): void => {
-                    const format = noteActions.format;
-                    window.requestAnimationFrame(() => {
-                      format?.(row.action);
-                    });
+                    noteActions.format?.(row.action);
                   },
                 }))),
             ...(noteActions.deleteAndLeave === null
