@@ -44,6 +44,7 @@ import {
 } from './table-grid.ts';
 import { tableMenuOpener, type TableMenuOpener } from './table-controls.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
+import { spellCheck } from './spell-check.ts';
 
 /** Optional behavior beyond the required creation signature. */
 export type CreateEditorOptions = {
@@ -53,6 +54,12 @@ export type CreateEditorOptions = {
   readonly onSave?: (() => void) | undefined;
   /** Read-only rendering, for a preview that must not be edited. */
   readonly readOnly?: boolean | undefined;
+  /**
+   * Asks the browser to check the spelling of the prose (record 0103). Off
+   * when absent, so History and a diff show no marks. Later changes use
+   * `setEditorSpellCheck` without rebuild.
+   */
+  readonly spellCheck?: boolean | undefined;
   /** Starting palette. Later changes use `setEditorTheme` without rebuild. */
   readonly theme?: 'light' | 'dark' | undefined;
   /**
@@ -110,6 +117,9 @@ const richCompartment = new Compartment();
 
 /** The access compartment, so a loaded role can unlock the same editor. */
 const readOnlyCompartment = new Compartment();
+
+/** The spell check compartment, so the setting never rebuilds the editor. */
+const spellCheckCompartment = new Compartment();
 
 /**
  * The live preview half of the editor.
@@ -245,6 +255,7 @@ export function createEditor(
       // it must not declare a second text box (UI-26, MD-19).
       EditorView.contentAttributes.of({ 'aria-label': 'Note text' }),
       readOnlyCompartment.of(EditorState.readOnly.of(readOnly)),
+      spellCheckCompartment.of(spellCheck(options.spellCheck ?? false)),
     ],
   });
 
@@ -279,6 +290,18 @@ export function setEditorTheme(
 export function setEditorReadOnly(view: EditorView, readOnly: boolean): void {
   view.dispatch({
     effects: readOnlyCompartment.reconfigure(EditorState.readOnly.of(readOnly)),
+  });
+}
+
+/**
+ * Turns the spell check of the browser on or off without a rebuild.
+ *
+ * Only the spell check compartment is reconfigured, so the document, undo
+ * history, selection, and any active IME composition stay where they are.
+ */
+export function setEditorSpellCheck(view: EditorView, enabled: boolean): void {
+  view.dispatch({
+    effects: spellCheckCompartment.reconfigure(spellCheck(enabled)),
   });
 }
 

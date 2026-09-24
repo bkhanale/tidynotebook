@@ -27,6 +27,7 @@ export {
   livePreviewExtensions,
   setEditorReadOnly,
   setEditorRich,
+  setEditorSpellCheck,
   setEditorTheme,
 } from './create-editor.ts';
 export type {
