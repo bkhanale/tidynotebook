@@ -27,8 +27,8 @@ import type {
   DeletedFilePage,
   FilePageRequest,
   WorkspaceStore,
-  WorkspaceTransaction,
 } from './ports.ts';
+import { permitRead } from './permit.ts';
 import { pageSize } from './read.ts';
 
 /** The suffix of a Markdown path. */
@@ -62,17 +62,6 @@ export function restoreCandidates(path: string): readonly string[] {
     candidates.push(`${folder}${stem} ${label}${suffix}`);
   }
   return candidates;
-}
-
-/** Checks that the actor may read this workspace. */
-async function permitRead(
-  tx: WorkspaceTransaction,
-  actor: Actor,
-  workspaceId: string,
-): Promise<Result<void>> {
-  const role = await tx.role(actor.accountId);
-  if (role === null) return fail('forbidden');
-  return authorize(actor, workspaceId, role, 'read');
 }
 
 /** One page of the deleted files of a workspace. */

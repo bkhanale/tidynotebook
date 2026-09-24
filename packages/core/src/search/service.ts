@@ -6,9 +6,10 @@
  * responses and applies the same role and token grant intersection as normal
  * file reads.
  */
-import { authorize, type Actor } from '../identity/actor.ts';
-import { fail, ok, type Result } from '../files/model.ts';
-import type { WorkspaceStore, WorkspaceTransaction } from '../files/ports.ts';
+import type { Actor } from '../identity/actor.ts';
+import { ok, type Result } from '../files/model.ts';
+import { permitRead } from '../files/permit.ts';
+import type { WorkspaceStore } from '../files/ports.ts';
 
 /**
  * One part of a search excerpt.
@@ -38,17 +39,6 @@ export const maxSearchLimit = 100;
 export function searchLimit(limit: number | null): number {
   if (limit === null || !Number.isFinite(limit)) return defaultSearchLimit;
   return Math.min(Math.max(1, Math.trunc(limit)), maxSearchLimit);
-}
-
-/** Checks both the current workspace role and the verified actor grant. */
-async function permitRead(
-  tx: WorkspaceTransaction,
-  actor: Actor,
-  workspaceId: string,
-): Promise<Result<void>> {
-  const role = await tx.role(actor.accountId);
-  if (role === null) return fail('forbidden');
-  return authorize(actor, workspaceId, role, 'read');
 }
 
 /** Searches only the accepted live notes of one workspace. */

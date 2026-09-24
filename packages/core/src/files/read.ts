@@ -11,6 +11,7 @@
  */
 import { authorize, type Actor } from '../identity/actor.ts';
 import { fail, ok, type Result } from './model.ts';
+import { permitRead } from './permit.ts';
 import type {
   FilePage,
   FilePageRequest,
@@ -19,7 +20,6 @@ import type {
   MutationReceipt,
   RevisionRecord,
   WorkspaceStore,
-  WorkspaceTransaction,
 } from './ports.ts';
 
 /** The largest page that one list call returns. */
@@ -47,17 +47,6 @@ export type FileWithHead = {
   /** The head revision, or `null` for a file with no accepted revision. */
   readonly head: RevisionRecord | null;
 };
-
-/** Checks that the actor may read this workspace. */
-async function permitRead(
-  tx: WorkspaceTransaction,
-  actor: Actor,
-  workspaceId: string,
-): Promise<Result<void>> {
-  const role = await tx.role(actor.accountId);
-  if (role === null) return fail('forbidden');
-  return authorize(actor, workspaceId, role, 'read');
-}
 
 /** The sort of a file listing that names none. */
 export const defaultFileSort: FileSort = 'updated';
