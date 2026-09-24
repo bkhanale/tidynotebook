@@ -186,6 +186,33 @@ await test('a block quote applies and toggles off', () => {
   assert.equal(applied(quoted, toggleQuoteSpec(quoted)), '«one\ntwo»');
 });
 
+await test('a block marker puts a lone caret after itself', () => {
+  // A person who starts a heading, a list or a quote on an empty line types
+  // the text next. A caret left in front of the new marker put that text in
+  // front of it, where it is no longer a heading, an item or a quote.
+  const heading = stateOf('one\n‸\ntwo');
+  assert.equal(
+    applied(heading, headingLevelSpec(heading, 2)),
+    'one\n## ‸\ntwo',
+  );
+  for (const [kind, marker] of [
+    ['bullet', '- '],
+    ['ordered', '1. '],
+    ['task', '- [ ] '],
+  ] as const) {
+    const empty = stateOf('‸');
+    assert.equal(applied(empty, toggleListSpec(empty, kind)), `${marker}‸`);
+  }
+  const quote = stateOf('‸');
+  assert.equal(applied(quote, toggleQuoteSpec(quote)), '> ‸');
+  // A caret at the start of a line of text stays in front of that text.
+  const start = stateOf('‸Title');
+  assert.equal(applied(start, headingLevelSpec(start, 1)), '# ‸Title');
+  // A caret inside a marker that changes shape lands after the new marker.
+  const inside = stateOf('-‸ one');
+  assert.equal(applied(inside, toggleListSpec(inside, 'ordered')), '1. ‸one');
+});
+
 await test('indent and outdent move one list item', () => {
   const item = stateOf('- one\n- t‸wo');
   assert.equal(applied(item, indentListSpec(item)), '- one\n  - t‸wo');

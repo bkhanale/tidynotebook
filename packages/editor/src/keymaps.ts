@@ -274,6 +274,23 @@ function matchesKind(parsed: ListLine | null, kind: ListKind): boolean {
 }
 
 /**
+ * The transaction of a command that writes line markers.
+ *
+ * CodeMirror keeps a lone caret in front of text inserted at its own place,
+ * so a heading, a list or a quote started on an empty line left the caret in
+ * front of the new marker and the next key typed text there. The caret moves
+ * with the marker instead, which is where the person writes. A range keeps
+ * the text it covered, because CodeMirror already maps a range that way.
+ */
+function markerSpec(
+  state: EditorState,
+  changes: readonly ChangeSpec[],
+): TransactionSpec {
+  const set = state.changes(changes);
+  return { changes: set, selection: state.selection.map(set, 1) };
+}
+
+/**
  * Turns every selected line into the requested list shape, or back.
  *
  * When every selected line already has that shape the markers are removed,
@@ -308,7 +325,7 @@ export function toggleListSpec(
     });
   });
   if (changes.length === 0) return null;
-  return { changes };
+  return markerSpec(state, changes);
 }
 
 /**
@@ -343,7 +360,7 @@ export function toggleQuoteSpec(state: EditorState): TransactionSpec | null {
     changes.push({ from: line.from + indent.length, insert: '> ' });
   });
   if (changes.length === 0) return null;
-  return { changes };
+  return markerSpec(state, changes);
 }
 
 /** Applies or clears one heading level on every selected line. */
@@ -384,7 +401,7 @@ export function headingLevelSpec(
     });
   }
   if (changes.length === 0) return null;
-  return { changes };
+  return markerSpec(state, changes);
 }
 
 /** The leading white space of one line. */
