@@ -620,6 +620,46 @@ export function TableColumnRemoveIcon(props: IconProps): ReactNode {
   );
 }
 
+/** An arrow that points up, for a row that moves up. */
+export function ArrowUpIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M12 19V5" />
+      <polyline points="5 12 12 5 19 12" />
+    </IconFrame>
+  );
+}
+
+/** An arrow that points down, for a row that moves down. */
+export function ArrowDownIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M12 5v14" />
+      <polyline points="5 12 12 19 19 12" />
+    </IconFrame>
+  );
+}
+
+/** An arrow that points to the left, for a column that moves left. */
+export function ArrowLeftIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M19 12H5" />
+      <polyline points="12 5 5 12 12 19" />
+    </IconFrame>
+  );
+}
+
+/** An arrow that points to the right, for a column that moves right. */
+export function ArrowRightIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M5 12h14" />
+      <polyline points="12 5 19 12 12 19" />
+    </IconFrame>
+  );
+}
+
 /** Lines that start at one edge, for a column aligned to the left. */
 export function AlignLeftIcon(props: IconProps): ReactNode {
   return (
