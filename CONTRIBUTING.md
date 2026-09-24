@@ -69,6 +69,9 @@ Before you land a change to a screen, open it, drive it with the keyboard, and
 take a screenshot of it in light and in dark. Read each screenshot against
 [the design guide](docs/development/design.md).
 
+[Run the local application](docs/development/local-app.md) to drive a screen
+through the real server with temporary data.
+
 ## Useful commands
 
 | Command                 | Result                                                           |

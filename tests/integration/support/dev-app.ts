@@ -1,0 +1,138 @@
+/** The local application runtime. The wrapper builds before this file loads. */
+import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { createInterface } from 'node:readline';
+import { bootstrapOwner, loadServerConfig } from '@notesapp/server';
+import { createDisposableDatabase, type TestDatabase } from './database.ts';
+
+/** Keep the public origin and listening socket on the same local port. */
+export function devEnvironment(
+  database: Pick<TestDatabase, 'runtimeUrl' | 'authUrl'>,
+  storageRoot: string,
+  port: number,
+  authSecret: string,
+): Record<string, string> {
+  return {
+    NOTESAPP_ORIGIN: `http://127.0.0.1:${port}`,
+    NOTESAPP_HOST: '127.0.0.1',
+    NOTESAPP_PORT: String(port),
+    NOTESAPP_DATABASE_URL: database.runtimeUrl,
+    NOTESAPP_AUTH_DATABASE_URL: database.authUrl,
+    NOTESAPP_STORAGE_ROOT: storageRoot,
+    NOTESAPP_AUTH_SECRET: authSecret,
+    NOTESAPP_LOG_LEVEL: 'info',
+    NOTESAPP_MAX_BODY_BYTES: '8388608',
+    NOTESAPP_MAX_HEADER_BYTES: '16384',
+    NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
+    NOTESAPP_SHUTDOWN_GRACE_MS: '0',
+  };
+}
+
+/** Starts the built server and waits for its listening report. */
+async function serve(
+  environment: Record<string, string>,
+  onSpawn: (child: ReturnType<typeof spawn>) => void,
+): Promise<{
+  child: ReturnType<typeof spawn>;
+  exited: Promise<number | null>;
+}> {
+  const child = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    env: {
+      ...Object.fromEntries(
+        Object.entries(process.env).filter(
+          ([name]) => !name.startsWith('NOTESAPP_'),
+        ),
+      ),
+      ...environment,
+    },
+    stdio: ['inherit', 'pipe', 'inherit'],
+  });
+  onSpawn(child);
+  const exited = new Promise<number | null>((resolve, reject) => {
+    child.once('error', reject);
+    child.once('exit', resolve);
+  });
+  const lines = createInterface({ input: child.stdout });
+  const ready = new Promise<void>((resolve, reject) => {
+    lines.on('line', (line) => {
+      process.stdout.write(`${line}\n`);
+      if (line.startsWith('notesapp: listening on ')) resolve();
+    });
+    void exited.then(
+      () => reject(new Error('The local server stopped before it was ready.')),
+      reject,
+    );
+  });
+  await ready;
+  return { child, exited };
+}
+
+/** Creates and removes only the state that belongs to this run. */
+export async function main(port: number): Promise<void> {
+  let database: TestDatabase | undefined;
+  let storageRoot: string | undefined;
+  let server: Awaited<ReturnType<typeof serve>> | undefined;
+  let child: ReturnType<typeof spawn> | undefined;
+  let interrupted = false;
+  const stop = (): void => {
+    interrupted = true;
+    child?.kill('SIGINT');
+  };
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+  try {
+    database = await createDisposableDatabase();
+    storageRoot = await mkdtemp(join(tmpdir(), 'notesapp-dev-'));
+    const environment = devEnvironment(
+      database,
+      storageRoot,
+      port,
+      randomBytes(32).toString('base64url'),
+    );
+    const email = 'owner@notes.invalid';
+    const password = randomBytes(18).toString('base64url');
+    await bootstrapOwner({
+      config: loadServerConfig(environment),
+      email,
+      name: 'Owner',
+      password,
+    });
+    if (interrupted) return;
+    server = await serve(environment, (started) => {
+      child = started;
+    });
+    process.stdout.write(
+      `Open ${environment['NOTESAPP_ORIGIN']}\nEmail: ${email}\nPassword: ${password}\nPress Ctrl+C to stop and remove this run.\n`,
+    );
+    const code = await server.exited;
+    if (!interrupted || code !== 0) process.exitCode = 1;
+  } finally {
+    if (child?.exitCode === null && child.signalCode === null) {
+      child.kill('SIGINT');
+      if (server !== undefined) await server.exited;
+      else
+        await new Promise<void>((resolve) =>
+          child?.once('exit', () => resolve()),
+        );
+    }
+    if (database !== undefined) await database.destroy();
+    if (storageRoot !== undefined)
+      await rm(storageRoot, { recursive: true, force: true });
+    process.off('SIGINT', stop);
+    process.off('SIGTERM', stop);
+  }
+}
+
+if (import.meta.main) {
+  try {
+    await main(Number(process.argv[2]));
+  } catch (error) {
+    process.stderr.write(
+      `${error instanceof Error ? error.message : 'The local application could not start.'}\n`,
+    );
+    process.exitCode = 1;
+  }
+}
