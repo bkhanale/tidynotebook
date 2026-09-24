@@ -22,8 +22,8 @@ diff for History.
   that history. Work of another device reaches a bound note through the gate
   of this module only: it holds one merged update while an IME composition
   runs, because an update inside a composition loses the composed characters.
-- `live-preview.ts` holds the decorations, `widgets.ts` the block widgets,
-  `table-grid.ts` the table grid (0095); `outline.ts` reads the same tree.
+- `live-preview.ts` has the decorations, `widgets.ts` the widgets,
+  `table-grid.ts` and `table-controls.ts` the table (0095, 0096).
 - `editor-theme.ts` is the typed CodeMirror adapter and the one place here
   that sets presentation in TypeScript. It reads the named steps of
   `apps/web/src/tailwind.css`, which `editorThemeVariables` lists for the
@@ -32,8 +32,8 @@ diff for History.
   the full height, so `.cm-line` adds no block padding and a heading adds the
   one step that groups it with its text. Strong text, a heading and a table
   head read `--font-weight-note-heading`.
-- A list marker line is one row: a lead cell for its indent and marker, and
-  a body cell that wraps, so no rule states an indent.
+- A list marker line is one row: a lead cell for indent and marker, and a
+  body cell that wraps. `outline.ts` reads the same tree.
 - The task box is drawn from the theme (record 0033) and is the one thing here
   that reads `--notes-border` (record 0063). Every other edge of a note is
   `--notes-border-line` or `--notes-border-subtle`.
@@ -70,7 +70,7 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 - A task box stays a control (0033). An ordered marker reveals its source only
   when the selection touches it (0092). Other markers follow the reveal rule.
 - No widget outside an image, a Mermaid diagram and display math. A table
-  stays text, and only the writer of `table-grid.ts` rewrites one (0095).
+  stays text; only its model and writer change its rows and columns (0096).
 - No single dollar inline math: use `$$...$$` or `\(...\)`.
 - No network call, no database access, no token storage, and no import of
   `@notesapp/api-client`. No colour value: the theme adapter reads `--notes-*`
@@ -90,3 +90,5 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/keymaps.ts`          | Keymaps and the public `shortcuts` list     |
 | `src/document-binding.ts` | Binds a live note document to a view (0082) |
 | `src/table-grid.ts`       | A table as a grid over its text (0095)      |
+| `src/table-controls.ts`   | The bars that add a row and a column (0096) |
+| `src/icon-mark.ts`        | The one glyph grid of the editor            |

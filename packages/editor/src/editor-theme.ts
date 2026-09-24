@@ -537,8 +537,10 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       overflowX: 'auto',
       borderCollapse: 'collapse',
       marginBlock: 'var(--spacing-note-block)',
-      // The last column keeps room for the focus mark of its active cell.
-      paddingBlockEnd: 'calc(var(--spacing) * 1)',
+      // The bar that adds a row stands in this room under the rows, so it
+      // never covers the text below the table, and the pointer reaches it
+      // without leaving the table (record 0096).
+      paddingBlockEnd: 'calc(var(--spacing) * 6)',
     },
     '.cm-np-table-line': {
       display: 'table-row',
@@ -599,6 +601,50 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     },
     // The delimiter row keeps no height of its own.
     '.cm-np-table-closed': { fontSize: '0', lineHeight: '0' },
+    // The controls of a table (record 0096) stand in one layer over the
+    // text, which lets every press but a press on a control reach the text
+    // below. A bar touches the edge of its table, so the pointer reaches it
+    // without leaving the table. It rests quiet and fills on hover, as a ghost
+    // control does, and under touch it keeps the 44 px target.
+    '.cm-np-table-controls': {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      width: '0',
+      height: '0',
+      zIndex: '2',
+      pointerEvents: 'none',
+    },
+    '.cm-np-table-add': {
+      position: 'absolute',
+      display: 'none',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '0',
+      margin: '0',
+      border: '1px solid var(--notes-border-line)',
+      borderRadius: 'var(--radius-sm)',
+      backgroundColor: 'var(--notes-bg)',
+      color: 'var(--notes-text-muted)',
+      cursor: 'pointer',
+      pointerEvents: 'auto',
+    },
+    '.cm-np-table-controls-shown .cm-np-table-add': { display: 'flex' },
+    '.cm-np-table-add:hover': {
+      backgroundColor: 'var(--notes-surface-hover)',
+      color: 'var(--notes-text-strong)',
+    },
+    '.cm-np-table-add-row': { height: 'calc(var(--spacing) * 5)' },
+    '.cm-np-table-add-column': { width: 'calc(var(--spacing) * 5)' },
+    '.cm-np-table-add-mark': {
+      width: 'calc(var(--spacing) * 4)',
+      height: 'calc(var(--spacing) * 4)',
+    },
+    '@media (pointer: coarse)': {
+      '.cm-np-table': { paddingBlockEnd: 'calc(var(--spacing) * 12)' },
+      '.cm-np-table-add-row': { height: 'calc(var(--spacing) * 11)' },
+      '.cm-np-table-add-column': { width: 'calc(var(--spacing) * 11)' },
+    },
     '.cm-np-align-left': { textAlign: 'left' },
     '.cm-np-align-center': { textAlign: 'center' },
     '.cm-np-align-right': { textAlign: 'right' },
