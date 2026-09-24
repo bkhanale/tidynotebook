@@ -1,6 +1,6 @@
 # Plan 014: A table is a grid
 
-Status: active
+Status: complete
 
 > No issue holds this work yet. The owner keeps the
 > [GitHub project board](https://github.com/users/bkhanale/projects/2) as the

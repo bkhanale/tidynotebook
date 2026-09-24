@@ -1,6 +1,6 @@
 # 014: A table is a grid
 
-Status: active
+Status: complete
 
 This design states how a person edits a table in a note without the Markdown
 source of the table. It follows the formatting toolbar of
