@@ -1,0 +1,60 @@
+get:
+  operationId: getDailyNoteSettings
+  summary: Read the daily note settings of the signed in member.
+  description: >-
+    Reports the settings of daily notes that the signed in account keeps in
+    this workspace: the note whose text a new daily note starts with, and
+    whether the note of today opens when the application starts. A member
+    that never stored a setting reads the defaults, which name no template
+    and open nothing. The settings of another member are never part of the
+    answer.
+  tags:
+    - workspaces
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/DailyNoteSettings.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+put:
+  operationId: updateDailyNoteSettings
+  summary: Replace the daily note settings of the signed in member.
+  description: >-
+    Replaces the settings of daily notes that the signed in account keeps in
+    this workspace. A template must name a live note of this workspace, and a
+    template that names no such note is refused as not found. The settings of
+    another member do not change.
+  tags:
+    - workspaces
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/WorkspaceId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/DailyNoteSettingsUpdate.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/DailyNoteSettings.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

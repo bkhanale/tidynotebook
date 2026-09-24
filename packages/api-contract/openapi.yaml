@@ -114,6 +114,8 @@ paths:
     $ref: './paths/api_workspaces_workspaceId_publications.yaml'
   /api/workspaces/{workspaceId}/publications/{publicationId}:
     $ref: './paths/api_workspaces_workspaceId_publications_publicationId.yaml'
+  /api/workspaces/{workspaceId}/daily-note-settings:
+    $ref: './paths/api_workspaces_workspaceId_daily-note-settings.yaml'
   /published/{token}:
     $ref: './paths/published_token.yaml'
   /published/{token}/unlock:
@@ -178,6 +180,8 @@ components:
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
+    DailyNoteSettingsUpdate:
+      $ref: './components/requestBodies/DailyNoteSettingsUpdate.yaml'
     WorkspaceName:
       $ref: './components/requestBodies/WorkspaceName.yaml'
     CreateFile:
@@ -239,6 +243,8 @@ components:
       $ref: './components/responses/Account.yaml'
     Preferences:
       $ref: './components/responses/Preferences.yaml'
+    DailyNoteSettings:
+      $ref: './components/responses/DailyNoteSettings.yaml'
     Workspace:
       $ref: './components/responses/Workspace.yaml'
     WorkspaceList:
@@ -336,6 +342,10 @@ components:
       $ref: './components/schemas/Preferences.yaml'
     PreferencesInput:
       $ref: './components/schemas/PreferencesInput.yaml'
+    DailyNoteSettings:
+      $ref: './components/schemas/DailyNoteSettings.yaml'
+    DailyNoteSettingsInput:
+      $ref: './components/schemas/DailyNoteSettingsInput.yaml'
     Account:
       $ref: './components/schemas/Account.yaml'
     Workspace:

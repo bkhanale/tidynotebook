@@ -421,6 +421,34 @@ export type CreatePublishedLinkInput = {
 };
 
 /**
+ * The settings of daily notes that one member keeps in one workspace.
+ */
+export type DailyNoteSettings = {
+    /**
+     * The note whose text a new daily note starts with, or null for a daily note that starts empty.
+     */
+    readonly templateFileId: Uuid | null;
+    /**
+     * True when the note of today opens when the application starts.
+     */
+    readonly openOnStart: boolean;
+};
+
+/**
+ * The settings of daily notes to store for the signed in member.
+ */
+export type DailyNoteSettingsInput = {
+    /**
+     * A live note of this workspace whose text a new daily note starts with, or null for a daily note that starts empty.
+     */
+    templateFileId: Uuid | null;
+    /**
+     * True to open the note of today when the application starts.
+     */
+    openOnStart: boolean;
+};
+
+/**
  * The identifiers of a tombstone revision.
  */
 export type DeleteFileInput = {
@@ -1959,6 +1987,11 @@ export type PublishedNote = PublishedNoteReference;
 export type PreferencesUpdate = PreferencesInput;
 
 /**
+ * The daily note settings to store for the signed in member.
+ */
+export type DailyNoteSettingsUpdate = DailyNoteSettingsInput;
+
+/**
  * The name to give the workspace.
  */
 export type WorkspaceName = WorkspaceNameInput;
@@ -3118,6 +3151,121 @@ export type CommitChangesetResponses = {
 };
 
 export type CommitChangesetResponse = CommitChangesetResponses[keyof CommitChangesetResponses];
+
+export type GetDailyNoteSettingsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/daily-note-settings';
+};
+
+export type GetDailyNoteSettingsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetDailyNoteSettingsError = GetDailyNoteSettingsErrors[keyof GetDailyNoteSettingsErrors];
+
+export type GetDailyNoteSettingsResponses = {
+    /**
+     * The stored daily note settings of the signed in member.
+     */
+    200: DailyNoteSettings;
+};
+
+export type GetDailyNoteSettingsResponse = GetDailyNoteSettingsResponses[keyof GetDailyNoteSettingsResponses];
+
+export type UpdateDailyNoteSettingsData = {
+    /**
+     * The daily note settings to store for the signed in member.
+     */
+    body: DailyNoteSettingsUpdate;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the workspace that the operation acts on.
+         */
+        workspaceId: Uuid;
+    };
+    query?: never;
+    url: '/api/workspaces/{workspaceId}/daily-note-settings';
+};
+
+export type UpdateDailyNoteSettingsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateDailyNoteSettingsError = UpdateDailyNoteSettingsErrors[keyof UpdateDailyNoteSettingsErrors];
+
+export type UpdateDailyNoteSettingsResponses = {
+    /**
+     * The stored daily note settings of the signed in member.
+     */
+    200: DailyNoteSettings;
+};
+
+export type UpdateDailyNoteSettingsResponse = UpdateDailyNoteSettingsResponses[keyof UpdateDailyNoteSettingsResponses];
 
 export type ExportWorkspaceData = {
     body?: never;

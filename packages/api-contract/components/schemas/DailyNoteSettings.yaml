@@ -1,0 +1,20 @@
+type: object
+description: >-
+  The settings of daily notes that one member keeps in one workspace.
+additionalProperties: false
+required:
+  - templateFileId
+  - openOnStart
+properties:
+  templateFileId:
+    oneOf:
+      - $ref: './Uuid.yaml'
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The note whose text a new daily note starts with, or null for a daily
+      note that starts empty.
+  openOnStart:
+    type: boolean
+    readOnly: true
+    description: True when the note of today opens when the application starts.

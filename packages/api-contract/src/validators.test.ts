@@ -308,3 +308,21 @@ await test('a reader gives any password and takes the same refusal', () => {
   assert.equal(validate({ password: '' }), false);
   assert.equal(validate({}), false);
 });
+
+await test('the daily note settings name a note or no template', () => {
+  const validate = requestValidator('updateDailyNoteSettings', 'body');
+  assert.ok(validate !== undefined);
+  const note = '00000000-0000-4000-8000-000000000001';
+  assert.equal(validate({ templateFileId: note, openOnStart: true }), true);
+  assert.equal(validate({ templateFileId: null, openOnStart: false }), true);
+  // Both members are stated, so a write never leaves one at a stale value.
+  assert.equal(validate({ templateFileId: note }), false);
+  assert.equal(validate({ openOnStart: true }), false);
+  assert.equal(validate({ templateFileId: 'Daily', openOnStart: true }), false);
+  assert.equal(validate({ templateFileId: null, openOnStart: 'yes' }), false);
+  // The settings belong to the caller, so a body cannot name an account.
+  assert.equal(
+    validate({ templateFileId: null, openOnStart: true, accountId: note }),
+    false,
+  );
+});

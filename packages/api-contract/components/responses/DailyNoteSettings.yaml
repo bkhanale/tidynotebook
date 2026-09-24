@@ -1,0 +1,5 @@
+description: The stored daily note settings of the signed in member.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/DailyNoteSettings.yaml'

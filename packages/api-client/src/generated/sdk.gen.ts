@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client/index.js';
-import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -291,6 +291,40 @@ export const commitChangeset = <ThrowOnError extends boolean = false>(options: O
             type: 'apiKey'
         }],
     url: '/api/workspaces/{workspaceId}/changesets',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read the daily note settings of the signed in member.
+ *
+ * Reports the settings of daily notes that the signed in account keeps in this workspace: the note whose text a new daily note starts with, and whether the note of today opens when the application starts. A member that never stored a setting reads the defaults, which name no template and open nothing. The settings of another member are never part of the answer.
+ */
+export const getDailyNoteSettings = <ThrowOnError extends boolean = false>(options: Options<GetDailyNoteSettingsData, ThrowOnError>): RequestResult<GetDailyNoteSettingsResponses, GetDailyNoteSettingsErrors, ThrowOnError> => (options.client ?? client).get<GetDailyNoteSettingsResponses, GetDailyNoteSettingsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/daily-note-settings',
+    ...options
+});
+
+/**
+ * Replace the daily note settings of the signed in member.
+ *
+ * Replaces the settings of daily notes that the signed in account keeps in this workspace. A template must name a live note of this workspace, and a template that names no such note is refused as not found. The settings of another member do not change.
+ */
+export const updateDailyNoteSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateDailyNoteSettingsData, ThrowOnError>): RequestResult<UpdateDailyNoteSettingsResponses, UpdateDailyNoteSettingsErrors, ThrowOnError> => (options.client ?? client).put<UpdateDailyNoteSettingsResponses, UpdateDailyNoteSettingsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/workspaces/{workspaceId}/daily-note-settings',
     ...options,
     headers: {
         'Content-Type': 'application/json',
