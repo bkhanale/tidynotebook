@@ -37,6 +37,7 @@ import {
 } from '@notesapp/api-client';
 import {
   acceptWithDocuments,
+  defaultDailyNoteLayout,
   deleteWorkspace,
   readDailyNoteSettings,
   updateDailyNoteSettings as storeDailyNoteSettings,
@@ -141,6 +142,8 @@ const workspaces = await listWorkspaces({ headers });
 const workspaceId = workspaces.data?.workspaces[0]?.workspaceId ?? '';
 assert.match(workspaceId, /^[0-9a-f-]{36}$/);
 const device = 'daily-test';
+/** A layout of folders, as a member may keep it (record 0101). */
+const layout = { folder: 'Journal', format: 'YYYY/MM/YYYY-MM-DD dddd' };
 
 /** Creates one saved note and answers its identifier and its entity tag. */
 async function makeNote(
@@ -194,6 +197,7 @@ await test('a member who stored nothing reads no template and no start', async (
   assert.deepEqual(await settingsNow(), {
     templateFileId: null,
     openOnStart: false,
+    ...defaultDailyNoteLayout,
   });
 });
 
@@ -202,12 +206,13 @@ await test('a member stores a live note as the template and reads it back', asyn
   const stored = await updateDailyNoteSettings({
     headers,
     path: { workspaceId },
-    body: { templateFileId: template.fileId, openOnStart: true },
+    body: { templateFileId: template.fileId, openOnStart: true, ...layout },
   });
   assert.equal(stored.error, undefined, JSON.stringify(stored.error));
   assert.deepEqual(stored.data, {
     templateFileId: template.fileId,
     openOnStart: true,
+    ...layout,
   });
   assert.deepEqual(await settingsNow(), stored.data);
 
@@ -215,9 +220,13 @@ await test('a member stores a live note as the template and reads it back', asyn
   const cleared = await updateDailyNoteSettings({
     headers,
     path: { workspaceId },
-    body: { templateFileId: null, openOnStart: true },
+    body: { templateFileId: null, openOnStart: true, ...layout },
   });
-  assert.deepEqual(cleared.data, { templateFileId: null, openOnStart: true });
+  assert.deepEqual(cleared.data, {
+    templateFileId: null,
+    openOnStart: true,
+    ...layout,
+  });
 });
 
 await test('a template that is not a live note is refused and nothing changes', async () => {
@@ -228,10 +237,28 @@ await test('a template that is not a live note is refused and nothing changes', 
     const refused = await updateDailyNoteSettings({
       headers,
       path: { workspaceId },
-      body: { templateFileId, openOnStart: false },
+      body: { templateFileId, openOnStart: false, ...layout },
     });
     assert.equal(responseOf(refused.response).status, 404);
     assert.equal(readProperty(refused.error, 'code'), 'not_found');
+  }
+  assert.deepEqual(await settingsNow(), before);
+});
+
+await test('a layout that cannot name every date is refused and nothing changes', async () => {
+  const before = await settingsNow();
+  for (const refused of [
+    { folder: 'Journal', format: 'YYYY-MM' },
+    { folder: '/Journal', format: 'YYYY-MM-DD' },
+    { folder: 'Journal', format: 'YYYY//MM-DD' },
+  ]) {
+    const answer = await updateDailyNoteSettings({
+      headers,
+      path: { workspaceId },
+      body: { templateFileId: null, openOnStart: true, ...refused },
+    });
+    assert.equal(responseOf(answer.response).status, 422);
+    assert.equal(readProperty(answer.error, 'code'), 'invalid_path');
   }
   assert.deepEqual(await settingsNow(), before);
 });
@@ -241,13 +268,14 @@ await test('a template in Trash stays named, and a purge clears it alone', async
   await updateDailyNoteSettings({
     headers,
     path: { workspaceId },
-    body: { templateFileId: template.fileId, openOnStart: true },
+    body: { templateFileId: template.fileId, openOnStart: true, ...layout },
   });
   await removeNote(template.fileId, template.tag);
   // The reference stays, so a restore brings the template back.
   assert.deepEqual(await settingsNow(), {
     templateFileId: template.fileId,
     openOnStart: true,
+    ...layout,
   });
 
   const purged = await purgeFiles({
@@ -259,6 +287,7 @@ await test('a template in Trash stays named, and a purge clears it alone', async
   assert.deepEqual(await settingsNow(), {
     templateFileId: null,
     openOnStart: true,
+    ...layout,
   });
 });
 
@@ -297,12 +326,17 @@ await test('one member never reads or writes the settings of another', async () 
   const stored = await storeDailyNoteSettings(content, aliceActor, shared, {
     templateFileId: aliceTemplate,
     openOnStart: true,
+    ...layout,
   });
   assert.equal(stored.ok, true, JSON.stringify(stored));
   // Bob reads his own defaults, not the choice of Alice.
   assert.deepEqual(await readDailyNoteSettings(content, bobActor, shared), {
     ok: true,
-    value: { templateFileId: null, openOnStart: false },
+    value: {
+      templateFileId: null,
+      openOnStart: false,
+      ...defaultDailyNoteLayout,
+    },
   });
 
   // The row policy holds without the use case in front of it.
@@ -335,7 +369,7 @@ await test('one member never reads or writes the settings of another', async () 
   }
   assert.deepEqual(await readDailyNoteSettings(content, aliceActor, shared), {
     ok: true,
-    value: { templateFileId: aliceTemplate, openOnStart: true },
+    value: { templateFileId: aliceTemplate, openOnStart: true, ...layout },
   });
 });
 
@@ -358,6 +392,7 @@ await test('a member who leaves takes their settings, and the workspace takes th
   const stored = await storeDailyNoteSettings(content, bobActor, shared, {
     templateFileId: null,
     openOnStart: true,
+    ...defaultDailyNoteLayout,
   });
   assert.equal(stored.ok, true, JSON.stringify(stored));
   assert.deepEqual(await rowsOf(shared), [alice, bob].sort());

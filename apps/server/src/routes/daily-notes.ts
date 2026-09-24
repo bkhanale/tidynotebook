@@ -3,7 +3,8 @@
  *
  * The settings belong to the account of the session, so no operation here
  * reads an account from the request. The use cases of `packages/core` hold
- * every rule, and a template that names no live note answers `not_found`.
+ * every rule: a template that names no live note answers `not_found`, and a
+ * layout that cannot name every date answers `invalid_path` (record 0101).
  */
 import {
   readDailyNoteSettings,
@@ -25,6 +26,8 @@ function answer(settings: DailyNoteSettings): HandlerResult {
     body: {
       templateFileId: settings.templateFileId,
       openOnStart: settings.openOnStart,
+      folder: settings.folder,
+      format: settings.format,
     },
   };
 }
@@ -34,6 +37,8 @@ function readSettings(body: unknown): DailyNoteSettings {
   return {
     templateFileId: readOptionalText(body, 'templateFileId'),
     openOnStart: readProperty(body, 'openOnStart') === true,
+    folder: readText(body, 'folder'),
+    format: readText(body, 'format'),
   };
 }
 
