@@ -253,16 +253,34 @@ export type {
 export { resolvePublishedAttachment } from './publications/attachment-reference.ts';
 export type { DailyNoteSettings } from './daily-notes/model.ts';
 export { defaultDailyNoteSettings } from './daily-notes/model.ts';
-export type { CalendarDate } from './daily-notes/path.ts';
+export type { CalendarDate, Weekday } from './daily-notes/calendar.ts';
 export {
-  dailyNoteDate,
-  dailyNoteFolder,
-  dailyNotePath,
+  addDays,
+  addMonths,
   daysInMonth,
   formatCalendarDate,
   isCalendarDate,
   parseCalendarDate,
   sameCalendarDate,
+  weekdayOf,
+  weekdays,
+} from './daily-notes/calendar.ts';
+export type { DailyNoteFormatProblem } from './daily-notes/format.ts';
+export {
+  dailyNoteFormatProblem,
+  formatDailyNoteName,
+  parseDailyNoteName,
+} from './daily-notes/format.ts';
+export type {
+  DailyNoteLayout,
+  DailyNoteLayoutProblem,
+} from './daily-notes/path.ts';
+export {
+  cleanDailyNoteFolder,
+  dailyNoteDate,
+  dailyNoteLayoutProblem,
+  dailyNotePath,
+  defaultDailyNoteLayout,
 } from './daily-notes/path.ts';
 export {
   isTemplateNote,

@@ -14,6 +14,7 @@ import { fail, ok, type Result } from '../files/model.ts';
 import { permitRead } from '../files/permit.ts';
 import type { FileRecord, WorkspaceStore } from '../files/ports.ts';
 import { defaultDailyNoteSettings, type DailyNoteSettings } from './model.ts';
+import { dailyNoteLayoutProblem } from './path.ts';
 
 /**
  * Whether a file can be the template of a daily note.
@@ -51,8 +52,10 @@ export function readDailyNoteSettings(
 /**
  * Replaces the daily note settings of the actor.
  *
- * A template that names no live note of this workspace is `not_found`, with
- * its identifier, and nothing is stored.
+ * A folder and a name format that cannot give every date one valid note path
+ * are `invalid_path` (record 0101). A template that names no live note of
+ * this workspace is `not_found`, with its identifier. Either way nothing is
+ * stored.
  */
 export function updateDailyNoteSettings(
   store: WorkspaceStore,
@@ -66,6 +69,8 @@ export function updateDailyNoteSettings(
     async (tx) => {
       const permitted = await permitRead(tx, actor, workspaceId);
       if (!permitted.ok) return permitted;
+      if (dailyNoteLayoutProblem(settings) !== null)
+        return fail('invalid_path');
       const templateFileId = settings.templateFileId;
       if (
         templateFileId !== null &&
@@ -75,6 +80,8 @@ export function updateDailyNoteSettings(
       const stored: DailyNoteSettings = {
         templateFileId,
         openOnStart: settings.openOnStart,
+        folder: settings.folder,
+        format: settings.format,
       };
       await tx.saveDailyNoteSettings(stored);
       return ok(stored);

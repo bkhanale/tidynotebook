@@ -18,8 +18,8 @@ the role and action matrix, and the storage ports that a runtime implements.
   helper. `src/history/`, `src/search/`, `src/workspaces/`, and
   `src/publications/` hold their own use cases and ports. The publication port
   declares read methods only, and no use case of it takes an `Actor`.
-- `src/daily-notes/` holds the path of the note of a date and the settings of
-  a member (0099). `src/files/permit.ts` is the one read check of a use case.
+- `src/daily-notes/` holds the day arithmetic, the name format, the path of
+  the note of a date and the settings of a member (0099, 0101). `src/files/permit.ts` is the one read check of a use case.
 - `src/index.ts` is the only public entry. A name that is not exported there
   is internal. The verified actor marker stays internal, so an actor can be
   built only through `verifyActor`.

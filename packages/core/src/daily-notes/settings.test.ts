@@ -13,6 +13,7 @@ import type {
   WorkspaceTransaction,
 } from '../files/ports.ts';
 import { defaultDailyNoteSettings, type DailyNoteSettings } from './model.ts';
+import { defaultDailyNoteLayout } from './path.ts';
 import {
   isTemplateNote,
   readDailyNoteSettings,
@@ -135,7 +136,11 @@ await test('a member who stored nothing reads the defaults', async () => {
 await test('a member stores a live note as the template and reads it back', async () => {
   const store = fakeStore([liveNote]);
   const actor = actorFor(alice, ['read']);
-  const settings = { templateFileId: templateId, openOnStart: true };
+  const settings = {
+    templateFileId: templateId,
+    openOnStart: true,
+    ...defaultDailyNoteLayout,
+  };
   assert.deepEqual(
     await updateDailyNoteSettings(store, actor, workspaceId, settings),
     { ok: true, value: settings },
@@ -148,7 +153,11 @@ await test('a member stores a live note as the template and reads it back', asyn
 
 await test('no template is a valid choice', async () => {
   const store = fakeStore([]);
-  const settings = { templateFileId: null, openOnStart: true };
+  const settings = {
+    templateFileId: null,
+    openOnStart: true,
+    ...defaultDailyNoteLayout,
+  };
   assert.deepEqual(
     await updateDailyNoteSettings(
       store,
@@ -173,7 +182,11 @@ await test('a template that is not a live note is not found and nothing is store
       store,
       actorFor(alice, ['read']),
       workspaceId,
-      { templateFileId: templateId, openOnStart: true },
+      {
+        templateFileId: templateId,
+        openOnStart: true,
+        ...defaultDailyNoteLayout,
+      },
     );
     assert.equal(result.ok, false);
     if (!result.ok) {
@@ -187,7 +200,11 @@ await test('a template that is not a live note is not found and nothing is store
 await test('a stranger and an actor with no read grant are refused', async () => {
   const stranger = '22222222-2222-4222-8222-222222222222';
   const store = fakeStore([liveNote]);
-  const settings = { templateFileId: null, openOnStart: true };
+  const settings = {
+    templateFileId: null,
+    openOnStart: true,
+    ...defaultDailyNoteLayout,
+  };
   for (const actor of [actorFor(stranger, ['read']), actorFor(alice, [])]) {
     const read = await readDailyNoteSettings(store, actor, workspaceId);
     assert.equal(read.ok ? null : read.error.code, 'forbidden');
@@ -208,4 +225,41 @@ await test('only a live note can be a template', () => {
   assert.equal(isTemplateNote({ ...liveNote, deleted: true }), false);
   assert.equal(isTemplateNote({ ...liveNote, kind: 'attachment' }), false);
   assert.equal(isTemplateNote({ ...liveNote, headRevisionId: null }), false);
+});
+
+await test('a layout that cannot name every date is an invalid path', async () => {
+  const store = fakeStore([liveNote]);
+  for (const layout of [
+    { folder: 'Journal', format: 'MM-DD' },
+    { folder: '/Journal', format: 'YYYY-MM-DD' },
+    { folder: 'Journal', format: 'YYYY//MM-DD' },
+  ]) {
+    const result = await updateDailyNoteSettings(
+      store,
+      actorFor(alice, ['read']),
+      workspaceId,
+      { templateFileId: null, openOnStart: true, ...layout },
+    );
+    assert.equal(result.ok ? null : result.error.code, 'invalid_path');
+  }
+  assert.equal(store.stored.size, 0);
+});
+
+await test('a member stores a folder and a name format of their own', async () => {
+  const store = fakeStore([]);
+  const settings = {
+    templateFileId: null,
+    openOnStart: false,
+    folder: '',
+    format: 'YYYY/MM/YYYY-MM-DD dddd',
+  };
+  assert.deepEqual(
+    await updateDailyNoteSettings(
+      store,
+      actorFor(alice, ['read']),
+      workspaceId,
+      settings,
+    ),
+    { ok: true, value: settings },
+  );
 });

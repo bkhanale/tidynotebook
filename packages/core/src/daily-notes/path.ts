@@ -1,112 +1,120 @@
 /**
- * The path of the daily note of one date (record 0099).
+ * The path of the daily note of one date (records 0099 and 0101).
  *
  * A daily note is an ordinary note. Its path is the one fact that makes it
- * the note of a date: the folder `Daily notes` and the date in the ISO 8601
- * calendar form, so the notes of a folder sort by date under the name order.
- * A note that a person moves or renames away from that path is no longer the
- * note of its date.
- *
- * The date is a calendar date and not an instant. The device decides which
- * date today is, in its own time zone, and this module never reads a clock.
+ * the note of a date: the folder of the settings, then the name that the name
+ * format gives the date, then the note suffix. A `/` in the format makes
+ * folders below the folder. A note that a person moves or renames away from
+ * that path is no longer the note of its date.
  */
+import { normalizePath } from '../files/path.ts';
+import type { CalendarDate } from './calendar.ts';
+import {
+  dailyNoteFormatProblem,
+  formatDailyNoteName,
+  parseDailyNoteName,
+} from './format.ts';
 
-/** One day of the calendar. `month` runs from 1 to 12. */
-export type CalendarDate = {
-  readonly year: number;
-  readonly month: number;
-  readonly day: number;
+/** Where the daily notes of a member live and how each one is named. */
+export type DailyNoteLayout = {
+  /** A folder path, or an empty text for the top of the workspace. */
+  readonly folder: string;
+  /** The name format, as the tokens of `format.ts`. */
+  readonly format: string;
 };
 
-/** The folder that holds every daily note. */
-export const dailyNoteFolder = 'Daily notes';
+/** The layout of record 0099, which a member starts with. */
+export const defaultDailyNoteLayout: DailyNoteLayout = {
+  folder: 'Daily notes',
+  format: 'YYYY-MM-DD',
+};
 
 /** The note suffix. `files/path.ts` states that every note path ends in it. */
 const noteSuffix = '.md';
 
-/** The written form of a date, `YYYY-MM-DD`. */
-const datePattern = /^(\d{4})-(\d{2})-(\d{2})$/;
-
-/** Whether a year is a leap year of the Gregorian calendar. */
-function isLeapYear(year: number): boolean {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
-}
-
-/** How many days one month of one year holds. */
-export function daysInMonth(year: number, month: number): number {
-  if (month === 2) return isLeapYear(year) ? 29 : 28;
-  return [4, 6, 9, 11].includes(month) ? 30 : 31;
-}
-
 /**
- * Whether the value is a real day of the calendar.
+ * Dates whose names hold the longest words of a format.
  *
- * The year stays inside the four digits of the written form, so every date
- * that passes has one written form and one path.
+ * September and Wednesday are the longest names of a month and of a weekday,
+ * and the 30th is a two digit day, so a format whose name of these dates
+ * passes the path rules passes them for every date: a token writes letters
+ * and digits alone, and the rest of the name does not change with the date.
  */
-export function isCalendarDate(date: CalendarDate): boolean {
-  return (
-    Number.isInteger(date.year) &&
-    Number.isInteger(date.month) &&
-    Number.isInteger(date.day) &&
-    date.year >= 1 &&
-    date.year <= 9999 &&
-    date.month >= 1 &&
-    date.month <= 12 &&
-    date.day >= 1 &&
-    date.day <= daysInMonth(date.year, date.month)
-  );
-}
-
-/** Two dates are the same day. */
-export function sameCalendarDate(
-  left: CalendarDate,
-  right: CalendarDate,
-): boolean {
-  return (
-    left.year === right.year &&
-    left.month === right.month &&
-    left.day === right.day
-  );
-}
-
-/** The written form of a date, for example `2026-09-24`. */
-export function formatCalendarDate(date: CalendarDate): string {
-  return [
-    String(date.year).padStart(4, '0'),
-    String(date.month).padStart(2, '0'),
-    String(date.day).padStart(2, '0'),
-  ].join('-');
-}
-
-/** Reads the written form of a date, or `null` when it is not a real day. */
-export function parseCalendarDate(text: string): CalendarDate | null {
-  const match = datePattern.exec(text);
-  if (match === null) return null;
-  const date = {
-    year: Number(match[1]),
-    month: Number(match[2]),
-    day: Number(match[3]),
-  };
-  return isCalendarDate(date) ? date : null;
-}
+const sampleDates: readonly CalendarDate[] = [
+  { year: 2026, month: 9, day: 30 },
+  { year: 2026, month: 1, day: 1 },
+];
 
 /** The path of the daily note of one date. */
-export function dailyNotePath(date: CalendarDate): string {
-  return `${dailyNoteFolder}/${formatCalendarDate(date)}${noteSuffix}`;
+export function dailyNotePath(
+  date: CalendarDate,
+  layout: DailyNoteLayout,
+): string {
+  const name = `${formatDailyNoteName(date, layout.format)}${noteSuffix}`;
+  return layout.folder === '' ? name : `${layout.folder}/${name}`;
 }
 
 /**
  * The date whose daily note this path is, or `null` for any other note.
  *
- * The answer is the inverse of `dailyNotePath`: a path in a folder below
- * `Daily notes`, a name with more text than the date, or a day that the
- * calendar does not hold is not a daily note.
+ * The answer is the inverse of `dailyNotePath`: a path outside the folder, a
+ * name that the format does not write, or a day that the calendar does not
+ * hold is not a daily note.
  */
-export function dailyNoteDate(path: string): CalendarDate | null {
-  const prefix = `${dailyNoteFolder}/`;
+export function dailyNoteDate(
+  path: string,
+  layout: DailyNoteLayout,
+): CalendarDate | null {
+  const prefix = layout.folder === '' ? '' : `${layout.folder}/`;
   if (!path.startsWith(prefix) || !path.endsWith(noteSuffix)) return null;
-  return parseCalendarDate(
+  return parseDailyNoteName(
     path.slice(prefix.length, path.length - noteSuffix.length),
+    layout.format,
   );
+}
+
+/** Why a layout cannot name the daily notes, or `null` when it can. */
+export type DailyNoteLayoutProblem =
+  'folder' | 'no_year' | 'no_month' | 'no_day' | 'path';
+
+/**
+ * Whether a layout gives every date one valid note path.
+ *
+ * The folder must pass the folder rules of `files/path.ts` in its stored
+ * spelling, the format must name one date, and the path of every date must
+ * pass the note rules with no empty part and no space at the end of a part.
+ */
+export function dailyNoteLayoutProblem(
+  layout: DailyNoteLayout,
+): DailyNoteLayoutProblem | null {
+  if (layout.folder !== '') {
+    const folder = normalizePath(layout.folder, 'folder');
+    if (!folder.ok || folder.value !== layout.folder) return 'folder';
+  }
+  const format = dailyNoteFormatProblem(layout.format);
+  if (format !== null) return format;
+  for (const date of sampleDates) {
+    // Each part of the name is a name that a person could type: not empty,
+    // and no space at either end, which the note name field refuses too.
+    const name = formatDailyNoteName(date, layout.format);
+    if (name.split('/').some((part) => part === '' || part !== part.trim()))
+      return 'path';
+    const path = dailyNotePath(date, layout);
+    const normalized = normalizePath(path);
+    if (!normalized.ok || normalized.value !== path) return 'path';
+  }
+  return null;
+}
+
+/**
+ * The stored spelling of a folder that a person typed.
+ *
+ * Space at the ends and a slash at either end are dropped, so ` Journal/ `
+ * is the folder `Journal`, and an empty result is the top of the workspace.
+ */
+export function cleanDailyNoteFolder(text: string): string {
+  return text
+    .trim()
+    .replace(/^\/+|\/+$/g, '')
+    .trim();
 }
