@@ -127,6 +127,7 @@ and needs no record.
 | [0095](0095-a-table-is-a-grid-over-its-text.md)                               | A table is a grid over its text                                                 |
 | [0096](0096-an-edit-keeps-the-structure-of-a-table.md)                        | An edit keeps the structure of a table                                          |
 | [0097](0097-a-row-and-a-column-carry-a-menu.md)                               | A row and a column carry a menu, and a paste fills cells                        |
+| [0098](0098-a-handle-moves-its-row-or-column.md)                              | A handle stands outside the table and moves its row or column                   |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -359,3 +360,8 @@ Record 0097 gives a row and a column of a table a handle that opens its menu,
 because the owner could not find the removal of a row in the command palette.
 A range of cells that a person pastes into a cell fills the cells. It refines
 record 0096.
+
+Record 0098 moves the handles of a table outside its cells, into a margin
+that also holds them in full on a phone. A handle drags its row or its column
+to a new place, the menu and the palette move them too, and the add bars
+leave the table. It refines records 0096 and 0097.
