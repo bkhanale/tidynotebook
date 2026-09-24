@@ -20,6 +20,8 @@ For the person who writes the notes.
 - [Saving and history](saving-and-history.md) - what Save does, and how to
   bring an older version back.
 - [Working offline](offline.md) - what you can do with no connection.
+- [Daily notes](daily-notes.md) - one note for each day, a template, and the
+  calendar.
 - [Trash](trash.md) - how a deleted note comes back.
 - [Published links](published-links.md) - show one note, or one folder, to a
   person who has no account.

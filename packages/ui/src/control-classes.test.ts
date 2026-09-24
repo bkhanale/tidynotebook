@@ -16,6 +16,8 @@ import {
   badgeClassName,
   buttonClassName,
   buttonName,
+  calendarDayClassName,
+  calendarNoteMarkClassName,
   compactButtonVisualClassName,
   controlStripClassName,
   edgeControlClassName,
@@ -67,6 +69,22 @@ const recipes: readonly (readonly [string, string])[] = [
   ['key cap', kbdClassName()],
   ['badge', badgeClassName()],
   ['avatar', avatarClassName()],
+  [
+    'calendar day',
+    calendarDayClassName({ selected: false, today: false, inMonth: true }),
+  ],
+  [
+    'selected calendar day',
+    calendarDayClassName({ selected: true, today: false, inMonth: true }),
+  ],
+  [
+    'calendar today',
+    calendarDayClassName({ selected: false, today: true, inMonth: true }),
+  ],
+  [
+    'calendar day of another month',
+    calendarDayClassName({ selected: false, today: false, inMonth: false }),
+  ],
 ];
 
 /** A filter utility that makes a colour out of another colour. */
@@ -533,4 +551,64 @@ await test('a strip of controls that scrolls takes the pull of its edges', () =>
     edgeControlClassName({ edge: 'start', mark: 'icon' }),
     `-ms-${String(touchPull / spacingStep)} md:-ms-${String((widePull - outline) / spacingStep)}`,
   );
+});
+
+await test('a day of the calendar keeps one size in every state', () => {
+  const states = [true, false].flatMap((selected) =>
+    [true, false].flatMap((today) =>
+      [true, false].map((inMonth) =>
+        calendarDayClassName({ selected, today, inMonth }).split(' '),
+      ),
+    ),
+  );
+  for (const parts of states) {
+    // The touch target, the desktop square, and one edge width, so a day
+    // that becomes today or selected moves no neighbour.
+    assert.ok(parts.includes('size-11'));
+    assert.ok(parts.includes('md:size-9'));
+    assert.ok(parts.includes('border'));
+    assert.ok(parts.includes('rounded-md'));
+    // One colour utility for one element.
+    assert.equal(
+      parts.filter((part) => /^text-(?:ink|strong|muted)$/.test(part)).length,
+      1,
+    );
+  }
+});
+
+await test('today takes the resting edge and a selected day the chosen fill', () => {
+  const today = calendarDayClassName({
+    selected: false,
+    today: true,
+    inMonth: true,
+  }).split(' ');
+  assert.ok(today.includes('border-edge-line'));
+  assert.ok(!today.includes('bg-active'));
+  const selected = calendarDayClassName({
+    selected: true,
+    today: false,
+    inMonth: true,
+  }).split(' ');
+  assert.ok(selected.includes('bg-active'));
+  assert.ok(selected.includes('border-transparent'));
+  // No state paints the accent, which carries a link and a focus ring only.
+  for (const [, classes] of recipes)
+    assert.ok(
+      !classes
+        .split(' ')
+        .some((part) => /(?:^|:)(?:bg|text)-accent$/.test(part)),
+    );
+  const outside = calendarDayClassName({
+    selected: false,
+    today: false,
+    inMonth: false,
+  }).split(' ');
+  assert.ok(outside.includes('text-muted'));
+});
+
+await test('the mark of a day with a note is a muted dot that takes no pointer', () => {
+  const parts = calendarNoteMarkClassName().split(' ');
+  assert.ok(parts.includes('rounded-full'));
+  assert.ok(parts.includes('bg-muted'));
+  assert.ok(parts.includes('pointer-events-none'));
 });

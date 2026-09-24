@@ -118,6 +118,12 @@ import {
   RenameFolderDialog,
 } from '../features/folders/folders.tsx';
 import { useCreateNote } from '../features/notes/new-note.tsx';
+import {
+  DailyNotesProvider,
+  today,
+  useDailyNotes,
+} from '../features/daily-notes/daily-notes.tsx';
+import { dailyNotesTitle } from '../lib/daily-note.ts';
 import { PublishDialog } from '../features/publishing/publish-dialog.tsx';
 import { publishedLinksTitle } from '../features/publishing/publishing.ts';
 import {
@@ -305,6 +311,7 @@ const trashTitle = 'Trash';
  */
 const pageTitles: PageTitles = {
   notes: allNotesTitle,
+  daily: dailyNotesTitle,
   trash: trashTitle,
   published: publishedLinksTitle,
   attention: attentionTitle,
@@ -683,6 +690,7 @@ function Sidebar({
     for (const folder of ancestorFolders(openNotePath)) openFolder(folder);
   }, [openNotePath, openFolder]);
   const notesPath = `/w/${workspaceId}`;
+  const dailyPath = `/w/${workspaceId}/daily`;
   const trashPath = `/w/${workspaceId}/trash`;
   const publishedPath = `/w/${workspaceId}/published`;
   const attentionPath = `/w/${workspaceId}/attention`;
@@ -987,6 +995,23 @@ function Sidebar({
         </div>
         <Link
           className={rowClassName({
+            current: location.pathname === dailyPath,
+            inset: false,
+          })}
+          to={dailyPath}
+          onClick={onNavigate}
+          aria-current={location.pathname === dailyPath ? 'page' : undefined}
+        >
+          <span
+            className="inline-flex shrink-0 items-center"
+            aria-hidden="true"
+          >
+            {actionIcon('daily-notes')}
+          </span>
+          <span className="min-w-0 flex-1 truncate">{dailyNotesTitle}</span>
+        </Link>
+        <Link
+          className={rowClassName({
             current: location.pathname === trashPath,
             inset: false,
           })}
@@ -1199,13 +1224,15 @@ export function Shell(): ReactNode {
   return (
     <RequireCurrentWorkspace workspaceId={workspaceId}>
       <FilesProvider workspaceId={workspaceId}>
-        <NoteSaveScope>
-          <NoteActionsScope>
-            <HeaderSlotProvider>
-              <ShellFrame workspaceId={workspaceId} />
-            </HeaderSlotProvider>
-          </NoteActionsScope>
-        </NoteSaveScope>
+        <DailyNotesProvider workspaceId={workspaceId}>
+          <NoteSaveScope>
+            <NoteActionsScope>
+              <HeaderSlotProvider>
+                <ShellFrame workspaceId={workspaceId} />
+              </HeaderSlotProvider>
+            </NoteActionsScope>
+          </NoteSaveScope>
+        </DailyNotesProvider>
       </FilesProvider>
     </RequireCurrentWorkspace>
   );
@@ -1257,6 +1284,7 @@ function ShellFrame({
   const flushNoteDraft = useFlushNoteDraft();
   const persistence = usePersistentStorage(useSavedOnce());
   const newNote = useCreateNote(store.store, accountId, workspaceId);
+  const daily = useDailyNotes();
   const noteActions = useNoteActions();
   // Every folder the tree can show: the ones the note paths imply and the
   // ones that hold no note yet.
@@ -1479,6 +1507,13 @@ function ShellFrame({
         run: () => setNewFolderParent(selectedFolder),
       },
       {
+        id: 'today',
+        label: "Open today's note",
+        keywords: 'daily journal day date today',
+        icon: 'today' as const,
+        run: () => daily.open(today()),
+      },
+      {
         id: 'toggle-sidebar',
         label: 'Show or hide the sidebar',
         keywords: 'sidebar panel collapse expand navigation tree',
@@ -1599,6 +1634,15 @@ function ShellFrame({
                 ]),
           ]),
       {
+        id: 'daily-notes',
+        label: `Go to ${dailyNotesTitle}`,
+        keywords: 'daily journal calendar day date month',
+        icon: 'daily-notes' as const,
+        run: () => {
+          void navigate(`/w/${workspaceId}/daily`);
+        },
+      },
+      {
         id: 'trash',
         label: 'Go to Trash',
         keywords: 'deleted restore',
@@ -1640,6 +1684,7 @@ function ShellFrame({
     ],
     [
       cycleTheme,
+      daily.open,
       navigate,
       newNote.create,
       noteActions,

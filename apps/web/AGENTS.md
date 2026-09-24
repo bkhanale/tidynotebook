@@ -80,23 +80,25 @@ on each rule below.
 
 ## Key files
 
-| File                                          | Purpose                         |
-| --------------------------------------------- | ------------------------------- |
-| `src/app.tsx`                                 | Application shell and stores    |
-| `src/tailwind.css`                            | CSS source and the named scales |
-| `src/shell/shell.tsx`                         | Frame, tree, sidebar size       |
-| `src/shell/header-slot.tsx`                   | Where a route fills the header  |
-| `src/lib/note-menu.ts`                        | The rows of the note menu       |
-| `src/lib/note-name-field.ts`                  | The name field of the open note |
-| `src/shell/action-icons.tsx`                  | The one glyph of every action   |
-| `src/shell/workspaces.tsx`                    | The workspace switcher          |
-| `src/lib/workspace-choice.ts`                 | Which workspace opens           |
-| `src/lib/breadcrumb.ts`                       | Where a person is, as parts     |
-| `src/features/editor/note-editor.tsx`         | The editor host and editor view |
-| `src/features/editor/note-loader.tsx`         | The read that opens one note    |
-| `src/features/editor/note-header-actions.tsx` | The actions of the note route   |
-| `src/lib/format-toolbar.ts`                   | The formatting tools and rows   |
-| `vite.config.ts`                              | Build, theme, icons, worker     |
-| `src/pwa/icons.ts`                            | The one list of the icons       |
-| `icons/`                                      | The icon files the build names  |
-| `src/logging.ts`                              | Browser sink for log events     |
+| File                                          | Purpose                           |
+| --------------------------------------------- | --------------------------------- |
+| `src/app.tsx`                                 | Application shell and stores      |
+| `src/tailwind.css`                            | CSS source and the named scales   |
+| `src/shell/shell.tsx`                         | Frame, tree, sidebar size         |
+| `src/shell/header-slot.tsx`                   | Where a route fills the header    |
+| `src/lib/note-menu.ts`                        | The rows of the note menu         |
+| `src/lib/note-name-field.ts`                  | The name field of the open note   |
+| `src/shell/action-icons.tsx`                  | The one glyph of every action     |
+| `src/shell/workspaces.tsx`                    | The workspace switcher            |
+| `src/lib/workspace-choice.ts`                 | Which workspace opens             |
+| `src/lib/breadcrumb.ts`                       | Where a person is, as parts       |
+| `src/features/editor/note-editor.tsx`         | The editor host and editor view   |
+| `src/features/editor/note-loader.tsx`         | The read that opens one note      |
+| `src/features/editor/note-header-actions.tsx` | The actions of the note route     |
+| `src/lib/format-toolbar.ts`                   | The formatting tools and rows     |
+| `src/features/daily-notes/daily-notes.tsx`    | The one way to open a date (0099) |
+| `src/lib/daily-note.ts`                       | The daily note rules of a device  |
+| `vite.config.ts`                              | Build, theme, icons, worker       |
+| `src/pwa/icons.ts`                            | The one list of the icons         |
+| `icons/`                                      | The icon files the build names    |
+| `src/logging.ts`                              | Browser sink for log events       |

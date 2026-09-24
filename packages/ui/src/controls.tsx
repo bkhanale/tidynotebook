@@ -286,20 +286,29 @@ export type SelectOption = {
   readonly label: string;
 };
 
-/** A labeled native select. */
+/**
+ * A labeled native select.
+ *
+ * A `hint` is one sentence under the field that says what the choice does.
+ * The select names it as its description, so a screen reader reads it with
+ * the field and not after it.
+ */
 export function SelectField({
   id,
   label,
   value,
   options,
   onChange,
+  hint,
 }: {
   readonly id: string;
   readonly label: string;
   readonly value: string;
   readonly options: readonly SelectOption[];
   readonly onChange: (value: string) => void;
+  readonly hint?: string | undefined;
 }): ReactNode {
+  const hintId = `${id}-hint`;
   return (
     <div className="mb-3.5">
       <label className={fieldLabelClassName} htmlFor={id}>
@@ -309,6 +318,7 @@ export function SelectField({
         id={id}
         className={fieldClassName()}
         value={value}
+        aria-describedby={hint === undefined ? undefined : hintId}
         onChange={(event): void => {
           onChange(event.target.value);
         }}
@@ -319,6 +329,11 @@ export function SelectField({
           </option>
         ))}
       </select>
+      {hint === undefined ? null : (
+        <p className="mb-0 mt-1 text-control text-muted" id={hintId}>
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

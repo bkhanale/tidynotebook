@@ -27,6 +27,7 @@ export const framePages = [
   'note',
   'history',
   'review',
+  'daily',
   'trash',
   'published',
   'attention',

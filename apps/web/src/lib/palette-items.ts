@@ -116,6 +116,7 @@ export const actionIconNames = [
   'bold',
   'bullet-list',
   'collapse-all',
+  'daily-notes',
   'delete',
   'duplicate',
   'expand-all',
@@ -156,6 +157,7 @@ export const actionIconNames = [
   'theme-dark',
   'theme-light',
   'theme-system',
+  'today',
   'trash',
   'workspace',
 ] as const;

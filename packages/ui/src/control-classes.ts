@@ -373,6 +373,55 @@ export function badgeClassName(): string {
   return 'inline-flex items-center rounded-sm bg-hover px-1.5 text-kbd font-medium text-muted';
 }
 
+/**
+ * The appearance of one day of a month calendar, as classes.
+ *
+ * A day is a square control of the one row scale: 44 px under touch and
+ * 36 px from the medium width up, `rounded-md` and the row hover. Every state
+ * is a fact a person reads without colour alone (decision 0062 keeps the
+ * accent for a link, a focus ring, a caret and a selection):
+ *
+ * - `selected` is the day the keyboard stands on and the calendar opens. It
+ *   takes the fill of a chosen row.
+ * - `today` takes the resting edge of a control (decision 0063) and the
+ *   title weight, so it reads beside a selected day and on its own. Every
+ *   other day keeps a transparent edge of the same width, so no day moves.
+ * - `inMonth` false is a day of the month before or after, in muted text.
+ *
+ * The mark of a day that holds a note is `calendarNoteMarkClassName`.
+ */
+export function calendarDayClassName(options: {
+  readonly selected: boolean;
+  readonly today: boolean;
+  readonly inMonth: boolean;
+}): string {
+  const text =
+    options.selected || options.today
+      ? 'text-strong'
+      : options.inMonth
+        ? 'text-ink'
+        : 'text-muted';
+  return [
+    `relative inline-flex size-11 cursor-pointer items-center justify-center rounded-md border text-control tabular-nums ${transitionSurface} ${focusOutline} md:size-9`,
+    options.today ? 'border-edge-line font-semibold' : 'border-transparent',
+    options.selected
+      ? 'bg-active font-medium'
+      : 'hover:bg-hover hover:text-strong',
+    text,
+  ].join(' ');
+}
+
+/**
+ * The mark under the number of a day that holds a note, as classes.
+ *
+ * A dot in the muted text colour, which the contrast test holds on every
+ * surface a day sits on. It is a shape, so it needs no colour to be read, and
+ * the name of the day states it to a person who cannot see it.
+ */
+export function calendarNoteMarkClassName(): string {
+  return 'pointer-events-none absolute bottom-1 size-1 rounded-full bg-muted';
+}
+
 /** The accessible name and the tooltip of one button. */
 export type ButtonName = {
   readonly ariaLabel: string | undefined;
