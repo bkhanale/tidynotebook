@@ -126,6 +126,7 @@ and needs no record.
 | [0094](0094-the-note-has-one-row-of-formatting-tools.md)                      | The note has one row of formatting tools                                        |
 | [0095](0095-a-table-is-a-grid-over-its-text.md)                               | A table is a grid over its text                                                 |
 | [0096](0096-an-edit-keeps-the-structure-of-a-table.md)                        | An edit keeps the structure of a table                                          |
+| [0097](0097-a-row-and-a-column-carry-a-menu.md)                               | A row and a column carry a menu, and a paste fills cells                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -353,3 +354,8 @@ changes the rows or the columns of a table: an edit that meets its structure is
 expressed on the model of the table. A table carries its own controls that add
 a row and a column, and the table tools leave the formatting row. It refines
 records 0094 and 0095.
+
+Record 0097 gives a row and a column of a table a handle that opens its menu,
+because the owner could not find the removal of a row in the command palette.
+A range of cells that a person pastes into a cell fills the cells. It refines
+record 0096.
