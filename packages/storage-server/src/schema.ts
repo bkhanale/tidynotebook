@@ -1006,3 +1006,48 @@ export const accountPreferences = pgTable('account_preferences', {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * The daily note settings that one member keeps in one workspace.
+ *
+ * Record 0099 states the settings. A row belongs to one membership, and the
+ * membership reference cascades, so a member who leaves takes their settings
+ * with them and a workspace deletion, which removes every membership, removes
+ * every row. The row policy binds a row to the account of the transaction, so
+ * one member never reads the settings of another.
+ *
+ * The template is a note of the same workspace. A permanent deletion of that
+ * note removes its `files` row, and the reference then clears the template
+ * column alone. Drizzle states that action as `set null` over both columns,
+ * which would clear the workspace as well, so the migration names the one
+ * column that the action sets (`ON DELETE SET NULL (template_file_id)`).
+ */
+export const dailyNoteSettings = pgTable(
+  'daily_note_settings',
+  {
+    workspaceId: uuid('workspace_id').notNull(),
+    accountId: uuid('account_id').notNull(),
+    templateFileId: uuid('template_file_id'),
+    openOnStart: boolean('open_on_start').notNull().default(false),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.workspaceId, table.accountId] }),
+    foreignKey({
+      name: 'daily_note_settings_membership_fk',
+      columns: [table.workspaceId, table.accountId],
+      foreignColumns: [memberships.workspaceId, memberships.accountId],
+    }).onDelete('cascade'),
+    foreignKey({
+      name: 'daily_note_settings_template_fk',
+      columns: [table.workspaceId, table.templateFileId],
+      foreignColumns: [files.workspaceId, files.id],
+    }).onDelete('set null'),
+    index('daily_note_settings_template_idx').on(
+      table.workspaceId,
+      table.templateFileId,
+    ),
+  ],
+);

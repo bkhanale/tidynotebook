@@ -64,6 +64,13 @@
       "when": 1790156725448,
       "tag": "0008_delete_workspace_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790272731478,
+      "tag": "0009_daily_note_settings",
+      "breakpoints": true
     }
   ]
 }
