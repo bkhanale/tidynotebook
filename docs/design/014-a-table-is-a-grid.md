@@ -117,8 +117,8 @@ The table stays text in the one editor, and the editor presents it as a grid.
   in the padding or on a pipe moves to the nearest cell text, and a position
   on the delimiter row moves to the row below it.
 - Table commands in `packages/editor` move between cells, add and remove a
-  row and a column, and write the padding of every row again after each edit
-  of the table, as one transaction, so the source stays aligned GFM.
+  row and a column, and write the table again as aligned GFM. The difference
+  is applied as the smallest character changes, in one transaction.
 - The actions that add and remove a row and a column are tools of the
   formatting row of [decision 0094](../decisions/0094-the-note-has-one-row-of-formatting-tools.md).
   They join the row while the caret is in a table, and the command palette
@@ -156,14 +156,12 @@ guarantee that the one editor and record 0082 already prove. Option A buys
 nothing that a person sees over option B, and it pays for it with a second
 editor. Option C does not answer the report.
 
-## Questions for the owner
+## Answers of the owner
 
-1. Do the table tools join the formatting row only while the caret is in a
-   table, or stay in the row at all times and do nothing outside a table?
-2. Does a column keep the alignment control of GFM, the colons of the
-   delimiter row, as a choice in that control row?
-3. Does a paste of rows from a spreadsheet, which arrive as text with tabs,
-   become rows of the table?
+The owner chose option B on 2026-09-24. The row and column tools join the
+formatting row only while the caret is in a table. The alignment colons of a
+column stay as the source states them, and no tool sets them yet. A paste
+into a cell becomes one line of that cell; a paste of many rows is later work.
 
 ## What this design does not do
 
@@ -174,4 +172,3 @@ them.
 ## Decisions
 
 - [0095. A table is a grid over its text](../decisions/0095-a-table-is-a-grid-over-its-text.md)
-  (proposed)
