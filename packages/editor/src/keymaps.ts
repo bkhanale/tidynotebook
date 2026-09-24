@@ -224,17 +224,12 @@ export function isLinkDestination(value: string): boolean {
  * Wraps every selection range as a Markdown link.
  *
  * A selection that is already a URL becomes the destination and the cursor
- * waits in the empty label. A URL from the clipboard becomes the destination
- * of the selected label and the cursor moves past the link. Otherwise the
- * label is the selection and the cursor waits inside the empty parentheses,
- * which is where the person types or pastes the destination.
+ * waits in the empty label. Otherwise the label is the selection and the
+ * cursor waits inside the empty parentheses, which is where the person types
+ * or pastes the destination. {@link linkDestinationSpec} fills those
+ * parentheses from the clipboard afterwards.
  */
-export function linkSpec(
-  state: EditorState,
-  clipboard: string | null = null,
-): TransactionSpec {
-  const pasted =
-    clipboard !== null && isLinkDestination(clipboard) ? clipboard.trim() : '';
+export function linkSpec(state: EditorState): TransactionSpec {
   return state.changeByRange((range) => {
     const selected = state.doc.sliceString(range.from, range.to);
     if (isLinkDestination(selected)) {
@@ -244,19 +239,34 @@ export function linkSpec(
         range: EditorSelection.cursor(range.from + 1),
       };
     }
-    if (pasted !== '') {
-      const insert = `[${selected}](${pasted})`;
-      return {
-        changes: { from: range.from, to: range.to, insert },
-        range: EditorSelection.cursor(range.from + insert.length),
-      };
-    }
     const insert = `[${selected}]()`;
     return {
       changes: { from: range.from, to: range.to, insert },
       range: EditorSelection.cursor(range.from + selected.length + 3),
     };
   });
+}
+
+/**
+ * Fills the empty destination of a link with a URL from the clipboard.
+ *
+ * `at` is the cursor that {@link linkSpec} left inside the empty
+ * parentheses. The fill declines when the clipboard holds no link
+ * destination and when `at` is not between an empty pair, so it never writes
+ * into text that is not that link. The cursor moves past the link.
+ */
+export function linkDestinationSpec(
+  state: EditorState,
+  at: number,
+  clipboard: string | null,
+): TransactionSpec | null {
+  if (clipboard === null || !isLinkDestination(clipboard)) return null;
+  if (at < 1 || state.doc.sliceString(at - 1, at + 1) !== '()') return null;
+  const destination = clipboard.trim();
+  return {
+    changes: { from: at, insert: destination },
+    selection: EditorSelection.cursor(at + destination.length + 1),
+  };
 }
 
 /** The marker one list kind writes at position `index` of the selection. */
@@ -806,16 +816,22 @@ export function setHeadingLevel(level: number): Command {
 /**
  * Wraps the selection as a Markdown link.
  *
- * The command answers immediately and applies the change once the optional
- * clipboard read settles, which is the same tick when no permission exists.
+ * The link is written at once, so a key typed after the command lands after
+ * it, and the command states the change it made. A URL on the clipboard then
+ * fills the empty destination, when the browser grants the read without a
+ * prompt. The fill applies only to the state the command left: any later
+ * transaction, a keystroke or a move of the caret, means the person writes
+ * on, and a destination written into that would land in the middle of it.
  */
 export const insertLink: Command = (view: EditorView): boolean => {
   if (view.state.readOnly) return false;
+  view.dispatch(view.state.update(editingTransaction(linkSpec(view.state))));
+  const written = view.state;
+  const at = written.selection.main.head;
   void grantedClipboardText().then((clipboard) => {
-    view.dispatch(
-      view.state.update(editingTransaction(linkSpec(view.state, clipboard))),
-    );
-    view.focus();
+    if (view.state !== written || !view.dom.isConnected) return;
+    const spec = linkDestinationSpec(written, at, clipboard);
+    if (spec !== null) view.dispatch(written.update(editingTransaction(spec)));
   });
   return true;
 };

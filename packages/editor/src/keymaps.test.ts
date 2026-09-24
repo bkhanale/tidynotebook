@@ -22,6 +22,7 @@ import {
   inListItem,
   insideCodeFence,
   isLinkDestination,
+  linkDestinationSpec,
   linkSpec,
   outdentListSpec,
   parseListLine,
@@ -126,23 +127,38 @@ await test('a selected URL becomes the destination', () => {
   );
 });
 
-await test('a URL from the clipboard becomes the destination', () => {
+await test('a URL from the clipboard fills the empty destination', () => {
   const state = stateOf('see «the page» now');
+  const linked = state.update(linkSpec(state)).state;
+  const at = linked.selection.main.head;
   assert.equal(
-    applied(state, linkSpec(state, 'https://example.com/page')),
+    applied(
+      linked,
+      linkDestinationSpec(linked, at, 'https://example.com/page'),
+    ),
     'see [the page](https://example.com/page)‸ now',
   );
 });
 
-await test('a clipboard value that is not a URL is ignored', () => {
+await test('a clipboard value that is not a URL fills nothing', () => {
   const state = stateOf('see «the page» now');
-  assert.equal(
-    applied(state, linkSpec(state, 'not a url')),
-    'see [the page](‸) now',
-  );
+  const linked = state.update(linkSpec(state)).state;
+  const at = linked.selection.main.head;
+  assert.equal(linkDestinationSpec(linked, at, 'not a url'), null);
+  assert.equal(linkDestinationSpec(linked, at, null), null);
   assert.ok(!isLinkDestination('not a url'));
   assert.ok(isLinkDestination('https://example.com'));
   assert.ok(isLinkDestination('mailto:someone@example.com'));
+});
+
+await test('the clipboard fills only an empty pair of parentheses', () => {
+  // The fill arrives after a clipboard read, so it must never write into
+  // text that is not the link the command just wrote.
+  const filled = stateOf('see [the page](https://a.example)‸ now');
+  const at = filled.selection.main.head;
+  assert.equal(linkDestinationSpec(filled, at, 'https://b.example'), null);
+  const plain = stateOf('‸text');
+  assert.equal(linkDestinationSpec(plain, 0, 'https://b.example'), null);
 });
 
 await test('a heading level applies and toggles off', () => {
