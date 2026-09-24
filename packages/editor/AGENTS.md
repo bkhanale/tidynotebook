@@ -50,9 +50,9 @@ This package is browser code: no Node built in module and no server package.
 
 - **A decoration.** Read the node from the Lezer tree with
   `syntaxTree(state)` in `live-preview.ts`. Never scan the source text.
-- **A command and its key.** Add the command in `commands.ts`, dispatch it
-  through `editingTransaction`, then bind it in `keymaps.ts` and add it to the
-  exported `shortcuts` list.
+- **A command and its key.** Add the command, dispatch it through
+  `editingTransaction`, and list it in `shortcuts`. A formatting command is
+  one row of `formatActions`; its key, tool and palette row read it (0094).
 - **A shared Markdown syntax constant.** Add it in `packages/markdown` and
   read it here. Do not repeat a delimiter.
 

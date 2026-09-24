@@ -109,16 +109,16 @@ that no screen uses.
 ## The frame
 
 The header is 44 px and is the context of the route (record 0064): the sidebar
-toggle, the breadcrumb, the actions of the route through `HeaderSlot`, the last
-breadcrumb part through `HeaderLeafSlot`, both in
-`apps/web/src/shell/header-slot.tsx`, then Search and the account avatar of
-`avatarClassName`. The note route writes its name in that part, as the one
-field that renames it, and gives the header one control, its menu, with History
-and Publish as rows (record 0069). Every icon-only control of the row is
-compact, and the one at each end takes the pull of `edgeControlClassName`. The
-sidebar is rows on the chrome plane: the workspace switcher, the one row of
-compact icon actions of the tree (record 0093), the tree without guide lines,
-and the footer rows. The wordmark belongs to the sign in and setup screens.
+toggle, the breadcrumb, the route actions of `HeaderSlot`, the last part of
+`HeaderLeafSlot` (`apps/web/src/shell/header-slot.tsx`), Search and the avatar.
+The note route writes its name in that part and gives the header one menu, with
+History and Publish as rows (record 0069). An icon-only control there is
+compact, and one at an end takes the pull of `edgeControlClassName`. The
+sidebar is rows on the chrome plane: the workspace switcher, the row of tree
+actions (record 0093), the tree without guide lines, and the footer rows. The
+wordmark belongs to sign in and setup. The note has one row of formatting
+tools above its text (record 0094), and `apps/web/src/lib/format-toolbar.ts` is
+the one list that the row and the command palette read.
 
 ## Surfaces a person waits on or reads
 

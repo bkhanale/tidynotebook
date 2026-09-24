@@ -15,16 +15,14 @@ screens, the worker and the diagram frame. It composes and holds no rule.
   feature, `src/lib/` is pure, `src/app.tsx`, `src/router.tsx` and
   `src/main.tsx` compose it, `src/pwa/` the worker, `src/diagram/` the frame.
 - `src/tailwind.css` is the only application CSS source: Tailwind imports,
-  source registration, the one `@font-face` block (0061), and the central
-  scales of type, spacing, radius, elevation, easing, tracking and colour. A
-  domain rule lives in `packages/core`, a Markdown rule in
-  `packages/markdown`, a control in `packages/ui`.
+  sources, the `@font-face` block (0061), and the central scales. A domain
+  rule lives in `packages/core`, a Markdown rule in `packages/markdown`.
 - Three planes (0052): `bg-surface` is chrome, `bg-app` a route, `bg-card`
   with an elevation step is raised. `border-edge-line` is the resting edge of
   a control and the one divider, `border-edge-subtle` a hairline inside a
   group (0053, 0063). A hovered fill reads `bg-accent-fill-hover`, never a
-  filter or a fade (0057). The text and the word count of a note are one
-  centred column (0055), and its name is the last breadcrumb part (0069).
+  filter or a fade (0057). The tools, the text and the word count of a note
+  are one centred column (0055, 0094). Its name is in the breadcrumb (0069).
 
 ## Allowed imports
 
@@ -44,6 +42,8 @@ those two alone.
   that imports React is not `lib`; it stays with its feature.
 - **A move or a deletion.** Call `applyMoves` in `features/folders/` or
   `deleteNotes` in `features/editor/`. No screen holds either value (0032).
+- **A formatting tool.** One row of `formatActions` in the editor and one
+  tool in `lib/format-toolbar.ts`, which also gives its palette row (0094).
 
 ## Testing conventions here
 
@@ -95,6 +95,7 @@ on each rule below.
 | `src/features/editor/note-editor.tsx`         | The editor host and editor view |
 | `src/features/editor/note-loader.tsx`         | The read that opens one note    |
 | `src/features/editor/note-header-actions.tsx` | The actions of the note route   |
+| `src/lib/format-toolbar.ts`                   | The formatting tools and rows   |
 | `vite.config.ts`                              | Build, theme, icons, worker     |
 | `src/pwa/icons.ts`                            | The one list of the icons       |
 | `icons/`                                      | The icon files the build names  |

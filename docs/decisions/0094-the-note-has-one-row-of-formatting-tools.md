@@ -24,6 +24,10 @@ above the text, and it holds no name and no note action.
 - `formatActions` in `packages/editor/src/keymaps.ts` is the one table of the
   formatting commands. The formatting keymap is built from it, and the row
   reads it, so a tool and its key run one command.
+- Every tool is a row of the command palette as well.
+  `formatPaletteRows` in `apps/web/src/lib/format-toolbar.ts` derives those
+  rows from the row of tools, so a tool that joins or leaves the row joins or
+  leaves the palette in the same change. A tool has no second list.
 - Table inserts a small GFM table as text (record 0002). No table widget and
   no table editor exist.
 - A tool is a compact ghost control with a `label` and a title that names its
@@ -41,5 +45,6 @@ above the text, and it holds no name and no note action.
 - The text starts one row lower than record 0069 states.
 - `keymaps.test.ts` proves each command with an empty and a filled selection,
   that each key runs the command of its tool, and the shape and the caret of a
-  table. `format-toolbar.test.ts` holds the row.
+  table. `format-toolbar.test.ts` holds the row and proves that the palette
+  offers every tool of it and nothing else.
 - This answers [issue 153](https://github.com/bkhanale/notesapp/issues/153).
