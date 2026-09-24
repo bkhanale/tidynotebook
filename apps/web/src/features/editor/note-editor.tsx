@@ -39,6 +39,7 @@ import {
   outsideTable,
   runFormatAction,
   setEditorRich,
+  setEditorSpellCheck,
   setEditorTheme,
   setNoteLinkSource,
   type EditorView,
@@ -50,7 +51,12 @@ import {
   type TableMenuRequest,
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, pageGutter } from '@notesapp/ui';
-import { problemMessage, useRequestSync, useTheme } from '../../app.tsx';
+import {
+  problemMessage,
+  useRequestSync,
+  useSpellCheck,
+  useTheme,
+} from '../../app.tsx';
 import { ActiveNoteScope, useActiveNoteControl } from './active-note.tsx';
 import { downloadNote } from '../export/export.ts';
 import { useFiles } from '../../shell/files.tsx';
@@ -244,6 +250,9 @@ function NoteEditorBody({
   // the text that version replaced, so it writes nothing more.
   const headReplacedRef = useRef(false);
   const { resolved } = useTheme();
+  const spellCheck = useSpellCheck();
+  const spellCheckRef = useRef(spellCheck);
+  spellCheckRef.current = spellCheck;
   const containerRef = useRef<HTMLDivElement | null>(null);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -766,6 +775,7 @@ function NoteEditorBody({
           })();
         },
         theme: themeRef.current,
+        spellCheck: spellCheckRef.current,
         rich: richResolvers,
         document: bound,
         onFormatContext: setFormatContext,
@@ -840,6 +850,12 @@ function NoteEditorBody({
     const view = viewRef.current;
     if (view !== null) setEditorTheme(view, resolved);
   }, [resolved]);
+
+  // The spell check setting reconfigures one compartment in the same way.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (view !== null) setEditorSpellCheck(view, spellCheck);
+  }, [spellCheck]);
 
   // The note list feeds the link completion. It travels through one
   // compartment, so a refreshed list never replaces the document.

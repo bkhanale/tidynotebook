@@ -7,8 +7,8 @@
  * panel, so a first run meets a neutral surface and the one filled control on
  * it is the one action.
  *
- * Settings is the one place for the profile, the palette, offline
- * availability, and sign-out. It is a page of the workspace frame (record
+ * Settings is the one place for the profile, the palette, the spell check,
+ * offline availability, and sign-out. It is a page of the workspace frame (record
  * 0091), so the breadcrumb and the sidebar are the way back, and the
  * sections that act on one workspace act on the workspace of the address.
  * It reads as sections and not as a stack of cards: each section states its
@@ -29,6 +29,7 @@ import {
   createOwner,
   getSetupStatus,
   signInWithPassword,
+  updatePreferences,
 } from '@notesapp/api-client';
 import type { LocalStore } from '@notesapp/sync';
 import {
@@ -58,6 +59,7 @@ import {
   problemMessage,
   useLocalStore,
   useSession,
+  useSpellCheck,
   useTheme,
   useRequestSync,
 } from '../../app.tsx';
@@ -476,6 +478,61 @@ export function ThemeSettings(): ReactNode {
   );
 }
 
+/**
+ * The spell check of the editor (record 0103).
+ *
+ * The box shows the choice at once and the account stores it in the
+ * background. The editor reads the stored value, so a write that fails puts
+ * the box back and says so, and the two never disagree. Only the answer to
+ * the last change counts, so two quick changes end on the second one.
+ */
+function SpellCheckSettings(): ReactNode {
+  const session = useSession();
+  const stored = useSpellCheck();
+  const [pending, setPending] = useState<boolean | null>(null);
+  const [problem, setProblem] = useState('');
+  const lastChange = useRef(0);
+
+  function change(next: boolean): void {
+    lastChange.current += 1;
+    const current = lastChange.current;
+    setPending(next);
+    setProblem('');
+    async function write(): Promise<void> {
+      try {
+        const result = await updatePreferences({ body: { spellCheck: next } });
+        if (current !== lastChange.current) return;
+        if (result.data === undefined)
+          setProblem('The spell check did not change. Try again.');
+        else session.adoptPreferences(result.data);
+      } catch {
+        if (current === lastChange.current)
+          setProblem('The spell check did not change. Try again.');
+      }
+      if (current === lastChange.current) setPending(null);
+    }
+    void write();
+  }
+
+  return (
+    <SettingsSection
+      title="Spelling"
+      titleId="spelling-heading"
+      description="Your browser marks the words that it does not know in a note. It does not check code or addresses. The settings of your browser choose the languages."
+    >
+      <Checkbox
+        id="spell-check"
+        label="Check spelling"
+        checked={pending ?? stored}
+        onChange={change}
+      />
+      {problem === '' ? null : (
+        <Notice className="mt-4" tone="problem" message={problem} />
+      )}
+    </SettingsSection>
+  );
+}
+
 /** What is kept on this device for use without a connection. */
 type OfflineChoices = {
   readonly images: boolean;
@@ -706,6 +763,8 @@ export function AccountSettingsPage(): ReactNode {
       <PageHeader title={settingsTitle} />
       <div>
         <ThemeSettings />
+
+        <SpellCheckSettings />
 
         <SettingsSection
           title="Daily notes"

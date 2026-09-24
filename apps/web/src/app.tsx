@@ -97,6 +97,11 @@ export type SessionValue = {
   readonly error: string | null;
   readonly refresh: () => void;
   readonly signOut: () => void;
+  /**
+   * Takes the settings that the account answered after a write, so every
+   * screen reads them at once and the next start reads them offline.
+   */
+  readonly adoptPreferences: (preferences: Preferences) => void;
 };
 
 const SessionContext = createContext<SessionValue>({
@@ -105,6 +110,7 @@ const SessionContext = createContext<SessionValue>({
   error: null,
   refresh: () => {},
   signOut: () => {},
+  adoptPreferences: () => {},
 });
 
 const cachedAccountKey = 'notesapp.cached-account';
@@ -213,6 +219,7 @@ function useSessionLoader(generation: number): {
   readonly status: SessionStatus;
   readonly account: Account | null;
   readonly error: string | null;
+  readonly adoptPreferences: (preferences: Preferences) => void;
 } {
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [account, setAccount] = useState<Account | null>(null);
@@ -258,7 +265,32 @@ function useSessionLoader(generation: number): {
     };
   }, [generation]);
 
-  return { status, account, error };
+  const adoptPreferences = useCallback((preferences: Preferences): void => {
+    setAccount((current) =>
+      current === null ? null : { ...current, preferences },
+    );
+  }, []);
+
+  // The cached account follows the settings that a write returned, so a start
+  // with no connection reads the settings of the last write.
+  useEffect(() => {
+    if (status === 'signed-in' && account !== null) rememberAccount(account);
+  }, [status, account]);
+
+  return { status, account, error, adoptPreferences };
+}
+
+/**
+ * Whether the editor checks the spelling of a note (record 0103).
+ *
+ * The setting follows the account. It reads the cached account when there is
+ * no connection, and the default before any account arrives.
+ */
+export function useSpellCheck(): boolean {
+  return (
+    useContext(SessionContext).account?.preferences.spellCheck ??
+    defaultSpellCheck
+  );
 }
 
 /** Where the workspaces of this account stand. */
@@ -1086,6 +1118,7 @@ export function AppProviders({
       error: session.error,
       refresh,
       signOut: doSignOut,
+      adoptPreferences: session.adoptPreferences,
     }),
     [session, refresh, doSignOut],
   );
