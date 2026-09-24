@@ -14,12 +14,12 @@ import {
 } from '@codemirror/state';
 import { noteMarkdownExtensions } from './language.ts';
 import {
+  moveColumnEdit,
+  moveRowEdit,
   alignColumnEdit,
   insertColumnLeftEdit,
   insertRowAboveEdit,
-  addColumnAtEndEdit,
   addColumnEdit,
-  addRowAtEndEdit,
   cellAboveEdit,
   cellBelowEdit,
   cellText,
@@ -418,7 +418,40 @@ await test('a selection from a table into the text below keeps the table', () =>
       { from: doc.indexOf('2'), to: doc.indexOf('tro') },
       'delete.selection',
     ),
-    '| a   | b   |\n| --- | --- |\n| 1   | ‸    |\ntro',
+    // The blank line under the table stays, so the rest of the text is not
+    // read as one more row of it.
+    '| a   | b   |\n| --- | --- |\n| 1   | ‸    |\n\ntro',
+  );
+});
+
+await test('the text under a table never joins it as a row', () => {
+  // Regression: Backspace at the start of the text under a table removed the
+  // blank line between them, and GFM read the text as a new row.
+  const doc = `${aligned}\n\nOutro`;
+  const outro = doc.indexOf('Outro');
+  assert.equal(
+    edited(
+      `${doc.slice(0, outro)}‸${doc.slice(outro)}`,
+      { from: outro - 1, to: outro },
+      'delete.backward',
+    ),
+    `${aligned}\n‸\nOutro`,
+  );
+  // Text written on the blank line starts under it, and not in the table.
+  const blank = doc.indexOf('\n\n') + 1;
+  assert.equal(
+    edited(`${doc}‸`, { from: blank, to: blank, insert: 'x' }, 'input.type'),
+    `${aligned}\n\nx‸\nOutro`,
+  );
+  // A table with text right under it already is left as it stands.
+  const joined = `${aligned}\nOutro`;
+  assert.equal(
+    edited(
+      `${joined}‸`,
+      { from: joined.length, to: joined.length, insert: '!' },
+      'input.type',
+    ),
+    `${joined}!‸`,
   );
 });
 
@@ -512,12 +545,18 @@ await test('the format context states the row and the columns of the caret', () 
   assert.deepEqual(formatContextOf(stateOf(aligned.replace('| a', '| a‸'))), {
     table: true,
     bodyRow: false,
+    row: 0,
+    rows: 2,
+    column: 0,
     columns: 2,
     align: null,
   });
   assert.deepEqual(formatContextOf(stateOf(aligned.replace('| 1', '| 1‸'))), {
     table: true,
     bodyRow: true,
+    row: 1,
+    rows: 2,
+    column: 0,
     columns: 2,
     align: null,
   });
@@ -551,19 +590,29 @@ await test('each table gets one wrapper and atomic separators', () => {
   assert.deepEqual(atomic, ['|', '|', '|', '| --- | --- |', '|', '|', '|']);
 });
 
-await test('the controls add a row and a column at the end of their table', () => {
-  // A control names its table by a position in it, wherever the caret is.
-  const doc = `Text‸\n\n${aligned}`;
+await test('a drag moves a body row, and the header row stays first', () => {
+  // A handle names its cell, wherever the caret is.
+  const doc = `Text‸\n\n${aligned}\n| 3   | 4   |\n| 5   | 6   |`;
   const state = stateOf(doc);
-  const table = doc.indexOf('|') + 1;
+  const five = doc.indexOf('5');
   assert.equal(
-    applied(state, tableEditSpec(state, addRowAtEndEdit, table)),
-    `Text\n\n${aligned}\n| ‸    |     |`,
+    applied(state, tableEditSpec(state, moveRowEdit(1), five)),
+    'Text\n\n| a   | b   |\n| --- | --- |\n| 5‸   | 6   |\n| 1   | 2   |\n| 3   | 4   |',
   );
+  const header = doc.indexOf('a');
+  assert.equal(tableEditSpec(state, moveRowEdit(2), header), null);
+  assert.equal(tableEditSpec(state, moveRowEdit(0), five), null);
+});
+
+await test('a drag moves a column with its alignment', () => {
+  const doc =
+    'Text‸\n\n| a   | b   | c   |\n| --- | --: | --- |\n| 1   | 2   | 3   |';
+  const state = stateOf(doc);
   assert.equal(
-    applied(state, tableEditSpec(state, addColumnAtEndEdit, table)),
-    'Text\n\n| a   | b   | ‸    |\n| --- | --- | --- |\n| 1   | 2   |     |',
+    applied(state, tableEditSpec(state, moveColumnEdit(2), doc.indexOf('b'))),
+    'Text\n\n| a   | c   | b‸   |\n| --- | --- | --: |\n| 1   | 3   | 2   |',
   );
+  assert.equal(tableEditSpec(state, moveColumnEdit(3), doc.indexOf('b')), null);
 });
 
 await test('a space typed at the end of a cell stays before the next text', () => {

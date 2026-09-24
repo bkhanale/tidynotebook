@@ -257,6 +257,20 @@ await test('a table is a grid of outlined cells that scrolls on its own', () => 
   const wrapper = rule('.cm-np-table');
   assert.equal(wrapper.overflowX, 'auto');
   assert.equal(wrapper.borderCollapse, 'collapse');
+  // Regression: the editor measures the padding of a wrapper and never its
+  // margin, so a margin above the table put each row lower than the editor
+  // knew, and a click or Home found the wrong row.
+  assert.equal(wrapper.marginBlock, undefined);
+  assert.equal(wrapper.marginBlockStart, undefined);
+  assert.equal(wrapper.marginBlockEnd, undefined);
+  assert.equal(wrapper.paddingBlock, 'var(--spacing-note-block)');
+  // A hidden separator is a real cell that draws nothing, so a row holds no
+  // loose node that the browser wraps in an anonymous cell of its own.
+  const gap = rule('.cm-np-table-gap');
+  assert.equal(gap.display, 'table-cell');
+  assert.equal(gap.width, '0');
+  assert.equal(gap.padding, '0');
+  assert.equal(gap.border, undefined);
   const head = rule('.cm-np-table-head');
   const cell = rule('.cm-np-table-cell');
   for (const box of [head, cell]) {

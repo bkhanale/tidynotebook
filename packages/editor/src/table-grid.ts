@@ -26,6 +26,7 @@
  */
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import {
+  ChangeSet,
   EditorSelection,
   EditorState,
   type ChangeSpec,
@@ -575,22 +576,73 @@ export const removeColumnEdit: TableEdit = (data, at) => {
   };
 };
 
-/** Adds an empty row after the last one, for the control under a table. */
-export const addRowAtEndEdit: TableEdit = (data) => ({
-  data: withRow(data, data.body.length),
-  target: { row: rowCount(data), column: 0 },
-  select: 'end',
-});
+/**
+ * Moves the body row of the caret to body place `to`, where row 1 is the
+ * first body row. The header row stays first, because a GFM table has its
+ * header at the top.
+ */
+export function moveRowEdit(to: number): TableEdit {
+  return (data, at) => {
+    if (at.row === 0 || to < 1 || to > data.body.length || to === at.row)
+      return null;
+    const body = [...data.body];
+    const [row] = body.splice(at.row - 1, 1);
+    if (row === undefined) return null;
+    body.splice(to - 1, 0, row);
+    return {
+      data: { ...data, body },
+      target: { row: to, column: at.column },
+      select: 'end',
+    };
+  };
+}
 
-/** Adds an empty column after the last one, for the control beside a table. */
-export const addColumnAtEndEdit: TableEdit = (data) =>
-  addColumnEdit(data, { row: 0, column: data.alignments.length - 1 });
+/** Moves the column of the caret, with its alignment, to column place `to`. */
+export function moveColumnEdit(to: number): TableEdit {
+  return (data, at) => {
+    const columns = data.alignments.length;
+    if (to < 0 || to >= columns || to === at.column) return null;
+    const move = <T>(cells: readonly T[]): readonly T[] => {
+      const next = [...cells];
+      const [cell] = next.splice(at.column, 1);
+      if (cell === undefined) return cells;
+      next.splice(to, 0, cell);
+      return next;
+    };
+    return {
+      data: {
+        ...data,
+        alignments: move(data.alignments),
+        header: move(data.header),
+        body: data.body.map(move),
+      },
+      target: { row: at.row, column: to },
+      select: 'end',
+    };
+  };
+}
+
+/** Moves the body row of the caret one place up. */
+export const moveRowUpEdit: TableEdit = (data, at) =>
+  moveRowEdit(at.row - 1)(data, at);
+
+/** Moves the body row of the caret one place down. */
+export const moveRowDownEdit: TableEdit = (data, at) =>
+  moveRowEdit(at.row + 1)(data, at);
+
+/** Moves the column of the caret one place left. */
+export const moveColumnLeftEdit: TableEdit = (data, at) =>
+  moveColumnEdit(at.column - 1)(data, at);
+
+/** Moves the column of the caret one place right. */
+export const moveColumnRightEdit: TableEdit = (data, at) =>
+  moveColumnEdit(at.column + 1)(data, at);
 
 /**
  * The transaction of one table edit, or null outside a table.
  *
  * The edit acts at the main selection, or at `pos` for a control that names
- * its table, such as the bar that adds a row.
+ * its cell, such as the handle of a row.
  */
 export function tableEditSpec(
   state: EditorState,
@@ -934,6 +986,40 @@ function rewriteCells(
 }
 
 /**
+ * The line breaks that keep a blank line under each table.
+ *
+ * GFM reads a line of text right under a table as one more row of it. An
+ * edit that removes the blank line under a table, or writes on it, would so
+ * add a row that nobody asked for. Each table that had a blank line under it
+ * keeps one: a line break goes back before the text. The positions are in
+ * the document after `changes`.
+ */
+function blankLinesKept(
+  start: EditorState,
+  tables: readonly TableBox[],
+  changes: ChangeSet,
+): ChangeSet {
+  const doc = changes.apply(start.doc);
+  const breaks: number[] = [];
+  for (const table of tables) {
+    const last = start.doc.lineAt(table.to);
+    if (last.number === start.doc.lines) continue;
+    if (start.doc.line(last.number + 1).text.trim() !== '') continue;
+    // A table that the edit removed has no line under it to keep.
+    const end = changes.mapPos(table.to, 1);
+    if (changes.mapPos(tableRegion(table).from, 1) >= end) continue;
+    const line = doc.lineAt(end);
+    if (line.number === doc.lines) continue;
+    const next = doc.line(line.number + 1);
+    if (next.text.trim() !== '') breaks.push(next.from);
+  }
+  return ChangeSet.of(
+    breaks.map((at) => ({ from: at, insert: '\n' })),
+    doc.length,
+  );
+}
+
+/**
  * Keeps the structure of every table under the edit of a person.
  *
  * An edit inside the text of one cell passes as it is. An edit that reaches
@@ -1021,12 +1107,23 @@ function tableEditFilter(
   const plain = [...rewrites].every(([table, changes]) =>
     changes.every((change) => changeInCellText(start, table, change)),
   );
+  const userEvent = transaction.annotation(Transaction.userEvent);
   if (
     plain &&
     !typing &&
     kept.length + [...rewrites.values()].flat().length === all.length
-  )
-    return transaction;
+  ) {
+    const breaks = blankLinesKept(start, tables, transaction.changes);
+    if (breaks.empty) return transaction;
+    // The caret stays before the line break that comes back, so a Backspace
+    // at the start of the text under a table lands on the blank line.
+    return {
+      changes: transaction.changes.compose(breaks),
+      selection: transaction.newSelection.map(breaks, -1),
+      ...(userEvent === undefined ? {} : { userEvent }),
+      scrollIntoView: transaction.scrollIntoView,
+    };
+  }
 
   const specs: ChangeSpec[] = [...kept];
   // Where the caret lands: an offset from the start of its table, which the
@@ -1078,8 +1175,8 @@ function tableEditFilter(
         offset: written.cell(rewrite.caret.ref).from + rewrite.caret.offset,
       };
   }
-  const set = start.changes(specs);
-  const userEvent = transaction.annotation(Transaction.userEvent);
+  const rewritten = start.changes(specs);
+  const set = rewritten.compose(blankLinesKept(start, tables, rewritten));
   return {
     changes: set,
     // A caret in a rewritten table stands where the model put it. The start
@@ -1113,6 +1210,11 @@ function tableEditFilter(
 export type FormatContext = {
   readonly table: boolean;
   readonly bodyRow: boolean;
+  /** The row of the cell, where 0 is the header, and the count of rows. */
+  readonly row: number;
+  readonly rows: number;
+  /** The column of the cell, and the count of columns. */
+  readonly column: number;
   readonly columns: number;
   /** The alignment of the column, which a menu marks as the one in force. */
   readonly align: ColumnAlign;
@@ -1122,6 +1224,9 @@ export type FormatContext = {
 export const outsideTable: FormatContext = {
   table: false,
   bodyRow: false,
+  row: 0,
+  rows: 0,
+  column: 0,
   columns: 0,
   align: null,
 };
@@ -1136,6 +1241,9 @@ export function tableContextAt(state: EditorState, pos: number): FormatContext {
   return {
     table: true,
     bodyRow: cell.row > 0,
+    row: cell.row,
+    rows: data.body.length + 1,
+    column: cell.column,
     columns: data.alignments.length,
     align: data.alignments[cell.column] ?? null,
   };
@@ -1154,6 +1262,9 @@ export function sameFormatContext(
   return (
     left.table === right.table &&
     left.bodyRow === right.bodyRow &&
+    left.row === right.row &&
+    left.rows === right.rows &&
+    left.column === right.column &&
     left.columns === right.columns &&
     left.align === right.align
   );

@@ -23,7 +23,7 @@ diff for History.
   of this module only: it holds one merged update while an IME composition
   runs, because an update inside a composition loses the composed characters.
 - `live-preview.ts` has the decorations, `widgets.ts` the widgets,
-  `table-grid.ts` and `table-controls.ts` the table (0095 to 0097).
+  `table-grid.ts` and `table-controls.ts` the table (0095 to 0098).
 - `editor-theme.ts` is the typed CodeMirror adapter and the one place here
   that sets presentation in TypeScript. It reads the named steps of
   `apps/web/src/tailwind.css`, which `editorThemeVariables` lists for the
@@ -80,15 +80,15 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 
 ## Key files
 
-| File                      | Purpose                                     |
-| ------------------------- | ------------------------------------------- |
-| `src/index.ts`            | The one public entry point                  |
-| `src/create-editor.ts`    | Builds one editor instance                  |
-| `src/live-preview.ts`     | Tree driven decorations                     |
-| `src/widgets.ts`          | The three allowed block widgets             |
-| `src/editor-theme.ts`     | The typed CodeMirror presentation adapter   |
-| `src/keymaps.ts`          | Keymaps and the public `shortcuts` list     |
-| `src/document-binding.ts` | Binds a live note document to a view (0082) |
-| `src/table-grid.ts`       | A table as a grid over its text (0095)      |
-| `src/table-controls.ts`   | The bars and the handles of a table (0097)  |
-| `src/icon-mark.ts`        | The one glyph grid of the editor            |
+| File                      | Purpose                                      |
+| ------------------------- | -------------------------------------------- |
+| `src/index.ts`            | The one public entry point                   |
+| `src/create-editor.ts`    | Builds one editor instance                   |
+| `src/live-preview.ts`     | Tree driven decorations                      |
+| `src/widgets.ts`          | The three allowed block widgets              |
+| `src/editor-theme.ts`     | The typed CodeMirror presentation adapter    |
+| `src/keymaps.ts`          | Keymaps and the public `shortcuts` list      |
+| `src/document-binding.ts` | Binds a live note document to a view (0082)  |
+| `src/table-grid.ts`       | A table as a grid over its text (0095)       |
+| `src/table-controls.ts`   | The handles of a table and their drag (0098) |
+| `src/icon-mark.ts`        | The one glyph grid of the editor             |

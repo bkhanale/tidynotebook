@@ -1,42 +1,38 @@
 /**
- * The controls that a table carries (records 0096 and 0097).
+ * The handles that a table carries (records 0097 and 0098).
  *
- * - A bar under the table adds a row at its end, and a bar at its right edge
- *   adds a column.
- * - A handle at the start of a row and a handle above a column open the menu
- *   of that row or that column: insert, delete, and the alignment of a column.
+ * A handle stands at the start of the active row and above the active column:
+ * the row and the column of the cell under the pointer, or of the caret. A
+ * press on a handle opens the menu of its row or its column. A drag of a
+ * handle moves its row or its column, and a line shows where it lands.
  *
- * The controls stand in one layer over the text, inside the scroller of the
+ * The handles stand in one layer over the text, inside the scroller of the
  * editor, so they replace no text and the set of widget kinds of record 0002
  * stays closed. The layer is the way CodeMirror draws its own selection and
  * its tooltips: an element beside the content, placed from what the view
- * measures. A bar runs a table command of `table-grid.ts`. A handle asks the
- * application to open its menu through `tableMenuOpener`, because the menu is
- * a control of `packages/ui` and the editor renders no React.
+ * measures. A table keeps room for the handles beside its rows and above its
+ * columns (`editor-theme.ts`), so a handle never covers a cell and a phone
+ * shows the whole of it. A move is an edit of `table-grid.ts`. The menu is a
+ * control of `packages/ui`, which the editor does not render, so a handle asks
+ * the application for it through `tableMenuOpener`.
  *
- * The controls show for one table at a time: the table under the pointer, or
- * the table that holds the caret, which is how a phone reaches them after a
- * tap in a cell. The handles follow the cell under the pointer, or the cell of
- * the caret. A control takes no focus from the editor. The keyboard reaches
- * every action of the menu from the command palette, and it adds a row with
- * Tab and Enter.
+ * A handle takes no focus from the editor. The keyboard reaches every action
+ * of the menu, moves included, from the command palette.
  */
 import { Facet, type Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
 import { glyph, type GlyphPart } from './icon-mark.ts';
 import {
-  addColumnAtEndEdit,
-  addRowAtEndEdit,
+  moveColumnEdit,
+  moveRowEdit,
   tableContextAt,
   tableEditSpec,
   type FormatContext,
 } from './table-grid.ts';
 
-/** The names of the controls, which a person hears and reads. */
+/** The names of the handles, which a person hears and reads. */
 export const tableControlLabels = {
-  row: 'Add a row',
-  column: 'Add a column',
   rowMenu: 'Row actions',
   columnMenu: 'Column actions',
 } as const;
@@ -69,39 +65,35 @@ export const tableMenuOpener = Facet.define<
   TableMenuOpener | null
 >({ combine: (values) => values.at(-1) ?? null });
 
-/** The plus of the icon set, on the one grid. */
-const plus: readonly GlyphPart[] = [
-  { kind: 'path', d: 'M12 5v14' },
-  { kind: 'path', d: 'M5 12h14' },
-];
+/** How far a pointer travels before a press on a handle becomes a drag. */
+const dragDistance = 4;
+
+/** The width of the line that shows where a row or a column lands. */
+const dropLineWidth = 2;
 
 /** Three dots in each of two lines: the grip of a handle. */
 function grip(vertical: boolean): readonly GlyphPart[] {
-  const across = [9, 15];
-  const along = [6, 12, 18];
-  return across.flatMap((a) =>
-    along.map((b): GlyphPart => ({
+  return [9, 15].flatMap((across) =>
+    [6, 12, 18].map((along): GlyphPart => ({
       kind: 'circle',
-      cx: vertical ? a : b,
-      cy: vertical ? b : a,
+      cx: vertical ? across : along,
+      cy: vertical ? along : across,
       r: 1,
     })),
   );
 }
 
-/** One control element. */
-function control(
-  className: string,
-  label: string,
-  parts: readonly GlyphPart[],
-): HTMLButtonElement {
+/** One handle element. */
+function handle(kind: 'row' | 'column'): HTMLButtonElement {
   const button = document.createElement('button');
+  const label =
+    kind === 'row' ? tableControlLabels.rowMenu : tableControlLabels.columnMenu;
   button.type = 'button';
-  button.className = className;
+  button.className = `cm-np-table-handle cm-np-table-handle-${kind}`;
   button.tabIndex = -1;
   button.setAttribute('aria-label', label);
   button.title = label;
-  button.append(glyph('cm-np-table-control-mark', parts));
+  button.append(glyph('cm-np-table-control-mark', grip(kind === 'row')));
   return button;
 }
 
@@ -115,6 +107,24 @@ function caretCell(view: EditorView): HTMLElement | null {
   );
 }
 
+/** The rows of a table element that a person sees: every line but the delimiter. */
+function gridLines(table: HTMLElement): readonly HTMLElement[] {
+  return [
+    ...table.querySelectorAll<HTMLElement>(
+      '.cm-np-table-line:not(.cm-np-table-closed)',
+    ),
+  ];
+}
+
+/** The cells of one row element. */
+function rowCells(line: Element): readonly HTMLElement[] {
+  return [
+    ...line.querySelectorAll<HTMLElement>(
+      '.cm-np-table-cell, .cm-np-table-head',
+    ),
+  ];
+}
+
 /** A place in the coordinates of the scroller. */
 type Place = {
   readonly top: number;
@@ -123,27 +133,42 @@ type Place = {
   readonly height: number;
 };
 
-/** Where every control stands. */
+/** Where the handles and the drop line stand. */
 type ControlPlaces = {
-  readonly addRow: Place;
-  readonly addColumn: Place;
   readonly rowHandle: Place | null;
   readonly columnHandle: Place | null;
+  readonly dropLine: Place | null;
 };
 
-/** Builds the layer of the controls and keeps it on the active table. */
+/** A press on a handle, which becomes a drag once the pointer travels. */
+type Drag = {
+  readonly kind: 'row' | 'column';
+  readonly pointerId: number;
+  readonly startX: number;
+  readonly startY: number;
+  /** A position in the cell of the handle, which names what moves. */
+  readonly pos: number;
+  /** The row or the column that moves, as the grid counts them. */
+  readonly from: number;
+  readonly table: HTMLElement;
+  /** True once the pointer travelled far enough to be a drag. */
+  moving: boolean;
+  /** Where the row or the column lands, as the grid counts them. */
+  to: number;
+};
+
+/** Builds the layer of the handles and keeps it on the active table. */
 class TableControls {
   private readonly layer: HTMLElement;
-  private readonly addRow: HTMLButtonElement;
-  private readonly addColumn: HTMLButtonElement;
   private readonly rowHandle: HTMLButtonElement;
   private readonly columnHandle: HTMLButtonElement;
+  private readonly dropLine: HTMLElement;
   /** The table and the cell under the pointer, which win over the caret. */
   private hovered: HTMLElement | null = null;
   private hoveredCell: HTMLElement | null = null;
-  /** The table and the cell the controls stand on now. */
-  private active: HTMLElement | null = null;
+  /** The cell the handles stand on now. */
   private activeCell: HTMLElement | null = null;
+  private drag: Drag | null = null;
   private readonly onPointer: (event: PointerEvent) => void;
   private readonly onLeave: () => void;
   private readonly onScroll: () => void;
@@ -151,55 +176,46 @@ class TableControls {
   constructor(private readonly view: EditorView) {
     this.layer = document.createElement('div');
     this.layer.className = 'cm-np-table-controls';
-    this.addRow = control(
-      'cm-np-table-add cm-np-table-add-row',
-      tableControlLabels.row,
-      plus,
-    );
-    this.addColumn = control(
-      'cm-np-table-add cm-np-table-add-column',
-      tableControlLabels.column,
-      plus,
-    );
-    this.rowHandle = control(
-      'cm-np-table-handle cm-np-table-handle-row',
-      tableControlLabels.rowMenu,
-      grip(true),
-    );
-    this.columnHandle = control(
-      'cm-np-table-handle cm-np-table-handle-column',
-      tableControlLabels.columnMenu,
-      grip(false),
-    );
-    const controls = [
-      this.addRow,
-      this.addColumn,
-      this.rowHandle,
-      this.columnHandle,
-    ];
-    this.layer.append(...controls);
+    this.rowHandle = handle('row');
+    this.columnHandle = handle('column');
+    this.dropLine = document.createElement('div');
+    this.dropLine.className = 'cm-np-table-drop';
+    this.layer.append(this.rowHandle, this.columnHandle, this.dropLine);
     view.scrollDOM.append(this.layer);
 
-    // A press keeps the focus and the selection in the editor, and the
-    // click that follows runs the control.
-    for (const button of controls)
+    for (const [button, kind] of [
+      [this.rowHandle, 'row'],
+      [this.columnHandle, 'column'],
+    ] as const) {
+      // A press keeps the focus and the selection in the editor.
       button.addEventListener('mousedown', (event) => {
         event.preventDefault();
       });
-    this.addRow.addEventListener('click', () => {
-      this.add('row');
-    });
-    this.addColumn.addEventListener('click', () => {
-      this.add('column');
-    });
-    this.rowHandle.addEventListener('click', () => {
-      this.openMenu('row', this.rowHandle);
-    });
-    this.columnHandle.addEventListener('click', () => {
-      this.openMenu('column', this.columnHandle);
-    });
+      button.addEventListener('pointerdown', (event) => {
+        this.startDrag(kind, event, button);
+      });
+      button.addEventListener('pointermove', (event) => {
+        this.moveDrag(event);
+      });
+      button.addEventListener('pointerup', (event) => {
+        this.endDrag(event, button);
+      });
+      button.addEventListener('pointercancel', () => {
+        this.drag = null;
+        this.schedule();
+      });
+      // Assistive software and a keyboard press a button with a click that
+      // no pointer made, which carries no count of presses. It opens the menu,
+      // as a press of the pointer that does not drag does.
+      button.addEventListener('click', (event) => {
+        const cell = this.activeCell;
+        if (event.detail !== 0 || cell === null) return;
+        this.openMenu(kind, this.view.posAtDOM(cell, 0), button);
+      });
+    }
 
     this.onPointer = (event: PointerEvent): void => {
+      if (this.drag !== null) return;
       const target = event.target;
       if (!(target instanceof Element)) return;
       if (this.layer.contains(target)) return;
@@ -217,6 +233,7 @@ class TableControls {
       this.schedule();
     };
     this.onLeave = (): void => {
+      if (this.drag !== null) return;
       this.hovered = null;
       this.hoveredCell = null;
       this.schedule();
@@ -249,27 +266,82 @@ class TableControls {
     this.layer.remove();
   }
 
-  /** Adds a row or a column at the end of the active table. */
-  private add(kind: 'row' | 'column'): void {
-    const table = this.active;
-    if (table === null || this.view.state.readOnly) return;
-    const spec = tableEditSpec(
-      this.view.state,
-      kind === 'row' ? addRowAtEndEdit : addColumnAtEndEdit,
-      this.view.posAtDOM(table, 0),
+  /** A press on a handle: it becomes a drag or, if it stays, the menu. */
+  private startDrag(
+    kind: 'row' | 'column',
+    event: PointerEvent,
+    button: HTMLElement,
+  ): void {
+    const cell = this.activeCell;
+    const table = cell?.closest<HTMLElement>('.cm-np-table') ?? null;
+    if (cell === null || table === null || this.view.state.readOnly) return;
+    event.preventDefault();
+    const pos = this.view.posAtDOM(cell, 0);
+    const context = tableContextAt(this.view.state, pos);
+    const from = kind === 'row' ? context.row : context.column;
+    // The pointer stays with the handle while it drags, wherever it goes.
+    button.setPointerCapture(event.pointerId);
+    this.drag = {
+      kind,
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      pos,
+      from,
+      table,
+      moving: false,
+      to: from,
+    };
+  }
+
+  /** Follows the pointer and finds where the row or the column lands. */
+  private moveDrag(event: PointerEvent): void {
+    const drag = this.drag;
+    if (drag === null || event.pointerId !== drag.pointerId) return;
+    const travelled = Math.hypot(
+      event.clientX - drag.startX,
+      event.clientY - drag.startY,
     );
-    if (spec === null) return;
-    this.view.dispatch(this.view.state.update(editingTransaction(spec)));
+    if (!drag.moving && travelled < dragDistance) return;
+    // The header row stays first, so it does not move.
+    if (drag.kind === 'row' && drag.from === 0) return;
+    drag.moving = true;
+    drag.to = dropIndex(drag, event.clientX, event.clientY);
+    this.schedule();
+  }
+
+  /** Ends a press: a drag moves its row or its column, a press opens the menu. */
+  private endDrag(event: PointerEvent, button: HTMLElement): void {
+    const drag = this.drag;
+    if (drag === null || event.pointerId !== drag.pointerId) return;
+    this.drag = null;
+    if (!drag.moving) {
+      this.openMenu(drag.kind, drag.pos, button);
+      this.schedule();
+      return;
+    }
+    if (drag.to !== drag.from) {
+      const spec = tableEditSpec(
+        this.view.state,
+        drag.kind === 'row' ? moveRowEdit(drag.to) : moveColumnEdit(drag.to),
+        drag.pos,
+      );
+      if (spec !== null)
+        this.view.dispatch(this.view.state.update(editingTransaction(spec)));
+    }
     this.view.focus();
+    this.schedule();
   }
 
   /** Asks the application for the menu of the row or the column of a cell. */
-  private openMenu(kind: 'row' | 'column', handle: HTMLElement): void {
-    const cell = this.activeCell;
+  private openMenu(
+    kind: 'row' | 'column',
+    pos: number,
+    button: HTMLElement,
+  ): void {
     const open = this.view.state.facet(tableMenuOpener);
-    if (cell === null || open === null || this.view.state.readOnly) return;
-    const pos = this.view.posAtDOM(cell, 0);
-    const box = handle.getBoundingClientRect();
+    if (open === null || this.view.state.readOnly) return;
+    const box = button.getBoundingClientRect();
     open({
       kind,
       pos,
@@ -283,14 +355,21 @@ class TableControls {
     });
   }
 
-  /** Measures the active table and places the controls on it. */
+  /** Measures the active table and places the handles on it. */
   private schedule(): void {
     this.view.requestMeasure({
       key: this,
       read: (view): ControlPlaces | null => {
-        this.active = null;
-        this.activeCell = null;
         if (view.state.readOnly) return null;
+        const scroller = view.scrollDOM.getBoundingClientRect();
+        const x = (left: number): number =>
+          left - scroller.left + view.scrollDOM.scrollLeft;
+        const y = (top: number): number =>
+          top - scroller.top + view.scrollDOM.scrollTop;
+        const drag = this.drag;
+        if (drag !== null) return this.dragPlaces(drag, x, y);
+
+        this.activeCell = null;
         const pointed =
           this.hovered?.isConnected === true ? this.hovered : null;
         const caret = view.hasFocus ? caretCell(view) : null;
@@ -304,78 +383,40 @@ class TableControls {
             : caret !== null && table.contains(caret)
               ? caret
               : null;
-        this.active = table;
         this.activeCell = cell;
+        if (cell === null) return null;
 
-        const scroller = view.scrollDOM.getBoundingClientRect();
-        const x = (left: number): number =>
-          left - scroller.left + view.scrollDOM.scrollLeft;
-        const y = (top: number): number =>
-          top - scroller.top + view.scrollDOM.scrollTop;
         const box = table.getBoundingClientRect();
-        // The rows form the table inside the wrapper: the first row is as
-        // wide as the table, and the last row ends it. The wrapper clips a
-        // wider table, so the controls stop at its edge.
-        const lines = table.querySelectorAll('.cm-np-table-line');
-        const first = lines.item(0)?.getBoundingClientRect() ?? box;
-        const last =
-          lines.item(lines.length - 1)?.getBoundingClientRect() ?? box;
-        const right = Math.min(box.right, first.right);
-        // The bar beside a table stays inside what the scroller shows. A
-        // table as wide as a phone leaves no room beside it, so the bar then
-        // stands over its edge, and the note never scrolls sideways for it.
-        const room =
-          scroller.left +
-          view.scrollDOM.clientWidth -
-          this.addColumn.offsetWidth;
-
-        let rowHandle: Place | null = null;
-        let columnHandle: Place | null = null;
-        if (cell !== null) {
-          const cellBox = cell.getBoundingClientRect();
-          const rowBox =
-            cell.closest('.cm-np-table-line')?.getBoundingClientRect() ??
-            cellBox;
-          // The handle of a row stands on the left edge of the table, half
-          // outside it, because a phone leaves no more room beside a table;
-          // it covers the padding of the first cell and none of its text.
-          // The handle of a column stands wholly above the table, where the
-          // margin of the table always leaves room, so it covers no cell.
-          const handleWidth = this.rowHandle.offsetWidth;
-          const handleHeight = this.columnHandle.offsetHeight;
-          rowHandle = {
+        const first = gridLines(table)[0]?.getBoundingClientRect() ?? box;
+        const cellBox = cell.getBoundingClientRect();
+        const rowBox =
+          cell.closest('.cm-np-table-line')?.getBoundingClientRect() ?? cellBox;
+        // A handle stands wholly outside the table, in the room the table
+        // keeps beside its rows and above its columns, so it covers no cell.
+        const handleWidth = this.rowHandle.offsetWidth;
+        const handleHeight = this.columnHandle.offsetHeight;
+        // Only the part of a column that the table shows takes a handle, so
+        // the handle of a column scrolled out of view does not float beside
+        // the table.
+        const from = Math.max(cellBox.left, box.left);
+        const to = Math.min(cellBox.right, box.right);
+        return {
+          rowHandle: {
             top: y(rowBox.top),
-            left: x(box.left) - handleWidth / 2,
+            left: x(box.left) - handleWidth,
             width: handleWidth,
             height: rowBox.height,
-          };
-          // Only the part of the column that the wrapper shows, so the handle
-          // of a column scrolled out of view does not float beside the table.
-          const from = Math.max(cellBox.left, box.left);
-          const to = Math.min(cellBox.right, box.right);
-          if (to > from)
-            columnHandle = {
-              top: y(first.top) - handleHeight,
-              left: x(from),
-              width: to - from,
-              height: handleHeight,
-            };
-        }
-        return {
-          addRow: {
-            top: y(last.bottom),
-            left: x(box.left),
-            width: right - box.left,
-            height: this.addRow.offsetHeight,
           },
-          addColumn: {
-            top: y(box.top),
-            left: x(Math.min(right, room)),
-            width: this.addColumn.offsetWidth,
-            height: last.bottom - box.top,
-          },
-          rowHandle,
-          columnHandle,
+          columnHandle:
+            to > from
+              ? {
+                  top: y(first.top) - handleHeight,
+                  left: x(from),
+                  width: to - from,
+                  height: handleHeight,
+                }
+              : null,
+          dropLine: null,
         };
       },
       write: (places): void => {
@@ -386,29 +427,109 @@ class TableControls {
         if (places === null) return;
         // A place on the screen is a measured number, which no class can
         // state, so the layer writes it, as a tooltip of CodeMirror does.
-        const put = (
-          element: HTMLElement,
-          place: Place | null,
-          sized: 'width' | 'height',
-        ): void => {
+        const put = (element: HTMLElement, place: Place | null): void => {
           element.classList.toggle('cm-np-table-control-off', place === null);
           if (place === null) return;
           element.style.top = `${String(place.top)}px`;
           element.style.left = `${String(place.left)}px`;
-          if (sized === 'width')
-            element.style.width = `${String(place.width)}px`;
-          else element.style.height = `${String(place.height)}px`;
+          element.style.width = `${String(place.width)}px`;
+          element.style.height = `${String(place.height)}px`;
         };
-        put(this.addRow, places.addRow, 'width');
-        put(this.addColumn, places.addColumn, 'height');
-        put(this.rowHandle, places.rowHandle, 'height');
-        put(this.columnHandle, places.columnHandle, 'width');
+        put(this.rowHandle, places.rowHandle);
+        put(this.columnHandle, places.columnHandle);
+        put(this.dropLine, places.dropLine);
       },
     });
   }
+
+  /**
+   * Where the handle and the drop line stand during a drag.
+   *
+   * The handle of the moving row or column stays where it was, and a line on
+   * the edge of the place where it lands shows where it goes.
+   */
+  private dragPlaces(
+    drag: Drag,
+    x: (left: number) => number,
+    y: (top: number) => number,
+  ): ControlPlaces | null {
+    if (!drag.table.isConnected) return null;
+    const box = drag.table.getBoundingClientRect();
+    const lines = gridLines(drag.table);
+    const first = lines[0]?.getBoundingClientRect() ?? box;
+    const moved = drag.moving && drag.to !== drag.from;
+    if (drag.kind === 'row') {
+      const source = lines[drag.from]?.getBoundingClientRect() ?? first;
+      const target = lines[drag.to]?.getBoundingClientRect() ?? source;
+      const edge = drag.to > drag.from ? target.bottom : target.top;
+      return {
+        rowHandle: {
+          top: y(source.top),
+          left: x(box.left) - this.rowHandle.offsetWidth,
+          width: this.rowHandle.offsetWidth,
+          height: source.height,
+        },
+        columnHandle: null,
+        dropLine: moved
+          ? {
+              top: y(edge) - dropLineWidth / 2,
+              left: x(box.left),
+              width: Math.min(box.right, first.right) - box.left,
+              height: dropLineWidth,
+            }
+          : null,
+      };
+    }
+    const cells = lines[0] === undefined ? [] : rowCells(lines[0]);
+    const source = cells[drag.from]?.getBoundingClientRect() ?? first;
+    const target = cells[drag.to]?.getBoundingClientRect() ?? source;
+    const edge = drag.to > drag.from ? target.right : target.left;
+    const last = lines[lines.length - 1]?.getBoundingClientRect() ?? first;
+    return {
+      rowHandle: null,
+      columnHandle: {
+        top: y(first.top) - this.columnHandle.offsetHeight,
+        left: x(source.left),
+        width: source.width,
+        height: this.columnHandle.offsetHeight,
+      },
+      dropLine: moved
+        ? {
+            top: y(first.top),
+            left: x(edge) - dropLineWidth / 2,
+            width: dropLineWidth,
+            height: last.bottom - first.top,
+          }
+        : null,
+    };
+  }
 }
 
-/** The controls of every table (records 0096 and 0097). */
+/**
+ * The row or the column under the pointer, as the grid counts them.
+ *
+ * A row lands on the body row whose top the pointer passed, and never on the
+ * header row, which stays first. A column lands on the column whose left edge
+ * the pointer passed.
+ */
+function dropIndex(drag: Drag, pointerX: number, pointerY: number): number {
+  const lines = gridLines(drag.table);
+  if (drag.kind === 'row') {
+    let to = 1;
+    lines.forEach((line, index) => {
+      if (index > 0 && pointerY >= line.getBoundingClientRect().top) to = index;
+    });
+    return Math.min(Math.max(to, 1), lines.length - 1);
+  }
+  const cells = lines[0] === undefined ? [] : rowCells(lines[0]);
+  let to = 0;
+  cells.forEach((cell, index) => {
+    if (pointerX >= cell.getBoundingClientRect().left) to = index;
+  });
+  return to;
+}
+
+/** The handles of every table (records 0097 and 0098). */
 export function tableControls(): Extension {
   return ViewPlugin.fromClass(TableControls);
 }

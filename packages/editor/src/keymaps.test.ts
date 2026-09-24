@@ -18,6 +18,10 @@ import {
   alignColumnEdit,
   insertColumnLeftEdit,
   insertRowAboveEdit,
+  moveColumnLeftEdit,
+  moveColumnRightEdit,
+  moveRowDownEdit,
+  moveRowUpEdit,
   removeColumnEdit,
   removeRowEdit,
   tableEditSpec,
@@ -584,6 +588,50 @@ const formatCases: Readonly<
     filled: [
       '| «a»   | b   |\n| --- | --- |\n| 1   | 2   |',
       '| a   | ‸    | b   |\n| --- | --- | --- |\n| 1   |     | 2   |',
+    ],
+  },
+  'table-move-row-up': {
+    spec: (state) => tableEditSpec(state, moveRowUpEdit),
+    empty: [
+      '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| 3‸   | 4   |',
+      '| a   | b   |\n| --- | --- |\n| 3‸   | 4   |\n| 1   | 2   |',
+    ],
+    filled: [
+      '| a   | b   |\n| --- | --- |\n| 1   | 2   |\n| «3»   | 4   |',
+      '| a   | b   |\n| --- | --- |\n| 3‸   | 4   |\n| 1   | 2   |',
+    ],
+  },
+  'table-move-row-down': {
+    spec: (state) => tableEditSpec(state, moveRowDownEdit),
+    empty: [
+      '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |\n| 3   | 4   |',
+      '| a   | b   |\n| --- | --- |\n| 3   | 4   |\n| 1‸   | 2   |',
+    ],
+    filled: [
+      '| a   | b   |\n| --- | --- |\n| «1»   | 2   |\n| 3   | 4   |',
+      '| a   | b   |\n| --- | --- |\n| 3   | 4   |\n| 1‸   | 2   |',
+    ],
+  },
+  'table-move-column-left': {
+    spec: (state) => tableEditSpec(state, moveColumnLeftEdit),
+    empty: [
+      '| a   | b‸   |\n| --- | --- |\n| 1   | 2   |',
+      '| b‸   | a   |\n| --- | --- |\n| 2   | 1   |',
+    ],
+    filled: [
+      '| a   | «b»   |\n| --- | --- |\n| 1   | 2   |',
+      '| b‸   | a   |\n| --- | --- |\n| 2   | 1   |',
+    ],
+  },
+  'table-move-column-right': {
+    spec: (state) => tableEditSpec(state, moveColumnRightEdit),
+    empty: [
+      '| a‸   | b   |\n| --- | --- |\n| 1   | 2   |',
+      '| b   | a‸   |\n| --- | --- |\n| 2   | 1   |',
+    ],
+    filled: [
+      '| «a»   | b   |\n| --- | --- |\n| 1   | 2   |',
+      '| b   | a‸   |\n| --- | --- |\n| 2   | 1   |',
     ],
   },
   'table-delete-row': {

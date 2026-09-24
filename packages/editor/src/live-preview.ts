@@ -123,6 +123,9 @@ export function tableAlignments(row: string): readonly ColumnAlign[] {
   });
 }
 
+/** The hidden separator between two cells of a table row, as a cell. */
+const tableGap = Decoration.mark({ class: 'cm-np-table-gap', inclusive: true });
+
 /** One piece of the delimiter row of a table. */
 export type DelimiterPart = {
   readonly from: number;
@@ -995,6 +998,14 @@ export function buildPreview(
           tableCellMark(at, child.from, header, column);
           column += 1;
         }
+        // The hidden separator still leaves a node in the row, and a node
+        // between two cells becomes an anonymous cell of the browser. After
+        // an edit that replaces some rows, a browser can split those
+        // anonymous cells, so the rows stop lining up. The gap makes each
+        // separator one real cell of no width, so every row holds the same
+        // cells. The mark is inclusive, so it opens before the hidden range
+        // and wraps it.
+        items.push(tableGap.range(child.from, child.to));
         hide(child.from, child.to);
         at = child.to;
       }

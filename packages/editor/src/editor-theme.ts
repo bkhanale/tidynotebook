@@ -536,11 +536,18 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       display: 'block',
       overflowX: 'auto',
       borderCollapse: 'collapse',
-      marginBlock: 'var(--spacing-note-block)',
-      // The bar that adds a row stands in this room under the rows, so it
-      // never covers the text below the table, and the pointer reaches it
-      // without leaving the table (record 0096).
-      paddingBlockEnd: 'calc(var(--spacing) * 6)',
+      // The space above and below the table is a padding, because the editor
+      // measures the padding of a wrapper into the height of its lines and
+      // never its margin. A margin put every row lower than the editor knew,
+      // so a click or the Home key found the wrong row.
+      paddingBlock: 'var(--spacing-note-block)',
+      // The handles of the rows and the columns stand in this room beside
+      // and above the table (record 0098), so a handle covers no cell and a
+      // phone shows the whole of it. The room beside the rows is a margin,
+      // because a padding would scroll away with a wide table and slide the
+      // cells under the handles.
+      marginInlineStart: 'calc(var(--spacing) * 4)',
+      paddingBlockStart: 'calc(var(--spacing-note-block) + var(--spacing) * 4)',
     },
     '.cm-np-table-line': {
       display: 'table-row',
@@ -586,6 +593,9 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     // indentation of a list item and the marks of a quote. A row is a
     // `display: table-row` box and takes no padding, so this cell is where the
     // inset of a nested table lives. `live-preview.ts` marks the range.
+    // The hidden separator between two cells: a real cell that draws
+    // nothing and takes no width (`live-preview.ts`).
+    '.cm-np-table-gap': { display: 'table-cell', padding: '0', width: '0' },
     '.cm-np-table-lead': { display: 'table-cell', padding: '0' },
     '.cm-np-table-quoted-1': {
       paddingInlineStart: `calc(var(--spacing) * ${String(quoteBarStep)})`,
@@ -601,11 +611,9 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
     },
     // The delimiter row keeps no height of its own.
     '.cm-np-table-closed': { fontSize: '0', lineHeight: '0' },
-    // The controls of a table (record 0096) stand in one layer over the
-    // text, which lets every press but a press on a control reach the text
-    // below. A bar touches the edge of its table, so the pointer reaches it
-    // without leaving the table. It rests quiet and fills on hover, as a ghost
-    // control does, and under touch it keeps the 44 px target.
+    // The handles of a table (records 0097 and 0098) stand in one layer over
+    // the text, which lets every press but a press on a handle reach the text
+    // below.
     '.cm-np-table-controls': {
       position: 'absolute',
       top: '0',
@@ -615,13 +623,12 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       zIndex: '2',
       pointerEvents: 'none',
     },
-    // Every control of a table takes the look of the table itself: the one
-    // divider as its edge, square corners, and the page as its fill. It
-    // fills on hover, as a ghost control does.
-    // A control that does not show keeps its box and hides it, so the layer
-    // can read the size of every control to place it; a box with no display
-    // has no size.
-    '.cm-np-table-add, .cm-np-table-handle': {
+    // A handle takes the look of the table itself: the one divider as its
+    // edge, square corners, and the page as its fill, and it fills on hover,
+    // as a ghost control does. A handle that does not show keeps its box and
+    // hides it, so the layer can read its size to place it. A drag on it is
+    // the drag of the handle and never a scroll of the page.
+    '.cm-np-table-handle': {
       position: 'absolute',
       display: 'flex',
       visibility: 'hidden',
@@ -633,20 +640,20 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       borderRadius: '0',
       backgroundColor: 'var(--notes-bg)',
       color: 'var(--notes-text-muted)',
-      cursor: 'pointer',
+      cursor: 'grab',
       pointerEvents: 'auto',
+      touchAction: 'none',
     },
-    '.cm-np-table-controls-shown .cm-np-table-add, .cm-np-table-controls-shown .cm-np-table-handle':
-      { visibility: 'visible' },
+    '.cm-np-table-controls-shown .cm-np-table-handle': {
+      visibility: 'visible',
+    },
     '.cm-np-table-controls-shown .cm-np-table-control-off': {
       visibility: 'hidden',
     },
-    '.cm-np-table-add:hover, .cm-np-table-handle:hover': {
+    '.cm-np-table-handle:hover': {
       backgroundColor: 'var(--notes-surface-hover)',
       color: 'var(--notes-text-strong)',
     },
-    '.cm-np-table-add-row': { height: 'calc(var(--spacing) * 5)' },
-    '.cm-np-table-add-column': { width: 'calc(var(--spacing) * 5)' },
     '.cm-np-table-handle-row': { width: 'calc(var(--spacing) * 4)' },
     '.cm-np-table-handle-column': { height: 'calc(var(--spacing) * 4)' },
     '.cm-np-table-control-mark': {
@@ -654,12 +661,26 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       height: 'calc(var(--spacing) * 4)',
       flexShrink: '0',
     },
+    // The line that shows where a dragged row or column lands takes the
+    // focus colour, which marks where the next edit goes (record 0062).
+    '.cm-np-table-drop': {
+      position: 'absolute',
+      visibility: 'hidden',
+      backgroundColor: 'var(--notes-focus)',
+      pointerEvents: 'none',
+    },
+    '.cm-np-table-controls-shown .cm-np-table-drop': { visibility: 'visible' },
+    '.cm-np-table-controls-shown .cm-np-table-drop.cm-np-table-control-off': {
+      visibility: 'hidden',
+    },
     '@media (pointer: coarse)': {
-      '.cm-np-table': { paddingBlockEnd: 'calc(var(--spacing) * 12)' },
-      '.cm-np-table-add-row': { height: 'calc(var(--spacing) * 11)' },
-      '.cm-np-table-add-column': { width: 'calc(var(--spacing) * 11)' },
-      '.cm-np-table-handle-row': { width: 'calc(var(--spacing) * 5)' },
-      '.cm-np-table-handle-column': { height: 'calc(var(--spacing) * 5)' },
+      '.cm-np-table': {
+        marginInlineStart: 'calc(var(--spacing) * 6)',
+        paddingBlockStart:
+          'calc(var(--spacing-note-block) + var(--spacing) * 6)',
+      },
+      '.cm-np-table-handle-row': { width: 'calc(var(--spacing) * 6)' },
+      '.cm-np-table-handle-column': { height: 'calc(var(--spacing) * 6)' },
     },
     '.cm-np-align-left': { textAlign: 'left' },
     '.cm-np-align-center': { textAlign: 'center' },

@@ -671,6 +671,43 @@ await test('every row of a table carries one box for each column', () => {
   assert.equal(boxes(delimiter + 1, row), 2);
 });
 
+await test('every separator of a row is a gap cell that wraps it', () => {
+  // Regression: a hidden separator left a loose node between two cells, the
+  // browser wrapped it in an anonymous cell, and after a column moved some
+  // rows split those cells and stopped lining up. A row now holds only
+  // cells: a gap, a cell, a gap, and so on, with no hole between them.
+  const doc = '| a | bb |\n| --- | --- |\n| c | d |\n';
+  const header = doc.indexOf('\n');
+  const row = describe(doc).filter(
+    (item) => item.kind === 'mark' && item.to <= header,
+  );
+  assert.deepEqual(
+    row.map((item) => [doc.slice(item.from, item.to), item.value]),
+    [
+      ['|', 'cm-np-table-gap'],
+      [' a ', 'cm-np-table-head'],
+      ['|', 'cm-np-table-gap'],
+      [' bb ', 'cm-np-table-head'],
+      ['|', 'cm-np-table-gap'],
+    ],
+  );
+  // The gap opens before the hidden range of the same separator, so the
+  // hidden node lands inside the gap and not beside it.
+  const state = stateOf(doc);
+  const sides: Record<string, number> = {};
+  buildPreview(state, [{ from: 0, to: state.doc.length }], {
+    from: doc.length,
+    to: doc.length,
+  }).decorations.between(0, 1, (from, to, value) => {
+    if (from === 0 && to === 1)
+      sides[specClass(value.spec) ?? 'hide'] = value.startSide;
+  });
+  const gap = sides['cm-np-table-gap'];
+  const hidden = sides.hide;
+  assert.ok(gap !== undefined && hidden !== undefined);
+  if (gap !== undefined && hidden !== undefined) assert.ok(gap < hidden);
+});
+
 await test('the cell that holds the caret is the active cell', () => {
   const doc = '| a | b |\n| --- | --- |\n| 1 | 2 |\n';
   const inTwo = doc.indexOf('2') + 1;

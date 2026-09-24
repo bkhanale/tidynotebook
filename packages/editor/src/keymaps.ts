@@ -36,6 +36,10 @@ import {
   insertColumnLeftEdit,
   insertRowAboveEdit,
   inTableCell,
+  moveColumnLeftEdit,
+  moveColumnRightEdit,
+  moveRowDownEdit,
+  moveRowUpEdit,
   nextCellEdit,
   previousCellEdit,
   removeColumnEdit,
@@ -950,6 +954,10 @@ export type TableActionId =
   | 'table-row-below'
   | 'table-column-left'
   | 'table-column-right'
+  | 'table-move-row-up'
+  | 'table-move-row-down'
+  | 'table-move-column-left'
+  | 'table-move-column-right'
   | 'table-delete-row'
   | 'table-delete-column'
   | 'table-align-left'
@@ -983,6 +991,18 @@ const tableActionRows: readonly {
     id: 'table-column-right',
     label: 'Insert column right',
     edit: addColumnEdit,
+  },
+  { id: 'table-move-row-up', label: 'Move row up', edit: moveRowUpEdit },
+  { id: 'table-move-row-down', label: 'Move row down', edit: moveRowDownEdit },
+  {
+    id: 'table-move-column-left',
+    label: 'Move column left',
+    edit: moveColumnLeftEdit,
+  },
+  {
+    id: 'table-move-column-right',
+    label: 'Move column right',
+    edit: moveColumnRightEdit,
   },
   { id: 'table-delete-row', label: 'Delete row', edit: removeRowEdit },
   { id: 'table-delete-column', label: 'Delete column', edit: removeColumnEdit },
@@ -1161,6 +1181,13 @@ export function formatActionApplies(
   if (action.id === 'table-row-above') return context.bodyRow;
   if (action.id === 'table-delete-row') return context.bodyRow;
   if (action.id === 'table-delete-column') return context.columns > 1;
+  // The header row stays first, so a body row moves among the body rows.
+  if (action.id === 'table-move-row-up') return context.row > 1;
+  if (action.id === 'table-move-row-down')
+    return context.bodyRow && context.row < context.rows - 1;
+  if (action.id === 'table-move-column-left') return context.column > 0;
+  if (action.id === 'table-move-column-right')
+    return context.column < context.columns - 1;
   return true;
 }
 
