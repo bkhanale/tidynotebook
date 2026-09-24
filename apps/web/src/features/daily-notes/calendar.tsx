@@ -134,10 +134,17 @@ export function SidebarCalendar({
 
   return (
     <section aria-label="Calendar">
-      <div className="flex items-center gap-1">
+      {/*
+        The title keeps a base width for a short month name. When the
+        sidebar is too narrow for it and the three touch targets, the actions
+        take a line of their own instead of cutting the month.
+      */}
+      <div className="flex flex-wrap items-center">
         <button
           type="button"
-          className={rowClassName({ className: 'min-w-0 flex-1 font-medium' })}
+          className={rowClassName({
+            className: 'min-w-0 flex-1 basis-24 font-medium',
+          })}
           aria-expanded={open}
           aria-controls={monthId}
           onClick={toggleOpen}
@@ -149,30 +156,32 @@ export function SidebarCalendar({
             {monthTitle(month, undefined, 'short')}
           </span>
         </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          compact
-          label="Open today's note"
-          icon={<CalendarDayIcon />}
-          onClick={() => openDay(today)}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          compact
-          label="Previous month"
-          icon={<ChevronLeftIcon />}
-          onClick={() => setSelected((date) => addMonths(date, -1))}
-        />
-        <Button
-          variant="ghost"
-          size="sm"
-          compact
-          label="Next month"
-          icon={<ChevronRightIcon />}
-          onClick={() => setSelected((date) => addMonths(date, 1))}
-        />
+        <div className="ml-auto flex items-center">
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label="Open today's note"
+            icon={<CalendarDayIcon />}
+            onClick={() => openDay(today)}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label="Previous month"
+            icon={<ChevronLeftIcon />}
+            onClick={() => setSelected((date) => addMonths(date, -1))}
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            compact
+            label="Next month"
+            icon={<ChevronRightIcon />}
+            onClick={() => setSelected((date) => addMonths(date, 1))}
+          />
+        </div>
       </div>
       {open ? (
         <table
