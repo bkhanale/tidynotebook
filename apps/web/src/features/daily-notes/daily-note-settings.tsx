@@ -138,7 +138,7 @@ export function DailyNoteSettingsFields(): ReactNode {
         label="Template"
         value={effectiveTemplateId(settings, files.notes) ?? noTemplateValue}
         options={choices}
-        hint="A new daily note starts with a copy of the text of this note."
+        hint="A new daily note starts with a copy of the text of this note. Write {{date}}, {{date:dddd}} or {{title}} in the template to fill in the date or the name."
         onChange={(value) => {
           daily.save({ ...settings, templateFileId: templateOfChoice(value) });
         }}

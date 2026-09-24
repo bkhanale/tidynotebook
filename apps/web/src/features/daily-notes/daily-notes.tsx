@@ -31,6 +31,7 @@ import {
 } from '@notesapp/api-client';
 import {
   dailyNotePath,
+  fillTemplate,
   generateUUID,
   type CalendarDate,
   type DailyNoteSettings,
@@ -51,6 +52,7 @@ import {
   settingsProblem,
 } from '../../lib/daily-note.ts';
 import { newNoteDraft } from '../../lib/new-note-draft.ts';
+import { baseNameOf, displayNoteName } from '../../lib/note-name.ts';
 
 /** Where the settings of the member stand. */
 export type DailyNoteSettingsState =
@@ -336,12 +338,18 @@ export function DailyNotesProvider({
             setOpenProblem(dailyNoteProblems.template);
             return;
           }
+          // The placeholders of the template take the date and the name of
+          // this note, once, and the note stores the result (record 0102).
+          const path = dailyNotePath(date, settings);
           const draft = newNoteDraft({
             accountId: activeAccount,
             workspaceId: workspace,
-            path: dailyNotePath(date, settings),
+            path,
             ids: { fileId: generateUUID(), workingCopyId: generateUUID() },
-            text,
+            text: fillTemplate(text, {
+              date,
+              title: displayNoteName(baseNameOf(path)),
+            }),
           });
           try {
             await activeStore.saveDraft(draft);

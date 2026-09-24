@@ -43,6 +43,8 @@ workspace, and they follow your account to every device.
   the app starts on the note list. If you open the app with the address of a
   note or of another page, that page opens instead.
 
+- In the template, a placeholder in double braces is filled when the daily
+  note is made. See [Placeholders in a template](#placeholders-in-a-template).
 - **Folder** is the folder that holds the daily notes. Leave it empty to keep
   them at the top of the workspace.
 - **Name format** is the name of each daily note, written with date tokens.
@@ -76,6 +78,23 @@ The name format uses the same tokens as Obsidian.
   letter outside brackets can be a token: `D` in `Day` writes the day.
 - The format must have a year, a month and a day of the month.
 - The names of months and days are in English on every device.
+
+### Placeholders in a template
+
+Write these in the template note. Each one is filled once, when a new daily
+note is made, with the date of that note.
+
+| Placeholder                    | Example for the note of 3 September 2026 |
+| ------------------------------ | ---------------------------------------- |
+| `{{date}}`                     | `2026-09-03`                             |
+| `{{date:dddd, Do MMMM YYYY}}`  | `Thursday, 3rd September 2026`           |
+| `{{dddd}}` or `{{YYYY-MM-DD}}` | `Thursday` or `2026-09-03`               |
+| `{{title}}`                    | the name of the new note                 |
+
+- After `date:`, use the same date tokens as the name format.
+- A placeholder that the app does not know stays as you wrote it.
+- The template note itself keeps its placeholders. Only the new daily note
+  gets the filled text.
 
 If you change the folder or the format, the notes you already have stay where
 they are. The calendar marks only the notes that have the new name.
