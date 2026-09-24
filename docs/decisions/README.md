@@ -128,6 +128,7 @@ and needs no record.
 | [0096](0096-an-edit-keeps-the-structure-of-a-table.md)                        | An edit keeps the structure of a table                                          |
 | [0097](0097-a-row-and-a-column-carry-a-menu.md)                               | A row and a column carry a menu, and a paste fills cells                        |
 | [0098](0098-a-handle-moves-its-row-or-column.md)                              | A handle stands outside the table and moves its row or column                   |
+| [0099](0099-a-daily-note-is-a-dated-note-and-its-settings-belong-to-the-member.md) | A daily note is a dated note and its settings belong to the member |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -365,3 +366,10 @@ Record 0098 moves the handles of a table outside its cells, into a margin
 that also holds them in full on a phone. A handle drags its row or its column
 to a new place, the menu and the palette move them too, and the add bars
 leave the table. It refines records 0096 and 0097.
+
+Record 0099 answers
+[issue 138](https://github.com/bkhanale/notesapp/issues/138). A daily note is
+an ordinary note at a dated path, a new one starts with the text of a template
+note, and a calendar page opens the note of any date. The template and the
+choice to open the note of today at start belong to one member of one
+workspace, so they follow the person to every device.
