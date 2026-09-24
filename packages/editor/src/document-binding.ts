@@ -20,6 +20,7 @@
 import type { Extension } from '@codemirror/state';
 import { EditorView, keymap, type ViewUpdate } from '@codemirror/view';
 import {
+  documentStateVector,
   encodeDocumentDelta,
   mergeDocumentUpdates,
   openDocumentSession,
@@ -150,6 +151,16 @@ export function bindDocument(session: DocumentSession): DocumentBinding {
 export type BoundNote = {
   /** The extensions that join the view to the document. */
   readonly extension: Extension;
+  /**
+   * The work that the open wrote beyond the stored document, or `null`.
+   *
+   * A note with no stored document, such as a duplicate, starts its document
+   * here, and a stored document that lacks the text of a draft gets that
+   * text here. The screen writes this work to the store before any save. A
+   * store that never took it starts a document of its own at the save, and
+   * the join that follows shows the text twice.
+   */
+  readonly startWork: Uint8Array | null;
   /** The text of the note now, which is the text of the view. */
   text(): string;
   /**
@@ -170,8 +181,9 @@ export type BoundNote = {
  * Opens one note for editing, from the document that this device stores.
  *
  * `text` is the text the screen shows. A device whose stored document does
- * not hold that text yet, because an earlier release kept a text draft, gets
- * the difference as local work, so nothing a person wrote is lost.
+ * not hold that text yet, because an earlier release kept a text draft or
+ * the note is new, gets the difference as `startWork`, so nothing a person
+ * wrote is lost and the store holds the one document this open started.
  */
 export function openBoundNote(
   stored: Uint8Array | null,
@@ -180,11 +192,15 @@ export function openBoundNote(
   const bytes = stored ?? startDocument('');
   const written =
     readDocumentText(bytes) === text ? null : replaceDocumentText(bytes, text);
-  const session = openDocumentSession(
-    written !== null && written.ok ? written.value.document : bytes,
-  );
+  const opened =
+    written !== null && written.ok ? written.value.document : bytes;
+  const session = openDocumentSession(opened);
   const binding = bindDocument(session);
   return {
+    startWork:
+      opened === bytes
+        ? null
+        : encodeDocumentDelta(opened, documentStateVector(bytes)),
     extension: binding.extension,
     text: () => session.text(),
     join(document: Uint8Array): void {

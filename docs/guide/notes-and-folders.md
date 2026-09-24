@@ -17,6 +17,8 @@ sidebar marks it **Local**.
 
 The name is the last part of the line at the top of the screen. Select it and
 type. The name is kept when you press **Enter** or select something else.
+**Enter** then puts the cursor in the note, so you can write at once. Press
+**Escape** to keep the name that the note had.
 
 - A name needs no `.md` ending. If you type one it is removed, because every
   note is already a Markdown file.

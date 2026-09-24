@@ -2,13 +2,19 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EditorState } from '@codemirror/state';
 import {
+  applyDocumentUpdate,
   encodeDocumentDelta,
   openDocumentSession,
+  readDocumentText,
   replaceDocumentText,
   startDocument,
   type DocumentSession,
 } from '@notesapp/note-document';
-import { bindDocument, remoteWorkGate } from './document-binding.ts';
+import {
+  bindDocument,
+  openBoundNote,
+  remoteWorkGate,
+} from './document-binding.ts';
 
 /** The work that another device would send for one text of a note. */
 function otherWork(session: DocumentSession, text: string): Uint8Array {
@@ -103,4 +109,53 @@ await test('local undo never takes remote work', () => {
   stop();
   assert.deepEqual(origins, ['remote']);
   session.destroy();
+});
+
+/**
+ * What the store holds after it takes one piece of work and then folds the
+ * text of the working copy into its document, as a save does.
+ */
+function storeAfterSave(work: Uint8Array | null, text: string): Uint8Array {
+  const before =
+    work === null ? null : applyDocumentUpdate(startDocument(''), work);
+  if (before !== null && !before.ok) throw new Error(before.refusal);
+  // A store with no document starts one from the text of the working copy.
+  const bytes = before === null ? startDocument(text) : before.value.document;
+  const written = replaceDocumentText(bytes, text);
+  if (!written.ok) throw new Error(written.refusal);
+  return written.value.document;
+}
+
+await test('a note opened from text alone reads its text once after a save', () => {
+  // A duplicated note has a text and no document. The open starts the
+  // document, and that start is the work the store must take, or the store
+  // starts a second document and the join shows the text twice.
+  const text = '# Note\n\nCopied text\n';
+  const note = openBoundNote(null, text);
+  const stored = storeAfterSave(note.startWork, text);
+  note.join(stored);
+  assert.equal(note.text(), text);
+  assert.equal(readDocumentText(stored), text);
+  note.release();
+});
+
+await test('a note opened over an older document reads its text once after a save', () => {
+  const stored = startDocument('# Note\n');
+  const text = '# Note\n\nA draft line\n';
+  const note = openBoundNote(stored, text);
+  const start = note.startWork;
+  assert.notEqual(start, null);
+  const applied = applyDocumentUpdate(stored, start ?? new Uint8Array());
+  if (!applied.ok) throw new Error(applied.refusal);
+  const written = replaceDocumentText(applied.value.document, text);
+  if (!written.ok) throw new Error(written.refusal);
+  note.join(written.value.document);
+  assert.equal(note.text(), text);
+  note.release();
+});
+
+await test('a note opened over its own document states no start work', () => {
+  const note = openBoundNote(startDocument('# Note\n'), '# Note\n');
+  assert.equal(note.startWork, null);
+  note.release();
 });

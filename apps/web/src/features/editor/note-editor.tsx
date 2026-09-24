@@ -68,15 +68,13 @@ import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
 import {
   baseNameOf,
-  cleanNoteBaseName,
   displayNoteName,
   duplicateNameProblem,
   folderOf,
   joinNotePath,
-  noteBaseNameProblem,
-  noteNameProblem,
   storageNotePath,
 } from '../../lib/note-name.ts';
+import { commitNoteName } from '../../lib/note-name-commit.ts';
 import { OutlinePanel } from './outline.tsx';
 import { useDeleteNotice } from '../trash/trash.tsx';
 import { createDiagramFrame } from '../../diagram/frame.ts';
@@ -246,14 +244,20 @@ function NoteEditorBody({
   const versionTimerRef = useRef<number | null>(null);
   const bufferRef = useRef(initialText);
   const folderRef = useRef(folderOf(initialPath));
-  const pathRef = useRef(initialPath);
-  // A name that breaks a rule is never written. The draft, the tree, and
-  // the server keep the last valid name until the person fixes the field.
+  // The path of the note. The name field holds words the person is still
+  // typing, and only a commit of the field moves this path (see
+  // `lib/note-name-commit.ts`), so a half-typed name is never written.
   const validPathRef = useRef(initialPath);
-  // True while the name field holds a value the store has not taken yet. The
-  // store is then the older statement of the path, so the editor does not
-  // adopt it and the typed name survives.
+  // True while the field holds words that are not the name of the note yet,
+  // or a committed name that the store has not taken yet. The store is then
+  // the older statement of the name, so the editor does not adopt it and the
+  // typed words survive.
+  const nameTypingRef = useRef(false);
   const nameEditPendingRef = useRef(false);
+  // The write of the document that this editor started. A save waits for it,
+  // so the store folds its text into that document and never starts one of
+  // its own (see `startWork` in `@notesapp/editor`).
+  const startWrittenRef = useRef<Promise<void>>(Promise.resolve());
   const sequenceRef = useRef(initialSequence);
   // The live document of this note, built once for this working copy. The
   // editor binds to it, so the text on the screen and the text of the note
@@ -365,12 +369,11 @@ function NoteEditorBody({
   // the person just made.
   const adoptStoredPath = useRef((_path: string | null): void => {});
   adoptStoredPath.current = (next: string | null): void => {
-    if (next === null || next === pathRef.current) return;
+    if (next === null || next === validPathRef.current) return;
     // A name the person is still typing is never replaced. The field holds a
     // value the store has not taken yet, so the store is the older statement.
-    if (nameEditPendingRef.current) return;
+    if (nameTypingRef.current || nameEditPendingRef.current) return;
     folderRef.current = folderOf(next);
-    pathRef.current = next;
     validPathRef.current = next;
     setPathError('');
     setName(displayNoteName(baseNameOf(next)));
@@ -548,12 +551,22 @@ function NoteEditorBody({
   checkpointNow.current = (): Promise<boolean> => {
     if (isDeletedRef.current) return Promise.resolve(false);
     if (bufferWasReplaced()) return Promise.resolve(false);
-    const error = nameProblemRef.current();
-    setPathError(error ?? '');
-    if (error !== null) return Promise.resolve(false);
+    // The name was checked when the person kept it. Another note can take
+    // the same name later, from another tab or device, and the server would
+    // refuse the save, so the reason stands on the note instead.
+    const error = duplicateNameProblem(
+      validPathRef.current,
+      noteList.notes,
+      fileId,
+    );
+    if (error !== null) {
+      setPathError(error);
+      return Promise.resolve(false);
+    }
     const existing = checkpointInFlightRef.current;
     if (existing !== null) return existing;
     const run = (async (): Promise<boolean> => {
+      await startWrittenRef.current;
       const saved = await saveDraftNow.current();
       if (!saved) return false;
       const current = live.current;
@@ -768,6 +781,25 @@ function NoteEditorBody({
   // path that follows sends exactly the work this device added.
   useEffect(() => {
     const bound = sessionRef.current;
+    const start = bound.startWork;
+    if (start !== null) {
+      const current = live.current;
+      startWrittenRef.current = current.store
+        .mergeNoteWork(
+          current.accountId,
+          current.workspaceId,
+          current.fileId,
+          start,
+        )
+        .then(
+          () => undefined,
+          () => {
+            // A note that the server holds and whose document this device
+            // lacks refuses the work (record 0084). The working copy keeps
+            // the text, and the draft write reports a failed store.
+          },
+        );
+    }
     const stop = bound.onLocalWork((update) => {
       const current = live.current;
       void current.store
@@ -805,7 +837,7 @@ function NoteEditorBody({
         const view = viewRef.current;
         if (cancelled || view === null) return;
         setNoteLinkSource(view, {
-          currentPath: pathRef.current,
+          currentPath: validPathRef.current,
           notes: files
             .filter((file) => file.kind === 'note' && !file.deleted)
             .map((file) => ({ path: file.path })),
@@ -1028,48 +1060,41 @@ function NoteEditorBody({
     })();
   };
 
-  /** The one reason the typed name cannot be saved, or `null`. */
-  const nameProblemRef = useRef((): string | null => null);
-  nameProblemRef.current = (): string | null => {
-    const folder = folderRef.current;
-    const full = pathRef.current;
-    const prefix = folder === '' ? '' : `${folder}/`;
-    const remainder =
-      prefix === ''
-        ? full
-        : full.startsWith(prefix)
-          ? full.slice(prefix.length)
-          : baseNameOf(full);
-    const base = cleanNoteBaseName(displayNoteName(remainder));
-    const problem = noteBaseNameProblem(base);
-    if (problem !== null) return problem;
-    const fullProblem = noteNameProblem(joinNotePath(folder, base));
-    if (fullProblem !== null) return fullProblem;
-    return duplicateNameProblem(
-      joinNotePath(folderRef.current, storageNotePath(base)),
-      noteList.notes,
-      fileId,
-    );
-  };
-
   /**
-   * Reports the typed name and applies it when every rule holds.
+   * Keeps the typed name, or states why it cannot be kept.
    *
    * A new name starts both timers, exactly as a keystroke in the note does.
-   * It used to start the draft timer alone, and a draft is recovery data of
-   * this device: it never reaches the server. The new name therefore stopped
-   * at the local store, the save state stayed at `saved-local` for good, and
-   * every other device kept reading the old name. The path is part of what a
-   * version states, so `shouldCheckpoint` writes one for a rename.
+   * A draft is recovery data of this device and never reaches the server, so
+   * a rename that started the draft timer alone stopped at the local store.
+   * The path is part of what a version states, so `shouldCheckpoint` writes
+   * one for a rename.
+   *
+   * This runs when the field loses focus and when the person presses Enter,
+   * and it returns whether the note has the name that the field shows. A
+   * refused name stays in the field beside its reason, and the note keeps
+   * its last name.
    */
-  const applyName = (nextName: string): void => {
-    setName(nextName);
-    const cleaned = cleanNoteBaseName(nextName);
-    pathRef.current = joinNotePath(folderRef.current, storageNotePath(cleaned));
-    const problem = nameProblemRef.current();
-    setPathError(problem ?? '');
-    if (problem !== null) return;
-    validPathRef.current = pathRef.current;
+  const commitName = (): boolean => {
+    // Nothing was typed since the last commit or Escape. The blur that
+    // follows Enter and Escape lands here, and it must not commit the words
+    // that this render still holds.
+    if (!nameTypingRef.current) return true;
+    const outcome = commitNoteName({
+      typed: name,
+      folder: folderRef.current,
+      currentPath: validPathRef.current,
+      notes: noteList.notes,
+      fileId,
+    });
+    if (outcome.kind === 'refused') {
+      setPathError(outcome.problem);
+      return false;
+    }
+    nameTypingRef.current = false;
+    setName(outcome.name);
+    setPathError('');
+    if (outcome.kind === 'unchanged') return true;
+    validPathRef.current = outcome.path;
     sequenceRef.current += 1;
     nameEditPendingRef.current = true;
     setDraftPending(true);
@@ -1080,31 +1105,34 @@ function NoteEditorBody({
       void saveDraftNow.current();
     }, draftSaveDelayMs);
     // A pause after a rename creates a version, as a pause in typing does.
-    // The timer resets on every keystroke, so one rename becomes one version.
     if (versionTimerRef.current !== null)
       window.clearTimeout(versionTimerRef.current);
     versionTimerRef.current = window.setTimeout(() => {
       versionTimerRef.current = null;
       void checkpointNow.current();
     }, versionPauseMs);
+    return true;
   };
 
-  /**
-   * Writes the typed name into the field in its stored form.
-   *
-   * Edge spaces go, and a typed `.md` suffix disappears, so one note never
-   * carries two names on screen. This runs when the field loses focus and
-   * when the person presses Enter.
-   *
-   * It writes no version of its own. `applyName` above already started the
-   * pause that creates one, and a flush here would also fire on the blur that
-   * happens when a person leaves the name field of a note they have not
-   * written yet, which would store a version of an empty note.
-   */
-  const commitName = (): void => {
-    const cleaned = cleanNoteBaseName(name);
-    if (cleaned !== name) applyName(cleaned);
-    else setPathError(nameProblemRef.current() ?? '');
+  /** Changes the words in the name field and nothing else. */
+  const typeName = (nextName: string): void => {
+    nameTypingRef.current = true;
+    setName(nextName);
+    // The reason belongs to the name that was kept. New words wait for the
+    // next commit.
+    setPathError('');
+  };
+
+  /** Gives the field back the name that the note has. */
+  const revertName = (): void => {
+    nameTypingRef.current = false;
+    setName(displayNoteName(baseNameOf(validPathRef.current)));
+    setPathError('');
+  };
+
+  /** Moves the caret into the note. */
+  const focusNote = (): void => {
+    viewRef.current?.focus();
   };
 
   /** Copies the open note into a new note beside it. */
@@ -1250,8 +1278,10 @@ function NoteEditorBody({
         name={name}
         nameError={pathError}
         nameInputRef={nameInputRef}
-        onNameChange={applyName}
+        onNameChange={typeName}
         onNameCommit={commitName}
+        onNameRevert={revertName}
+        onNameDone={focusNote}
       />
       <NoteHeaderActions
         workspaceId={workspaceId}
