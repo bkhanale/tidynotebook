@@ -30,14 +30,24 @@ back. Press Enter to go to the cell below, and Shift and Enter to go up. Tab in
 the last cell and Enter in the last row add a row. You can also select a cell
 to write in it.
 
-To add a row or a column, move the pointer over the table, or select a cell on
-a phone. A bar with a plus shows under the table and at its right edge. Select
-the bar under the table to add a row, and the bar at the right to add a column.
-To remove the row or the column of the cursor, open the command palette and
-select Remove the row or Remove the column. Backspace and Delete remove text,
-and never a cell, a row or a column. Tools that change whole lines, such as
-Heading and Bullet list, do nothing in a table and show disabled. To go below a
-table at the end of the note, press the Down arrow in its last row.
+To add a row or a column at the end, move the pointer over the table, or select
+a cell on a phone. A bar with a plus shows under the table and at its right
+edge. Select the bar under the table to add a row, and the bar at the right to
+add a column.
+
+A handle also shows at the start of the row and above the column. Select it to
+open the menu of that row or that column. The row menu inserts a row above or
+below and deletes the row. The column menu inserts a column to the left or to
+the right, sets the alignment of the column, and deletes it. The header row and
+the last column stay. The command palette offers the same actions while the
+cursor is in a table.
+
+Copy a row or a range of cells, from a note or from a spreadsheet, and paste it
+into a cell: it fills the cells from there to the right and down, and the table
+grows if it needs more rows or columns. Backspace and Delete remove text, and
+never a cell, a row or a column. Tools that change whole lines, such as Heading
+and Bullet list, do nothing in a table and show disabled. To go below a table
+at the end of the note, press the Down arrow in its last row.
 
 On a narrow screen, swipe the row sideways to reach the other tools. Every tool
 is also in the command palette: open it with Ctrl + P or Cmd + P and type the

@@ -28,6 +28,7 @@ import {
 } from '@notesapp/editor';
 import { controlStripClassName } from '@notesapp/ui';
 import type { ActionIconName } from './palette-items.ts';
+import { tableActionRows } from './table-menu.ts';
 
 /** One tool of the row: a format action and its glyph. */
 export type FormatTool = {
@@ -71,16 +72,13 @@ export const formatToolbar: readonly (readonly FormatTool[])[] = [
 
 /**
  * The actions of a table, which the command palette offers while the caret is
- * in a table (record 0096). They are not tools of the row: a table carries its
- * own controls that add a row and a column, and the palette removes one, so
- * the row keeps the tools that format text.
+ * in a table. They come from the one list of `./table-menu.ts`, which the menu
+ * of a row or a column reads as well (record 0097), and they are not tools of
+ * the row: a table carries its own controls.
  */
-export const tableActions: readonly FormatTool[] = [
-  tool('table-add-row', 'table-add-row'),
-  tool('table-add-column', 'table-add-column'),
-  tool('table-remove-row', 'table-remove-row'),
-  tool('table-remove-column', 'table-remove-column'),
-];
+export const tableActions: readonly FormatTool[] = tableActionRows.map((row) =>
+  tool(row.id, row.icon),
+);
 
 /**
  * Whether one tool applies where the caret stands.
@@ -121,10 +119,15 @@ const paletteWords: Readonly<Partial<Record<FormatActionId, string>>> = {
   'task-list': 'checklist todo checkbox',
   quote: 'quotation',
   table: 'grid columns rows',
-  'table-add-row': 'table insert new line',
-  'table-add-column': 'table insert new',
-  'table-remove-row': 'table delete line',
-  'table-remove-column': 'table delete',
+  'table-row-above': 'table add insert',
+  'table-row-below': 'table add insert',
+  'table-column-left': 'table add insert',
+  'table-column-right': 'table add insert',
+  'table-delete-row': 'table remove',
+  'table-delete-column': 'table remove',
+  'table-align-left': 'table column',
+  'table-align-center': 'table column middle',
+  'table-align-right': 'table column',
 };
 
 /**

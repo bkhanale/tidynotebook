@@ -19,8 +19,13 @@ import {
 
 /** The caret outside a table, in a body row, and in the header row. */
 const outside = outsideTable;
-const inside = { table: true, bodyRow: true, columns: 2 } as const;
-const inHeader = { table: true, bodyRow: false, columns: 2 } as const;
+const inside = { table: true, bodyRow: true, columns: 2, align: null } as const;
+const inHeader = {
+  table: true,
+  bodyRow: false,
+  columns: 2,
+  align: null,
+} as const;
 type Context = typeof outside;
 
 /** Every format action that the row reaches, in the order of the row. */
@@ -48,13 +53,14 @@ await test('every tool is a format action of the editor, reached once', () => {
   assert.equal(all.length, formatActions.length - 3);
 });
 
-await test('every tool draws a glyph of its own', () => {
+await test('every tool draws a glyph of its own, and every action a named one', () => {
   const glyphs = new Set<string>(actionIconNames);
-  const icons = [...formatToolbar.flat(), ...tableActions].map(
-    (tool) => tool.icon,
-  );
-  for (const icon of icons) assert.ok(glyphs.has(icon), `${icon} is no glyph`);
-  assert.equal(new Set(icons).size, icons.length);
+  const tools = formatToolbar.flat().map((tool) => tool.icon);
+  assert.equal(new Set(tools).size, tools.length);
+  // A row goes above or below with one glyph, as Publish and Published links
+  // share one: the name of the action tells the two apart.
+  for (const icon of [...tools, ...tableActions.map((tool) => tool.icon)])
+    assert.ok(glyphs.has(icon), `${icon} is no glyph`);
 });
 
 await test('the palette offers every tool of the row and nothing else', () => {
@@ -128,10 +134,15 @@ await test('the table actions are palette rows and not tools of the row', () => 
   assert.deepEqual(
     tableActions.map((tool) => tool.id),
     [
-      'table-add-row',
-      'table-add-column',
-      'table-remove-row',
-      'table-remove-column',
+      'table-row-above',
+      'table-row-below',
+      'table-column-left',
+      'table-column-right',
+      'table-align-left',
+      'table-align-center',
+      'table-align-right',
+      'table-delete-row',
+      'table-delete-column',
     ],
   );
 });
@@ -150,15 +161,15 @@ await test('a block tool does not apply inside a table', () => {
   }
   for (const id of ['bold', 'link', 'inline-code'])
     assert.equal(applies(id, inside), true, id);
-  assert.equal(applies('table-add-row', outside), false);
-  assert.equal(applies('table-add-row', inside), true);
+  assert.equal(applies('table-row-below', outside), false);
+  assert.equal(applies('table-row-below', inside), true);
 });
 
 await test('the palette offers the tools that apply where the caret stands', () => {
   const ids = (context: Context): readonly string[] =>
     formatPaletteRows(context).map((row) => row.action);
-  assert.ok(!ids(outside).includes('table-add-row'));
-  assert.ok(ids(inside).includes('table-add-row'));
+  assert.ok(!ids(outside).includes('table-row-below'));
+  assert.ok(ids(inside).includes('table-row-below'));
   assert.ok(ids(inside).includes('bold'));
   assert.ok(!ids(inside).includes('heading-1'));
   assert.ok(!ids(inside).includes('table'));
@@ -167,8 +178,8 @@ await test('the palette offers the tools that apply where the caret stands', () 
 await test('the header row and the last column are never offered for removal', () => {
   const tool = (id: string) =>
     tableActions.find((candidate) => candidate.id === id);
-  const removeRow = tool('table-remove-row');
-  const removeColumn = tool('table-remove-column');
+  const removeRow = tool('table-delete-row');
+  const removeColumn = tool('table-delete-column');
   assert.ok(removeRow !== undefined && removeColumn !== undefined);
   if (removeRow === undefined || removeColumn === undefined) return;
   assert.equal(toolApplies(removeRow, inHeader), false);
@@ -178,6 +189,6 @@ await test('the header row and the last column are never offered for removal', (
   assert.ok(
     !formatPaletteRows(inHeader)
       .map((row) => row.action)
-      .includes('table-remove-row'),
+      .includes('table-delete-row'),
   );
 });

@@ -13,6 +13,9 @@
  */
 import type { ReactNode } from 'react';
 import {
+  AlignCenterIcon,
+  AlignLeftIcon,
+  AlignRightIcon,
   BoldIcon,
   BulletListIcon,
   CodeIcon,
@@ -55,6 +58,9 @@ import type { ActionIconName } from '../lib/palette-items.ts';
 
 /** The glyph of each action name. */
 const actionIcons: Readonly<Record<ActionIconName, ReactNode>> = {
+  'align-center': <AlignCenterIcon />,
+  'align-left': <AlignLeftIcon />,
+  'align-right': <AlignRightIcon />,
   bold: <BoldIcon />,
   'bullet-list': <BulletListIcon />,
   'collapse-all': <CollapseAllIcon />,

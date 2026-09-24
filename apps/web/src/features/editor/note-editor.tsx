@@ -47,6 +47,7 @@ import {
   type FormatActionId,
   type FormatContext,
   type RichWidgetResolvers,
+  type TableMenuRequest,
 } from '@notesapp/editor';
 import { Button, CollapsibleSection, Notice, pageGutter } from '@notesapp/ui';
 import { problemMessage, useRequestSync, useTheme } from '../../app.tsx';
@@ -68,6 +69,7 @@ import {
   localWriteFailureMessage,
 } from '../../lib/local-write.ts';
 import { FormatToolbar } from './format-toolbar.tsx';
+import { TableMenu } from './table-menu.tsx';
 import { NoteFooter } from './note-footer.tsx';
 import { NoteHeader, noteNameErrorId } from './note-header.tsx';
 import { NoteHeaderActions } from './note-header-actions.tsx';
@@ -288,6 +290,8 @@ function NoteEditorBody({
   // Where the caret stands, which decides the tools of the formatting row.
   const [formatContext, setFormatContext] =
     useState<FormatContext>(outsideTable);
+  // The menu of a row or a column that a handle of a table asked for.
+  const [tableMenu, setTableMenu] = useState<TableMenuRequest | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);
   const [backlinksOpen, setBacklinksOpen] = useState(true);
   // The one problem line of the editor: an attachment, a paste, or an action
@@ -765,6 +769,7 @@ function NoteEditorBody({
         rich: richResolvers,
         document: bound,
         onFormatContext: setFormatContext,
+        onTableMenu: setTableMenu,
         // Work of another device is not input of this device: the screen
         // shows it and schedules no save of its own (record 0085).
         onRemoteChange: (text) => {
@@ -1252,6 +1257,12 @@ function NoteEditorBody({
     if (view !== null) runFormatAction(view, id);
   }, []);
 
+  /** The editor view of this working copy, for the menu of a table. */
+  const currentView = useCallback((): EditorView | null => viewRef.current, []);
+  const closeTableMenu = useCallback((): void => {
+    setTableMenu(null);
+  }, []);
+
   /** Saves the open note as one Markdown file on this device. */
   const exportMarkdown = useCallback((): void => {
     void downloadNote(workspaceId, fileId).catch((failure: unknown) => {
@@ -1398,6 +1409,13 @@ function NoteEditorBody({
               (decision 0094). It holds no name and no note action.
             */}
             <FormatToolbar context={formatContext} onFormat={runFormat} />
+            {tableMenu === null ? null : (
+              <TableMenu
+                request={tableMenu}
+                view={currentView}
+                onClose={closeTableMenu}
+              />
+            )}
             <div
               ref={containerRef}
               className="min-h-0 flex-1 overflow-hidden"

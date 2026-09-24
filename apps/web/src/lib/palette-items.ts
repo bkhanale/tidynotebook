@@ -110,6 +110,9 @@ export function rankNotes(
  * component, because this module is pure and holds no JSX.
  */
 export const actionIconNames = [
+  'align-center',
+  'align-left',
+  'align-right',
   'bold',
   'bullet-list',
   'collapse-all',
