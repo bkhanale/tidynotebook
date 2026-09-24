@@ -710,7 +710,7 @@ export function AccountSettingsPage(): ReactNode {
         <SettingsSection
           title="Daily notes"
           titleId="daily-notes-heading"
-          description="Each day has one note in the folder Daily notes. These settings apply to this workspace and follow you to every device."
+          description="Each day has one note, and the calendar in the sidebar opens it. These settings apply to this workspace and follow you to every device."
         >
           <DailyNoteSettingsFields />
         </SettingsSection>

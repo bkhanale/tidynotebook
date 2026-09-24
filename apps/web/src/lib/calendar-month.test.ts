@@ -3,9 +3,8 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { weekdayOf } from '@notesapp/core';
 import {
-  addDays,
-  addMonths,
   dateAfterKey,
   dateOfInstant,
   dayName,
@@ -14,70 +13,9 @@ import {
   monthTitle,
   monthWeeks,
   weekdayNames,
-  weekdayOf,
   weekdayOrder,
   weeksInGrid,
 } from './calendar-month.ts';
-
-await test('the weekday of a date follows the ISO week', () => {
-  assert.equal(weekdayOf({ year: 1970, month: 1, day: 1 }), 4);
-  assert.equal(weekdayOf({ year: 2026, month: 9, day: 24 }), 4);
-  assert.equal(weekdayOf({ year: 2026, month: 9, day: 27 }), 7);
-  assert.equal(weekdayOf({ year: 2000, month: 2, day: 29 }), 2);
-  // Before the origin and in a year of fewer than four digits.
-  assert.equal(weekdayOf({ year: 1969, month: 12, day: 31 }), 3);
-  assert.equal(weekdayOf({ year: 1, month: 1, day: 1 }), 1);
-});
-
-await test('a day move crosses a month, a year and a leap day', () => {
-  assert.deepEqual(addDays({ year: 2026, month: 9, day: 30 }, 1), {
-    year: 2026,
-    month: 10,
-    day: 1,
-  });
-  assert.deepEqual(addDays({ year: 2026, month: 1, day: 1 }, -1), {
-    year: 2025,
-    month: 12,
-    day: 31,
-  });
-  assert.deepEqual(addDays({ year: 2028, month: 2, day: 28 }, 1), {
-    year: 2028,
-    month: 2,
-    day: 29,
-  });
-  assert.deepEqual(addDays({ year: 2026, month: 2, day: 28 }, 1), {
-    year: 2026,
-    month: 3,
-    day: 1,
-  });
-  // A walk of four hundred years comes back to the same weekday.
-  const start = { year: 2026, month: 9, day: 24 };
-  assert.deepEqual(addDays(addDays(start, 146097), -146097), start);
-  assert.equal(weekdayOf(addDays(start, 146097)), weekdayOf(start));
-});
-
-await test('a month move keeps the day, or takes the last day of a short month', () => {
-  assert.deepEqual(addMonths({ year: 2026, month: 1, day: 31 }, 1), {
-    year: 2026,
-    month: 2,
-    day: 28,
-  });
-  assert.deepEqual(addMonths({ year: 2026, month: 12, day: 15 }, 1), {
-    year: 2027,
-    month: 1,
-    day: 15,
-  });
-  assert.deepEqual(addMonths({ year: 2026, month: 1, day: 15 }, -1), {
-    year: 2025,
-    month: 12,
-    day: 15,
-  });
-  assert.deepEqual(addMonths({ year: 2028, month: 2, day: 29 }, 12), {
-    year: 2029,
-    month: 2,
-    day: 28,
-  });
-});
 
 await test('a grid holds six whole weeks that start on the first day', () => {
   const weeks = monthWeeks({ year: 2026, month: 9 }, 1);

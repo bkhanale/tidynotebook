@@ -21,7 +21,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { sameCalendarDate, type CalendarDate } from '@notesapp/core';
+import { addMonths, sameCalendarDate, type CalendarDate } from '@notesapp/core';
 import {
   Button,
   calendarDayClassName,
@@ -33,7 +33,6 @@ import {
   rowClassName,
 } from '@notesapp/ui';
 import {
-  addMonths,
   dateAfterKey,
   dayName,
   firstDayOfLocale,

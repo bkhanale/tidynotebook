@@ -684,9 +684,14 @@ function Sidebar({
       ? null
       : (files.notes.find((note) => note.fileId === fileId)?.path ?? null);
   const daily = useDailyNotes();
+  // The layout of the member names the daily notes (record 0101). Until the
+  // settings arrive no note is the note of a date, so no day is marked.
+  const layout =
+    daily.settings.status === 'ready' ? daily.settings.settings : null;
   const markedDays = useCallback(
-    (month: CalendarMonth) => daysWithNotes(files.notes, month),
-    [files.notes],
+    (month: CalendarMonth): ReadonlySet<number> =>
+      layout === null ? new Set() : daysWithNotes(files.notes, month, layout),
+    [files.notes, layout],
   );
 
   // Open the folders that hold the note, so a note opened from the palette or
@@ -1000,7 +1005,9 @@ function Sidebar({
         <SidebarCalendar
           today={today()}
           openNoteDate={
-            openNotePath === null ? null : dailyNoteDate(openNotePath)
+            openNotePath === null || layout === null
+              ? null
+              : dailyNoteDate(openNotePath, layout)
           }
           daysWithNotes={markedDays}
           onOpen={daily.open}

@@ -1,23 +1,114 @@
 /**
  * The daily note settings of the member, as fields of the Settings page
- * (records 0099 and 0100).
+ * (records 0099, 0100 and 0101).
  *
- * The Settings page holds every setting of the product. These two belong to
- * the member in the open workspace, and the provider of `daily-notes.tsx`
- * reads and stores them, so the sidebar and this section read one value.
+ * The Settings page holds every setting of the product. These belong to the
+ * member in the open workspace, and the provider of `daily-notes.tsx` reads
+ * and stores them, so the sidebar and this section read one value.
+ *
+ * The template and the start choice apply when a person picks them. The
+ * folder and the name format are text, so they apply with Save: a half typed
+ * format would move the daily notes of the calendar at every keystroke. The
+ * preview under them names the note of today as the typed layout writes it,
+ * and `dailyNoteLayoutProblem` of `@notesapp/core`, the rule the server holds,
+ * decides whether Save is possible.
  */
-import { useMemo, type ReactNode } from 'react';
-import { Checkbox, LoadingState, Notice, SelectField } from '@notesapp/ui';
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from 'react';
+import {
+  cleanDailyNoteFolder,
+  dailyNoteLayoutProblem,
+  type DailyNoteSettings,
+} from '@notesapp/core';
+import {
+  Button,
+  Checkbox,
+  LoadingState,
+  Notice,
+  SelectField,
+  TextField,
+} from '@notesapp/ui';
 import { useFiles } from '../../shell/files.tsx';
 import {
+  dailyNotePreview,
   effectiveTemplateId,
+  layoutProblemSentences,
   noTemplateValue,
   templateChoices,
   templateOfChoice,
 } from '../../lib/daily-note.ts';
-import { useDailyNotes } from './daily-notes.tsx';
+import { today, useDailyNotes } from './daily-notes.tsx';
 
-/** The template field and the start choice. */
+/** The folder and the name format, with Save. */
+function LayoutFields({
+  settings,
+  onSave,
+}: {
+  readonly settings: DailyNoteSettings;
+  readonly onSave: (next: DailyNoteSettings) => void;
+}): ReactNode {
+  const [folder, setFolder] = useState(settings.folder);
+  const [format, setFormat] = useState(settings.format);
+  // A stored layout that changes, from Save or from another device, is what
+  // the fields show next.
+  useEffect(() => {
+    setFolder(settings.folder);
+    setFormat(settings.format);
+  }, [settings.folder, settings.format]);
+
+  const layout = { folder: cleanDailyNoteFolder(folder), format };
+  const problem = dailyNoteLayoutProblem(layout);
+  const changed =
+    layout.folder !== settings.folder || layout.format !== settings.format;
+  const sentence =
+    problem === null ? undefined : layoutProblemSentences[problem];
+
+  const submit = (event: FormEvent<HTMLFormElement>): void => {
+    event.preventDefault();
+    if (problem !== null || !changed) return;
+    onSave({ ...settings, ...layout });
+  };
+
+  return (
+    <form className="mt-4" onSubmit={submit} noValidate>
+      <TextField
+        id="daily-folder"
+        label="Folder"
+        value={folder}
+        onChange={setFolder}
+        hint="Leave it empty to keep daily notes at the top of the workspace."
+        error={problem === 'folder' ? sentence : undefined}
+      />
+      <TextField
+        id="daily-format"
+        label="Name format"
+        value={format}
+        onChange={setFormat}
+        hint="Use date tokens such as YYYY, MM, DD and dddd. A slash makes a folder. Put other text in square brackets."
+        error={problem !== null && problem !== 'folder' ? sentence : undefined}
+      />
+      <p className="mb-3 mt-0 text-control text-muted" aria-live="polite">
+        {problem === null
+          ? `Today's note: ${dailyNotePreview(today(), layout)}`
+          : ''}
+      </p>
+      <Button
+        type="submit"
+        variant="secondary"
+        disabled={problem !== null || !changed}
+      >
+        Save
+      </Button>
+    </form>
+  );
+}
+
+/** The template field, the start choice, the folder and the name format. */
 export function DailyNoteSettingsFields(): ReactNode {
   const files = useFiles();
   const daily = useDailyNotes();
@@ -60,6 +151,7 @@ export function DailyNoteSettingsFields(): ReactNode {
           daily.save({ ...settings, openOnStart: checked });
         }}
       />
+      <LayoutFields settings={settings} onSave={daily.save} />
       {daily.saveProblem === null ? null : (
         <Notice className="mt-3" tone="problem" message={daily.saveProblem} />
       )}

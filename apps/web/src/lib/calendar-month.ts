@@ -1,26 +1,26 @@
 /**
- * One month of the calendar of the Daily notes page, as data (record 0099).
+ * One month of the calendar of the sidebar, as data (records 0099 and 0100).
  *
- * The page shows the days of one month in weeks, moves between months, and
+ * The calendar shows the days of one month in weeks, moves between months, and
  * moves the selected day with the keys of a date grid. Every rule of that is
  * here, as a pure function of calendar dates, so the grid, the moves and the
  * words are tested without a browser. The component in
  * `features/daily-notes/calendar.tsx` draws what these functions decide.
  *
- * Day arithmetic counts whole days from a fixed origin of the proleptic
- * Gregorian calendar, never through a `Date`. A `Date` reads a two digit year
- * as a year of the twentieth century and moves a local instant across a
- * change of summer time, and a calendar day has neither problem.
+ * The day arithmetic belongs to `@notesapp/core`, because the name format of
+ * a daily note writes the weekday of a date with the same count (record
+ * 0101). This module adds what the grid needs on top of it.
  */
 import {
-  daysInMonth,
+  addDays,
+  addMonths,
   isCalendarDate,
   sameCalendarDate,
+  weekdayOf,
+  weekdays,
   type CalendarDate,
+  type Weekday,
 } from '@notesapp/core';
-
-/** A day of the week in the ISO 8601 order: 1 is Monday and 7 is Sunday. */
-export type Weekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
 
 /** One month of one year. `month` runs from 1 to 12. */
 export type CalendarMonth = {
@@ -38,78 +38,8 @@ export type CalendarCell = {
 /** How many weeks a grid shows, so the grid keeps one height every month. */
 export const weeksInGrid = 6;
 
-/** The ISO weekdays in order, which `weekdayOf` indexes. */
-const weekdays: readonly Weekday[] = [1, 2, 3, 4, 5, 6, 7];
-
 /** The weekday that starts a week when the locale states none. */
 export const defaultFirstDay: Weekday = 1;
-
-/**
- * Days from 1970-01-01 to a date of the proleptic Gregorian calendar.
- *
- * This is the civil day count of Howard Hinnant, which is exact for every
- * year of the four digit form.
- */
-function dayNumber(date: CalendarDate): number {
-  const year = date.month <= 2 ? date.year - 1 : date.year;
-  const era = Math.floor(year / 400);
-  const yearOfEra = year - era * 400;
-  const shifted = date.month > 2 ? date.month - 3 : date.month + 9;
-  const dayOfYear = Math.floor((153 * shifted + 2) / 5) + date.day - 1;
-  const dayOfEra =
-    yearOfEra * 365 +
-    Math.floor(yearOfEra / 4) -
-    Math.floor(yearOfEra / 100) +
-    dayOfYear;
-  return era * 146097 + dayOfEra - 719468;
-}
-
-/** The date of one civil day count, the inverse of `dayNumber`. */
-function dateOfDayNumber(days: number): CalendarDate {
-  const shifted = days + 719468;
-  const era = Math.floor(shifted / 146097);
-  const dayOfEra = shifted - era * 146097;
-  const yearOfEra = Math.floor(
-    (dayOfEra -
-      Math.floor(dayOfEra / 1460) +
-      Math.floor(dayOfEra / 36524) -
-      Math.floor(dayOfEra / 146096)) /
-      365,
-  );
-  const dayOfYear =
-    dayOfEra -
-    (365 * yearOfEra + Math.floor(yearOfEra / 4) - Math.floor(yearOfEra / 100));
-  const monthIndex = Math.floor((5 * dayOfYear + 2) / 153);
-  const day = dayOfYear - Math.floor((153 * monthIndex + 2) / 5) + 1;
-  const month = monthIndex < 10 ? monthIndex + 3 : monthIndex - 9;
-  const year = yearOfEra + era * 400 + (month <= 2 ? 1 : 0);
-  return { year, month, day };
-}
-
-/** The weekday of a date. */
-export function weekdayOf(date: CalendarDate): Weekday {
-  // 1970-01-01 was a Thursday, the fourth day of an ISO week.
-  const index = (((dayNumber(date) + 3) % 7) + 7) % 7;
-  return weekdays[index] ?? 1;
-}
-
-/** The date a number of days after another. A negative number goes back. */
-export function addDays(date: CalendarDate, days: number): CalendarDate {
-  return dateOfDayNumber(dayNumber(date) + days);
-}
-
-/**
- * The same day a number of months later, or the last day of that month.
- *
- * The 31st of January and one month is the last day of February, which is
- * what a person means by the next month.
- */
-export function addMonths(date: CalendarDate, months: number): CalendarDate {
-  const index = date.year * 12 + (date.month - 1) + months;
-  const year = Math.floor(index / 12);
-  const month = index - year * 12 + 1;
-  return { year, month, day: Math.min(date.day, daysInMonth(year, month)) };
-}
 
 /** The month that holds a date. */
 export function monthOf(date: CalendarDate): CalendarMonth {

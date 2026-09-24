@@ -13,6 +13,8 @@ import {
   dailyNoteDate,
   dailyNotePath,
   type CalendarDate,
+  type DailyNoteLayout,
+  type DailyNoteLayoutProblem,
   type DailyNoteSettings,
 } from '@notesapp/core';
 import type { CalendarMonth } from './calendar-month.ts';
@@ -28,8 +30,9 @@ export type DailyNoteCandidate = {
 export function dailyNoteOf(
   notes: readonly DailyNoteCandidate[],
   date: CalendarDate,
+  layout: DailyNoteLayout,
 ): string | null {
-  const path = dailyNotePath(date);
+  const path = dailyNotePath(date, layout);
   return notes.find((note) => note.path === path)?.fileId ?? null;
 }
 
@@ -37,10 +40,11 @@ export function dailyNoteOf(
 export function daysWithNotes(
   notes: readonly DailyNoteCandidate[],
   month: CalendarMonth,
+  layout: DailyNoteLayout,
 ): ReadonlySet<number> {
   const days = new Set<number>();
   for (const note of notes) {
-    const date = dailyNoteDate(note.path);
+    const date = dailyNoteDate(note.path, layout);
     if (date !== null && date.year === month.year && date.month === month.month)
       days.add(date.day);
   }
@@ -146,6 +150,8 @@ export function formatCachedSettings(settings: DailyNoteSettings): string {
   return JSON.stringify({
     templateFileId: settings.templateFileId,
     openOnStart: settings.openOnStart,
+    folder: settings.folder,
+    format: settings.format,
   });
 }
 
@@ -172,10 +178,15 @@ export function parseCachedSettings(
   );
   const templateFileId = row['templateFileId'];
   const openOnStart = row['openOnStart'];
+  const folder = row['folder'];
+  const format = row['format'];
   if (typeof openOnStart !== 'boolean') return null;
   if (templateFileId !== null && typeof templateFileId !== 'string')
     return null;
-  return { templateFileId, openOnStart };
+  // A copy from before record 0101 holds no layout, and a layout that the
+  // server would not store is no copy of an answer.
+  if (typeof folder !== 'string' || typeof format !== 'string') return null;
+  return { templateFileId, openOnStart, folder, format };
 }
 
 /**
@@ -210,4 +221,29 @@ export function settingsProblem(status: number, general: string): string {
   // general sentence of an unreachable server does not say.
   if (status === 0) return dailyNoteProblems.offline;
   return general;
+}
+
+/**
+ * What a person reads when a folder or a name format cannot name every date,
+ * one sentence for each cause.
+ */
+export const layoutProblemSentences: Readonly<
+  Record<DailyNoteLayoutProblem, string>
+> = {
+  folder: 'That folder name cannot be stored. Change the name and try again.',
+  no_year: 'Add a year to the format, for example YYYY.',
+  no_month: 'Add a month to the format, for example MM.',
+  no_day: 'Add a day to the format, for example DD.',
+  path: 'That format makes a name that cannot be stored. Remove the empty folder or the space at the end.',
+};
+
+/**
+ * The name of the note of one date as the layout writes it, for the preview
+ * under the settings. The storage suffix stays hidden (record 0099).
+ */
+export function dailyNotePreview(
+  date: CalendarDate,
+  layout: DailyNoteLayout,
+): string {
+  return displayNoteName(dailyNotePath(date, layout));
 }

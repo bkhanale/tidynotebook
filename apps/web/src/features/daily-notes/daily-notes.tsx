@@ -93,6 +93,16 @@ export function today(): CalendarDate {
   return dateOfInstant(new Date());
 }
 
+/** The settings that one answer of the server states. */
+function settingsOfAnswer(answer: DailyNoteSettings): DailyNoteSettings {
+  return {
+    templateFileId: answer.templateFileId,
+    openOnStart: answer.openOnStart,
+    folder: answer.folder,
+    format: answer.format,
+  };
+}
+
 /** Reads one browser setting, or `null` when storage refuses. */
 function readStored(key: string): string | null {
   try {
@@ -177,10 +187,7 @@ function useSettings(
           if (cached === null) setSettings({ status: 'unavailable' });
           return;
         }
-        const answer: DailyNoteSettings = {
-          templateFileId: result.data.templateFileId,
-          openOnStart: result.data.openOnStart,
-        };
+        const answer = settingsOfAnswer(result.data);
         confirmed.current = answer;
         writeStored(key, formatCachedSettings(answer));
         setSettings({ status: 'ready', settings: answer });
@@ -214,10 +221,7 @@ function useSettings(
       queue.current = queue.current.then(async () => {
         const result = await updateDailyNoteSettings({
           path: { workspaceId },
-          body: {
-            templateFileId: next.templateFileId,
-            openOnStart: next.openOnStart,
-          },
+          body: settingsOfAnswer(next),
         });
         if (current !== generation.current) return;
         if (result.error !== undefined || result.data === undefined) {
@@ -229,10 +233,7 @@ function useSettings(
           );
           return;
         }
-        const answer: DailyNoteSettings = {
-          templateFileId: result.data.templateFileId,
-          openOnStart: result.data.openOnStart,
-        };
+        const answer = settingsOfAnswer(result.data);
         confirmed.current = answer;
         writeStored(key, formatCachedSettings(answer));
       });
@@ -266,6 +267,12 @@ export function DailyNotesProvider({
   const { settings, save, saveProblem } = useSettings(accountId, workspaceId);
   const [openProblem, setOpenProblem] = useState<string | null>(null);
   const opening = useRef(false);
+  // An open that came while the settings were loading, which runs as soon as
+  // they arrive.
+  const pendingOpen = useRef<{
+    readonly date: CalendarDate;
+    readonly replace: boolean;
+  } | null>(null);
 
   // What a lookup and a new note read, kept current for the async open.
   const live = useRef({ store, accountId, workspaceId, settings, files });
@@ -281,12 +288,24 @@ export function DailyNotesProvider({
         setOpenProblem(dailyNoteProblems.storage);
         return;
       }
+      // The path of a date comes from the layout of the member (record
+      // 0101), so an open waits for the settings, and it cannot happen
+      // without them.
+      if (current.settings.status === 'loading') {
+        pendingOpen.current = { date, replace };
+        return;
+      }
+      if (current.settings.status === 'unavailable') {
+        setOpenProblem(dailyNoteProblems.settings);
+        return;
+      }
+      const settings = current.settings.settings;
       opening.current = true;
       setOpenProblem(null);
       const workspace = current.workspaceId;
       void (async (): Promise<void> => {
         try {
-          let fileId = dailyNoteOf(current.files.notes, date);
+          let fileId = dailyNoteOf(current.files.notes, date, settings);
           if (fileId === null) {
             // The list of the frame is bounded, and a note of this device
             // that no list has read yet is still the note of its date.
@@ -296,20 +315,14 @@ export function DailyNotesProvider({
             fileId = dailyNoteOf(
               local.filter((file) => file.kind === 'note' && !file.deleted),
               date,
+              settings,
             );
           }
           if (fileId !== null) {
             await navigate(`/w/${workspace}/notes/${fileId}`, { replace });
             return;
           }
-          if (current.settings.status !== 'ready') {
-            setOpenProblem(dailyNoteProblems.settings);
-            return;
-          }
-          const templateId = effectiveTemplateId(
-            current.settings.settings,
-            current.files.notes,
-          );
+          const templateId = effectiveTemplateId(settings, current.files.notes);
           const text =
             templateId === null
               ? ''
@@ -326,7 +339,7 @@ export function DailyNotesProvider({
           const draft = newNoteDraft({
             accountId: activeAccount,
             workspaceId: workspace,
-            path: dailyNotePath(date),
+            path: dailyNotePath(date, settings),
             ids: { fileId: generateUUID(), workingCopyId: generateUUID() },
             text,
           });
@@ -348,6 +361,13 @@ export function DailyNotesProvider({
     },
     [navigate],
   );
+
+  useEffect(() => {
+    if (settings.status === 'loading') return;
+    const pending = pendingOpen.current;
+    pendingOpen.current = null;
+    if (pending !== null) openDate(pending.date, pending.replace);
+  }, [settings.status, openDate]);
 
   const open = useCallback(
     (date: CalendarDate): void => {

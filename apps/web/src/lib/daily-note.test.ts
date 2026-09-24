@@ -3,14 +3,17 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { defaultDailyNoteLayout } from '@notesapp/core';
 import {
   dailyNoteOf,
+  dailyNotePreview,
   dailyNoteProblems,
   dailyNoteSettingsKey,
   daysWithNotes,
   effectiveTemplateId,
   formatCalendarOpen,
   formatCachedSettings,
+  layoutProblemSentences,
   noTemplateValue,
   opensTodayAtStart,
   parseCachedSettings,
@@ -30,40 +33,77 @@ const notes = [
 ];
 
 await test('the note of a date is the note at its dated path', () => {
-  assert.equal(dailyNoteOf(notes, { year: 2026, month: 9, day: 24 }), 'a');
-  assert.equal(dailyNoteOf(notes, { year: 2026, month: 9, day: 25 }), null);
+  assert.equal(
+    dailyNoteOf(
+      notes,
+      { year: 2026, month: 9, day: 24 },
+      defaultDailyNoteLayout,
+    ),
+    'a',
+  );
+  assert.equal(
+    dailyNoteOf(
+      notes,
+      { year: 2026, month: 9, day: 25 },
+      defaultDailyNoteLayout,
+    ),
+    null,
+  );
   // A note at another path is not the note of that date, even by its name.
   assert.equal(
-    dailyNoteOf([{ fileId: 'x', path: 'Old/2026-09-24.md' }], {
-      year: 2026,
-      month: 9,
-      day: 24,
-    }),
+    dailyNoteOf(
+      [{ fileId: 'x', path: 'Old/2026-09-24.md' }],
+      { year: 2026, month: 9, day: 24 },
+      defaultDailyNoteLayout,
+    ),
     null,
   );
 });
 
 await test('the days of a month with a note are the days of its daily notes', () => {
   assert.deepEqual(
-    [...daysWithNotes(notes, { year: 2026, month: 9 })].sort((l, r) => l - r),
+    [
+      ...daysWithNotes(notes, { year: 2026, month: 9 }, defaultDailyNoteLayout),
+    ].sort((l, r) => l - r),
     [3, 24],
   );
-  assert.deepEqual([...daysWithNotes(notes, { year: 2026, month: 10 })], [1]);
-  assert.deepEqual([...daysWithNotes(notes, { year: 2025, month: 9 })], []);
+  assert.deepEqual(
+    [
+      ...daysWithNotes(
+        notes,
+        { year: 2026, month: 10 },
+        defaultDailyNoteLayout,
+      ),
+    ],
+    [1],
+  );
+  assert.deepEqual(
+    [...daysWithNotes(notes, { year: 2025, month: 9 }, defaultDailyNoteLayout)],
+    [],
+  );
 });
 
 await test('a template counts while it is a live note of the list', () => {
   assert.equal(
-    effectiveTemplateId({ templateFileId: 'e', openOnStart: false }, notes),
+    effectiveTemplateId(
+      { templateFileId: 'e', openOnStart: false, ...defaultDailyNoteLayout },
+      notes,
+    ),
     'e',
   );
   // In Trash, or gone: the note is not in the list of live notes.
   assert.equal(
-    effectiveTemplateId({ templateFileId: 'gone', openOnStart: false }, notes),
+    effectiveTemplateId(
+      { templateFileId: 'gone', openOnStart: false, ...defaultDailyNoteLayout },
+      notes,
+    ),
     null,
   );
   assert.equal(
-    effectiveTemplateId({ templateFileId: null, openOnStart: true }, notes),
+    effectiveTemplateId(
+      { templateFileId: null, openOnStart: true, ...defaultDailyNoteLayout },
+      notes,
+    ),
     null,
   );
 });
@@ -103,8 +143,13 @@ await test('the note of today opens only at a start on the note list', () => {
 
 await test('a cached copy reads back as the settings it stored', () => {
   for (const settings of [
-    { templateFileId: 'e', openOnStart: true },
-    { templateFileId: null, openOnStart: false },
+    { templateFileId: 'e', openOnStart: true, ...defaultDailyNoteLayout },
+    {
+      templateFileId: null,
+      openOnStart: false,
+      folder: '',
+      format: 'YYYY/MM/DD',
+    },
   ])
     assert.deepEqual(
       parseCachedSettings(formatCachedSettings(settings)),
@@ -126,6 +171,8 @@ await test('a copy of another shape is no copy at all', () => {
     '{"templateFileId":null}',
     '{"templateFileId":3,"openOnStart":true}',
     '{"templateFileId":null,"openOnStart":"yes"}',
+    // A copy from before the layout settings holds no folder and no format.
+    '{"templateFileId":null,"openOnStart":true}',
   ])
     assert.equal(parseCachedSettings(source), null, String(source));
 });
@@ -152,4 +199,38 @@ await test('the month shows unless the device stored that it is hidden', () => {
   assert.equal(parseCalendarOpen('something else'), true);
   assert.equal(parseCalendarOpen(formatCalendarOpen(true)), true);
   assert.equal(parseCalendarOpen(formatCalendarOpen(false)), false);
+});
+
+await test('the note of a date follows the layout of the member', () => {
+  const layout = { folder: 'Journal', format: 'YYYY/MM/YYYY-MM-DD dddd' };
+  const shaped = [
+    { fileId: 'j', path: 'Journal/2026/09/2026-09-25 Friday.md' },
+    { fileId: 'k', path: 'Journal/2026/09/2026-09-03 Thursday.md' },
+    // The note of the default layout is no daily note of this layout.
+    { fileId: 'a', path: 'Daily notes/2026-09-24.md' },
+  ];
+  assert.equal(
+    dailyNoteOf(shaped, { year: 2026, month: 9, day: 25 }, layout),
+    'j',
+  );
+  assert.equal(
+    dailyNoteOf(shaped, { year: 2026, month: 9, day: 24 }, layout),
+    null,
+  );
+  assert.deepEqual(
+    [...daysWithNotes(shaped, { year: 2026, month: 9 }, layout)].sort(
+      (l, r) => l - r,
+    ),
+    [3, 25],
+  );
+  assert.equal(
+    dailyNotePreview({ year: 2026, month: 9, day: 25 }, layout),
+    'Journal/2026/09/2026-09-25 Friday',
+  );
+});
+
+await test('every layout problem has its own sentence', () => {
+  const sentences = Object.values(layoutProblemSentences);
+  assert.equal(new Set(sentences).size, sentences.length);
+  for (const sentence of sentences) assert.match(sentence, /\.$/);
 });
