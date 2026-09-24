@@ -16,7 +16,12 @@
  * the live preview does.
  */
 import { syntaxTree } from '@codemirror/language';
-import type { EditorState, Extension, Range } from '@codemirror/state';
+import {
+  Prec,
+  type EditorState,
+  type Extension,
+  type Range,
+} from '@codemirror/state';
 import {
   Decoration,
   EditorView,
@@ -94,7 +99,7 @@ function unspelledDecorations(view: EditorView): DecorationSet {
 }
 
 /** Keeps the marks of the visible ranges current. */
-const unspelledMarks = ViewPlugin.fromClass(
+export const unspelledMarks = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
 
@@ -123,8 +128,11 @@ const unspelledMarks = ViewPlugin.fromClass(
  */
 export function spellCheck(enabled: boolean): Extension {
   if (!enabled) return [];
+  // The highest precedence draws the mark inside every other mark. A mark
+  // outside would split the element of a construct that spans more text, for
+  // example the body cell of a list item, into two elements.
   return [
     EditorView.contentAttributes.of({ spellcheck: 'true' }),
-    unspelledMarks,
+    Prec.highest(unspelledMarks),
   ];
 }

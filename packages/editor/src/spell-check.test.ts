@@ -11,7 +11,8 @@ import test from 'node:test';
 import { EditorState } from '@codemirror/state';
 import { EditorView } from '@codemirror/view';
 import { noteMarkdown, parsedWhole } from './language.ts';
-import { spellCheck, unspelledRanges } from './spell-check.ts';
+import { livePreview } from './live-preview.ts';
+import { spellCheck, unspelledMarks, unspelledRanges } from './spell-check.ts';
 
 function stateOf(doc: string): EditorState {
   return parsedWhole(EditorState.create({ doc, extensions: [noteMarkdown()] }));
@@ -151,4 +152,24 @@ await test('the setting states the attribute of the content element', () => {
   // Off adds nothing, so the default of CodeMirror, which is off, holds.
   const off = EditorState.create({ extensions: [spellCheck(false)] });
   assert.equal(contentSpellcheck(off), null);
+});
+
+await test('the marks of the spell check sit inside every other mark', () => {
+  // A mark of a lower precedence wraps the marks of a higher one. The spell
+  // check came after the live preview and wrapped it, which split the body
+  // cell of a list item around inline code into two cells.
+  const state = EditorState.create({
+    extensions: [livePreview(), spellCheck(true)],
+  });
+  // A plugin states its decorations as a function of the view. This view
+  // answers the plugin itself, so the first source names its plugin.
+  const view = {
+    plugin: (plugin: unknown): { decorations: unknown } => ({
+      decorations: plugin,
+    }),
+  };
+  const sources = state.facet(EditorView.decorations);
+  const first = sources[0];
+  assert.ok(typeof first === 'function');
+  assert.equal(Reflect.apply(first, undefined, [view]), unspelledMarks);
 });
