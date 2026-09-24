@@ -37,10 +37,6 @@ diff for History.
 - The task box is drawn from the theme (record 0033) and is the one thing here
   that reads `--notes-border` (record 0063). Every other edge of a note is
   `--notes-border-line` or `--notes-border-subtle`.
-- `spell-check.ts` turns the spell checker of the browser on for the note
-  editor from one compartment, and keeps code, an address, HTML, front matter
-  and math out of it with ranges from the Lezer tree (0103). A plain editor
-  leaves it off.
 - No Markdown grammar lives here. `packages/markdown` owns the language, and
   navigation leaves through injected callbacks.
 
