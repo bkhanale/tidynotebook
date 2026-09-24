@@ -25,6 +25,10 @@ its row or its column to a new place.
   press that moves drags the row or the column. A line shows where it lands,
   and the release moves it there through one edit of the table model, so one
   undo puts it back. The header row does not move and no row moves above it.
+- A drag follows the pointer on the whole window, and every release ends it
+  wherever it lands. A drag that heard the release on its handle alone, through
+  a pointer capture, stayed open when the browser dropped the capture, and its
+  handle stuck. Escape cancels a drag. `table-drag.ts` holds this rule.
 - The menu and the palette take four more actions from the same list: move row
   up, move row down, move column left, move column right. An action is absent
   where it cannot move.

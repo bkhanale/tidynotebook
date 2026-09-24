@@ -91,4 +91,5 @@ produces. `unified-diff.test.ts` is the pattern for a pure module.
 | `src/document-binding.ts` | Binds a live note document to a view (0082)  |
 | `src/table-grid.ts`       | A table as a grid over its text (0095)       |
 | `src/table-controls.ts`   | The handles of a table and their drag (0098) |
+| `src/table-drag.ts`       | What one pointer event does to a drag (0098) |
 | `src/icon-mark.ts`        | The one glyph grid of the editor             |

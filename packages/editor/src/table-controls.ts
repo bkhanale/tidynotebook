@@ -23,6 +23,7 @@ import { Facet, type Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
 import { glyph, type GlyphPart } from './icon-mark.ts';
+import { dragStep, type DragInput } from './table-drag.ts';
 import {
   moveColumnEdit,
   moveRowEdit,
@@ -64,9 +65,6 @@ export const tableMenuOpener = Facet.define<
   TableMenuOpener,
   TableMenuOpener | null
 >({ combine: (values) => values.at(-1) ?? null });
-
-/** How far a pointer travels before a press on a handle becomes a drag. */
-const dragDistance = 4;
 
 /** The width of the line that shows where a row or a column lands. */
 const dropLineWidth = 2;
@@ -151,11 +149,27 @@ type Drag = {
   /** The row or the column that moves, as the grid counts them. */
   readonly from: number;
   readonly table: HTMLElement;
+  /** The handle that was pressed, where a press opens its menu. */
+  readonly button: HTMLElement;
   /** True once the pointer travelled far enough to be a drag. */
   moving: boolean;
   /** Where the row or the column lands, as the grid counts them. */
   to: number;
 };
+
+/** The input of one pointer event. */
+function pointerInput(
+  type: 'move' | 'release',
+  event: PointerEvent,
+): DragInput {
+  return {
+    type,
+    pointerId: event.pointerId,
+    buttons: event.buttons,
+    x: event.clientX,
+    y: event.clientY,
+  };
+}
 
 /** Builds the layer of the handles and keeps it on the active table. */
 class TableControls {
@@ -169,6 +183,8 @@ class TableControls {
   /** The cell the handles stand on now. */
   private activeCell: HTMLElement | null = null;
   private drag: Drag | null = null;
+  /** Stops the listening of the window that one drag started. */
+  private stopListening: (() => void) | null = null;
   private readonly onPointer: (event: PointerEvent) => void;
   private readonly onLeave: () => void;
   private readonly onScroll: () => void;
@@ -193,16 +209,6 @@ class TableControls {
       });
       button.addEventListener('pointerdown', (event) => {
         this.startDrag(kind, event, button);
-      });
-      button.addEventListener('pointermove', (event) => {
-        this.moveDrag(event);
-      });
-      button.addEventListener('pointerup', (event) => {
-        this.endDrag(event, button);
-      });
-      button.addEventListener('pointercancel', () => {
-        this.drag = null;
-        this.schedule();
       });
       // Assistive software and a keyboard press a button with a click that
       // no pointer made, which carries no count of presses. It opens the menu,
@@ -263,6 +269,7 @@ class TableControls {
     this.view.dom.removeEventListener('pointermove', this.onPointer);
     this.view.dom.removeEventListener('pointerleave', this.onLeave);
     this.view.scrollDOM.removeEventListener('scroll', this.onScroll, true);
+    this.stopListening?.();
     this.layer.remove();
   }
 
@@ -279,8 +286,6 @@ class TableControls {
     const pos = this.view.posAtDOM(cell, 0);
     const context = tableContextAt(this.view.state, pos);
     const from = kind === 'row' ? context.row : context.column;
-    // The pointer stays with the handle while it drags, wherever it goes.
-    button.setPointerCapture(event.pointerId);
     this.drag = {
       kind,
       pointerId: event.pointerId,
@@ -289,34 +294,82 @@ class TableControls {
       pos,
       from,
       table,
+      button,
       moving: false,
       to: from,
     };
+    this.listen(button.ownerDocument.defaultView ?? window);
   }
 
-  /** Follows the pointer and finds where the row or the column lands. */
-  private moveDrag(event: PointerEvent): void {
+  /**
+   * Follows one drag on the whole window until it ends.
+   *
+   * The release can land on any element: on a cell, outside the editor, or
+   * on the handle. A drag that heard the release on the handle alone, through
+   * a pointer capture, missed it when the browser dropped the capture, and it
+   * stayed open with its handle stuck. The window hears every release, in
+   * its capture phase, before any element can stop it.
+   */
+  private listen(target: Window): void {
+    this.stopListening?.();
+    const move = (event: PointerEvent): void => {
+      this.step(pointerInput('move', event));
+    };
+    const up = (event: PointerEvent): void => {
+      this.step(pointerInput('release', event));
+    };
+    const cancel = (): void => {
+      this.step({ type: 'cancel' });
+    };
+    const key = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.step({ type: 'cancel' });
+    };
+    const options = { capture: true } as const;
+    target.addEventListener('pointermove', move, options);
+    target.addEventListener('pointerup', up, options);
+    target.addEventListener('pointercancel', cancel, options);
+    target.addEventListener('keydown', key, options);
+    target.addEventListener('blur', cancel, options);
+    this.stopListening = (): void => {
+      target.removeEventListener('pointermove', move, options);
+      target.removeEventListener('pointerup', up, options);
+      target.removeEventListener('pointercancel', cancel, options);
+      target.removeEventListener('keydown', key, options);
+      target.removeEventListener('blur', cancel, options);
+      this.stopListening = null;
+    };
+  }
+
+  /** Applies one event of the window to the drag in progress. */
+  private step(input: DragInput): void {
     const drag = this.drag;
-    if (drag === null || event.pointerId !== drag.pointerId) return;
-    const travelled = Math.hypot(
-      event.clientX - drag.startX,
-      event.clientY - drag.startY,
-    );
-    if (!drag.moving && travelled < dragDistance) return;
-    // The header row stays first, so it does not move.
-    if (drag.kind === 'row' && drag.from === 0) return;
-    drag.moving = true;
-    drag.to = dropIndex(drag, event.clientX, event.clientY);
-    this.schedule();
+    if (drag === null) return;
+    const step = dragStep(drag, input);
+    if (step === 'ignore') return;
+    if (step === 'follow' && input.type !== 'cancel') {
+      // The header row stays first, so it does not move.
+      if (drag.kind === 'row' && drag.from === 0) return;
+      drag.moving = true;
+      drag.to = dropIndex(drag, input.x, input.y);
+      this.schedule();
+      return;
+    }
+    this.drag = null;
+    this.stopListening?.();
+    if (step === 'cancel') {
+      this.schedule();
+      return;
+    }
+    this.endDrag(drag);
   }
 
   /** Ends a press: a drag moves its row or its column, a press opens the menu. */
-  private endDrag(event: PointerEvent, button: HTMLElement): void {
-    const drag = this.drag;
-    if (drag === null || event.pointerId !== drag.pointerId) return;
-    this.drag = null;
+  private endDrag(drag: Drag): void {
     if (!drag.moving) {
-      this.openMenu(drag.kind, drag.pos, button);
+      this.openMenu(drag.kind, drag.pos, drag.button);
       this.schedule();
       return;
     }

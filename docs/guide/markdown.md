@@ -39,7 +39,8 @@ the last column stay. The command palette offers the same actions while the
 cursor is in a table.
 
 To move a row or a column, drag its handle. A line shows where it goes. Release
-the handle to move it there. The header row does not move.
+the handle to move it there. Press Escape to stop the drag and move nothing.
+The header row does not move.
 
 Copy a row or a range of cells, from a note or from a spreadsheet, and paste it
 into a cell: it fills the cells from there to the right and down, and the table
