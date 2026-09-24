@@ -129,6 +129,7 @@ and needs no record.
 | [0097](0097-a-row-and-a-column-carry-a-menu.md)                                    | A row and a column carry a menu, and a paste fills cells                        |
 | [0098](0098-a-handle-moves-its-row-or-column.md)                                   | A handle stands outside the table and moves its row or column                   |
 | [0099](0099-a-daily-note-is-a-dated-note-and-its-settings-belong-to-the-member.md) | A daily note is a dated note and its settings belong to the member              |
+| [0100](0100-the-calendar-is-a-section-of-the-sidebar.md)                           | The calendar is a section of the sidebar                                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -373,3 +374,7 @@ an ordinary note at a dated path, a new one starts with the text of a template
 note, and a calendar page opens the note of any date. The template and the
 choice to open the note of today at start belong to one member of one
 workspace, so they follow the person to every device.
+
+Record 0100 moves the calendar of record 0099 into the sidebar, between the
+tree and the footer rows, because the owner asked to open a day from every
+page. The two settings move to the Settings page. It refines records 0093 and 0099.
