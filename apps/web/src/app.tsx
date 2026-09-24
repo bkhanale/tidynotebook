@@ -26,7 +26,7 @@ import {
   type Preferences,
   type Workspace,
 } from '@notesapp/api-client';
-import { generateUUID } from '@notesapp/core';
+import { defaultSpellCheck, generateUUID } from '@notesapp/core';
 import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createSyncEngine,
@@ -136,6 +136,7 @@ function readCachedAccount(): Account | null {
     );
     const appearance = readProperty(row['preferences'], 'appearance');
     const themeFamily = readProperty(row['preferences'], 'themeFamily');
+    const spellCheck = readProperty(row['preferences'], 'spellCheck');
     if (
       typeof row['accountId'] !== 'string' ||
       !['system', 'light', 'dark'].includes(String(appearance))
@@ -160,6 +161,9 @@ function readCachedAccount(): Account | null {
           typeof themeFamily === 'string' && themeFamily !== ''
             ? themeFamily
             : defaultThemeFamilyId,
+        // An account cached by an earlier release holds no spell check.
+        spellCheck:
+          typeof spellCheck === 'boolean' ? spellCheck : defaultSpellCheck,
       },
     };
   } catch {

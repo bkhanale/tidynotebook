@@ -45,7 +45,7 @@ export const authRole = 'notesapp_auth';
  * `migrations/meta/_journal.json`. The readiness probe compares its answer
  * with this constant, so one value describes the required set.
  */
-export const requiredSchemaVersion = 11;
+export const requiredSchemaVersion = 12;
 
 /**
  * One PostgreSQL advisory lock serializes every migration run.

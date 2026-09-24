@@ -7,18 +7,8 @@
  * No handler repeats a contract shape and no handler reads the database.
  */
 import type { FastifyRequest } from 'fastify';
-import type {
-  AppearanceChoice,
-  Preferences,
-  Result,
-  WorkspaceAdminStore,
-} from '@notesapp/core';
-import {
-  appearanceChoices,
-  isThemeFamilyId,
-  readPreferences,
-  updatePreferences,
-} from '@notesapp/core';
+import type { Preferences, Result, WorkspaceAdminStore } from '@notesapp/core';
+import { readPreferences, updatePreferences } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
@@ -61,21 +51,30 @@ export function readParameter(request: FastifyRequest, key: string): string {
   return value;
 }
 
-/** Narrows the validated appearance member. */
-function readAppearance(body: unknown): AppearanceChoice {
-  const value = readString(body, 'appearance');
-  const choice = appearanceChoices.find((entry) => entry === value);
-  if (choice === undefined)
-    throw new ForbiddenError('The appearance is not one of the known ones.');
-  return choice;
+/**
+ * Reads a validated member that the body may leave out.
+ *
+ * The contract states the type of a member that is present, and the use case
+ * decides whether its value is one it stores.
+ */
+function optionalMember<T>(
+  body: unknown,
+  key: string,
+  is: (value: unknown) => value is T,
+): T | undefined {
+  const value = readProperty(body, key);
+  if (value === undefined) return undefined;
+  if (!is(value))
+    throw new ForbiddenError(`The request body has an invalid ${key}.`);
+  return value;
 }
 
-/** Narrows the validated theme family member. */
-function readThemeFamily(body: unknown): string {
-  const value = readString(body, 'themeFamily');
-  if (!isThemeFamilyId(value))
-    throw new ForbiddenError('The theme family is not a known identifier.');
-  return value;
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
 }
 
 /** The public shape of stored settings. */
@@ -83,6 +82,7 @@ function preferencesBody(preferences: Preferences): Record<string, unknown> {
   return {
     appearance: preferences.appearance,
     themeFamily: preferences.themeFamily,
+    spellCheck: preferences.spellCheck,
   };
 }
 
@@ -108,8 +108,9 @@ export function createAccountHandlers(store: WorkspaceAdminStore): HandlerMap {
       const resolved = requireActor(request);
       const stored = unwrap(
         await updatePreferences(store, resolved.actor, {
-          appearance: readAppearance(request.body),
-          themeFamily: readThemeFamily(request.body),
+          appearance: optionalMember(request.body, 'appearance', isString),
+          themeFamily: optionalMember(request.body, 'themeFamily', isString),
+          spellCheck: optionalMember(request.body, 'spellCheck', isBoolean),
         }),
       );
       return {

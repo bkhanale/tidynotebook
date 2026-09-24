@@ -23,7 +23,11 @@ import type {
   WorkspaceAdminTransaction,
   WorkspaceSummary,
 } from '@notesapp/core';
-import { isThemeFamilyId, OperationalError } from '@notesapp/core';
+import {
+  defaultSpellCheck,
+  isThemeFamilyId,
+  OperationalError,
+} from '@notesapp/core';
 import pg from 'pg';
 import { openPool } from './pool.ts';
 import { defaultQuotaBytes } from './provision.ts';
@@ -312,8 +316,9 @@ export function openIdentityStore(
         const rows = await client.query<{
           theme: string;
           theme_family: string;
+          spell_check: boolean;
         }>(
-          `select theme, theme_family from account_preferences
+          `select theme, theme_family, spell_check from account_preferences
              where account_id = $1`,
           [accountId],
         );
@@ -321,19 +326,26 @@ export function openIdentityStore(
         return {
           appearance: asAppearance(row?.theme ?? 'system'),
           themeFamily: asThemeFamily(row?.theme_family ?? defaultThemeFamily),
+          spellCheck: row?.spell_check ?? defaultSpellCheck,
         };
       },
 
       async savePreferences(preferences: Preferences): Promise<void> {
         await client.query(
           `insert into account_preferences
-             (account_id, theme, theme_family, updated_at)
-             values ($1, $2, $3, now())
+             (account_id, theme, theme_family, spell_check, updated_at)
+             values ($1, $2, $3, $4, now())
            on conflict (account_id)
              do update set theme = excluded.theme,
                            theme_family = excluded.theme_family,
+                           spell_check = excluded.spell_check,
                            updated_at = now()`,
-          [accountId, preferences.appearance, preferences.themeFamily],
+          [
+            accountId,
+            preferences.appearance,
+            preferences.themeFamily,
+            preferences.spellCheck,
+          ],
         );
       },
 

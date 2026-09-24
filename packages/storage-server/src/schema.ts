@@ -994,7 +994,9 @@ export const accountAuditEvents = pgTable(
  * names a palette family of the client theme registry and is an opaque slug
  * here; the server never holds a colour value. Its default is the family the
  * client also defaults to (record 0056), which this file cannot read, because
- * the registry is browser code.
+ * the registry is browser code. `spell_check` states whether the editor asks
+ * the browser to check the spelling of a note (record 0103). Its default is
+ * `defaultSpellCheck` of `@notesapp/core`, which SQL cannot read.
  */
 export const accountPreferences = pgTable('account_preferences', {
   accountId: uuid('account_id')
@@ -1002,6 +1004,7 @@ export const accountPreferences = pgTable('account_preferences', {
     .references(() => accounts.id),
   theme: text('theme').notNull().default('system'),
   themeFamily: text('theme_family').notNull().default('default'),
+  spellCheck: boolean('spell_check').notNull().default(true),
   updatedAt: timestamp('updated_at', { withTimezone: true })
     .notNull()
     .defaultNow(),
