@@ -17,19 +17,20 @@ never disagree about what a note means.
 
 ## Formatting tools
 
-The row of tools above the note formats the text for you, so you do not need
-to know Markdown. Select text and then select a tool, or select a tool and
-then type. The tools are Heading, Bold, Italic, Strike through, Inline code,
-Link, Bullet list, Ordered list, Task list, Block quote and Table. Select a
-tool again to remove its format. Hold the pointer on a tool to see its key.
+The row of tools above the note formats the text for you, so you do not need to
+know Markdown. Select text and then select a tool, or select a tool and then
+type. The tools are Heading 1, Heading 2, Heading 3, Bold, Italic, Strike
+through, Inline code, Link, Bullet list, Ordered list, Task list, Block quote
+and Table. Select a tool again to remove its format. Hold the pointer on a tool
+to see its key.
 
 Table writes a small table with two columns and one empty row. Type the name
 of the first column, then move with the arrow keys and fill the cells. The
 table stays Markdown text, so you can add a row or a column where you type.
 
-On a phone, the tools you use less are in the More formatting menu at the end
-of the row. Every tool is also in the command palette: open it with Ctrl + P
-or Cmd + P and type the name of the tool.
+On a narrow screen, swipe the row sideways to reach the other tools. Every tool
+is also in the command palette: open it with Ctrl + P or Cmd + P and type the
+name of the tool.
 
 With a keyboard, press Tab to reach the row and the arrow keys to move
 between the tools. Press Enter to use a tool. The cursor then goes back to the

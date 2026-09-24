@@ -432,13 +432,38 @@ export function LinkIcon(props: IconProps): ReactNode {
   );
 }
 
-/** A capital H, for a heading. */
-export function HeadingIcon(props: IconProps): ReactNode {
+/** A capital H with a 1, for a heading of the first level. */
+export function Heading1Icon(props: IconProps): ReactNode {
   return (
     <IconFrame {...props}>
-      <path d="M6 5v14" />
-      <path d="M18 5v14" />
-      <path d="M6 12h12" />
+      <path d="M4 6v12" />
+      <path d="M12 6v12" />
+      <path d="M4 12h8" />
+      <path d="M17 11l2.5-2v9" />
+    </IconFrame>
+  );
+}
+
+/** A capital H with a 2, for a heading of the second level. */
+export function Heading2Icon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 6v12" />
+      <path d="M12 6v12" />
+      <path d="M4 12h8" />
+      <path d="M16.5 11c0-1.2 1-2 2.2-2s2.3.8 2.3 2c0 2.4-4.5 3.6-4.5 7h4.5" />
+    </IconFrame>
+  );
+}
+
+/** A capital H with a 3, for a heading of the third level. */
+export function Heading3Icon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <path d="M4 6v12" />
+      <path d="M12 6v12" />
+      <path d="M4 12h8" />
+      <path d="M16.5 9h4.5l-2.6 3.3c1.5 0 2.6 1 2.6 2.5S19.9 17.5 18.6 17.5c-1 0-1.7-.4-2.1-1" />
     </IconFrame>
   );
 }

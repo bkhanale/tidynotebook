@@ -12,94 +12,60 @@
  * tool that joins or leaves the row therefore joins or leaves the palette in
  * the same change, and no second list can drift from the first.
  *
- * The row holds four groups that space separates: the heading, the marks of
- * a word, the shapes of a block, and the table. A phone shows the tools a
- * person uses most, and one More formatting menu holds the rest in the order
- * of the row.
+ * The row holds four groups that space separates: the headings, the marks of
+ * a word, the shapes of a block, and the table. Every tool is a button of the
+ * row at every width. A row wider than the screen scrolls sideways, so a new
+ * tool is one more entry here and never a menu that covers the text.
  *
  * This module is pure, so a unit test holds the row, the palette rows, the
  * titles and the keyboard rule.
  */
 import { formatActionOf, type FormatActionId } from '@notesapp/editor';
+import { controlStripClassName } from '@notesapp/ui';
 import type { ActionIconName } from './palette-items.ts';
 
-/** One button of the row. */
-export type FormatButton = {
-  readonly kind: 'action';
+/** One tool of the row: a format action and its glyph. */
+export type FormatTool = {
   readonly id: FormatActionId;
   readonly icon: ActionIconName;
-  /** True when a phone shows the tool in the row and not in More. */
-  readonly narrow: boolean;
 };
 
-/** One menu of the row, whose rows are format actions. */
-export type FormatMenu = {
-  readonly kind: 'menu';
-  readonly id: 'heading';
-  readonly label: string;
-  readonly icon: ActionIconName;
-  readonly actions: readonly FormatActionId[];
-  readonly narrow: boolean;
-};
-
-/** One tool of the row. */
-export type FormatTool = FormatButton | FormatMenu;
-
-/** A button of the row. */
-function button(
-  id: FormatActionId,
-  icon: ActionIconName,
-  narrow: boolean,
-): FormatButton {
-  return { kind: 'action', id, icon, narrow };
+/** A tool of the row. */
+function tool(id: FormatActionId, icon: ActionIconName): FormatTool {
+  return { id, icon };
 }
 
 /**
  * The groups of the row, in the order a person reads them.
  *
- * Heading is a menu of three levels, because a note rarely goes deeper and
- * the keys still reach levels four to six.
+ * Every tool is a button of the row, and no tool is a menu, so no list opens
+ * over the text that a person selected (record 0094). The keys still reach
+ * the heading levels four to six.
  */
 export const formatToolbar: readonly (readonly FormatTool[])[] = [
   [
-    {
-      kind: 'menu',
-      id: 'heading',
-      label: 'Heading',
-      icon: 'heading',
-      actions: ['heading-1', 'heading-2', 'heading-3'],
-      narrow: true,
-    },
+    tool('heading-1', 'heading-one'),
+    tool('heading-2', 'heading-two'),
+    tool('heading-3', 'heading-three'),
   ],
   [
-    button('bold', 'bold', true),
-    button('italic', 'italic', true),
-    button('strikethrough', 'strikethrough', false),
-    button('inline-code', 'inline-code', false),
-    button('link', 'insert-link', true),
+    tool('bold', 'bold'),
+    tool('italic', 'italic'),
+    tool('strikethrough', 'strikethrough'),
+    tool('inline-code', 'inline-code'),
+    tool('link', 'insert-link'),
   ],
   [
-    button('bullet-list', 'bullet-list', true),
-    button('ordered-list', 'ordered-list', false),
-    button('task-list', 'task-list', true),
-    button('quote', 'quote', false),
+    tool('bullet-list', 'bullet-list'),
+    tool('ordered-list', 'ordered-list'),
+    tool('task-list', 'task-list'),
+    tool('quote', 'quote'),
   ],
-  [button('table', 'table', false)],
+  [tool('table', 'table')],
 ];
-
-/** The accessible name of the menu that holds the rest on a phone. */
-export const moreFormattingLabel = 'More formatting';
 
 /** The accessible name of the row. */
 export const formatToolbarLabel = 'Formatting';
-
-/** The buttons that a phone moves into the More formatting menu. */
-export function overflowTools(): readonly FormatButton[] {
-  return formatToolbar
-    .flat()
-    .filter((tool): tool is FormatButton => tool.kind === 'action')
-    .filter((tool) => !tool.narrow);
-}
 
 /** One row that the command palette offers for one format action. */
 export type FormatPaletteRow = {
@@ -128,25 +94,19 @@ const paletteWords: Readonly<Partial<Record<FormatActionId, string>>> = {
   table: 'grid columns rows',
 };
 
-/**
- * The palette rows of every tool of the row, in the order of the row.
- *
- * A menu gives one row for each of its actions, with the glyph of the menu.
- */
+/** The palette rows of every tool of the row, in the order of the row. */
 export function formatPaletteRows(): readonly FormatPaletteRow[] {
-  return formatToolbar.flat().flatMap((tool) =>
-    (tool.kind === 'menu' ? tool.actions : [tool.id]).map((id) => {
-      const action = formatActionOf(id);
-      return {
-        id: `format-${id}`,
-        action: id,
-        label: action.label,
-        keywords: `format markdown ${paletteWords[id] ?? ''}`.trim(),
-        icon: tool.icon,
-        keys: action.keys ?? undefined,
-      };
-    }),
-  );
+  return formatToolbar.flat().map(({ id, icon }) => {
+    const action = formatActionOf(id);
+    return {
+      id: `format-${id}`,
+      action: id,
+      label: action.label,
+      keywords: `format markdown ${paletteWords[id] ?? ''}`.trim(),
+      icon,
+      keys: action.keys ?? undefined,
+    };
+  });
 }
 
 /**
@@ -194,35 +154,29 @@ export function toolbarFocusTarget(
  * one of the footer, so the row and the text start on one line.
  */
 export function formatToolbarFrameClassName(): string {
-  return 'shrink-0 border-b border-edge-line px-2 py-1';
+  return 'shrink-0 border-b border-edge-line px-2';
+}
+
+/** The classes of the column that holds the row, on the note measure (0055). */
+export function formatToolbarColumnClassName(): string {
+  return 'mx-auto w-full max-w-note';
 }
 
 /**
- * The classes of the row, on the measure of the note (record 0055).
+ * The classes of the row itself.
  *
- * Under the medium width a compact control keeps a touch target of 44 px, so
- * the space inside that target separates two tools and the row adds one small
+ * The row is a strip that scrolls sideways when it holds more tools than the
+ * width of the screen (`controlStripClassName`), so a phone reaches every tool
+ * in the row and a new tool never needs a menu. Under the medium width the
+ * touch target of a control separates two tools and the row adds one small
  * step between groups. From the medium width up a control is as small as its
  * mark, so the row spaces the groups by the named step of a group.
  */
 export function formatToolbarClassName(): string {
-  return 'mx-auto flex w-full max-w-note flex-wrap items-center gap-1 md:gap-group';
+  return `${controlStripClassName()} gap-1 md:gap-group`;
 }
 
-/**
- * The classes of one group of the row.
- *
- * A group whose tools all move into More on a phone takes no place there.
- */
-export function formatToolGroupClassName(group: readonly FormatTool[]): string {
-  const onPhone = group.some((tool) => tool.narrow);
-  return `${onPhone ? 'flex' : 'hidden sm:flex'} items-center md:gap-1`;
+/** The classes of one group of the row, which never shrinks in the strip. */
+export function formatToolGroupClassName(): string {
+  return 'flex shrink-0 items-center md:gap-1';
 }
-
-/** The classes around a tool that a phone moves into More. */
-export function formatToolClassName(tool: FormatTool): string {
-  return tool.narrow ? 'contents' : 'hidden sm:contents';
-}
-
-/** The classes around the More formatting menu, which a phone alone shows. */
-export const moreFormattingClassName = 'sm:hidden';

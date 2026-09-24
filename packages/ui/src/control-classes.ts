@@ -219,6 +219,28 @@ export function edgeControlClassName(options: {
 }
 
 /**
+ * The box of a row of small compact controls that scrolls sideways, as
+ * classes.
+ *
+ * A row that can hold more controls than its width, such as the formatting
+ * tools of a note, scrolls instead of hiding the rest in a menu, so every
+ * control stays one press away and no list covers the text (record 0094).
+ *
+ * A box that scrolls clips what reaches past it. The first control of the row
+ * pulls its box into the gutter so its mark lands on the line of the text
+ * (`edgeControlClassName`), and inside a scroller that pull is the part the
+ * box cuts off. The scroller takes the pull instead: it grows by the pull on
+ * both sides, so the first and the last mark land on the line. From the
+ * medium width up a control is as small as its surface, and the focus outline
+ * reaches four pixels past it, so the scroller grows four pixels more and
+ * pads them back. Under touch the 44 px box already holds the outline.
+ * `control-classes.test.ts` holds the strings to that arithmetic.
+ */
+export function controlStripClassName(): string {
+  return 'flex items-center overflow-x-auto py-1 -mx-3.5 md:-mx-2.5 md:px-1';
+}
+
+/**
  * The appearance of a clickable row, as classes.
  *
  * One recipe for every row a person can press: a tree row, a list row, a menu

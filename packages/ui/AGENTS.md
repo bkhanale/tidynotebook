@@ -12,11 +12,11 @@ Read the root [AGENTS.md](../../AGENTS.md), then the
   carries meaning (0056, 0062). `src/theme.ts` declares the tokens,
   `applyTheme`, the contrast helpers, and `derivedPropertyNames`: the divider
   (0053), the hover of a control fill (0057) and the tone surfaces (0065).
-- `src/control-classes.ts` is the one recipe of a control, as pure functions,
-  and nothing in the product writes the classes of a control anywhere else
-  (0065): `buttonClassName`, `rowClassName` with its tone, `fieldClassName`,
-  `kbdClassName`, `badgeClassName`, `avatarClassName`, `edgeControlClassName`
-  for a control at a frame edge, and `focusOutline` with `focusOutlineInset`.
+- `src/control-classes.ts` is the one recipe of a control, and nothing else
+  writes the classes of a control (0065): `buttonClassName`, `rowClassName`,
+  `fieldClassName`, `kbdClassName`, `badgeClassName`, `avatarClassName`,
+  `edgeControlClassName` at a frame edge, `controlStripClassName` for a row
+  that scrolls (0094), and `focusOutline` with `focusOutlineInset`.
   One element takes one colour class, so a tone is part of a recipe.
   `src/icon-grid.ts` is the one grid of an icon: a 24 viewport, a stroke of
   1.5, the sizes 16 and 20, and the attributes `src/icons.tsx` spreads.

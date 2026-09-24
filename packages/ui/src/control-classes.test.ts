@@ -17,6 +17,7 @@ import {
   buttonClassName,
   buttonName,
   compactButtonVisualClassName,
+  controlStripClassName,
   edgeControlClassName,
   fieldClassName,
   focusOutline,
@@ -497,5 +498,39 @@ await test('the pull answers the box of the control it corrects', () => {
       .split(' ')
       .includes(`size-${String(markWidth.avatar / spacingStep)}`),
     'the width of the avatar',
+  );
+});
+
+await test('a strip of controls that scrolls takes the pull of its edges', () => {
+  // The focus outline is two pixels drawn two pixels out from the surface.
+  const outline = 4;
+  // Under touch the surface of a small compact control is 32 px inside its
+  // 44 px box, so the box holds the outline and the strip adds nothing.
+  const touchSurface = 32;
+  assert.ok(
+    compactButtonVisualClassName({
+      variant: 'ghost',
+      size: 'sm',
+      iconOnly: true,
+    })
+      .split(' ')
+      .includes(`size-${String(touchSurface / spacingStep)}`),
+    'the touch surface of a small compact control',
+  );
+  assert.ok((smallControlBox.touch - touchSurface) / 2 >= outline);
+  const touchPull = (smallControlBox.touch - markWidth.icon) / 2;
+  // From the medium width the surface is the box, so the strip pads the
+  // outline and grows by it as well, which keeps the mark on the line.
+  const widePull = (smallControlBox.wide - markWidth.icon) / 2 + outline;
+  const strip = controlStripClassName().split(' ');
+  assert.ok(strip.includes(`-mx-${String(touchPull / spacingStep)}`));
+  assert.ok(strip.includes(`md:-mx-${String(widePull / spacingStep)}`));
+  assert.ok(strip.includes(`md:px-${String(outline / spacingStep)}`));
+  assert.ok(strip.includes(`py-${String(outline / spacingStep)}`));
+  assert.ok(strip.includes('overflow-x-auto'));
+  // The two pulls are the ones of a control at the edge of a frame.
+  assert.equal(
+    edgeControlClassName({ edge: 'start', mark: 'icon' }),
+    `-ms-${String(touchPull / spacingStep)} md:-ms-${String((widePull - outline) / spacingStep)}`,
   );
 });

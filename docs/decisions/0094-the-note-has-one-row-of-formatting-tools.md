@@ -18,9 +18,11 @@ The note surface holds one row of formatting tools above the note text, on the
 note measure (record 0055). This refines record 0069: the row is the one band
 above the text, and it holds no name and no note action.
 
-- The tools are Heading, Bold, Italic, Strike through, Inline code, Link,
-  Bullet list, Ordered list, Task list, Block quote and Table, in four groups
-  that space separates. Heading is a menu of three levels.
+- The tools are Heading 1, Heading 2, Heading 3, Bold, Italic, Strike
+  through, Inline code, Link, Bullet list, Ordered list, Task list, Block
+  quote and Table, in four groups that space separates.
+- Every tool is a button of the row. No tool is a menu, because a list that
+  opens over the note covers the text a person selected.
 - `formatActions` in `packages/editor/src/keymaps.ts` is the one table of the
   formatting commands. The formatting keymap is built from it, and the row
   reads it, so a tool and its key run one command.
@@ -35,9 +37,10 @@ above the text, and it holds no name and no note action.
   it. A tool returns the focus to the editor.
 - A tool does nothing while the editor composes, so an IME composition keeps
   its characters (record 0082).
-- Below the small width the row shows the tools a person uses most, and one
-  More formatting menu holds the rest. `apps/web/src/lib/format-toolbar.ts`
-  holds the order, the groups and that split.
+- A row wider than the screen scrolls sideways
+  (`controlStripClassName` in `packages/ui/src/control-classes.ts`). A phone
+  reaches every tool in the row, and a new tool never needs a menu.
+  `apps/web/src/lib/format-toolbar.ts` holds the order and the groups.
 
 ## Consequences
 

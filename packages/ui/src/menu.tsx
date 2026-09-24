@@ -134,7 +134,6 @@ export function Menu({
   align = 'end',
   triggerClassName,
   compact = false,
-  triggerTabIndex,
   children,
 }: {
   /** The accessible name of the trigger. */
@@ -170,11 +169,6 @@ export function Menu({
    * draws.
    */
   readonly compact?: boolean | undefined;
-  /**
-   * The place of the trigger in the tab order, for a menu inside a group with
-   * one tab stop, such as a toolbar.
-   */
-  readonly triggerTabIndex?: number | undefined;
   /** Visible trigger text. Omit it for an icon-only trigger. */
   readonly children?: ReactNode | undefined;
 }): ReactNode {
@@ -332,7 +326,6 @@ export function Menu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        tabIndex={triggerTabIndex}
         // `label` names the trigger whether or not it also shows text, because
         // visible text says what the menu is about and not what the control
         // does. A trigger reading `Personal` is a workspace name; its name has

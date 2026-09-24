@@ -1,41 +1,33 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { formatActionOf, formatActions } from '@notesapp/editor';
+import { controlStripClassName } from '@notesapp/ui';
 import { actionIconNames } from './palette-items.ts';
 import { noteColumnClassName } from './note-column.ts';
 import {
   formatPaletteRows,
   formatToolbar,
   formatToolbarClassName,
+  formatToolbarColumnClassName,
   formatToolbarFrameClassName,
-  formatToolClassName,
   formatToolGroupClassName,
   formatToolTitle,
-  moreFormattingClassName,
-  overflowTools,
   toolbarFocusTarget,
 } from './format-toolbar.ts';
 
 /** Every format action that the row reaches, in the order of the row. */
-const rowActions = formatToolbar
-  .flat()
-  .flatMap((tool) => (tool.kind === 'menu' ? tool.actions : [tool.id]));
+const rowActions = formatToolbar.flat().map((tool) => tool.id);
 
 await test('the row holds the tools that issue 153 asks for, in four groups', () => {
   assert.deepEqual(
     formatToolbar.map((group) => group.map((tool) => tool.id)),
     [
-      ['heading'],
+      ['heading-1', 'heading-2', 'heading-3'],
       ['bold', 'italic', 'strikethrough', 'inline-code', 'link'],
       ['bullet-list', 'ordered-list', 'task-list', 'quote'],
       ['table'],
     ],
   );
-  assert.deepEqual(rowActions.slice(0, 3), [
-    'heading-1',
-    'heading-2',
-    'heading-3',
-  ]);
 });
 
 await test('every tool is a format action of the editor, reached once', () => {
@@ -44,29 +36,11 @@ await test('every tool is a format action of the editor, reached once', () => {
   assert.equal(new Set(rowActions).size, rowActions.length);
 });
 
-await test('every tool draws a named glyph', () => {
+await test('every tool draws a glyph of its own', () => {
   const glyphs = new Set<string>(actionIconNames);
-  for (const tool of formatToolbar.flat())
-    assert.ok(glyphs.has(tool.icon), `${tool.id} has no glyph`);
-});
-
-await test('a phone keeps six tools in the row and moves the rest to More', () => {
-  // Six tools and the More menu are seven targets of 44 px, which is the
-  // width of a phone of 360 px inside its gutter.
-  const narrow = formatToolbar.flat().filter((tool) => tool.narrow);
-  assert.deepEqual(
-    narrow.map((tool) => tool.id),
-    ['heading', 'bold', 'italic', 'link', 'bullet-list', 'task-list'],
-  );
-  assert.deepEqual(
-    overflowTools().map((tool) => tool.id),
-    ['strikethrough', 'inline-code', 'ordered-list', 'quote', 'table'],
-  );
-  // No menu moves into More, because a menu inside a menu is out of reach
-  // for many people.
-  assert.ok(
-    formatToolbar.flat().every((tool) => tool.kind === 'action' || tool.narrow),
-  );
+  const icons = formatToolbar.flat().map((tool) => tool.icon);
+  for (const icon of icons) assert.ok(glyphs.has(icon), `${icon} is no glyph`);
+  assert.equal(new Set(icons).size, icons.length);
 });
 
 await test('the palette offers every tool of the row and nothing else', () => {
@@ -82,9 +56,7 @@ await test('the palette offers every tool of the row and nothing else', () => {
     assert.equal(row.id, `format-${row.action}`);
     assert.ok(row.keywords.startsWith('format markdown'));
   }
-  const table = rows.find((row) => row.action === 'table');
-  assert.equal(table?.keys, undefined);
-  assert.equal(rows.find((row) => row.action === 'heading-2')?.icon, 'heading');
+  assert.equal(rows.find((row) => row.action === 'table')?.keys, undefined);
 });
 
 await test('a tool title names the keys of the device', () => {
@@ -113,24 +85,23 @@ await test('the row stands on the measure of the note, above a divider', () => {
   // The footer uses the same inline padding, so the row, the text and the
   // word count start on one line.
   assert.ok(frame.includes('px-2'));
-  const row = formatToolbarClassName().split(' ');
-  for (const name of noteColumnClassName().split(' ').slice(0, 3))
-    assert.ok(row.includes(name), `the row lacks ${name}`);
+  const column = formatToolbarColumnClassName().split(' ');
+  // Decision 0055: the one measure of the note, centred.
+  for (const name of ['mx-auto', 'w-full', 'max-w-note']) {
+    assert.ok(noteColumnClassName().split(' ').includes(name));
+    assert.ok(column.includes(name), `the column lacks ${name}`);
+  }
 });
 
-await test('a phone hides the tools of More and shows the menu alone', () => {
-  const [heading, marks, blocks, table] = formatToolbar;
-  assert.ok(heading !== undefined && marks !== undefined);
-  assert.ok(blocks !== undefined && table !== undefined);
-  assert.equal(
-    formatToolGroupClassName(table),
-    'hidden sm:flex items-center md:gap-1',
+await test('the row scrolls sideways and never moves a tool out of it', () => {
+  // A phone scrolls the row instead of hiding tools in a menu, so a menu
+  // never covers the text that a person selected.
+  const row = formatToolbarClassName();
+  assert.ok(row.startsWith(controlStripClassName()));
+  assert.ok(!row.split(' ').includes('flex-wrap'));
+  const group = formatToolGroupClassName().split(' ');
+  assert.ok(group.includes('shrink-0'));
+  assert.ok(
+    !group.some((name) => name === 'hidden' || name.endsWith(':hidden')),
   );
-  assert.equal(formatToolGroupClassName(marks), 'flex items-center md:gap-1');
-  for (const tool of formatToolbar.flat())
-    assert.equal(
-      formatToolClassName(tool),
-      tool.narrow ? 'contents' : 'hidden sm:contents',
-    );
-  assert.equal(moreFormattingClassName, 'sm:hidden');
 });
