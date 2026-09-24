@@ -269,8 +269,11 @@ export type { DailyNoteFormatProblem } from './daily-notes/format.ts';
 export {
   dailyNoteFormatProblem,
   formatDailyNoteName,
+  isDateFormat,
   parseDailyNoteName,
 } from './daily-notes/format.ts';
+export type { TemplateContext } from './daily-notes/template.ts';
+export { fillTemplate, templateVariableNames } from './daily-notes/template.ts';
 export type {
   DailyNoteLayout,
   DailyNoteLayoutProblem,

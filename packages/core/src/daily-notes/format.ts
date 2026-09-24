@@ -69,7 +69,12 @@ const tokens: readonly Token[] = [
 /** One part of a format: a token, or literal text. */
 type Part =
   | { readonly kind: 'token'; readonly token: Token }
-  | { readonly kind: 'text'; readonly text: string };
+  | {
+      readonly kind: 'text';
+      readonly text: string;
+      /** True for text that the format wrote inside square brackets. */
+      readonly bracketed: boolean;
+    };
 
 const monthNames = [
   'January',
@@ -102,7 +107,7 @@ function partsOf(format: string): readonly Part[] {
   const parts: Part[] = [];
   let text = '';
   const flush = (): void => {
-    if (text !== '') parts.push({ kind: 'text', text });
+    if (text !== '') parts.push({ kind: 'text', text, bracketed: false });
     text = '';
   };
   let index = 0;
@@ -110,7 +115,10 @@ function partsOf(format: string): readonly Part[] {
     if (format[index] === '[') {
       const end = format.indexOf(']', index + 1);
       if (end !== -1) {
-        text += format.slice(index + 1, end);
+        flush();
+        const inside = format.slice(index + 1, end);
+        if (inside !== '')
+          parts.push({ kind: 'text', text: inside, bracketed: true });
         index = end + 1;
         continue;
       }
@@ -218,6 +226,24 @@ export function dailyNoteFormatProblem(
   if (!monthTokens.some((token) => used.has(token))) return 'no_month';
   if (!dayTokens.some((token) => used.has(token))) return 'no_day';
   return null;
+}
+
+/**
+ * Whether a text is a format of date tokens and nothing else, as a template
+ * placeholder such as `{{YYYY-MM-DD}}` is (record 0102).
+ *
+ * It holds at least one token, and every letter outside square brackets
+ * belongs to a token, so a word such as `Monday` is not read as tokens.
+ */
+export function isDateFormat(text: string): boolean {
+  const parts = partsOf(text);
+  return (
+    parts.some((part) => part.kind === 'token') &&
+    parts.every(
+      (part) =>
+        part.kind === 'token' || part.bracketed || !/\p{L}/u.test(part.text),
+    )
+  );
 }
 
 /** Escapes one literal text for a regular expression. */
