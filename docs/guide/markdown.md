@@ -24,9 +24,17 @@ through, Inline code, Link, Bullet list, Ordered list, Task list, Block quote
 and Table. Select a tool again to remove its format. Hold the pointer on a tool
 to see its key.
 
-Table writes a small table with two columns and one empty row. Type the name
-of the first column, then move with the arrow keys and fill the cells. The
-table stays Markdown text, so you can add a row or a column where you type.
+Table writes a small table with two columns and one empty row. Type the name of
+the first column. Press Tab to go to the next cell, and Shift and Tab to go
+back. Press Enter to go to the cell below, and Shift and Enter to go up. Tab in
+the last cell and Enter in the last row add a row. You can also select a cell
+to write in it.
+
+While the cursor is in a table, four more tools join the end of the row: Add a
+row, Add a column, Remove the row and Remove the column. The header row and the
+last column stay. Tools that change whole lines, such as Heading and Bullet
+list, do nothing in a table and show disabled. To go below a table at the end
+of the note, press the Down arrow in its last row.
 
 On a narrow screen, swipe the row sideways to reach the other tools. Every tool
 is also in the command palette: open it with Ctrl + P or Cmd + P and type the
@@ -53,9 +61,10 @@ quotes, inline code, fenced code with a language, indented code, links,
 reference links, images, thematic breaks, hard breaks, escapes, and entities
 all work as CommonMark describes.
 
-A task box is a real checkbox. Select it to tick the line. A table stays
-editable text, so you can change it in place. A table wider than the column
-keeps its shape, and the note scrolls sideways to reach the last column.
+A task box is a real checkbox. Select it to tick the line. A table shows as a
+grid of cells, and the note stores it as a GitHub table. A table wider than the
+column scrolls sideways inside its own outline, and the rest of the note stays
+where it is.
 
 ## Ordered lists
 
