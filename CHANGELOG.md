@@ -5,6 +5,33 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.1 - 2026-09-25
+
+This patch release sends a new note to the server as soon as you make it, and
+gives the sidebar a bar that switches between your notes and the calendar.
+
+### Added
+
+- A thin bar at the left edge of the sidebar switches the sidebar between your
+  notes and the calendar. The sidebar keeps the view that you chose.
+- The menu of a table row and of a table column has Delete table. The command
+  palette has it too.
+
+### Changed
+
+- The daily note folder and name format apply when you leave the field or
+  press Enter. The Save button is gone.
+- The calendar always shows its month.
+
+### Fixed
+
+- A new note, a copy from Duplicate and a new daily note go to the server at
+  once. Before, they stayed on the device until you changed them.
+- On iPhone and iPad, a drag on the header no longer moves the page up and
+  leaves empty space under it.
+- The template list in Settings has the same height and shape as the other
+  fields in Safari.
+
 ## 0.7.0 - 2026-09-25
 
 This minor release adds daily notes with a calendar in the sidebar, and a spell
