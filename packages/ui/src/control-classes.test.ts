@@ -26,6 +26,7 @@ import {
   focusOutlineInset,
   kbdClassName,
   rowClassName,
+  selectClassName,
   type ButtonSize,
   type ButtonVariant,
   type EdgeMark,
@@ -66,6 +67,7 @@ const recipes: readonly (readonly [string, string])[] = [
   ['container row', rowClassName({ interactive: false })],
   ['field', fieldClassName()],
   ['invalid field', fieldClassName({ invalid: true })],
+  ['select field', selectClassName()],
   ['key cap', kbdClassName()],
   ['badge', badgeClassName()],
   ['avatar', avatarClassName()],
@@ -613,4 +615,12 @@ await test('the mark of a day with a note is a muted dot that takes no pointer',
   assert.ok(parts.includes('rounded-full'));
   assert.ok(parts.includes('bg-muted'));
   assert.ok(parts.includes('pointer-events-none'));
+});
+
+await test('a select is a field with the native appearance removed', () => {
+  const select = selectClassName();
+  for (const part of fieldClassName().split(' '))
+    assert.ok(select.includes(part), `the field class ${part}`);
+  assert.ok(select.includes('appearance-none'), 'no native shape');
+  assert.ok(select.includes('pr-9'), 'room for the chevron');
 });

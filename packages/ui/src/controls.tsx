@@ -15,6 +15,7 @@ import {
   compactButtonVisualClassName,
   fieldClassName,
   focusOutline,
+  selectClassName,
   type ButtonSize,
   type ButtonTone,
   type ButtonVariant,
@@ -289,6 +290,9 @@ export type SelectOption = {
 /**
  * A labeled native select.
  *
+ * The box and the chevron come from this product, so the select has the
+ * height and the shape of the fields beside it in every browser.
+ *
  * A `hint` is one sentence under the field that says what the choice does.
  * The select names it as its description, so a screen reader reads it with
  * the field and not after it.
@@ -314,21 +318,24 @@ export function SelectField({
       <label className={fieldLabelClassName} htmlFor={id}>
         {label}
       </label>
-      <select
-        id={id}
-        className={fieldClassName()}
-        value={value}
-        aria-describedby={hint === undefined ? undefined : hintId}
-        onChange={(event): void => {
-          onChange(event.target.value);
-        }}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
+      <div className="relative">
+        <select
+          id={id}
+          className={selectClassName()}
+          value={value}
+          aria-describedby={hint === undefined ? undefined : hintId}
+          onChange={(event): void => {
+            onChange(event.target.value);
+          }}
+        >
+          {options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+        <ChevronDownIcon className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" />
+      </div>
       {hint === undefined ? null : (
         <p className="mb-0 mt-1 text-control text-muted" id={hintId}>
           {hint}

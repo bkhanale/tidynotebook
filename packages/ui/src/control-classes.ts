@@ -348,6 +348,18 @@ export function fieldClassName(
 }
 
 /**
+ * The appearance of a select, as classes: a field with its own chevron.
+ *
+ * Safari on iOS and on macOS draws a native select in its own shape and
+ * height and ignores the height of a field, so the select stood apart from
+ * the fields beside it. The native appearance is removed, the field recipe
+ * draws the box, and `SelectField` draws the chevron in the space at the end.
+ */
+export function selectClassName(): string {
+  return fieldClassName({ className: 'cursor-pointer appearance-none pr-9' });
+}
+
+/**
  * The appearance of one key cap of a keyboard hint, as classes.
  *
  * A hint is the quietest text of the product, so it has a named step of its

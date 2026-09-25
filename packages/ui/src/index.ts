@@ -76,6 +76,7 @@ export {
   controlStripClassName,
   edgeControlClassName,
   fieldClassName,
+  selectClassName,
   focusOutline,
   focusOutlineInset,
   kbdClassName,
