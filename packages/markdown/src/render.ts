@@ -21,6 +21,10 @@
  * - It never runs unbounded work. `./limits.ts` bounds the document before the
  *   parser sees it and bounds the parsed tree afterwards.
  *
+ * A new line inside a paragraph is a line break, the way Obsidian and Notion
+ * show it (decision 0107). CommonMark would join the two lines with a space;
+ * this renderer writes a `br` element, and the live preview keeps the line.
+ *
  * A block quote that opens with an alert marker, for example `[!NOTE]`,
  * becomes an alert: the marker leaves the text and the quote states its tone.
  * `./alerts.ts` holds that one rule, and the live preview reads it as well.
@@ -34,7 +38,7 @@
  * as text.
  */
 import type { Element, ElementContent, Root as HastRoot } from 'hast';
-import type { Code, Nodes } from 'mdast';
+import type { Code, Nodes, PhrasingContent, Root as MdastRoot } from 'mdast';
 import rehypeSanitize from 'rehype-sanitize';
 import rehypeStringify from 'rehype-stringify';
 import remarkRehype from 'remark-rehype';
@@ -310,6 +314,34 @@ function applyUrlPolicy(options: RenderMarkdownOptions = {}) {
   };
 }
 
+/** A line ending inside the text of one paragraph. */
+const lineEnding = /[ \t]*(?:\r?\n|\r)[ \t]*/;
+
+/**
+ * Turns each soft line break into a hard break (decision 0107).
+ *
+ * The parser keeps a soft break as a line ending inside a text node. This step
+ * splits that node, so the break reaches the HTML as the same `br` element a
+ * backslash break gives. It runs on the tree of this renderer only, so the
+ * parse that the editor, the links, and the index read stays CommonMark.
+ */
+function showLineBreaks() {
+  return (tree: MdastRoot): undefined => {
+    visit(tree, 'text', (node, index, parent) => {
+      if (parent === undefined || index === undefined) return;
+      const lines = node.value.split(lineEnding);
+      if (lines.length === 1) return;
+      const parts: PhrasingContent[] = [];
+      lines.forEach((value, at) => {
+        if (at > 0) parts.push({ type: 'break' });
+        if (value !== '') parts.push({ type: 'text', value });
+      });
+      parent.children.splice(index, 1, ...parts);
+      return index + parts.length;
+    });
+  };
+}
+
 /**
  * Turns a block quote that opens with an alert marker into an alert.
  *
@@ -332,6 +364,13 @@ function applyAlerts() {
       const tone = alertToneOf(opening.value);
       if (tone === null) return;
       opening.value = opening.value.slice(alertMarkerLength(opening.value));
+      // The marker owns the line it stands on, so the break that ends that
+      // line leaves with it, and the alert text starts on the first line.
+      if (opening.value === '') {
+        const next = first.children[1];
+        if (next?.type === 'element' && next.tagName === 'br')
+          first.children.splice(1, first.children[2]?.type === 'text' ? 2 : 1);
+      }
       node.properties = {
         className: ['notes-alert'],
         dataAlert: tone,
@@ -439,6 +478,7 @@ function renderMathPlaceholders(html: string): string {
 }
 function buildRenderProcessor(options: RenderMarkdownOptions = {}) {
   return createMarkdownProcessor()
+    .use(showLineBreaks)
     .use(remarkRehype, {
       // Raw HTML is dropped here. This is the reason the renderer needs no raw
       // HTML pass and no dangerous-HTML option anywhere later.

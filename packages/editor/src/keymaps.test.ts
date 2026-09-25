@@ -36,7 +36,7 @@ import {
   formatActionOf,
   formatActions,
   formattingKeymap,
-  hardBreakSpec,
+  lineBreakSpec,
   headingLevelSpec,
   indentListSpec,
   inListItem,
@@ -355,36 +355,33 @@ await test('a closed fence does not swallow the text after it', () => {
   );
 });
 
-await test('Shift and Enter breaks the line inside the paragraph', () => {
-  // Record 0070. The backslash is the CommonMark break, so the renderer and
-  // the preview both keep the break without starting a paragraph.
-  const state = stateOf('One line.‸Joined to it.');
-  assert.equal(
-    applied(state, hardBreakSpec(state)),
-    'One line.\\\n‸Joined to it.',
-  );
+await test('Shift and Enter writes a new line with no marker', () => {
+  // Decision 0107. A new line is already a line break, so no backslash lands
+  // in the source.
+  const state = stateOf('One line.‸Next to it.');
+  assert.equal(applied(state, lineBreakSpec(state)), 'One line.\n‸Next to it.');
 });
 
-await test('a break inside a list item stays inside the item', () => {
+await test('a new line inside a list item stays inside the item', () => {
   const state = stateOf('- [ ] one‸');
-  assert.equal(applied(state, hardBreakSpec(state)), '- [ ] one\\\n      ‸');
+  assert.equal(applied(state, lineBreakSpec(state)), '- [ ] one\n      ‸');
   const ordered = stateOf('  2. one‸');
-  assert.equal(applied(ordered, hardBreakSpec(ordered)), '  2. one\\\n     ‸');
+  assert.equal(applied(ordered, lineBreakSpec(ordered)), '  2. one\n     ‸');
 });
 
-await test('a break inside a block quote repeats the quote marks', () => {
+await test('a new line inside a block quote repeats the quote marks', () => {
   const state = stateOf('> one‸');
-  assert.equal(applied(state, hardBreakSpec(state)), '> one\\\n> ‸');
+  assert.equal(applied(state, lineBreakSpec(state)), '> one\n> ‸');
 });
 
-await test('a break replaces the selected text', () => {
+await test('a new line replaces the selected text', () => {
   const state = stateOf('One «and two»three.');
-  assert.equal(applied(state, hardBreakSpec(state)), 'One \\\n‸three.');
+  assert.equal(applied(state, lineBreakSpec(state)), 'One \n‸three.');
 });
 
-await test('a break declines inside a code fence', () => {
+await test('a new line declines inside a code fence', () => {
   const state = stateOf('```\ncode‸\n```\n');
-  assert.equal(hardBreakSpec(state), null);
+  assert.equal(lineBreakSpec(state), null);
 });
 
 await test('the list line parser reads every marker shape', () => {
@@ -804,7 +801,7 @@ await test('the block commands leave a table alone', () => {
   assert.equal(toggleListSpec(state, 'bullet'), null);
   assert.equal(toggleQuoteSpec(state), null);
   assert.equal(tableSpec(state), null);
-  assert.equal(hardBreakSpec(state), null);
+  assert.equal(lineBreakSpec(state), null);
 });
 
 await test('Arrow Down opens a line under a table that ends the note', () => {

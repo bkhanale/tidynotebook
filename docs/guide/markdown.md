@@ -80,12 +80,15 @@ note.
 
 ## Paragraphs and line breaks
 
-Two lines of one paragraph read as one paragraph, which is what Markdown
-means. The source lines come back while your cursor is in that paragraph.
+A new line shows as a new line, in the editor, in Read mode, and on a
+published page. The text does not move when your cursor goes into a paragraph
+or out of it. Press Enter twice to start a new paragraph.
 
-Press Shift and Enter to break a line and stay in the same paragraph. Press
-Enter twice to start a new paragraph. A broken line keeps its backslash in the
-source, and you see it again while your cursor is in that paragraph.
+In a list, Enter starts a new item. Press Shift and Enter to start a new line
+in the same item. In a quote, Shift and Enter keep the quote marks.
+
+Other Markdown tools can join two lines of one paragraph into one line. Put a
+blank line between the two lines if they must stay apart in those tools too.
 
 ## What the editor understands
 

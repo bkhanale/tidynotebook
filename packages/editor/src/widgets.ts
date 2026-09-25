@@ -45,11 +45,7 @@ import {
   WidgetType,
   type DecorationSet,
 } from '@codemirror/view';
-import {
-  allowsExternalImage,
-  alertToneOf,
-  classifyUrl,
-} from '@notesapp/markdown';
+import { allowsExternalImage, classifyUrl } from '@notesapp/markdown';
 
 /** The kinds of region that render as a widget. */
 export type RichWidgetKind =
@@ -598,15 +594,7 @@ export function buildRichWidgets(
     items.push(decoration.range(widget.from, widget.to));
     atomicItems.push(decoration.range(widget.from, widget.to));
   }
-  const breaks = findParagraphBreaks(state);
-  for (const join of breaks.joins) {
-    if (join.to <= join.from) continue;
-    if (touches(join.paragraphFrom, join.paragraphTo)) continue;
-    const joined = Decoration.replace({ widget: new SoftBreakWidget() });
-    items.push(joined.range(join.from, join.to));
-    atomicItems.push(joined.range(join.from, join.to));
-  }
-  for (const marker of breaks.markers) {
+  for (const marker of findHardBreakMarkers(state)) {
     if (marker.to <= marker.from) continue;
     if (touches(marker.paragraphFrom, marker.paragraphTo)) continue;
     const hide = Decoration.replace({});
@@ -635,27 +623,12 @@ export function buildRichWidgets(
 }
 
 /**
- * One joined soft line break of a paragraph.
- *
- * `from` and `to` cover the line break and whatever opens the next line, the
- * quote marks and the indentation of a list item, so the two source lines
- * become one run of text. `paragraphFrom` and `paragraphTo` are the range the
- * selection must touch to bring the source back.
- */
-type SoftBreak = {
-  readonly from: number;
-  readonly to: number;
-  readonly paragraphFrom: number;
-  readonly paragraphTo: number;
-};
-
-/**
  * One hard break marker of a paragraph, without its line break.
  *
  * `from` and `to` cover the backslash or the two spaces the author wrote, and
  * never the line break itself, because the break is what the marker asks for.
  * `paragraphFrom` and `paragraphTo` are the range the selection must touch to
- * bring the marker back (record 0070).
+ * bring the marker back.
  */
 type HardBreakMarker = {
   readonly from: number;
@@ -664,101 +637,41 @@ type HardBreakMarker = {
   readonly paragraphTo: number;
 };
 
-/** What one paragraph hides so that it reads the way the renderer reads it. */
-type ParagraphBreaks = {
-  readonly joins: readonly SoftBreak[];
-  readonly markers: readonly HardBreakMarker[];
-};
-
-/** What opens a continuation line: indentation and the quote marks. */
-const continuationPrefix = /^[ \t]*(?:>[ \t]*)*/;
-
-/** The text of one line with its quote marks removed. */
-function quotedText(text: string): string {
-  return text.replace(continuationPrefix, '');
-}
-
 /**
- * The line breaks of every paragraph of one document.
+ * The hard break markers of every paragraph of one document.
  *
- * CommonMark joins two lines of one paragraph, and the reference renderer
- * does exactly that, so the note surface joins them too (decision 0068). A
- * line that ends with a hard break keeps its break: a hard break is content
- * and the author wrote it on purpose. The marker of that break is notation,
- * so it hides with the rest of the source of its paragraph (decision 0070).
+ * A new line is a line break on every surface (decision 0107), so each source
+ * line keeps its own screen line and nothing here joins two lines. The marker
+ * of a hard break is notation that adds nothing to that line break, so it
+ * hides with the rest of the source of its paragraph.
  *
- * The ranges come from the syntax tree. A paragraph node states where the
- * paragraph starts and ends, and a `HardBreak` child states which of its
- * lines the author ended deliberately. That child covers its marker and the
- * line break, so the hidden range stops at the end of the line.
+ * The ranges come from the syntax tree. A `HardBreak` node covers its marker
+ * and the line break, so the hidden range stops at the end of the line.
  */
-function findParagraphBreaks(state: EditorState): ParagraphBreaks {
+function findHardBreakMarkers(state: EditorState): readonly HardBreakMarker[] {
   const doc = state.doc;
-  const found: SoftBreak[] = [];
   const markers: HardBreakMarker[] = [];
   syntaxTree(state).iterate({
     enter: (node) => {
       if (node.name !== 'Paragraph') return true;
-      const hard = new Set<number>();
       syntaxTree(state).iterate({
         from: node.from,
         to: node.to,
         enter: (inner) => {
           if (inner.name !== 'HardBreak') return true;
-          const line = doc.lineAt(inner.from);
-          hard.add(line.number);
           markers.push({
             from: inner.from,
-            to: Math.min(inner.to, line.to),
+            to: Math.min(inner.to, doc.lineAt(inner.from).to),
             paragraphFrom: node.from,
             paragraphTo: node.to,
           });
           return true;
         },
       });
-      let line = doc.lineAt(node.from);
-      // An alert marker is a line of its own, the way the reference renderer
-      // puts the title of an alert in its own paragraph. Joining it would run
-      // the word Warning into the first sentence of the alert.
-      const markerLine =
-        alertToneOf(quotedText(line.text)) === null ? -1 : line.number;
-      while (line.to < node.to && line.number < doc.lines) {
-        const next = doc.line(line.number + 1);
-        if (!hard.has(line.number) && line.number !== markerLine) {
-          const lead = continuationPrefix.exec(next.text)?.[0].length ?? 0;
-          found.push({
-            from: line.to,
-            to: Math.min(next.from + lead, node.to),
-            paragraphFrom: node.from,
-            paragraphTo: node.to,
-          });
-        }
-        line = next;
-      }
       return true;
     },
   });
-  return { joins: found, markers };
-}
-
-/**
- * The one space that a joined soft line break leaves behind.
- *
- * CommonMark turns a soft break into one space, so the two words on either
- * side of it never run together. The space is breakable, so the joined
- * paragraph wraps at the measure of the note like any other text.
- */
-class SoftBreakWidget extends WidgetType {
-  toDOM(): HTMLElement {
-    const span = document.createElement('span');
-    span.className = 'cm-np-soft-break';
-    span.textContent = ' ';
-    return span;
-  }
-
-  override eq(): boolean {
-    return true;
-  }
+  return markers;
 }
 
 /**

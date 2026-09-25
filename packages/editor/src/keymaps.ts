@@ -619,14 +619,15 @@ function continuationOf(lineText: string): string {
 }
 
 /**
- * Writes a break inside the paragraph the cursor sits in.
+ * Writes a new line that stays inside the item or the quote of the cursor.
  *
- * The marker is the backslash of CommonMark and not two spaces, because a
- * trailing space is invisible and a trim removes it (record 0070). Inside a
- * fenced code block the command declines, so the default new line applies and
- * no backslash lands in the code.
+ * A new line is a line break on every surface (decision 0107), so the command
+ * writes no marker. It repeats the indentation of a list item or the quote
+ * marks, so the next line stays in the same item where Enter would start a
+ * new one. Inside a fenced code block the command declines, so the default
+ * new line applies.
  */
-export function hardBreakSpec(state: EditorState): TransactionSpec | null {
+export function lineBreakSpec(state: EditorState): TransactionSpec | null {
   // A cell holds one line, so a break inside it would end the row.
   if (state.selection.ranges.some((range) => inTableCell(state, range.from)))
     return null;
@@ -636,7 +637,7 @@ export function hardBreakSpec(state: EditorState): TransactionSpec | null {
   if (insideFence) return null;
   return state.changeByRange((range) => {
     const line = state.doc.lineAt(range.from);
-    const insert = `\\\n${continuationOf(line.text)}`;
+    const insert = `\n${continuationOf(line.text)}`;
     return {
       changes: { from: range.from, to: range.to, insert },
       range: EditorSelection.cursor(range.from + insert.length),
@@ -830,8 +831,8 @@ export const indentListItem = dispatching(indentListSpec);
 /** Removes one indentation unit from the list item under the cursor. */
 export const outdentListItem = dispatching(outdentListSpec);
 
-/** Writes a break inside the paragraph on Shift and Enter. */
-export const insertHardBreak = dispatching(hardBreakSpec);
+/** Writes a new line inside the item or the quote on Shift and Enter. */
+export const insertLineBreak = dispatching(lineBreakSpec);
 
 /** Continues a list item or a block quote on Enter. */
 export const continueBlock = dispatching(continueBlockSpec);
@@ -1314,7 +1315,7 @@ export const formattingKeymap: readonly KeyBinding[] = [
     shift: either(previousTableCell, outdentListItem),
   },
   { key: 'Enter', run: either(tableCellBelow, continueBlock) },
-  { key: 'Shift-Enter', run: either(tableCellAbove, insertHardBreak) },
+  { key: 'Shift-Enter', run: either(tableCellAbove, insertLineBreak) },
   { key: 'ArrowDown', run: leaveTableBelow },
 ];
 
@@ -1352,7 +1353,7 @@ export const shortcuts: readonly EditorShortcut[] = [
   },
   { keys: 'Alt + Up arrow', description: 'Move the list item up' },
   { keys: 'Alt + Down arrow', description: 'Move the list item down' },
-  { keys: 'Shift + Enter', description: 'Break the line inside the paragraph' },
+  { keys: 'Shift + Enter', description: 'Start a new line in the same item' },
   { keys: 'Tab', description: 'Move to the next cell of a table' },
   { keys: 'Shift + Tab', description: 'Move to the previous cell of a table' },
   {

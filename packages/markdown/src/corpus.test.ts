@@ -191,11 +191,10 @@ await test('a hard line break renders as a break element', () => {
   assert.ok(html.includes('A hard break ends this line<br>'));
 });
 
-await test('a soft line break joins its paragraph and draws no break', () => {
-  // The two source lines of the first paragraph of the corpus are one
-  // paragraph to a reader. Only the hard break above writes a `br`.
-  assert.ok(html.includes('escaped *star*.\nUnicode: caf\u00e9'));
-  assert.equal(html.match(/<br>/g)?.length, 1);
+await test('a soft line break draws a break inside its paragraph', () => {
+  // Decision 0107. The two source lines of the first paragraph of the corpus
+  // stay one paragraph, on two lines, like the hard break above.
+  assert.ok(html.includes('escaped *star*.<br>\nUnicode: caf\u00e9'));
 });
 
 await test('Unicode renders exactly as written', () => {

@@ -168,13 +168,40 @@ await test('double bracket text renders as plain text', async () => {
   assert.ok(!html.includes('<a '));
 });
 
-await test('one new line joins a paragraph and two start a new one', async () => {
-  // This is the CommonMark rule, and it is how a Markdown file reads. A
-  // single new line is a soft break: it separates the source lines and the
-  // reader sees one paragraph. Only a blank line starts a paragraph.
+await test('one new line breaks the line and two start a paragraph', async () => {
+  // Decision 0107. A new line is a line break, the way Obsidian and Notion
+  // show it. Only a blank line starts a paragraph.
   const html = await renderMarkdown('line one\nline two\n\nsecond\n');
-  assert.equal(html, '<p>line one\nline two</p>\n<p>second</p>');
-  assert.ok(!html.includes('<br>'));
+  assert.equal(html, '<p>line one<br>\nline two</p>\n<p>second</p>');
+});
+
+await test('a continuation line of a list item breaks inside its item', async () => {
+  // The owner report of 2026-09-25: the second line stays in the item and in
+  // its paragraph, on a line of its own.
+  const html = await renderMarkdown(
+    '1. **Rule.**\n   Use 60 g.\n\n2. **Next.**\n',
+  );
+  assert.ok(
+    html.includes('<p><strong>Rule.</strong><br>\nUse 60 g.</p>'),
+    html,
+  );
+  assert.equal(html.match(/<li>/g)?.length, 2);
+});
+
+await test('a new line keeps code and alerts as they are', async () => {
+  // A fence keeps its own lines, a code span keeps the CommonMark space, and
+  // the line after an alert marker starts the alert with no empty line.
+  assert.equal(
+    await renderMarkdown('```\na\nb\n```\n'),
+    '<pre><code>a\nb\n</code></pre>',
+  );
+  assert.equal(
+    await renderMarkdown('`one\ntwo`\n'),
+    '<p><code>one two</code></p>',
+  );
+  const alert = await renderMarkdown('> [!NOTE]\n> first\n> second\n');
+  assert.ok(alert.includes('<p>first<br>\nsecond</p>'), alert);
+  assert.ok(!alert.includes('<p><br>'), alert);
 });
 
 await test('a line break is written as a break and nothing else is', async () => {

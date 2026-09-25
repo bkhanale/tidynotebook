@@ -266,22 +266,44 @@ await test('an attachment whose bytes are missing keeps its source', () => {
   assert.equal(view.kind, 'source');
 });
 
-await test('a soft line break joins its paragraph', () => {
-  // Decision 0068. The two source lines are one paragraph, so the break
-  // between them is replaced by one space and the lines read as one.
-  const doc = 'One line.\nJoined to it.\n\nA second paragraph.\n';
-  const { decorations } = buildRichWidgets(stateOf(doc, doc.length - 1), {});
-  const found: [number, number][] = [];
+/** The source of every range that one state hides or replaces. */
+function hiddenSources(doc: string, head: number): string[] {
+  const { decorations } = buildRichWidgets(stateOf(doc, head), {});
+  const found: string[] = [];
   decorations.between(0, doc.length, (from, to) => {
-    found.push([from, to]);
+    found.push(doc.slice(from, to));
   });
-  assert.deepEqual(found, [[9, 10]]);
-  assert.equal(doc.slice(9, 10), '\n');
+  return found;
+}
+
+await test('a new line inside a paragraph keeps its own line', () => {
+  // Decision 0107. The live preview joins no lines, so a paragraph does not
+  // reflow when the caret enters it or leaves it.
+  const doc = 'One line.\nNext line.\n\nA second paragraph.\n';
+  assert.deepEqual(hiddenSources(doc, doc.length - 1), []);
+  assert.deepEqual(hiddenSources(doc, 3), []);
+});
+
+await test('a continuation line of a list item keeps its own line', () => {
+  // The owner report of 2026-09-25. A joined continuation line stood on the
+  // row of its marker, outside the body cell, one character to a line.
+  const doc = [
+    '# Three rules',
+    '',
+    '2. **Do not overload an 8-inch pizza with sauce or cheese.**',
+    '   Use approximately 60 g sauce + 65–70 g cheese.',
+    '',
+    '> One line.',
+    '> Next line.',
+    '',
+  ].join('\n');
+  for (const source of hiddenSources(doc, 0))
+    assert.ok(!source.includes('\n'), `joined ${JSON.stringify(source)}`);
 });
 
 await test('a hard break keeps its line break and hides its marker', () => {
-  // Record 0070. The marker is notation, so it goes while the caret is away
-  // and the line break it asks for stays.
+  // The marker is notation, so it goes while the caret is away and the line
+  // break it asks for stays (decision 0107).
   const doc = 'One line.  \nKept apart.\n\nAway.\n';
   const { decorations } = buildRichWidgets(stateOf(doc, doc.length - 1), {});
   const found: string[] = [];
@@ -310,51 +332,6 @@ await test('a hard break shows its marker under the caret', () => {
     found.push([from, to]);
   });
   assert.deepEqual(found, []);
-});
-
-await test('a joined paragraph shows its source under the caret', () => {
-  const doc = 'One line.\nJoined to it.\n';
-  const { decorations } = buildRichWidgets(stateOf(doc, 3), {});
-  const found: [number, number][] = [];
-  decorations.between(0, doc.length, (from, to) => {
-    found.push([from, to]);
-  });
-  assert.deepEqual(found, []);
-});
-
-await test('a joined break swallows the quote mark of the next line', () => {
-  // The quote mark of a continuation line is notation, so it goes with the
-  // break. Leaving it would put a stray angle bracket inside the sentence.
-  const doc = '> One line.\n> Joined to it.\n';
-  const { decorations } = buildRichWidgets(stateOf(doc, doc.length), {});
-  const found: string[] = [];
-  decorations.between(0, doc.length, (from, to) => {
-    found.push(doc.slice(from, to));
-  });
-  assert.deepEqual(found, ['\n> ']);
-});
-
-await test('the marker line of an alert keeps its own line', () => {
-  // The reference renderer puts the title of an alert in a paragraph of its
-  // own, so joining the marker line would run the word into the sentence.
-  const doc = '> [!WARNING]\n> Mind the gap.\n> It is wide.\n';
-  const { decorations } = buildRichWidgets(stateOf(doc, doc.length), {});
-  const found: string[] = [];
-  decorations.between(0, doc.length, (from, to) => {
-    found.push(doc.slice(from, to));
-  });
-  // Only the break between the two body lines joins, and it is the one that
-  // stands before the second body line.
-  assert.deepEqual(found, ['\n> ']);
-  let joinedAt = -1;
-  buildRichWidgets(stateOf(doc, doc.length), {}).decorations.between(
-    0,
-    doc.length,
-    (from) => {
-      joinedAt = from;
-    },
-  );
-  assert.equal(joinedAt, doc.indexOf('\n> It is wide.'));
 });
 
 await test('a reference image resolves its destination from the note', () => {

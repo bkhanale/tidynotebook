@@ -34,24 +34,19 @@ would repair the deliberately malformed Markdown that the corpus needs.
 
 ## Line breaks
 
-A new line inside a paragraph is a soft break. It separates two lines of the
-source and a reader sees one paragraph, so a note wraps where the reader's
-window wraps it. A blank line starts a new paragraph. A break inside one
-paragraph is written the two CommonMark ways: a backslash at the end of the
-line, or two spaces at the end of the line. Both give one break element.
+A new line inside a paragraph is a line break on every surface, the way
+Obsidian and Notion show it. A blank line starts a new paragraph. The stored
+text keeps the CommonMark soft break, so the parse that the editor, the links
+and the index read is CommonMark, and only the renderer writes the break
+element. The two CommonMark hard break forms give the same break element.
 
-This is the CommonMark rule, and it is the rule of a Markdown file. A comment
-field of a hosting service often turns every new line into a break instead; a
-note is a document and not a comment, so it follows the document rule.
-
-The live preview reads both the same way as the renderer. It joins a soft
-break into its paragraph and it hides the marker of a hard break, and the
-paragraph shows its source lines again while the selection touches it. Shift
-and Enter write the break, and the marker is always the backslash. See
-[decision 0068](../decisions/0068-a-soft-line-break-joins-its-paragraph.md)
-and
-[decision 0070](../decisions/0070-shift-and-enter-writes-a-hard-break.md).
-`render.test.ts` holds both rules, and the corpus holds one of each kind.
+The live preview keeps each source line on its own line and joins nothing,
+so a paragraph never reflows under the caret. It hides the marker of a hard
+break while the selection is away from its paragraph. Shift and Enter write a
+plain new line that stays inside the list item or the quote. See
+[decision 0107](../decisions/0107-a-new-line-is-a-line-break.md).
+`render.test.ts` and `widgets.test.ts` hold the rule, and the corpus holds
+one break of each kind.
 
 ## Delimiters that are ours to choose
 
