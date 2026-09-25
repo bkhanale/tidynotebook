@@ -5,6 +5,50 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.0 - 2026-09-25
+
+This minor release adds daily notes with a calendar in the sidebar, and a spell
+check in the editor. Each row and column of a table now has a handle and a
+menu.
+
+### Added
+
+- **Daily notes.** Each day has one note. A calendar in the sidebar shows one
+  month and marks each day that has a note. Select a day to open its note, or
+  to make it when the day has no note.
+- Open today's note from the calendar or from the command palette.
+- Settings has a Daily notes section. Choose a template, a folder and a name
+  format of date tokens. You can also open today's note when the app opens.
+  These settings follow your account to every device.
+- A template fills its placeholders, such as the date and the name, once, when
+  a new daily note is made.
+- **Spell check.** Your browser underlines a word that it does not know. Code,
+  web addresses, HTML, front matter and math stay out of the check.
+- Settings has a Spelling section. Clear Check spelling to turn the spell check
+  off. Your other devices follow this choice.
+- **Table handles.** A handle shows beside the row and above the column that
+  you point at. Select it to open a menu that inserts, moves, aligns or deletes
+  the row or the column.
+- Drag a handle to move its row or its column. Press Escape to stop the drag.
+- A bar under a table adds a row, and a bar at its right edge adds a column.
+- Paste a row or a range of cells into a cell. The cells fill to the right and
+  down, and the table grows when it needs more rows or columns.
+
+### Changed
+
+- The row of formatting tools no longer holds the table tools. The table
+  handles, the table bars and the command palette hold the table actions.
+- A tool that the arrow keys reach scrolls into view on a narrow screen.
+
+### Fixed
+
+- Backspace and Delete in a table remove text, and never a cell, a row or a
+  column.
+- A space that you type at the end of a cell stays.
+- A drag of a row or a column ends each time you release the pointer.
+- A list item that holds inline code shows the spell check mark correctly.
+- The month name of the calendar stays whole in a narrow sidebar.
+
 ## 0.6.0 - 2026-09-24
 
 This minor release adds a row of formatting tools above the note, so you can
