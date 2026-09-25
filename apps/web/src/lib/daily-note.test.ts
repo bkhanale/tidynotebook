@@ -14,6 +14,7 @@ import {
   formatCalendarOpen,
   formatCachedSettings,
   layoutProblemSentences,
+  layoutToStore,
   noTemplateValue,
   opensTodayAtStart,
   parseCachedSettings,
@@ -233,4 +234,39 @@ await test('every layout problem has its own sentence', () => {
   const sentences = Object.values(layoutProblemSentences);
   assert.equal(new Set(sentences).size, sentences.length);
   for (const sentence of sentences) assert.match(sentence, /\.$/);
+});
+
+await test('a typed folder is stored without a Save press, cleaned once', () => {
+  assert.deepEqual(
+    layoutToStore(
+      { folder: ' /Journal/ ', format: 'YYYY-MM-DD' },
+      defaultDailyNoteLayout,
+    ),
+    { folder: 'Journal', format: 'YYYY-MM-DD' },
+  );
+  assert.deepEqual(
+    layoutToStore({ folder: '', format: 'YYYY-MM-DD' }, defaultDailyNoteLayout),
+    { folder: '', format: 'YYYY-MM-DD' },
+  );
+});
+
+await test('an unchanged or a broken layout is not stored', () => {
+  assert.equal(
+    layoutToStore(defaultDailyNoteLayout, defaultDailyNoteLayout),
+    null,
+  );
+  assert.equal(
+    layoutToStore(
+      { folder: 'Daily notes/', format: 'YYYY-MM-DD' },
+      defaultDailyNoteLayout,
+    ),
+    null,
+  );
+  assert.equal(
+    layoutToStore(
+      { folder: 'Journal', format: 'YYYY-MM' },
+      defaultDailyNoteLayout,
+    ),
+    null,
+  );
 });

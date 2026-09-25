@@ -10,7 +10,9 @@
  * too. Everything is pure, so the rules are tested without a browser.
  */
 import {
+  cleanDailyNoteFolder,
   dailyNoteDate,
+  dailyNoteLayoutProblem,
   dailyNotePath,
   type CalendarDate,
   type DailyNoteLayout,
@@ -246,4 +248,27 @@ export function dailyNotePreview(
   layout: DailyNoteLayout,
 ): string {
   return displayNoteName(dailyNotePath(date, layout));
+}
+
+/**
+ * The layout to store from what the person typed, or `null` when there is
+ * nothing to store.
+ *
+ * The folder and the name format apply when the person leaves the fields,
+ * presses Enter, or leaves the page, and not at every keystroke, so a half
+ * typed format never moves the calendar. A layout that cannot name every date
+ * is not stored, and neither is a layout that the server already holds.
+ */
+export function layoutToStore(
+  typed: DailyNoteLayout,
+  stored: DailyNoteLayout,
+): DailyNoteLayout | null {
+  const layout = {
+    folder: cleanDailyNoteFolder(typed.folder),
+    format: typed.format,
+  };
+  if (dailyNoteLayoutProblem(layout) !== null) return null;
+  if (layout.folder === stored.folder && layout.format === stored.format)
+    return null;
+  return layout;
 }

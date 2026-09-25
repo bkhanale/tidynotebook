@@ -48,8 +48,8 @@ workspace, and they follow your account to every device.
 - **Folder** is the folder that holds the daily notes. Leave it empty to keep
   them at the top of the workspace.
 - **Name format** is the name of each daily note, written with date tokens.
-  Select **Save** to use a new folder or format. The line under the fields
-  shows the name of today's note before you save.
+  A new folder or format applies when you leave the field or press Enter. The
+  line under the fields shows the name of today's note as you type.
 
 ### Date tokens
 

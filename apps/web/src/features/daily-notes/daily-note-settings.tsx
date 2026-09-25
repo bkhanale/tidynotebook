@@ -7,17 +7,18 @@
  * and stores them, so the sidebar and this section read one value.
  *
  * The template and the start choice apply when a person picks them. The
- * folder and the name format are text, so they apply with Save: a half typed
- * format would move the daily notes of the calendar at every keystroke. The
- * preview under them names the note of today as the typed layout writes it,
- * and `dailyNoteLayoutProblem` of `@notesapp/core`, the rule the server holds,
- * decides whether Save is possible.
+ * folder and the name format are text, so they apply when the person leaves
+ * the fields, presses Enter, or leaves the page: a half typed format would
+ * move the daily notes of the calendar at every keystroke. The preview under
+ * them names the note of today as the typed layout writes it, and
+ * `layoutToStore` decides what is stored.
  */
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
-  type FormEvent,
+  type KeyboardEvent,
   type ReactNode,
 } from 'react';
 import {
@@ -26,7 +27,6 @@ import {
   type DailyNoteSettings,
 } from '@notesapp/core';
 import {
-  Button,
   Checkbox,
   LoadingState,
   Notice,
@@ -38,13 +38,14 @@ import {
   dailyNotePreview,
   effectiveTemplateId,
   layoutProblemSentences,
+  layoutToStore,
   noTemplateValue,
   templateChoices,
   templateOfChoice,
 } from '../../lib/daily-note.ts';
 import { today, useDailyNotes } from './daily-notes.tsx';
 
-/** The folder and the name format, with Save. */
+/** The folder and the name format, stored when the person leaves them. */
 function LayoutFields({
   settings,
   onSave,
@@ -54,8 +55,8 @@ function LayoutFields({
 }): ReactNode {
   const [folder, setFolder] = useState(settings.folder);
   const [format, setFormat] = useState(settings.format);
-  // A stored layout that changes, from Save or from another device, is what
-  // the fields show next.
+  // A stored layout that changes, from this section or from another device,
+  // is what the fields show next.
   useEffect(() => {
     setFolder(settings.folder);
     setFormat(settings.format);
@@ -63,19 +64,38 @@ function LayoutFields({
 
   const layout = { folder: cleanDailyNoteFolder(folder), format };
   const problem = dailyNoteLayoutProblem(layout);
-  const changed =
-    layout.folder !== settings.folder || layout.format !== settings.format;
   const sentence =
     problem === null ? undefined : layoutProblemSentences[problem];
 
-  const submit = (event: FormEvent<HTMLFormElement>): void => {
+  /** Stores the typed layout when it is whole and new. */
+  const store = useRef((): void => {});
+  store.current = (): void => {
+    const next = layoutToStore({ folder, format }, settings);
+    if (next !== null) onSave({ ...settings, ...next });
+  };
+  // A person who leaves the page from a field keeps what they typed. The
+  // provider of the settings outlives this page, so the change still goes.
+  useEffect(
+    () => () => {
+      store.current();
+    },
+    [],
+  );
+
+  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (event.key !== 'Enter') return;
     event.preventDefault();
-    if (problem !== null || !changed) return;
-    onSave({ ...settings, ...layout });
+    store.current();
   };
 
   return (
-    <form className="mt-4" onSubmit={submit} noValidate>
+    <div
+      className="mt-4"
+      onBlur={() => {
+        store.current();
+      }}
+      onKeyDown={onKeyDown}
+    >
       <TextField
         id="daily-folder"
         label="Folder"
@@ -97,14 +117,7 @@ function LayoutFields({
           ? `Today's note: ${dailyNotePreview(today(), layout)}`
           : ''}
       </p>
-      <Button
-        type="submit"
-        variant="secondary"
-        disabled={problem !== null || !changed}
-      >
-        Save
-      </Button>
-    </form>
+    </div>
   );
 }
 
