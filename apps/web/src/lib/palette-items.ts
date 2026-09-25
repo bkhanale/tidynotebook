@@ -152,6 +152,7 @@ export const actionIconNames = [
   'table-add-row',
   'table-remove-column',
   'table-remove-row',
+  'table-remove',
   'task-list',
   'theme-dark',
   'theme-light',

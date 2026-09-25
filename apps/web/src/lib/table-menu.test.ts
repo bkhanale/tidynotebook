@@ -32,6 +32,7 @@ await test('the row menu inserts, moves and deletes rows', () => {
       ['Insert row below', 'insert'],
       ['Move row down', 'move'],
       ['Delete row', 'delete'],
+      ['Delete table', 'delete'],
     ],
   );
   // The first body row does not move above the header row, and the last
@@ -51,7 +52,7 @@ await test('the row menu inserts, moves and deletes rows', () => {
 await test('the header row takes no row above it, never moves and stays', () => {
   assert.deepEqual(
     tableMenuEntries('row', header).map((entry) => entry.id),
-    ['table-row-below'],
+    ['table-row-below', 'table-delete'],
   );
 });
 
@@ -69,6 +70,7 @@ await test('the column menu inserts, moves, aligns and deletes columns', () => {
       ['Align center', true],
       ['Align right', false],
       ['Delete column', false],
+      ['Delete table', false],
     ],
   );
   // The last column moves left and not right.

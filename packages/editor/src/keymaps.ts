@@ -33,6 +33,7 @@ import {
   alignColumnEdit,
   cellAboveEdit,
   cellBelowEdit,
+  deleteTableSpec,
   insertColumnLeftEdit,
   insertRowAboveEdit,
   inTableCell,
@@ -960,9 +961,21 @@ export type TableActionId =
   | 'table-move-column-right'
   | 'table-delete-row'
   | 'table-delete-column'
+  | 'table-delete'
   | 'table-align-left'
   | 'table-align-center'
   | 'table-align-right';
+
+/** The transaction of one table action at `pos`, or at the caret. */
+type TableActionSpec = (
+  state: EditorState,
+  pos?: number,
+) => TransactionSpec | null;
+
+/** The transaction of one edit of the grid of a table. */
+function gridEdit(edit: TableEdit): TableActionSpec {
+  return (state, pos) => tableEditSpec(state, edit, pos);
+}
 
 /**
  * The edit of each table action, and its name.
@@ -974,52 +987,73 @@ export type TableActionId =
 const tableActionRows: readonly {
   readonly id: TableActionId;
   readonly label: string;
-  readonly edit: TableEdit;
+  readonly spec: TableActionSpec;
 }[] = [
   {
     id: 'table-row-above',
     label: 'Insert row above',
-    edit: insertRowAboveEdit,
+    spec: gridEdit(insertRowAboveEdit),
   },
-  { id: 'table-row-below', label: 'Insert row below', edit: addRowEdit },
+  {
+    id: 'table-row-below',
+    label: 'Insert row below',
+    spec: gridEdit(addRowEdit),
+  },
   {
     id: 'table-column-left',
     label: 'Insert column left',
-    edit: insertColumnLeftEdit,
+    spec: gridEdit(insertColumnLeftEdit),
   },
   {
     id: 'table-column-right',
     label: 'Insert column right',
-    edit: addColumnEdit,
+    spec: gridEdit(addColumnEdit),
   },
-  { id: 'table-move-row-up', label: 'Move row up', edit: moveRowUpEdit },
-  { id: 'table-move-row-down', label: 'Move row down', edit: moveRowDownEdit },
+  {
+    id: 'table-move-row-up',
+    label: 'Move row up',
+    spec: gridEdit(moveRowUpEdit),
+  },
+  {
+    id: 'table-move-row-down',
+    label: 'Move row down',
+    spec: gridEdit(moveRowDownEdit),
+  },
   {
     id: 'table-move-column-left',
     label: 'Move column left',
-    edit: moveColumnLeftEdit,
+    spec: gridEdit(moveColumnLeftEdit),
   },
   {
     id: 'table-move-column-right',
     label: 'Move column right',
-    edit: moveColumnRightEdit,
+    spec: gridEdit(moveColumnRightEdit),
   },
-  { id: 'table-delete-row', label: 'Delete row', edit: removeRowEdit },
-  { id: 'table-delete-column', label: 'Delete column', edit: removeColumnEdit },
+  {
+    id: 'table-delete-row',
+    label: 'Delete row',
+    spec: gridEdit(removeRowEdit),
+  },
+  {
+    id: 'table-delete-column',
+    label: 'Delete column',
+    spec: gridEdit(removeColumnEdit),
+  },
+  { id: 'table-delete', label: 'Delete table', spec: deleteTableSpec },
   {
     id: 'table-align-left',
     label: 'Align left',
-    edit: alignColumnEdit('left'),
+    spec: gridEdit(alignColumnEdit('left')),
   },
   {
     id: 'table-align-center',
     label: 'Align center',
-    edit: alignColumnEdit('center'),
+    spec: gridEdit(alignColumnEdit('center')),
   },
   {
     id: 'table-align-right',
     label: 'Align right',
-    edit: alignColumnEdit('right'),
+    spec: gridEdit(alignColumnEdit('right')),
   },
 ];
 
@@ -1158,7 +1192,7 @@ export const formatActions: readonly FormatAction[] = [
       row.id,
       row.label,
       null,
-      dispatching((state) => tableEditSpec(state, row.edit)),
+      dispatching((state) => row.spec(state)),
       'table',
     ),
   ),
@@ -1203,7 +1237,7 @@ export function runTableAction(
   if (view.state.readOnly) return false;
   const row = tableActionRows.find((candidate) => candidate.id === id);
   if (row === undefined) return false;
-  const spec = tableEditSpec(view.state, row.edit, pos);
+  const spec = row.spec(view.state, pos);
   if (spec !== null) view.dispatch(view.state.update(editingTransaction(spec)));
   view.focus();
   return spec !== null;

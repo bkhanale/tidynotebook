@@ -35,8 +35,9 @@ or that holds the cursor. Select it to open the menu of that row or that
 column. The row menu inserts a row above or below, moves the row up or down,
 and deletes the row. The column menu inserts a column to the left or to the
 right, moves the column, sets its alignment, and deletes it. The header row and
-the last column stay. The command palette offers the same actions while the
-cursor is in a table.
+the last column stay. Both menus have **Delete table**, which removes the whole
+table. Press Ctrl + Z to get it back. The command palette offers the same
+actions while the cursor is in a table.
 
 To move a row or a column, drag its handle. A line shows where it goes. Release
 the handle to move it there. Press Escape to stop the drag and move nothing.

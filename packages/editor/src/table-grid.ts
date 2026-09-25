@@ -639,6 +639,43 @@ export const moveColumnRightEdit: TableEdit = (data, at) =>
   moveColumnEdit(at.column + 1)(data, at);
 
 /**
+ * The transaction that removes the whole table at `pos`, or null outside a
+ * table.
+ *
+ * Every line of the table goes, with its line break. One blank line beside
+ * the table goes as well, so the text before and the text after stand one
+ * blank line apart, as they did before the table was written. The caret
+ * stands where the table was.
+ */
+export function deleteTableSpec(
+  state: EditorState,
+  pos: number = state.selection.main.head,
+): TransactionSpec | null {
+  const table = tableAt(state, pos);
+  if (table === null) return null;
+  const doc = state.doc;
+  const first = doc.lineAt(table.from);
+  const last = doc.lineAt(table.to);
+  let from = first.from;
+  let to = last.to;
+  if (to < doc.length) {
+    to += 1;
+    const next = doc.lineAt(to);
+    if (next.text.trim() === '' && next.to < doc.length) to = next.to + 1;
+  } else if (from > 0) {
+    from -= 1;
+    const previous = doc.lineAt(from);
+    if (previous.text.trim() === '' && previous.from > 0)
+      from = previous.from - 1;
+  }
+  return {
+    changes: { from, to },
+    selection: EditorSelection.cursor(from),
+    filter: false,
+  };
+}
+
+/**
  * The transaction of one table edit, or null outside a table.
  *
  * The edit acts at the main selection, or at `pos` for a control that names

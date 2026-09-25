@@ -129,6 +129,7 @@ const paletteWords: Readonly<Partial<Record<FormatActionId, string>>> = {
   'table-move-column-right': 'table reorder drag',
   'table-delete-row': 'table remove',
   'table-delete-column': 'table remove',
+  'table-delete': 'table remove clear whole',
   'table-align-left': 'table column',
   'table-align-center': 'table column middle',
   'table-align-right': 'table column',

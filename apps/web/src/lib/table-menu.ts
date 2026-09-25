@@ -25,7 +25,8 @@ export type TableMenuKind = 'row' | 'column';
 export type TableActionRow = {
   readonly id: TableActionId;
   readonly icon: ActionIconName;
-  readonly kind: TableMenuKind;
+  /** The menu that holds the action, or `table` for the menus of both. */
+  readonly kind: TableMenuKind | 'table';
   /** The group of the menu: rows of one group stand together. */
   readonly group: 'insert' | 'move' | 'align' | 'delete';
 };
@@ -110,6 +111,12 @@ export const tableActionRows: readonly TableActionRow[] = [
     kind: 'column',
     group: 'delete',
   },
+  {
+    id: 'table-delete',
+    icon: 'table-remove',
+    kind: 'table',
+    group: 'delete',
+  },
 ];
 
 /** The alignment that one alignment action sets. */
@@ -129,7 +136,7 @@ export type TableMenuEntry = {
   readonly group: TableActionRow['group'];
   /** True for the alignment the column has now. */
   readonly current: boolean;
-  /** True for an action that removes a row or a column. */
+  /** True for an action that removes a row, a column or the table. */
   readonly danger: boolean;
 };
 
@@ -138,14 +145,16 @@ export type TableMenuEntry = {
  *
  * An action that the cell does not allow is absent: the header row takes no
  * row above it, never moves and is never deleted, a row or a column at an end
- * does not move past it, and the last column is never deleted.
+ * does not move past it, and the last column is never deleted. Delete table
+ * is in the menu of every handle, because it acts on the table and not on the
+ * row or the column.
  */
 export function tableMenuEntries(
   kind: TableMenuKind,
   context: FormatContext,
 ): readonly TableMenuEntry[] {
   return tableActionRows
-    .filter((row) => row.kind === kind)
+    .filter((row) => row.kind === kind || row.kind === 'table')
     .filter((row) => formatActionApplies(formatActionOf(row.id), context))
     .map((row) => ({
       id: row.id,

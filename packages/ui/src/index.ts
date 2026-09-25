@@ -176,6 +176,7 @@ export {
   SunIcon,
   TableColumnAddIcon,
   TableColumnRemoveIcon,
+  TableRemoveIcon,
   TableIcon,
   TableRowAddIcon,
   TableRowRemoveIcon,

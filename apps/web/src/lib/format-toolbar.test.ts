@@ -155,6 +155,7 @@ await test('the table actions are palette rows and not tools of the row', () => 
       'table-align-right',
       'table-delete-row',
       'table-delete-column',
+      'table-delete',
     ],
   );
 });

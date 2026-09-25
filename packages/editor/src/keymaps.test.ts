@@ -24,6 +24,7 @@ import {
   moveRowUpEdit,
   removeColumnEdit,
   removeRowEdit,
+  deleteTableSpec,
   tableEditSpec,
 } from './table-grid.ts';
 import {
@@ -656,6 +657,11 @@ const formatCases: Readonly<
       '| a‸   |\n| --- |\n| 1   |',
     ],
   },
+  'table-delete': {
+    spec: (state) => deleteTableSpec(state),
+    empty: ['| a   | b‸   |\n| --- | --- |\n| 1   | 2   |', '‸'],
+    filled: ['| a   | «b»   |\n| --- | --- |\n| 1   | 2   |', '‸'],
+  },
   'table-align-left': {
     spec: (state) => tableEditSpec(state, alignColumnEdit('left')),
     empty: [
@@ -799,4 +805,19 @@ await test('Arrow Down opens a line under a table that ends the note', () => {
   assert.equal(leaveTableBelowSpec(header), null);
   const followed = stateOf('| a   |\n| --- |\n| 1‸   |\n\nText');
   assert.equal(leaveTableBelowSpec(followed), null);
+});
+
+await test('Delete table removes the table and one blank line beside it', () => {
+  const table = '| a   | b   |\n| --- | --- |\n| 1‸   | 2   |';
+  for (const [source, expected] of [
+    [`Before\n\n${table}\n\nAfter`, 'Before\n\n‸After'],
+    [`${table}\n\nAfter`, '‸After'],
+    [`Before\n\n${table}`, 'Before‸'],
+  ] as const)
+    assert.equal(
+      applied(stateOf(source), deleteTableSpec(stateOf(source))),
+      expected,
+      source,
+    );
+  assert.equal(deleteTableSpec(stateOf('No table‸ here')), null);
 });

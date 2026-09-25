@@ -597,6 +597,19 @@ export function TableRowRemoveIcon(props: IconProps): ReactNode {
   );
 }
 
+/** A table with a cross at its corner, for the removal of the whole table. */
+export function TableRemoveIcon(props: IconProps): ReactNode {
+  return (
+    <IconFrame {...props}>
+      <rect x="3" y="3" width="14" height="14" rx="2" />
+      <path d="M3 8.5h14" />
+      <path d="M10 3v14" />
+      <path d="m17 17 4 4" />
+      <path d="m21 17-4 4" />
+    </IconFrame>
+  );
+}
+
 /** A table with a plus beside it, for a new column. */
 export function TableColumnAddIcon(props: IconProps): ReactNode {
   return (
