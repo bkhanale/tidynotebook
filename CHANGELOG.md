@@ -5,6 +5,20 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.2 - 2026-09-25
+
+This patch release lets you change the order of the items of a list, a task
+list included.
+
+### Added
+
+- Drag the grip to the left of a list item to move it to a new place in its
+  list. The grip shows when you point at the item with a mouse.
+- Move item up and Move item down are in the row of tools and in the command
+  palette. Alt and the Up arrow or the Down arrow do the same.
+- An item moves with its later lines and with the items under it. A numbered
+  list keeps its first number after a move.
+
 ## 0.7.1 - 2026-09-25
 
 This patch release sends a new note to the server as soon as you make it, and
