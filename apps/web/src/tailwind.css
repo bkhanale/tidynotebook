@@ -129,6 +129,12 @@
 
   --spacing: 0.25rem;
   --spacing-header: 2.75rem;
+  /*
+   * The height of the frame: the visible part of the screen, which
+   * `shell/viewport-fit.ts` writes while the iOS keyboard is open, and the
+   * dynamic viewport otherwise.
+   */
+  --spacing-viewport: var(--viewport-height, 100dvh);
 
   /*
    * The layout scale. Four named steps decide every distance that a person

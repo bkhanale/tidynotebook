@@ -209,6 +209,7 @@ import {
   DeleteNoticeProvider,
   useDeleteNotice,
 } from '../features/trash/trash.tsx';
+import { useViewportFit } from './viewport-fit.ts';
 
 /**
  * One note row of the tree.
@@ -1283,6 +1284,9 @@ function ShellFrame({
   >(null);
   const [selectedFolder, setSelectedFolder] = useState('');
   const sidebar = useSidebarSize();
+  // The frame is the visible part of the screen, so iOS cannot scroll it
+  // away under an open keyboard.
+  useViewportFit();
   // The frame owns the open folders of the tree, because the New folder
   // dialog sits here and has to show the folder it made.
   const folders = useOpenFolders(workspaceId);
@@ -1706,7 +1710,7 @@ function ShellFrame({
   return (
     <SyncProvider value={sync}>
       <DeleteNoticeProvider>
-        <div className="flex h-dvh flex-col bg-app text-ink">
+        <div className="flex h-viewport flex-col bg-app text-ink">
           <a
             className={buttonClassName({
               variant: 'primary',
