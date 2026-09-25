@@ -5,6 +5,24 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.7.3 - 2026-09-25
+
+This patch release shows each new line of a note as a new line, and repairs
+list items that have a second line.
+
+### Changed
+
+- A new line in a note shows as a new line in the editor, in Read mode, and on
+  a published page. The text no longer moves when your cursor goes into a
+  paragraph or out of it. Press Enter twice to start a new paragraph.
+- Shift and Enter start a new line in the same list item or quote. They no
+  longer add a backslash to the note.
+
+### Fixed
+
+- A list item with a second line shows that line under the item text. Before,
+  the editor showed the second line one character to a line.
+
 ## 0.7.2 - 2026-09-25
 
 This patch release lets you change the order of the items of a list, a task

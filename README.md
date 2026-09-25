@@ -5,7 +5,7 @@ is the document: a note is a Markdown file with one `.md` suffix, in a folder
 you choose. Typing writes a draft on your device. Save creates one immutable
 version on your server.
 
-**Status:** 0.7.2 is the current release. See
+**Status:** 0.7.3 is the current release. See
 [CHANGELOG.md](CHANGELOG.md) for what changed and the
 [GitHub project board](https://github.com/users/bkhanale/projects/2) for the
 open work.
