@@ -37,7 +37,7 @@ import {
 import {
   createEditor,
   openBoundNote,
-  outsideTable,
+  plainTextContext,
   runFormatAction,
   setEditorRich,
   setEditorSpellCheck,
@@ -299,7 +299,7 @@ function NoteEditorBody({
     useState<LocalStorageErrorKind | null>(null);
   // Where the caret stands, which decides the tools of the formatting row.
   const [formatContext, setFormatContext] =
-    useState<FormatContext>(outsideTable);
+    useState<FormatContext>(plainTextContext);
   // The menu of a row or a column that a handle of a table asked for.
   const [tableMenu, setTableMenu] = useState<TableMenuRequest | null>(null);
   const [outlineOpen, setOutlineOpen] = useState(true);

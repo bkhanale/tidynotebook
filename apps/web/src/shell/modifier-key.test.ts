@@ -99,6 +99,14 @@ await test('a key that both keyboards print the same way has one cap', () => {
       sign: 'Esc',
       name: 'Escape',
     });
+    assert.deepEqual(keyCapOf('Up arrow', apple), {
+      sign: '↑',
+      name: 'Up arrow',
+    });
+    assert.deepEqual(keyCapOf('Down arrow', apple), {
+      sign: '↓',
+      name: 'Down arrow',
+    });
   }
 });
 
@@ -156,6 +164,7 @@ await test('every shortcut line of the dialog keeps all of its keys', () => {
     'Shift + Tab or Cmd or Ctrl + [',
     'Cmd or Ctrl + 1 to 6',
     'Alt + Enter',
+    'Alt + Up arrow',
     'Escape',
   ];
   for (const apple of [true, false]) {

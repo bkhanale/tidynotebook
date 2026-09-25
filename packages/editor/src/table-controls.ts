@@ -22,14 +22,14 @@
 import { Facet, type Extension } from '@codemirror/state';
 import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
-import { glyph, type GlyphPart } from './icon-mark.ts';
-import { dragStep, type DragInput } from './table-drag.ts';
+import { glyph, gripParts } from './icon-mark.ts';
+import { dragStep, followPointer, type DragInput } from './pointer-drag.ts';
+import { cellFormatContext, type FormatContext } from './format-context.ts';
 import {
   moveColumnEdit,
   moveRowEdit,
   tableContextAt,
   tableEditSpec,
-  type FormatContext,
 } from './table-grid.ts';
 
 /** The names of the handles, which a person hears and reads. */
@@ -69,18 +69,6 @@ export const tableMenuOpener = Facet.define<
 /** The width of the line that shows where a row or a column lands. */
 const dropLineWidth = 2;
 
-/** Three dots in each of two lines: the grip of a handle. */
-function grip(vertical: boolean): readonly GlyphPart[] {
-  return [9, 15].flatMap((across) =>
-    [6, 12, 18].map((along): GlyphPart => ({
-      kind: 'circle',
-      cx: vertical ? across : along,
-      cy: vertical ? along : across,
-      r: 1,
-    })),
-  );
-}
-
 /** One handle element. */
 function handle(kind: 'row' | 'column'): HTMLButtonElement {
   const button = document.createElement('button');
@@ -91,7 +79,7 @@ function handle(kind: 'row' | 'column'): HTMLButtonElement {
   button.tabIndex = -1;
   button.setAttribute('aria-label', label);
   button.title = label;
-  button.append(glyph('cm-np-table-control-mark', grip(kind === 'row')));
+  button.append(glyph('cm-np-table-control-mark', gripParts(kind === 'row')));
   return button;
 }
 
@@ -156,20 +144,6 @@ type Drag = {
   /** Where the row or the column lands, as the grid counts them. */
   to: number;
 };
-
-/** The input of one pointer event. */
-function pointerInput(
-  type: 'move' | 'release',
-  event: PointerEvent,
-): DragInput {
-  return {
-    type,
-    pointerId: event.pointerId,
-    buttons: event.buttons,
-    x: event.clientX,
-    y: event.clientY,
-  };
-}
 
 /** Builds the layer of the handles and keeps it on the active table. */
 class TableControls {
@@ -301,44 +275,14 @@ class TableControls {
     this.listen(button.ownerDocument.defaultView ?? window);
   }
 
-  /**
-   * Follows one drag on the whole window until it ends.
-   *
-   * The release can land on any element: on a cell, outside the editor, or
-   * on the handle. A drag that heard the release on the handle alone, through
-   * a pointer capture, missed it when the browser dropped the capture, and it
-   * stayed open with its handle stuck. The window hears every release, in
-   * its capture phase, before any element can stop it.
-   */
+  /** Follows one drag on the whole window until it ends (record 0098). */
   private listen(target: Window): void {
     this.stopListening?.();
-    const move = (event: PointerEvent): void => {
-      this.step(pointerInput('move', event));
-    };
-    const up = (event: PointerEvent): void => {
-      this.step(pointerInput('release', event));
-    };
-    const cancel = (): void => {
-      this.step({ type: 'cancel' });
-    };
-    const key = (event: KeyboardEvent): void => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      event.stopPropagation();
-      this.step({ type: 'cancel' });
-    };
-    const options = { capture: true } as const;
-    target.addEventListener('pointermove', move, options);
-    target.addEventListener('pointerup', up, options);
-    target.addEventListener('pointercancel', cancel, options);
-    target.addEventListener('keydown', key, options);
-    target.addEventListener('blur', cancel, options);
+    const stop = followPointer(target, (input) => {
+      this.step(input);
+    });
     this.stopListening = (): void => {
-      target.removeEventListener('pointermove', move, options);
-      target.removeEventListener('pointerup', up, options);
-      target.removeEventListener('pointercancel', cancel, options);
-      target.removeEventListener('keydown', key, options);
-      target.removeEventListener('blur', cancel, options);
+      stop();
       this.stopListening = null;
     };
   }
@@ -404,7 +348,7 @@ class TableControls {
         width: box.width,
         height: box.height,
       },
-      context: tableContextAt(this.view.state, pos),
+      context: cellFormatContext(this.view.state, pos),
     });
   }
 

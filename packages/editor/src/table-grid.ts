@@ -1238,13 +1238,13 @@ function tableEditFilter(
 }
 
 /**
- * Where the caret of a state stands, for the formatting row.
+ * Where the caret of a state stands in a table, for the formatting row.
  *
  * `table` is true in a cell. `bodyRow` is true in a row that can be removed,
  * which the header is not, and `columns` counts the columns of the table, so
  * the last one is never offered for removal.
  */
-export type FormatContext = {
+export type TableContext = {
   readonly table: boolean;
   readonly bodyRow: boolean;
   /** The row of the cell, where 0 is the header, and the count of rows. */
@@ -1257,8 +1257,8 @@ export type FormatContext = {
   readonly align: ColumnAlign;
 };
 
-/** The format context of a caret outside every table. */
-export const outsideTable: FormatContext = {
+/** The table context of a caret outside every table. */
+export const outsideTable: TableContext = {
   table: false,
   bodyRow: false,
   row: 0,
@@ -1268,8 +1268,8 @@ export const outsideTable: FormatContext = {
   align: null,
 };
 
-/** The format context of one position of a state. */
-export function tableContextAt(state: EditorState, pos: number): FormatContext {
+/** The table context of one position of a state. */
+export function tableContextAt(state: EditorState, pos: number): TableContext {
   if (!inTableCell(state, pos)) return outsideTable;
   const table = tableAt(state, pos);
   const cell = table === null ? null : cellAt(table, pos);
@@ -1284,27 +1284,6 @@ export function tableContextAt(state: EditorState, pos: number): FormatContext {
     columns: data.alignments.length,
     align: data.alignments[cell.column] ?? null,
   };
-}
-
-/** The format context of the caret of one state. */
-export function formatContextOf(state: EditorState): FormatContext {
-  return tableContextAt(state, state.selection.main.head);
-}
-
-/** Whether two format contexts state the same place. */
-export function sameFormatContext(
-  left: FormatContext,
-  right: FormatContext,
-): boolean {
-  return (
-    left.table === right.table &&
-    left.bodyRow === right.bodyRow &&
-    left.row === right.row &&
-    left.rows === right.rows &&
-    left.column === right.column &&
-    left.columns === right.columns &&
-    left.align === right.align
-  );
 }
 
 /** What the grid adds to the view of the tables it can see. */

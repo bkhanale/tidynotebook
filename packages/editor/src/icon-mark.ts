@@ -51,3 +51,19 @@ export function glyph(
   }
   return mark;
 }
+
+/**
+ * Three dots in each of two lines: the grip of a handle that a person drags.
+ * A vertical grip stands beside a row or an item, and a flat one stands above
+ * a column.
+ */
+export function gripParts(vertical: boolean): readonly GlyphPart[] {
+  return [9, 15].flatMap((across) =>
+    [6, 12, 18].map((along): GlyphPart => ({
+      kind: 'circle',
+      cx: vertical ? across : along,
+      cy: vertical ? along : across,
+      r: 1,
+    })),
+  );
+}

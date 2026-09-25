@@ -25,6 +25,7 @@ import {
 import { formattingKeymap } from './keymaps.ts';
 import { orderedListNumbering } from './list-numbering.ts';
 import { markdownPaste } from './paste.ts';
+import { listControls } from './list-controls.ts';
 import { tableControls } from './table-controls.ts';
 import { tableGridEditing } from './table-grid.ts';
 
@@ -165,9 +166,11 @@ export function editorCommands(): Extension {
     // A table is a grid over its text: the caret stays in a cell, and the
     // edit of a person keeps the pipes of the table (record 0095).
     tableGridEditing(),
-    // A table carries a bar that adds a row and a bar that adds a column
-    // (record 0096).
+    // A table carries a handle for each row and column, which opens its menu
+    // and drags it to a new place (records 0097 and 0098).
     tableControls(),
+    // A list item carries a grip that drags it to a new place (record 0106).
+    listControls(),
     // `markdown()` registers its own `Enter` handler with high precedence.
     // These two keymaps sit above it, so completion accepts first and the
     // list continuation of this package is the one that runs.

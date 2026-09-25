@@ -67,6 +67,17 @@ export const editorThemeVariables: readonly string[] = [
   '--tracking-display',
 ];
 
+/**
+ * Where the grip of a list item shows: a pointer that can hover and is fine,
+ * which is a mouse or a pen (record 0106).
+ *
+ * The column keeps room for the grip at its start under the same query, and
+ * `list-controls.ts` reads this one string, so the room and the grip cannot
+ * disagree. A finger gets no grip, because its room would move every line of
+ * every note on a phone.
+ */
+export const gripPointerQuery = '(hover: hover) and (pointer: fine)';
+
 /** The heading ramp, level by level. */
 const headings: ReadonlyArray<readonly [string, string]> = [
   ['var(--text-note-h1)', 'var(--text-note-h1--line-height)'],
@@ -681,6 +692,71 @@ export function noteSurfaceStyle(): Parameters<typeof EditorView.theme>[0] {
       },
       '.cm-np-table-handle-row': { width: 'calc(var(--spacing) * 6)' },
       '.cm-np-table-handle-column': { height: 'calc(var(--spacing) * 6)' },
+    },
+    // The grip of a list item (record 0106) stands in one layer over the
+    // text, as the handles of a table do, so every press but a press on the
+    // grip reaches the text below.
+    '.cm-np-list-controls': {
+      position: 'absolute',
+      top: '0',
+      left: '0',
+      width: '0',
+      height: '0',
+      zIndex: '2',
+      pointerEvents: 'none',
+    },
+    // The grip is a ghost control: no edge and no fill at rest, the quiet
+    // text colour, and the hover fill of the palette under the pointer. A
+    // grip that does not show keeps its box and hides it, so the layer can
+    // read its size to place it. A drag on it is never a scroll of the page.
+    '.cm-np-list-grip': {
+      position: 'absolute',
+      display: 'flex',
+      visibility: 'hidden',
+      alignItems: 'center',
+      justifyContent: 'center',
+      width: 'calc(var(--spacing) * 4)',
+      padding: '0',
+      margin: '0',
+      border: 'none',
+      borderRadius: 'var(--radius-sm)',
+      backgroundColor: 'transparent',
+      color: 'var(--notes-text-muted)',
+      cursor: 'grab',
+      pointerEvents: 'auto',
+      touchAction: 'none',
+    },
+    '.cm-np-list-controls-shown .cm-np-list-grip': { visibility: 'visible' },
+    '.cm-np-list-grip:hover': {
+      backgroundColor: 'var(--notes-surface-hover)',
+      color: 'var(--notes-text-strong)',
+    },
+    '.cm-np-list-grip-mark': {
+      width: 'calc(var(--spacing) * 4)',
+      height: 'calc(var(--spacing) * 4)',
+      flexShrink: '0',
+    },
+    // The line that shows where a dragged item lands takes the focus colour,
+    // as the drop line of a table row does (record 0062).
+    '.cm-np-list-drop': {
+      position: 'absolute',
+      visibility: 'hidden',
+      backgroundColor: 'var(--notes-focus)',
+      pointerEvents: 'none',
+    },
+    '.cm-np-list-controls-shown .cm-np-list-drop': { visibility: 'visible' },
+    '.cm-np-list-controls-shown .cm-np-list-drop.cm-np-list-control-off': {
+      visibility: 'hidden',
+    },
+    // The column keeps room for the grip at its start where the grip shows,
+    // so the grip of a top-level item is never cut at the edge of the
+    // column. The room is one grip wide and one step more, and a wide screen
+    // already has more than that from the centring of the measure.
+    [`@media ${gripPointerQuery}`]: {
+      '.cm-content': {
+        paddingInlineStart:
+          'max(calc(var(--spacing) * 5), calc((100% - var(--container-note)) / 2))',
+      },
     },
     '.cm-np-align-left': { textAlign: 'left' },
     '.cm-np-align-center': { textAlign: 'center' },

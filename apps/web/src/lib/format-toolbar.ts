@@ -12,8 +12,9 @@
  * tool that joins or leaves the row therefore joins or leaves the palette in
  * the same change, and no second list can drift from the first.
  *
- * The row holds four groups that space separates: the headings, the marks of
- * a word, the shapes of a block, and the table. Every tool is a button of the
+ * The row holds five groups that space separates: the headings, the marks of
+ * a word, the shapes of a block, the table, and the move of a list item
+ * (record 0106). Every tool is a button of the
  * row at every width. A row wider than the screen scrolls sideways, so a new
  * tool is one more entry here and never a menu that covers the text.
  *
@@ -68,6 +69,7 @@ export const formatToolbar: readonly (readonly FormatTool[])[] = [
     tool('quote', 'quote'),
   ],
   [tool('table', 'table')],
+  [tool('move-item-up', 'move-up'), tool('move-item-down', 'move-down')],
 ];
 
 /**
@@ -119,6 +121,8 @@ const paletteWords: Readonly<Partial<Record<FormatActionId, string>>> = {
   'task-list': 'checklist todo checkbox',
   quote: 'quotation',
   table: 'grid columns rows',
+  'move-item-up': 'list task checklist todo reorder drag',
+  'move-item-down': 'list task checklist todo reorder drag',
   'table-row-above': 'table add insert',
   'table-row-below': 'table add insert',
   'table-column-left': 'table add insert',

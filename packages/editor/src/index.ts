@@ -60,8 +60,8 @@ export type {
   TableMenuRequest,
 } from './table-controls.ts';
 export { tableControlLabels } from './table-controls.ts';
-export type { FormatContext } from './table-grid.ts';
-export { outsideTable } from './table-grid.ts';
+export type { FormatContext } from './format-context.ts';
+export { plainTextContext } from './format-context.ts';
 export { htmlToMarkdown } from './paste.ts';
 export type { EditorState } from '@codemirror/state';
 export type { EditorView } from '@codemirror/view';

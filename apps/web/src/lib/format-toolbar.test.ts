@@ -3,7 +3,7 @@ import test from 'node:test';
 import {
   formatActionOf,
   formatActions,
-  outsideTable,
+  plainTextContext,
   type FormatContext,
 } from '@notesapp/editor';
 import { controlStripClassName } from '@notesapp/ui';
@@ -23,7 +23,7 @@ import {
 } from './format-toolbar.ts';
 
 /** The caret outside a table, in a body row, and in the header row. */
-const outside = outsideTable;
+const outside = plainTextContext;
 const inside = {
   table: true,
   bodyRow: true,
@@ -32,6 +32,8 @@ const inside = {
   column: 0,
   columns: 2,
   align: null,
+  itemUp: false,
+  itemDown: false,
 } as const;
 const inHeader = { ...inside, bodyRow: false, row: 0 } as const;
 type Context = FormatContext;
@@ -39,7 +41,7 @@ type Context = FormatContext;
 /** Every format action that the row reaches, in the order of the row. */
 const rowActions = formatToolbar.flat().map((tool) => tool.id);
 
-await test('the row holds the tools that issue 153 asks for, in four groups', () => {
+await test('the row holds the tools of issues 153 and 172, in five groups', () => {
   assert.deepEqual(
     formatToolbar.map((group) => group.map((tool) => tool.id)),
     [
@@ -47,6 +49,7 @@ await test('the row holds the tools that issue 153 asks for, in four groups', ()
       ['bold', 'italic', 'strikethrough', 'inline-code', 'link'],
       ['bullet-list', 'ordered-list', 'task-list', 'quote'],
       ['table'],
+      ['move-item-up', 'move-item-down'],
     ],
   );
 });
@@ -72,7 +75,7 @@ await test('every tool draws a glyph of its own, and every action a named one', 
 });
 
 await test('the palette offers every tool of the row and nothing else', () => {
-  const rows = formatPaletteRows(outside);
+  const rows = formatPaletteRows({ ...outside, itemUp: true, itemDown: true });
   assert.deepEqual(
     rows.map((row) => row.action),
     rowActions,
@@ -203,5 +206,22 @@ await test('the header row and the last column are never offered for removal', (
     !formatPaletteRows(inHeader)
       .map((row) => row.action)
       .includes('table-delete-row'),
+  );
+});
+
+await test('the move tools apply only where the list item can go', () => {
+  // Record 0106. A tool that cannot move the item stays in its place in the
+  // row, disabled, and leaves the palette.
+  const ids = (context: Context): readonly string[] =>
+    formatPaletteRows(context).map((row) => row.action);
+  assert.ok(!ids(outside).includes('move-item-up'));
+  assert.ok(!ids(outside).includes('move-item-down'));
+  const first = { ...outside, itemDown: true };
+  assert.ok(!ids(first).includes('move-item-up'));
+  assert.ok(ids(first).includes('move-item-down'));
+  assert.equal(
+    formatPaletteRows(first).find((row) => row.action === 'move-item-down')
+      ?.keys,
+    'Alt + Down arrow',
   );
 });

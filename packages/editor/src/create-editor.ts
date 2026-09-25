@@ -39,9 +39,9 @@ import { livePreview } from './live-preview.ts';
 import {
   formatContextOf,
   sameFormatContext,
-  tableGridView,
   type FormatContext,
-} from './table-grid.ts';
+} from './format-context.ts';
+import { tableGridView } from './table-grid.ts';
 import { tableMenuOpener, type TableMenuOpener } from './table-controls.ts';
 import { richWidgets, type RichWidgetResolvers } from './widgets.ts';
 import { spellCheck } from './spell-check.ts';

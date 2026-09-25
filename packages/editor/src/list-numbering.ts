@@ -34,12 +34,13 @@ import {
   EditorState,
   type ChangeSpec,
   type Extension,
+  type Text,
   type Transaction,
   type TransactionSpec,
 } from '@codemirror/state';
 import type { SyntaxNode, Tree } from '@lezer/common';
 import { isEditOfAPerson } from './commands.ts';
-import { parseListLine } from './keymaps.ts';
+import { parseListLine } from './list-line.ts';
 
 /**
  * How long one edit may parse the note to find its lists, in milliseconds.
@@ -147,7 +148,7 @@ function itemsOf(list: SyntaxNode): readonly SyntaxNode[] {
 }
 
 /** The digits and the range of the number of one ordered item. */
-function numberOf(
+export function numberOf(
   state: EditorState,
   item: SyntaxNode,
 ): { readonly from: number; readonly digits: string } | null {
@@ -163,6 +164,59 @@ function insideQuote(node: SyntaxNode): boolean {
   for (let at = node.parent; at !== null; at = at.parent)
     if (at.name === 'Blockquote') return true;
   return false;
+}
+
+/**
+ * Adds the shift of the later lines of one item whose marker grew or shrank
+ * by `width` columns, so the children of the item stay its children.
+ *
+ * `shifts` maps the start of a line to its width, so the shifts of a nested
+ * item and of the item that holds it add up on the lines they share. The
+ * lines of an item in a quote stay, because their quote marks come first.
+ */
+export function addItemShift(
+  doc: Text,
+  item: SyntaxNode,
+  width: number,
+  shifts: Map<number, number>,
+): void {
+  if (width === 0 || insideQuote(item)) return;
+  const first = doc.lineAt(item.from).number;
+  // An item that ends where a line starts ends on the line above it, so
+  // the marker line of the next item never moves with this one.
+  const end = doc.lineAt(item.to);
+  const last =
+    end.from === item.to && item.to > item.from ? end.number - 1 : end.number;
+  for (let at = first + 1; at <= last; at += 1) {
+    const from = doc.line(at).from;
+    shifts.set(from, (shifts.get(from) ?? 0) + width);
+  }
+}
+
+/**
+ * The changes that move each line of `shifts` by its width.
+ *
+ * A blank line and a line indented with a tab stay, and a line never loses
+ * more spaces than it has.
+ */
+export function lineShiftChanges(
+  doc: Text,
+  shifts: ReadonlyMap<number, number>,
+): readonly ChangeSpec[] {
+  const changes: ChangeSpec[] = [];
+  for (const [from, width] of shifts) {
+    const line = doc.lineAt(from);
+    if (width === 0 || line.text.trim() === '' || line.text.startsWith('\t'))
+      continue;
+    if (width > 0) {
+      changes.push({ from, insert: ' '.repeat(width) });
+      continue;
+    }
+    const spaces = /^ */.exec(line.text)?.[0].length ?? 0;
+    const remove = Math.min(spaces, -width);
+    if (remove > 0) changes.push({ from, to: from + remove });
+  }
+  return changes;
 }
 
 /**
@@ -254,35 +308,11 @@ export function renumberChanges(
         to: number.from + number.digits.length,
         insert: digits,
       });
-      const width = digits.length - number.digits.length;
-      if (width === 0 || insideQuote(item)) return;
-      const first = doc.lineAt(item.from).number;
-      // An item that ends where a line starts ends on the line above it, so
-      // the marker line of the next item never moves with this one.
-      const end = doc.lineAt(item.to);
-      const last =
-        end.from === item.to && item.to > item.from
-          ? end.number - 1
-          : end.number;
-      for (let at = first + 1; at <= last; at += 1) {
-        const from = doc.line(at).from;
-        shifts.set(from, (shifts.get(from) ?? 0) + width);
-      }
+      addItemShift(doc, item, digits.length - number.digits.length, shifts);
     });
   }
 
-  for (const [from, width] of shifts) {
-    const line = doc.lineAt(from);
-    if (width === 0 || line.text.trim() === '' || line.text.startsWith('\t'))
-      continue;
-    if (width > 0) {
-      changes.push({ from, insert: ' '.repeat(width) });
-      continue;
-    }
-    const spaces = /^ */.exec(line.text)?.[0].length ?? 0;
-    const remove = Math.min(spaces, -width);
-    if (remove > 0) changes.push({ from, to: from + remove });
-  }
+  changes.push(...lineShiftChanges(doc, shifts));
   return changes;
 }
 

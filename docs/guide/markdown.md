@@ -20,9 +20,9 @@ never disagree about what a note means.
 The row of tools above the note formats the text for you, so you do not need to
 know Markdown. Select text and then select a tool, or select a tool and then
 type. The tools are Heading 1, Heading 2, Heading 3, Bold, Italic, Strike
-through, Inline code, Link, Bullet list, Ordered list, Task list, Block quote
-and Table. Select a tool again to remove its format. Hold the pointer on a tool
-to see its key.
+through, Inline code, Link, Bullet list, Ordered list, Task list, Block quote,
+Table, Move item up and Move item down. Select a tool again to remove its
+format. Hold the pointer on a tool to see its key.
 
 Table writes a small table with two columns and one empty row. Type the name of
 the first column. Press Tab to go to the next cell, and Shift and Tab to go
@@ -49,6 +49,26 @@ grows if it needs more rows or columns. Backspace and Delete remove text, and
 never a cell, a row or a column. Tools that change whole lines, such as Heading
 and Bullet list, do nothing in a table and show disabled. To go below a table
 at the end of the note, press the Down arrow in its last row.
+
+## Moving a list item
+
+You can change the order of the items of a list, a task list included. An item
+moves with its later lines and with the items under it. It stays in its own
+list and at its own level.
+
+With a mouse, point at an item. A grip shows to the left of it. Drag the grip,
+and a line shows where the item goes. Release the grip to move the item there.
+Press Escape to stop the drag and move nothing.
+
+On every device, put the cursor in the item and select **Move item up** or
+**Move item down** in the row of tools. On a keyboard, press Alt and the Up
+arrow or the Down arrow. On a Mac, press Option and the arrow. Outside a list,
+these keys move the line of the cursor.
+
+A numbered list keeps its first number and counts on from it after each move.
+Press Ctrl + Z or Cmd + Z to put the item back.
+
+## Tools on a narrow screen and with a keyboard
 
 On a narrow screen, swipe the row sideways to reach the other tools. Every tool
 is also in the command palette: open it with Ctrl + P or Cmd + P and type the

@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { noteSurfaceStyle } from './editor-theme.ts';
+import { gripPointerQuery, noteSurfaceStyle } from './editor-theme.ts';
 
 /** One rule of the surface style, as CodeMirror declares it. */
 type SurfaceRule = ReturnType<typeof noteSurfaceStyle>[string];
@@ -366,4 +366,26 @@ await test('each quote level adds one bar from the theme palette', () => {
       `calc(var(--spacing) * ${String(level * 4)})`,
     );
   }
+});
+
+await test('the column keeps room for the grip of a list item where it shows', () => {
+  // Record 0106. The grip shows under one media query, and the same query
+  // gives the column its room, so a grip is never cut at the edge.
+  const media = rule(`@media ${gripPointerQuery}`);
+  const content = media['.cm-content'];
+  assert.ok(typeof content === 'object' && content !== null);
+  if (typeof content !== 'object' || content === null) return;
+  assert.equal(
+    text(content, 'paddingInlineStart'),
+    'max(calc(var(--spacing) * 5), calc((100% - var(--container-note)) / 2))',
+  );
+  // The room is one step wider than the grip.
+  assert.equal(
+    text(rule('.cm-np-list-grip'), 'width'),
+    'calc(var(--spacing) * 4)',
+  );
+  // A finger gets no grip, and the grip takes no scroll of the page.
+  assert.match(gripPointerQuery, /hover: hover/);
+  assert.match(gripPointerQuery, /pointer: fine/);
+  assert.equal(rule('.cm-np-list-grip').touchAction, 'none');
 });

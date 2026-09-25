@@ -25,6 +25,7 @@ import {
   type ChangeSpec,
   type TransactionSpec,
 } from '@codemirror/state';
+import { moveLineDown, moveLineUp } from '@codemirror/commands';
 import { EditorView, type Command, type KeyBinding } from '@codemirror/view';
 import { editingTransaction } from './commands.ts';
 import {
@@ -49,9 +50,15 @@ import {
   tableEditSpec,
   tablesIn,
   writeTable,
-  type FormatContext,
   type TableEdit,
 } from './table-grid.ts';
+import type { FormatContext } from './format-context.ts';
+import { parseListLine, type ListLine } from './list-line.ts';
+import {
+  inMovableListItem,
+  moveListItemDownSpec,
+  moveListItemUpSpec,
+} from './list-move.ts';
 
 /** One row of the shortcut table that the shell renders. */
 export type EditorShortcut = {
@@ -67,55 +74,11 @@ export type InlineMarker = '**' | '*' | '`' | '~~';
 /** The list shapes this module can toggle. */
 export type ListKind = 'bullet' | 'ordered' | 'task';
 
-/** Everything one list line marker holds, with offsets inside the line. */
-type ListLine = {
-  /** Leading white space of the line. */
-  readonly indent: string;
-  /** The bullet or the number with its delimiter, for example `-` or `2.`. */
-  readonly bullet: string;
-  /** White space between the bullet and the content or the task box. */
-  readonly gap: string;
-  /** The task box with its trailing white space, or the empty string. */
-  readonly task: string;
-  /** Whether the bullet counts items. */
-  readonly kind: 'bullet' | 'ordered';
-  /** The counted value of an ordered bullet, or null for a plain bullet. */
-  readonly value: number | null;
-  /** Length of everything before the content of the line. */
-  readonly prefixLength: number;
-};
-
-/** Matches the marker of one list line, with or without a task box. */
-const listLinePattern =
-  /^([ \t]*)(?:([-+*])|(\d{1,9})([.)]))([ \t]+)(\[[ xX]\][ \t]+)?/;
-
 /** Matches the block quote marker of one line. */
 const quoteLinePattern = /^([ \t]*)((?:>[ \t]?)+)/;
 
 /** Matches a code fence opener or closer with its indentation. */
 const fenceLinePattern = /^ {0,3}(`{3,}|~{3,})(.*)$/;
-
-/** Reads the list marker of one line, or null when the line holds none. */
-export function parseListLine(lineText: string): ListLine | null {
-  const match = listLinePattern.exec(lineText);
-  if (match === null) return null;
-  const indent = match[1] ?? '';
-  const plain = match[2];
-  const digits = match[3] ?? '';
-  const delimiter = match[4] ?? '';
-  const gap = match[5] ?? '';
-  const task = match[6] ?? '';
-  const bullet = plain === undefined ? `${digits}${delimiter}` : plain;
-  return {
-    indent,
-    bullet,
-    gap,
-    task,
-    kind: plain === undefined ? 'ordered' : 'bullet',
-    value: plain === undefined ? Number.parseInt(digits, 10) : null,
-    prefixLength: indent.length + bullet.length + gap.length + task.length,
-  };
-}
 
 /**
  * Reports whether the given line sits inside an open fenced code block.
@@ -929,6 +892,33 @@ function either(first: Command, second: Command): Command {
 /** Inserts a small GFM table at the selection. */
 export const insertTable = dispatching(tableSpec);
 
+/**
+ * The command that moves the list item of the caret by one place, or the
+ * selected lines outside an item (record 0106).
+ *
+ * Inside an item the move owns the key, so an item that cannot go further
+ * stays where it is and never swaps one line with the text beside the list.
+ * Outside an item, and for a selection over more than one item, the key
+ * keeps the line move of CodeMirror.
+ */
+function itemMove(
+  spec: (state: EditorState) => TransactionSpec | null,
+  lineMove: Command,
+): Command {
+  const move = dispatching(spec);
+  return (view: EditorView): boolean => {
+    if (!inMovableListItem(view.state)) return lineMove(view);
+    move(view);
+    return true;
+  };
+}
+
+/** Moves the list item of the caret one place up. */
+export const moveItemUp = itemMove(moveListItemUpSpec, moveLineUp);
+
+/** Moves the list item of the caret one place down. */
+export const moveItemDown = itemMove(moveListItemDownSpec, moveLineDown);
+
 /** Every formatting action that a tool or the palette can run. */
 export type FormatActionId =
   | 'heading-1'
@@ -947,6 +937,8 @@ export type FormatActionId =
   | 'task-list'
   | 'quote'
   | 'table'
+  | 'move-item-up'
+  | 'move-item-down'
   | TableActionId;
 
 /** Every action on the rows and the columns of a table. */
@@ -1062,9 +1054,10 @@ const tableActionRows: readonly {
  *
  * `inline` marks text and applies everywhere. `block` shapes whole lines, so
  * it does nothing inside a table, whose lines are rows. `table` changes a
- * table and applies only inside one (record 0095).
+ * table and applies only inside one (record 0095). `item` moves the list item
+ * of the caret and applies only where the item can go (record 0106).
  */
-export type FormatScope = 'inline' | 'block' | 'table';
+export type FormatScope = 'inline' | 'block' | 'table' | 'item';
 
 /** One formatting action: its name, its key and its command. */
 export type FormatAction = {
@@ -1095,7 +1088,9 @@ export function shortcutKeys(key: string): string {
         ? 'Cmd or Ctrl'
         : part.length === 1
           ? part.toUpperCase()
-          : part,
+          : part.startsWith('Arrow')
+            ? `${part.slice('Arrow'.length)} arrow`
+            : part,
     )
     .join(' + ');
 }
@@ -1187,6 +1182,20 @@ export const formatActions: readonly FormatAction[] = [
   ),
   formatAction('quote', 'Block quote', 'Mod-Shift-.', toggleQuote, 'block'),
   formatAction('table', 'Table', null, insertTable, 'block'),
+  formatAction(
+    'move-item-up',
+    'Move item up',
+    'Alt-ArrowUp',
+    moveItemUp,
+    'item',
+  ),
+  formatAction(
+    'move-item-down',
+    'Move item down',
+    'Alt-ArrowDown',
+    moveItemDown,
+    'item',
+  ),
   ...tableActionRows.map((row) =>
     formatAction(
       row.id,
@@ -1211,6 +1220,8 @@ export function formatActionApplies(
 ): boolean {
   if (action.scope === 'block') return !context.table;
   if (action.scope === 'inline') return true;
+  if (action.scope === 'item')
+    return action.id === 'move-item-up' ? context.itemUp : context.itemDown;
   if (!context.table) return false;
   if (action.id === 'table-row-above') return context.bodyRow;
   if (action.id === 'table-delete-row') return context.bodyRow;
@@ -1339,6 +1350,8 @@ export const shortcuts: readonly EditorShortcut[] = [
     keys: 'Shift + Tab or Cmd or Ctrl + [',
     description: 'Outdent the list item',
   },
+  { keys: 'Alt + Up arrow', description: 'Move the list item up' },
+  { keys: 'Alt + Down arrow', description: 'Move the list item down' },
   { keys: 'Shift + Enter', description: 'Break the line inside the paragraph' },
   { keys: 'Tab', description: 'Move to the next cell of a table' },
   { keys: 'Shift + Tab', description: 'Move to the previous cell of a table' },

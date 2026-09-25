@@ -12,6 +12,7 @@ import {
   EditorState,
   type TransactionSpec,
 } from '@codemirror/state';
+import { formatContextOf } from './format-context.ts';
 import { noteMarkdownExtensions } from './language.ts';
 import {
   moveColumnEdit,
@@ -24,7 +25,6 @@ import {
   cellBelowEdit,
   cellText,
   pastedCells,
-  formatContextOf,
   gridParts,
   nextCellEdit,
   previousCellEdit,
@@ -550,6 +550,8 @@ await test('the format context states the row and the columns of the caret', () 
     column: 0,
     columns: 2,
     align: null,
+    itemUp: false,
+    itemDown: false,
   });
   assert.deepEqual(formatContextOf(stateOf(aligned.replace('| 1', '| 1‸'))), {
     table: true,
@@ -559,6 +561,8 @@ await test('the format context states the row and the columns of the caret', () 
     column: 0,
     columns: 2,
     align: null,
+    itemUp: false,
+    itemDown: false,
   });
 });
 

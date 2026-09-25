@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { dragStep, type DragInput } from './table-drag.ts';
+import { dragStep, dropPlace, type DragInput } from './pointer-drag.ts';
 
 /** A press of the mouse at 100, 100 that has not moved yet. */
 const press = { pointerId: 1, startX: 100, startY: 100, moving: false };
@@ -50,4 +50,17 @@ await test('another pointer takes no part in the drag', () => {
     dragStep(press, { type: 'move', pointerId: 2, buttons: 1, x: 300, y: 0 }),
     'ignore',
   );
+});
+
+await test('a dragged box takes the place whose middle the pointer passed', () => {
+  // Three boxes with their middles at 10, 30 and 70: the last one is tall.
+  const middles = [10, 30, 70];
+  assert.equal(dropPlace(middles, 0, 5), 0);
+  assert.equal(dropPlace(middles, 0, 29), 0);
+  assert.equal(dropPlace(middles, 0, 31), 1);
+  assert.equal(dropPlace(middles, 0, 71), 2);
+  // A box dragged up passes the middles above it.
+  assert.equal(dropPlace(middles, 2, 69), 2);
+  assert.equal(dropPlace(middles, 2, 29), 1);
+  assert.equal(dropPlace(middles, 2, 0), 0);
 });

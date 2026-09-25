@@ -12,6 +12,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { EditorState, type TransactionSpec } from '@codemirror/state';
 import { noteMarkdownExtensions } from './language.ts';
+import { parseListLine } from './list-line.ts';
+import { moveListItemDownSpec, moveListItemUpSpec } from './list-move.ts';
+import { plainTextContext, type FormatContext } from './format-context.ts';
 import {
   addColumnEdit,
   addRowEdit,
@@ -29,6 +32,7 @@ import {
 } from './table-grid.ts';
 import {
   continueBlockSpec,
+  formatActionApplies,
   formatActionOf,
   formatActions,
   formattingKeymap,
@@ -42,7 +46,6 @@ import {
   linkDestinationSpec,
   linkSpec,
   outdentListSpec,
-  parseListLine,
   shortcutKeys,
   shortcuts,
   tableSpec,
@@ -657,6 +660,16 @@ const formatCases: Readonly<
       '| a‸   |\n| --- |\n| 1   |',
     ],
   },
+  'move-item-up': {
+    spec: moveListItemUpSpec,
+    empty: ['- a\n- b‸', '- b‸\n- a'],
+    filled: ['- a\n- «b»', '- «b»\n- a'],
+  },
+  'move-item-down': {
+    spec: moveListItemDownSpec,
+    empty: ['- [ ] a‸\n- [x] b', '- [x] b\n- [ ] a‸'],
+    filled: ['- [ ] «a»\n- [x] b', '- [x] b\n- [ ] «a»'],
+  },
   'table-delete': {
     spec: (state) => deleteTableSpec(state),
     empty: ['| a   | b‸   |\n| --- | --- |\n| 1   | 2   |', '‸'],
@@ -745,6 +758,7 @@ await test('the shortcut table names the key of every format action', () => {
 await test('a key line reads the way the shortcut table writes it', () => {
   assert.equal(shortcutKeys('Mod-b'), 'Cmd or Ctrl + B');
   assert.equal(shortcutKeys('Mod-Shift-x'), 'Cmd or Ctrl + Shift + X');
+  assert.equal(shortcutKeys('Alt-ArrowUp'), 'Alt + Up arrow');
   assert.equal(shortcutKeys('Mod-Shift-.'), 'Cmd or Ctrl + Shift + .');
   assert.equal(shortcutKeys('Mod-3'), 'Cmd or Ctrl + 3');
 });
@@ -820,4 +834,19 @@ await test('Delete table removes the table and one blank line beside it', () => 
       source,
     );
   assert.equal(deleteTableSpec(stateOf('No table‸ here')), null);
+});
+
+await test('a move tool applies only where the list item can go', () => {
+  const context = (itemUp: boolean, itemDown: boolean): FormatContext => ({
+    ...plainTextContext,
+    itemUp,
+    itemDown,
+  });
+  const up = formatActionOf('move-item-up');
+  const down = formatActionOf('move-item-down');
+  assert.equal(formatActionApplies(up, plainTextContext), false);
+  assert.equal(formatActionApplies(down, plainTextContext), false);
+  assert.equal(formatActionApplies(up, context(true, false)), true);
+  assert.equal(formatActionApplies(down, context(true, false)), false);
+  assert.equal(formatActionApplies(down, context(false, true)), true);
 });

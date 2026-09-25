@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { formatActions, outsideTable } from '@notesapp/editor';
+import { formatActions, plainTextContext } from '@notesapp/editor';
 import { tableActionRows, tableMenuEntries } from './table-menu.ts';
 
 /** A cell in a body row of a table of two columns, and one in its header. */
@@ -12,6 +12,8 @@ const body = {
   column: 0,
   columns: 2,
   align: null,
+  itemUp: false,
+  itemDown: false,
 } as const;
 const header = { ...body, bodyRow: false, row: 0 } as const;
 
@@ -89,6 +91,6 @@ await test('the column menu inserts, moves, aligns and deletes columns', () => {
 });
 
 await test('outside a table no menu has a row', () => {
-  assert.deepEqual(tableMenuEntries('row', outsideTable), []);
-  assert.deepEqual(tableMenuEntries('column', outsideTable), []);
+  assert.deepEqual(tableMenuEntries('row', plainTextContext), []);
+  assert.deepEqual(tableMenuEntries('column', plainTextContext), []);
 });
