@@ -313,6 +313,25 @@ export function rowClassName(
 }
 
 /**
+ * The appearance of one button of the view bar of the sidebar, as classes.
+ *
+ * An icon-only button that selects what the sidebar shows (record 0105). It
+ * is 44 px under touch and 32 px on a desktop. The view that shows takes the
+ * mark of a current row, so the bar and the tree state "where am I" in one
+ * way, and a view that does not show is muted until a pointer reaches it.
+ */
+export function sidebarViewClassName(options: {
+  readonly current: boolean;
+}): string {
+  return [
+    `inline-flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md ${transitionSurface} ${focusOutline} md:size-8`,
+    options.current
+      ? 'bg-active text-strong'
+      : 'text-muted hover:bg-hover hover:text-strong',
+  ].join(' ');
+}
+
+/**
  * The appearance of a field, as classes.
  *
  * A text field, a select and a read only field all read this, so the three

@@ -121,24 +121,6 @@ export function opensTodayAtStart(input: {
   return input.openOnStart && input.startedOnNoteList && input.stillOnStart;
 }
 
-/** The browser settings key of whether the sidebar shows the month. */
-export const calendarOpenStorageKey = 'notesapp.calendar-open';
-
-/**
- * Whether the sidebar shows the month, from the stored value.
- *
- * The month shows by default (record 0100), so only the stored word for a
- * hidden month hides it and any other value shows it.
- */
-export function parseCalendarOpen(stored: string | null): boolean {
-  return stored !== 'hidden';
-}
-
-/** The stored value of one choice. */
-export function formatCalendarOpen(open: boolean): string {
-  return open ? 'shown' : 'hidden';
-}
-
 /** The browser settings key of the cached settings of one member. */
 export function dailyNoteSettingsKey(
   accountId: string,

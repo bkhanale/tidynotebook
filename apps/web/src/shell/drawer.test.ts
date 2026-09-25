@@ -58,12 +58,12 @@ await test('the phone overlay opens whatever the wide frame collapsed', () => {
 await test('the panel carries the width of the chosen step', () => {
   assert.ok(
     drawerClassName(false, { step: 'widest', collapsed: false }).includes(
-      'w-80',
+      'w-92',
     ),
   );
   assert.ok(
     drawerClassName(false, { step: 'narrow', collapsed: false }).includes(
-      'w-56',
+      'w-68',
     ),
   );
 });

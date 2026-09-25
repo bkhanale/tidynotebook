@@ -15,13 +15,14 @@ of its day. The next time you open that day, a new note is made.
 
 ## The calendar
 
-The calendar is in the sidebar, below the folders. It shows one month. A day
+The sidebar has a thin bar at its left edge. Select the calendar button in
+that bar to show the calendar, and the folder button to show your notes again.
+The sidebar keeps the view that you chose. The calendar shows one month. A day
 with a note has a dot under its number, and today has an edge around it.
 
 - Select a day to open its note. If the day has no note, a new one is made.
-- Select the calendar icon to open the note of today.
+- Select the calendar icon beside the month to open the note of today.
 - Select the arrows to go to the previous or the next month.
-- Select the name of the month to hide the month or show it again.
 - With the keyboard, the arrow keys move one day or one week, **Home** and
   **End** move to the start and the end of the week, and **Page Up** and **Page
   Down** move one month. Hold **Shift** with **Page Up** or **Page Down** to

@@ -90,6 +90,7 @@ on each rule below.
 | `src/lib/note-name-field.ts`                  | The name field of the open note   |
 | `src/shell/action-icons.tsx`                  | The one glyph of every action     |
 | `src/shell/workspaces.tsx`                    | The workspace switcher            |
+| `src/shell/sidebar-view-bar.tsx`              | The view bar of the sidebar       |
 | `src/lib/workspace-choice.ts`                 | Which workspace opens             |
 | `src/lib/breadcrumb.ts`                       | Where a person is, as parts       |
 | `src/features/editor/note-editor.tsx`         | The editor host and editor view   |

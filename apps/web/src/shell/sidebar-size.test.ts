@@ -34,9 +34,9 @@ await test('the steps grow from the narrowest to the widest', () => {
 
 await test('a drag lands on the nearest step', () => {
   assert.equal(stepForWidth(0), 'narrow');
-  assert.equal(stepForWidth(226), 'narrow');
-  assert.equal(stepForWidth(250), 'medium');
-  assert.equal(stepForWidth(280), 'wide');
+  assert.equal(stepForWidth(274), 'narrow');
+  assert.equal(stepForWidth(300), 'medium');
+  assert.equal(stepForWidth(330), 'wide');
   assert.equal(stepForWidth(5000), 'widest');
 });
 

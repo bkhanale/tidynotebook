@@ -27,6 +27,7 @@ import {
   kbdClassName,
   rowClassName,
   selectClassName,
+  sidebarViewClassName,
   type ButtonSize,
   type ButtonVariant,
   type EdgeMark,
@@ -68,6 +69,8 @@ const recipes: readonly (readonly [string, string])[] = [
   ['field', fieldClassName()],
   ['invalid field', fieldClassName({ invalid: true })],
   ['select field', selectClassName()],
+  ['sidebar view', sidebarViewClassName({ current: false })],
+  ['current sidebar view', sidebarViewClassName({ current: true })],
   ['key cap', kbdClassName()],
   ['badge', badgeClassName()],
   ['avatar', avatarClassName()],
@@ -623,4 +626,14 @@ await test('a select is a field with the native appearance removed', () => {
     assert.ok(select.includes(part), `the field class ${part}`);
   assert.ok(select.includes('appearance-none'), 'no native shape');
   assert.ok(select.includes('pr-9'), 'room for the chevron');
+});
+
+await test('the view that shows takes the mark of a current row', () => {
+  assert.ok(sidebarViewClassName({ current: true }).includes('bg-active'));
+  assert.ok(!sidebarViewClassName({ current: false }).includes('bg-active'));
+  for (const current of [true, false]) {
+    const view = sidebarViewClassName({ current });
+    assert.ok(view.includes(focusOutline), 'the one focus treatment');
+    assert.ok(view.includes('size-11'), 'the touch target');
+  }
 });

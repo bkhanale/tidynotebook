@@ -39,28 +39,33 @@ export const defaultSidebarSize: SidebarSize = {
 /** The local settings key of the sidebar size. */
 export const sidebarSizeStorageKey = 'notesapp.sidebar';
 
-/** The width of each step, in pixels, for the drag and for the label. */
+/**
+ * The width of each step, in pixels, for the drag and for the label.
+ *
+ * A step holds the view bar, `w-12`, and the panel beside it, so the panel
+ * of each step is 224, 256, 288 or 320 px wide (record 0105).
+ */
 const stepWidths: Readonly<Record<SidebarStep, number>> = {
-  narrow: 224,
-  medium: 256,
-  wide: 288,
-  widest: 320,
+  narrow: 272,
+  medium: 304,
+  wide: 336,
+  widest: 368,
 };
 
 /** The width class of each step. Whole names, so Tailwind emits them. */
 const stepWidthClasses: Readonly<Record<SidebarStep, string>> = {
-  narrow: 'w-56',
-  medium: 'w-64',
-  wide: 'w-72',
-  widest: 'w-80',
+  narrow: 'w-68',
+  medium: 'w-76',
+  wide: 'w-84',
+  widest: 'w-92',
 };
 
 /** The content inset of each step, from the medium width up. */
 const stepInsetClasses: Readonly<Record<SidebarStep, string>> = {
-  narrow: 'md:pl-56',
-  medium: 'md:pl-64',
-  wide: 'md:pl-72',
-  widest: 'md:pl-80',
+  narrow: 'md:pl-68',
+  medium: 'md:pl-76',
+  wide: 'md:pl-84',
+  widest: 'md:pl-92',
 };
 
 /** How wide one step is, in pixels. */

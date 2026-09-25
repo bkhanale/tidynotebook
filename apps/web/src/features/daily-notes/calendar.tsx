@@ -1,8 +1,7 @@
 /**
- * The calendar section of the sidebar (records 0099 and 0100).
+ * The calendar view of the sidebar (records 0099, 0100 and 0105).
  *
- * The first row is the month title, which shows or hides the month, and three
- * compact icon actions: Open today's note, Previous month and Next month. The
+ * The first row is the month title and three compact icon actions: Open today's note, Previous month and Next month. The
  * month is a date grid in the WAI-ARIA pattern: a table with the grid role,
  * one button for each day, and one day in the tab order at a time. The arrow
  * keys, Home, End, Page Up and Page Down move that day, and a press or Enter
@@ -12,22 +11,13 @@
  * `lib/calendar-month.ts` decides every move and every word. The title row
  * reads the row recipe and a day reads `calendarDayClassName` (record 0065).
  */
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { addMonths, sameCalendarDate, type CalendarDate } from '@notesapp/core';
 import {
   Button,
   calendarDayClassName,
   calendarNoteMarkClassName,
   CalendarDayIcon,
-  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   rowClassName,
@@ -44,42 +34,10 @@ import {
   weekdayOrder,
   type CalendarMonth,
 } from '../../lib/calendar-month.ts';
-import {
-  calendarOpenStorageKey,
-  formatCalendarOpen,
-  parseCalendarOpen,
-} from '../../lib/daily-note.ts';
 
 /** The key of one day, for a list and for the button to focus. */
 function dayKey(date: CalendarDate): string {
   return `${String(date.year)}-${String(date.month)}-${String(date.day)}`;
-}
-
-/** Whether this device shows the month, kept across reloads. */
-function useCalendarOpen(): readonly [boolean, () => void] {
-  const [open, setOpen] = useState<boolean>(() => {
-    try {
-      return parseCalendarOpen(
-        window.localStorage.getItem(calendarOpenStorageKey),
-      );
-    } catch {
-      return parseCalendarOpen(null);
-    }
-  });
-  const toggle = useCallback((): void => {
-    setOpen((current) => {
-      try {
-        window.localStorage.setItem(
-          calendarOpenStorageKey,
-          formatCalendarOpen(!current),
-        );
-      } catch {
-        // The calendar still works when browser preference storage fails.
-      }
-      return !current;
-    });
-  }, []);
-  return [open, toggle] as const;
 }
 
 /** The month of daily notes, and the way to open the note of one day. */
@@ -96,8 +54,6 @@ export function SidebarCalendar({
   readonly daysWithNotes: (month: CalendarMonth) => ReadonlySet<number>;
   readonly onOpen: (date: CalendarDate) => void;
 }): ReactNode {
-  const monthId = useId();
-  const [open, toggleOpen] = useCalendarOpen();
   const firstDay = useMemo(() => firstDayOfLocale(undefined), []);
   const [selected, setSelected] = useState<CalendarDate>(openNoteDate ?? today);
   const month = monthOf(selected);
@@ -140,22 +96,16 @@ export function SidebarCalendar({
         take a line of their own instead of cutting the month.
       */}
       <div className="flex flex-wrap items-center">
-        <button
-          type="button"
+        <h2
           className={rowClassName({
-            className: 'min-w-0 flex-1 basis-24 font-medium',
+            interactive: false,
+            className: 'm-0 min-w-0 flex-1 basis-24 font-medium',
           })}
-          aria-expanded={open}
-          aria-controls={monthId}
-          onClick={toggleOpen}
         >
-          <span className="inline-flex shrink-0 text-muted" aria-hidden="true">
-            {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
-          </span>
           <span className="truncate" aria-live="polite">
             {monthTitle(month, undefined, 'short')}
           </span>
-        </button>
+        </h2>
         <div className="ml-auto flex items-center">
           <Button
             variant="ghost"
@@ -183,87 +133,84 @@ export function SidebarCalendar({
           />
         </div>
       </div>
-      {open ? (
-        <table
-          id={monthId}
-          role="grid"
-          aria-label={monthTitle(month)}
-          className="mt-1 w-full table-fixed border-collapse"
-        >
-          <thead>
-            <tr>
-              {weekdayOrder(firstDay).map((weekday) => {
-                const names = weekdayNames(weekday);
+      <table
+        role="grid"
+        aria-label={monthTitle(month)}
+        className="mt-1 w-full table-fixed border-collapse"
+      >
+        <thead>
+          <tr>
+            {weekdayOrder(firstDay).map((weekday) => {
+              const names = weekdayNames(weekday);
+              return (
+                <th
+                  key={weekday}
+                  scope="col"
+                  abbr={names.long}
+                  className="pb-0.5 text-center text-kbd font-medium text-muted"
+                >
+                  {names.narrow}
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {weeks.map((week) => (
+            <tr key={dayKey(week[0]?.date ?? selected)}>
+              {week.map((cell) => {
+                const isSelected = sameCalendarDate(cell.date, selected);
+                const isToday = sameCalendarDate(cell.date, today);
+                const hasNote = cell.inMonth && marked.has(cell.date.day);
+                const name = dayName(cell.date);
                 return (
-                  <th
-                    key={weekday}
-                    scope="col"
-                    abbr={names.long}
-                    className="pb-0.5 text-center text-kbd font-medium text-muted"
+                  <td
+                    key={dayKey(cell.date)}
+                    className="p-px text-center"
+                    aria-selected={isSelected}
                   >
-                    {names.narrow}
-                  </th>
+                    <button
+                      ref={(node) => {
+                        const key = dayKey(cell.date);
+                        if (node === null) buttons.current.delete(key);
+                        else buttons.current.set(key, node);
+                      }}
+                      type="button"
+                      className={calendarDayClassName({
+                        selected: isSelected,
+                        today: isToday,
+                        inMonth: cell.inMonth,
+                      })}
+                      tabIndex={isSelected ? 0 : -1}
+                      aria-label={hasNote ? `${name}, has a note` : name}
+                      aria-current={isToday ? 'date' : undefined}
+                      onClick={() => openDay(cell.date)}
+                      onKeyDown={(event) => {
+                        const key = event.key;
+                        if (!isCalendarKey(key)) return;
+                        event.preventDefault();
+                        moveFocus.current = true;
+                        const shift = event.shiftKey;
+                        setSelected((date) =>
+                          dateAfterKey(date, key, firstDay, shift),
+                        );
+                      }}
+                    >
+                      {cell.date.day}
+                      {hasNote ? (
+                        <span
+                          className={calendarNoteMarkClassName()}
+                          aria-hidden="true"
+                        />
+                      ) : null}
+                    </button>
+                  </td>
                 );
               })}
             </tr>
-          </thead>
-          <tbody>
-            {weeks.map((week) => (
-              <tr key={dayKey(week[0]?.date ?? selected)}>
-                {week.map((cell) => {
-                  const isSelected = sameCalendarDate(cell.date, selected);
-                  const isToday = sameCalendarDate(cell.date, today);
-                  const hasNote = cell.inMonth && marked.has(cell.date.day);
-                  const name = dayName(cell.date);
-                  return (
-                    <td
-                      key={dayKey(cell.date)}
-                      className="p-px text-center"
-                      aria-selected={isSelected}
-                    >
-                      <button
-                        ref={(node) => {
-                          const key = dayKey(cell.date);
-                          if (node === null) buttons.current.delete(key);
-                          else buttons.current.set(key, node);
-                        }}
-                        type="button"
-                        className={calendarDayClassName({
-                          selected: isSelected,
-                          today: isToday,
-                          inMonth: cell.inMonth,
-                        })}
-                        tabIndex={isSelected ? 0 : -1}
-                        aria-label={hasNote ? `${name}, has a note` : name}
-                        aria-current={isToday ? 'date' : undefined}
-                        onClick={() => openDay(cell.date)}
-                        onKeyDown={(event) => {
-                          const key = event.key;
-                          if (!isCalendarKey(key)) return;
-                          event.preventDefault();
-                          moveFocus.current = true;
-                          const shift = event.shiftKey;
-                          setSelected((date) =>
-                            dateAfterKey(date, key, firstDay, shift),
-                          );
-                        }}
-                      >
-                        {cell.date.day}
-                        {hasNote ? (
-                          <span
-                            className={calendarNoteMarkClassName()}
-                            aria-hidden="true"
-                          />
-                        ) : null}
-                      </button>
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
+          ))}
+        </tbody>
+      </table>
     </section>
   );
 }
