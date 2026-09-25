@@ -135,6 +135,7 @@ and needs no record.
 | [0103](0103-the-browser-checks-the-spelling-of-a-note.md)                          | The browser checks the spelling of a note                                       |
 | [0104](0104-a-new-note-is-a-version-when-it-is-made.md)                            | A new note is a version when it is made                                         |
 | [0105](0105-the-sidebar-shows-one-view-at-a-time.md)                               | The sidebar shows one view at a time                                            |
+| [0106](0106-a-handle-moves-a-list-item.md)                                         | A handle moves a list item                                                      |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -404,3 +405,9 @@ together, so the note reaches the server with no edit. It refines record 0099.
 Record 0105 gives the sidebar a thin bar of view buttons, because the owner
 found the tree full with the calendar under it. The sidebar shows the tree or
 the calendar. It refines record 0100.
+
+Record 0106 answers
+[issue 172](https://github.com/bkhanale/notesapp/issues/172). A grip moves a
+list item and its children among its siblings, and two tools, the palette and
+Alt with the arrow keys do the same on every device. It refines records 0094
+and 0098.
