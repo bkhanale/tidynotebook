@@ -1,6 +1,6 @@
 # 0070. Shift and Enter writes a hard break
 
-- Status: Accepted
+- Status: Superseded by [0107](0107-a-new-line-is-a-line-break.md)
 - Date: 2026-09-20
 
 ## Context

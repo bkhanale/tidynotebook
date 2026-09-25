@@ -97,9 +97,9 @@ and needs no record.
 | [0065](0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md)                  | One recipe for a control and one grid for an icon                               |
 | [0066](0066-the-browser-suite-is-retired.md)                                       | The browser suite is retired                                                    |
 | [0067](0067-an-external-picture-loads-by-itself.md)                                | An external picture loads by itself                                             |
-| [0068](0068-a-soft-line-break-joins-its-paragraph.md)                              | A soft line break joins its paragraph in the preview                            |
+| [0068](0068-a-soft-line-break-joins-its-paragraph.md)                              | A soft line break joins its paragraph in the preview (superseded by 0107)       |
 | [0069](0069-the-note-name-is-the-last-part-of-the-breadcrumb.md)                   | The note name is the last part of the breadcrumb                                |
-| [0070](0070-shift-and-enter-writes-a-hard-break.md)                                | Shift and Enter writes a hard break                                             |
+| [0070](0070-shift-and-enter-writes-a-hard-break.md)                                | Shift and Enter writes a hard break (superseded by 0107)                        |
 | [0071](0071-the-page-states-its-appearance-to-the-browser.md)                      | The page states its appearance to the browser                                   |
 | [0072](0072-the-scrollbar-takes-the-edge-of-the-palette.md)                        | The scrollbar takes the edge of the palette                                     |
 | [0073](0073-a-save-names-the-revision-it-descends-from.md)                         | A save names the revision it descends from                                      |
@@ -136,6 +136,7 @@ and needs no record.
 | [0104](0104-a-new-note-is-a-version-when-it-is-made.md)                            | A new note is a version when it is made                                         |
 | [0105](0105-the-sidebar-shows-one-view-at-a-time.md)                               | The sidebar shows one view at a time                                            |
 | [0106](0106-a-handle-moves-a-list-item.md)                                         | A handle moves a list item                                                      |
+| [0107](0107-a-new-line-is-a-line-break.md)                                         | A new line is a line break                                                      |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -411,3 +412,8 @@ Record 0106 answers
 list item and its children among its siblings, and two tools, the palette and
 Alt with the arrow keys do the same on every device. It refines records 0094
 and 0098.
+
+Record 0107 shows a single new line as a line break on every surface, the way
+Obsidian and Notion do, because a joined paragraph reflowed each time the
+caret entered it and broke the row of a list item. Shift and Enter write a
+plain new line. It supersedes records 0068 and 0070.

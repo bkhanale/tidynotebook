@@ -1,6 +1,6 @@
 # 0068. A soft line break joins its paragraph in the preview
 
-- Status: Accepted
+- Status: Superseded by [0107](0107-a-new-line-is-a-line-break.md)
 - Date: 2026-09-18
 
 ## Context
