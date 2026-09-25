@@ -61,6 +61,7 @@ import {
 } from '@notesapp/storage-server';
 import { createDatabase, openLocalStore } from '@notesapp/storage-browser';
 import {
+  createNote,
   createSyncEngine,
   type Draft,
   type LocalStore,
@@ -344,6 +345,46 @@ async function waitFor(
 async function queuedOf(store: LocalStore, account = ownerAccountId) {
   return store.pending(account, workspaceId);
 }
+
+await test('a note that a device makes reaches the server with no edit', async () => {
+  const store = await openStore('create', 'device-create');
+  try {
+    await syncPull(store, ownerCookie, 'engine-create-pull');
+    const fileId = randomUUID();
+    // Each surface that makes a note, New note, Duplicate and a daily note,
+    // calls `createNote` and nothing after it (record 0104).
+    await createNote(
+      store,
+      draftOf(
+        ownerAccountId,
+        randomUUID(),
+        fileId,
+        null,
+        '# 2026-09-25\n',
+        'Daily notes/2026-09-25.md',
+        1,
+      ),
+    );
+    const run = startEngine(store, ownerCookie, 'engine-create');
+    try {
+      await waitFor(
+        async () => (await queuedOf(store)).length === 0,
+        'the engine sends the new note',
+      );
+    } finally {
+      await stopEngine(run);
+    }
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId },
+    });
+    assert.equal(live.error, undefined, JSON.stringify(live.error));
+    assert.equal(live.data?.path, 'Daily notes/2026-09-25.md');
+    assert.equal(live.data?.head?.text, '# 2026-09-25\n');
+  } finally {
+    await store.close();
+  }
+});
 
 await test('a later offline save joins the work it never saw', async () => {
   const file = await newFile('notes/shared.md', '# Base\n');

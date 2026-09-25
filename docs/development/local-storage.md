@@ -12,6 +12,7 @@ See [decision 0022](../decisions/0022-autosave-and-automatic-versions.md).
 | ------------------------------------------------ | ------------------------------------- |
 | `packages/sync/src/local-port.ts`                | Local record shapes and storage port  |
 | `packages/sync/src/checkpoints.ts`               | The explicit version rule             |
+| `packages/sync/src/create-note.ts`               | The one way to make a note            |
 | `packages/sync/src/engine.ts`                    | Queue push and server pull            |
 | `packages/sync/src/protocol.ts`                  | Whether client and server fit         |
 | `packages/storage-browser/src/database.ts`       | Dexie schema and row shapes           |
@@ -25,7 +26,10 @@ See [decision 0022](../decisions/0022-autosave-and-automatic-versions.md).
 
 Typing writes a draft. A version is a checkpoint on a natural boundary: a pause
 in typing, leaving the note, a hidden tab, or Ctrl + S. The timers live in
-`apps/web/src/features/editor/note-editor.tsx`.
+`apps/web/src/features/editor/note-editor.tsx`. To make a note is a boundary
+too: `packages/sync/src/create-note.ts` writes the first draft and its
+checkpoint together. See
+[decision 0104](../decisions/0104-a-new-note-is-a-version-when-it-is-made.md).
 
 A draft write is coalesced, so typing does not write once per keystroke. A
 checkpoint first finishes the current draft write, then creates one immutable

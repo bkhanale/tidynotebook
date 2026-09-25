@@ -8,6 +8,8 @@
  */
 export type { CheckpointComparison } from './checkpoints.ts';
 export { saveCheckpointMessage, shouldCheckpoint } from './checkpoints.ts';
+export type { NoteCreationStore } from './create-note.ts';
+export { createNote } from './create-note.ts';
 export type {
   AttachmentPin,
   CheckpointRecord,

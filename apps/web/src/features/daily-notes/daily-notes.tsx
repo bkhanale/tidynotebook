@@ -8,9 +8,9 @@
  * reads the stores and the server and holds no rule of its own.
  *
  * The note of a date is the live note at its path. When there is none, the
- * device makes a local draft at that path with the text of the template, as
- * New note makes an empty one, and the save model does not change (record
- * 0022). The settings come from the server, and this device keeps the last
+ * device makes the note at that path with the text of the template, as New
+ * note makes an empty one, and its create waits in the queue at once (record
+ * 0104). The settings come from the server, and this device keeps the last
  * answer in browser settings, so a start with no connection still knows them.
  */
 import {
@@ -36,7 +36,11 @@ import {
   type CalendarDate,
   type DailyNoteSettings,
 } from '@notesapp/core';
-import { isLocalStorageError, type LocalStore } from '@notesapp/sync';
+import {
+  createNote,
+  isLocalStorageError,
+  type LocalStore,
+} from '@notesapp/sync';
 import { problemMessage, useLocalStore, useSession } from '../../app.tsx';
 import { useFiles } from '../../shell/files.tsx';
 import { framePageOf } from '../../lib/breadcrumb.ts';
@@ -352,7 +356,7 @@ export function DailyNotesProvider({
             }),
           });
           try {
-            await activeStore.saveDraft(draft);
+            await createNote(activeStore, draft);
           } catch (failure: unknown) {
             setOpenProblem(
               isLocalStorageError(failure) && failure.kind === 'quota'

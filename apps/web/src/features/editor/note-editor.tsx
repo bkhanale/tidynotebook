@@ -25,6 +25,7 @@ import { finalizeAttachment, uploadAttachment } from '@notesapp/api-client';
 import { generateUUID } from '@notesapp/core';
 import { classifyUrl, portableRelativePath } from '@notesapp/markdown';
 import {
+  createNote,
   isLocalStorageError,
   saveCheckpointMessage,
   type Draft,
@@ -1199,7 +1200,7 @@ function NoteEditorBody({
     };
     void (async (): Promise<void> => {
       try {
-        await current.store.saveDraft(copy);
+        await createNote(current.store, copy);
       } catch (failure: unknown) {
         setStorageError(
           isLocalStorageError(failure) ? failure.kind : 'aborted',

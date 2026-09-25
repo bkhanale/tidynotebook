@@ -34,6 +34,9 @@ local search, and local backlinks.
 - A whole-file action is one port operation, `moveFiles` or `trashFiles`, and
   never a draft that a caller composes. The path and the deletion state live on
   every working copy, so one transaction rewrites them all (record 0032).
+- To make a note is `createNote` in `src/create-note.ts`: the first draft and
+  its checkpoint go together, so the create waits in the queue at once. No
+  caller writes the first draft of a note alone (record 0104).
 - No IndexedDB and no Dexie code lives here. No React and no screen lives
   here.
 
@@ -83,4 +86,5 @@ against a real database is covered by
 | `src/engine.ts`      | The send loop, ordering, and retries     |
 | `src/lease.ts`       | The single sender lease                  |
 | `src/checkpoints.ts` | When a save becomes a checkpoint         |
+| `src/create-note.ts` | The one way to make a note               |
 | `src/protocol.ts`    | Whether client and server protocols fit  |

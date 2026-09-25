@@ -1,10 +1,10 @@
 /**
  * Creating a note without loading the editor implementation.
  *
- * A new note starts as an empty local draft in the store, and the router then
- * opens the editor with the handoff state. The first Save submits the
- * creation. Until then the note lives only on this device, and the tree marks
- * it as such. The rules of the draft itself live in `new-note-draft.ts`.
+ * A new note starts as an empty draft in the store, and its create waits in
+ * the queue at once, so it reaches the server with no edit (record 0104). The
+ * router then opens the editor with the handoff state. The rules of the draft
+ * itself live in `new-note-draft.ts`.
  *
  * This module holds the hook and no button. The one action of a screen sits in
  * the screen and appears once (decision 0062), so the note list renders its own
@@ -13,7 +13,11 @@
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { generateUUID } from '@notesapp/core';
-import { isLocalStorageError, type LocalStore } from '@notesapp/sync';
+import {
+  createNote,
+  isLocalStorageError,
+  type LocalStore,
+} from '@notesapp/sync';
 import { freeNotePath, newNoteDraft } from '../../lib/new-note-draft.ts';
 import { displayNoteName } from '../../lib/note-name.ts';
 
@@ -53,7 +57,7 @@ export function useCreateNote(
           ids: { fileId, workingCopyId: generateUUID() },
         });
         try {
-          await store.saveDraft(draft);
+          await createNote(store, draft);
         } catch (failure: unknown) {
           setError(
             isLocalStorageError(failure) && failure.kind === 'quota'

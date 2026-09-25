@@ -23,6 +23,7 @@
 import type { AcceptedChangeset, ChangesetInput } from '@notesapp/core';
 import { generateUUID } from '@notesapp/core';
 import type { Draft, LocalStore, QueueEntry } from './local-port.ts';
+import { createNote } from './create-note.ts';
 import type { ProtocolFit } from './protocol.ts';
 
 /** A stable service failure: HTTP status, application code, and file IDs. */
@@ -394,8 +395,7 @@ async function keepAsRecoveredNote(
     deleted: false,
     sequence: 1,
   };
-  await local.saveDraft(draft);
-  await local.checkpoint(draft, null);
+  await createNote(local, draft);
 }
 
 /**
