@@ -892,7 +892,7 @@ export function AccountSettingsPage(): ReactNode {
         <SettingsSection
           title="Account"
           titleId="profile-heading"
-          description="This installation has one account, and it owns every note."
+          description="Your account owns every note in your workspaces. No other account can read them."
         >
           <p className="m-0 text-ui text-strong">
             {account.email ?? 'No address linked'}
