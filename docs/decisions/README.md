@@ -137,6 +137,20 @@ and needs no record.
 | [0105](0105-the-sidebar-shows-one-view-at-a-time.md)                               | The sidebar shows one view at a time                                            |
 | [0106](0106-a-handle-moves-a-list-item.md)                                         | A handle moves a list item                                                      |
 | [0107](0107-a-new-line-is-a-line-break.md)                                         | A new line is a line break                                                      |
+| [0108](0108-an-account-comes-in-through-one-registration-path.md)                  | An account comes in through one registration path                               |
+| [0109](0109-the-installation-role-grants-no-workspace-access.md)                   | The installation role grants no workspace access                                |
+| [0110](0110-an-installation-keeps-one-enabled-administrator.md)                    | An installation keeps one enabled administrator                                 |
+| [0111](0111-a-removed-account-leaves-a-tombstone.md)                               | A removed account leaves a tombstone                                            |
+| [0112](0112-the-owner-account-holds-the-storage-quota.md)                          | The owner account holds the storage quota                                       |
+| [0113](0113-a-browser-serves-the-account-of-its-session.md)                        | A browser serves the account of its session                                     |
+| [0114](0114-open-registration-verifies-the-address-before-the-first-session.md)    | Open registration verifies the address before the first session                 |
+| [0115](0115-a-sign-up-pays-a-proof-of-work-that-this-server-issues.md)             | A sign-up pays a proof of work that this server issues                          |
+| [0116](0116-one-password-policy-follows-nist-800-63b-revision-4.md)                | One password policy follows NIST SP 800-63B revision 4                          |
+| [0117](0117-a-person-manages-their-own-sessions.md)                                | A person manages their own sessions                                             |
+| [0118](0118-a-published-page-of-a-public-installation-has-its-own-origin.md)       | A published page of a public installation has its own origin                    |
+| [0119](0119-a-report-reaches-an-administrator-who-can-take-a-link-down.md)         | A report reaches an administrator who can take a link down                      |
+| [0120](0120-an-account-records-the-legal-documents-it-accepted.md)                 | An account records the legal documents it accepted                              |
+| [0121](0121-every-limit-and-every-job-holds-across-server-processes.md)            | Every limit and every job holds across server processes                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -417,3 +431,24 @@ Record 0107 shows a single new line as a line break on every surface, the way
 Obsidian and Notion do, because a joined paragraph reflowed each time the
 caret entered it and broke the row of a list item. Shift and Enter write a
 plain new line. It supersedes records 0068 and 0070.
+
+Records 0108 to 0113 follow
+[design 015](../design/015-several-accounts-on-one-installation.md), which lets
+one installation serve several isolated accounts. Record 0108 makes one
+database function the only way an account comes in, through an invitation or
+an open policy. Record 0109 adds an installation role that grants no workspace
+access. Record 0110 keeps one enabled administrator. Record 0111 makes removal
+an operation that leaves a tombstone, and it refines record 0051. Record 0112
+moves the storage limit to the owner account and fixes the lock order. Record
+0113 makes a browser serve only the account of its session.
+
+Records 0114 to 0121 follow [design 016](../design/016-a-public-service.md),
+which lets a stranger sign up on a public installation. Record 0114 verifies
+the address before the first session and hides whether an address has an
+account. Record 0115 makes a sign-up pay a proof of work that this server
+issues, with no third party. Record 0116 gives the password one rule from NIST
+SP 800-63B revision 4 and a breach check. Record 0117 lets a person manage
+their own sessions. Record 0118 gives published pages their own origin, and it
+refines records 0039 and 0031. Record 0119 adds a report and a takedown.
+Record 0120 records the legal documents that an account accepted. Record 0121
+makes every limit and every job hold across server processes.
