@@ -2,8 +2,8 @@
  * The note list of one open area.
  *
  * The screen has one job and one primary button for it. New note sits in the
- * page header, where the one action of a route belongs (decision 0062), and
- * the sidebar holds a row instead of a second filled button.
+ * empty state when there are no notes, and in the page header otherwise
+ * (decision 0062). The sidebar holds a row instead of a second filled button.
  *
  * The notes group by how recently they changed. A group label is a quiet
  * heading in sentence case, and the rows under it separate by space and by
@@ -34,6 +34,7 @@ import { useFiles } from '../../shell/files.tsx';
 import { useCreateNote } from './new-note.tsx';
 import { groupNotesByRecency } from '../../lib/note-groups.ts';
 import { noteRowMeta } from '../../lib/note-row.ts';
+import { showNewNoteInHeader } from '../../lib/notes-home-action.ts';
 
 /** The quiet heading of one time band of the list. */
 const groupLabelClassName =
@@ -64,13 +65,15 @@ export function NotesHomeView(): ReactNode {
         title="All notes"
         description={`${String(total)} ${total === 1 ? 'note' : 'notes'}`}
         actions={
-          <Button
-            icon={<PlusIcon />}
-            disabled={store.store === null}
-            onClick={() => newNote.create()}
-          >
-            New note
-          </Button>
+          showNewNoteInHeader(files.loading, total) ? (
+            <Button
+              icon={<PlusIcon />}
+              disabled={store.store === null}
+              onClick={() => newNote.create()}
+            >
+              New note
+            </Button>
+          ) : undefined
         }
       />
       {newNote.error === null ? null : (
