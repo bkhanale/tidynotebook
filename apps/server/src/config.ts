@@ -215,7 +215,7 @@ const variables = [
  * treated as absent, so a placeholder in a Compose file cannot enable a half
  * configured transport and cannot grant trust that nobody named.
  */
-const optionalVariables = [
+export const optionalVariables = [
   'NOTESAPP_ADDITIONAL_ORIGINS',
   'NOTESAPP_HOST',
   'NOTESAPP_PORT',

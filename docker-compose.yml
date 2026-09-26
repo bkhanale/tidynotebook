@@ -75,6 +75,9 @@ services:
       NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: ${NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS:-}
       NOTESAPP_RATE_LIMIT_WINDOW_S: ${NOTESAPP_RATE_LIMIT_WINDOW_S:-60}
       NOTESAPP_RATE_LIMIT_MAX: ${NOTESAPP_RATE_LIMIT_MAX:-100}
+      # The life of one session, in seconds. An empty value keeps the default
+      # that apps/server/src/config.ts states.
+      NOTESAPP_SESSION_MAX_AGE_S: ${NOTESAPP_SESSION_MAX_AGE_S:-}
       NOTESAPP_HOST: 0.0.0.0
       NOTESAPP_PORT: 3000
       # The proxies whose forwarded headers this installation believes. An
@@ -86,6 +89,11 @@ services:
       # apps/server/src/config.ts states.
       NOTESAPP_SHUTDOWN_GRACE_MS: ${NOTESAPP_SHUTDOWN_GRACE_MS:-}
       NOTESAPP_SHUTDOWN_DEADLINE_MS: ${NOTESAPP_SHUTDOWN_DEADLINE_MS:-}
+      # The storage limit of a new account, in bytes, and the life of a new
+      # invitation, in hours. An empty value keeps the default that
+      # apps/server/src/config.ts states.
+      NOTESAPP_ACCOUNT_LIMIT_BYTES: ${NOTESAPP_ACCOUNT_LIMIT_BYTES:-}
+      NOTESAPP_INVITATION_LIFETIME_HOURS: ${NOTESAPP_INVITATION_LIFETIME_HOURS:-}
     secrets:
       - runtime_database_url
       - auth_database_url

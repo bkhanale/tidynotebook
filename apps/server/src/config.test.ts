@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import test from 'node:test';
-import { ConfigError, loadServerConfig, mebibyte } from './config.ts';
+import {
+  ConfigError,
+  loadServerConfig,
+  mebibyte,
+  optionalVariables,
+} from './config.ts';
 
 const valid: Record<string, string> = {
   NOTESAPP_ORIGIN: 'http://127.0.0.1',
@@ -368,5 +374,22 @@ await test('a configuration error never repeats a rejected value', () => {
   } catch (error) {
     assert.ok(error instanceof ConfigError);
     assert.equal(error.message.includes('super-secret'), false);
+  }
+});
+
+await test('every optional setting reaches the container of the Compose file', async () => {
+  // The Compose file passes a closed list of variables to the application.
+  // A setting that the server reads and the list leaves out does nothing in a
+  // container, whatever the operator writes in .env. The mail transport is
+  // the one exception: its URL is a secret, so an operator override adds it
+  // with the sender, as the self-hosting guide states.
+  const compose = await readFile(
+    new URL('../../../docker-compose.yml', import.meta.url),
+    'utf8',
+  );
+  const byOverride = ['NOTESAPP_SMTP_URL', 'NOTESAPP_MAIL_FROM'];
+  for (const name of optionalVariables) {
+    if (byOverride.includes(name)) continue;
+    assert.match(compose, new RegExp(`^ +${name}:`, 'm'), name);
   }
 });
