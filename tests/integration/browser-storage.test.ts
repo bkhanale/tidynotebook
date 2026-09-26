@@ -2928,6 +2928,136 @@ await test('sign-out leaves no document of a note on the device', async () => {
   }
 });
 
+await test('a sign-in deletes the idle data of every other account', async () => {
+  // Record 0113. A shared device keeps no private data of an absent account,
+  // except the partitions that hold work, which wait for their account.
+  const backend = createBackend('idle-accounts');
+  const store = await openLocalStore(origin, backend.options());
+  const elsewhere = await openLocalStore(
+    'https://other.example.test',
+    backend.options({ id: createIds('elsewhere') }),
+  );
+  const signedIn = randomUUID();
+  const absent = randomUUID();
+  const withRecovery = randomUUID();
+  const withTyping = randomUUID();
+  const settingsOnly = randomUUID();
+  const idle = randomUUID();
+  const queued = randomUUID();
+  const recovered = randomUUID();
+  const typed = randomUUID();
+  const own = randomUUID();
+  const idleFile = randomUUID();
+  const typedFile = randomUUID();
+  const resets: LocalChange[] = [];
+  const unsubscribe = store.subscribe((change) => {
+    if (change.kind === 'reset') resets.push(change);
+  });
+  try {
+    // A saved note that reached the server holds no work.
+    const saved = draftOf(absent, idle, idleFile, 'copy-idle', 'saved\n');
+    await store.saveDraft(saved);
+    await store.acknowledge(
+      absent,
+      acceptanceOf(await store.checkpoint(saved, null), absent, '1'),
+    );
+    await store.setAttachmentPinned(absent, idle, 'b'.repeat(64), true);
+    // A save that waits for the server is work.
+    const waiting = draftOf(absent, queued, randomUUID(), 'copy-q', 'queued\n');
+    await store.saveDraft(waiting);
+    await store.checkpoint(waiting, null);
+    // Kept text of the recovery area is work.
+    await store.addRecovery(withRecovery, recovered, {
+      fileId: randomUUID(),
+      path: 'notes/kept.md',
+      text: 'kept\n',
+      reason: 'save_refused',
+    });
+    // Text that was typed after the last version is work.
+    const typing = draftOf(withTyping, typed, typedFile, 'copy-t', 'saved\n');
+    await store.saveDraft(typing);
+    await store.acknowledge(
+      withTyping,
+      acceptanceOf(await store.checkpoint(typing, null), withTyping, '1'),
+    );
+    await store.saveDraft({ ...typing, text: 'saved\ntyped\n', sequence: 2 });
+    // An account that signed out offline keeps its marker and nothing else.
+    await store.setSignOutMarker(settingsOnly);
+    await withRawDatabase(backend, async (tables) => {
+      await tables.preferences.put({
+        serverOrigin: origin,
+        accountId: settingsOnly,
+        workspaceId: '',
+        name: 'theme',
+        value: 'dark',
+      });
+    });
+    // The data of the signed-in account and of another installation stay.
+    const mine = draftOf(signedIn, own, randomUUID(), 'copy-own', 'mine\n');
+    await store.saveDraft(mine);
+    await store.acknowledge(
+      signedIn,
+      acceptanceOf(await store.checkpoint(mine, null), signedIn, '1'),
+    );
+    const theirs = draftOf(absent, idle, idleFile, 'copy-else', 'other\n');
+    await elsewhere.saveDraft(theirs);
+    await elsewhere.acknowledge(
+      absent,
+      acceptanceOf(await elsewhere.checkpoint(theirs, null), absent, '1'),
+    );
+
+    const kept = await store.clearIdleAccounts(signedIn);
+
+    assert.deepEqual(
+      [...kept].sort(),
+      [absent, withRecovery, withTyping].sort(),
+    );
+    // The idle partition is gone, with its text and its document.
+    assert.deepEqual(await store.listLocalFiles(absent, idle), []);
+    assert.equal(await store.readDraft(absent, idle, 'copy-idle'), null);
+    assert.equal(await store.readNoteDocument(absent, idle, idleFile), null);
+    assert.equal(
+      await store.isAttachmentPinned(absent, idle, 'b'.repeat(64)),
+      false,
+    );
+    assert.deepEqual(resets, [
+      { accountId: absent, workspaceId: idle, fileId: null, kind: 'reset' },
+    ]);
+    // Every partition with work stays as it was.
+    assert.equal((await store.pending(absent, queued)).length, 1);
+    assert.equal((await store.recover(withRecovery, recovered)).length, 1);
+    assert.equal(
+      (await store.readDraft(withTyping, typed, 'copy-t'))?.text,
+      'saved\ntyped\n',
+    );
+    assert.ok(
+      (await store.readNoteDocument(withTyping, typed, typedFile)) !== null,
+    );
+    // The settings of an account with no work go, and its marker stays, so
+    // the next start of that account still revokes the old session first.
+    assert.equal(await store.hasSignOutMarker(settingsOnly), true);
+    await withRawDatabase(backend, async (tables) => {
+      assert.equal(
+        await tables.preferences.get([origin, settingsOnly, '', 'theme']),
+        undefined,
+      );
+    });
+    // Nothing of the signed-in account or of another installation moved.
+    assert.equal((await store.listLocalFiles(signedIn, own)).length, 1);
+    assert.equal((await elsewhere.listLocalFiles(absent, idle)).length, 1);
+    // A second sign-in finds nothing more to delete.
+    assert.deepEqual(
+      [...(await store.clearIdleAccounts(signedIn))].sort(),
+      [absent, withRecovery, withTyping].sort(),
+    );
+    assert.equal(resets.length, 1);
+  } finally {
+    unsubscribe();
+    await elsewhere.close();
+    await store.close();
+  }
+});
+
 await test('a store of release 0.5.0 keeps its drafts and reads a snapshot again', async () => {
   // Only the step from release 0.4 marks drafts. A draft of 0.5 holds work
   // that its document already holds, and a three-way join would refuse it.

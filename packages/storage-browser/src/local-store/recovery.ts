@@ -5,6 +5,8 @@
  * change data that other views must learn about. `clearPrivateData` erases
  * one workspace partition or a whole account on sign-out, but keeps the
  * account-wide sign-out marker so reconnect sees it first.
+ * `clearIdleAccounts` erases the partitions of absent accounts that hold no
+ * work when another account signs in (record 0113).
  */
 import {
   LocalStorageError,
@@ -13,7 +15,7 @@ import {
   type RecoveryInput,
   type RecoveryRecord,
 } from '@notesapp/sync';
-import { guard, partitionRange } from '../database.ts';
+import { guard, partitionRange, type Tables } from '../database.ts';
 import {
   validateAcceptedFile,
   validateCheckpoint,
@@ -35,6 +37,7 @@ import {
   validateLegacySave,
 } from '../legacy-records.ts';
 import {
+  draftHoldsWork,
   matchesAccount,
   matchesPartition,
   signOutMarkerName,
@@ -45,8 +48,32 @@ import { forgetReviews } from './reviews.ts';
 
 type RecoverySlice = Pick<
   LocalStore,
-  'recover' | 'addRecovery' | 'removeRecovery' | 'clearPrivateData'
+  | 'recover'
+  | 'addRecovery'
+  | 'removeRecovery'
+  | 'clearPrivateData'
+  | 'clearIdleAccounts'
 >;
+
+/** Every table that holds private rows, which a reset writes in one go. */
+const privateTables = (tables: Tables) => [
+  tables.drafts,
+  tables.checkpoints,
+  tables.contents,
+  tables.acceptedFiles,
+  tables.queue,
+  tables.receipts,
+  tables.stagedSnapshots,
+  tables.snapshotItems,
+  tables.cursors,
+  tables.preferences,
+  tables.recovery,
+  tables.documents,
+  tables.legacySaves,
+  tables.legacyBases,
+  tables.legacyDrafts,
+  tables.reviews,
+];
 
 export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
   const { serverOrigin, db, tables, nowIso, newId, publish } = ctx;
@@ -235,16 +262,17 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
     workspaces.delete(accountWide);
     for (const workspaceId of workspaces)
       await clearWorkspacePartition(accountId, workspaceId);
-    // Any leftover account-wide preference other than the marker goes too.
+    await clearAccountWideSettings(accountId);
+    return [...workspaces];
+  };
+
+  /** Deletes the account-wide settings of one account, keeping the marker. */
+  const clearAccountWideSettings = async (accountId: string): Promise<void> => {
     for (const row of await tables.preferences.toArray()) {
       const parsed = validatePreference(row);
       if (!matchesAccount(ctx, parsed, accountId)) continue;
-      if (
-        parsed.workspaceId === accountWide &&
-        parsed.name === signOutMarkerName
-      )
-        continue;
       if (parsed.workspaceId !== accountWide) continue;
+      if (parsed.name === signOutMarkerName) continue;
       await tables.preferences.delete([
         parsed.serverOrigin,
         parsed.accountId,
@@ -252,7 +280,81 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
         parsed.name,
       ]);
     }
-    return [...workspaces];
+  };
+
+  /**
+   * The partitions of this origin that other accounts hold, by account.
+   *
+   * Only the keys are read, so the text of a note does not leave the disk
+   * for a partition that is only counted. The account-wide part of an
+   * account is in the answer as `accountWide`.
+   */
+  const partitionsOfOthers = async (
+    signedInAccountId: string,
+  ): Promise<Map<string, Set<string>>> => {
+    const keyLists: readonly (readonly (readonly string[])[])[] =
+      await Promise.all(
+        privateTables(tables).map((table) =>
+          table.toCollection().primaryKeys(),
+        ),
+      );
+    const partitions = new Map<string, Set<string>>();
+    for (const keys of keyLists)
+      for (const [keyOrigin, accountId, workspaceId] of keys) {
+        if (keyOrigin !== serverOrigin) continue;
+        if (accountId === undefined || workspaceId === undefined) continue;
+        if (accountId === signedInAccountId) continue;
+        const workspaces = partitions.get(accountId) ?? new Set<string>();
+        workspaces.add(workspaceId);
+        partitions.set(accountId, workspaces);
+      }
+    return partitions;
+  };
+
+  /**
+   * Whether one partition holds work that has not reached the server.
+   *
+   * A queued save in any state, kept text of the recovery area, and work of
+   * release 0.4 that waits for placement each count, and so does a draft whose
+   * text no version holds (`draftHoldsWork`).
+   */
+  const partitionHoldsWork = async (
+    accountId: string,
+    workspaceId: string,
+  ): Promise<boolean> => {
+    const range = partitionRange(serverOrigin, accountId, workspaceId);
+    const counted = [
+      tables.queue.where('[serverOrigin+accountId+workspaceId+mutationId]'),
+      tables.recovery.where('[serverOrigin+accountId+workspaceId+recoveryId]'),
+      tables.legacySaves.where(
+        '[serverOrigin+accountId+workspaceId+mutationId]',
+      ),
+      tables.legacyDrafts.where(
+        '[serverOrigin+accountId+workspaceId+workingCopyId]',
+      ),
+    ];
+    for (const clause of counted)
+      if (
+        (await clause.between(range.lower, range.upper, true, true).count()) > 0
+      )
+        return true;
+    const drafts: unknown[] = await tables.drafts
+      .where('[serverOrigin+accountId+workspaceId+workingCopyId]')
+      .between(range.lower, range.upper, true, true)
+      .toArray();
+    for (const row of drafts) {
+      const draft = validateDraft(row);
+      const storedFile: unknown = await tables.acceptedFiles.get([
+        serverOrigin,
+        accountId,
+        workspaceId,
+        draft.fileId,
+      ]);
+      const file =
+        storedFile === undefined ? null : validateAcceptedFile(storedFile);
+      if (await draftHoldsWork(ctx, draft, file)) return true;
+    }
+    return false;
   };
 
   return {
@@ -358,35 +460,14 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
       workspaceId?: string,
     ): Promise<void> {
       const clearedWorkspaces = await guard('clearing private local data', () =>
-        db.transaction(
-          'rw',
-          [
-            tables.drafts,
-            tables.checkpoints,
-            tables.contents,
-            tables.acceptedFiles,
-            tables.queue,
-            tables.receipts,
-            tables.stagedSnapshots,
-            tables.snapshotItems,
-            tables.cursors,
-            tables.preferences,
-            tables.recovery,
-            tables.documents,
-            tables.legacySaves,
-            tables.legacyBases,
-            tables.legacyDrafts,
-            tables.reviews,
-          ],
-          async () => {
-            if (workspaceId === undefined) {
-              return clearAccountPartition(accountId);
-            } else {
-              await clearWorkspacePartition(accountId, workspaceId);
-              return [workspaceId];
-            }
-          },
-        ),
+        db.transaction('rw', privateTables(tables), async () => {
+          if (workspaceId === undefined) {
+            return clearAccountPartition(accountId);
+          } else {
+            await clearWorkspacePartition(accountId, workspaceId);
+            return [workspaceId];
+          }
+        }),
       );
       for (const clearedWorkspaceId of clearedWorkspaces)
         publish({
@@ -395,6 +476,38 @@ export function createRecoverySlice(ctx: LocalStoreContext): RecoverySlice {
           fileId: null,
           kind: 'reset',
         });
+    },
+
+    async clearIdleAccounts(
+      signedInAccountId: string,
+    ): Promise<readonly string[]> {
+      const outcome = await guard('clearing the data of absent accounts', () =>
+        db.transaction('rw', privateTables(tables), async () => {
+          const kept: string[] = [];
+          const cleared: { accountId: string; workspaceId: string }[] = [];
+          const partitions = await partitionsOfOthers(signedInAccountId);
+          for (const [accountId, workspaces] of partitions) {
+            let keeps = false;
+            for (const workspaceId of workspaces) {
+              if (workspaceId === accountWide) continue;
+              if (await partitionHoldsWork(accountId, workspaceId)) {
+                keeps = true;
+                continue;
+              }
+              await clearWorkspacePartition(accountId, workspaceId);
+              cleared.push({ accountId, workspaceId });
+            }
+            // The settings of an account follow its last partition, so an
+            // account whose work waits here opens with its own settings.
+            if (keeps) kept.push(accountId);
+            else await clearAccountWideSettings(accountId);
+          }
+          return { kept, cleared };
+        }),
+      );
+      for (const { accountId, workspaceId } of outcome.cleared)
+        publish({ accountId, workspaceId, fileId: null, kind: 'reset' });
+      return outcome.kept;
     },
   };
 }

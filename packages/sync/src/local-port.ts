@@ -1094,6 +1094,23 @@ export type LocalStore = {
    */
   clearPrivateData(accountId: string, workspaceId?: string): Promise<void>;
 
+  /**
+   * Deletes the private data of every other account of this origin that
+   * holds no work, when one account signs in (record 0113).
+   *
+   * A partition holds work when it has a queued save in any state, a
+   * recovery record, a save or a draft of release 0.4 that waits for
+   * placement, or a draft whose text no checkpoint holds. Such a partition
+   * stays, out of view, until its own account signs in or signs out. Every
+   * other partition of another account goes, as `clearPrivateData` removes
+   * one, and so do the account-wide settings of an account that keeps no
+   * partition. The sign-out marker and the device identity survive.
+   *
+   * The check and the deletion are one transaction, so no write of another
+   * tab lands between them. Answers the accounts that keep a partition.
+   */
+  clearIdleAccounts(signedInAccountId: string): Promise<readonly string[]>;
+
   /** The current sync worker lease, or `null` when none is stored. */
   readLeaseState(): Promise<{
     readonly ownerId: string;

@@ -1023,6 +1023,28 @@ export function useBackgroundSync(
   }, [store, accountId, backgroundKey, syncSession]);
 }
 
+/**
+ * Deletes the idle data of every other account when an account signs in.
+ *
+ * One browser profile serves the account of its session (record 0113). The
+ * partitions of an absent account that hold no work leave the device, and a
+ * partition with work waits out of view for its own account. Only an account
+ * that the server confirmed counts: a start with no connection reads the
+ * cached account, and the cookie of the browser may name another one.
+ */
+export function useIdleAccountReset(
+  store: LocalStore | null,
+  confirmedAccountId: string | null,
+): void {
+  useEffect(() => {
+    if (store === null || confirmedAccountId === null) return;
+    void store.clearIdleAccounts(confirmedAccountId).catch(() => {
+      // The data stays until the next sign-in tries again. A failed reset
+      // takes nothing from the person who is signed in.
+    });
+  }, [store, confirmedAccountId]);
+}
+
 const SyncContext = createContext<SyncValue>({
   state: startingSyncState,
   noteName: null,
@@ -1092,6 +1114,12 @@ export function AppProviders({
     session.account?.accountId ?? null,
     workspaceState.status === 'ready' ? workspaceState.workspaceId : null,
     syncSession,
+  );
+  useIdleAccountReset(
+    storeValue.store,
+    session.status === 'signed-in' && session.error === null
+      ? (session.account?.accountId ?? null)
+      : null,
   );
 
   const refresh = useCallback(() => {

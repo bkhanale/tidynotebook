@@ -21,12 +21,12 @@ import {
 } from '../database.ts';
 import {
   validateAcceptedFile,
-  validateCheckpoint,
   validateContent,
   validateDraft,
   validateQueueRow,
 } from '../migrations.ts';
 import {
+  draftHoldsWork,
   draftLeads,
   matchesPartition,
   type LocalStoreContext,
@@ -182,50 +182,8 @@ export function createFilesSlice(ctx: LocalStoreContext): FilesSlice {
               storedFile === undefined
                 ? null
                 : validateAcceptedFile(storedFile);
-            let hasUncheckpointedDraft = draft !== undefined;
-            if (draft?.lastCheckpointId !== null && draft !== undefined) {
-              const storedCheckpoint: unknown = await tables.checkpoints.get([
-                serverOrigin,
-                accountId,
-                workspaceId,
-                draft.lastCheckpointId,
-              ]);
-              if (storedCheckpoint !== undefined) {
-                const checkpoint = validateCheckpoint(storedCheckpoint);
-                const storedContent: unknown = await tables.contents.get([
-                  serverOrigin,
-                  accountId,
-                  workspaceId,
-                  checkpoint.digest,
-                ]);
-                const content =
-                  storedContent === undefined
-                    ? null
-                    : validateContent(storedContent);
-                hasUncheckpointedDraft =
-                  content?.text !== draft.text ||
-                  checkpoint.path !== draft.path ||
-                  checkpoint.deleted !== draft.deleted;
-              } else if (
-                file?.acceptedHeadRevisionId === draft.lastCheckpointId &&
-                file.acceptedHeadDigest !== null
-              ) {
-                const storedContent: unknown = await tables.contents.get([
-                  serverOrigin,
-                  accountId,
-                  workspaceId,
-                  file.acceptedHeadDigest,
-                ]);
-                const content =
-                  storedContent === undefined
-                    ? null
-                    : validateContent(storedContent);
-                hasUncheckpointedDraft =
-                  content?.text !== draft.text ||
-                  file.path !== draft.path ||
-                  file.deleted !== draft.deleted;
-              }
-            }
+            const hasUncheckpointedDraft =
+              draft !== undefined && (await draftHoldsWork(ctx, draft, file));
             // The newest statement of this device: the leading working copy,
             // else the file row. The open editor reads both, so a path or a
             // deletion that another surface wrote reaches it.

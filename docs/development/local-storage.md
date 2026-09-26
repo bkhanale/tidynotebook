@@ -105,6 +105,16 @@ starts, and a Web Lock proves that no tab is still open. A step that fails
 keeps the text of every tab. See
 [decision 0086](../decisions/0086-protocol-upgrades-precede-the-breaking-sync-format.md).
 
+## Accounts on one browser
+
+One browser profile holds one session cookie, so it serves the account of that
+session. The session check of `packages/sync/src/engine.ts` compares the two
+accounts. On a difference the engine pauses and keeps its queue in place. When
+the server confirms an account, `clearIdleAccounts` deletes each partition of
+another account that holds no work. `draftHoldsWork` in
+`src/local-store/shared.ts` states what unsaved text is. See
+[decision 0113](../decisions/0113-a-browser-serves-the-account-of-its-session.md).
+
 ## Storage failures
 
 Every local method reports a failure kind: the transaction did not commit, the

@@ -488,6 +488,10 @@ class FakeStore implements LocalStore {
     return Promise.resolve();
   }
 
+  clearIdleAccounts(): Promise<readonly string[]> {
+    return Promise.reject(new Error('the engine never clears other accounts'));
+  }
+
   clearPrivateData(account: string, workspace?: string): Promise<void> {
     if (workspace === undefined) {
       this.entries.clear();

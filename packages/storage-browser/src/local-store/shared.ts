@@ -92,6 +92,62 @@ export function draftLeads(
 }
 
 /**
+ * Whether one draft holds text that no version of this device holds.
+ *
+ * A draft that names no checkpoint holds work. A draft that names one holds
+ * work when its text, its path, or its deletion state differs from that
+ * checkpoint, or from the accepted head when the checkpoint is gone and the
+ * accepted head is that revision. A draft whose version this device cannot
+ * read at all counts as work, because text that cannot be compared must not
+ * be taken for text that is safe.
+ *
+ * The save state of a note and the private-data reset of an absent account
+ * both read this rule, so what counts as unsaved text is one fact. The caller
+ * runs inside a transaction that covers the checkpoints and the contents.
+ */
+export const draftHoldsWork = async (
+  ctx: LocalStoreContext,
+  draft: DraftRow,
+  file: FileRow | null,
+): Promise<boolean> => {
+  if (draft.lastCheckpointId === null) return true;
+  const { tables } = ctx;
+  const readText = async (digest: string): Promise<string | null> => {
+    const stored: unknown = await tables.contents.get([
+      draft.serverOrigin,
+      draft.accountId,
+      draft.workspaceId,
+      digest,
+    ]);
+    return stored === undefined ? null : validateContent(stored).text;
+  };
+  const storedCheckpoint: unknown = await tables.checkpoints.get([
+    draft.serverOrigin,
+    draft.accountId,
+    draft.workspaceId,
+    draft.lastCheckpointId,
+  ]);
+  if (storedCheckpoint !== undefined) {
+    const checkpoint = validateCheckpoint(storedCheckpoint);
+    return (
+      (await readText(checkpoint.digest)) !== draft.text ||
+      checkpoint.path !== draft.path ||
+      checkpoint.deleted !== draft.deleted
+    );
+  }
+  if (
+    file?.acceptedHeadRevisionId === draft.lastCheckpointId &&
+    file.acceptedHeadDigest !== null
+  )
+    return (
+      (await readText(file.acceptedHeadDigest)) !== draft.text ||
+      file.path !== draft.path ||
+      file.deleted !== draft.deleted
+    );
+  return true;
+};
+
+/**
  * The accepted revision that one submitted parent chain descends from.
  *
  * A submission states two things about its place in history: `parents` names
