@@ -1,0 +1,31 @@
+# 0117. A person manages their own sessions
+
+- Status: Accepted
+- Date: 2026-09-26
+
+## Context
+
+`authRoutes` in `apps/server/src/auth/better-auth.ts` mounts sign-in, sign-out,
+the session read and password reset. A person cannot see where they are signed
+in, and cannot sign out a lost device. A public service must offer both. See
+[design 016](../design/016-a-public-service.md).
+
+## Decision
+
+The account settings list the sessions of the person, with the device, the
+last activity and the approximate place from the client address. The person can
+sign out one session, or every session but the current one.
+
+The list, the revoke of one session and the revoke of the others are Better
+Auth routes. Each one joins `authRoutes` and the contract fragment of
+`tools/sdk-codegen/src/auth-contract.ts`. The session token stays out of every
+answer, as `withoutSessionToken` already makes true.
+
+A password change revokes every other session.
+
+## Consequences
+
+- A person can act on a lost or shared device from another device.
+- The reviewed route list grows by three routes.
+- An integration test proves that a revoked session gets no actor and that no
+  answer holds a token.
