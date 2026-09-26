@@ -105,9 +105,116 @@ export type Account = {
      */
     readonly name?: string | null;
     /**
+     * The role of the account in the installation.
+     */
+    readonly installationRole: InstallationRole;
+    /**
+     * The usage and the limit of the account.
+     */
+    readonly storage: AccountStorage;
+    /**
      * The stored settings of the account.
      */
     readonly preferences: Preferences;
+};
+
+/**
+ * Every account of the installation.
+ */
+export type AccountList = {
+    /**
+     * The accounts, in the order in which they were made.
+     */
+    readonly accounts: Array<AccountSummary>;
+};
+
+/**
+ * The password of the account that removes itself.
+ */
+export type AccountRemovalInput = {
+    /**
+     * The current password of the account.
+     */
+    password: string;
+};
+
+/**
+ * Whether an account can sign in. A disabled account keeps its notes and gets no session.
+ */
+export type AccountState = 'enabled' | 'disabled';
+
+/**
+ * The bytes that the workspaces of one account use, and the limit of that account. The owner of a workspace pays for every byte in it.
+ */
+export type AccountStorage = {
+    /**
+     * The bytes that the workspaces of the account use.
+     */
+    readonly usedBytes: ByteCount;
+    /**
+     * The most bytes that the workspaces of the account can use.
+     */
+    readonly limitBytes: ByteCount;
+};
+
+/**
+ * One account as an administrator sees it. It holds no note and no workspace of the account.
+ */
+export type AccountSummary = {
+    /**
+     * Identifier of the account.
+     */
+    readonly accountId: Uuid;
+    /**
+     * Sign-in address of the account.
+     */
+    readonly email: string | null;
+    /**
+     * Display name of the account.
+     */
+    readonly name: string | null;
+    /**
+     * The role of the account in the installation.
+     */
+    readonly installationRole: InstallationRole;
+    /**
+     * Whether the account can sign in.
+     */
+    readonly state: AccountState;
+    /**
+     * Instant at which the account was made.
+     */
+    readonly createdAt: string;
+    /**
+     * The last instant at which a session of the account was used, or null when the account has no session.
+     */
+    readonly lastActiveAt: string | null;
+    /**
+     * The usage and the limit of the account.
+     */
+    readonly storage: AccountStorage;
+    /**
+     * True for the account that reads the list.
+     */
+    readonly self: boolean;
+};
+
+/**
+ * The facts of an account that an administrator changes. A member that is absent keeps its stored value.
+ */
+export type AccountUpdateInput = {
+    /**
+     * The new role of the account in the installation.
+     */
+    installationRole?: InstallationRole;
+    /**
+     * The new state. A disabled account loses every session and gets no new one.
+     */
+    state?: AccountState;
+    /**
+     * The new limit of the account, in bytes.
+     */
+    limitBytes?: number;
 };
 
 /**
@@ -340,6 +447,11 @@ export type BlockingReference = {
 };
 
 /**
+ * A number of bytes.
+ */
+export type ByteCount = number;
+
+/**
  * One atomic change of one or more files.
  */
 export type ChangesetInput = {
@@ -532,6 +644,11 @@ export type DocumentStateVector = string;
  * One document update, as base64. It carries the text work of a note and nothing else. The server applies it to a trial document and refuses it when it is malformed, when it names work that the document lacks, when it writes anything other than the text of the note, or when the result passes a bound.
  */
 export type DocumentUpdate = string;
+
+/**
+ * A sign-in address.
+ */
+export type EmailAddress = string;
 
 /**
  * A conditional request header value: either the literal *, or one or more entity tags separated by commas. A tag is quoted, and a weak tag carries the W/ prefix. A write compares strongly, as RFC 9110 requires, so it accepts a strong tag only.
@@ -750,6 +867,132 @@ export type ImportWorkspaceResult = {
 };
 
 /**
+ * The settings of the installation that an administrator reads.
+ */
+export type Installation = {
+    /**
+     * Who can make an account.
+     */
+    readonly registrationPolicy: RegistrationPolicy;
+    /**
+     * Whether the installation has a mail transport. Without one, an invitation link appears once for the administrator to copy.
+     */
+    readonly mailConfigured: boolean;
+    /**
+     * How long a new invitation stays valid, in hours.
+     */
+    readonly invitationLifetimeHours: number;
+    /**
+     * The limit that a new account starts with.
+     */
+    readonly defaultLimitBytes: ByteCount;
+};
+
+/**
+ * The role of an account in the installation. An administrator manages accounts and invitations. The role grants no access to a workspace of another account.
+ */
+export type InstallationRole = 'administrator' | 'member';
+
+/**
+ * The settings of the installation that an administrator changes.
+ */
+export type InstallationUpdateInput = {
+    /**
+     * Who can make an account. The server refuses open until the installation has every part that open registration needs.
+     */
+    registrationPolicy: RegistrationPolicy;
+};
+
+/**
+ * One invitation that waits. This shape holds no token, so a read of the list cannot open an invitation.
+ */
+export type Invitation = {
+    /**
+     * Identifier of the invitation record. An administrator names it to revoke the invitation. It is not the token.
+     */
+    readonly invitationId: Uuid;
+    /**
+     * The address that the invitation binds.
+     */
+    readonly email: EmailAddress;
+    /**
+     * Instant at which the invitation was made.
+     */
+    readonly createdAt: string;
+    /**
+     * Instant after which the invitation opens nothing.
+     */
+    readonly expiresAt: string;
+    /**
+     * pending while the invitation can be used, expired after.
+     */
+    readonly state: 'pending' | 'expired';
+    /**
+     * Whether the link went to the address by mail.
+     */
+    readonly mailed: boolean;
+};
+
+/**
+ * The address that a valid invitation binds.
+ */
+export type InvitationAddress = {
+    /**
+     * The address of the new account.
+     */
+    readonly email: EmailAddress;
+};
+
+/**
+ * The address that a new invitation binds.
+ */
+export type InvitationCreateInput = {
+    /**
+     * The address of the invited person. The person cannot change it while they accept.
+     */
+    email: EmailAddress;
+};
+
+/**
+ * A new invitation, and its link when no mail transport sent it. The link appears in this answer only, once.
+ */
+export type InvitationCreated = {
+    /**
+     * The new invitation.
+     */
+    readonly invitation: Invitation;
+    /**
+     * The link that opens the invitation, for the administrator to copy, or null when the link went by mail.
+     */
+    readonly link: string | null;
+};
+
+/**
+ * The invitations that nobody used or revoked.
+ */
+export type InvitationList = {
+    /**
+     * The invitations, newest first.
+     */
+    readonly invitations: Array<Invitation>;
+};
+
+/**
+ * The token of the invitation to read.
+ */
+export type InvitationReadInput = {
+    /**
+     * The token from the invitation link.
+     */
+    invitation: unknown;
+};
+
+/**
+ * The secret of one invitation, as the link carries it. The server keeps only its digest.
+ */
+export type InvitationToken = string;
+
+/**
  * The content of one saved note. It carries document work, never text: the accepted text is what the workspace derives from the accepted document.
  */
 export type MarkdownContentInput = {
@@ -785,6 +1028,11 @@ export type MutationReceipt = {
      */
     readonly accepted: AcceptedChangeset | null;
 };
+
+/**
+ * A password. The server applies the password policy of the installation to a new password.
+ */
+export type Password = string;
 
 /**
  * Settings that follow one account to every device.
@@ -1103,6 +1351,39 @@ export type ReadingTicketGrant = {
 export type ReadingTicketValue = string;
 
 /**
+ * Confirmation that the account exists and that its session started.
+ */
+export type Registered = {
+    /**
+     * Always true.
+     */
+    readonly registered: boolean;
+};
+
+/**
+ * What a person gives to make an account. The address comes from the invitation.
+ */
+export type RegistrationInput = {
+    /**
+     * The token from the invitation link.
+     */
+    invitation: unknown;
+    /**
+     * The password of the new account.
+     */
+    password: unknown;
+    /**
+     * The display name of the new account.
+     */
+    name?: string;
+};
+
+/**
+ * Who can make an account. With invitation, only a person with a valid invitation can. With open, a person who proves their address can.
+ */
+export type RegistrationPolicy = 'invitation' | 'open';
+
+/**
  * Confirmation that the named record no longer exists.
  */
 export type Removed = {
@@ -1179,7 +1460,7 @@ export type RevisionInput = {
 };
 
 /**
- * Workspace access role. This product serves one person, so the only role is owner. The field stays, because stored rows and the permission matrix name it.
+ * The role of an account in one workspace. Every workspace has one member, its owner, so the only role is owner. The installation role of an account is a separate fact and grants no workspace access.
  */
 export type Role = 'owner';
 
@@ -1787,6 +2068,16 @@ export type ExpectedHeadsWritable = {
 };
 
 /**
+ * The token of the invitation to read.
+ */
+export type InvitationReadInputWritable = {
+    /**
+     * The token from the invitation link.
+     */
+    invitation: InvitationToken;
+};
+
+/**
  * One published link of a workspace, as its owner sees it. This shape holds no token, so a read of the list cannot open a link.
  */
 export type PublishedLinkWritable = {
@@ -1805,6 +2096,24 @@ export type PublishedLinkCreatedWritable = {
  */
 export type PublishedLinkListWritable = {
     [key: string]: never;
+};
+
+/**
+ * What a person gives to make an account. The address comes from the invitation.
+ */
+export type RegistrationInputWritable = {
+    /**
+     * The token from the invitation link.
+     */
+    invitation: InvitationToken;
+    /**
+     * The password of the new account.
+     */
+    password: Password;
+    /**
+     * The display name of the new account.
+     */
+    name?: string;
 };
 
 /**
@@ -2001,6 +2310,16 @@ export type PublishedToken = PublishedSecret;
 export type ReadingTicket = PublishedSecret;
 
 /**
+ * Identifier of the account that the operation acts on.
+ */
+export type AccountId = Uuid;
+
+/**
+ * Identifier of the invitation that the operation acts on.
+ */
+export type InvitationId = Uuid;
+
+/**
  * The note of a folder link that the page shows. Leave it out to read the list of every note that the link opens. A link over one note opens that note, so it needs no value here.
  */
 export type PublishedNote = PublishedNoteReference;
@@ -2089,6 +2408,36 @@ export type CreatePublishedLink = CreatePublishedLinkInputWritable;
  * The password of the published link.
  */
 export type UnlockPublishedLink = UnlockPublishedLinkInput;
+
+/**
+ * The facts of the account to change.
+ */
+export type AccountUpdate = AccountUpdateInput;
+
+/**
+ * The address to invite.
+ */
+export type InvitationCreate = InvitationCreateInput;
+
+/**
+ * The token of the invitation to read.
+ */
+export type InvitationRead = InvitationReadInputWritable;
+
+/**
+ * The invitation token and the password of the new account.
+ */
+export type Registration = RegistrationInputWritable;
+
+/**
+ * The settings of the installation to change.
+ */
+export type InstallationUpdate = InstallationUpdateInput;
+
+/**
+ * The current password of the account.
+ */
+export type AccountRemoval = AccountRemovalInput;
 
 /**
  * The password of the published link, as its page form sends it.
@@ -2191,6 +2540,234 @@ export type UpdatePreferencesResponses = {
 };
 
 export type UpdatePreferencesResponse = UpdatePreferencesResponses[keyof UpdatePreferencesResponses];
+
+export type RemoveOwnAccountData = {
+    /**
+     * The current password of the account.
+     */
+    body: AccountRemoval;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/removal';
+};
+
+export type RemoveOwnAccountErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The change would leave the installation with no enabled administrator. The code is last_administrator. Nothing changed.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RemoveOwnAccountError = RemoveOwnAccountErrors[keyof RemoveOwnAccountErrors];
+
+export type RemoveOwnAccountResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RemoveOwnAccountResponse = RemoveOwnAccountResponses[keyof RemoveOwnAccountResponses];
+
+export type ListAccountsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/accounts';
+};
+
+export type ListAccountsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListAccountsError = ListAccountsErrors[keyof ListAccountsErrors];
+
+export type ListAccountsResponses = {
+    /**
+     * Every account of the installation.
+     */
+    200: AccountList;
+};
+
+export type ListAccountsResponse = ListAccountsResponses[keyof ListAccountsResponses];
+
+export type RemoveAccountData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the account that the operation acts on.
+         */
+        accountId: Uuid;
+    };
+    query?: never;
+    url: '/api/accounts/{accountId}';
+};
+
+export type RemoveAccountErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change would leave the installation with no enabled administrator. The code is last_administrator. Nothing changed.
+     */
+    409: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RemoveAccountError = RemoveAccountErrors[keyof RemoveAccountErrors];
+
+export type RemoveAccountResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RemoveAccountResponse = RemoveAccountResponses[keyof RemoveAccountResponses];
+
+export type UpdateAccountData = {
+    /**
+     * The facts of the account to change.
+     */
+    body: AccountUpdate;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the account that the operation acts on.
+         */
+        accountId: Uuid;
+    };
+    query?: never;
+    url: '/api/accounts/{accountId}';
+};
+
+export type UpdateAccountErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The change would leave the installation with no enabled administrator. The code is last_administrator. Nothing changed.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateAccountError = UpdateAccountErrors[keyof UpdateAccountErrors];
+
+export type UpdateAccountResponses = {
+    /**
+     * One account as an administrator sees it.
+     */
+    200: AccountSummary;
+};
+
+export type UpdateAccountResponse = UpdateAccountResponses[keyof UpdateAccountResponses];
 
 export type GetAuthSessionData = {
     body?: never;
@@ -2496,6 +3073,260 @@ export type GetHealthResponses = {
 
 export type GetHealthResponse = GetHealthResponses[keyof GetHealthResponses];
 
+export type GetInstallationData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/installation';
+};
+
+export type GetInstallationErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetInstallationError = GetInstallationErrors[keyof GetInstallationErrors];
+
+export type GetInstallationResponses = {
+    /**
+     * The settings of the installation.
+     */
+    200: Installation;
+};
+
+export type GetInstallationResponse = GetInstallationResponses[keyof GetInstallationResponses];
+
+export type UpdateInstallationData = {
+    /**
+     * The settings of the installation to change.
+     */
+    body: InstallationUpdate;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/installation';
+};
+
+export type UpdateInstallationErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The installation cannot take open registration yet. The code is open_registration_unavailable, and the missing member lists each part that the installation lacks.
+     */
+    422: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateInstallationError = UpdateInstallationErrors[keyof UpdateInstallationErrors];
+
+export type UpdateInstallationResponses = {
+    /**
+     * The settings of the installation.
+     */
+    200: Installation;
+};
+
+export type UpdateInstallationResponse = UpdateInstallationResponses[keyof UpdateInstallationResponses];
+
+export type ListInvitationsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/invitations';
+};
+
+export type ListInvitationsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListInvitationsError = ListInvitationsErrors[keyof ListInvitationsErrors];
+
+export type ListInvitationsResponses = {
+    /**
+     * The invitations that wait.
+     */
+    200: InvitationList;
+};
+
+export type ListInvitationsResponse = ListInvitationsResponses[keyof ListInvitationsResponses];
+
+export type CreateInvitationData = {
+    /**
+     * The address to invite.
+     */
+    body: InvitationCreate;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/invitations';
+};
+
+export type CreateInvitationErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The address cannot take an invitation. The code is account_exists when an account already signs in with that address.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type CreateInvitationError = CreateInvitationErrors[keyof CreateInvitationErrors];
+
+export type CreateInvitationResponses = {
+    /**
+     * The new invitation.
+     */
+    201: InvitationCreated;
+};
+
+export type CreateInvitationResponse = CreateInvitationResponses[keyof CreateInvitationResponses];
+
+export type RevokeInvitationData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the invitation that the operation acts on.
+         */
+        invitationId: Uuid;
+    };
+    query?: never;
+    url: '/api/invitations/{invitationId}';
+};
+
+export type RevokeInvitationErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeInvitationError = RevokeInvitationErrors[keyof RevokeInvitationErrors];
+
+export type RevokeInvitationResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RevokeInvitationResponse = RevokeInvitationResponses[keyof RevokeInvitationResponses];
+
 export type GetReadinessData = {
     body?: never;
     headers?: {
@@ -2540,6 +3371,102 @@ export type GetReadinessResponses = {
 
 export type GetReadinessResponse = GetReadinessResponses[keyof GetReadinessResponses];
 
+export type RegisterAccountData = {
+    /**
+     * The invitation token and the password of the new account.
+     */
+    body: Registration;
+    path?: never;
+    query?: never;
+    url: '/api/registrations';
+};
+
+export type RegisterAccountErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The invitation opens nothing. The code is invitation_invalid for a token that expired, that somebody used, that an administrator revoked, or that never existed. The answer does not say which.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RegisterAccountError = RegisterAccountErrors[keyof RegisterAccountErrors];
+
+export type RegisterAccountResponses = {
+    /**
+     * The account exists and its session started.
+     */
+    201: Registered;
+};
+
+export type RegisterAccountResponse = RegisterAccountResponses[keyof RegisterAccountResponses];
+
+export type ReadInvitationData = {
+    /**
+     * The token of the invitation to read.
+     */
+    body: InvitationRead;
+    path?: never;
+    query?: never;
+    url: '/api/registrations/invitation';
+};
+
+export type ReadInvitationErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The invitation opens nothing. The code is invitation_invalid for a token that expired, that somebody used, that an administrator revoked, or that never existed. The answer does not say which.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ReadInvitationError = ReadInvitationErrors[keyof ReadInvitationErrors];
+
+export type ReadInvitationResponses = {
+    /**
+     * The address that the invitation binds.
+     */
+    200: InvitationAddress;
+};
+
+export type ReadInvitationResponse = ReadInvitationResponses[keyof ReadInvitationResponses];
+
 export type GetSetupStatusData = {
     body?: never;
     path?: never;
@@ -2577,11 +3504,11 @@ export type GetSetupStatusResponse = GetSetupStatusResponses[keyof GetSetupStatu
 
 export type CreateOwnerData = {
     /**
-     * The email address and password of the single user.
+     * The email address and password of the first account.
      */
     body: {
-        email: string;
-        password: string;
+        email: EmailAddress;
+        password: Password;
     };
     path?: never;
     query?: never;
@@ -2619,7 +3546,7 @@ export type CreateOwnerError = CreateOwnerErrors[keyof CreateOwnerErrors];
 
 export type CreateOwnerResponses = {
     /**
-     * The single user was created and signed in.
+     * The first account was created and signed in.
      */
     201: {
         readonly initialized: boolean;

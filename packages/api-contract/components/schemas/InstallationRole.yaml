@@ -1,0 +1,8 @@
+type: string
+description: >-
+  The role of an account in the installation. An administrator manages
+  accounts and invitations. The role grants no access to a workspace of
+  another account.
+enum:
+  - administrator
+  - member

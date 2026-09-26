@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client/index.js';
-import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -45,6 +45,74 @@ export const updatePreferences = <ThrowOnError extends boolean = false>(options:
             type: 'apiKey'
         }],
     url: '/api/account/preferences',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Remove the signed in account and every note it owns.
+ *
+ * The person gives their password again. The account, its workspaces, its sessions, and its settings go. The last enabled administrator cannot remove their own account.
+ */
+export const removeOwnAccount = <ThrowOnError extends boolean = false>(options: Options<RemoveOwnAccountData, ThrowOnError>): RequestResult<RemoveOwnAccountResponses, RemoveOwnAccountErrors, ThrowOnError> => (options.client ?? client).post<RemoveOwnAccountResponses, RemoveOwnAccountErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/account/removal',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List every account of the installation.
+ *
+ * Only an administrator lists the accounts. The list holds names, addresses, states, activity, and usage, and never a note.
+ */
+export const listAccounts = <ThrowOnError extends boolean = false>(options?: Options<ListAccountsData, ThrowOnError>): RequestResult<ListAccountsResponses, ListAccountsErrors, ThrowOnError> => (options?.client ?? client).get<ListAccountsResponses, ListAccountsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/accounts',
+    ...options
+});
+
+/**
+ * Remove another account and every note it owns.
+ *
+ * Only an administrator removes another account. The account, its workspaces, its sessions, and its settings go. An account removes itself through removeOwnAccount instead. The removal of the last enabled administrator is refused.
+ */
+export const removeAccount = <ThrowOnError extends boolean = false>(options: Options<RemoveAccountData, ThrowOnError>): RequestResult<RemoveAccountResponses, RemoveAccountErrors, ThrowOnError> => (options.client ?? client).delete<RemoveAccountResponses, RemoveAccountErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/accounts/{accountId}',
+    ...options
+});
+
+/**
+ * Change the role, the state, or the limit of one account.
+ *
+ * Only an administrator changes an account. A change that would leave the installation with no enabled administrator is refused.
+ */
+export const updateAccount = <ThrowOnError extends boolean = false>(options: Options<UpdateAccountData, ThrowOnError>): RequestResult<UpdateAccountResponses, UpdateAccountErrors, ThrowOnError> => (options.client ?? client).patch<UpdateAccountResponses, UpdateAccountErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/accounts/{accountId}',
     ...options,
     headers: {
         'Content-Type': 'application/json',
@@ -123,6 +191,89 @@ export const signOut = <ThrowOnError extends boolean = false>(options: Options<S
 export const getHealth = <ThrowOnError extends boolean = false>(options?: Options<GetHealthData, ThrowOnError>): RequestResult<GetHealthResponses, GetHealthErrors, ThrowOnError> => (options?.client ?? client).get<GetHealthResponses, GetHealthErrors, ThrowOnError>({ url: '/api/health', ...options });
 
 /**
+ * Read the settings of the installation.
+ *
+ * Only an administrator reads the settings of the installation.
+ */
+export const getInstallation = <ThrowOnError extends boolean = false>(options?: Options<GetInstallationData, ThrowOnError>): RequestResult<GetInstallationResponses, GetInstallationErrors, ThrowOnError> => (options?.client ?? client).get<GetInstallationResponses, GetInstallationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/installation',
+    ...options
+});
+
+/**
+ * Change the registration policy of the installation.
+ *
+ * Only an administrator changes the settings. The server refuses open registration until the installation has a mail transport, an origin for published pages, and its legal documents.
+ */
+export const updateInstallation = <ThrowOnError extends boolean = false>(options: Options<UpdateInstallationData, ThrowOnError>): RequestResult<UpdateInstallationResponses, UpdateInstallationErrors, ThrowOnError> => (options.client ?? client).put<UpdateInstallationResponses, UpdateInstallationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/installation',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * List the invitations that wait.
+ *
+ * Only an administrator lists the invitations. A used or revoked invitation does not appear.
+ */
+export const listInvitations = <ThrowOnError extends boolean = false>(options?: Options<ListInvitationsData, ThrowOnError>): RequestResult<ListInvitationsResponses, ListInvitationsErrors, ThrowOnError> => (options?.client ?? client).get<ListInvitationsResponses, ListInvitationsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/invitations',
+    ...options
+});
+
+/**
+ * Invite one address to make an account.
+ *
+ * Only an administrator invites. The link goes by mail when the installation has a mail transport. Otherwise the answer holds the link once, for the administrator to copy.
+ */
+export const createInvitation = <ThrowOnError extends boolean = false>(options: Options<CreateInvitationData, ThrowOnError>): RequestResult<CreateInvitationResponses, CreateInvitationErrors, ThrowOnError> => (options.client ?? client).post<CreateInvitationResponses, CreateInvitationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/invitations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Revoke one invitation.
+ *
+ * Only an administrator revokes an invitation. A revoked invitation opens nothing.
+ */
+export const revokeInvitation = <ThrowOnError extends boolean = false>(options: Options<RevokeInvitationData, ThrowOnError>): RequestResult<RevokeInvitationResponses, RevokeInvitationErrors, ThrowOnError> => (options.client ?? client).delete<RevokeInvitationResponses, RevokeInvitationErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/invitations/{invitationId}',
+    ...options
+});
+
+/**
  * Report whether the service can accept traffic.
  *
  * Reports the state of every startup requirement that the service can check. The current release validates configuration only, because no database or storage dependency exists yet. A later task adds a database check and a storage check to the same report.
@@ -130,16 +281,44 @@ export const getHealth = <ThrowOnError extends boolean = false>(options?: Option
 export const getReadiness = <ThrowOnError extends boolean = false>(options?: Options<GetReadinessData, ThrowOnError>): RequestResult<GetReadinessResponses, GetReadinessErrors, ThrowOnError> => (options?.client ?? client).get<GetReadinessResponses, GetReadinessErrors, ThrowOnError>({ url: '/api/ready', ...options });
 
 /**
- * Report whether the single user exists.
+ * Make an account from an invitation and sign it in.
+ *
+ * Makes an account for the address that the invitation binds, with the given password, and starts its session. A used, revoked, or expired invitation makes nothing, and the answer does not say which of the three applied. Two requests with one invitation make one account.
+ */
+export const registerAccount = <ThrowOnError extends boolean = false>(options: Options<RegisterAccountData, ThrowOnError>): RequestResult<RegisterAccountResponses, RegisterAccountErrors, ThrowOnError> => (options.client ?? client).post<RegisterAccountResponses, RegisterAccountErrors, ThrowOnError>({
+    url: '/api/registrations',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Read the address that a valid invitation binds.
+ *
+ * Answers the address of a valid invitation, so the person sees the address of their new account before they choose a password. The token travels in the body, so it reaches no address log.
+ */
+export const readInvitation = <ThrowOnError extends boolean = false>(options: Options<ReadInvitationData, ThrowOnError>): RequestResult<ReadInvitationResponses, ReadInvitationErrors, ThrowOnError> => (options.client ?? client).post<ReadInvitationResponses, ReadInvitationErrors, ThrowOnError>({
+    url: '/api/registrations/invitation',
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
+});
+
+/**
+ * Report whether the first account exists.
  *
  * Reports if first-run setup is complete without exposing account data.
  */
 export const getSetupStatus = <ThrowOnError extends boolean = false>(options?: Options<GetSetupStatusData, ThrowOnError>): RequestResult<GetSetupStatusResponses, GetSetupStatusErrors, ThrowOnError> => (options?.client ?? client).get<GetSetupStatusResponses, GetSetupStatusErrors, ThrowOnError>({ url: '/api/setup', ...options });
 
 /**
- * Create the single user during first-run setup.
+ * Create the first account during first-run setup.
  *
- * This operation is refused after the first account exists.
+ * Creates the first account of the installation as its administrator and signs it in. This operation is refused after the first account exists. Every later account comes in through an invitation.
  */
 export const createOwner = <ThrowOnError extends boolean = false>(options: Options<CreateOwnerData, ThrowOnError>): RequestResult<CreateOwnerResponses, CreateOwnerErrors, ThrowOnError> => (options.client ?? client).post<CreateOwnerResponses, CreateOwnerErrors, ThrowOnError>({
     url: '/api/setup',

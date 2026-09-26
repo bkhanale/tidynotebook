@@ -1,0 +1,7 @@
+description: >-
+  The change would leave the installation with no enabled administrator.
+  The code is last_administrator. Nothing changed.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

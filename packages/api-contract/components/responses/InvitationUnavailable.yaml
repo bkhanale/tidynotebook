@@ -1,0 +1,8 @@
+description: >-
+  The invitation opens nothing. The code is invitation_invalid for a token
+  that expired, that somebody used, that an administrator revoked, or that
+  never existed. The answer does not say which.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

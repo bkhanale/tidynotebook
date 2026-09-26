@@ -1,0 +1,8 @@
+name: accountId
+in: path
+required: true
+style: simple
+explode: false
+description: Identifier of the account that the operation acts on.
+schema:
+  $ref: '../schemas/Uuid.yaml'

@@ -1,0 +1,5 @@
+description: The account exists and its session started.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Registered.yaml'

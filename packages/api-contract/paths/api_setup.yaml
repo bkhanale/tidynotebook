@@ -1,6 +1,6 @@
 get:
   operationId: getSetupStatus
-  summary: Report whether the single user exists.
+  summary: Report whether the first account exists.
   description: Reports if first-run setup is complete without exposing account data.
   tags:
     - auth
@@ -27,13 +27,16 @@ get:
       $ref: '../components/responses/ServerError.yaml'
 post:
   operationId: createOwner
-  summary: Create the single user during first-run setup.
-  description: This operation is refused after the first account exists.
+  summary: Create the first account during first-run setup.
+  description: >-
+    Creates the first account of the installation as its administrator and
+    signs it in. This operation is refused after the first account exists.
+    Every later account comes in through an invitation.
   tags:
     - auth
   security: []
   requestBody:
-    description: The email address and password of the single user.
+    description: The email address and password of the first account.
     required: true
     content:
       application/json:
@@ -45,17 +48,12 @@ post:
             - password
           properties:
             email:
-              type: string
-              format: email
-              minLength: 3
-              maxLength: 320
+              $ref: '../components/schemas/EmailAddress.yaml'
             password:
-              type: string
-              minLength: 12
-              maxLength: 512
+              $ref: '../components/schemas/Password.yaml'
   responses:
     '201':
-      description: The single user was created and signed in.
+      description: The first account was created and signed in.
       content:
         application/json:
           schema:

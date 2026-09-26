@@ -1,0 +1,12 @@
+type: object
+description: The password of the account that removes itself.
+additionalProperties: false
+required:
+  - password
+properties:
+  password:
+    type: string
+    description: The current password of the account.
+    minLength: 1
+    maxLength: 512
+    writeOnly: true

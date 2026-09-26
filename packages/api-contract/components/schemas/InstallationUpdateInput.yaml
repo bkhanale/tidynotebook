@@ -1,0 +1,12 @@
+type: object
+description: The settings of the installation that an administrator changes.
+additionalProperties: false
+required:
+  - registrationPolicy
+properties:
+  registrationPolicy:
+    allOf:
+      - $ref: './RegistrationPolicy.yaml'
+    description: >-
+      Who can make an account. The server refuses open until the
+      installation has every part that open registration needs.

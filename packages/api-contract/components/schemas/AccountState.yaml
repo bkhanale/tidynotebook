@@ -1,0 +1,7 @@
+type: string
+description: >-
+  Whether an account can sign in. A disabled account keeps its notes and
+  gets no session.
+enum:
+  - enabled
+  - disabled

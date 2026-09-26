@@ -1,0 +1,13 @@
+type: object
+description: Every account of the installation.
+additionalProperties: false
+required:
+  - accounts
+properties:
+  accounts:
+    type: array
+    readOnly: true
+    description: The accounts, in the order in which they were made.
+    maxItems: 10000
+    items:
+      $ref: './AccountSummary.yaml'

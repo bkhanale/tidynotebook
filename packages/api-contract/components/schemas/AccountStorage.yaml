@@ -1,0 +1,19 @@
+type: object
+description: >-
+  The bytes that the workspaces of one account use, and the limit of that
+  account. The owner of a workspace pays for every byte in it.
+additionalProperties: false
+required:
+  - usedBytes
+  - limitBytes
+properties:
+  usedBytes:
+    allOf:
+      - $ref: './ByteCount.yaml'
+    readOnly: true
+    description: The bytes that the workspaces of the account use.
+  limitBytes:
+    allOf:
+      - $ref: './ByteCount.yaml'
+    readOnly: true
+    description: The most bytes that the workspaces of the account can use.

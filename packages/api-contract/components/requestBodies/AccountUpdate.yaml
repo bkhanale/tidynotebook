@@ -1,0 +1,6 @@
+description: The facts of the account to change.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/AccountUpdateInput.yaml'

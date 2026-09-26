@@ -26,8 +26,12 @@ tags:
     description: Service state operations used by operators and load balancers.
   - name: accounts
     description: The signed in account and the settings that follow it.
+  - name: administration
+    description: >-
+      Accounts, invitations, and the settings of the installation. Only an
+      administrator reaches these operations, and none of them reads a note.
   - name: workspaces
-    description: Workspace containers for the single user's files.
+    description: Workspace containers for the files of an account.
   - name: files
     description: >-
       Files, their immutable revisions, and the atomic changesets that accept
@@ -56,10 +60,26 @@ paths:
     $ref: './paths/api_ready.yaml'
   /api/setup:
     $ref: './paths/api_setup.yaml'
+  /api/registrations:
+    $ref: './paths/api_registrations.yaml'
+  /api/registrations/invitation:
+    $ref: './paths/api_registrations_invitation.yaml'
+  /api/installation:
+    $ref: './paths/api_installation.yaml'
+  /api/invitations:
+    $ref: './paths/api_invitations.yaml'
+  /api/invitations/{invitationId}:
+    $ref: './paths/api_invitations_invitationId.yaml'
+  /api/accounts:
+    $ref: './paths/api_accounts.yaml'
+  /api/accounts/{accountId}:
+    $ref: './paths/api_accounts_accountId.yaml'
   /api/sync/protocol:
     $ref: './paths/api_sync_protocol.yaml'
   /api/account:
     $ref: './paths/api_account.yaml'
+  /api/account/removal:
+    $ref: './paths/api_account_removal.yaml'
   /api/account/preferences:
     $ref: './paths/api_account_preferences.yaml'
   /api/workspaces:
@@ -177,6 +197,10 @@ components:
       $ref: './components/parameters/PublishedToken.yaml'
     ReadingTicket:
       $ref: './components/parameters/ReadingTicket.yaml'
+    AccountId:
+      $ref: './components/parameters/AccountId.yaml'
+    InvitationId:
+      $ref: './components/parameters/InvitationId.yaml'
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
@@ -212,6 +236,18 @@ components:
       $ref: './components/requestBodies/CreatePublishedLink.yaml'
     UnlockPublishedLink:
       $ref: './components/requestBodies/UnlockPublishedLink.yaml'
+    AccountUpdate:
+      $ref: './components/requestBodies/AccountUpdate.yaml'
+    InvitationCreate:
+      $ref: './components/requestBodies/InvitationCreate.yaml'
+    InvitationRead:
+      $ref: './components/requestBodies/InvitationRead.yaml'
+    Registration:
+      $ref: './components/requestBodies/Registration.yaml'
+    InstallationUpdate:
+      $ref: './components/requestBodies/InstallationUpdate.yaml'
+    AccountRemoval:
+      $ref: './components/requestBodies/AccountRemoval.yaml'
   responses:
     Health:
       $ref: './components/responses/Health.yaml'
@@ -317,6 +353,28 @@ components:
       $ref: './components/responses/PublishedLinkUnavailable.yaml'
     PublishedPage:
       $ref: './components/responses/PublishedPage.yaml'
+    AccountList:
+      $ref: './components/responses/AccountList.yaml'
+    AccountSummary:
+      $ref: './components/responses/AccountSummary.yaml'
+    InvitationList:
+      $ref: './components/responses/InvitationList.yaml'
+    InvitationCreated:
+      $ref: './components/responses/InvitationCreated.yaml'
+    InvitationAddress:
+      $ref: './components/responses/InvitationAddress.yaml'
+    Registered:
+      $ref: './components/responses/Registered.yaml'
+    Installation:
+      $ref: './components/responses/Installation.yaml'
+    LastAdministrator:
+      $ref: './components/responses/LastAdministrator.yaml'
+    InvitationUnavailable:
+      $ref: './components/responses/InvitationUnavailable.yaml'
+    OpenRegistrationUnavailable:
+      $ref: './components/responses/OpenRegistrationUnavailable.yaml'
+    InvitationRefused:
+      $ref: './components/responses/InvitationRefused.yaml'
   schemas:
     HealthReport:
       $ref: './components/schemas/HealthReport.yaml'
@@ -510,3 +568,47 @@ components:
       $ref: './components/schemas/PublishedRefusal.yaml'
     PublishedDocument:
       $ref: './components/schemas/PublishedDocument.yaml'
+    InstallationRole:
+      $ref: './components/schemas/InstallationRole.yaml'
+    AccountState:
+      $ref: './components/schemas/AccountState.yaml'
+    RegistrationPolicy:
+      $ref: './components/schemas/RegistrationPolicy.yaml'
+    EmailAddress:
+      $ref: './components/schemas/EmailAddress.yaml'
+    Password:
+      $ref: './components/schemas/Password.yaml'
+    InvitationToken:
+      $ref: './components/schemas/InvitationToken.yaml'
+    ByteCount:
+      $ref: './components/schemas/ByteCount.yaml'
+    AccountStorage:
+      $ref: './components/schemas/AccountStorage.yaml'
+    AccountSummary:
+      $ref: './components/schemas/AccountSummary.yaml'
+    AccountList:
+      $ref: './components/schemas/AccountList.yaml'
+    AccountUpdateInput:
+      $ref: './components/schemas/AccountUpdateInput.yaml'
+    Invitation:
+      $ref: './components/schemas/Invitation.yaml'
+    InvitationList:
+      $ref: './components/schemas/InvitationList.yaml'
+    InvitationCreateInput:
+      $ref: './components/schemas/InvitationCreateInput.yaml'
+    InvitationCreated:
+      $ref: './components/schemas/InvitationCreated.yaml'
+    InvitationReadInput:
+      $ref: './components/schemas/InvitationReadInput.yaml'
+    InvitationAddress:
+      $ref: './components/schemas/InvitationAddress.yaml'
+    RegistrationInput:
+      $ref: './components/schemas/RegistrationInput.yaml'
+    Registered:
+      $ref: './components/schemas/Registered.yaml'
+    Installation:
+      $ref: './components/schemas/Installation.yaml'
+    InstallationUpdateInput:
+      $ref: './components/schemas/InstallationUpdateInput.yaml'
+    AccountRemovalInput:
+      $ref: './components/schemas/AccountRemovalInput.yaml'

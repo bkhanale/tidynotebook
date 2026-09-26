@@ -1,0 +1,12 @@
+type: object
+description: The address that a new invitation binds.
+additionalProperties: false
+required:
+  - email
+properties:
+  email:
+    allOf:
+      - $ref: './EmailAddress.yaml'
+    description: >-
+      The address of the invited person. The person cannot change it while
+      they accept.

@@ -1,0 +1,5 @@
+description: Every account of the installation.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/AccountList.yaml'

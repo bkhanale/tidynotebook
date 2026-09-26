@@ -1,0 +1,8 @@
+type: string
+description: >-
+  The secret of one invitation, as the link carries it. The server keeps
+  only its digest.
+minLength: 43
+maxLength: 43
+pattern: ^[A-Za-z0-9_-]{43}$
+writeOnly: true

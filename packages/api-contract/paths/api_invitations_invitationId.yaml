@@ -1,0 +1,24 @@
+delete:
+  operationId: revokeInvitation
+  summary: Revoke one invitation.
+  description: >-
+    Only an administrator revokes an invitation. A revoked invitation opens
+    nothing.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/InvitationId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Removed.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

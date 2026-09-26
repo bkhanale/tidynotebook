@@ -1,0 +1,49 @@
+get:
+  operationId: getInstallation
+  summary: Read the settings of the installation.
+  description: Only an administrator reads the settings of the installation.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Installation.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+put:
+  operationId: updateInstallation
+  summary: Change the registration policy of the installation.
+  description: >-
+    Only an administrator changes the settings. The server refuses open
+    registration until the installation has a mail transport, an origin for
+    published pages, and its legal documents.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/InstallationUpdate.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Installation.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '422':
+      $ref: '../components/responses/OpenRegistrationUnavailable.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

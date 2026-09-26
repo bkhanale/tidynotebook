@@ -1,0 +1,5 @@
+description: The invitations that wait.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/InvitationList.yaml'

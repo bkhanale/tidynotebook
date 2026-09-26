@@ -1,0 +1,7 @@
+type: string
+description: >-
+  Who can make an account. With invitation, only a person with a valid
+  invitation can. With open, a person who proves their address can.
+enum:
+  - invitation
+  - open

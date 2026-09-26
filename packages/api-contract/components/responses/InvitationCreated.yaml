@@ -1,0 +1,5 @@
+description: The new invitation.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/InvitationCreated.yaml'

@@ -1,0 +1,13 @@
+type: object
+description: The invitations that nobody used or revoked.
+additionalProperties: false
+required:
+  - invitations
+properties:
+  invitations:
+    type: array
+    readOnly: true
+    description: The invitations, newest first.
+    maxItems: 10000
+    items:
+      $ref: './Invitation.yaml'

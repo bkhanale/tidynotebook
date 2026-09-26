@@ -3,6 +3,8 @@ description: The signed in account and its settings.
 additionalProperties: false
 required:
   - accountId
+  - installationRole
+  - storage
   - preferences
 properties:
   accountId:
@@ -24,6 +26,16 @@ properties:
     readOnly: true
     description: Display name, or null when no name is stored.
     maxLength: 256
+  installationRole:
+    allOf:
+      - $ref: './InstallationRole.yaml'
+    readOnly: true
+    description: The role of the account in the installation.
+  storage:
+    allOf:
+      - $ref: './AccountStorage.yaml'
+    readOnly: true
+    description: The usage and the limit of the account.
   preferences:
     allOf:
       - $ref: './Preferences.yaml'

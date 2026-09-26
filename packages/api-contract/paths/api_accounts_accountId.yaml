@@ -1,0 +1,60 @@
+patch:
+  operationId: updateAccount
+  summary: Change the role, the state, or the limit of one account.
+  description: >-
+    Only an administrator changes an account. A change that would leave the
+    installation with no enabled administrator is refused.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/AccountId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/AccountUpdate.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/AccountSummary.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '409':
+      $ref: '../components/responses/LastAdministrator.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+delete:
+  operationId: removeAccount
+  summary: Remove another account and every note it owns.
+  description: >-
+    Only an administrator removes another account. The account, its
+    workspaces, its sessions, and its settings go. An account removes itself
+    through removeOwnAccount instead. The removal of the last enabled
+    administrator is refused.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/AccountId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Removed.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '404':
+      $ref: '../components/responses/NotFound.yaml'
+    '409':
+      $ref: '../components/responses/LastAdministrator.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

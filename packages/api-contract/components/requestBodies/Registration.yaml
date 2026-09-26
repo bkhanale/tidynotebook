@@ -1,0 +1,6 @@
+description: The invitation token and the password of the new account.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/RegistrationInput.yaml'

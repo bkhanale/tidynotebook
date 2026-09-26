@@ -1,0 +1,6 @@
+description: The token of the invitation to read.
+required: true
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/InvitationReadInput.yaml'

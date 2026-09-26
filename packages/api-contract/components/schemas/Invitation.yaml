@@ -1,0 +1,48 @@
+type: object
+description: >-
+  One invitation that waits. This shape holds no token, so a read of the
+  list cannot open an invitation.
+additionalProperties: false
+required:
+  - invitationId
+  - email
+  - createdAt
+  - expiresAt
+  - state
+  - mailed
+properties:
+  invitationId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: >-
+      Identifier of the invitation record. An administrator names it to
+      revoke the invitation. It is not the token.
+  email:
+    allOf:
+      - $ref: './EmailAddress.yaml'
+    readOnly: true
+    description: The address that the invitation binds.
+  createdAt:
+    type: string
+    readOnly: true
+    description: Instant at which the invitation was made.
+    format: date-time
+    maxLength: 64
+  expiresAt:
+    type: string
+    readOnly: true
+    description: Instant after which the invitation opens nothing.
+    format: date-time
+    maxLength: 64
+  state:
+    type: string
+    readOnly: true
+    description: pending while the invitation can be used, expired after.
+    enum:
+      - pending
+      - expired
+  mailed:
+    type: boolean
+    readOnly: true
+    description: Whether the link went to the address by mail.

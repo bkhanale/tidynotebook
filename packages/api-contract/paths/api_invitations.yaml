@@ -1,0 +1,51 @@
+get:
+  operationId: listInvitations
+  summary: List the invitations that wait.
+  description: >-
+    Only an administrator lists the invitations. A used or revoked
+    invitation does not appear.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/InvitationList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+post:
+  operationId: createInvitation
+  summary: Invite one address to make an account.
+  description: >-
+    Only an administrator invites. The link goes by mail when the
+    installation has a mail transport. Otherwise the answer holds the link
+    once, for the administrator to copy.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/InvitationCreate.yaml'
+  responses:
+    '201':
+      $ref: '../components/responses/InvitationCreated.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '409':
+      $ref: '../components/responses/InvitationRefused.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

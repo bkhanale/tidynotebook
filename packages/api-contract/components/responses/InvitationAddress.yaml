@@ -1,0 +1,5 @@
+description: The address that the invitation binds.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/InvitationAddress.yaml'

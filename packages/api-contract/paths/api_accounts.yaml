@@ -1,0 +1,21 @@
+get:
+  operationId: listAccounts
+  summary: List every account of the installation.
+  description: >-
+    Only an administrator lists the accounts. The list holds names,
+    addresses, states, activity, and usage, and never a note.
+  tags:
+    - administration
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/AccountList.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

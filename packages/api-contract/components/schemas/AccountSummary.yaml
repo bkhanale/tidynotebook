@@ -1,0 +1,70 @@
+type: object
+description: >-
+  One account as an administrator sees it. It holds no note and no
+  workspace of the account.
+additionalProperties: false
+required:
+  - accountId
+  - email
+  - name
+  - installationRole
+  - state
+  - createdAt
+  - lastActiveAt
+  - storage
+  - self
+properties:
+  accountId:
+    allOf:
+      - $ref: './Uuid.yaml'
+    readOnly: true
+    description: Identifier of the account.
+  email:
+    type:
+      - string
+      - 'null'
+    readOnly: true
+    description: Sign-in address of the account.
+    maxLength: 320
+  name:
+    type:
+      - string
+      - 'null'
+    readOnly: true
+    description: Display name of the account.
+    maxLength: 256
+  installationRole:
+    allOf:
+      - $ref: './InstallationRole.yaml'
+    readOnly: true
+    description: The role of the account in the installation.
+  state:
+    allOf:
+      - $ref: './AccountState.yaml'
+    readOnly: true
+    description: Whether the account can sign in.
+  createdAt:
+    type: string
+    readOnly: true
+    description: Instant at which the account was made.
+    format: date-time
+    maxLength: 64
+  lastActiveAt:
+    oneOf:
+      - type: string
+        format: date-time
+        maxLength: 64
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The last instant at which a session of the account was used, or null
+      when the account has no session.
+  storage:
+    allOf:
+      - $ref: './AccountStorage.yaml'
+    readOnly: true
+    description: The usage and the limit of the account.
+  self:
+    type: boolean
+    readOnly: true
+    description: True for the account that reads the list.

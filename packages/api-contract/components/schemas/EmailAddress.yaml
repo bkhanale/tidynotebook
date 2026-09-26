@@ -1,0 +1,5 @@
+type: string
+description: A sign-in address.
+format: email
+minLength: 3
+maxLength: 320

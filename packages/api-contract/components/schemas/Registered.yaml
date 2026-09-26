@@ -1,0 +1,10 @@
+type: object
+description: Confirmation that the account exists and that its session started.
+additionalProperties: false
+required:
+  - registered
+properties:
+  registered:
+    type: boolean
+    readOnly: true
+    description: Always true.

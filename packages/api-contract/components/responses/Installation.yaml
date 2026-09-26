@@ -1,0 +1,5 @@
+description: The settings of the installation.
+content:
+  application/json:
+    schema:
+      $ref: '../schemas/Installation.yaml'

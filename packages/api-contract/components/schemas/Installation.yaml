@@ -1,0 +1,31 @@
+type: object
+description: The settings of the installation that an administrator reads.
+additionalProperties: false
+required:
+  - registrationPolicy
+  - mailConfigured
+  - invitationLifetimeHours
+  - defaultLimitBytes
+properties:
+  registrationPolicy:
+    allOf:
+      - $ref: './RegistrationPolicy.yaml'
+    readOnly: true
+    description: Who can make an account.
+  mailConfigured:
+    type: boolean
+    readOnly: true
+    description: >-
+      Whether the installation has a mail transport. Without one, an
+      invitation link appears once for the administrator to copy.
+  invitationLifetimeHours:
+    type: integer
+    readOnly: true
+    description: How long a new invitation stays valid, in hours.
+    minimum: 1
+    maximum: 8760
+  defaultLimitBytes:
+    allOf:
+      - $ref: './ByteCount.yaml'
+    readOnly: true
+    description: The limit that a new account starts with.

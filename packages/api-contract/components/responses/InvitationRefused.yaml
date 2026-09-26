@@ -1,0 +1,7 @@
+description: >-
+  The address cannot take an invitation. The code is account_exists when an
+  account already signs in with that address.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

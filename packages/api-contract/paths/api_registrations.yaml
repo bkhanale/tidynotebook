@@ -1,0 +1,28 @@
+post:
+  operationId: registerAccount
+  summary: Make an account from an invitation and sign it in.
+  description: >-
+    Makes an account for the address that the invitation binds, with the
+    given password, and starts its session. A used, revoked, or expired
+    invitation makes nothing, and the answer does not say which of the three
+    applied. Two requests with one invitation make one account.
+  tags:
+    - auth
+  security: []
+  requestBody:
+    $ref: '../components/requestBodies/Registration.yaml'
+  responses:
+    '201':
+      $ref: '../components/responses/Registered.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '403':
+      $ref: '../components/responses/InvitationUnavailable.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

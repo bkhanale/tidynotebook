@@ -1,0 +1,8 @@
+description: >-
+  The installation cannot take open registration yet. The code is
+  open_registration_unavailable, and the missing member lists each part
+  that the installation lacks.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

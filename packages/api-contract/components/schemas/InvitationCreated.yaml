@@ -1,0 +1,24 @@
+type: object
+description: >-
+  A new invitation, and its link when no mail transport sent it. The link
+  appears in this answer only, once.
+additionalProperties: false
+required:
+  - invitation
+  - link
+properties:
+  invitation:
+    allOf:
+      - $ref: './Invitation.yaml'
+    readOnly: true
+    description: The new invitation.
+  link:
+    oneOf:
+      - type: string
+        format: uri
+        maxLength: 2048
+      - type: 'null'
+    readOnly: true
+    description: >-
+      The link that opens the invitation, for the administrator to copy, or
+      null when the link went by mail.

@@ -1,0 +1,27 @@
+post:
+  operationId: readInvitation
+  summary: Read the address that a valid invitation binds.
+  description: >-
+    Answers the address of a valid invitation, so the person sees the
+    address of their new account before they choose a password. The token
+    travels in the body, so it reaches no address log.
+  tags:
+    - auth
+  security: []
+  requestBody:
+    $ref: '../components/requestBodies/InvitationRead.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/InvitationAddress.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '403':
+      $ref: '../components/responses/InvitationUnavailable.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

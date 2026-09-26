@@ -1,0 +1,8 @@
+name: invitationId
+in: path
+required: true
+style: simple
+explode: false
+description: Identifier of the invitation that the operation acts on.
+schema:
+  $ref: '../schemas/Uuid.yaml'

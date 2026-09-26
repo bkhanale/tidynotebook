@@ -1,7 +1,7 @@
 type: string
 description: >-
-  Workspace access role. This product serves one person, so the only
-  role is owner. The field stays, because stored rows and the
-  permission matrix name it.
+  The role of an account in one workspace. Every workspace has one member,
+  its owner, so the only role is owner. The installation role of an account
+  is a separate fact and grants no workspace access.
 enum:
   - owner

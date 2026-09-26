@@ -1,0 +1,32 @@
+post:
+  operationId: removeOwnAccount
+  summary: Remove the signed in account and every note it owns.
+  description: >-
+    The person gives their password again. The account, its workspaces, its
+    sessions, and its settings go. The last enabled administrator cannot
+    remove their own account.
+  tags:
+    - accounts
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+  requestBody:
+    $ref: '../components/requestBodies/AccountRemoval.yaml'
+  responses:
+    '200':
+      $ref: '../components/responses/Removed.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '409':
+      $ref: '../components/responses/LastAdministrator.yaml'
+    '413':
+      $ref: '../components/responses/PayloadTooLarge.yaml'
+    '415':
+      $ref: '../components/responses/UnsupportedMediaType.yaml'
+    '429':
+      $ref: '../components/responses/RateLimited.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'

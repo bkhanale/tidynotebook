@@ -1,0 +1,22 @@
+type: object
+description: >-
+  The facts of an account that an administrator changes. A member that is
+  absent keeps its stored value.
+additionalProperties: false
+minProperties: 1
+properties:
+  installationRole:
+    allOf:
+      - $ref: './InstallationRole.yaml'
+    description: The new role of the account in the installation.
+  state:
+    allOf:
+      - $ref: './AccountState.yaml'
+    description: >-
+      The new state. A disabled account loses every session and gets no new
+      one.
+  limitBytes:
+    type: integer
+    description: The new limit of the account, in bytes.
+    minimum: 1
+    maximum: 9007199254740991
