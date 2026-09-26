@@ -7,9 +7,12 @@
  *    a live lease keeps this run from starting; an expired lease is taken
  *    over. Tab messages only announce these states.
  * 2. Verify the session and the workspace membership before touching data.
- *    An expired session pauses the run with drafts kept. A lost membership
- *    stops reads and writes. A downgrade to viewer suspends writes while
- *    permitted reads continue, and resumes them when the role is restored.
+ *    An expired session pauses the run with drafts kept. A session of
+ *    another account pauses the run too, because one browser profile holds
+ *    one session cookie and the queue of this account must not go up with
+ *    the cookie of another (record 0113). A lost membership stops reads and
+ *    writes. A downgrade to viewer suspends writes while permitted reads
+ *    continue, and resumes them when the role is restored.
  * 3. Read the sync protocol versions that the server serves. A client that
  *    does not fit sends nothing and pulls nothing, keeps every draft and
  *    queued save, and announces the misfit once (record 0086).
@@ -201,6 +204,19 @@ export type EngineOperations = QueueNetwork &
   SessionNetwork &
   ProtocolNetwork;
 
+/**
+ * What one session check found.
+ *
+ * `other-account` means that the session of this browser belongs to another
+ * account than the engine serves. `deferred` means that the check did not
+ * reach an answer, and a later cycle asks again.
+ */
+type SessionCheck =
+  'ok' | 'paused' | 'other-account' | 'access-lost' | 'deferred';
+
+/** The session state that the engine announces when it changes. */
+type SessionState = Exclude<SessionCheck, 'deferred'>;
+
 /** Options of one engine. Everything except the store has a default. */
 export type EngineOptions = {
   /** The worker identity recorded in the lease. A fresh ID by default. */
@@ -289,10 +305,15 @@ export function createSyncEngine(
   let wakeRequested = false;
   let wake: (() => void) | null = null;
 
-  /** One session verification: the signed-in account or why it failed. */
-  async function verifyOnce(
-    signal: AbortSignal,
-  ): Promise<'ok' | 'paused' | 'access-lost' | 'deferred'> {
+  /**
+   * One session verification: whether the session serves this engine, or why
+   * it does not.
+   *
+   * A session of another account is not a failure of the server. The person
+   * of this engine signs in again and the queue goes up then, so the queue
+   * stays where it is and nothing goes to recovery (record 0113).
+   */
+  async function verifyOnce(signal: AbortSignal): Promise<SessionCheck> {
     let outcome: ServiceOutcome<{ readonly accountId: string }>;
     try {
       outcome = await operations.verifySession(signal);
@@ -300,7 +321,8 @@ export function createSyncEngine(
       if (signal.aborted) throw error;
       return 'deferred';
     }
-    if (outcome.ok) return 'ok';
+    if (outcome.ok)
+      return outcome.value.accountId === accountId ? 'ok' : 'other-account';
     if (outcome.problem.status === 401) return 'paused';
     if (
       outcome.problem.status === 408 ||
@@ -309,6 +331,21 @@ export function createSyncEngine(
     )
       return 'deferred';
     return 'access-lost';
+  }
+
+  /**
+   * Why the server refused a read or a write of this workspace.
+   *
+   * Another account can sign in on this browser between the session check and
+   * the request, and the refusal then names the other account and not a lost
+   * membership. The session is read again, so the person reads that cause at
+   * once and not after the next pass.
+   */
+  async function refusalCause(signal: AbortSignal): Promise<SessionState> {
+    const check = await verifyOnce(signal);
+    return check === 'paused' || check === 'other-account'
+      ? check
+      : 'access-lost';
   }
 
   /**
@@ -394,14 +431,22 @@ export function createSyncEngine(
       if (!(await rest(Math.min(pollIntervalMs, leaseTtlMs), signal))) return;
     }
     try {
-      let lastSession: 'ok' | 'paused' | 'access-lost' = 'ok';
-      const noteSession = (state: 'ok' | 'paused' | 'access-lost'): void => {
+      let lastSession: SessionState = 'ok';
+      const noteSession = (state: SessionState): void => {
         if (state === lastSession) return;
         lastSession = state;
+        // A session that serves this engine again is news too. The person
+        // read that sync waits, and nothing else may announce for a while.
+        if (state === 'ok') {
+          announce({ kind: 'resumed' });
+          return;
+        }
         announce(
           state === 'paused'
             ? { kind: 'paused', reason: 'session' }
-            : { kind: 'access-lost' },
+            : state === 'other-account'
+              ? { kind: 'paused', reason: 'other-account' }
+              : { kind: 'access-lost' },
         );
       };
       let lastFit: ProtocolFit = 'compatible';
@@ -419,7 +464,7 @@ export function createSyncEngine(
       let session = await verifyOnce(signal);
       while (session !== 'ok') {
         if (signal.aborted) return;
-        noteSession(session === 'paused' ? 'paused' : 'access-lost');
+        noteSession(session === 'deferred' ? 'access-lost' : session);
         if (!(await rest(pollIntervalMs, signal))) return;
         session = await verifyOnce(signal);
       }
@@ -436,8 +481,8 @@ export function createSyncEngine(
         }
         try {
           const check = await verifyOnce(signal);
-          if (check === 'paused') {
-            noteSession('paused');
+          if (check === 'paused' || check === 'other-account') {
+            noteSession(check);
             if (!(await rest(pollIntervalMs, signal))) return;
             continue;
           }
@@ -482,7 +527,7 @@ export function createSyncEngine(
             continue;
           }
           if (pushed === 'access-lost') {
-            noteSession('access-lost');
+            noteSession(await refusalCause(signal));
             if (!(await rest(pollIntervalMs, signal))) return;
             continue;
           }
@@ -500,7 +545,7 @@ export function createSyncEngine(
           if (pulled === 'paused') {
             noteSession('paused');
           } else if (pulled === 'access-lost') {
-            noteSession('access-lost');
+            noteSession(await refusalCause(signal));
           } else {
             lastCycleError = '';
           }

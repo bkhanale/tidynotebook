@@ -30,6 +30,11 @@ export type SyncState =
   | { readonly kind: 'delete-refused'; readonly path: string }
   /** The session ended, so sync stopped until the person signs in. */
   | { readonly kind: 'signed-out' }
+  /**
+   * Another account signed in on this browser, so the work of this account
+   * waits on the device until this account signs in again (record 0113).
+   */
+  | { readonly kind: 'other-account' }
   /** Another tab of this browser drives sync. */
   | { readonly kind: 'other-tab' }
   /** The server needs a newer application before this tab syncs again. */
@@ -41,6 +46,20 @@ export type SyncState =
 
 /** The first state of a session, before the engine reports anything. */
 export const startingSyncState: SyncState = { kind: 'starting' };
+
+/**
+ * Whether one notice proves only that sync can run again.
+ *
+ * A fit after a misfit, and a session that serves the engine again after a
+ * pause, say nothing about the queue. The state starts over, and the caller
+ * reads the queue at once, because nothing else may announce for a while.
+ */
+export function noticeStartsOver(notice: SyncNotice): boolean {
+  return (
+    notice.kind === 'resumed' ||
+    (notice.kind === 'protocol' && notice.fit === 'compatible')
+  );
+}
 
 /**
  * Selects the state for one engine notice.
@@ -62,12 +81,14 @@ export function syncStateOfNotice(notice: SyncNotice): SyncState | null {
   if (notice.kind === 'retry') return { kind: 'waiting' };
   if (notice.kind === 'snapshot-activated' || notice.kind === 'changes-applied')
     return { kind: 'in-step' };
-  if (notice.kind === 'paused') return { kind: 'signed-out' };
+  if (notice.kind === 'paused')
+    return notice.reason === 'other-account'
+      ? { kind: 'other-account' }
+      : { kind: 'signed-out' };
   if (notice.kind === 'lease-held') return { kind: 'other-tab' };
   if (notice.kind === 'lease-lost') return { kind: 'waiting' };
   if (notice.kind === 'access-lost') return { kind: 'stopped' };
-  // A fit after a misfit proves only that sync can run again, so the state
-  // starts over and the next queue read or send states where work stands.
+  if (noticeStartsOver(notice)) return startingSyncState;
   if (notice.kind === 'protocol')
     return notice.fit === 'client-behind'
       ? { kind: 'update-required' }
@@ -108,6 +129,8 @@ export function syncStateMessage(
     return `${named} changed on another device, so it was not deleted.`;
   if (state.kind === 'signed-out')
     return 'The session ended. Sign in again to save to the server.';
+  if (state.kind === 'other-account')
+    return 'Another account signed in on this browser. Your work stays on this device until you sign in again.';
   if (state.kind === 'other-tab')
     return 'Another tab of this browser is saving to the server.';
   if (state.kind === 'update-required')
@@ -155,6 +178,7 @@ export function syncNeedsAttention(state: SyncState): boolean {
   return (
     state.kind === 'attention' ||
     state.kind === 'signed-out' ||
+    state.kind === 'other-account' ||
     state.kind === 'stopped' ||
     state.kind === 'delete-refused' ||
     state.kind === 'update-required'

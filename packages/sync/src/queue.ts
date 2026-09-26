@@ -100,8 +100,18 @@ export type SyncNotice =
   | { readonly kind: 'snapshot-restart'; readonly reason: string }
   | { readonly kind: 'snapshot-activated'; readonly count: number }
   | { readonly kind: 'changes-applied'; readonly count: number }
-  | { readonly kind: 'paused'; readonly reason: 'session' }
+  /**
+   * Sync waits for the person of this engine. `session` means the session
+   * ended. `other-account` means another account signed in on this browser,
+   * and the queue waits for its own account (record 0113).
+   */
+  | {
+      readonly kind: 'paused';
+      readonly reason: 'session' | 'other-account';
+    }
   | { readonly kind: 'access-lost' }
+  /** The session serves this engine again after a pause or a lost access. */
+  | { readonly kind: 'resumed' }
   | { readonly kind: 'lease-held' }
   | { readonly kind: 'lease-lost' }
   /**

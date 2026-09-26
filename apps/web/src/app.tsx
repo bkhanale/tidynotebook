@@ -61,6 +61,7 @@ import {
   problemStatus,
 } from './lib/problem-text.ts';
 import {
+  noticeStartsOver,
   startingSyncState,
   syncStateFileId,
   syncStateOfNotice,
@@ -795,9 +796,10 @@ export function useWorkspaceSync(
       const next = syncStateOfNotice(notice);
       if (next === null) return;
       setState(next);
-      // A fit after a misfit starts over, and the queue states where the
-      // work stands, because nothing else may announce for a while.
-      if (notice.kind === 'protocol' && notice.fit === 'compatible') {
+      // A notice that only proves that sync runs again starts over, and the
+      // queue states where the work stands, because nothing else may
+      // announce for a while.
+      if (noticeStartsOver(notice)) {
         readQueue();
         return;
       }

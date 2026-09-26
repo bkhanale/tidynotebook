@@ -2002,6 +2002,176 @@ await test('an expired session pauses the run without sending anything', async (
   assert.equal(store.lease, null);
 });
 
+await test('a session of another account pauses the run and keeps the queue', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  const notices: SyncNotice[] = [];
+  let checks = 0;
+  const ops = stubOperations({
+    // The cookie of the browser names the other account for three checks,
+    // then the first account signs in again.
+    verifySession: () => {
+      checks += 1;
+      return Promise.resolve({
+        ok: true as const,
+        value: { accountId: checks <= 3 ? 'account-2' : accountId },
+      });
+    },
+    commit: (input) =>
+      Promise.resolve(
+        checks <= 3
+          ? {
+              ok: false as const,
+              problem: { status: 403, code: 'forbidden', fileIds: [] },
+            }
+          : {
+              ok: true as const,
+              value: accepted(input.mutationId, ['rev-a'], 'cursor-1'),
+            },
+      ),
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-1',
+    operations: ops,
+    announce: (notice) => {
+      notices.push(notice);
+    },
+    pollIntervalMs: 5,
+    leaseTtlMs: 60_000,
+    random: () => 0,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => notices.some((notice) => notice.kind === 'pushed'));
+  controller.abort();
+  await running;
+  // Nothing went up with the cookie of the other account, the work stayed in
+  // the queue and out of recovery, and the person read one cause.
+  assert.equal(ops.commitCalls.length, 1);
+  assert.equal(store.recovery.length, 0);
+  assert.deepEqual(
+    notices.filter(
+      (notice) => notice.kind === 'paused' || notice.kind === 'access-lost',
+    ),
+    [{ kind: 'paused', reason: 'other-account' }],
+  );
+  assert.ok(notices.some((notice) => notice.kind === 'resumed'));
+  assert.equal(store.acks.length, 1);
+});
+
+await test('a session that returns after a pause resumes and loses no access', async () => {
+  const store = new FakeStore();
+  const notices: SyncNotice[] = [];
+  let checks = 0;
+  const ops = stubOperations({
+    verifySession: () => {
+      checks += 1;
+      return Promise.resolve(
+        checks === 1
+          ? {
+              ok: false as const,
+              problem: { status: 401, code: 'unauthorized', fileIds: [] },
+            }
+          : { ok: true as const, value: { accountId } },
+      );
+    },
+    start: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: { token: 'token-1', cursor: 'cursor-1', itemCount: 0 },
+      }),
+    page: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: {
+          token: 'token-1',
+          cursor: 'cursor-1',
+          items: [],
+          nextPosition: null,
+        },
+      }),
+    changes: () =>
+      Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: 'cursor-1' },
+      }),
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-1',
+    operations: ops,
+    announce: (notice) => {
+      notices.push(notice);
+    },
+    pollIntervalMs: 5,
+    leaseTtlMs: 60_000,
+    random: () => 0,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => checks >= 3);
+  controller.abort();
+  await running;
+  assert.deepEqual(
+    notices
+      .filter(
+        (notice) =>
+          notice.kind === 'paused' ||
+          notice.kind === 'access-lost' ||
+          notice.kind === 'resumed',
+      )
+      .map((notice) => notice.kind),
+    ['paused', 'resumed'],
+  );
+});
+
+await test('a refusal after another account signs in names that account', async () => {
+  const store = new FakeStore();
+  store.enqueue(queuedEntry('file-a', 'rev-a', '# A\n', null, 'mutation-1'));
+  const notices: SyncNotice[] = [];
+  let checks = 0;
+  const ops = stubOperations({
+    // The run checks twice before its first send, and both checks pass. The
+    // other account signs in before the send, so the send is refused and
+    // every later check names the other account.
+    verifySession: () => {
+      checks += 1;
+      return Promise.resolve({
+        ok: true as const,
+        value: { accountId: checks <= 2 ? accountId : 'account-2' },
+      });
+    },
+    commit: () =>
+      Promise.resolve({
+        ok: false as const,
+        problem: { status: 403, code: 'forbidden', fileIds: [] },
+      }),
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-1',
+    operations: ops,
+    announce: (notice) => {
+      notices.push(notice);
+    },
+    pollIntervalMs: 5,
+    leaseTtlMs: 60_000,
+    random: () => 0,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => checks >= 5);
+  controller.abort();
+  await running;
+  assert.equal(ops.commitCalls.length, 1);
+  assert.equal(store.queued()?.state, 'sending');
+  assert.equal(store.recovery.length, 0);
+  assert.deepEqual(
+    notices.filter(
+      (notice) => notice.kind === 'paused' || notice.kind === 'access-lost',
+    ),
+    [{ kind: 'paused', reason: 'other-account' }],
+  );
+});
+
 await test('a server with a later protocol gets no push and no pull', async () => {
   // Record 0086. A cached client must not send a format that the server no
   // longer reads, and it must not read a feed it cannot apply.

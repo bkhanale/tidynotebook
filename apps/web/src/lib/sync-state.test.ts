@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { transportFailedCode, type SyncNotice } from '@notesapp/sync';
 import {
+  noticeStartsOver,
   startingSyncState,
   syncDot,
   syncDotClassName,
@@ -29,7 +30,9 @@ const notices: readonly SyncNotice[] = [
   { kind: 'snapshot-activated', count: 12 },
   { kind: 'changes-applied', count: 3 },
   { kind: 'paused', reason: 'session' },
+  { kind: 'paused', reason: 'other-account' },
   { kind: 'access-lost' },
+  { kind: 'resumed' },
   { kind: 'lease-held' },
   { kind: 'lease-lost' },
   { kind: 'protocol', fit: 'client-behind' },
@@ -68,6 +71,7 @@ const states: readonly SyncState[] = [
   { kind: 'attention', fileId: 'f2' },
   { kind: 'delete-refused', path: 'plans/old.md' },
   { kind: 'signed-out' },
+  { kind: 'other-account' },
   { kind: 'other-tab' },
   { kind: 'update-required' },
   { kind: 'server-behind' },
@@ -104,6 +108,31 @@ await test('only the states that need an answer ask for one', () => {
   // earlier version is not, so it waits like a lost connection.
   assert.equal(syncNeedsAttention({ kind: 'update-required' }), true);
   assert.equal(syncNeedsAttention({ kind: 'server-behind' }), false);
+});
+
+await test('another account on this browser is its own cause', () => {
+  const state = syncStateOfNotice({ kind: 'paused', reason: 'other-account' });
+  assert.deepEqual(state, { kind: 'other-account' });
+  assert.equal(syncNeedsAttention({ kind: 'other-account' }), true);
+  // The work waits for its account, so the queue never hides the cause.
+  assert.deepEqual(syncStateOfQueue({ kind: 'other-account' }, 0), {
+    kind: 'other-account',
+  });
+  assert.match(
+    syncStateMessage({ kind: 'other-account' }),
+    /^Another account signed in on this browser\./,
+  );
+});
+
+await test('a session that serves the engine again starts over', () => {
+  assert.equal(noticeStartsOver({ kind: 'resumed' }), true);
+  assert.equal(noticeStartsOver({ kind: 'protocol', fit: 'compatible' }), true);
+  assert.equal(
+    noticeStartsOver({ kind: 'protocol', fit: 'client-behind' }),
+    false,
+  );
+  assert.equal(noticeStartsOver({ kind: 'access-lost' }), false);
+  assert.deepEqual(syncStateOfNotice({ kind: 'resumed' }), startingSyncState);
 });
 
 await test('a protocol misfit names its cause and a fit starts over', () => {
