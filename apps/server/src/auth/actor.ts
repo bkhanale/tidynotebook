@@ -24,6 +24,8 @@ import { toRequestHeaders, type NotesappAuth } from './better-auth.ts';
 /** A verified actor and what the session knows about it. */
 export type ResolvedActor = {
   readonly actor: Actor;
+  /** The identity user of the session, which a password check names. */
+  readonly authUserId: string;
   /** Sign-in address of the account. */
   readonly email: string | null;
   /** Display name of the account. */
@@ -80,29 +82,22 @@ export type IdentityAdapter = {
   resolver: IdentityResolver;
 };
 
-/** The account calls that can resolve a session in a single-user install. */
-type SessionAccountStore = Pick<
-  IdentityStoreHandle,
-  'accountOf' | 'linkFirstAccount'
->;
+/** The account call that resolves a session. */
+type SessionAccountStore = Pick<IdentityStoreHandle, 'sessionAccount'>;
 
 /**
- * Returns the account of one session without opening a second-account path.
+ * Returns the account that one session serves.
  *
- * A failed setup compensation can leave an unlinked identity user. That user
- * must not become another application account when its session is resolved.
+ * Every account comes in through the registration path (record 0108), so an
+ * identity user that no account links is a failed attempt and resolves to
+ * nothing. A disabled or removed account resolves to nothing as well
+ * (record 0111). Nothing here makes an account.
  */
 export async function accountForSession(
   identity: SessionAccountStore,
   authUserId: string,
 ): Promise<string | null> {
-  return (
-    (await identity.accountOf(authUserId)) ??
-    identity.linkFirstAccount({
-      authUserId,
-      workspaceName: 'Personal',
-    })
-  );
+  return identity.sessionAccount(authUserId);
 }
 
 /**
@@ -207,9 +202,7 @@ export function createIdentityAdapter(
     });
     const user = readSessionUser(session);
     if (user === null) return null;
-    // A session can reuse its linked account. An unlinked identity can create
-    // only the first account, so a failed setup compensation cannot become a
-    // path to a second account.
+    // A session resolves to its enabled account and never makes one.
     const linked = await accountForSession(dependencies.identity, user.id);
     if (linked === null) return null;
     const memberships = await dependencies.identity.memberships(linked);
@@ -217,6 +210,7 @@ export function createIdentityAdapter(
     if (!verified.ok) return null;
     return {
       actor: verified.value,
+      authUserId: user.id,
       email: user.email === '' ? null : user.email,
       name: user.name === '' ? null : user.name,
     };

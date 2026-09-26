@@ -67,7 +67,7 @@ export const stubProtocol: ProtocolAdapter = {
     }),
 };
 
-/** Adds deterministic setup handlers to a server that has no identity store. */
+/** Adds deterministic account handlers to a server that has no identity store. */
 export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
   return {
     ...handlers,
@@ -82,6 +82,18 @@ export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
         status: 201,
         mediaType: 'application/json',
         body: { initialized: true },
+      }),
+    readInvitation: () =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/json',
+        body: { email: 'invited@notes.invalid' },
+      }),
+    registerAccount: () =>
+      Promise.resolve({
+        status: 201,
+        mediaType: 'application/json',
+        body: { registered: true },
       }),
   };
 }

@@ -18,8 +18,9 @@ authentication routes on one origin, and it holds no domain rule.
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start
   and of the stop and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a
-  published link, mail, and setup. `src/jobs/` holds background work, `src/cli/` the
-  operator commands.
+  published link, mail, setup, invitations, and `registration.ts`, the one path that
+  makes an account (0108). `src/jobs/` holds background work, `src/cli/` the operator
+  commands. `routes/administration.ts` serves the installation operations (0109).
 - A domain rule lives in `packages/core`, every SQL statement in
   `packages/storage-server`, and every request shape in `packages/api-contract/`.
 

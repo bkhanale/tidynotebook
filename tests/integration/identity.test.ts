@@ -1,4 +1,4 @@
-/** Single-user setup and sign-in checks against real databases. */
+/** First-run setup and sign-in checks against real databases. */
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
@@ -240,8 +240,9 @@ await test('no auth answer hands the session token to page script', async () => 
 
 await test('the bootstrap command refuses to create a second account', async () => {
   // BE-23. The pre-check runs outside the write, so the guard that decides is
-  // `linkFirstAccount`. It must fail the command instead of linking a second
-  // account to a fresh auth user.
+  // the first-run ground of the registration function. It must fail the
+  // command instead of making a second account for a fresh identity user.
+  // Every later account comes in through an invitation (record 0108).
   await assert.rejects(
     bootstrapOwner({
       config,
@@ -249,7 +250,7 @@ await test('the bootstrap command refuses to create a second account', async () 
       name: 'Second',
       password: 'bootstrap-second-password-1',
     }),
-    /the single user already exists/,
+    /the first account already exists/,
   );
   const workspaces = await listWorkspaces({
     headers: { origin: 'http://127.0.0.1', cookie: ownerCookie },

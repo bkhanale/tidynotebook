@@ -9,8 +9,12 @@
  *
  * The configuration below is the pinned identity policy of the deployment:
  *
- *   * Email and password sign-in, with public registration disabled. The
- *     first-run setup operation creates the only account.
+ *   * Email and password sign-in. The sign-up route is not mounted, and
+ *     every account comes in through the one registration path of
+ *     `registration.ts` (record 0108), which starts no session before the
+ *     account exists.
+ *   * A session only for an enabled account. A hook asks the identity store
+ *     before each new session (record 0111).
  *   * Secure, HttpOnly, SameSite cookies, a session that expires, and a
  *     session that refreshes while it is used.
  *   * Origin and Fetch Metadata checks against the served origins of the
@@ -27,6 +31,7 @@
  */
 import { Buffer } from 'node:buffer';
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { FastifyRequest } from 'fastify';
@@ -89,10 +94,18 @@ export type AuthOptions = {
   /** Sends the password recovery message, or `null` when none is configured. */
   readonly mail: MailTransport | null;
   /**
-   * Permits sign-up through the email and password endpoint.
+   * Whether an identity user may start a session (record 0111).
    *
-   * The public route stays unmounted. The first-run setup operation and the
-   * operator bootstrap command use this internal capability.
+   * The session create hook asks this before every new session, so a disabled
+   * account, a removed account, and an identity user that no account links
+   * get none. It is required, so no instance can forget it.
+   */
+  readonly sessionAllowed: (authUserId: string) => Promise<boolean>;
+  /**
+   * Permits sign-up through the internal API of the library.
+   *
+   * The public route stays unmounted. `registration.ts` uses this capability
+   * to make the identity user of a new account.
    */
   readonly allowSignUp?: boolean;
   /**
@@ -193,6 +206,10 @@ function buildAuth(
     emailAndPassword: {
       enabled: true,
       disableSignUp: options.allowSignUp !== true,
+      // A sign-up makes the identity user only. The registration path links
+      // the account first and starts the session after, so no session exists
+      // for an identity user that no account links (record 0108).
+      autoSignIn: false,
       minPasswordLength: 12,
       maxPasswordLength: 512,
       requireEmailVerification: false,
@@ -217,6 +234,19 @@ function buildAuth(
               });
             },
           }),
+    },
+    databaseHooks: {
+      session: {
+        create: {
+          before: async (session: { userId: string }): Promise<void> => {
+            if (!(await options.sessionAllowed(session.userId)))
+              throw APIError.from('FORBIDDEN', {
+                message: 'This account cannot sign in.',
+                code: 'ACCOUNT_UNAVAILABLE',
+              });
+          },
+        },
+      },
     },
     session: {
       expiresIn: config.sessionMaxAgeSeconds,

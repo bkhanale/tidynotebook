@@ -118,7 +118,7 @@ bytes live in a bind-mounted directory, content addressed by digest.
 The container entry point applies the migrations with the migration role before
 the server starts with the restricted runtime role, so a container that serves
 without its migrations never reports ready. See [Database](database.md),
-[Single-user identity](identity.md), and
+[Accounts and identity](identity.md), and
 [Self-hosting](../guide/self-hosting.md).
 
 The browser holds working state in IndexedDB through Dexie: drafts, local

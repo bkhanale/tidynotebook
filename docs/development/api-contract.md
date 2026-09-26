@@ -132,7 +132,7 @@ the runtime index.
 
 Only the two endpoints that answer with a redirect stay out of the fragment:
 they are browser navigation, not calls a generated client makes.
-[Single-user identity](identity.md) lists the mounted routes.
+[Accounts and identity](identity.md) lists the mounted routes.
 
 ## Client rules
 

@@ -73,7 +73,21 @@ export type {
   AuthOptions,
   NotesappAuth,
 } from './auth/better-auth.ts';
-export { createSetupHandlers } from './auth/setup.ts';
+export { createSetupHandlers, type SetupDependencies } from './auth/setup.ts';
+export {
+  passwordMatches,
+  registerIdentity,
+  sessionAllowedBy,
+  startSession,
+  type Registered,
+  type RegistrationInput,
+} from './auth/registration.ts';
+export {
+  invitationPath,
+  issueInvitation,
+  mailInvitation,
+} from './auth/invitations.ts';
+export { createAdministrationHandlers } from './routes/administration.ts';
 export {
   authBasePath,
   authRoutes,
@@ -103,6 +117,8 @@ export type { MailMessage, MailTransport } from './auth/mail.ts';
 export { createMailTransport } from './auth/mail.ts';
 export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
+export { inviteAccount, type InviteResult } from './cli/invite-account.ts';
+export { promoteAccount } from './cli/promote-account.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';
 export { createAttachmentCleanup } from './jobs/attachment-cleanup.ts';
 export { createPublicationCleanup } from './jobs/publication-cleanup.ts';

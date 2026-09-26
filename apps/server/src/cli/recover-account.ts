@@ -50,7 +50,11 @@ export async function recoverAccount(
       `notesapp: the password must have at least ${String(minimumPasswordLength)} characters.`,
     );
   const identity = openIdentityStore(input.config.databaseUrl, { poolSize: 2 });
-  const auth = createAuth(input.config, { mail: null });
+  // The command starts no session, so the hook refuses every one.
+  const auth = createAuth(input.config, {
+    mail: null,
+    sessionAllowed: () => Promise.resolve(false),
+  });
   try {
     const context = await auth.auth.$context;
     const found = await context.internalAdapter.findUserByEmail(input.email);

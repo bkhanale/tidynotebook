@@ -492,12 +492,17 @@ export function checkRegistration(
  * key. `../plugins/attempt-store.ts` is the store that answers that key from
  * one counter, whichever route asked, so a name here is one bucket. The two
  * operations that take the password of a published link share theirs, and so
- * do the two of the setup screen.
+ * do the two of the setup screen and the two of an invitation.
  */
 function throttleGroup(id: OperationId): string | null {
   if (id === 'getSetupStatus' || id === 'createOwner') return 'setup';
   if (id === 'unlockPublishedLink' || id === 'openPublishedPage')
     return 'published';
+  // The two operations that take an invitation token share one bucket, so a
+  // guess at a token costs the same attempt on either.
+  if (id === 'readInvitation' || id === 'registerAccount') return 'invitation';
+  // The removal of an own account takes the password again, like a sign-in.
+  if (id === 'removeOwnAccount') return 'password';
   return null;
 }
 

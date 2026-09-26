@@ -7,11 +7,14 @@
  * lives in the file of its area, and this file only assembles the map.
  */
 import type {
+  InstallationStore,
   PasswordHasher,
   ReaderRefusalCause,
   WorkspaceAdminStore,
   WorkspaceStore,
 } from '@notesapp/core';
+import type { MailTransport } from '../auth/mail.ts';
+import { createAdministrationHandlers } from './administration.ts';
 import type { ServerConfig } from '../config.ts';
 import type { ServiceLifecycle } from '../lifecycle.ts';
 import { runningLifecycle } from '../lifecycle.ts';
@@ -45,11 +48,11 @@ import { createPublishedHandlers } from './published.ts';
  * service operations may leave it out, and then an account operation answers
  * with a generic server error instead of pretending to work.
  */
-function missingStore(): WorkspaceAdminStore {
+function missingStore(): WorkspaceAdminStore & InstallationStore {
   const fail = (): never => {
     throw new Error('notesapp: the server was built without an account store.');
   };
-  return { account: fail, workspace: fail };
+  return { account: fail, workspace: fail, installation: fail };
 }
 
 function missingAttachmentStore(): AttachmentStore {
@@ -97,8 +100,18 @@ export type PublicationDependencies = {
 
 /** What the handlers need from the composition. */
 export type HandlerDependencies = {
-  /** The account and workspace store of the deployment. */
-  readonly store?: WorkspaceAdminStore;
+  /** The account, workspace and installation store of the deployment. */
+  readonly store?: WorkspaceAdminStore & InstallationStore;
+  /** The mail transport of the deployment, or `null` for none. */
+  readonly mail?: MailTransport | null;
+  /**
+   * Whether a password is the current one of an identity user. A test that
+   * checks the service operations leaves it out, and every check fails.
+   */
+  readonly verifyPassword?: (
+    authUserId: string,
+    password: string,
+  ) => Promise<boolean>;
   /** The workspace content store of the deployment. */
   readonly content?: WorkspaceStore;
   /** The attachment store of the deployment. */
@@ -158,6 +171,23 @@ export function createHandlers(
       config.limits,
     ),
     ...createWorkspaceHandlers(store),
+    ...createAdministrationHandlers({
+      store,
+      mail: dependencies.mail ?? null,
+      origin: config.origin,
+      invitationLifetimeHours: config.accounts.invitationLifetimeHours,
+      defaultLimitBytes: config.accounts.limitBytes,
+      // The published origin and the legal documents are the parts of
+      // records 0118 and 0120, which this release does not have yet, so open
+      // registration stays refused whatever the mail transport.
+      readiness: {
+        mail: (dependencies.mail ?? null) !== null,
+        publishedOrigin: false,
+        legalDocuments: false,
+      },
+      verifyPassword:
+        dependencies.verifyPassword ?? (() => Promise.resolve(false)),
+    }),
     ...createPublicationHandlers(
       published === undefined
         ? undefined

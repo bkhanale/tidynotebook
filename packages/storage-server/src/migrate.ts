@@ -130,6 +130,12 @@ export type MigrationRun = {
    * that the workspace uses.
    */
   readonly documents: DocumentService;
+  /**
+   * The migration directory, the reviewed one of this package by default. An
+   * upgrade test names a copy that stops at an earlier release, so it can seed
+   * the rows of that release before the rest applies.
+   */
+  readonly migrationsFolder?: string;
 };
 
 /**
@@ -161,7 +167,9 @@ export async function runMigrations(run: MigrationRun): Promise<void> {
       migrationLockKey,
     ]);
     try {
-      await migrate(drizzle(client), { migrationsFolder: migrationsFolder() });
+      await migrate(drizzle(client), {
+        migrationsFolder: run.migrationsFolder ?? migrationsFolder(),
+      });
       for (const [role, password] of [
         [runtimeRole, run.runtimePassword],
         [authRole, run.authPassword],

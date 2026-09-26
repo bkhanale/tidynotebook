@@ -155,10 +155,21 @@ function readCachedAccount(): Account | null {
       return null;
     if (name !== undefined && name !== null && typeof name !== 'string')
       return null;
+    // An account cached by an earlier release holds no installation role and
+    // no storage. It reads as a member with unknown usage until the server
+    // answers, so no administrator screen opens from a stale cache.
+    const role = row['installationRole'];
+    const used = readProperty(row['storage'], 'usedBytes');
+    const limit = readProperty(row['storage'], 'limitBytes');
     return {
       accountId: row['accountId'],
       email: email ?? null,
       name: name ?? null,
+      installationRole: role === 'administrator' ? 'administrator' : 'member',
+      storage: {
+        usedBytes: typeof used === 'number' ? used : 0,
+        limitBytes: typeof limit === 'number' ? limit : 0,
+      },
       preferences: {
         appearance:
           appearance === 'light' || appearance === 'dark'

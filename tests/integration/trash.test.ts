@@ -31,6 +31,7 @@ import {
   createIdentityAdapter,
   loadServerConfig,
   type ServerConfig,
+  sessionAllowedBy,
 } from '@notesapp/server';
 import {
   createDocumentService,
@@ -79,7 +80,11 @@ const attachments = openAttachmentStore(database.runtimeUrl, storageRoot, {
   poolSize: 4,
 });
 const authPool = createAuthPool(config);
-const auth = createAuth(config, { mail: null }, authPool);
+const auth = createAuth(
+  config,
+  { mail: null, sessionAllowed: sessionAllowedBy(identity) },
+  authPool,
+);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,

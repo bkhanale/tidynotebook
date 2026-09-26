@@ -40,6 +40,7 @@ import {
 import { createIdentityAdapter } from './auth/actor.ts';
 import { createPublicationHasher } from './auth/publication-secrets.ts';
 import { createSetupHandlers } from './auth/setup.ts';
+import { passwordMatches, sessionAllowedBy } from './auth/registration.ts';
 import { createMailTransport } from './auth/mail.ts';
 import {
   createDocumentService,
@@ -399,6 +400,9 @@ export async function createAppWithHandlers(
           ...(classified.fileIds !== undefined && status === classified.status
             ? { fileIds: classified.fileIds }
             : {}),
+          ...(classified.missing !== undefined && status === classified.status
+            ? { missing: classified.missing }
+            : {}),
         }),
       );
   });
@@ -522,12 +526,19 @@ async function composeApp(
   // once the instance exists, so nothing reaches the console in between.
   const sink: { write?: (record: AuthLogRecord) => void } = {};
   // Sign-up is enabled inside the protocol library, but its public route is
-  // not mounted. The setup handler calls it only while no account exists.
+  // not mounted. The one registration path of `auth/registration.ts` calls
+  // it. The session hook asks the account store before every new session, so
+  // only an enabled account gets one (record 0111).
   const authPool = createAuthPool(config);
   opened.push(() => authPool.end());
   const auth = createAuth(
     config,
-    { mail, allowSignUp: true, log: (record) => sink.write?.(record) },
+    {
+      mail,
+      allowSignUp: true,
+      sessionAllowed: sessionAllowedBy(identity),
+      log: (record) => sink.write?.(record),
+    },
     authPool,
   );
   opened.push(() => auth.close());
@@ -540,6 +551,9 @@ async function composeApp(
     handlers: {
       ...createHandlers(config, probes, {
         store: identity,
+        mail,
+        verifyPassword: (authUserId, password) =>
+          passwordMatches(auth.auth, authUserId, password),
         content,
         attachments,
         publications: {
@@ -553,12 +567,13 @@ async function composeApp(
           ? {}
           : { lifecycle: options.lifecycle }),
       }),
-      ...createSetupHandlers(
-        auth.auth,
+      ...createSetupHandlers({
+        auth: auth.auth,
         identity,
         content,
-        config.servedOrigins,
-      ),
+        servedOrigins: config.servedOrigins,
+        accountLimitBytes: config.accounts.limitBytes,
+      }),
     },
     identity: adapter.resolver,
     protocols: [createAuthProtocol(config, auth.auth)],

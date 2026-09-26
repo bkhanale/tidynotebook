@@ -8,7 +8,11 @@
  */
 import type { FastifyRequest } from 'fastify';
 import type { Preferences, Result, WorkspaceAdminStore } from '@notesapp/core';
-import { readPreferences, updatePreferences } from '@notesapp/core';
+import {
+  readOwnStanding,
+  readPreferences,
+  updatePreferences,
+} from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
 import { readProperty } from '../values.ts';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
@@ -92,6 +96,7 @@ export function createAccountHandlers(store: WorkspaceAdminStore): HandlerMap {
     getAccount: async (request): Promise<HandlerResult> => {
       const resolved = requireActor(request);
       const preferences = unwrap(await readPreferences(store, resolved.actor));
+      const standing = unwrap(await readOwnStanding(store, resolved.actor));
       return {
         status: 200,
         mediaType: jsonMediaType,
@@ -99,6 +104,11 @@ export function createAccountHandlers(store: WorkspaceAdminStore): HandlerMap {
           accountId: resolved.actor.accountId,
           email: resolved.email,
           name: resolved.name,
+          installationRole: standing.role,
+          storage: {
+            usedBytes: Number(standing.usedBytes),
+            limitBytes: Number(standing.limitBytes),
+          },
           preferences: preferencesBody(preferences),
         },
       };

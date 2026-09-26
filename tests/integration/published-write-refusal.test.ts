@@ -231,7 +231,9 @@ const protocolWrites = [
 ];
 
 /** The one write that runs while no account exists. */
-const setupWrites = ['createOwner'];
+// The public writes that make an account (record 0108). Each takes its own
+// secret, a first run or an invitation token, and none reads a session.
+const setupWrites = ['createOwner', 'readInvitation', 'registerAccount'];
 
 /** The value of each path parameter, so every address names a real thing. */
 const pathValues: Readonly<Record<string, string>> = {
@@ -239,6 +241,8 @@ const pathValues: Readonly<Record<string, string>> = {
   fileId: noteId,
   publicationId,
   objectId: randomUUID(),
+  accountId: randomUUID(),
+  invitationId: randomUUID(),
   token,
 };
 

@@ -52,7 +52,11 @@ export type ProblemCode =
   | 'not_ready'
   | 'shutting_down'
   | 'invalid_response'
-  | 'internal_error';
+  | 'internal_error'
+  | 'last_administrator'
+  | 'invitation_invalid'
+  | 'account_exists'
+  | 'open_registration_unavailable';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -66,6 +70,8 @@ export type Problem = {
   readonly issues?: readonly ValidationIssue[];
   /** Files that a content failure refers to. Identifiers only. */
   readonly fileIds?: readonly string[];
+  /** The parts that open registration lacks (record 0114). */
+  readonly missing?: readonly string[];
 };
 
 const titles: Readonly<Record<ProblemCode, string>> = {
@@ -103,7 +109,13 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   invalid_content: 'The submitted content does not match its digest.',
   too_many_files: 'The change rewrites more files than one request may hold.',
   unrenderable_note: 'The note cannot be read as Markdown.',
-  quota_exceeded: 'The workspace has no room left for new content.',
+  quota_exceeded: 'The account has no room left for new content.',
+  last_administrator:
+    'The installation keeps at least one enabled administrator.',
+  invitation_invalid: 'This invitation is not valid.',
+  account_exists: 'An account already signs in with this address.',
+  open_registration_unavailable:
+    'The installation lacks a part that open registration needs.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
@@ -311,6 +323,15 @@ const domainStatus: Readonly<
     code: 'published_link_unavailable',
   },
   quota: { status: 413, code: 'quota_exceeded' },
+  last_administrator: { status: 409, code: 'last_administrator' },
+  // The one refusal of an invitation. An expired, a used, a revoked and an
+  // unknown token all answer it, so the answer states nothing more.
+  invitation_invalid: { status: 403, code: 'invitation_invalid' },
+  account_exists: { status: 409, code: 'account_exists' },
+  open_registration_unavailable: {
+    status: 422,
+    code: 'open_registration_unavailable',
+  },
 };
 
 /** The explanation of one domain failure. It names no path and no content. */
@@ -352,8 +373,29 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   // contract, so a refusal that arrives as a domain failure and a refusal that
   // arrives as `PublishedLinkUnavailableError` read the same.
   published_link_unavailable: 'This link is not available.',
-  quota: 'The workspace has no room left for new content.',
+  quota: 'The account has no room left for new content.',
+  last_administrator:
+    'The change would leave the installation with no enabled administrator.',
+  invitation_invalid: 'This invitation is not valid. Ask for a new one.',
+  account_exists: 'An account already signs in with this address.',
+  open_registration_unavailable:
+    'The installation lacks a part that open registration needs.',
 };
+
+/**
+ * The refusal of the open policy, with the parts that the installation lacks
+ * (record 0114). The answer names each missing part, so the administrator
+ * knows what to configure.
+ */
+export class OpenRegistrationUnavailableError extends Error {
+  readonly missing: readonly string[];
+
+  constructor(missing: readonly string[]) {
+    super(domainTitles.open_registration_unavailable);
+    this.name = 'OpenRegistrationUnavailableError';
+    this.missing = [...missing];
+  }
+}
 
 /**
  * The one refusal of the reader path of a published link.
@@ -407,9 +449,11 @@ export function createProblem(input: {
   readonly requestId: string;
   readonly issues?: readonly ValidationIssue[];
   readonly fileIds?: readonly string[];
+  readonly missing?: readonly string[];
 }): Problem {
   const issues = input.issues ?? [];
   const fileIds = input.fileIds ?? [];
+  const missing = input.missing ?? [];
   return {
     type: `https://notesapp.invalid/problems/${input.code}`,
     title: titles[input.code],
@@ -420,6 +464,7 @@ export function createProblem(input: {
     requestId: input.requestId,
     ...(issues.length > 0 ? { issues } : {}),
     ...(fileIds.length > 0 ? { fileIds } : {}),
+    ...(missing.length > 0 ? { missing } : {}),
   };
 }
 
@@ -430,7 +475,16 @@ export function classifyError(error: unknown): {
   detail: string;
   issues: readonly ValidationIssue[];
   fileIds?: readonly string[];
+  missing?: readonly string[];
 } {
+  if (error instanceof OpenRegistrationUnavailableError)
+    return {
+      status: 422,
+      code: 'open_registration_unavailable',
+      detail: error.message,
+      issues: [],
+      missing: error.missing,
+    };
   if (error instanceof DomainProblemError) {
     const mapped = domainStatus[error.domain.code];
     return {

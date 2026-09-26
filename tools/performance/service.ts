@@ -197,11 +197,14 @@ try {
 
   const workspaceId = randomUUID();
   const accountIds = Array.from({ length: activeUsers }, () => randomUUID());
-  await provisionAccounts(migrationUrl, accountIds);
+  // The limit belongs to the account and counts every workspace it owns: the
+  // corpus of 2 GiB and one save workspace of 64 MiB (record 0112).
+  await provisionAccounts(migrationUrl, accountIds, {
+    limitBytes: 2n * 1024n * 1024n * 1024n + 64n * 1024n * 1024n,
+  });
   await provisionWorkspace(migrationUrl, {
     workspaceId,
     name: 'Performance corpus',
-    quotaBytes: 2n * 1024n * 1024n * 1024n,
     members: accountIds.map((accountId) => ({ accountId, role: 'owner' })),
   });
   const actors = accountIds.map((accountId) => actor(accountId, workspaceId));
@@ -257,7 +260,6 @@ try {
     await provisionWorkspace(migrationUrl, {
       workspaceId: saveWorkspaceId,
       name: `Performance save workspace ${String(index)}`,
-      quotaBytes: 64n * 1024n * 1024n,
       members: [{ accountId, role: 'owner' }],
     });
     const saveActor = actor(accountId, saveWorkspaceId);

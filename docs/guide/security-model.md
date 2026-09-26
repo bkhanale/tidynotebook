@@ -13,20 +13,26 @@ server can index them and search them. There is no end-to-end encryption. The
 operator, and anyone with access to the database or the disk, can read the
 content, the note names, and the attachments.
 
-In a personal installation the operator and the reader are the same person. If
-they are not, the reader is trusting the operator completely, and nothing in
-this product changes that.
+In a personal installation the operator and the reader are the same person.
+When the operator invites other people, each of them trusts the operator
+completely, and nothing in this product changes that.
+
+An administrator of the installation is not the operator. An administrator sees
+the address, the state, the last activity and the storage use of each account,
+and cannot open a note of another account.
 
 The operator cannot read a password. A password is stored as a hash that only
 the identity database role can reach, and the application role cannot read that
-table. See [Single-user identity](../development/identity.md).
+table. See [Accounts and identity](../development/identity.md).
 
 ## What the product assumes
 
-- **There is one user.** The setup screen creates that account and then closes
-  itself. There is no second account and no invitation. The one way to show a
-  note to another person is a link that you publish yourself, and you can stop
-  it at any moment. See [Published links](published-links.md).
+- **An account comes in by invitation.** The setup screen creates the first
+  account, an administrator, and then closes itself. Every later account needs
+  an invitation from an administrator. Each account has its own notes, and no
+  account reads the notes of another. The one way to show a note to another
+  person is a link that you publish yourself, and you can stop it at any
+  moment. See [Published links](published-links.md).
 - **Disk encryption is the operator's job.** The product expects encrypted host
   storage for the database, the attachments, the temporary files, swap, crash
   output, and the backups. See [Self-hosting](self-hosting.md).

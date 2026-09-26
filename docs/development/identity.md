@@ -1,73 +1,101 @@
-# Single-user identity
+# Accounts and identity
 
-NotesApp has one user. The user signs in with an email address and a password.
-There is no invitation, no shared workspace, and no browser SSO provider.
+This page owns how an account comes in, how a person signs in, and what an
+administrator can do. One installation serves several people, and no person
+reads the notes of another.
 
-`apps/server/src/auth/` owns this area. Read `setup.ts` for the first-run path
-and `better-auth.ts` for the mounted routes and the configuration.
+`apps/server/src/auth/` owns this area. Read `registration.ts` for the one
+registration path, `setup.ts` for the public operations that make an account,
+and `better-auth.ts` for the mounted routes and the configuration. The rules
+live in `packages/core/src/identity/`. See
+[design 015](../design/015-several-accounts-on-one-installation.md).
 
-## First-run setup
+## How an account comes in
 
-The setup operation reports whether an account exists. While none exists, the
-login page asks for an address and a password and sends them to the same
-operation.
+Every account comes in through `registerIdentity` in `registration.ts`, and
+through one database function, `notesapp_register_account`
+([record 0108](../decisions/0108-an-account-comes-in-through-one-registration-path.md)).
+The function takes one ground:
 
-The operation takes an advisory database lock and creates the Better Auth user,
-the application account, and the first workspace in one transaction. A second
-request cannot create another account, and the public sign-up route is not
-mounted. `pnpm owner:bootstrap` supports an unattended installation and follows
-the same one-account rule.
+- **First run.** While no account exists, setup and `pnpm owner:bootstrap`
+  make the first account, an administrator, under the installation lock.
+- **Invitation.** An administrator or `pnpm account:invite` makes an
+  invitation for one address. The link goes by mail when a transport exists,
+  and it is shown once otherwise. The token travels in the fragment of the
+  link, and only its digest is at rest. A used, revoked or expired invitation
+  opens nothing, and every refusal reads the same.
+- **Open.** The function refuses it unless the policy is open. The use case
+  refuses the open policy until the parts of
+  [record 0114](../decisions/0114-open-registration-verifies-the-address-before-the-first-session.md)
+  exist.
 
-## Sign-in
+The identity user and the account live in two stores. The path makes the
+identity user, calls the function, and deletes the identity user when the
+function refuses, so two acceptances of one invitation make one account and
+leave nothing else. The library starts no session at sign-up. The path signs
+the person in after the account exists.
+
+## Sign-in and sessions
 
 Better Auth owns password hashing, sessions, reset tokens, and cookie security.
-NotesApp mounts only the browser routes it needs; `better-auth.ts` states the
-exact list, and the adapter refuses a route outside it, so a library release
-cannot widen the surface without a reviewed change.
+NotesApp mounts only the routes it needs; `better-auth.ts` states the exact
+list, and the sign-up route is not one of them.
 
-A password has a minimum length. A session cookie is `HttpOnly` and
-`SameSite`, and an HTTPS deployment also marks it secure. A cookie write must
-name a served origin, and the identity routes trust the same list. See
+A session create hook asks `notesapp_session_account` before every new
+session, and the actor resolver asks the same function on every request. Only
+an enabled account that is not removed answers, so a disabled account gets no
+session and no actor, and an identity user that no account links resolves to
+nothing ([record 0111](../decisions/0111-a-removed-account-leaves-a-tombstone.md)).
+
+A session cookie is `HttpOnly` and `SameSite`, and an HTTPS deployment also
+marks it secure. A cookie write must name a served origin. See
 [HTTP API access](api.md) and
 [decision 0039](../decisions/0039-one-list-of-served-origins.md).
 
-## Account mapping
+## Administration
 
-Better Auth uses its own user identifier. The application maps that identifier
-to one account, and the first-account operation creates the account, its
-settings, its workspace, its usage record, its sync cursor, and its owner row
-in one transaction.
+Each account has an installation role, administrator or member. The matrix of
+`installation.ts` stands beside the workspace matrix, and the two never read
+each other ([record 0109](../decisions/0109-the-installation-role-grants-no-workspace-access.md)).
+An administrator lists the accounts with their address, state, last activity
+and usage, invites, disables, enables, removes, changes a role, and changes a
+limit. An administrator is not a member of a workspace of another account, so
+every row policy hides its notes.
 
-An account can hold several workspaces and creates them itself. The runtime
-role holds no insert right on the workspace table, so `notesapp_create_workspace`
-is the one way one comes into being and it makes the calling account its owner.
-An account never deletes its last workspace: the use case and the SQL function
-each refuse that call.
+Every administrator action runs in one installation transaction that takes the
+installation lock first, and a database function checks the role again. The
+installation keeps one enabled administrator: the use case and the database
+both refuse a change that would leave none
+([record 0110](../decisions/0110-an-installation-keeps-one-enabled-administrator.md)).
+`pnpm account:promote` makes an account an administrator from a shell.
 
-The workspace owner row stays part of the storage model, because it is what the
-row access policies read. No product operation can add a member, invite an
-address, or move ownership. The role type has one value, and the permission
-matrix grants only the actions that have a reachable operation. A stored
-membership row with any other role grants nothing.
+Disabling an account ends every session of it in the same transaction.
+Removing an account erases every workspace it owns and its identity, and keeps
+its row as a tombstone. A person removes their own account after they give the
+password again.
 
-See [decision 0049](../decisions/0049-a-workspace-is-an-explicit-container.md)
-for why a person chooses the workspace, and
-[decision 0051](../decisions/0051-an-account-always-keeps-one-workspace.md) for
-why an account always keeps one.
+## Storage
+
+The byte limit belongs to the account and counts every workspace that it owns
+([record 0112](../decisions/0112-the-owner-account-holds-the-storage-quota.md)).
+The configuration names the limit of a new account and the lifetime of an
+invitation. See [Database](database.md) for the lock order.
 
 ## Password recovery
 
 With a mail transport configured, the sign-in page can send a reset link.
 Without one, the operator runs `pnpm account:recover`. The command reads a
 password from a protected file or a hidden prompt and revokes the old sessions.
-There is no in-application recovery for an installation with no mail transport,
-so the hosting guide names the command.
 
 ## What holds the boundary
 
 - The runtime database role cannot read a password hash or a session token, and
   the identity role cannot read note content. See [Database](database.md).
-- The setup operation refuses to run after the first account exists.
+- No function makes an account outside the one registration function.
+- The installation role grants no workspace access.
 - The public sign-up route is not mounted.
 - No answer exposes the session token to page script.
+- The two operator commands set a transaction setting that the operator
+  functions read. It guards against a mistake of the application, not against a
+  holder of the runtime credential.
 - No log holds a password, a cookie, a token, note text, or search text.

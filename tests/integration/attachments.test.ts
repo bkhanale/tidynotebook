@@ -35,6 +35,7 @@ import {
   createIdentityAdapter,
   loadServerConfig,
   type ServerConfig,
+  sessionAllowedBy,
 } from '@notesapp/server';
 import {
   createDocumentService,
@@ -49,6 +50,7 @@ import {
   memberActor,
   openSession,
   seedWorkspace,
+  limitAccountTo,
 } from './support/database.ts';
 import { LogRecorder, startTestServer } from './support/server.ts';
 
@@ -134,7 +136,11 @@ function environment(): Record<string, string> {
 
 const config: ServerConfig = loadServerConfig(environment());
 const authPool = createAuthPool(config);
-const auth = createAuth(config, { mail: null }, authPool);
+const auth = createAuth(
+  config,
+  { mail: null, sessionAllowed: sessionAllowedBy(identity) },
+  authPool,
+);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,
@@ -824,17 +830,18 @@ await test('deduplicate content inside one workspace', async () => {
   assert.equal(responseOf(read2.response).status, 200);
 });
 
-await test('enforce storage quota on attachment finalization', async () => {
-  // Control reserve is 1 MiB (1048576 bytes). Setting quota to reserve + 3000 bytes
+await test('enforce storage quota on attachment finalization', async (t) => {
+  // Control reserve is 1 MiB (1048576 bytes). Setting the limit to reserve + 3000 bytes
   // allows one revision (which incurs 1536 bytes metadata overhead + 470 bytes content),
   // but rejects a second attachment write that exceeds the remaining headroom.
   const quotaWorkspaceId = randomUUID();
-  await seedWorkspace(
-    database,
-    quotaWorkspaceId,
-    [{ accountId: ownerAccountId, role: 'owner' }],
-    (1n << 20n) + 3000n,
-  );
+  await seedWorkspace(database, quotaWorkspaceId, [
+    { accountId: ownerAccountId, role: 'owner' },
+  ]);
+  // The limit belongs to the owner account and counts every workspace it owns
+  // (record 0112), so the owner gets this room above what it uses already,
+  // and gets its limit back when the test ends.
+  t.after(await limitAccountTo(database, ownerAccountId, (1n << 20n) + 3000n));
 
   // samplePngBytes is ~470 bytes, which fits inside 1024 bytes
   const smallUpload = await uploadAttachment({

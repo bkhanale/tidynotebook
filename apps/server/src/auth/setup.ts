@@ -1,45 +1,64 @@
-/** First-run setup for the single-user installation. */
+/**
+ * The public operations that make an account (record 0108).
+ *
+ * First-run setup makes the first account, an administrator, while no account
+ * exists. The registration of an invited person makes a member for the
+ * address of the invitation. Both go through `registerIdentity`, the one
+ * registration path, and both start the session of the new account after it
+ * exists. None of these operations declares a security scheme, so each
+ * applies the origin rule itself.
+ */
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { WorkspaceStore } from '@notesapp/core';
+import { readInvitation } from '@notesapp/core';
 import type { IdentityStoreHandle } from '@notesapp/storage-server';
 import type { HandlerMap, HandlerResult } from '../plugins/register.ts';
-import { ForbiddenError } from '../plugins/problem.ts';
+import { DomainProblemError, ForbiddenError } from '../plugins/problem.ts';
 import { readProperty } from '../values.ts';
 import { requireWriteOrigin } from './actor.ts';
 import type { NotesappAuth } from './better-auth.ts';
+import { secretDigest } from './publication-secrets.ts';
+import { registerIdentity, startSession } from './registration.ts';
 import { seedWelcomeNote } from './welcome-note.ts';
 
 const jsonMediaType = 'application/json';
 
-/** Removes an auth user when application account linking cannot finish. */
-async function deleteUnlinkedUser(
-  auth: NotesappAuth,
-  authUserId: string,
-): Promise<void> {
-  const context = await auth.$context;
-  await context.internalAdapter.deleteUser(authUserId);
-}
-
 function text(value: unknown, key: string): string {
   const member = readProperty(value, key);
   if (typeof member !== 'string' || member === '')
-    throw new Error(`notesapp: validated setup input has no ${key}.`);
+    throw new Error(`notesapp: validated input has no ${key}.`);
   return member;
 }
 
-/**
- * Builds the two public operations used before the first sign-in.
- *
- * @param servedOrigins the served origins of the deployment, from
- * `config.servedOrigins`. The create operation declares no security scheme, so
- * the identity hook never runs for it and it applies the origin rule itself.
- */
+/** The one refusal of an invitation, whatever its cause. */
+function invitationRefused(): DomainProblemError {
+  return new DomainProblemError({ code: 'invitation_invalid', fileIds: [] });
+}
+
+/** What the account operations of a first run and a registration need. */
+export type SetupDependencies = {
+  readonly auth: NotesappAuth;
+  readonly identity: IdentityStoreHandle;
+  readonly content: WorkspaceStore;
+  /** The served origins of the deployment, from `config.servedOrigins`. */
+  readonly servedOrigins: readonly string[];
+  /** The byte limit that a new account starts with. */
+  readonly accountLimitBytes: bigint;
+};
+
+/** Builds the public operations that make an account. */
 export function createSetupHandlers(
-  auth: NotesappAuth,
-  identity: IdentityStoreHandle,
-  content: WorkspaceStore,
-  servedOrigins: readonly string[],
+  dependencies: SetupDependencies,
 ): HandlerMap {
+  const { auth, identity, content, servedOrigins } = dependencies;
+
+  /** Writes the welcome note into the personal workspace of an account. */
+  const welcome = async (accountId: string): Promise<void> => {
+    const [membership] = await identity.memberships(accountId);
+    if (membership !== undefined)
+      await seedWelcomeNote(content, accountId, membership.workspaceId);
+  };
+
   return {
     getSetupStatus: async (): Promise<HandlerResult> => ({
       status: 200,
@@ -51,58 +70,83 @@ export function createSetupHandlers(
       request: FastifyRequest,
       reply: FastifyReply,
     ): Promise<HandlerResult> => {
-      // This is the one write that a stranger can reach, and it answers with a
+      // This is a write that a stranger can reach, and it answers with a
       // session cookie. It reads the one served origin list of
       // [decision 0039](../../../../docs/decisions/0039-one-list-of-served-origins.md),
       // the same list that every guarded write reads, so no page of another
       // origin can start the installation on behalf of the person who runs it.
       requireWriteOrigin(servedOrigins, request);
       if (await identity.hasAccount())
-        throw new ForbiddenError('The single user already exists.');
-
-      const email = text(request.body, 'email').toLowerCase();
+        throw new ForbiddenError('The first account already exists.');
+      const email = text(request.body, 'email');
       const password = text(request.body, 'password');
-      const response: unknown = await auth.api.signUpEmail({
-        body: { email, name: email, password },
-        asResponse: true,
+      const made = await registerIdentity(auth, identity, {
+        email,
+        name: email,
+        password,
+        ground: { kind: 'first-run' },
+        limitBytes: dependencies.accountLimitBytes,
       });
-      if (!(response instanceof Response) || !response.ok)
-        throw new ForbiddenError('The single user could not be created.');
-
-      const payload: unknown = await response.clone().json();
-      const user = readProperty(payload, 'user');
-      const authUserId = readProperty(user, 'id');
-      if (typeof authUserId !== 'string' || authUserId === '')
-        throw new Error('notesapp: the identity provider returned no user.');
-
-      let accountId: string | null;
-      try {
-        accountId = await identity.linkFirstAccount({
-          authUserId,
-          workspaceName: 'Personal',
-        });
-      } catch (error) {
-        await deleteUnlinkedUser(auth, authUserId);
-        throw error;
-      }
-      if (accountId === null) {
-        await deleteUnlinkedUser(auth, authUserId);
-        throw new ForbiddenError('The single user already exists.');
-      }
-
-      // The one welcome note is written here, through the same commit path
-      // that the create operation uses, so it has a revision and reaches every
-      // device. Setup runs only while no account exists, so it is written once.
-      const [membership] = await identity.memberships(accountId);
-      if (membership !== undefined)
-        await seedWelcomeNote(content, accountId, membership.workspaceId);
-
-      const cookies = response.headers.getSetCookie();
-      if (cookies.length > 0) reply.header('set-cookie', cookies);
+      if (!made.ok)
+        throw new ForbiddenError('The first account already exists.');
+      // The one welcome note is written through the same commit path that the
+      // create operation uses, so it has a revision and reaches every device.
+      await welcome(made.value.accountId);
+      const cookies = await startSession(auth, made.value.email, password);
+      if (cookies.length === 0)
+        throw new Error('notesapp: the first account got no session.');
+      reply.header('set-cookie', [...cookies]);
       return {
         status: 201,
         mediaType: jsonMediaType,
         body: { initialized: true },
+      };
+    },
+
+    readInvitation: async (request): Promise<HandlerResult> => {
+      requireWriteOrigin(servedOrigins, request);
+      const token = text(request.body, 'invitation');
+      const read = await readInvitation(identity, secretDigest.digest(token));
+      if (!read.ok) throw invitationRefused();
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        body: { email: read.value },
+      };
+    },
+
+    registerAccount: async (
+      request: FastifyRequest,
+      reply: FastifyReply,
+    ): Promise<HandlerResult> => {
+      requireWriteOrigin(servedOrigins, request);
+      const token = text(request.body, 'invitation');
+      const password = text(request.body, 'password');
+      const digest = secretDigest.digest(token);
+      // The address comes from the invitation, so the person cannot change it
+      // while they accept. The registration function checks the invitation
+      // again under its row lock, so a read here that races a revocation still
+      // makes nothing.
+      const address = await readInvitation(identity, digest);
+      if (!address.ok) throw invitationRefused();
+      const name = readProperty(request.body, 'name');
+      const made = await registerIdentity(auth, identity, {
+        email: address.value,
+        name: typeof name === 'string' && name !== '' ? name : address.value,
+        password,
+        ground: { kind: 'invitation', tokenDigest: digest },
+        limitBytes: dependencies.accountLimitBytes,
+      });
+      if (!made.ok) throw invitationRefused();
+      await welcome(made.value.accountId);
+      const cookies = await startSession(auth, made.value.email, password);
+      if (cookies.length === 0)
+        throw new Error('notesapp: the new account got no session.');
+      reply.header('set-cookie', [...cookies]);
+      return {
+        status: 201,
+        mediaType: jsonMediaType,
+        body: { registered: true },
       };
     },
   };

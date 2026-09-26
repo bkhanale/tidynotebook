@@ -52,6 +52,7 @@ import {
   createSyncCleanup,
   loadServerConfig,
   type ServerConfig,
+  sessionAllowedBy,
 } from '@notesapp/server';
 import {
   createDocumentService,
@@ -135,7 +136,11 @@ function environment(): Record<string, string> {
 
 const config: ServerConfig = loadServerConfig(environment());
 const authPool = createAuthPool(config);
-const auth = createAuth(config, { mail: null }, authPool);
+const auth = createAuth(
+  config,
+  { mail: null, sessionAllowed: sessionAllowedBy(identity) },
+  authPool,
+);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,

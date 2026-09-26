@@ -9,6 +9,9 @@
  */
 import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   acceptWithDocuments,
@@ -23,8 +26,14 @@ import {
 } from '@notesapp/core';
 import {
   createDocumentService,
+  createTestDatabase,
+  dropTestDatabase,
+  migrationsFolder,
   openIdentityStore,
   openWorkspaceStore,
+  runMigrations,
+  testAuthPassword,
+  testRuntimePassword,
   type IdentityStoreHandle,
   type WorkspaceStoreHandle,
 } from '@notesapp/storage-server';
@@ -34,6 +43,7 @@ import {
   memberActor,
   openSession,
   revision,
+  testServerUrl,
   type TestDatabase,
 } from './support/database.ts';
 
@@ -645,6 +655,116 @@ await test('the operator promotes an account when no administrator signs in', as
   );
   assert.equal(await identity.operatorPromote('nobody@notes.invalid'), null);
 });
+
+await test('an upgraded installation keeps its account as an administrator', async () => {
+  // Stop at the release before accounts: a copy of the migrations without the
+  // entry of migration 0012, then the rows that release wrote.
+  const earlier = await mkdtemp(join(tmpdir(), 'notesapp-migrations-'));
+  const serverUrl = testServerUrl();
+  const name = `notesapp_test_${randomUUID().replaceAll('-', '').slice(0, 16)}`;
+  const migrationUrl = await createTestDatabase(serverUrl, name);
+  try {
+    await cp(migrationsFolder(), earlier, { recursive: true });
+    const journalPath = join(earlier, 'meta', '_journal.json');
+    const journal: unknown = JSON.parse(await readFile(journalPath, 'utf8'));
+    const entries = readEntries(journal);
+    const upTo = entries.findIndex(
+      (entry) => entry === '0012_several_accounts',
+    );
+    assert.ok(upTo > 0, 'the journal names migration 0012');
+    await writeFile(
+      journalPath,
+      JSON.stringify(withEntries(journal, upTo)),
+      'utf8',
+    );
+    const run = {
+      documents: createDocumentService(),
+      databaseUrl: migrationUrl,
+      runtimePassword: testRuntimePassword,
+      authPassword: testAuthPassword,
+    };
+    await runMigrations({ ...run, migrationsFolder: earlier });
+    const accountId = randomUUID();
+    const workspaceId = randomUUID();
+    const setup = await openSession(migrationUrl);
+    try {
+      await setup.query('insert into accounts (id) values ($1)', [accountId]);
+      await setup.query(
+        `insert into workspaces (id, name, personal) values ($1, 'Personal', true)`,
+        [workspaceId],
+      );
+      await setup.query(
+        'insert into workspace_usage values ($1, 10, 123456789)',
+        [workspaceId],
+      );
+      await setup.query(
+        `insert into memberships (workspace_id, account_id, role)
+         values ($1, $2, 'owner')`,
+        [workspaceId, accountId],
+      );
+    } finally {
+      await setup.close();
+    }
+    await runMigrations(run);
+    const check = await openSession(migrationUrl);
+    try {
+      const rows = await check.query<{
+        installation_role: string;
+        state: string;
+        address_proof: string;
+        limit_bytes: string;
+      }>(
+        `select installation_role::text, state::text, address_proof::text,
+                limit_bytes::text from accounts where id = $1`,
+        [accountId],
+      );
+      assert.deepEqual(rows, [
+        {
+          installation_role: 'administrator',
+          state: 'enabled',
+          address_proof: 'setup',
+          limit_bytes: '123456789',
+        },
+      ]);
+      const settings = await check.query<{ policy: string }>(
+        'select registration_policy::text as policy from installation_settings',
+      );
+      assert.deepEqual(settings, [{ policy: 'invitation' }]);
+    } finally {
+      await check.close();
+    }
+  } finally {
+    await dropTestDatabase(serverUrl, name);
+    await rm(earlier, { recursive: true, force: true });
+  }
+});
+
+/** The tags of the journal entries, in order. */
+function readEntries(journal: unknown): string[] {
+  if (journal === null || typeof journal !== 'object') return [];
+  const entries: unknown = Object.fromEntries(Object.entries(journal))[
+    'entries'
+  ];
+  if (!Array.isArray(entries)) return [];
+  return entries.map((entry: unknown) => {
+    if (entry === null || typeof entry !== 'object') return '';
+    const tag: unknown = Object.fromEntries(Object.entries(entry))['tag'];
+    return typeof tag === 'string' ? tag : '';
+  });
+}
+
+/** The journal with its first `count` entries only. */
+function withEntries(journal: unknown, count: number): unknown {
+  if (journal === null || typeof journal !== 'object') return journal;
+  const record: Record<string, unknown> = Object.fromEntries(
+    Object.entries(journal),
+  );
+  const entries = record['entries'];
+  return {
+    ...record,
+    entries: Array.isArray(entries) ? entries.slice(0, count) : [],
+  };
+}
 
 await identity.close();
 await content.close();

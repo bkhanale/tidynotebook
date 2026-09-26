@@ -363,6 +363,10 @@ const openOperations = [
   'getRootHealth',
   'getRootReadiness',
   'getSetupStatus',
+  // The two operations of an invitation take its token and no session, so an
+  // invited person reaches them before the account exists (record 0108).
+  'readInvitation',
+  'registerAccount',
   // The served sync protocol versions are a fact of the build and hold no
   // account data. A client reads them before it knows its session (0086).
   'getSyncProtocol',

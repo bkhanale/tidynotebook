@@ -49,6 +49,7 @@ import {
   createIdentityAdapter,
   loadServerConfig,
   type ServerConfig,
+  sessionAllowedBy,
 } from '@notesapp/server';
 import {
   createDocumentService,
@@ -63,6 +64,7 @@ import {
   openSession,
   revision,
   seedWorkspace,
+  limitAccountTo,
 } from './support/database.ts';
 import { startTestServer } from './support/server.ts';
 
@@ -139,7 +141,11 @@ function environment(): Record<string, string> {
 
 const config: ServerConfig = loadServerConfig(environment());
 const authPool = createAuthPool(config);
-const auth = createAuth(config, { mail: null }, authPool);
+const auth = createAuth(
+  config,
+  { mail: null, sessionAllowed: sessionAllowedBy(identity) },
+  authPool,
+);
 const adapter = createIdentityAdapter({
   auth: auth.auth,
   identity,
@@ -1411,16 +1417,17 @@ await test('a note that nests too deeply is refused with a message', async () =>
   assert.equal(accepted.error, undefined, JSON.stringify(accepted.error));
 });
 
-await test('a full workspace still accepts a deletion', async () => {
-  // The control reserve is 1 MiB, so a quota just above it leaves room for one
+await test('a full workspace still accepts a deletion', async (t) => {
+  // The control reserve is 1 MiB, so a limit just above it leaves room for one
   // small note and for the operations that manage a full workspace.
   const fullWorkspace = randomUUID();
-  await seedWorkspace(
-    database,
-    fullWorkspace,
-    [{ accountId: ownerAccountId, role: 'owner' }],
-    (1n << 20n) + 2048n,
-  );
+  await seedWorkspace(database, fullWorkspace, [
+    { accountId: ownerAccountId, role: 'owner' },
+  ]);
+  // The limit belongs to the owner account and counts every workspace it owns
+  // (record 0112), so the owner gets this room above what it uses already,
+  // and gets its limit back when the test ends.
+  t.after(await limitAccountTo(database, ownerAccountId, (1n << 20n) + 2048n));
   const file = await newFile('notes/only.md', '# only\n', fullWorkspace);
   const refused = await createFile({
     headers: browser(cookie),

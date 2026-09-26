@@ -161,6 +161,53 @@ export async function seedWorkspace(
   });
 }
 
+/**
+ * Limits one account to its current use plus `freeBytes`, and answers the
+ * call that puts its earlier limit back.
+ *
+ * The limit belongs to the account and counts every workspace it owns
+ * (record 0112), so a test of a full workspace gives the owner a little room
+ * above what it already uses, and a later test of the same file still writes.
+ */
+export async function limitAccountTo(
+  database: TestDatabase,
+  accountId: string,
+  freeBytes: bigint,
+): Promise<() => Promise<void>> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    const rows = await session.query<{ used: string; limit_bytes: string }>(
+      `select coalesce((select sum(u.bytes_used) from workspace_usage u
+                          join memberships m on m.workspace_id = u.workspace_id
+                         where m.account_id = a.id and m.role = 'owner'), 0)::text
+                as used,
+              a.limit_bytes::text as limit_bytes
+         from accounts a where a.id = $1`,
+      [accountId],
+    );
+    const row = rows[0];
+    if (row === undefined) throw new Error('notesapp: no such test account.');
+    await session.query('update accounts set limit_bytes = $2 where id = $1', [
+      accountId,
+      (BigInt(row.used) + freeBytes).toString(),
+    ]);
+    const earlier = row.limit_bytes;
+    return async () => {
+      const restore = await openSession(database.migrationUrl);
+      try {
+        await restore.query(
+          'update accounts set limit_bytes = $2 where id = $1',
+          [accountId, earlier],
+        );
+      } finally {
+        await restore.close();
+      }
+    };
+  } finally {
+    await session.close();
+  }
+}
+
 /** The SHA-256 digest of UTF-8 Markdown, as the design defines it. */
 export function markdownDigest(text: string): string {
   return createHash('sha256').update(text, 'utf8').digest('hex');

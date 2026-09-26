@@ -396,7 +396,10 @@ await test('backup and restore round-trip a note with its history and attachment
       createHash('sha256').update(body, 'utf8').digest('hex'),
     );
     const revisionIds = [randomUUID(), randomUUID()];
-    await pgClient.query('INSERT INTO accounts (id) VALUES ($1)', [accountId]);
+    await pgClient.query(
+      'INSERT INTO accounts (id, limit_bytes) VALUES ($1, 1048576)',
+      [accountId],
+    );
     await pgClient.query(
       `INSERT INTO memberships (workspace_id, account_id, role)
        VALUES ($1, $2, 'owner')`,

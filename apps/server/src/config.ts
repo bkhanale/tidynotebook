@@ -8,6 +8,12 @@
  */
 import type { SchemaObject } from '@notesapp/api-contract';
 import { compileSchema, describeIssues } from '@notesapp/api-contract';
+import {
+  defaultAccountLimitBytes,
+  defaultInvitationLifetimeHours,
+  maxAccountLimitBytes,
+  maxInvitationLifetimeHours,
+} from '@notesapp/core';
 import { readFile } from 'node:fs/promises';
 import { readServedOrigins } from './served-origins.ts';
 import { readTrustedProxies } from './trusted-proxies.ts';
@@ -148,6 +154,17 @@ export type ServerConfig = {
   /** Life of one browser session, in seconds. */
   readonly sessionMaxAgeSeconds: number;
   /**
+   * The accounts of the installation (records 0108, 0112).
+   *
+   * `limitBytes` is the byte limit that a new account starts with. An
+   * administrator changes the limit of one account afterwards.
+   * `invitationLifetimeHours` is how long a new invitation stays valid.
+   */
+  readonly accounts: {
+    readonly limitBytes: bigint;
+    readonly invitationLifetimeHours: number;
+  };
+  /**
    * The stop of this process.
    *
    * `gracePeriodMs` is the wait between the moment the readiness answer
@@ -211,6 +228,8 @@ const optionalVariables = [
   'NOTESAPP_SHUTDOWN_GRACE_MS',
   'NOTESAPP_SHUTDOWN_DEADLINE_MS',
   'NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS',
+  'NOTESAPP_ACCOUNT_LIMIT_BYTES',
+  'NOTESAPP_INVITATION_LIFETIME_HOURS',
 ] as const;
 
 const protectedFiles = {
@@ -383,6 +402,11 @@ const configSchema: SchemaObject = {
     NOTESAPP_SHUTDOWN_GRACE_MS: wholeNumber,
     NOTESAPP_SHUTDOWN_DEADLINE_MS: positiveInteger,
     NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS: positiveInteger,
+    NOTESAPP_ACCOUNT_LIMIT_BYTES: {
+      type: 'string',
+      pattern: '^[1-9][0-9]{0,15}$',
+    },
+    NOTESAPP_INVITATION_LIFETIME_HOURS: positiveInteger,
   },
 };
 
@@ -518,5 +542,34 @@ export function loadServerConfig(
         ? 60 * 60 * 24 * 7
         : Number(raw.NOTESAPP_SESSION_MAX_AGE_S),
     shutdown,
+    accounts: readAccounts(raw),
   };
+}
+
+/**
+ * The account settings of the configuration, with their bounds.
+ *
+ * The largest limit is the largest integer that a JSON answer carries without
+ * loss, and the longest invitation lasts one year.
+ */
+function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
+  const limitBytes =
+    raw.NOTESAPP_ACCOUNT_LIMIT_BYTES === undefined
+      ? defaultAccountLimitBytes
+      : BigInt(raw.NOTESAPP_ACCOUNT_LIMIT_BYTES);
+  const invitationLifetimeHours =
+    raw.NOTESAPP_INVITATION_LIFETIME_HOURS === undefined
+      ? defaultInvitationLifetimeHours
+      : Number(raw.NOTESAPP_INVITATION_LIFETIME_HOURS);
+  const issues: string[] = [];
+  if (limitBytes > maxAccountLimitBytes)
+    issues.push(
+      `NOTESAPP_ACCOUNT_LIMIT_BYTES: name at most ${maxAccountLimitBytes.toString()} bytes.`,
+    );
+  if (invitationLifetimeHours > maxInvitationLifetimeHours)
+    issues.push(
+      `NOTESAPP_INVITATION_LIFETIME_HOURS: name at most ${String(maxInvitationLifetimeHours)} hours.`,
+    );
+  if (issues.length > 0) throw new ConfigError(issues);
+  return { limitBytes, invitationLifetimeHours };
 }
