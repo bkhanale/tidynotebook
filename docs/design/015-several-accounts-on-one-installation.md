@@ -5,8 +5,13 @@ Status: active
 This design states how one installation serves several people at the same
 time. Each person has an account, notes, devices and a sync stream of their
 own, and no person can see the notes of another. Sharing a workspace between
-accounts is the next design. This design makes the choices that the next one
+accounts is a later design. This design makes the choices that the later one
 depends on, so that it adds rules and does not change a shape.
+
+This design is the base of two installations. A self-hosted installation
+invites the people it serves. A public installation lets a stranger sign up.
+[Design 016](016-a-public-service.md) adds what the public installation needs
+on top of this base.
 
 ## The problem
 
@@ -140,7 +145,9 @@ and as the reset token that Better Auth already uses.
 
 Option C is the recommendation, with option B as the operator path to the
 same invitation. The operator command writes an invitation and prints its link,
-so both paths meet one rule. Open registration stays out.
+so both paths meet one rule. Open registration is the default of no
+installation. Design 016 makes it a policy that an administrator turns on, and
+it states what that policy needs.
 
 **The invariant must hold by construction.** Today the one-account rule lives
 in one TypeScript function. The new rule must not live in one place that a
@@ -288,25 +295,24 @@ the reset already do this. An invalid invitation says that the invitation is
 not valid and that the person can ask for a new one. It does not say whether
 the token expired, was used or never existed.
 
-The password policy needs a review, but it is not a precondition.
-NIST SP 800-63B revision 4 asks for a longer minimum for a password that is
-the only factor, and for a check against known breached passwords. The current
-minimum in `better-auth.ts` is shorter. With several accounts, a weak password
-exposes only its own account, because the isolation above holds. A second
-factor, through the two-factor or passkey plugins of Better Auth, is a later
-design.
+The password policy needs a review. NIST SP 800-63B revision 4 asks for a
+longer minimum for a password that is the only factor, and for a check against
+known breached passwords. The current minimum is shorter, and three files state
+it: `apps/server/src/auth/better-auth.ts`, `apps/server/src/cli/bootstrap.ts`
+and `apps/web/src/lib/password-policy.ts`. Three copies of one rule drift, so
+the review also gives the rule one source. A public installation makes the
+review urgent, so design 016 holds it.
 
 ## What stays out
 
 - **Sharing a workspace, and the editor and viewer roles.** That is the next
   design. The role matrix of a workspace keeps its one role here.
-- **Open registration.** No configuration value turns it on.
+- **Open registration, bot protection, published content from strangers, and
+  more than one server process.** Design 016 states them.
 - **Sign-in through an external provider.** The identity schema keeps an
   issuer column, and a provider is a separate design.
 - **Impersonation, and any administrator read of a note.**
 - **Several signed-in accounts in one browser profile.**
-- **More than one server process.** The attempt counter and the rate limit
-  live in the memory of one process, as they do now.
 
 ## How this prepares sharing
 
@@ -341,29 +347,28 @@ Four choices above keep the next design small.
 - A unit test in `packages/sync` proves that an engine pauses and keeps its
   queue when the session names another account.
 
-## Questions for the owner
+## Answers of the owner
 
-1. Can a person remove their own account, or only an administrator?
-2. Does the client delete the idle partitions of an absent account when
-   another account signs in on the same browser?
-3. What is the default account quota, and does it replace the workspace quota
-   or sit above it?
-4. How long does an invitation stay valid?
-5. Is the password review part of this work or a later row?
+The owner answered on 2026-09-26. The same installation must also serve as one
+public service where a stranger signs up, so the answers take the stricter
+choice where the two installations differ.
+
+1. A person can remove their own account. A public service must offer it.
+2. The client deletes the idle partitions of an absent account when another
+   account signs in on the same browser.
+3. The account quota replaces the workspace quota as the limit. A workspace
+   still counts its own usage. The configuration holds the default.
+4. The configuration holds the lifetime of an invitation. No record copies it.
+5. The password review is part of this work. Design 016 holds it.
 
 ## Decisions
 
-The records follow when the owner answers the questions above. This design
-proposes these records, and each one will link back here.
+- [0108. An account comes in through one registration path](../decisions/0108-an-account-comes-in-through-one-registration-path.md)
+- [0109. The installation role grants no workspace access](../decisions/0109-the-installation-role-grants-no-workspace-access.md)
+- [0110. An installation keeps one enabled administrator](../decisions/0110-an-installation-keeps-one-enabled-administrator.md)
+- [0111. A removed account leaves a tombstone](../decisions/0111-a-removed-account-leaves-a-tombstone.md)
+- [0112. The owner account holds the storage quota](../decisions/0112-the-owner-account-holds-the-storage-quota.md)
+- [0113. A browser serves the account of its session](../decisions/0113-a-browser-serves-the-account-of-its-session.md)
 
-- Records for accounts that come in by invitation, where the database refuses
-  an account with no invitation.
-- Records for the installation role, which is separate from the workspace role
-  and grants no content.
-- Records for the rule that an installation keeps one enabled administrator.
-- Records for the rule that a disabled account keeps its data and that a
-  removed account leaves a tombstone.
-- Records for the account quota that the workspace owner pays, and its lock
-  order.
-- Records for the rule that the sync engine pauses when the session names
-  another account.
+[Plan 015](../plans/015-several-accounts-and-a-public-service.md) orders the
+work.
