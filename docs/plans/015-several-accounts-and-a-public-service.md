@@ -33,9 +33,12 @@ choices.
    `invitation`.
 2. Phase 2 is items 8 to 14. The `open` policy stays refused until items 8 to 13
    land, because record 0114 checks their parts.
-3. Items 1 to 3 share one branch and one landing. The contract, the rules and
-   the storage change together, and no landing leaves a contract operation with
-   no handler.
+3. Items 1 to 4 share one branch and one landing, with one commit for each
+   item. The contract, the rules, the storage and the handlers change
+   together. `checkRegistration` in `apps/server/src/plugins/register.ts`
+   stops startup when a contract operation has no handler, and item 3 drops
+   `notesapp_link_account`, which the setup, the bootstrap command and the
+   actor resolver of item 4 call.
 4. Each item follows the order of `docs/development/feature-workflow.md`, and
    updates the directory guide of each directory it changes in the same commit.
 5. Current development and guide pages change with the item that changes the
