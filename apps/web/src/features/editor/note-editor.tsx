@@ -70,7 +70,11 @@ import {
   useRegisterNoteActions,
   type NoteScreenActions,
 } from './note-actions.tsx';
-import { noteFrameClassName } from '../../lib/note-column.ts';
+import {
+  noteFrameClassName,
+  noteOutlineScrollClassName,
+  noteSideRegionClassName,
+} from '../../lib/note-column.ts';
 import {
   localWriteFailed,
   localWriteFailureMessage,
@@ -1460,27 +1464,31 @@ function NoteEditorBody({
             (decision 0055).
           */}
           <aside
-            className="hidden w-56 shrink-0 overflow-y-auto xl:block"
+            className={noteSideRegionClassName()}
             aria-label="Note outline and inbound links"
           >
-            <OutlinePanel
-              text={bufferText}
-              open={outlineOpen}
-              onToggle={setOutlineOpen}
-            />
-            <CollapsibleSection
-              id="notes-backlinks"
-              title="Links to this note"
-              open={backlinksOpen}
-              onToggle={setBacklinksOpen}
-            >
-              <Backlinks
-                store={store}
-                accountId={accountId}
-                workspaceId={workspaceId}
-                fileId={fileId}
+            <div className={noteOutlineScrollClassName()}>
+              <OutlinePanel
+                text={bufferText}
+                open={outlineOpen}
+                onToggle={setOutlineOpen}
               />
-            </CollapsibleSection>
+            </div>
+            <div className="min-h-0 max-h-1/2 shrink-0 overflow-y-auto overscroll-contain">
+              <CollapsibleSection
+                id="notes-backlinks"
+                title="Links to this note"
+                open={backlinksOpen}
+                onToggle={setBacklinksOpen}
+              >
+                <Backlinks
+                  store={store}
+                  accountId={accountId}
+                  workspaceId={workspaceId}
+                  fileId={fileId}
+                />
+              </CollapsibleSection>
+            </div>
           </aside>
         </div>
       </div>

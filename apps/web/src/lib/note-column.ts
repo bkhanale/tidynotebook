@@ -36,6 +36,16 @@ export function noteFrameClassName(): string {
   return 'flex min-h-0 min-w-0 flex-1 flex-col';
 }
 
+/** The side region limits its children to the height of the note screen. */
+export function noteSideRegionClassName(): string {
+  return 'hidden min-h-0 w-56 shrink-0 flex-col overflow-hidden xl:flex';
+}
+
+/** The outline keeps its natural height until it needs to scroll. */
+export function noteOutlineScrollClassName(): string {
+  return 'min-h-0 overflow-y-auto overscroll-contain';
+}
+
 /**
  * The classes of the footer row under the note text.
  *

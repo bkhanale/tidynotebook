@@ -4,6 +4,8 @@ import {
   noteColumnClassName,
   noteFooterClassName,
   noteFrameClassName,
+  noteOutlineScrollClassName,
+  noteSideRegionClassName,
 } from './note-column.ts';
 
 await test('the text and the footer share one centred column', () => {
@@ -39,4 +41,14 @@ await test('the footer draws the one divider above itself', () => {
   const footer = noteFooterClassName().split(' ');
   assert.ok(footer.includes('border-t'));
   assert.ok(footer.includes('border-edge-line'));
+});
+
+await test('the outline scrolls inside the note side region', () => {
+  const side = noteSideRegionClassName().split(' ');
+  const outline = noteOutlineScrollClassName().split(' ');
+  assert.ok(side.includes('overflow-hidden'));
+  assert.ok(side.includes('flex-col'));
+  assert.ok(outline.includes('min-h-0'));
+  assert.ok(outline.includes('overflow-y-auto'));
+  assert.ok(outline.includes('overscroll-contain'));
 });
