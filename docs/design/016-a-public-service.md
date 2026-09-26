@@ -49,7 +49,8 @@ falls back to the operator command.
 
 **Address verification is off.** `better-auth.ts` sets
 `requireEmailVerification` to false. The first account never needed it,
-because the operator typed the address.
+because the operator typed the address. Better Auth reads the option once at
+startup, and every existing identity user is unverified.
 
 **A published page holds no script.** Records 0031, 0046 and 0047 make the
 reader path a closed, read only boundary with no script, no cookie and no
@@ -105,12 +106,29 @@ address is verified. This is what Better Auth does with
 Option B is the recommendation. A pending account that nobody verifies expires,
 and a job removes it with its identity user.
 
+**Verification is on for every installation.** The policy changes while the
+server runs, and Better Auth reads its option at startup, so the option cannot
+follow the policy. Every sign-in needs a verified address. First-run setup and
+an accepted invitation mark the address verified when they make the account,
+and the migration marks every existing identity user verified. Without that
+step, the upgrade would lock the owner of every installation out.
+
+**A pending account cannot be held by the wrong person.** An attacker can sign
+up first with the address of another person and choose the password. If the
+owner of the address later clicks the verification link, the attacker holds a
+password on a verified account. This attack is known as account
+pre-hijacking. A second sign-up for a pending address therefore replaces the
+pending account and its password, and the verification mail says to ignore it
+when the reader did not sign up.
+
 **A sign-up must not reveal an account.** When a stranger signs up with an
 address that has an account, the answer is the same as for a new address:
 check your mail. The mail to the existing owner says that somebody tried to
 sign up with their address, and it offers sign-in and password reset. This is
 the OWASP guidance for account enumeration. The handler also does the same
 work in both branches, so the time of the answer does not reveal the branch.
+The mail of a sign-up counts against a limit for each target address, so a
+sign-up cannot flood the mailbox of another person.
 
 **Sign-up is an operation of this server.** The Better Auth sign-up route stays
 unmounted. A contract operation of this server takes the address, the password,
@@ -136,8 +154,9 @@ solution, and it keeps the digest of a used challenge until the expiry, so one
 solution cannot make two accounts. This is the hashcash model, which ALTCHA and
 similar tools use. No third party sees the person.
 
-**Option C. Attempt limits only.** Limits per address and per network already
-exist. They do not stop a script that rotates addresses.
+**Option C. Attempt limits only.** Limits per client address exist now. A count
+per /64 prefix for IPv6 would close the gap of a host that holds a whole
+prefix. Neither stops a script that rotates addresses.
 
 Option B is the recommendation, with the limits of option C beside it. A proof
 of work makes each account cost something, and verification makes each account
@@ -200,7 +219,9 @@ open policy requires the second origin.
 
 **A report and a takedown.** Each published page has a plain link to a report
 page on the published origin. That page is a server built form with no script.
-It records the link, a reason and an optional note. An administrator sees the
+It records the link, a reason and an optional note. A report is a write on the
+reader path, which record 0031 keeps read only except for the unlock of a
+password. The report becomes its second write, through one narrow function. An administrator sees the
 reports, opens the link as any reader does, and takes the link down. A takedown
 revokes the link through a database function that checks the installation
 role. It does not make the administrator a member of the workspace, so the
@@ -262,6 +283,8 @@ store is the one file that would change.
 - A sign-up with a known address and one with a new address answer the same
   status and body.
 - A pending account cannot sign in, and the job removes it after its expiry.
+- A second sign-up for a pending address replaces the pending account.
+- An upgraded installation still signs in its existing accounts.
 - A used or expired proof of work makes no account.
 - A breached password is refused, and an outage of the range service accepts
   the password and writes the event.

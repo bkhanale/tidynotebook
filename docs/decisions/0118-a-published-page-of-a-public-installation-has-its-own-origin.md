@@ -24,7 +24,8 @@ The list of served origins gives each origin a role: `application` or
 `published`. The cookie write check, the trusted origins of Better Auth and the
 Host allowlist read the one list. Only an `application` origin is trusted for a
 write or a cookie. The application origin answers a reader address with a
-permanent redirect to the published origin.
+temporary redirect to the published origin. A browser keeps a permanent
+redirect forever, and an operator can move the published origin later.
 
 An installation with no published origin serves the reader path as it does now.
 The `open` registration policy requires a published origin (record 0114).

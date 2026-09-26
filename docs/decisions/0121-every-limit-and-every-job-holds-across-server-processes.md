@@ -29,7 +29,7 @@ change goes.
 ## Consequences
 
 - A limit holds across processes and across a restart.
-- Each counted attempt costs one write. Only the identity routes and the reader
-  path count attempts.
+- Each counted attempt costs one write. Only the identity routes, the sign-up,
+  the reader path and the report page count attempts.
 - An integration test proves that two server instances share one count, and
   that two instances run one job once.

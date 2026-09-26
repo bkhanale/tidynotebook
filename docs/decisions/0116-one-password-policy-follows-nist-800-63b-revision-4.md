@@ -25,7 +25,8 @@ client read them from there. One contract component states the same bounds, and
 every password field references it. A contract test fails when the two differ.
 
 A new or changed password is checked against the range service of Have I Been
-Pwned through the Better Auth plugin, from the server only. The service sees
+Pwned, from the server only. The Better Auth plugin makes the check when it can
+keep the rule below. When it cannot, a check of this server replaces it. The service sees
 the first five characters of the SHA-1 digest and nothing else. When the
 service does not answer, the check accepts the password and writes a log event.
 The configuration can turn the check off for an installation with no outbound
@@ -38,5 +39,5 @@ signs in.
 
 - One source states the rule, and the gate refuses a second copy that drifts.
 - A breached password cannot become a new password while the service answers.
-- The password of a published link follows the same rule.
+- The password of a published link takes the same bounds.
 - A second factor is a later design.

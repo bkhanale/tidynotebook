@@ -449,6 +449,7 @@ account. Record 0115 makes a sign-up pay a proof of work that this server
 issues, with no third party. Record 0116 gives the password one rule from NIST
 SP 800-63B revision 4 and a breach check. Record 0117 lets a person manage
 their own sessions. Record 0118 gives published pages their own origin, and it
-refines records 0039 and 0031. Record 0119 adds a report and a takedown.
+refines records 0039 and 0031. Record 0119 adds a report and a takedown, and
+it refines record 0031.
 Record 0120 records the legal documents that an account accepted. Record 0121
 makes every limit and every job hold across server processes.

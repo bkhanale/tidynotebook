@@ -15,7 +15,13 @@ administrator out of every workspace of another account. See
 A published page carries a plain link to a report page on the published origin.
 The report page is a form that the server builds, with no script. A report
 holds the publication, a reason from a fixed list and an optional note. The
-report attempts count per network.
+report attempts count per client address, and per /64 prefix for IPv6.
+
+A report is the second write of the reader path, after
+`publication-unlock.ts`. It runs through one function that takes the token
+digest, inserts one report row, and reads and writes nothing else. The
+transaction of every other reader request stays read only. This refines
+[record 0031](0031-the-reader-path-is-a-closed-read-only-boundary.md).
 
 An administrator lists the open reports. The administrator opens the link as
 any reader does. A takedown revokes the publication through a

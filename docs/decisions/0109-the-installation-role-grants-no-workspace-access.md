@@ -19,7 +19,8 @@ is a column of the application account. The first account is an administrator.
 `packages/core` decides installation actions with a second matrix beside the
 workspace matrix. The installation actions are: list accounts, invite, revoke
 an invitation, disable, enable, remove, change an installation role, change the
-registration policy, read reports, and take down a link. The two matrices never
+account limit (record 0112), change the registration policy, read reports, and
+take down a link (record 0119). The two matrices never
 read each other. The role is read in the same transaction as the action.
 
 An administrator sees the name, the address, the state, the last activity and
@@ -40,4 +41,5 @@ The Better Auth admin plugin and impersonation are excluded.
 - A unit test in `packages/core` proves the matrix and each refusal. An
   integration test proves that an administrator reads no row of another
   workspace.
-- An administrator action writes an entry in the audit trail.
+- An administrator action writes an entry in the audit trail of the target
+  account, through the same function that makes the change.

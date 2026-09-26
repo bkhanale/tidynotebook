@@ -145,18 +145,18 @@ and as the reset token that Better Auth already uses.
 
 Option C is the recommendation, with option B as the operator path to the
 same invitation. The operator command writes an invitation and prints its link,
-so both paths meet one rule. Open registration is the default of no
-installation. Design 016 makes it a policy that an administrator turns on, and
+so both paths meet one rule. No installation starts with open registration.
+Design 016 makes it a policy that an administrator turns on, and
 it states what that policy needs.
 
 **The invariant must hold by construction.** Today the one-account rule lives
 in one TypeScript function. The new rule must not live in one place that a
-caller can skip. The account link moves into a database function that accepts
-an invitation digest, locks that invitation row, refuses a used or expired
-one, creates the account and marks the invitation used in one transaction. The
-runtime role loses the right to execute the plain link function. The first
-account of an installation is the one exception, and it keeps the first-run
-lock that exists now. The database then refuses an account that has no
+caller can skip. The account link moves into one registration function. For an
+invitation it locks the invitation row, refuses a used, revoked or expired
+one, creates the account and marks the invitation used in one transaction.
+The first account of an installation takes the same function under the
+first-run lock that exists now, because the plain link function goes away and
+setup still needs a way in. The database then refuses an account that has no
 invitation, whatever the layers above it do. This is the pattern of
 [record 0051](../decisions/0051-an-account-always-keeps-one-workspace.md): the
 use case refuses first, and the database refuses the same call.
@@ -217,17 +217,20 @@ function or trigger refuses it again, in the shape of record 0051.
 ## The third question: disable and remove
 
 **Disable** is reversible. The server revokes every session of the account
-through Better Auth, sign-in is refused, and the actor resolver refuses the
-account. The notes stay. A device of that account learns it on its next
+through Better Auth. Better Auth cannot read the state of an application
+account, so a session create hook asks one narrow database function and
+refuses a new session. The actor resolver refuses the account as well. The notes stay. A device of that account learns it on its next
 session check and keeps its queued work in recovery, which the client already
 does for lost access.
 
-**Remove** is the erasure of an account. Each workspace of the account goes
-through the delete path of `notesapp_delete_workspace`, so the attachments go
-to the reclaim queue and the published links go with their workspace. The
+**Remove** is the erasure of an account. `notesapp_delete_workspace` cannot
+do it, because it refuses a caller who is not the owner and it refuses the last
+workspace. One removal function deletes the same rows for each workspace of the
+account, so the attachments go to the reclaim queue and the published links go
+with their workspace. The
 identity user, the sessions, the preferences and the audit trail go too.
 
-One choice here decides the next design. A revision names its author through a
+One choice here decides the sharing design. A revision names its author through a
 foreign key to the account. In this design every workspace of a removed account
 is removed with it, so no revision remains. In a shared workspace, a revision
 of a removed author stays. **The recommendation is that removal keeps an empty
@@ -260,10 +263,11 @@ one mistake, such as a large import, fills the disk for every account.
 
 Option B is the recommendation. It adds a lock order. A write already takes the
 lock of its workspace, and the account check must read the usage of the other
-workspaces of the owner. The write then takes the account lock after the
-workspace lock, and a workspace creation takes the account lock alone. A
-record must state that order, because two writers that take the two locks in
-different orders wait for each other forever.
+workspaces of the owner. The rule of the last administrator adds an
+installation lock, and a removal takes the locks of many workspaces. Two paths
+that take the same locks in different orders wait for each other forever, so
+one order holds for every path: the installation lock, then the workspace
+locks by identifier, then the account locks by identifier.
 
 ## The fifth question: two people on one browser
 
@@ -297,16 +301,15 @@ the token expired, was used or never existed.
 
 The password policy needs a review. NIST SP 800-63B revision 4 asks for a
 longer minimum for a password that is the only factor, and for a check against
-known breached passwords. The current minimum is shorter, and three files state
-it: `apps/server/src/auth/better-auth.ts`, `apps/server/src/cli/bootstrap.ts`
-and `apps/web/src/lib/password-policy.ts`. Three copies of one rule drift, so
+known breached passwords. The current minimum is shorter, and five files state
+it, three in code and two in the contract. Five copies of one rule drift, so
 the review also gives the rule one source. A public installation makes the
 review urgent, so design 016 holds it.
 
 ## What stays out
 
-- **Sharing a workspace, and the editor and viewer roles.** That is the next
-  design. The role matrix of a workspace keeps its one role here.
+- **Sharing a workspace, and the editor and viewer roles.** That is the
+  sharing design. The role matrix of a workspace keeps its one role here.
 - **Open registration, bot protection, published content from strangers, and
   more than one server process.** Design 016 states them.
 - **Sign-in through an external provider.** The identity schema keeps an
@@ -316,7 +319,7 @@ review urgent, so design 016 holds it.
 
 ## How this prepares sharing
 
-Four choices above keep the next design small.
+Four choices above keep the sharing design small.
 
 - The invitation carries a target. This design uses one target, the
   installation. The sharing design adds a second target, a workspace and a
@@ -338,10 +341,12 @@ Four choices above keep the next design small.
   of another account.
 - An integration test proves that the database refuses the removal, the
   demotion and the disable of the last enabled administrator.
-- An integration test proves that a disabled account gets no actor and that
-  its sessions are gone.
+- An integration test proves that the first-run path still makes the first
+  administrator after the plain link function is gone.
+- An integration test proves that a disabled account gets no actor, gets no
+  new session, and that its sessions are gone.
 - An integration test proves the account quota across two workspaces of one
-  owner, and that two writers in the stated lock order do not deadlock.
+  owner, and that a write and a removal at the same time both finish.
 - A unit test in `packages/core` proves the installation matrix and each
   refusal with its exact error code.
 - A unit test in `packages/sync` proves that an engine pauses and keeps its

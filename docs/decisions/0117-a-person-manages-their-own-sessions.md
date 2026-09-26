@@ -12,8 +12,9 @@ in, and cannot sign out a lost device. A public service must offer both. See
 
 ## Decision
 
-The account settings list the sessions of the person, with the device, the
-last activity and the approximate place from the client address. The person can
+The account settings list the sessions of the person, with the device and the
+last activity. No place is derived from the client address, because that needs
+a location database that the product does not have. The person can
 sign out one session, or every session but the current one.
 
 The list, the revoke of one session and the revoke of the others are Better

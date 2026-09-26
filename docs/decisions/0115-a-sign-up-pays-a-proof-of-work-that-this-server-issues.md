@@ -23,8 +23,9 @@ The rule that checks a solution is a pure function in `packages/core`. The
 issue and the used digests live on the server. No third party receives a
 request. The difficulty comes from the configuration.
 
-The attempt limits of the sign-up count per address and per network, beside
-the proof of work.
+The attempt limits of the sign-up count per client address, and per /64
+prefix for an IPv6 address, beside the proof of work. One IPv6 host often
+holds a whole /64, so a count per address alone does not bound it.
 
 A captcha service is excluded now. It can come later as a choice of the
 operator, behind the same operation.
