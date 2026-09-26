@@ -125,6 +125,16 @@ await test('the shell and the manifest name icons that the build wrote', async (
   }
 });
 
+await test('the built shell fits the content viewport when a keyboard opens', async () => {
+  const shell = await readFile(join(distribution, 'index.html'), 'utf8');
+  assert.match(
+    shell,
+    /<meta\s+name="viewport"\s+content="[^"]*interactive-widget=resizes-content"/,
+  );
+  assert.match(shell, /<div id="root" class="min-h-viewport"/);
+  assert.doesNotMatch(shell, /<div id="root" class="min-h-dvh"/);
+});
+
 await test('no icon keeps a fixed address of its own', async () => {
   const root = await readdir(distribution);
   for (const icon of appIcons) assert.ok(!root.includes(icon.file), icon.file);
