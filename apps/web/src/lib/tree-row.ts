@@ -92,8 +92,11 @@ export const deepestSteppedBranch = 4;
  * note rows reserve the same disclosure column.
  */
 export function treeBranchClassName(depth: number): string {
-  return depth > deepestSteppedBranch ? 'mt-1' : 'mt-1 pl-3';
+  return depth > deepestSteppedBranch ? 'mt-0.5' : 'mt-0.5 pl-2';
 }
+
+/** Small gaps keep sibling rows distinct without using extra list height. */
+export const treeItemsClassName = 'm-0 list-none space-y-0.5 p-0';
 
 /**
  * The separation between the All notes row and the top of the folder tree.
@@ -104,4 +107,4 @@ export function treeBranchClassName(depth: number): string {
  * from its first row. It is space and not a divider: two rows separate by
  * space and by fill and never by a rule.
  */
-export const treeListClassName = 'mt-1';
+export const treeListClassName = 'mt-0.5';

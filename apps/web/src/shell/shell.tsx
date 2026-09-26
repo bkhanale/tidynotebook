@@ -153,6 +153,7 @@ import {
 import { useTreeDrag, type TreeDrag } from './tree-drag.ts';
 import {
   treeBranchClassName,
+  treeItemsClassName,
   treeListClassName,
   treeRowClassName,
   treeRowLeadingClassName,
@@ -390,7 +391,7 @@ function TreeView({
   readonly onNavigate: () => void;
 }): ReactNode {
   return (
-    <ul className="m-0 list-none space-y-1 p-0">
+    <ul className={treeItemsClassName}>
       {nodes.map((node) => {
         if (node.kind === 'note')
           return (

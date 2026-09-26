@@ -14,7 +14,7 @@
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { editorThemeVariables } from '@notesapp/editor';
@@ -106,6 +106,21 @@ await test('the named steps of the interface reach the stylesheet', () => {
   assert.match(css, /--text-kbd--line-height:\s*1rem/);
   assert.match(css, /--radius-xl:\s*0\.75rem/);
   assert.match(css, /--spacing-header:\s*2\.75rem/);
+});
+
+await test('the compact tree spacing reaches the built stylesheet', async () => {
+  const assets = resolve(root, 'apps/web/dist/web/assets');
+  const stylesheets = (await readdir(assets)).filter((name) =>
+    name.endsWith('.css'),
+  );
+  const spacing = (
+    await Promise.all(
+      stylesheets.map((name) => readFile(resolve(assets, name), 'utf8')),
+    )
+  ).join('\n');
+  assert.ok(spacing.includes('.space-y-0\\.5'), 'sibling gap');
+  assert.ok(spacing.includes('.mt-0\\.5'), 'branch gap');
+  assert.ok(spacing.includes('.pl-2'), 'branch indent');
 });
 
 await test('the one vendored face is declared and its files are served', async () => {

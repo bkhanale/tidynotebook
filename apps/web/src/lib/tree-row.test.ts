@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   deepestSteppedBranch,
   treeBranchClassName,
+  treeItemsClassName,
   treeListClassName,
   treeRowClassName,
   treeRowLeadingClassName,
@@ -94,21 +95,27 @@ await test('the name control shows its focus inside the row', () => {
 });
 
 await test('a branch near the top of the tree steps in by one step', () => {
-  assert.equal(treeBranchClassName(1), 'mt-1 pl-3');
-  assert.equal(treeBranchClassName(deepestSteppedBranch), 'mt-1 pl-3');
+  assert.equal(treeBranchClassName(1), 'mt-0.5 pl-2');
+  assert.equal(treeBranchClassName(deepestSteppedBranch), 'mt-0.5 pl-2');
 });
 
 await test('a deep branch stops stepping in, so the name keeps its room', () => {
   // The defect this covers: every level added its own step and nothing
   // stopped it, so a folder ten levels down showed a chevron, a folder mark
   // and no name at all in a narrow sidebar.
-  assert.equal(treeBranchClassName(deepestSteppedBranch + 1), 'mt-1');
-  assert.equal(treeBranchClassName(12), 'mt-1');
+  assert.equal(treeBranchClassName(deepestSteppedBranch + 1), 'mt-0.5');
+  assert.equal(treeBranchClassName(12), 'mt-0.5');
 });
 
 await test('every open branch separates its first row from its folder', () => {
   for (const depth of [1, 3, 5, 12])
-    assert.ok(treeBranchClassName(depth).includes('mt-1'));
+    assert.ok(treeBranchClassName(depth).includes('mt-0.5'));
+});
+
+await test('siblings use a small gap while each row keeps its target size', () => {
+  assert.ok(treeItemsClassName.includes('space-y-0.5'));
+  assert.ok(treeRowClassName().includes('md:min-h-7'));
+  assert.ok(treeRowClassName().includes('min-h-11'));
 });
 
 await test('no branch of the tree draws a guide line', () => {
@@ -124,7 +131,7 @@ await test('the top of the tree separates from the All notes row', () => {
   // The defect this covers: the All notes row sits outside the folder list,
   // so the spacing inside that list never reached it, and a marked All notes
   // row touched the marked folder below it as one band.
-  assert.ok(treeListClassName.includes('mt-1'));
+  assert.ok(treeListClassName.includes('mt-0.5'));
   assert.ok(!treeListClassName.includes('border'));
   assert.ok(!treeListClassName.includes('pl-'));
 });
