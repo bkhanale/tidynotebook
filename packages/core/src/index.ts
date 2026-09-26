@@ -23,6 +23,65 @@ export type {
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
 export type {
+  AccountStanding,
+  AccountState,
+  InstallationAction,
+  InstallationRole,
+  RegistrationPolicy,
+} from './identity/installation.ts';
+export {
+  accountStates,
+  installationRoles,
+  isEnabledAdministrator,
+  leavesNoAdministrator,
+  mayAdminister,
+  registrationPolicies,
+} from './identity/installation.ts';
+export type {
+  AccountRecord,
+  InstallationStore,
+  InstallationTransaction,
+  InvitationRecord,
+  NewInvitation,
+  RegistrationGround,
+  RegistrationRequest,
+  RegistrationStore,
+} from './identity/ports.ts';
+export type {
+  OpenRegistrationPart,
+  OpenRegistrationReadiness,
+} from './identity/registration.ts';
+export {
+  defaultAccountLimitBytes,
+  defaultInvitationLifetimeHours,
+  invitationExpiry,
+  invitationState,
+  invitationTokenPattern,
+  maxAccountLimitBytes,
+  maxEmailLength,
+  maxInvitationLifetimeHours,
+  normalizeEmail,
+  openRegistrationMissing,
+  personalWorkspaceName,
+  readInvitation,
+  registerAccount,
+} from './identity/registration.ts';
+export type {
+  AccountChange,
+  InvitationView,
+} from './identity/administration.ts';
+export {
+  createInvitation,
+  listAccounts,
+  listInvitations,
+  readRegistrationPolicy,
+  removeAccount,
+  removeOwnAccount,
+  revokeInvitation,
+  setRegistrationPolicy,
+  updateAccount,
+} from './identity/administration.ts';
+export type {
   AcceptedChangeset,
   AcceptedInput,
   AcceptedRevision,

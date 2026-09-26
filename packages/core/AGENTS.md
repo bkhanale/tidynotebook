@@ -14,8 +14,12 @@ the role and action matrix, and the storage ports that a runtime implements.
 
 - `src/files/` holds the path rules, the digest rules, the revision graph,
   the changeset builders, `commit.ts`, and the storage ports.
-- `src/identity/` holds the actor, the role and action matrix, and the UUID
-  helper. `src/history/`, `src/search/`, `src/workspaces/`, and
+- `src/identity/` holds the actor, the workspace role and action matrix, and
+  the UUID helper. `installation.ts` holds the second matrix, the one of the
+  installation role, and the two never read each other (0109).
+  `administration.ts` and `registration.ts` hold the use cases of accounts,
+  invitations and the one registration path, over the ports of `ports.ts`
+  (0108 to 0112). `src/history/`, `src/search/`, `src/workspaces/`, and
   `src/publications/` hold their own use cases and ports. The publication port
   declares read methods only, and no use case of it takes an `Actor`.
 - `src/daily-notes/` holds the day arithmetic, the name format, the path of
@@ -70,12 +74,13 @@ Every test must prove both the accepted path and the refusal, with the exact
 
 ## Key files
 
-| File                         | Purpose                                     |
-| ---------------------------- | ------------------------------------------- |
-| `src/index.ts`               | The one public entry point                  |
-| `src/files/ports.ts`         | `WorkspaceStore` and `WorkspaceTransaction` |
-| `src/files/model.ts`         | `Result`, `DomainError`, `ok`, `fail`       |
-| `src/files/commit.ts`        | Changeset commit and rebase rules           |
-| `src/files/path.ts`          | Note path rules and the one `.md` suffix    |
-| `src/identity/actor.ts`      | Roles, actions, and `verifyActor`           |
-| `src/publications/errors.ts` | The one refusal of the reader path          |
+| File                           | Purpose                                     |
+| ------------------------------ | ------------------------------------------- |
+| `src/index.ts`                 | The one public entry point                  |
+| `src/files/ports.ts`           | `WorkspaceStore` and `WorkspaceTransaction` |
+| `src/files/model.ts`           | `Result`, `DomainError`, `ok`, `fail`       |
+| `src/files/commit.ts`          | Changeset commit and rebase rules           |
+| `src/files/path.ts`            | Note path rules and the one `.md` suffix    |
+| `src/identity/actor.ts`        | Roles, actions, and `verifyActor`           |
+| `src/identity/installation.ts` | The installation role and action matrix     |
+| `src/publications/errors.ts`   | The one refusal of the reader path          |

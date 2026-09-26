@@ -1,0 +1,404 @@
+/**
+ * Rules of the installation matrix and of the administration use cases.
+ *
+ * The tests run against an in-memory store, so they check the rules and not
+ * a database. `tests/integration/accounts.test.ts` checks that the database
+ * refuses the same calls when the use cases are bypassed.
+ */
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { verifyActor, type Actor } from './actor.ts';
+import {
+  createInvitation,
+  listAccounts,
+  listInvitations,
+  readRegistrationPolicy,
+  removeAccount,
+  removeOwnAccount,
+  revokeInvitation,
+  setRegistrationPolicy,
+  updateAccount,
+} from './administration.ts';
+import {
+  leavesNoAdministrator,
+  mayAdminister,
+  type AccountStanding,
+  type InstallationAction,
+  type RegistrationPolicy,
+} from './installation.ts';
+import type {
+  AccountRecord,
+  InstallationStore,
+  InstallationTransaction,
+  InvitationRecord,
+} from './ports.ts';
+import { maxAccountLimitBytes } from './registration.ts';
+
+const ada = '11111111-1111-4111-8111-111111111111';
+const bea = '22222222-2222-4222-8222-222222222222';
+const cai = '33333333-3333-4333-8333-333333333333';
+const digest = 'a'.repeat(64);
+const ready = { mail: true, publishedOrigin: true, legalDocuments: true };
+
+function actorFor(accountId: string): Actor {
+  const created = verifyActor(accountId, []);
+  if (!created.ok) throw new Error('the test actor was rejected');
+  return created.value;
+}
+
+/** An in-memory installation that records what a use case changed. */
+type FakeInstallation = InstallationStore & {
+  readonly accounts: Map<string, AccountRecord>;
+  readonly removed: string[];
+  readonly invitations: Map<string, InvitationRecord>;
+  policy: RegistrationPolicy;
+  transactions: number;
+};
+
+function createStore(seed: readonly AccountStanding[]): FakeInstallation {
+  const accounts = new Map<string, AccountRecord>(
+    seed.map((standing) => [
+      standing.accountId,
+      {
+        accountId: standing.accountId,
+        email: `${standing.accountId.slice(0, 4)}@example.test`,
+        name: null,
+        role: standing.role,
+        state: standing.state,
+        createdAt: '2026-09-26T10:00:00.000Z',
+        lastActiveAt: null,
+        usedBytes: 0n,
+        limitBytes: 100n,
+      },
+    ]),
+  );
+  const invitations = new Map<string, InvitationRecord>();
+  const store: FakeInstallation = {
+    accounts,
+    removed: [],
+    invitations,
+    policy: 'invitation',
+    transactions: 0,
+    installation<T>(
+      _actor: Actor,
+      run: (tx: InstallationTransaction) => Promise<T>,
+    ): Promise<T> {
+      store.transactions += 1;
+      return run({
+        standing: (accountId) => {
+          const found = accounts.get(accountId);
+          return Promise.resolve(
+            found === undefined
+              ? null
+              : { accountId, role: found.role, state: found.state },
+          );
+        },
+        enabledAdministrators: () =>
+          Promise.resolve(
+            [...accounts.values()].filter(
+              (record) =>
+                record.role === 'administrator' && record.state === 'enabled',
+            ).length,
+          ),
+        accounts: () => Promise.resolve([...accounts.values()]),
+        setRole: (accountId, role) => {
+          const found = accounts.get(accountId);
+          if (found !== undefined) accounts.set(accountId, { ...found, role });
+          return Promise.resolve();
+        },
+        setState: (accountId, state) => {
+          const found = accounts.get(accountId);
+          if (found !== undefined) accounts.set(accountId, { ...found, state });
+          return Promise.resolve();
+        },
+        setLimit: (accountId, limitBytes) => {
+          const found = accounts.get(accountId);
+          if (found !== undefined)
+            accounts.set(accountId, { ...found, limitBytes });
+          return Promise.resolve();
+        },
+        remove: (accountId) => {
+          accounts.delete(accountId);
+          store.removed.push(accountId);
+          return Promise.resolve();
+        },
+        invitations: () => Promise.resolve([...invitations.values()]),
+        invite: (invitation) => {
+          if (
+            [...accounts.values()].some(
+              (record) => record.email === invitation.email,
+            )
+          )
+            return Promise.resolve(null);
+          const record: InvitationRecord = {
+            invitationId: invitation.invitationId,
+            email: invitation.email,
+            createdAt: '2026-09-26T10:00:00.000Z',
+            expiresAt: invitation.expiresAt,
+            mailed: invitation.mailed,
+          };
+          invitations.set(invitation.invitationId, record);
+          return Promise.resolve(record);
+        },
+        revokeInvitation: (invitationId) =>
+          Promise.resolve(invitations.delete(invitationId)),
+        registrationPolicy: () => Promise.resolve(store.policy),
+        setRegistrationPolicy: (policy) => {
+          store.policy = policy;
+          return Promise.resolve();
+        },
+      });
+    },
+  };
+  return store;
+}
+
+const admin = (accountId: string): AccountStanding => ({
+  accountId,
+  role: 'administrator',
+  state: 'enabled',
+});
+const member = (accountId: string): AccountStanding => ({
+  accountId,
+  role: 'member',
+  state: 'enabled',
+});
+
+await test('an administrator takes every action and a member takes none', () => {
+  const actions: readonly InstallationAction[] = [
+    'list-accounts',
+    'invite',
+    'revoke-invitation',
+    'change-state',
+    'remove-account',
+    'change-role',
+    'change-limit',
+    'change-policy',
+  ];
+  for (const action of actions) {
+    assert.equal(mayAdminister(admin(ada), action), true, action);
+    assert.equal(mayAdminister(member(ada), action), false, action);
+    assert.equal(
+      mayAdminister({ ...admin(ada), state: 'disabled' }, action),
+      false,
+      action,
+    );
+    assert.equal(mayAdminister(null, action), false, action);
+  }
+});
+
+await test('only the last enabled administrator is protected', () => {
+  assert.equal(leavesNoAdministrator(admin(ada), member(ada), 1), true);
+  assert.equal(leavesNoAdministrator(admin(ada), null, 1), true);
+  assert.equal(
+    leavesNoAdministrator(admin(ada), { ...admin(ada), state: 'disabled' }, 1),
+    true,
+  );
+  assert.equal(leavesNoAdministrator(admin(ada), member(ada), 2), false);
+  assert.equal(leavesNoAdministrator(admin(ada), admin(ada), 1), false);
+  assert.equal(leavesNoAdministrator(member(ada), null, 0), false);
+});
+
+await test('an administrator lists the accounts and a member is refused', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const listed = await listAccounts(store, actorFor(ada));
+  assert.ok(listed.ok);
+  assert.deepEqual(
+    listed.value.map((record) => record.accountId),
+    [ada, bea],
+  );
+  const refused = await listAccounts(store, actorFor(bea));
+  assert.deepEqual(refused, {
+    ok: false,
+    error: { code: 'forbidden', fileIds: [] },
+  });
+});
+
+await test('an administrator promotes, disables and limits another account', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const changed = await updateAccount(store, actorFor(ada), bea, {
+    role: 'administrator',
+    state: 'disabled',
+    limitBytes: 42n,
+  });
+  assert.ok(changed.ok);
+  assert.equal(changed.value.role, 'administrator');
+  assert.equal(changed.value.state, 'disabled');
+  assert.equal(changed.value.limitBytes, 42n);
+});
+
+await test('a change of an account is refused whole when one part is not allowed', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  // Each change below pairs a valid disable with one part that is refused,
+  // so the account stays enabled only when nothing of the change landed.
+  for (const change of [
+    { role: 'owner', state: 'disabled' },
+    { state: 'paused' },
+    { limitBytes: 0n, state: 'disabled' },
+    { limitBytes: maxAccountLimitBytes + 1n, state: 'disabled' },
+    {},
+  ]) {
+    const refused = await updateAccount(store, actorFor(ada), bea, change);
+    assert.equal(refused.ok, false, Object.keys(change).join(' '));
+  }
+  assert.equal(store.accounts.get(bea)?.state, 'enabled');
+  const byMember = await updateAccount(store, actorFor(bea), ada, {
+    state: 'disabled',
+  });
+  assert.deepEqual(byMember, {
+    ok: false,
+    error: { code: 'forbidden', fileIds: [] },
+  });
+  const unknown = await updateAccount(store, actorFor(ada), cai, {
+    state: 'disabled',
+  });
+  assert.deepEqual(unknown, {
+    ok: false,
+    error: { code: 'not_found', fileIds: [] },
+  });
+});
+
+await test('the last enabled administrator cannot be demoted, disabled or removed', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const last = {
+    ok: false,
+    error: { code: 'last_administrator', fileIds: [] },
+  };
+  assert.deepEqual(
+    await updateAccount(store, actorFor(ada), ada, { role: 'member' }),
+    last,
+  );
+  assert.deepEqual(
+    await updateAccount(store, actorFor(ada), ada, { state: 'disabled' }),
+    last,
+  );
+  assert.deepEqual(await removeOwnAccount(store, actorFor(ada)), last);
+  assert.equal(store.accounts.get(ada)?.role, 'administrator');
+  // With a second administrator the same changes are allowed.
+  await updateAccount(store, actorFor(ada), bea, { role: 'administrator' });
+  const demoted = await updateAccount(store, actorFor(ada), ada, {
+    role: 'member',
+  });
+  assert.ok(demoted.ok);
+});
+
+await test('an administrator removes another account but not their own here', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  assert.deepEqual(await removeAccount(store, actorFor(ada), ada), {
+    ok: false,
+    error: { code: 'forbidden', fileIds: [] },
+  });
+  assert.deepEqual(await removeAccount(store, actorFor(bea), ada), {
+    ok: false,
+    error: { code: 'forbidden', fileIds: [] },
+  });
+  assert.deepEqual(await removeAccount(store, actorFor(ada), cai), {
+    ok: false,
+    error: { code: 'not_found', fileIds: [] },
+  });
+  assert.deepEqual(await removeAccount(store, actorFor(ada), bea), {
+    ok: true,
+    value: undefined,
+  });
+  assert.deepEqual(store.removed, [bea]);
+});
+
+await test('a member removes their own account and a disabled one cannot', async () => {
+  const store = createStore([
+    admin(ada),
+    member(bea),
+    { accountId: cai, role: 'member', state: 'disabled' },
+  ]);
+  assert.deepEqual(await removeOwnAccount(store, actorFor(bea)), {
+    ok: true,
+    value: undefined,
+  });
+  assert.deepEqual(await removeOwnAccount(store, actorFor(cai)), {
+    ok: false,
+    error: { code: 'forbidden', fileIds: [] },
+  });
+  assert.deepEqual(store.removed, [bea]);
+});
+
+await test('an invitation binds one written address and refuses an existing one', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  const invitation = {
+    invitationId: '44444444-4444-4444-8444-444444444444',
+    tokenDigest: digest,
+    email: '  New.Person@Example.TEST ',
+    expiresAt: '2026-10-03T10:00:00.000Z',
+    mailed: false,
+  };
+  const made = await createInvitation(store, actorFor(ada), invitation);
+  assert.ok(made.ok);
+  assert.equal(made.value.email, 'new.person@example.test');
+  const existing = await createInvitation(store, actorFor(ada), {
+    ...invitation,
+    email: `${bea.slice(0, 4)}@example.test`,
+  });
+  assert.deepEqual(existing, {
+    ok: false,
+    error: { code: 'account_exists', fileIds: [] },
+  });
+  for (const bad of [
+    { ...invitation, email: 'no-at-sign' },
+    { ...invitation, tokenDigest: 'short' },
+  ])
+    assert.equal((await createInvitation(store, actorFor(ada), bad)).ok, false);
+  assert.equal(
+    (await createInvitation(store, actorFor(bea), invitation)).ok,
+    false,
+  );
+  const listed = await listInvitations(
+    store,
+    actorFor(ada),
+    new Date('2026-10-04T10:00:00.000Z'),
+  );
+  assert.ok(listed.ok);
+  assert.deepEqual(
+    listed.value.map((entry) => entry.state),
+    ['expired'],
+  );
+  assert.deepEqual(
+    await revokeInvitation(store, actorFor(ada), invitation.invitationId),
+    { ok: true, value: undefined },
+  );
+  assert.deepEqual(
+    await revokeInvitation(store, actorFor(ada), invitation.invitationId),
+    { ok: false, error: { code: 'not_found', fileIds: [] } },
+  );
+});
+
+await test('the open policy needs every part and a member changes nothing', async () => {
+  const store = createStore([admin(ada), member(bea)]);
+  for (const readiness of [
+    { ...ready, mail: false },
+    { ...ready, publishedOrigin: false },
+    { ...ready, legalDocuments: false },
+  ])
+    assert.deepEqual(
+      await setRegistrationPolicy(store, actorFor(ada), 'open', readiness),
+      {
+        ok: false,
+        error: { code: 'open_registration_unavailable', fileIds: [] },
+      },
+    );
+  assert.equal(store.policy, 'invitation');
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(bea), 'open', ready),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(ada), 'approval', ready),
+    { ok: false, error: { code: 'forbidden', fileIds: [] } },
+  );
+  assert.deepEqual(
+    await setRegistrationPolicy(store, actorFor(ada), 'open', ready),
+    { ok: true, value: 'open' },
+  );
+  assert.deepEqual(await readRegistrationPolicy(store, actorFor(ada)), {
+    ok: true,
+    value: 'open',
+  });
+  assert.equal((await readRegistrationPolicy(store, actorFor(bea))).ok, false);
+});

@@ -275,6 +275,14 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  * problem is how many of them there are. A folder rename is the operation
  * that reaches the limit, and the person can act on it by moving fewer notes
  * at a time.
+ *
+ * `last_administrator` refuses a change that leaves the installation with no
+ * enabled administrator (record 0110). `invitation_invalid` is the one
+ * refusal of an invitation: an expired, a used, a revoked and an unknown
+ * token all take it, so the answer states nothing about the invitation.
+ * `account_exists` refuses an invitation to an address that already signs
+ * in. `open_registration_unavailable` refuses the open policy while the
+ * installation lacks a part that record 0114 names.
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -298,7 +306,11 @@ export type DomainErrorCode =
   | 'note_too_large'
   | 'note_too_deep'
   | 'published_link_unavailable'
-  | 'not_found';
+  | 'not_found'
+  | 'last_administrator'
+  | 'invitation_invalid'
+  | 'account_exists'
+  | 'open_registration_unavailable';
 
 /**
  * A domain failure and the files it refers to.
