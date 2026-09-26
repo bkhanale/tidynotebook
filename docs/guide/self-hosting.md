@@ -223,9 +223,36 @@ cannot fill the disk. Startup also fails when a required secret file, storage
 mount, or database connection is not usable.
 
 Open the web application after the first startup. Enter the email address and
-password for the single user. The setup operation is available only until this
-account exists. Use `pnpm owner:bootstrap` only when an unattended installation
-must create the same first account before a browser opens.
+password of the first account, which is the administrator. The setup operation
+is available only until this account exists. Use `pnpm owner:bootstrap` only
+when an unattended installation must create the same first account before a
+browser opens.
+
+## Accounts and invitations
+
+Every later account needs an invitation. An administrator invites a person in
+the application, as [Accounts and invitations](accounts.md) states. You can
+also invite a person from the server:
+
+```sh
+pnpm account:invite --email person@example.com
+```
+
+With a mail transport, the link goes to the address. Without one, the command
+prints the link once. Send it to the person yourself.
+
+When no administrator can sign in any more, make an account an administrator
+again. The command also enables the account:
+
+```sh
+pnpm account:promote --email person@example.com
+```
+
+Two optional settings of `.env` apply to accounts.
+`NOTESAPP_ACCOUNT_LIMIT_BYTES` is the storage limit, in bytes, that a new
+account starts with. An administrator changes the limit of one account in the
+application. `NOTESAPP_INVITATION_LIFETIME_HOURS` is how long a new invitation
+works.
 
 ## Health and readiness
 
