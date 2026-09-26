@@ -11,6 +11,7 @@
  * same workspace lock as a content write, so the two have a defined order.
  */
 import type { Actor, Role } from '../identity/actor.ts';
+import type { InstallationRole } from '../identity/installation.ts';
 
 /** The three appearance choices that an account can store. */
 export type AppearanceChoice = 'system' | 'light' | 'dark';
@@ -46,6 +47,13 @@ export type PreferencesChange = {
   readonly spellCheck?: boolean | undefined;
 };
 
+/** What an account reads about itself besides its settings. */
+export type AccountOwnStanding = {
+  readonly role: InstallationRole;
+  readonly usedBytes: bigint;
+  readonly limitBytes: bigint;
+};
+
 /** One workspace as its member sees it. */
 export type WorkspaceSummary = {
   readonly workspaceId: string;
@@ -70,6 +78,11 @@ export type AccountTransaction = {
   memberships(): Promise<readonly { workspaceId: string; role: Role }[]>;
   /** The stored settings of the account. */
   preferences(): Promise<Preferences>;
+  /**
+   * The installation role of the account, the bytes that the workspaces it
+   * owns use, and its limit (records 0109, 0112).
+   */
+  standing(): Promise<AccountOwnStanding>;
   /** Replaces the stored settings of the account with a checked value. */
   savePreferences(preferences: Preferences): Promise<void>;
   /**

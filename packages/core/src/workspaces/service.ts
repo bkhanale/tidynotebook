@@ -15,6 +15,7 @@ import type { Action, Actor, Role } from '../identity/actor.ts';
 import { actionsForRole, authorize } from '../identity/actor.ts';
 import { fail, ok, type Result } from '../files/model.ts';
 import type {
+  AccountOwnStanding,
   AppearanceChoice,
   Preferences,
   PreferencesChange,
@@ -171,6 +172,14 @@ export function deleteWorkspace(
     await tx.destroy();
     return ok(undefined);
   });
+}
+
+/** The installation role and the storage of the account. */
+export function readOwnStanding(
+  store: WorkspaceAdminStore,
+  actor: Actor,
+): Promise<Result<AccountOwnStanding>> {
+  return store.account(actor, async (tx) => ok(await tx.standing()));
 }
 
 /** The stored settings of the account. */

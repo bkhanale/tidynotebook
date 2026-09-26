@@ -77,8 +77,8 @@ export {
   authVerification,
 } from './schema.ts';
 export {
-  defaultQuotaBytes,
   provisionAccounts,
   provisionWorkspace,
+  type AccountSeed,
   type WorkspaceSeed,
 } from './provision.ts';

@@ -23,6 +23,13 @@ identity store, the attachment bytes, and provisioning.
 - `src/migrate.ts` runs the migrations and exports `requiredSchemaVersion`.
 - No domain rule and no HTTP route live here. A rule lives in `packages/core`.
 
+## The one lock order
+
+Locks go installation, then workspaces by identifier, then accounts by
+identifier (0112). A write and a new workspace take the account lock after the
+workspace lock, in `notesapp_account_usage` and `notesapp_create_workspace`.
+An installation transaction starts with the installation lock.
+
 ## Allowed imports
 
 `@notesapp/core` and `@notesapp/markdown`, plus `drizzle-orm` and `pg`.

@@ -114,6 +114,8 @@ function createFakeStore(): FakeStore {
           })),
         ),
       memberships: () => Promise.resolve(memberships(actor.accountId)),
+      standing: () =>
+        Promise.resolve({ role: 'member', usedBytes: 0n, limitBytes: 1n }),
       preferences: () =>
         Promise.resolve(
           preferences.get(actor.accountId) ?? {

@@ -47,10 +47,43 @@ const bytes = customType<{ data: Uint8Array; driverData: Buffer }>({
 /**
  * A workspace membership role.
  *
- * The product serves one account, so `owner` is the only role. The enum stays
- * because the policies and the owner guard read it.
+ * Every workspace has one member, its owner, so `owner` is the only role. The
+ * enum stays because the policies and the owner guard read it.
  */
 export const membershipRole = pgEnum('membership_role', ['owner']);
+
+/**
+ * The role of an account in the installation (record 0109).
+ *
+ * It is a second matrix beside the workspace role and grants no workspace
+ * access: every row policy reads membership only.
+ */
+export const installationRole = pgEnum('installation_role', [
+  'administrator',
+  'member',
+]);
+
+/** Whether an account can sign in (record 0111). */
+export const accountState = pgEnum('account_state', ['enabled', 'disabled']);
+
+/** Who can make an account (record 0108). */
+export const registrationPolicy = pgEnum('registration_policy', [
+  'invitation',
+  'open',
+]);
+
+/**
+ * What proved the address of an account (record 0108).
+ *
+ * `setup` is the address that the operator typed at the first run, `mail` an
+ * invitation link that went by mail, and `administrator` a link that an
+ * administrator copied, which proves only what the administrator states.
+ */
+export const addressProof = pgEnum('address_proof', [
+  'setup',
+  'mail',
+  'administrator',
+]);
 
 /** Whether a file holds Markdown or an attachment. */
 export const fileKind = pgEnum('file_kind', ['note', 'attachment']);
@@ -77,15 +110,101 @@ export const syncEntityKind = pgEnum('sync_entity_kind', [
 /**
  * Application owned account identity.
  *
- * The row carries no personal data. Task 5 adds the configured Better Auth
- * tables and maps a verified user to one of these identifiers.
+ * The row carries no personal data. The Better Auth tables hold the address
+ * and the name, and `account_identities` maps a verified user to one of these
+ * identifiers.
+ *
+ * `limit_bytes` is the byte limit of every workspace that the account owns
+ * (record 0112). A removed account keeps its row as a tombstone with
+ * `removed_at` set and nothing else that names a person (record 0111), so a
+ * revision that names it keeps a valid reference.
  */
-export const accounts = pgTable('accounts', {
-  id: uuid('id').primaryKey(),
-  createdAt: timestamp('created_at', { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-});
+export const accounts = pgTable(
+  'accounts',
+  {
+    id: uuid('id').primaryKey(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    installationRole: installationRole('installation_role')
+      .notNull()
+      .default('member'),
+    state: accountState('state').notNull().default('enabled'),
+    limitBytes: bigint('limit_bytes', { mode: 'bigint' }).notNull(),
+    addressProof: addressProof('address_proof'),
+    removedAt: timestamp('removed_at', { withTimezone: true }),
+  },
+  (table) => [
+    check('accounts_limit_bytes_check', sql`${table.limitBytes} > 0`),
+    index('accounts_administrator_idx').on(table.installationRole, table.state),
+  ],
+);
+
+/**
+ * The one row of the settings of the installation.
+ *
+ * The primary key is a boolean that a check holds true, so the table can hold
+ * one row and no second. The registration policy lives here and not in the
+ * environment, so the registration function reads it in its own transaction
+ * (record 0108).
+ */
+export const installationSettings = pgTable(
+  'installation_settings',
+  {
+    id: boolean('id').primaryKey().default(true),
+    registrationPolicy: registrationPolicy('registration_policy')
+      .notNull()
+      .default('invitation'),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [check('installation_settings_one_row', sql`${table.id}`)],
+);
+
+/**
+ * One invitation to make an account (record 0108).
+ *
+ * Only the SHA-256 digest of the token is at rest, as for a published link
+ * (record 0030). The invitation binds one address in its written form, and
+ * it carries a target: the installation now, and a workspace with a role in
+ * the sharing design. `created_by` is null for an invitation of the operator
+ * command. A used invitation names the account it made.
+ */
+export const invitations = pgTable(
+  'invitations',
+  {
+    id: uuid('id').primaryKey(),
+    tokenDigest: text('token_digest').notNull().unique(),
+    email: text('email').notNull(),
+    target: text('target').notNull().default('installation'),
+    createdBy: uuid('created_by').references(() => accounts.id),
+    mailed: boolean('mailed').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    usedAt: timestamp('used_at', { withTimezone: true }),
+    usedBy: uuid('used_by').references(() => accounts.id),
+    revokedAt: timestamp('revoked_at', { withTimezone: true }),
+  },
+  (table) => [
+    check(
+      'invitations_token_digest_check',
+      sql`${table.tokenDigest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    check(
+      'invitations_email_check',
+      sql`${table.email} = lower(${table.email}) and char_length(${table.email}) between 3 and 320`,
+    ),
+    check('invitations_target_check', sql`${table.target} = 'installation'`),
+    check(
+      'invitations_used_check',
+      sql`(${table.usedAt} is null) = (${table.usedBy} is null)`,
+    ),
+    index('invitations_email_idx').on(table.email),
+  ],
+);
 
 /** One workspace. Every content row below belongs to exactly one of these. */
 export const workspaces = pgTable('workspaces', {
@@ -98,13 +217,17 @@ export const workspaces = pgTable('workspaces', {
     .defaultNow(),
 });
 
-/** Stored bytes and the operator configured limit of one workspace. */
+/**
+ * Stored bytes of one workspace.
+ *
+ * The limit belongs to the account that owns the workspace, and a write
+ * checks the sum of every workspace of that account (record 0112).
+ */
 export const workspaceUsage = pgTable('workspace_usage', {
   workspaceId: uuid('workspace_id')
     .primaryKey()
     .references(() => workspaces.id),
   bytesUsed: bigint('bytes_used', { mode: 'bigint' }).notNull(),
-  quotaBytes: bigint('quota_bytes', { mode: 'bigint' }).notNull(),
 });
 
 /**

@@ -6,9 +6,9 @@ import { acceptWithDocuments } from '@notesapp/core';
  * no DDL right, it cannot bypass row security, and it cannot run a migration.
  * Every check below therefore uses that role, not the schema owner.
  *
- * The product serves one account, so these policies are defence in depth: the
- * application rules already scope every read and write, and these checks prove
- * that the database refuses the same things on its own.
+ * The application rules already scope every read and write, so these policies
+ * are defence in depth: these checks prove that the database refuses the same
+ * things on its own, for every account of the installation.
  *
  * Start the service first:
  *
@@ -180,7 +180,10 @@ const other: Seeded = await seedEverything();
 const strangerId = randomUUID();
 const setup = await openSession(database.migrationUrl);
 try {
-  await setup.query('insert into accounts (id) values ($1)', [strangerId]);
+  await setup.query(
+    'insert into accounts (id, limit_bytes) values ($1, 1000000)',
+    [strangerId],
+  );
 } finally {
   await setup.close();
 }
@@ -397,12 +400,12 @@ await seedWorkspace(database, scoped.workspaceId, [
   { accountId: scoped.ownerId, role: 'owner' },
 ]);
 
-await test('the owner cannot raise its own quota', async () => {
+await test('the owner cannot raise its own limit', async () => {
   const session = await openSession(database.runtimeUrl, scoped.ownerId);
   try {
     const failure = await session.failure(
-      'update workspace_usage set quota_bytes = 1 where workspace_id = $1',
-      [scoped.workspaceId],
+      'update accounts set limit_bytes = 1 where id = $1',
+      [scoped.ownerId],
     );
     assert.equal(failure.code, '42501');
   } finally {
@@ -630,7 +633,10 @@ async function seedFreshAccount(): Promise<{
       `insert into auth_user (id, name, email) values ($1, 'Fresh', $2)`,
       [authUserId, `${authUserId}@notes.invalid`],
     );
-    await setup.query('insert into accounts (id) values ($1)', [accountId]);
+    await setup.query(
+      'insert into accounts (id, limit_bytes) values ($1, 1000000)',
+      [accountId],
+    );
     await setup.query(
       'insert into account_identities (auth_user_id, account_id) values ($1, $2)',
       [authUserId, accountId],
@@ -639,7 +645,7 @@ async function seedFreshAccount(): Promise<{
       `insert into workspaces (id, name, personal) values ($1, 'Personal', true)`,
       [workspaceId],
     );
-    await setup.query('insert into workspace_usage values ($1, 0, 1000000)', [
+    await setup.query('insert into workspace_usage values ($1, 0)', [
       workspaceId,
     ]);
     await setup.query('insert into workspace_cursors values ($1, 0)', [
@@ -827,7 +833,7 @@ await test('identity functions: a stranger learns nothing', async () => {
     // Creating a workspace for somebody else is not possible: the function
     // always makes the calling account the owner.
     const created = randomUUID();
-    await stranger.query('select notesapp_create_workspace($1, $2, 1000000)', [
+    await stranger.query('select notesapp_create_workspace($1, $2)', [
       created,
       'stranger workspace',
     ]);

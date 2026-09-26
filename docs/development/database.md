@@ -55,20 +55,24 @@ lets the schema owner migrate and provision, and the runtime role gets narrower
 policies. A role that matches no policy sees nothing, so a transaction that
 sets no identity reads no row and writes no row.
 
-The product serves one account, so these policies are defence in depth. The
-application scopes every read and write first, and the policies prove that the
-database refuses the same things on its own. Three shapes carry that.
+These policies are defence in depth. The application scopes every read and
+write first, and the policies prove that the database refuses the same things
+on its own, for every account of the installation. An installation role reads
+no policy, so an administrator reads no row of a workspace of another account
+([record 0109](../decisions/0109-the-installation-role-grants-no-workspace-access.md)).
+Three shapes carry that.
 
 - **A membership lookup is a `SECURITY DEFINER` function with a fixed search
   path.** A plain function would query the table its own policy guards, and
   PostgreSQL would report infinite recursion. Running as the schema owner
   avoids that and gives no role `BYPASSRLS`.
   `tests/integration/row-access.test.ts` proves it.
-- **The quota and the commit cursor are operator owned.** The runtime role
-  reads them and does not write them, because a member who could lower the
-  stored byte count or rewind the cursor would defeat both. Two
-  `SECURITY DEFINER` functions make the permitted changes, check membership
-  first, and refuse a negative usage delta.
+- **The usage, the account limit and the commit cursor are operator owned.**
+  The runtime role reads them and does not write them, because a member who
+  could lower the stored byte count, raise its limit, or rewind the cursor
+  would defeat all three. `SECURITY DEFINER` functions make the permitted
+  changes, check membership or the installation role first, and refuse a
+  negative usage delta.
 - **A rule that needs more than one row is a trigger.** A policy sees one row
   at a time, so it cannot count the remaining owners of a workspace.
 
@@ -113,18 +117,26 @@ mode so a second changeset can swap paths again. The head reference is deferred
 for the same reason: one transaction writes the revisions and then advances the
 heads.
 
-## Quota
+## The account limit
 
 Stored bytes count new content plus a fixed charge for the retained revision
-metadata and the receipt. A changeset may use the small control reserve only
-when every revision in it is a deletion, because a deletion must stay possible
-on a full workspace. Without that rule a client could grow the stored byte
-count without limit by resubmitting content the workspace already holds.
+metadata and the receipt. The limit belongs to the account that owns the
+workspace, and a write checks the sum over every workspace of that account
+([record 0112](../decisions/0112-the-owner-account-holds-the-storage-quota.md)).
+A changeset may use the small control reserve only when every revision in it
+is a deletion, because a deletion must stay possible on a full account. Without
+that rule a client could grow the stored byte count without limit by
+resubmitting content the workspace already holds. `notesapp_add_usage` refuses
+a write past the limit again, whatever the layers above it do.
+
+Every path takes its locks in one order: the installation lock, then the
+workspace locks by identifier, then the account locks by identifier. The
+guide of `packages/storage-server` names the path of each.
 
 ## What the schema does not hold
 
-Conflict branches, invitations, workspace members, agent tokens, and the
-workspace scoped audit trail left the product. No table, function, policy,
+Conflict branches, workspace members, agent tokens, and the workspace scoped
+audit trail left the product. No table, function, policy,
 trigger, or enum value for any of them remains. A published link is not one of
 them: it is a read-only door over a scope, and it holds no member and no
 grant. The browser store keeps its own

@@ -41,7 +41,6 @@ import {
   revisionParents,
   revisions,
   syncChanges,
-  workspaceUsage,
   noteDocuments,
 } from '../schema.ts';
 import {
@@ -74,9 +73,10 @@ const receiptOverheadBytes = 512n;
  *
  * A changeset that adds no new content is a control operation: a deletion, a
  * rename, or a restore of content that the workspace already holds. Such an
- * operation skips the quota check, so a full workspace stays manageable. A
- * changeset that adds content must fit below the quota minus this reserve, so
- * the headroom cannot be consumed by new content.
+ * operation may use the whole limit of the owner account, so a full account
+ * stays manageable. A changeset that adds content must fit below the limit
+ * minus this reserve, so the headroom cannot be consumed by new content
+ * (record 0112).
  */
 const controlReserveBytes = 1n << 20n;
 
@@ -553,20 +553,27 @@ async function writeChangeset(
     contentBytes +
     BigInt(input.revisions.length) * revisionOverheadBytes +
     receiptOverheadBytes;
-  const usageRows = await db
-    .select({
-      bytesUsed: workspaceUsage.bytesUsed,
-      quotaBytes: workspaceUsage.quotaBytes,
-    })
-    .from(workspaceUsage)
-    .where(eq(workspaceUsage.workspaceId, workspaceId));
-  const usage = usageRows[0];
-  if (usage === undefined) {
+  // The limit belongs to the account that owns the workspace, and the owner
+  // pays for every workspace it owns (record 0112). The read takes the lock of
+  // that account after the workspace lock this transaction holds, so two writes
+  // to two workspaces of one owner check the sum one after the other.
+  const usageRows = await client.query<{
+    used_bytes: string;
+    limit_bytes: string;
+  }>('select used_bytes, limit_bytes from notesapp_account_usage($1)', [
+    workspaceId,
+  ]);
+  const usageRow = usageRows.rows[0];
+  if (usageRow === undefined) {
     throw new OperationalError(
       'unexpected',
-      'notesapp: the workspace has no usage record.',
+      'notesapp: the workspace has no owner account.',
     );
   }
+  const usage = {
+    bytesUsed: BigInt(usageRow.used_bytes),
+    limitBytes: BigInt(usageRow.limit_bytes),
+  };
   // Only a changeset that deletes every file it touches and adds no content
   // byte may use the control reserve. A deletion that carried new content
   // would otherwise reach the reserved capacity through a disguised write, and
@@ -579,8 +586,8 @@ async function writeChangeset(
     contentBytes === 0n &&
     input.revisions.every((revision) => revision.deleted);
   const limit = control
-    ? usage.quotaBytes
-    : usage.quotaBytes - controlReserveBytes;
+    ? usage.limitBytes
+    : usage.limitBytes - controlReserveBytes;
   if (usage.bytesUsed + addedBytes > limit) {
     return fail('quota', fileIds);
   }

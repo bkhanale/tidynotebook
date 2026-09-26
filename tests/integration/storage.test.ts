@@ -54,7 +54,7 @@ const store: WorkspaceStoreHandle = openWorkspaceStore(
 
 /** Creates one workspace with one owner and returns its identifiers. */
 async function newWorkspace(
-  quotaBytes?: bigint,
+  limitBytes?: bigint,
 ): Promise<{ workspaceId: string; accountId: string }> {
   const workspaceId = randomUUID();
   const accountId = randomUUID();
@@ -62,7 +62,7 @@ async function newWorkspace(
     database,
     workspaceId,
     [{ accountId, role: 'owner' }],
-    quotaBytes,
+    limitBytes,
   );
   return { workspaceId, accountId };
 }

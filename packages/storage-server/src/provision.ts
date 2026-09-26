@@ -8,7 +8,9 @@
  */
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import type { Role } from '@notesapp/core';
+import { sql } from 'drizzle-orm';
+import type { InstallationRole, Role } from '@notesapp/core';
+import { defaultAccountLimitBytes } from '@notesapp/core';
 import {
   accounts,
   memberships,
@@ -17,33 +19,53 @@ import {
   workspaces,
 } from './schema.ts';
 
-/** The design's default workspace storage quota of 5 GiB. */
-export const defaultQuotaBytes = 5n * 1024n * 1024n * 1024n;
-
 /** One workspace and its members. */
 export type WorkspaceSeed = {
   readonly workspaceId: string;
   readonly name: string;
-  readonly quotaBytes?: bigint;
   readonly members: readonly {
     readonly accountId: string;
     readonly role: Role;
   }[];
 };
 
+/** What a provisioned account starts with. */
+export type AccountSeed = {
+  /**
+   * The byte limit of the account (record 0112). When it is given, an account
+   * that exists already takes it too, so a test can shrink the limit of an
+   * account it made earlier.
+   */
+  readonly limitBytes?: bigint;
+  /** The installation role, a member when it is not given. */
+  readonly role?: InstallationRole;
+};
+
 /** Creates the account identity rows that do not exist yet. */
 export async function provisionAccounts(
   migrationUrl: string,
   accountIds: readonly string[],
+  seed: AccountSeed = {},
 ): Promise<void> {
   if (accountIds.length === 0) return;
   const client = new pg.Client({ connectionString: migrationUrl });
   await client.connect();
   try {
-    await drizzle({ client })
+    const insert = drizzle({ client })
       .insert(accounts)
-      .values(accountIds.map((id) => ({ id })))
-      .onConflictDoNothing();
+      .values(
+        accountIds.map((id) => ({
+          id,
+          limitBytes: seed.limitBytes ?? defaultAccountLimitBytes,
+          installationRole: seed.role ?? 'member',
+        })),
+      );
+    await (seed.limitBytes === undefined
+      ? insert.onConflictDoNothing()
+      : insert.onConflictDoUpdate({
+          target: accounts.id,
+          set: { limitBytes: sql`excluded.limit_bytes` },
+        }));
   } finally {
     await client.end();
   }
@@ -70,11 +92,7 @@ export async function provisionWorkspace(
         .onConflictDoNothing();
       await db
         .insert(workspaceUsage)
-        .values({
-          workspaceId: seed.workspaceId,
-          bytesUsed: 0n,
-          quotaBytes: seed.quotaBytes ?? defaultQuotaBytes,
-        })
+        .values({ workspaceId: seed.workspaceId, bytesUsed: 0n })
         .onConflictDoNothing();
       await db
         .insert(workspaceCursors)

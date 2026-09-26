@@ -1,5 +1,5 @@
 /**
- * PostgreSQL implementation of the account and workspace administration ports.
+ * PostgreSQL implementation of the account, workspace and installation ports.
  *
  * A membership change takes the same advisory workspace lock as a content
  * write, so the two have a defined order. The lock key is the workspace
@@ -8,29 +8,48 @@
  *
  * The runtime role holds no right to insert a workspace, an account, or
  * another account's membership row. Those writes go through the reviewed
- * SECURITY DEFINER functions of `migrations/0003_identity_access.sql`, which
- * check the caller's role themselves. The rules in `@notesapp/core` are the
- * first control; those functions and the row policies are the second.
+ * SECURITY DEFINER functions of the migrations, which check the caller's role
+ * themselves. The rules in `@notesapp/core` are the first control; those
+ * functions and the row policies are the second.
+ *
+ * Every lock follows the one order of record 0112: the installation lock,
+ * then the workspace locks, then the account locks. An installation
+ * transaction takes the installation lock first. A workspace transaction takes
+ * its workspace lock first, and a database function takes the account lock
+ * after it.
  */
 import { randomUUID } from 'node:crypto';
 import type {
+  AccountOwnStanding,
+  AccountRecord,
+  AccountStanding,
+  AccountState,
   AccountTransaction,
   Actor,
   AppearanceChoice,
+  InstallationRole,
+  InstallationStore,
+  InstallationTransaction,
+  InvitationRecord,
+  NewInvitation,
   Preferences,
+  RegistrationPolicy,
+  RegistrationStore,
   Role,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
 } from '@notesapp/core';
 import {
+  accountStates,
   defaultSpellCheck,
+  installationRoles,
   isThemeFamilyId,
   OperationalError,
+  registrationPolicies,
 } from '@notesapp/core';
 import pg from 'pg';
 import { openPool } from './pool.ts';
-import { defaultQuotaBytes } from './provision.ts';
 import {
   defaultConnectionTimeoutMs,
   WorkspaceUnavailableError,
@@ -72,6 +91,44 @@ function assertUuid(value: string, what: string): void {
   }
 }
 
+/** Narrows a stored installation role. An unexpected value is a defect. */
+function asInstallationRole(value: string): InstallationRole {
+  const known = installationRoles.find((role) => role === value);
+  if (known === undefined)
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: an account row holds an unknown installation role.',
+    );
+  return known;
+}
+
+/** Narrows a stored account state. An unexpected value is a defect. */
+function asAccountState(value: string): AccountState {
+  const known = accountStates.find((state) => state === value);
+  if (known === undefined)
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: an account row holds an unknown state.',
+    );
+  return known;
+}
+
+/** Narrows a stored registration policy. An unexpected value is a defect. */
+function asRegistrationPolicy(value: string): RegistrationPolicy {
+  const known = registrationPolicies.find((policy) => policy === value);
+  if (known === undefined)
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: the settings hold an unknown registration policy.',
+    );
+  return known;
+}
+
+/** An instant that the driver read, as an ISO 8601 text. */
+function isoOf(value: Date | string): string {
+  return (value instanceof Date ? value : new Date(value)).toISOString();
+}
+
 /** Narrows a stored role string. An unexpected value is a defect. */
 function asRole(value: string): Role {
   if (!isRole(value)) {
@@ -103,52 +160,54 @@ function asThemeFamily(value: string): string {
 }
 
 /** An identity store and the calls that a process needs to manage its pool. */
-export type IdentityStoreHandle = WorkspaceAdminStore & {
-  /**
-   * Maps a verified Better Auth user to an application account.
-   *
-   * The call is idempotent: the first call creates the account, its personal
-   * workspace, and the map row in one transaction, and every later call
-   * returns the account that already exists.
-   */
-  linkAccount(input: {
-    readonly authUserId: string;
-    readonly workspaceName: string;
-    readonly quotaBytes?: bigint;
-  }): Promise<string>;
-  /** Links the only account, or returns null when setup already completed. */
-  linkFirstAccount(input: {
-    readonly authUserId: string;
-    readonly workspaceName: string;
-    readonly quotaBytes?: bigint;
-  }): Promise<string | null>;
-  /** The account of a Better Auth user, or `null` when none is linked. */
-  accountOf(authUserId: string): Promise<string | null>;
-  /** The current role of one account in each of its workspaces. */
-  memberships(
-    accountId: string,
-  ): Promise<readonly { workspaceId: string; role: Role }[]>;
-  /** Whether any application account exists. The bootstrap command uses it. */
-  hasAccount(): Promise<boolean>;
-  /**
-   * Appends one content free record to the audit trail of an account. The
-   * operator recovery command uses it.
-   */
-  recordAccountAudit(accountId: string, action: string): Promise<void>;
-  /**
-   * Removes an account that a sign-up attempt created and never used.
-   *
-   * The call is bound to that account: the database function refuses every
-   * account that is not the identity of the transaction, so one account can
-   * never remove another. It also refuses when any retained record still names
-   * the account, when it belongs to a workspace that is not its own personal
-   * one, or when that workspace holds anything at all. The answer is then
-   * false rather than a failure.
-   */
-  discardAccount(authUserId: string): Promise<boolean>;
-  /** Closes every pooled connection. */
-  close(): Promise<void>;
-};
+export type IdentityStoreHandle = WorkspaceAdminStore &
+  InstallationStore &
+  RegistrationStore & {
+    /** The account of a Better Auth user, or `null` when none is linked. */
+    accountOf(authUserId: string): Promise<string | null>;
+    /**
+     * The account that a session of a Better Auth user serves: an enabled
+     * account that is not removed, or `null` (record 0111). The actor resolver
+     * and the session create hook both ask this, so a disabled account gets no
+     * actor and no new session.
+     */
+    sessionAccount(authUserId: string): Promise<string | null>;
+    /**
+     * Stores one invitation of the operator command `pnpm account:invite`.
+     * Answers `null` when an account already signs in with the address.
+     */
+    operatorInvite(invitation: NewInvitation): Promise<InvitationRecord | null>;
+    /**
+     * Makes the account of one address an enabled administrator, for the
+     * operator command `pnpm account:promote` (record 0110). Answers the
+     * account, or `null` when no account signs in with the address.
+     */
+    operatorPromote(email: string): Promise<string | null>;
+    /** The current role of one account in each of its workspaces. */
+    memberships(
+      accountId: string,
+    ): Promise<readonly { workspaceId: string; role: Role }[]>;
+    /** Whether any application account exists. The bootstrap command uses it. */
+    hasAccount(): Promise<boolean>;
+    /**
+     * Appends one content free record to the audit trail of an account. The
+     * operator recovery command uses it.
+     */
+    recordAccountAudit(accountId: string, action: string): Promise<void>;
+    /**
+     * Removes an account that a sign-up attempt created and never used.
+     *
+     * The call is bound to that account: the database function refuses every
+     * account that is not the identity of the transaction, so one account can
+     * never remove another. It also refuses when any retained record still names
+     * the account, when it belongs to a workspace that is not its own personal
+     * one, or when that workspace holds anything at all. The answer is then
+     * false rather than a failure.
+     */
+    discardAccount(authUserId: string): Promise<boolean>;
+    /** Closes every pooled connection. */
+    close(): Promise<void>;
+  };
 
 /** Options of one identity store pool. */
 export type IdentityStoreOptions = {
@@ -330,6 +389,35 @@ export function openIdentityStore(
         };
       },
 
+      async standing(): Promise<AccountOwnStanding> {
+        const rows = await client.query<{
+          installation_role: string;
+          limit_bytes: string;
+          used_bytes: string;
+        }>(
+          `select a.installation_role::text as installation_role,
+                  a.limit_bytes::text as limit_bytes,
+                  coalesce((select sum(u.bytes_used)
+                              from workspace_usage u
+                              join memberships m on m.workspace_id = u.workspace_id
+                             where m.account_id = a.id and m.role = 'owner'),
+                           0)::text as used_bytes
+             from accounts a where a.id = $1`,
+          [accountId],
+        );
+        const row = rows.rows[0];
+        if (row === undefined)
+          throw new OperationalError(
+            'unexpected',
+            'notesapp: the account of the transaction has no row.',
+          );
+        return {
+          role: asInstallationRole(row.installation_role),
+          usedBytes: BigInt(row.used_bytes),
+          limitBytes: BigInt(row.limit_bytes),
+        };
+      },
+
       async savePreferences(preferences: Preferences): Promise<void> {
         await client.query(
           `insert into account_preferences
@@ -355,10 +443,9 @@ export function openIdentityStore(
         // workspace, so its first membership record and its first cursor are
         // allocated in the same order as a later change.
         await lockWorkspace(client, input.workspaceId);
-        await client.query('select notesapp_create_workspace($1, $2, $3)', [
+        await client.query('select notesapp_create_workspace($1, $2)', [
           input.workspaceId,
           input.name,
-          defaultQuotaBytes.toString(),
         ]);
       },
 
@@ -440,7 +527,254 @@ export function openIdentityStore(
     };
   }
 
+  function installationTransaction(
+    client: pg.PoolClient,
+  ): InstallationTransaction {
+    return {
+      async standing(accountId: string): Promise<AccountStanding | null> {
+        assertUuid(accountId, 'the account');
+        const rows = await client.query<{
+          installation_role: string;
+          state: string;
+        }>(
+          'select installation_role, state from notesapp_account_standing($1)',
+          [accountId],
+        );
+        const row = rows.rows[0];
+        return row === undefined
+          ? null
+          : {
+              accountId,
+              role: asInstallationRole(row.installation_role),
+              state: asAccountState(row.state),
+            };
+      },
+
+      async enabledAdministrators(): Promise<number> {
+        const rows = await client.query<{ held: number }>(
+          'select notesapp_enabled_administrators() as held',
+        );
+        return rows.rows[0]?.held ?? 0;
+      },
+
+      async accounts(): Promise<readonly AccountRecord[]> {
+        const rows = await client.query<{
+          account_id: string;
+          email: string | null;
+          name: string | null;
+          installation_role: string;
+          state: string;
+          created_at: Date;
+          last_active_at: Date | null;
+          used_bytes: string;
+          limit_bytes: string;
+        }>('select * from notesapp_list_accounts()');
+        return rows.rows.map((row) => ({
+          accountId: row.account_id,
+          email: row.email,
+          name: row.name,
+          role: asInstallationRole(row.installation_role),
+          state: asAccountState(row.state),
+          createdAt: isoOf(row.created_at),
+          lastActiveAt:
+            row.last_active_at === null ? null : isoOf(row.last_active_at),
+          usedBytes: BigInt(row.used_bytes),
+          limitBytes: BigInt(row.limit_bytes),
+        }));
+      },
+
+      async setRole(accountId: string, role: InstallationRole): Promise<void> {
+        assertUuid(accountId, 'the account');
+        await client.query(
+          'select notesapp_set_installation_role($1, $2::installation_role)',
+          [accountId, role],
+        );
+      },
+
+      async setState(accountId: string, state: AccountState): Promise<void> {
+        assertUuid(accountId, 'the account');
+        await client.query(
+          'select notesapp_set_account_state($1, $2::account_state)',
+          [accountId, state],
+        );
+      },
+
+      async setLimit(accountId: string, limitBytes: bigint): Promise<void> {
+        assertUuid(accountId, 'the account');
+        await client.query(
+          'select notesapp_set_account_limit($1, $2::bigint)',
+          [accountId, limitBytes.toString()],
+        );
+      },
+
+      async remove(accountId: string): Promise<void> {
+        assertUuid(accountId, 'the account');
+        await client.query('select notesapp_remove_account($1)', [accountId]);
+      },
+
+      async invitations(): Promise<readonly InvitationRecord[]> {
+        const rows = await client.query<{
+          invitation_id: string;
+          email: string;
+          created_at: Date;
+          expires_at: Date;
+          mailed: boolean;
+        }>('select * from notesapp_list_invitations()');
+        return rows.rows.map((row) => ({
+          invitationId: row.invitation_id,
+          email: row.email,
+          createdAt: isoOf(row.created_at),
+          expiresAt: isoOf(row.expires_at),
+          mailed: row.mailed,
+        }));
+      },
+
+      invite(invitation: NewInvitation): Promise<InvitationRecord | null> {
+        return writeInvitation(client, invitation);
+      },
+
+      async revokeInvitation(invitationId: string): Promise<boolean> {
+        assertUuid(invitationId, 'the invitation');
+        const rows = await client.query<{ revoked: boolean }>(
+          'select notesapp_revoke_invitation($1) as revoked',
+          [invitationId],
+        );
+        return rows.rows[0]?.revoked ?? false;
+      },
+
+      async registrationPolicy(): Promise<RegistrationPolicy> {
+        const rows = await client.query<{ policy: string }>(
+          'select notesapp_registration_policy()::text as policy',
+        );
+        return asRegistrationPolicy(rows.rows[0]?.policy ?? 'invitation');
+      },
+
+      async setRegistrationPolicy(policy: RegistrationPolicy): Promise<void> {
+        await client.query(
+          'select notesapp_set_registration_policy($1::registration_policy)',
+          [policy],
+        );
+      },
+    };
+  }
+
+  /** Stores one invitation through the one checked function. */
+  async function writeInvitation(
+    client: pg.PoolClient,
+    invitation: NewInvitation,
+  ): Promise<InvitationRecord | null> {
+    assertUuid(invitation.invitationId, 'the invitation');
+    const rows = await client.query<{ created_at: Date | null }>(
+      'select notesapp_invite($1, $2, $3, $4::timestamptz, $5) as created_at',
+      [
+        invitation.invitationId,
+        invitation.tokenDigest,
+        invitation.email,
+        invitation.expiresAt,
+        invitation.mailed,
+      ],
+    );
+    const made = rows.rows[0]?.created_at ?? null;
+    if (made === null) return null;
+    return {
+      invitationId: invitation.invitationId,
+      email: invitation.email,
+      createdAt: isoOf(made),
+      expiresAt: isoOf(invitation.expiresAt),
+      mailed: invitation.mailed,
+    };
+  }
+
+  /**
+   * Runs one transaction of an operator command.
+   *
+   * The transaction sets no account and sets the operator setting, which the
+   * operator functions read. See `notesapp_is_operator` in the migrations for
+   * what that guard is and is not.
+   */
+  function asOperator<T>(
+    run: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> {
+    return inTransaction(null, null, async (client) => {
+      await client.query("select set_config('notesapp.operator', 'on', true)");
+      return run(client);
+    });
+  }
+
   return {
+    installation<T>(
+      actor: Actor,
+      run: (tx: InstallationTransaction) => Promise<T>,
+    ): Promise<T> {
+      assertUuid(actor.accountId, 'the actor account');
+      return inTransaction(actor.accountId, null, async (client) => {
+        // The first lock of the one order, before anything is read, so the
+        // standing and the count that the use case reads are the ones its
+        // change acts on.
+        await client.query('select notesapp_lock_installation()');
+        return run(installationTransaction(client));
+      });
+    },
+
+    async register(request): Promise<string | null> {
+      assertUuid(request.accountId, 'the account');
+      assertUuid(request.workspaceId, 'the workspace');
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ account: string | null }>(
+          `select notesapp_register_account($1, $2, $3, $4, $5, $6, $7::bigint)
+             as account`,
+          [
+            request.authUserId,
+            request.ground.kind,
+            request.ground.kind === 'invitation'
+              ? request.ground.tokenDigest
+              : null,
+            request.accountId,
+            request.workspaceId,
+            request.workspaceName,
+            request.limitBytes.toString(),
+          ],
+        );
+        return rows.rows[0]?.account ?? null;
+      });
+    },
+
+    async invitationAddress(tokenDigest: string): Promise<string | null> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ email: string | null }>(
+          'select notesapp_invitation_address($1) as email',
+          [tokenDigest],
+        );
+        return rows.rows[0]?.email ?? null;
+      });
+    },
+
+    async sessionAccount(authUserId: string): Promise<string | null> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ account: string | null }>(
+          'select notesapp_session_account($1) as account',
+          [authUserId],
+        );
+        return rows.rows[0]?.account ?? null;
+      });
+    },
+
+    operatorInvite(
+      invitation: NewInvitation,
+    ): Promise<InvitationRecord | null> {
+      return asOperator((client) => writeInvitation(client, invitation));
+    },
+
+    operatorPromote(email: string): Promise<string | null> {
+      return asOperator(async (client) => {
+        const rows = await client.query<{ account: string | null }>(
+          'select notesapp_operator_promote($1) as account',
+          [email],
+        );
+        return rows.rows[0]?.account ?? null;
+      });
+    },
+
     account<T>(
       actor: Actor,
       run: (tx: AccountTransaction) => Promise<T>,
@@ -466,63 +800,6 @@ export function openIdentityStore(
         if (seen.rowCount === 0)
           throw new WorkspaceUnavailableError(workspaceId);
         return run(workspaceTransaction(client, actor.accountId, workspaceId));
-      });
-    },
-
-    async linkAccount(input): Promise<string> {
-      const accountId = randomUUID();
-      const workspaceId = randomUUID();
-      return inTransaction(null, null, async (client) => {
-        const rows = await client.query<{ account: string }>(
-          'select notesapp_link_account($1, $2, $3, $4, $5::bigint) as account',
-          [
-            input.authUserId,
-            accountId,
-            workspaceId,
-            input.workspaceName,
-            (input.quotaBytes ?? defaultQuotaBytes).toString(),
-          ],
-        );
-        const linked = rows.rows[0]?.account;
-        if (linked === undefined) {
-          throw new OperationalError(
-            'unexpected',
-            'notesapp: the account was not linked.',
-          );
-        }
-        return linked;
-      });
-    },
-
-    async linkFirstAccount(input): Promise<string | null> {
-      const accountId = randomUUID();
-      const workspaceId = randomUUID();
-      return inTransaction(null, null, async (client) => {
-        await client.query(
-          "select pg_advisory_xact_lock(hashtext('notesapp:first-account')::bigint)",
-        );
-        const present = await client.query<{ present: boolean }>(
-          'select notesapp_has_account() as present',
-        );
-        if (present.rows[0]?.present === true) return null;
-        const rows = await client.query<{ account: string }>(
-          'select notesapp_link_account($1, $2, $3, $4, $5::bigint) as account',
-          [
-            input.authUserId,
-            accountId,
-            workspaceId,
-            input.workspaceName,
-            (input.quotaBytes ?? defaultQuotaBytes).toString(),
-          ],
-        );
-        const linked = rows.rows[0]?.account;
-        if (linked === undefined) {
-          throw new OperationalError(
-            'unexpected',
-            'notesapp: the first account was not linked.',
-          );
-        }
-        return linked;
       });
     },
 

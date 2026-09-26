@@ -195,6 +195,7 @@ export {
   readRevision,
 } from './files/read.ts';
 export type {
+  AccountOwnStanding,
   AccountTransaction,
   AppearanceChoice,
   Preferences,
@@ -204,6 +205,7 @@ export type {
   WorkspaceSummary,
 } from './workspaces/ports.ts';
 export {
+  readOwnStanding,
   appearanceChoices,
   createWorkspace,
   defaultSpellCheck,

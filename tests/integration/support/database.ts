@@ -136,22 +136,28 @@ export function memberActor(accountId: string, workspaceId: string): Actor {
   return testActor(accountId, [{ workspaceId, actions: [...allActions] }]);
 }
 
-/** Creates accounts and one workspace with the given members. */
+/**
+ * Creates accounts and one workspace with the given members.
+ *
+ * `limitBytes` is the byte limit of every member account (record 0112). It
+ * also replaces the limit of a member account that exists already, and the
+ * limit counts every workspace that the account owns.
+ */
 export async function seedWorkspace(
   database: TestDatabase,
   workspaceId: string,
   members: readonly { readonly accountId: string; readonly role: Role }[],
-  quotaBytes?: bigint,
+  limitBytes?: bigint,
 ): Promise<void> {
   await provisionAccounts(
     database.migrationUrl,
     members.map((member) => member.accountId),
+    limitBytes === undefined ? {} : { limitBytes },
   );
   await provisionWorkspace(database.migrationUrl, {
     workspaceId,
     name: `workspace ${workspaceId.slice(0, 8)}`,
     members,
-    ...(quotaBytes === undefined ? {} : { quotaBytes }),
   });
 }
 
