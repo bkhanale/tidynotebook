@@ -76,7 +76,7 @@ import {
   useRequestSync,
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
-import { storageLine } from '../../lib/accounts.ts';
+import { signUpRoute, storageLine } from '../../lib/accounts.ts';
 import {
   deviceName,
   otherSessionsEndedText,
@@ -120,7 +120,12 @@ type SetupStatus =
   | { readonly kind: 'loading' }
   | { readonly kind: 'unreachable'; readonly message: string }
   /** True when the owner account of this installation already exists. */
-  | { readonly kind: 'ready'; readonly initialized: boolean };
+  | {
+      readonly kind: 'ready';
+      readonly initialized: boolean;
+      /** Whether a person can ask for an account (record 0114). */
+      readonly openRegistration: boolean;
+    };
 
 /**
  * First-run setup and email and password sign in.
@@ -156,7 +161,11 @@ export function LoginPage(): ReactNode {
         });
         return;
       }
-      setStatus({ kind: 'ready', initialized: result.data.initialized });
+      setStatus({
+        kind: 'ready',
+        initialized: result.data.initialized,
+        openRegistration: result.data.openRegistration,
+      });
     });
     return () => {
       cancelled = true;
@@ -289,6 +298,14 @@ export function LoginPage(): ReactNode {
                   : 'Sign in'}
             </Button>
           </form>
+          {status.kind === 'ready' && !setup && status.openRegistration ? (
+            <Link
+              className={`mt-3 w-full ${buttonClassName({ variant: 'ghost' })}`}
+              to={signUpRoute}
+            >
+              Create an account
+            </Link>
+          ) : null}
         </>
       )}
     </AuthFrame>

@@ -37,6 +37,21 @@ export function invitationTokenOf(hash: string): string | null {
   return tokenPattern.test(token) ? token : null;
 }
 
+/** The page of a sign-up under open registration (record 0114). */
+export const signUpRoute = '/signup';
+
+/** The page that a verification link opens. The server writes this path. */
+export const verificationRoute = '/verify';
+
+/** The shape of a verification token, as the contract states it. */
+const verificationTokenPattern = /^[A-Za-z0-9_.-]{1,512}$/;
+
+/** The token of a verification link, or `null` when the fragment holds none. */
+export function verificationTokenOf(hash: string): string | null {
+  const token = hash.startsWith('#') ? hash.slice(1) : hash;
+  return verificationTokenPattern.test(token) ? token : null;
+}
+
 /** The units of a byte count, each 1024 times the one before. */
 const byteUnits = ['bytes', 'KB', 'MB', 'GB', 'TB'] as const;
 

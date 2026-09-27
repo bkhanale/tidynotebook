@@ -11,8 +11,10 @@ import { compileSchema, describeIssues } from '@notesapp/api-contract';
 import {
   defaultAccountLimitBytes,
   defaultInvitationLifetimeHours,
+  defaultPendingAccountHours,
   maxAccountLimitBytes,
   maxInvitationLifetimeHours,
+  maxPendingAccountHours,
 } from '@notesapp/core';
 import { readFile } from 'node:fs/promises';
 import { readServedOrigins, type ServedOrigin } from './served-origins.ts';
@@ -162,10 +164,13 @@ export type ServerConfig = {
    * `limitBytes` is the byte limit that a new account starts with. An
    * administrator changes the limit of one account afterwards.
    * `invitationLifetimeHours` is how long a new invitation stays valid.
+   * `pendingHours` is how long a sign-up of open registration waits for its
+   * verification before the hourly run removes it (record 0114).
    */
   readonly accounts: {
     readonly limitBytes: bigint;
     readonly invitationLifetimeHours: number;
+    readonly pendingHours: number;
   };
   /**
    * Whether a new password is checked against the range service of Have I
@@ -240,6 +245,7 @@ export const optionalVariables = [
   'NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS',
   'NOTESAPP_ACCOUNT_LIMIT_BYTES',
   'NOTESAPP_INVITATION_LIFETIME_HOURS',
+  'NOTESAPP_PENDING_ACCOUNT_HOURS',
   'NOTESAPP_BREACH_CHECK',
 ] as const;
 
@@ -419,6 +425,7 @@ const configSchema: SchemaObject = {
       pattern: '^[1-9][0-9]{0,15}$',
     },
     NOTESAPP_INVITATION_LIFETIME_HOURS: positiveInteger,
+    NOTESAPP_PENDING_ACCOUNT_HOURS: positiveInteger,
     NOTESAPP_BREACH_CHECK: { type: 'string', enum: ['on', 'off'] },
   },
 };
@@ -576,6 +583,10 @@ function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
     raw.NOTESAPP_INVITATION_LIFETIME_HOURS === undefined
       ? defaultInvitationLifetimeHours
       : Number(raw.NOTESAPP_INVITATION_LIFETIME_HOURS);
+  const pendingHours =
+    raw.NOTESAPP_PENDING_ACCOUNT_HOURS === undefined
+      ? defaultPendingAccountHours
+      : Number(raw.NOTESAPP_PENDING_ACCOUNT_HOURS);
   const issues: string[] = [];
   if (limitBytes > maxAccountLimitBytes)
     issues.push(
@@ -585,6 +596,10 @@ function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
     issues.push(
       `NOTESAPP_INVITATION_LIFETIME_HOURS: name at most ${String(maxInvitationLifetimeHours)} hours.`,
     );
+  if (pendingHours > maxPendingAccountHours)
+    issues.push(
+      `NOTESAPP_PENDING_ACCOUNT_HOURS: name at most ${String(maxPendingAccountHours)} hours.`,
+    );
   if (issues.length > 0) throw new ConfigError(issues);
-  return { limitBytes, invitationLifetimeHours };
+  return { limitBytes, invitationLifetimeHours, pendingHours };
 }

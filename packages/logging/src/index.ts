@@ -22,7 +22,8 @@ export type LogEventFields = {
     readonly reason: string;
   };
   readonly 'maintenance.failed': {
-    readonly job: 'sync' | 'attachments' | 'publications' | 'attempts';
+    readonly job:
+      'sync' | 'attachments' | 'publications' | 'attempts' | 'pending';
   };
   /**
    * One refusal of the reader path of a published link.

@@ -5,8 +5,10 @@
  * exists. The registration of an invited person makes a member for the
  * address of the invitation. Both go through `registerIdentity`, the one
  * registration path, and both start the session of the new account after it
- * exists. None of these operations declares a security scheme, so each
- * applies the origin rule itself.
+ * exists. An open sign-up and its verification (record 0114) live in
+ * `open-registration.ts`, and the person signs in after the verification.
+ * None of these operations declares a security scheme, so each applies the
+ * origin rule itself.
  */
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type { WorkspaceStore } from '@notesapp/core';
@@ -20,6 +22,12 @@ import type { NotesappAuth } from './better-auth.ts';
 import { secretDigest } from './publication-secrets.ts';
 import { registerIdentity, startSession } from './registration.ts';
 import { seedWelcomeNote } from './welcome-note.ts';
+import {
+  openRegistration,
+  signUpOpen,
+  verifyOpen,
+  type OpenRegistrationDependencies,
+} from './open-registration.ts';
 import type { ServedOrigin } from '../served-origins.ts';
 
 const jsonMediaType = 'application/json';
@@ -45,6 +53,11 @@ export type SetupDependencies = {
   readonly servedOrigins: readonly ServedOrigin[];
   /** The byte limit that a new account starts with. */
   readonly accountLimitBytes: bigint;
+  /** What an open sign-up and its verification need (record 0114). */
+  readonly open: Omit<
+    OpenRegistrationDependencies,
+    'auth' | 'identity' | 'limitBytes'
+  >;
 };
 
 /** Builds the public operations that make an account. */
@@ -52,6 +65,12 @@ export function createSetupHandlers(
   dependencies: SetupDependencies,
 ): HandlerMap {
   const { auth, identity, content, servedOrigins } = dependencies;
+  const open: OpenRegistrationDependencies = {
+    ...dependencies.open,
+    auth,
+    identity,
+    limitBytes: dependencies.accountLimitBytes,
+  };
 
   /** Writes the welcome note into the personal workspace of an account. */
   const welcome = async (accountId: string): Promise<void> => {
@@ -64,7 +83,10 @@ export function createSetupHandlers(
     getSetupStatus: async (): Promise<HandlerResult> => ({
       status: 200,
       mediaType: jsonMediaType,
-      body: { initialized: await identity.hasAccount() },
+      body: {
+        initialized: await identity.hasAccount(),
+        openRegistration: await openRegistration(identity),
+      },
     }),
 
     createOwner: async (
@@ -155,6 +177,34 @@ export function createSetupHandlers(
         status: 201,
         mediaType: jsonMediaType,
         body: { registered: true },
+      };
+    },
+
+    signUpAccount: async (request): Promise<HandlerResult> => {
+      requireWriteOrigin(servedOrigins, request);
+      const name = readProperty(request.body, 'name');
+      const taken = await signUpOpen(open, {
+        email: text(request.body, 'email'),
+        password: text(request.body, 'password'),
+        name: typeof name === 'string' && name !== '' ? name : null,
+      });
+      if (!taken.ok) throw new DomainProblemError(taken.error);
+      return {
+        status: 202,
+        mediaType: jsonMediaType,
+        body: { accepted: true },
+      };
+    },
+
+    verifyAddress: async (request): Promise<HandlerResult> => {
+      requireWriteOrigin(servedOrigins, request);
+      const verified = await verifyOpen(open, text(request.body, 'token'));
+      if (!verified.ok) throw new DomainProblemError(verified.error);
+      if (verified.value.created) await welcome(verified.value.accountId);
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        body: { email: verified.value.email },
       };
     },
   };

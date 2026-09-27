@@ -506,8 +506,16 @@ function throttleGroup(id: OperationId): string | null {
   if (id === 'removeOwnAccount') return 'password';
   // A report counts per client address and per /64 prefix (record 0119).
   if (id === 'reportPublishedLink') return 'report';
+  // A sign-up and its verification count the same way (record 0115).
+  if (id === 'signUpAccount' || id === 'verifyAddress') return 'signup';
   return null;
 }
+
+/**
+ * The groups that count an IPv6 caller by its /64 prefix, because one host
+ * of IPv6 can draw a new address for each attempt (records 0115 and 0119).
+ */
+const prefixGroups: ReadonlySet<string> = new Set(['report', 'signup']);
 
 /** The body bounds of the routes that carry a file, from `config.limits`. */
 export type RouteBodyLimits = {
@@ -734,7 +742,7 @@ export function registerOperations(
                 groupId: throttleGroup(operation.id) ?? '',
                 max: rateLimit.max,
                 timeWindow: rateLimit.windowSeconds * 1000,
-                ...(throttleGroup(operation.id) === 'report'
+                ...(prefixGroups.has(throttleGroup(operation.id) ?? '')
                   ? {
                       keyGenerator: (request: FastifyRequest) =>
                         attemptAddress(request.ip),

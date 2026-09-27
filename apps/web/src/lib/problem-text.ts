@@ -21,6 +21,10 @@ const sentences: Readonly<Record<string, string>> = {
   invalid_request: 'The server refused the request. Try again.',
   invalid_response: 'The answer of the server could not be read. Try again.',
   invitation_invalid: 'This invitation is not valid. Ask for a new one.',
+  registration_closed:
+    'This installation takes new accounts by invitation. Ask an administrator for one.',
+  verification_invalid:
+    'This link is not valid any more. Sign up again to get a new link.',
   last_administrator:
     'The installation needs an administrator. Make another account an administrator first.',
   mutation_reused: 'That save was already sent. Nothing changed.',

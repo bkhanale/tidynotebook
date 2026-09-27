@@ -14,6 +14,18 @@ An administrator manages accounts and does not read notes. You see the address,
 the name, the state, the last activity and the storage of each account. You
 cannot open a note of another account.
 
+## Let anybody sign up
+
+An installation can let a person make an account without an invitation. The
+sign-in screen then offers **Create an account**. The person gives an address
+and a password, and a message with a link goes to the address. The account
+exists after the person opens the link, and then the person signs in. A sign-up
+that nobody finishes goes away after a time that the server sets.
+
+The server allows this only when the installation has a mail transport, a
+separate address for published pages, and the terms and privacy documents of
+the service.
+
 ## Open the accounts page
 
 Select **Accounts** at the bottom of the sidebar. You can also open

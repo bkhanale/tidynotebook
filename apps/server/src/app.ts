@@ -41,7 +41,7 @@ import { createIdentityAdapter } from './auth/actor.ts';
 import { createPublicationHasher } from './auth/publication-secrets.ts';
 import { createSetupHandlers } from './auth/setup.ts';
 import { passwordMatches, sessionAllowedBy } from './auth/registration.ts';
-import { createMailTransport } from './auth/mail.ts';
+import { createMailTransport, type MailTransport } from './auth/mail.ts';
 import {
   createDocumentService,
   openAttachmentStore,
@@ -113,6 +113,10 @@ import {
   servedHostNames,
 } from './served-origins.ts';
 import { publishedOriginDecision } from './plugins/published-origin.ts';
+import { createVerificationTokens } from './auth/verification.ts';
+
+/** How many messages of a sign-up one address takes in an hour (record 0114). */
+const signUpMailsPerHour = 3;
 
 /**
  * The address of one request, as a problem body repeats it.
@@ -183,6 +187,11 @@ export type AppOptions = {
    * 0121). A server with no database counts in its own memory.
    */
   readonly attempts?: AttemptCounter;
+  /**
+   * The mail transport. The configuration decides it, and a test supplies
+   * its own so that it reads every message without a mail server.
+   */
+  readonly mail?: MailTransport | null;
 };
 
 /** Builds the application with an explicit handler map. */
@@ -568,7 +577,10 @@ async function composeApp(
     config.storageRoot,
   );
   opened.push(() => attachments.close());
-  const mail = createMailTransport(config.mail);
+  const mail =
+    options?.mail === undefined
+      ? createMailTransport(config.mail)
+      : options.mail;
   // The published page reads the stylesheet of the built shell document, so
   // the page cannot drift from the theme (decision 0031). A deployment that
   // serves no built assets, which is what a development run and most tests
@@ -615,6 +627,7 @@ async function composeApp(
     authPool,
   );
   opened.push(() => auth.close());
+  const attempts = databaseAttemptCounter(coordination);
   const adapter = createIdentityAdapter({
     auth: auth.auth,
     identity,
@@ -646,6 +659,24 @@ async function composeApp(
         content,
         servedOrigins: config.servedOrigins,
         accountLimitBytes: config.accounts.limitBytes,
+        open: {
+          mail,
+          origin: config.origin,
+          pendingHours: config.accounts.pendingHours,
+          tokens: createVerificationTokens(config.authSecret),
+          breached: auth.breached,
+          // Three messages to one address in an hour, whoever asked for them
+          // (record 0114). The count is shared by every server process.
+          mayMail: async (email) =>
+            (
+              await attempts.count(
+                `signup-mail:${email}`,
+                60 * 60 * 1000,
+                Date.now(),
+              )
+            ).current <= signUpMailsPerHour,
+          clock: () => new Date(),
+        },
       }),
     },
     identity: adapter.resolver,
@@ -655,7 +686,7 @@ async function composeApp(
       ? { logStream: options.logStream }
       : {}),
     ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
-    attempts: databaseAttemptCounter(coordination),
+    attempts,
   });
   const logger = createServerLogger(app.log);
   refusals.record = (cause): void => {
@@ -669,12 +700,21 @@ async function composeApp(
   // one installation never run one job at once (record 0121). A process that
   // finds a job running skips that run and tries again next hour.
   const jobs: readonly {
-    readonly name: 'sync' | 'attachments' | 'publications' | 'attempts';
+    readonly name:
+      'sync' | 'attachments' | 'publications' | 'attempts' | 'pending';
     readonly run: () => Promise<unknown>;
   }[] = [
     { name: 'sync', run: () => cleanupSync() },
     { name: 'attachments', run: () => cleanupAttachments() },
     { name: 'publications', run: () => cleanupPublications() },
+    {
+      name: 'pending',
+      // A sign-up that nobody verified in time leaves nothing (record 0114).
+      run: () =>
+        identity.removePendingIdentities(
+          new Date(Date.now() - config.accounts.pendingHours * 3_600_000),
+        ),
+    },
     {
       name: 'attempts',
       // A window is minutes long, so a counter older than a day counts

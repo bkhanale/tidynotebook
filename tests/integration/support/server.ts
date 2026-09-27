@@ -75,7 +75,7 @@ export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
       Promise.resolve({
         status: 200,
         mediaType: 'application/json',
-        body: { initialized: true },
+        body: { initialized: true, openRegistration: false },
       }),
     createOwner: () =>
       Promise.resolve({
@@ -94,6 +94,18 @@ export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
         status: 201,
         mediaType: 'application/json',
         body: { registered: true },
+      }),
+    signUpAccount: () =>
+      Promise.resolve({
+        status: 202,
+        mediaType: 'application/json',
+        body: { accepted: true },
+      }),
+    verifyAddress: () =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/json',
+        body: { email: 'verified@notes.invalid' },
       }),
   };
 }

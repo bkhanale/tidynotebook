@@ -371,6 +371,10 @@ const openOperations = [
   // invited person reaches them before the account exists (record 0108).
   'readInvitation',
   'registerAccount',
+  // Open registration takes an address and a password, and its link takes
+  // its token, before any account exists (record 0114).
+  'signUpAccount',
+  'verifyAddress',
   // The served sync protocol versions are a fact of the build and hold no
   // account data. A client reads them before it knows its session (0086).
   'getSyncProtocol',

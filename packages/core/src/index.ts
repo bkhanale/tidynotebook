@@ -57,12 +57,16 @@ export type {
   RegistrationStore,
 } from './identity/ports.ts';
 export type {
+  ExistingIdentity,
   OpenRegistrationPart,
   OpenRegistrationReadiness,
 } from './identity/registration.ts';
 export {
   defaultAccountLimitBytes,
   defaultInvitationLifetimeHours,
+  defaultPendingAccountHours,
+  maxPendingAccountHours,
+  openSignUpAction,
   invitationExpiry,
   invitationState,
   invitationTokenPattern,

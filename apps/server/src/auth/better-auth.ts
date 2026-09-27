@@ -203,12 +203,7 @@ function buildAuth(
   database: ReturnType<typeof drizzle>,
 ) {
   const mail = options.mail;
-  const breachQuery =
-    options.breachQuery === undefined
-      ? config.breachCheck
-        ? pwnedRangeQuery
-        : null
-      : options.breachQuery;
+  const breached = breachGuard(config, options);
   const secure = config.origin.startsWith('https://');
   const logging = authLogLevel(config.logLevel);
   const sink = options.log;
@@ -284,7 +279,10 @@ function buildAuth(
       autoSignIn: false,
       minPasswordLength: passwordBounds.minLength,
       maxPasswordLength: passwordBounds.maxLength,
-      requireEmailVerification: false,
+      // A sign-in needs a proved address on every installation (record
+      // 0114). The first run and an invitation prove it when they make the
+      // account, and an open sign-up proves it through its link.
+      requireEmailVerification: true,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
       ...(mail === null
@@ -312,12 +310,10 @@ function buildAuth(
       // sign-up is not mounted, so this reaches the one registration path,
       // the reset of a password, and a later change of one.
       before: createAuthMiddleware(async (ctx) => {
-        if (breachQuery === null || !newPasswordPaths.has(ctx.path)) return;
+        if (!newPasswordPaths.has(ctx.path)) return;
         const password = newPasswordOf(ctx.body);
         if (password === null) return;
-        const outcome = await checkBreach(password, breachQuery);
-        if (outcome === 'unavailable') options.onBreachUnavailable?.();
-        if (outcome === 'breached')
+        if (await breached(password))
           throw APIError.from('BAD_REQUEST', {
             message: 'This password is in a list of leaked passwords.',
             code: breachedPasswordCode,
@@ -377,10 +373,38 @@ function buildAuth(
 /** The configured Better Auth instance of this deployment. */
 export type NotesappAuth = ReturnType<typeof buildAuth>;
 
+/**
+ * Whether the breach service lists a new password (record 0116).
+ *
+ * The before hook of the library asks it for every new password, and an open
+ * sign-up asks it before it looks at the address, so a known and a new address
+ * get the same answer for a leaked password (record 0114). A service that does
+ * not answer lets the password through and tells the operator.
+ */
+export function breachGuard(
+  config: ServerConfig,
+  options: Pick<AuthOptions, 'breachQuery' | 'onBreachUnavailable'>,
+): (password: string) => Promise<boolean> {
+  const query =
+    options.breachQuery === undefined
+      ? config.breachCheck
+        ? pwnedRangeQuery
+        : null
+      : options.breachQuery;
+  return async (password) => {
+    if (query === null) return false;
+    const outcome = await checkBreach(password, query);
+    if (outcome === 'unavailable') options.onBreachUnavailable?.();
+    return outcome === 'breached';
+  };
+}
+
 /** One Better Auth instance and the pool it owns. */
 export type AuthHandle = {
   /** The configured instance. */
   readonly auth: NotesappAuth;
+  /** Whether the breach service lists a new password. See `breachGuard`. */
+  readonly breached: (password: string) => Promise<boolean>;
   /** Closes the connection pool of the identity tables. */
   close(): Promise<void>;
 };
@@ -403,6 +427,7 @@ export function createAuth(
   const pool = shared ?? createAuthPool(config);
   return {
     auth: buildAuth(config, options, drizzle({ client: pool })),
+    breached: breachGuard(config, options),
     close: async (): Promise<void> => {
       // A shared pool belongs to the composition that created it.
       if (shared === undefined) await pool.end();

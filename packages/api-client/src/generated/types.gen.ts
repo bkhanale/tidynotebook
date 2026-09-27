@@ -258,6 +258,26 @@ export type AccountUpdateInput = {
 };
 
 /**
+ * The token that a verification link carries in its fragment.
+ */
+export type AddressVerificationInput = {
+    /**
+     * The token of the verification link.
+     */
+    token: string;
+};
+
+/**
+ * The address that the verification proved. Its account now exists.
+ */
+export type AddressVerified = {
+    /**
+     * The address of the new account, which signs in now.
+     */
+    readonly email: EmailAddress;
+};
+
+/**
  * Appearance choice. The value system follows the device preference between the light and the dark variant of the chosen theme family.
  */
 export type Appearance = 'system' | 'light' | 'dark';
@@ -1604,6 +1624,34 @@ export type SessionsRevoked = {
 };
 
 /**
+ * The one answer of a sign-up. It is the same for every address, so it states nothing about the address.
+ */
+export type SignUpAccepted = {
+    /**
+     * The server took the request and sent a message if it could.
+     */
+    readonly accepted: true;
+};
+
+/**
+ * What a person gives to ask for an account under open registration.
+ */
+export type SignUpInput = {
+    /**
+     * The address of the new account. A link goes to it.
+     */
+    email: EmailAddress;
+    /**
+     * The password of the new account.
+     */
+    password: unknown;
+    /**
+     * The display name of the new account.
+     */
+    name?: string;
+};
+
+/**
  * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
  */
 export type SnapshotItem = {
@@ -2267,6 +2315,24 @@ export type RegistrationInputWritable = {
 };
 
 /**
+ * What a person gives to ask for an account under open registration.
+ */
+export type SignUpInputWritable = {
+    /**
+     * The address of the new account. A link goes to it.
+     */
+    email: EmailAddress;
+    /**
+     * The password of the new account.
+     */
+    password: Password;
+    /**
+     * The display name of the new account.
+     */
+    name?: string;
+};
+
+/**
  * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
  */
 export type SnapshotItemWritable = {
@@ -2598,6 +2664,16 @@ export type InstallationUpdate = InstallationUpdateInput;
  * The current password of the account.
  */
 export type AccountRemoval = AccountRemovalInput;
+
+/**
+ * The address and the password of the account that a person asks for.
+ */
+export type SignUp = SignUpInputWritable;
+
+/**
+ * The token of a verification link.
+ */
+export type AddressVerification = AddressVerificationInput;
 
 /**
  * The password of the published link, as its page form sends it.
@@ -3770,6 +3846,102 @@ export type ReadInvitationResponses = {
 
 export type ReadInvitationResponse = ReadInvitationResponses[keyof ReadInvitationResponses];
 
+export type SignUpAccountData = {
+    /**
+     * The address and the password of the account that a person asks for.
+     */
+    body: SignUp;
+    path?: never;
+    query?: never;
+    url: '/api/registrations/open';
+};
+
+export type SignUpAccountErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type SignUpAccountError = SignUpAccountErrors[keyof SignUpAccountErrors];
+
+export type SignUpAccountResponses = {
+    /**
+     * The sign-up was taken. A message goes to the address.
+     */
+    202: SignUpAccepted;
+};
+
+export type SignUpAccountResponse = SignUpAccountResponses[keyof SignUpAccountResponses];
+
+export type VerifyAddressData = {
+    /**
+     * The token of a verification link.
+     */
+    body: AddressVerification;
+    path?: never;
+    query?: never;
+    url: '/api/registrations/verification';
+};
+
+export type VerifyAddressErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The verification link opens nothing. The code is verification_invalid for a token that expired, that a later sign-up replaced, or that never existed. The answer does not say which. The code is registration_closed when the installation stopped open registration after the sign-up.
+     */
+    403: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type VerifyAddressError = VerifyAddressErrors[keyof VerifyAddressErrors];
+
+export type VerifyAddressResponses = {
+    /**
+     * The address is proved and the account exists.
+     */
+    200: AddressVerified;
+};
+
+export type VerifyAddressResponse = VerifyAddressResponses[keyof VerifyAddressResponses];
+
 export type ListReportsData = {
     body?: never;
     headers?: {
@@ -3947,6 +4119,10 @@ export type GetSetupStatusResponses = {
      */
     200: {
         readonly initialized: boolean;
+        /**
+         * Whether a person can ask for an account without an invitation (record 0114).
+         */
+        readonly openRegistration: boolean;
     };
 };
 

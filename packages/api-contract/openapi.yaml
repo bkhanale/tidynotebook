@@ -64,6 +64,10 @@ paths:
     $ref: './paths/api_registrations.yaml'
   /api/registrations/invitation:
     $ref: './paths/api_registrations_invitation.yaml'
+  /api/registrations/open:
+    $ref: './paths/api_registrations_open.yaml'
+  /api/registrations/verification:
+    $ref: './paths/api_registrations_verification.yaml'
   /api/installation:
     $ref: './paths/api_installation.yaml'
   /api/invitations:
@@ -377,6 +381,12 @@ components:
       $ref: './components/responses/AccountSummary.yaml'
     InvitationList:
       $ref: './components/responses/InvitationList.yaml'
+    SignUpAccepted:
+      $ref: './components/responses/SignUpAccepted.yaml'
+    AddressVerified:
+      $ref: './components/responses/AddressVerified.yaml'
+    VerificationUnavailable:
+      $ref: './components/responses/VerificationUnavailable.yaml'
     LinkReportList:
       $ref: './components/responses/LinkReportList.yaml'
     InvitationCreated:
@@ -618,6 +628,14 @@ components:
       $ref: './components/schemas/Invitation.yaml'
     InvitationList:
       $ref: './components/schemas/InvitationList.yaml'
+    SignUpInput:
+      $ref: './components/schemas/SignUpInput.yaml'
+    SignUpAccepted:
+      $ref: './components/schemas/SignUpAccepted.yaml'
+    AddressVerificationInput:
+      $ref: './components/schemas/AddressVerificationInput.yaml'
+    AddressVerified:
+      $ref: './components/schemas/AddressVerified.yaml'
     LinkReport:
       $ref: './components/schemas/LinkReport.yaml'
     LinkReportList:

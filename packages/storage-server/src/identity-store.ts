@@ -209,6 +209,12 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
     /** Whether any application account exists. The bootstrap command uses it. */
     hasAccount(): Promise<boolean>;
     /**
+     * Removes each identity user that nobody verified before `cutoff` and
+     * that no account links, and answers how many (record 0114). The hourly
+     * run calls it, so a pending sign-up that expired leaves nothing.
+     */
+    removePendingIdentities(cutoff: Date): Promise<number>;
+    /**
      * Appends one content free record to the audit trail of an account. The
      * operator recovery command uses it.
      */
@@ -915,6 +921,25 @@ export function openIdentityStore(
           workspaceId: row.workspace_id,
           role: asRole(row.role),
         }));
+      });
+    },
+
+    async removePendingIdentities(cutoff: Date): Promise<number> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ removed: number }>(
+          'select notesapp_remove_pending_identities($1) as removed',
+          [cutoff],
+        );
+        return rows.rows[0]?.removed ?? 0;
+      });
+    },
+
+    async registrationPolicy(): Promise<RegistrationPolicy> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ policy: string }>(
+          'select notesapp_registration_policy()::text as policy',
+        );
+        return asRegistrationPolicy(rows.rows[0]?.policy ?? '');
       });
     },
 

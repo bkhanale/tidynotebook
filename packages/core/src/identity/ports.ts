@@ -140,7 +140,8 @@ export type InstallationStore = {
  */
 export type RegistrationGround =
   | { readonly kind: 'first-run' }
-  | { readonly kind: 'invitation'; readonly tokenDigest: string };
+  | { readonly kind: 'invitation'; readonly tokenDigest: string }
+  | { readonly kind: 'open' };
 
 /** What one registration asks the store to make. */
 export type RegistrationRequest = {
@@ -167,4 +168,6 @@ export type RegistrationStore = {
    * opens nothing.
    */
   invitationAddress(tokenDigest: string): Promise<string | null>;
+  /** The registration policy, which is a public fact of the installation. */
+  registrationPolicy(): Promise<RegistrationPolicy>;
 };

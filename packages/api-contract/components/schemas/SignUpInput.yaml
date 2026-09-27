@@ -1,0 +1,20 @@
+type: object
+description: What a person gives to ask for an account under open registration.
+additionalProperties: false
+required:
+  - email
+  - password
+properties:
+  email:
+    allOf:
+      - $ref: './EmailAddress.yaml'
+    description: The address of the new account. A link goes to it.
+  password:
+    allOf:
+      - $ref: './Password.yaml'
+    description: The password of the new account.
+  name:
+    type: string
+    description: The display name of the new account.
+    minLength: 1
+    maxLength: 256

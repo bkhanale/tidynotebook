@@ -21,7 +21,11 @@ import {
   RequireSession,
 } from './features/accounts/accounts.tsx';
 import type { FrameHandle } from './lib/breadcrumb.ts';
-import { invitationRoute } from './lib/accounts.ts';
+import {
+  invitationRoute,
+  signUpRoute,
+  verificationRoute,
+} from './lib/accounts.ts';
 const Shell = lazy(async () => ({
   default: (await import('./shell/shell.tsx')).Shell,
 }));
@@ -52,6 +56,12 @@ const AccountsView = lazy(async () => ({
 }));
 const InvitationPage = lazy(async () => ({
   default: (await import('./features/accounts/invitation.tsx')).InvitationPage,
+}));
+const SignUpPage = lazy(async () => ({
+  default: (await import('./features/accounts/sign-up.tsx')).SignUpPage,
+}));
+const VerifyPage = lazy(async () => ({
+  default: (await import('./features/accounts/sign-up.tsx')).VerifyPage,
 }));
 const PublishedLinksView = lazy(async () => ({
   default: (await import('./features/publishing/published-links.tsx'))
@@ -86,6 +96,10 @@ const router = createBrowserRouter([
   // The page that an invitation link opens. It needs no session, and the
   // server writes the same path into every link.
   { path: invitationRoute, element: deferred(<InvitationPage />) },
+  // Open registration (record 0114). The server writes the verification path
+  // into every link.
+  { path: signUpRoute, element: deferred(<SignUpPage />) },
+  { path: verificationRoute, element: deferred(<VerifyPage />) },
   {
     path: '/w/:workspaceId',
     element: <RequireSession>{deferred(<Shell />)}</RequireSession>,

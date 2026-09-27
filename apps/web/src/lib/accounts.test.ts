@@ -14,6 +14,7 @@ import {
   invitationTokenOf,
   registrationPolicyText,
   storageLine,
+  verificationTokenOf,
 } from './accounts.ts';
 
 const now = Date.parse('2026-09-26T12:00:00.000Z');
@@ -153,4 +154,16 @@ await test('the registration policy reads as one sentence', () => {
     'Only a person with an invitation can make an account.',
   );
   assert.match(registrationPolicyText('open'), /proves their address/);
+});
+
+await test('a verification link reads its token from the fragment only', () => {
+  assert.equal(
+    verificationTokenOf('#v1.dXNlcg.1790000000.abc_-'),
+    'v1.dXNlcg.1790000000.abc_-',
+  );
+  assert.equal(verificationTokenOf('v1.a.b.c'), 'v1.a.b.c');
+  assert.equal(verificationTokenOf(''), null);
+  assert.equal(verificationTokenOf('#'), null);
+  assert.equal(verificationTokenOf('#a b'), null);
+  assert.equal(verificationTokenOf(`#${'a'.repeat(513)}`), null);
 });
