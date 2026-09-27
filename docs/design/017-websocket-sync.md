@@ -114,8 +114,9 @@ type generator.
 The default schema format of AsyncAPI 3.0 is not JSON Schema 2020-12. The same
 trial refused the 2020-12 keywords `prefixItems` and `unevaluatedItems` in a
 message payload. A message schema uses only the keywords that both formats
-read the same way. The lint of both roots holds that rule, and Ajv with the
-2020-12 dialect stays the one runtime validator.
+read the same way. The lint of the AsyncAPI root refuses any other keyword in
+a schema that a message reaches, and Ajv with the 2020-12 dialect stays the one
+runtime validator.
 
 Use the Fastify WebSocket adapter backed by `ws` on the server. Use
 [PartySocket's standard WebSocket wrapper](https://raw.githubusercontent.com/partykit/partyserver/main/packages/partysocket/README.md)

@@ -14,10 +14,11 @@ mechanisms. See [design 017](../design/017-websocket-sync.md).
 - OpenAPI owns HTTP and the upgrade address. AsyncAPI owns messages and the
   WebSocket binding in `packages/api-contract`. Shared JSON Schema components
   have one physical source. This refines record 0019 for message transport.
-- The pinned Redocly CLI lints and bundles both roots. Hey API writes payload
-  types and Ajv compiles validators, as for HTTP. Add no AsyncAPI parser,
-  Modelina, private contract language, or second type generator. A message
-  schema uses only keywords that AsyncAPI 3.0 and JSON Schema 2020-12 share.
+- The pinned Redocly CLI lints and bundles both roots. The OpenAPI root lists
+  each payload schema, so Hey API writes its type and Ajv compiles its
+  validator, as for HTTP. Add no AsyncAPI parser, Modelina, private contract
+  language, or second type generator. A message schema uses only keywords
+  that AsyncAPI 3.0 and JSON Schema 2020-12 share.
 - Generate the typed client entry and server metadata. Check address agreement,
   references, both frame directions, handler coverage, and stale output.
 - `packages/api-client` wraps PartySocket's standard WebSocket client behind
