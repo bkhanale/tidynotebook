@@ -22,6 +22,8 @@ export type {
 } from './identity/actor.ts';
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
+export type { PasswordProblem } from './identity/password.ts';
+export { passwordBounds, passwordProblem } from './identity/password.ts';
 export type {
   AccountStanding,
   AccountState,

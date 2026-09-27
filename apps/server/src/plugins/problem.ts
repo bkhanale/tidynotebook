@@ -56,7 +56,8 @@ export type ProblemCode =
   | 'last_administrator'
   | 'invitation_invalid'
   | 'account_exists'
-  | 'open_registration_unavailable';
+  | 'open_registration_unavailable'
+  | 'password_breached';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -116,6 +117,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   account_exists: 'An account already signs in with this address.',
   open_registration_unavailable:
     'The installation lacks a part that open registration needs.',
+  password_breached: 'This password is in a list of leaked passwords.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
@@ -332,6 +334,8 @@ const domainStatus: Readonly<
     status: 422,
     code: 'open_registration_unavailable',
   },
+  // The library answers the same refusal with 400, so the two read alike.
+  password_breached: { status: 400, code: 'password_breached' },
 };
 
 /** The explanation of one domain failure. It names no path and no content. */
@@ -380,6 +384,8 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   account_exists: 'An account already signs in with this address.',
   open_registration_unavailable:
     'The installation lacks a part that open registration needs.',
+  password_breached:
+    'This password is in a list of leaked passwords. Choose another one.',
 };
 
 /**

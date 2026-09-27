@@ -87,8 +87,11 @@ export function createSetupHandlers(
         ground: { kind: 'first-run' },
         limitBytes: dependencies.accountLimitBytes,
       });
-      if (!made.ok)
+      if (!made.ok) {
+        if (made.error.code === 'password_breached')
+          throw new DomainProblemError(made.error);
         throw new ForbiddenError('The first account already exists.');
+      }
       // The one welcome note is written through the same commit path that the
       // create operation uses, so it has a revision and reaches every device.
       await welcome(made.value.accountId);
@@ -137,7 +140,11 @@ export function createSetupHandlers(
         ground: { kind: 'invitation', tokenDigest: digest },
         limitBytes: dependencies.accountLimitBytes,
       });
-      if (!made.ok) throw invitationRefused();
+      if (!made.ok) {
+        if (made.error.code === 'password_breached')
+          throw new DomainProblemError(made.error);
+        throw invitationRefused();
+      }
       await welcome(made.value.accountId);
       const cookies = await startSession(auth, made.value.email, password);
       if (cookies.length === 0)

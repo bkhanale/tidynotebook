@@ -10,7 +10,8 @@ An administrator of the installation sends you a link, by mail or in a message.
    cannot change it.
 2. Enter your name if you want to. An administrator sees it. You can leave it
    empty.
-3. Enter a password of at least 12 characters, and type it again.
+3. Enter a password of at least 15 characters, and type it again. A password
+   that a list of leaked passwords holds is refused.
 4. Select **Make account**.
 
 Your account opens at once, with its own workspace and one note, **Welcome to

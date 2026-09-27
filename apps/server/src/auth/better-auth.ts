@@ -25,13 +25,18 @@
  *   * One client address, which this server resolves and the adapter passes
  *     on. The library reads no forwarded header of the caller. See
  *     [decision 0043](../../../../docs/decisions/0043-one-decider-of-the-client-address.md).
- *   * Password hashing and token lifetime owned by Better Auth.
+ *   * Password hashing and token lifetime owned by Better Auth. The bounds of
+ *     a new password come from `passwordBounds` of `@notesapp/core`, and a
+ *     new password is checked against the range service of Have I Been
+ *     Pwned, which accepts it when the service does not answer (record 0116).
  *   * SMTP password recovery when a transport is configured, and the operator
  *     recovery command when none is.
  */
 import { Buffer } from 'node:buffer';
 import { betterAuth } from 'better-auth';
-import { APIError } from 'better-auth/api';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { passwordBounds } from '@notesapp/core';
+import { checkBreach, type RangeQuery } from './breach-check.ts';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import type { FastifyRequest } from 'fastify';
@@ -110,6 +115,14 @@ export type AuthOptions = {
    */
   readonly allowSignUp?: boolean;
   /**
+   * Reads one range of the breach service. The configuration decides the
+   * default: the service of Have I Been Pwned, or no check when
+   * `NOTESAPP_BREACH_CHECK` is `off`. A test passes its own.
+   */
+  readonly breachQuery?: RangeQuery | null;
+  /** Receives the fact that the breach service did not answer. */
+  readonly onBreachUnavailable?: () => void;
+  /**
    * Receives the protocol library's own log records.
    *
    * The composition points this at the Fastify logger, so
@@ -117,6 +130,53 @@ export type AuthOptions = {
    */
   readonly log?: (record: AuthLogRecord) => void;
 };
+
+/** The paths of the library that set a new password. */
+const newPasswordPaths = new Set([
+  '/sign-up/email',
+  '/reset-password',
+  '/change-password',
+]);
+
+/** The code of the refusal of a breached password, as the library answers. */
+export const breachedPasswordCode = 'PASSWORD_BREACHED';
+
+/** How long the server waits for the breach service, in milliseconds. */
+const breachTimeoutMs = 3000;
+
+/**
+ * Reads one range of Have I Been Pwned (record 0116).
+ *
+ * The request carries the first five characters of the SHA-1 digest and
+ * nothing else of the password. The padding header makes every answer about
+ * the same size, so the size of an answer tells an observer nothing. A slow
+ * or failed answer is `null`, which the check reads as no answer.
+ */
+export const pwnedRangeQuery: RangeQuery = async (prefix) => {
+  try {
+    const answer = await fetch(
+      `https://api.pwnedpasswords.com/range/${prefix}`,
+      {
+        headers: { 'add-padding': 'true', 'user-agent': 'NotesApp' },
+        signal: AbortSignal.timeout(breachTimeoutMs),
+      },
+    );
+    if (!answer.ok) return null;
+    return await answer.text();
+  } catch {
+    return null;
+  }
+};
+
+/** The new password of one request of the library, when it carries one. */
+function newPasswordOf(body: unknown): string | null {
+  if (body === null || typeof body !== 'object') return null;
+  const fields: Record<string, unknown> = Object.fromEntries(
+    Object.entries(body),
+  );
+  const value = fields.newPassword ?? fields.password;
+  return typeof value === 'string' ? value : null;
+}
 
 /** The protocol library's log level for one configured application level. */
 function authLogLevel(level: ServerConfig['logLevel']): {
@@ -142,6 +202,12 @@ function buildAuth(
   database: ReturnType<typeof drizzle>,
 ) {
   const mail = options.mail;
+  const breachQuery =
+    options.breachQuery === undefined
+      ? config.breachCheck
+        ? pwnedRangeQuery
+        : null
+      : options.breachQuery;
   const secure = config.origin.startsWith('https://');
   const logging = authLogLevel(config.logLevel);
   const sink = options.log;
@@ -215,8 +281,8 @@ function buildAuth(
       // the account first and starts the session after, so no session exists
       // for an identity user that no account links (record 0108).
       autoSignIn: false,
-      minPasswordLength: 12,
-      maxPasswordLength: 512,
+      minPasswordLength: passwordBounds.minLength,
+      maxPasswordLength: passwordBounds.maxLength,
       requireEmailVerification: false,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
@@ -239,6 +305,23 @@ function buildAuth(
               });
             },
           }),
+    },
+    hooks: {
+      // A new password is checked before the library hashes it. The route of
+      // sign-up is not mounted, so this reaches the one registration path,
+      // the reset of a password, and a later change of one.
+      before: createAuthMiddleware(async (ctx) => {
+        if (breachQuery === null || !newPasswordPaths.has(ctx.path)) return;
+        const password = newPasswordOf(ctx.body);
+        if (password === null) return;
+        const outcome = await checkBreach(password, breachQuery);
+        if (outcome === 'unavailable') options.onBreachUnavailable?.();
+        if (outcome === 'breached')
+          throw APIError.from('BAD_REQUEST', {
+            message: 'This password is in a list of leaked passwords.',
+            code: breachedPasswordCode,
+          });
+      }),
     },
     databaseHooks: {
       session: {
@@ -417,7 +500,13 @@ const droppedResponseHeaders = new Set(['content-length', 'content-encoding']);
  * documented codes and the library's message is dropped: it can name an
  * address, and no failure answer should confirm that one exists.
  */
-export function authProblemCode(status: number): ProblemCode {
+export function authProblemCode(
+  status: number,
+  libraryCode: string | null = null,
+): ProblemCode {
+  // The one refusal of the library whose cause the person can act on: the new
+  // password is in a list of leaked passwords (record 0116).
+  if (libraryCode === breachedPasswordCode) return 'password_breached';
   if (status === 401) return 'unauthenticated';
   if (status === 403) return 'forbidden';
   if (status === 404) return 'not_found';
@@ -453,6 +542,21 @@ export function withoutSessionToken(value: unknown): unknown {
     Object.entries(session).filter(([name]) => name !== 'token'),
   );
   return { ...record, session: stripped };
+}
+
+/** The `code` member of a refusal of the library, or `null`. */
+function libraryCodeOf(text: string): string | null {
+  const refusal = parseJson(text);
+  if (
+    !refusal.ok ||
+    refusal.value === null ||
+    typeof refusal.value !== 'object'
+  )
+    return null;
+  const fields: Record<string, unknown> = Object.fromEntries(
+    Object.entries(refusal.value),
+  );
+  return typeof fields.code === 'string' ? fields.code : null;
 }
 
 /** Reads a JSON answer without trusting that it is JSON. */
@@ -496,6 +600,7 @@ export function createAuthProtocol(
         .toLowerCase();
       const text = await response.text();
       if (response.status >= 400) {
+        const libraryCode = libraryCodeOf(text);
         return {
           status: response.status,
           mediaType: problemMediaType,
@@ -504,7 +609,7 @@ export function createAuthProtocol(
           ),
           cookies,
           body: createProblem({
-            code: authProblemCode(response.status),
+            code: authProblemCode(response.status, libraryCode),
             status: response.status,
             detail: 'The authentication endpoint refused the request.',
             instance: request.url.split('?')[0] ?? request.url,

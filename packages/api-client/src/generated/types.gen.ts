@@ -297,7 +297,7 @@ export type AuthPasswordReset = {
     /**
      * New password of the account.
      */
-    newPassword: string;
+    newPassword: unknown;
     /**
      * Token from the reset message.
      */
@@ -530,6 +530,10 @@ export type CreatePublishedLinkInput = {
      * The one note, or the one folder, that the link opens.
      */
     scope: PublishedScope;
+    /**
+     * Password that a reader gives before it reads the link. Leave it out for a link that opens without one. The product keeps one password policy, so this bound is the bound of an account password.
+     */
+    password?: unknown;
 };
 
 /**
@@ -1030,7 +1034,7 @@ export type MutationReceipt = {
 };
 
 /**
- * A password. The server applies the password policy of the installation to a new password.
+ * A new password. The bounds are the ones of NIST SP 800-63B revision 4 for a password that is the only factor, and passwordBounds of the core states the same bounds. The server also refuses a password that a list of leaked passwords holds.
  */
 export type Password = string;
 
@@ -2014,6 +2018,20 @@ export type AuthCurrentSessionWritable = {
 } | null;
 
 /**
+ * The new password and the token from the reset message.
+ */
+export type AuthPasswordResetWritable = {
+    /**
+     * New password of the account.
+     */
+    newPassword: Password;
+    /**
+     * Token from the reset message.
+     */
+    token?: string;
+};
+
+/**
  * The result of a completed sign-in. It never carries the session token: the browser already holds that value in an HttpOnly cookie, and the protocol adapter removes it from this answer.
  */
 export type AuthSessionWritable = {
@@ -2053,7 +2071,7 @@ export type CreatePublishedLinkInputWritable = {
     /**
      * Password that a reader gives before it reads the link. Leave it out for a link that opens without one. The product keeps one password policy, so this bound is the bound of an account password.
      */
-    password?: string;
+    password?: Password;
     /**
      * Instant after which the link opens nothing. Leave it out for a link that lasts until the owner revokes it.
      */
@@ -2874,7 +2892,7 @@ export type ResetPasswordData = {
     /**
      * The new password and the reset token.
      */
-    body: AuthPasswordReset;
+    body: AuthPasswordResetWritable;
     path?: never;
     query?: never;
     url: '/api/auth/reset-password';

@@ -88,7 +88,7 @@ await test('a note link counts the one note it names', () => {
 await test('the password rule states that an empty field makes an open link', () => {
   assert.equal(
     linkPasswordRule,
-    'Leave this empty for a link that opens without a password. A password needs at least 12 characters.',
+    'Leave this empty for a link that opens without a password. A password needs at least 15 characters.',
   );
 });
 

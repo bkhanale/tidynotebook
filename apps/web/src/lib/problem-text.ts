@@ -29,6 +29,8 @@ const sentences: Readonly<Record<string, string>> = {
   open_registration_unavailable:
     'Open sign-up needs a mail server, an address for published pages and legal documents first.',
   origin_required: 'This page is not allowed to reach the server.',
+  password_breached:
+    'This password is in a list of leaked passwords. Choose another one.',
   path_conflict:
     'Another note already uses that name. Choose a different name.',
   payload_too_large: 'That file is too large to upload.',

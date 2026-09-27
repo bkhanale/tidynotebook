@@ -539,7 +539,10 @@ async function composeApp(
   const refusals: { record?: (cause: ReaderRefusalCause) => void } = {};
   // The protocol library writes into the application log. The sink is filled
   // once the instance exists, so nothing reaches the console in between.
-  const sink: { write?: (record: AuthLogRecord) => void } = {};
+  const sink: {
+    write?: (record: AuthLogRecord) => void;
+    breachUnavailable?: () => void;
+  } = {};
   // Sign-up is enabled inside the protocol library, but its public route is
   // not mounted. The one registration path of `auth/registration.ts` calls
   // it. The session hook asks the account store before every new session, so
@@ -553,6 +556,7 @@ async function composeApp(
       allowSignUp: true,
       sessionAllowed: sessionAllowedBy(identity),
       log: (record) => sink.write?.(record),
+      onBreachUnavailable: () => sink.breachUnavailable?.(),
     },
     authPool,
   );
@@ -644,6 +648,9 @@ async function composeApp(
   };
   const cleanupTimer = setInterval(() => void runCleanup(), 60 * 60 * 1000);
   cleanupTimer.unref();
+  sink.breachUnavailable = (): void => {
+    logger.emit('auth.breach_check_unavailable', {});
+  };
   sink.write = (record): void => {
     if (record.level === 'error')
       logger.emit('auth.failed', { source: 'better-auth' });

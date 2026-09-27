@@ -165,6 +165,12 @@ export type ServerConfig = {
     readonly invitationLifetimeHours: number;
   };
   /**
+   * Whether a new password is checked against the range service of Have I
+   * Been Pwned (record 0116). An installation with no outbound network sets
+   * `NOTESAPP_BREACH_CHECK` to `off`.
+   */
+  readonly breachCheck: boolean;
+  /**
    * The stop of this process.
    *
    * `gracePeriodMs` is the wait between the moment the readiness answer
@@ -230,6 +236,7 @@ export const optionalVariables = [
   'NOTESAPP_UPLOAD_IDLE_TIMEOUT_MS',
   'NOTESAPP_ACCOUNT_LIMIT_BYTES',
   'NOTESAPP_INVITATION_LIFETIME_HOURS',
+  'NOTESAPP_BREACH_CHECK',
 ] as const;
 
 const protectedFiles = {
@@ -407,6 +414,7 @@ const configSchema: SchemaObject = {
       pattern: '^[1-9][0-9]{0,15}$',
     },
     NOTESAPP_INVITATION_LIFETIME_HOURS: positiveInteger,
+    NOTESAPP_BREACH_CHECK: { type: 'string', enum: ['on', 'off'] },
   },
 };
 
@@ -543,6 +551,7 @@ export function loadServerConfig(
         : Number(raw.NOTESAPP_SESSION_MAX_AGE_S),
     shutdown,
     accounts: readAccounts(raw),
+    breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
   };
 }
 

@@ -706,8 +706,8 @@ export const sharedDefinitions: JsonSchema = {
     },
     "Password": {
       "type": "string",
-      "description": "A password. The server applies the password policy of the installation to a new password.",
-      "minLength": 12,
+      "description": "A new password. The bounds are the ones of NIST SP 800-63B revision 4 for a password that is the only factor, and passwordBounds of the core states the same bounds. The server also refuses a password that a list of leaked passwords holds.",
+      "minLength": 15,
       "maxLength": 512,
       "writeOnly": true
     },
@@ -3026,11 +3026,12 @@ export const operations: readonly OperationEntry[] = [
             "description": "The one note, or the one folder, that the link opens."
           },
           "password": {
-            "type": "string",
-            "writeOnly": true,
-            "description": "Password that a reader gives before it reads the link. Leave it out for a link that opens without one. The product keeps one password policy, so this bound is the bound of an account password.",
-            "minLength": 12,
-            "maxLength": 512
+            "allOf": [
+              {
+                "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Password"
+              }
+            ],
+            "description": "Password that a reader gives before it reads the link. Leave it out for a link that opens without one. The product keeps one password policy, so this bound is the bound of an account password."
           },
           "expiresAt": {
             "type": "string",
@@ -8849,10 +8850,12 @@ export const operations: readonly OperationEntry[] = [
         ],
         "properties": {
           "newPassword": {
-            "type": "string",
-            "description": "New password of the account.",
-            "minLength": 12,
-            "maxLength": 512
+            "allOf": [
+              {
+                "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Password"
+              }
+            ],
+            "description": "New password of the account."
           },
           "token": {
             "type": "string",

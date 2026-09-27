@@ -21,8 +21,12 @@ import {
   getSyncProtocol,
   unlockPublishedLink,
 } from '@notesapp/api-client';
-import { operations } from '@notesapp/api-contract';
-import { supportedSyncVersions, syncProtocolVersion } from '@notesapp/core';
+import { operations, requestValidator } from '@notesapp/api-contract';
+import {
+  passwordBounds,
+  supportedSyncVersions,
+  syncProtocolVersion,
+} from '@notesapp/core';
 import { createHandlers, loadServerConfig } from '@notesapp/server';
 import {
   completeTestHandlers,
@@ -771,3 +775,53 @@ for (const address of rootAddresses) {
 
   await guarded.close();
 }
+
+/** A published link body with every required member but the password. */
+const linkBody = {
+  scope: { kind: 'note', fileId: '11111111-1111-4111-8111-111111111111' },
+};
+
+await test('every new password of the contract takes the bounds of the core', () => {
+  // Record 0116. The core states the bounds and the contract states them
+  // again in one component. Each body below sets a new password, so each
+  // refuses one character below the minimum and above the maximum, and
+  // accepts both ends.
+  const bodies: readonly {
+    readonly id: Parameters<typeof requestValidator>[0];
+    readonly body: (password: string) => Record<string, unknown>;
+  }[] = [
+    {
+      id: 'createOwner',
+      body: (password) => ({ email: 'first@notes.invalid', password }),
+    },
+    {
+      id: 'registerAccount',
+      body: (password) => ({ invitation: 'A'.repeat(43), password }),
+    },
+    {
+      id: 'createPublishedLink',
+      body: (password) => ({ ...linkBody, password }),
+    },
+    {
+      id: 'resetPassword',
+      body: (password) => ({ newPassword: password, token: 'token' }),
+    },
+  ];
+  const { minLength, maxLength } = passwordBounds;
+  for (const entry of bodies) {
+    const validate = requestValidator(entry.id, 'body');
+    assert.ok(validate !== undefined, entry.id);
+    assert.equal(
+      validate(entry.body('a'.repeat(minLength - 1))),
+      false,
+      entry.id,
+    );
+    assert.equal(validate(entry.body('a'.repeat(minLength))), true, entry.id);
+    assert.equal(validate(entry.body('a'.repeat(maxLength))), true, entry.id);
+    assert.equal(
+      validate(entry.body('a'.repeat(maxLength + 1))),
+      false,
+      entry.id,
+    );
+  }
+});

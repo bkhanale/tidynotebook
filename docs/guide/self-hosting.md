@@ -254,6 +254,12 @@ account starts with. An administrator changes the limit of one account in the
 application. `NOTESAPP_INVITATION_LIFETIME_HOURS` is how long a new invitation
 works.
 
+A new password is checked against the range service of Have I Been Pwned. The
+server sends five characters of a digest of the password and never the
+password. When the service does not answer, the server accepts the password and
+writes a log event. Set `NOTESAPP_BREACH_CHECK` to `off` in `.env` for an
+installation with no outbound network.
+
 ## Health and readiness
 
 `GET /health` reports process liveness. `GET /ready` checks configuration, database connectivity, storage access, and the required database schema version. The container health check uses readiness. A failed migration keeps the application unready.

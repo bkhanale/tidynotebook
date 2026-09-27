@@ -282,7 +282,8 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  * token all take it, so the answer states nothing about the invitation.
  * `account_exists` refuses an invitation to an address that already signs
  * in. `open_registration_unavailable` refuses the open policy while the
- * installation lacks a part that record 0114 names.
+ * installation lacks a part that record 0114 names. `password_breached`
+ * refuses a new password that the breach service lists (record 0116).
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -310,7 +311,8 @@ export type DomainErrorCode =
   | 'last_administrator'
   | 'invitation_invalid'
   | 'account_exists'
-  | 'open_registration_unavailable';
+  | 'open_registration_unavailable'
+  | 'password_breached';
 
 /**
  * A domain failure and the files it refers to.
