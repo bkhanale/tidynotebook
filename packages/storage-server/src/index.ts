@@ -74,8 +74,15 @@ export {
   authAccount,
   authSession,
   authUser,
+  authRateLimit,
   authVerification,
 } from './schema.ts';
+export {
+  maxAttemptKeyLength,
+  openCoordination,
+  type AttemptCount,
+  type CoordinationHandle,
+} from './coordination.ts';
 export {
   provisionAccounts,
   provisionWorkspace,

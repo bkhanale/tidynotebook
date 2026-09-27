@@ -1060,6 +1060,44 @@ export const authVerification = pgTable(
 );
 
 /**
+ * The attempt counters of the rate limit of Better Auth (record 0121).
+ *
+ * The library keeps its own counters here, so every server process of one
+ * installation reads one count. The table belongs to the identity role, like
+ * the three tables above it.
+ */
+export const authRateLimit = pgTable('auth_rate_limit', {
+  id: text('id').primaryKey(),
+  key: text('key').notNull().unique(),
+  count: integer('count').notNull(),
+  lastRequest: bigint('last_request', { mode: 'number' }).notNull(),
+});
+
+/**
+ * The attempt counters of the limited routes of this server (record 0121).
+ *
+ * One row counts the attempts of one key, which names the caller and the
+ * group of the route, inside one window. Every server process of an
+ * installation counts in this one table, so a limit holds across processes
+ * and across a restart. The runtime role writes it through
+ * `notesapp_count_attempt` only.
+ */
+export const attemptCounters = pgTable(
+  'attempt_counters',
+  {
+    key: text('key').primaryKey(),
+    count: integer('count').notNull(),
+    windowStartedAt: timestamp('window_started_at', {
+      withTimezone: true,
+    }).notNull(),
+  },
+  (table) => [
+    check('attempt_counters_key_check', sql`char_length(${table.key}) <= 512`),
+    index('attempt_counters_window_idx').on(table.windowStartedAt),
+  ],
+);
+
+/**
  * The map from a Better Auth user to an application account.
  *
  * The application identifies an account by a UUID that never changes, so the

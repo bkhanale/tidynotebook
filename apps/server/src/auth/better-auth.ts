@@ -38,6 +38,7 @@ import type { FastifyRequest } from 'fastify';
 import pg from 'pg';
 import {
   authAccount,
+  authRateLimit,
   authSession,
   authUser,
   authVerification,
@@ -167,7 +168,10 @@ function buildAuth(
       enabled: true,
       window: config.rateLimit.windowSeconds,
       max: config.rateLimit.max,
-      storage: 'memory',
+      // Every server process of one installation reads one count, and a count
+      // survives a restart (record 0121). The table belongs to the identity
+      // role, as the other tables of this library do.
+      storage: 'database',
       customRules: {
         '/sign-in/*': {
           window: config.rateLimit.windowSeconds,
@@ -195,6 +199,7 @@ function buildAuth(
         session: authSession,
         account: authAccount,
         verification: authVerification,
+        rateLimit: authRateLimit,
       },
     }),
     // The served origins are the trusted origins, and nothing else is. Better
