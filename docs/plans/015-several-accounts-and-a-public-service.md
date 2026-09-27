@@ -1,6 +1,6 @@
 # Plan 015: Several accounts and a public service
 
-Status: active
+Status: complete
 
 The [project board](https://github.com/users/bkhanale/projects/2) holds the live
 work. Each row below is one issue, with a milestone, a priority label and an
