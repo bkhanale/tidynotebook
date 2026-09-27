@@ -13,6 +13,8 @@ import {
   invitationFacts,
   invitationTokenOf,
   registrationPolicyText,
+  missingPartsOf,
+  openRegistrationMissingText,
   storageLine,
   verificationTokenOf,
 } from './accounts.ts';
@@ -166,4 +168,28 @@ await test('a verification link reads its token from the fragment only', () => {
   assert.equal(verificationTokenOf('#'), null);
   assert.equal(verificationTokenOf('#a b'), null);
   assert.equal(verificationTokenOf(`#${'a'.repeat(513)}`), null);
+});
+
+await test('a refused open policy names each missing part in words', () => {
+  assert.equal(
+    openRegistrationMissingText(['legal-documents']),
+    'Anybody can sign up only when the installation has the terms and the privacy notice. The operator of the server can add what is missing.',
+  );
+  assert.equal(
+    openRegistrationMissingText([
+      'mail',
+      'published-origin',
+      'legal-documents',
+    ]),
+    'Anybody can sign up only when the installation has a mail transport, a separate address for published pages and the terms and the privacy notice. The operator of the server can add what is missing.',
+  );
+});
+
+await test('a refusal names its missing parts, and anything else names none', () => {
+  assert.deepEqual(
+    missingPartsOf({ code: 'x', missing: ['mail', 3, 'legal-documents'] }),
+    ['mail', 'legal-documents'],
+  );
+  assert.deepEqual(missingPartsOf({ code: 'x' }), []);
+  assert.deepEqual(missingPartsOf(null), []);
 });

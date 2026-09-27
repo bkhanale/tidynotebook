@@ -90,6 +90,8 @@ paths:
     $ref: './paths/api_sync_protocol.yaml'
   /api/account:
     $ref: './paths/api_account.yaml'
+  /api/account/consent:
+    $ref: './paths/api_account_consent.yaml'
   /api/account/sessions:
     $ref: './paths/api_account_sessions.yaml'
   /api/account/sessions/others:
@@ -387,6 +389,8 @@ components:
       $ref: './components/responses/SignUpAccepted.yaml'
     SignUpChallenge:
       $ref: './components/responses/SignUpChallenge.yaml'
+    ConsentRecorded:
+      $ref: './components/responses/ConsentRecorded.yaml'
     AddressVerified:
       $ref: './components/responses/AddressVerified.yaml'
     VerificationUnavailable:
@@ -640,6 +644,14 @@ components:
       $ref: './components/schemas/SignUpChallenge.yaml'
     SignUpProof:
       $ref: './components/schemas/SignUpProof.yaml'
+    LegalDocument:
+      $ref: './components/schemas/LegalDocument.yaml'
+    LegalDocuments:
+      $ref: './components/schemas/LegalDocuments.yaml'
+    ConsentInput:
+      $ref: './components/schemas/ConsentInput.yaml'
+    ConsentRecorded:
+      $ref: './components/schemas/ConsentRecorded.yaml'
     AddressVerificationInput:
       $ref: './components/schemas/AddressVerificationInput.yaml'
     AddressVerified:

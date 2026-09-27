@@ -26,8 +26,11 @@ import {
 } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import {
+  acceptLegalDocuments,
   type AccountSession,
   createOwner,
+  listWorkspaces,
+  type LegalDocuments,
   getSetupStatus,
   listSessions,
   removeOwnAccount,
@@ -77,6 +80,7 @@ import {
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
 import { signUpRoute, storageLine } from '../../lib/accounts.ts';
+import { consentTo, waitsForConsent } from '../../lib/legal.ts';
 import {
   deviceName,
   otherSessionsEndedText,
@@ -112,7 +116,191 @@ export function RequireSession({
   if (session.status === 'signed-out' || session.account === null) {
     return <Navigate to="/login" replace />;
   }
+  // The application opens after consent to the current legal documents
+  // (record 0120).
+  if (waitsForConsent(session.account)) return <ConsentPage />;
   return children;
+}
+
+/** How far the read of the legal documents got. */
+type DocumentsState =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'failed'; readonly message: string }
+  | { readonly kind: 'ready'; readonly documents: LegalDocuments | null };
+
+/**
+ * The step that asks for consent again after the operator raised a version
+ * of the terms or of the privacy notice (record 0120).
+ *
+ * The one filled action accepts. A person who does not accept can export
+ * their notes, remove their account, or sign out, and the application stays
+ * closed until they accept.
+ */
+function ConsentPage(): ReactNode {
+  const session = useSession();
+  const store = useLocalStore();
+  const [state, setState] = useState<DocumentsState>({ kind: 'loading' });
+  const [generation, setGeneration] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [removing, setRemoving] = useState(false);
+  useDocumentTitle('Accept the terms');
+
+  useEffect(() => {
+    let cancelled = false;
+    void getSetupStatus().then((result) => {
+      if (cancelled) return;
+      setState(
+        result.data === undefined
+          ? { kind: 'failed', message: problemMessage(result.error) }
+          : { kind: 'ready', documents: result.data.legalDocuments },
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [generation]);
+
+  const account = session.account;
+  if (account === null) return <Navigate to="/login" replace />;
+  const documents = state.kind === 'ready' ? state.documents : null;
+
+  const accept = async (): Promise<void> => {
+    if (documents === null) return;
+    setBusy(true);
+    setError('');
+    const result = await acceptLegalDocuments({ body: consentTo(documents) });
+    setBusy(false);
+    if (result.error !== undefined) {
+      setError(problemMessage(result.error));
+      // A version that changed while the person read reads again.
+      setGeneration((value) => value + 1);
+      return;
+    }
+    session.refresh();
+  };
+
+  const exportNotes = async (): Promise<void> => {
+    setBusy(true);
+    setError('');
+    try {
+      const listed = await listWorkspaces();
+      for (const workspace of listed.data?.workspaces ?? [])
+        if (workspace.role === 'owner')
+          await downloadAll(workspace.workspaceId);
+    } catch (failure: unknown) {
+      setError(problemMessage(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <AuthFrame title="Accept the terms">
+      {state.kind === 'loading' ? (
+        <LoadingState label="The terms are loading." />
+      ) : state.kind === 'failed' ? (
+        <div className="mt-4 space-y-3">
+          <Notice tone="problem" message={state.message} />
+          <Button
+            onClick={() => {
+              setGeneration((value) => value + 1);
+            }}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : (
+        <>
+          <p className="mb-3 mt-0 text-control text-muted">
+            Read the terms and the privacy notice of this service, then accept
+            them to open your notes. A new version asks you again.
+          </p>
+          {documents === null ? null : (
+            <p className="mb-5 mt-0 flex flex-wrap gap-cluster text-control">
+              <a
+                className="text-accent underline"
+                href={documents.terms.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Terms
+              </a>
+              <a
+                className="text-accent underline"
+                href={documents.privacy.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Privacy notice
+              </a>
+            </p>
+          )}
+          {error === '' ? null : (
+            <Notice className="mb-4" tone="problem" message={error} />
+          )}
+          <Button
+            className="w-full"
+            disabled={busy || documents === null}
+            onClick={() => {
+              void accept();
+            }}
+          >
+            {busy ? 'Saving your answer' : 'Accept and continue'}
+          </Button>
+          <p className="mb-2 mt-5 text-control text-muted">
+            If you do not accept them, you can export your notes and remove your
+            account.
+          </p>
+          <div className="flex flex-wrap gap-cluster">
+            <Button
+              variant="secondary"
+              icon={<DownloadIcon />}
+              disabled={busy}
+              onClick={() => {
+                void exportNotes();
+              }}
+            >
+              Export my notes
+            </Button>
+            <Button
+              variant="secondary"
+              tone="danger"
+              icon={<TrashIcon />}
+              disabled={busy}
+              onClick={() => {
+                setRemoving(true);
+              }}
+            >
+              Remove my account
+            </Button>
+            <Button
+              variant="ghost"
+              icon={<SignOutIcon />}
+              disabled={busy}
+              onClick={() => {
+                session.signOut();
+              }}
+            >
+              Sign out
+            </Button>
+          </div>
+        </>
+      )}
+      {removing ? (
+        <RemoveOwnAccountDialog
+          store={store.store}
+          accountId={account.accountId}
+          onClose={() => {
+            setRemoving(false);
+          }}
+          onRemoved={() => {
+            session.refresh();
+          }}
+        />
+      ) : null}
+    </AuthFrame>
+  );
 }
 
 /** How far the setup status call got. */

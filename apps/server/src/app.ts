@@ -665,6 +665,7 @@ async function composeApp(
           origin: config.origin,
           pendingHours: config.accounts.pendingHours,
           tokens: createVerificationTokens(config.authSecret),
+          documents: config.legalDocuments,
           challenges: createSignUpChallenges(
             config.authSecret,
             config.accounts.proofDifficulty,

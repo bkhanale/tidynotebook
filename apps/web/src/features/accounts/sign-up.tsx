@@ -11,9 +11,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
 import {
+  getSetupStatus,
   getSignUpChallenge,
   signUpAccount,
   verifyAddress,
+  type LegalDocuments,
 } from '@notesapp/api-client';
 import {
   Button,
@@ -28,6 +30,7 @@ import { verificationTokenOf } from '../../lib/accounts.ts';
 import { problemCode } from '../../lib/problem-text.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import { solveChallenge } from '../../lib/proof-of-work.ts';
+import { consentTo } from '../../lib/legal.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { AuthFrame } from './accounts.tsx';
 
@@ -44,13 +47,31 @@ export function SignUpPage(): ReactNode {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState<'checking' | 'sending' | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<LegalDocuments | null>(null);
+  const [accepted, setAccepted] = useState(false);
   useDocumentTitle('Create an account');
+
+  // The terms and the privacy notice, when the installation names them
+  // (record 0120). The form links both and asks for consent.
+  useEffect(() => {
+    let cancelled = false;
+    void getSetupStatus().then((result) => {
+      if (!cancelled) setDocuments(result.data?.legalDocuments ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const submit = async (): Promise<void> => {
     setFieldError('');
     const problem = passwordProblem(password);
     if (problem !== null) {
       setFieldError(problem);
+      return;
+    }
+    if (documents !== null && !accepted) {
+      setError('Accept the terms and the privacy notice to make an account.');
       return;
     }
     setBusy('checking');
@@ -73,6 +94,7 @@ export function SignUpPage(): ReactNode {
         email: email.trim(),
         password,
         proof: { challenge: challenge.data.challenge, solution },
+        ...(documents === null ? {} : { consent: consentTo(documents) }),
       },
     });
     setBusy(null);
@@ -137,6 +159,34 @@ export function SignUpPage(): ReactNode {
             onChange={setReveal}
           />
         </div>
+        {documents === null ? null : (
+          <div className="mb-4">
+            <p className="mb-2 mt-0 flex flex-wrap gap-cluster text-control">
+              <a
+                className="text-accent underline"
+                href={documents.terms.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Terms
+              </a>
+              <a
+                className="text-accent underline"
+                href={documents.privacy.url}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Privacy notice
+              </a>
+            </p>
+            <Checkbox
+              id="signup-consent"
+              label="I accept the terms and the privacy notice"
+              checked={accepted}
+              onChange={setAccepted}
+            />
+          </div>
+        )}
         {error === '' ? null : (
           <Notice className="mb-4" tone="problem" message={error} />
         )}

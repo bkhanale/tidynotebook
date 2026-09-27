@@ -20,18 +20,28 @@
  * one challenge of this server (record 0115). The proof is checked before the
  * address is read, and a challenge counts once.
  *
+ * **Consent to the legal documents.** When the installation names its terms
+ * and its privacy notice, a sign-up names the versions that the person
+ * accepted (record 0120). The link carries them, and the account stores them
+ * when the link makes it.
+ *
  * **One message budget for each address.** A message counts against a limit
  * of the target address, so a sign-up cannot flood the mailbox of another
  * person. Over the limit the sign-up still answers the same and sends nothing.
  */
 import { randomUUID } from 'node:crypto';
 import type {
+  ConsentVersions,
+  LegalDocuments,
   RegistrationPolicy,
   RegistrationStore,
   Result,
+  WorkspaceAdminStore,
 } from '@notesapp/core';
 import {
+  consentMatches,
   fail,
+  verifyActor,
   normalizeEmail,
   ok,
   openSignUpAction,
@@ -50,6 +60,10 @@ export type OpenRegistrationDependencies = {
   readonly auth: NotesappAuth;
   readonly identity: RegistrationIdentity &
     Pick<RegistrationStore, 'registrationPolicy'>;
+  /** The account store, which keeps the consent of a new account. */
+  readonly accounts: WorkspaceAdminStore;
+  /** The legal documents of the installation, or `null` (record 0120). */
+  readonly documents: LegalDocuments | null;
   /** The mail transport. The open policy needs one (record 0114). */
   readonly mail: MailTransport | null;
   /** The application origin, which every link of a message names. */
@@ -76,6 +90,8 @@ export type SignUpInput = {
   readonly password: string;
   readonly name: string | null;
   readonly proof: ProofAttempt;
+  /** The versions of the legal documents that the person accepted. */
+  readonly consent: ConsentVersions | null;
 };
 
 /** The address of the page that opens a verification link. */
@@ -146,6 +162,9 @@ export async function signUpOpen(
     dependencies.useChallenge,
   );
   if (refusal !== null) return fail('proof_invalid');
+  const documents = dependencies.documents;
+  if (documents !== null && !consentMatches(documents, input.consent))
+    return fail('consent_required');
   if (await dependencies.breached(input.password))
     return fail('password_breached');
   const email = normalizeEmail(input.email);
@@ -182,7 +201,11 @@ export async function signUpOpen(
   const expiresAt = new Date(
     dependencies.clock().getTime() + dependencies.pendingHours * 3_600_000,
   );
-  const token = dependencies.tokens.issue(authUserId, expiresAt);
+  const token = dependencies.tokens.issue(
+    authUserId,
+    expiresAt,
+    documents === null ? null : input.consent,
+  );
   await send(
     dependencies,
     verificationMessage(
@@ -212,8 +235,9 @@ export async function verifyOpen(
   dependencies: OpenRegistrationDependencies,
   token: string,
 ): Promise<Result<Verified>> {
-  const authUserId = dependencies.tokens.read(token, dependencies.clock());
-  if (authUserId === null) return fail('verification_invalid');
+  const claim = dependencies.tokens.read(token, dependencies.clock());
+  if (claim === null) return fail('verification_invalid');
+  const authUserId = claim.authUserId;
   const context = await dependencies.auth.$context;
   const user = await context.internalAdapter.findUserById(authUserId);
   if (user === null) return fail('verification_invalid');
@@ -229,6 +253,14 @@ export async function verifyOpen(
     limitBytes: dependencies.limitBytes,
   });
   if (!made.ok) return fail(made.error.code);
+  // The account keeps the versions that the person accepted at the sign-up.
+  // A version raised since then asks again at the first sign-in.
+  const consent = claim.consent;
+  const actor = verifyActor(made.value, []);
+  if (consent !== null && actor.ok)
+    await dependencies.accounts.account(actor.value, (tx) =>
+      tx.recordConsent(consent),
+    );
   // The account exists, so the address counts as proved from now on and the
   // person can sign in.
   await context.internalAdapter.updateUser(authUserId, { emailVerified: true });

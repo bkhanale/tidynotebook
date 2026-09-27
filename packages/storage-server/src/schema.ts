@@ -1236,6 +1236,23 @@ export const accountAuditEvents = pgTable(
  * the browser to check the spelling of a note (record 0103). Its default is
  * `defaultSpellCheck` of `@notesapp/core`, which SQL cannot read.
  */
+/**
+ * The legal documents that one account accepted (record 0120): the version
+ * of the terms and of the privacy notice, and when. One row for each
+ * account, which a new consent replaces. A row belongs to its account and to
+ * nobody else.
+ */
+export const accountConsents = pgTable('account_consents', {
+  accountId: uuid('account_id')
+    .primaryKey()
+    .references(() => accounts.id, { onDelete: 'cascade' }),
+  termsVersion: text('terms_version').notNull(),
+  privacyVersion: text('privacy_version').notNull(),
+  acceptedAt: timestamp('accepted_at', { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const accountPreferences = pgTable('account_preferences', {
   accountId: uuid('account_id')
     .primaryKey()

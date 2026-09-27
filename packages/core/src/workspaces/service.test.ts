@@ -8,6 +8,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { verifyActor, type Actor, type Role } from '../identity/actor.ts';
+import {
+  acceptLegalDocuments,
+  readConsent,
+  type ConsentRecord,
+  type LegalDocuments,
+} from '../identity/legal.ts';
 import type {
   AccountTransaction,
   Preferences,
@@ -60,6 +66,7 @@ type FakeStore = WorkspaceAdminStore & {
   readonly spaces: Map<string, Space>;
   readonly accountAudit: Map<string, string[]>;
   readonly preferences: Map<string, Preferences>;
+  readonly consents: Map<string, ConsentRecord>;
   space(id: string): Space;
   seed(id: string, members: readonly (readonly [string, Role])[]): void;
   memberships(accountId: string): { workspaceId: string; role: Role }[];
@@ -70,6 +77,7 @@ function createFakeStore(): FakeStore {
   const spaces = new Map<string, Space>();
   const accountAudit = new Map<string, string[]>();
   const preferences = new Map<string, Preferences>();
+  const consents = new Map<string, ConsentRecord>();
 
   const space = (id: string): Space => {
     const found = spaces.get(id);
@@ -131,6 +139,14 @@ function createFakeStore(): FakeStore {
         preferences.set(actor.accountId, value);
         return Promise.resolve();
       },
+      consent: () => Promise.resolve(consents.get(actor.accountId) ?? null),
+      recordConsent: (versions) => {
+        consents.set(actor.accountId, {
+          ...versions,
+          acceptedAt: '2026-09-27T12:00:00.000Z',
+        });
+        return Promise.resolve();
+      },
       createWorkspace: (input) => {
         seed(input.workspaceId, [[actor.accountId, 'owner']]);
         space(input.workspaceId).name = input.name;
@@ -189,6 +205,7 @@ function createFakeStore(): FakeStore {
     spaces,
     accountAudit,
     preferences,
+    consents,
     space,
     seed,
     memberships,
@@ -384,4 +401,45 @@ await test('session grants follow the current role', () => {
   assert.deepEqual(sessionGrants([{ workspaceId: space, role: 'owner' }]), [
     { workspaceId: space, actions: ['read', 'history', 'write', 'purge'] },
   ]);
+});
+
+await test('consent names the current versions and is stored with its time', async () => {
+  const store = createFakeStore();
+  const actor = actorFor(alice);
+  const documents: LegalDocuments = {
+    terms: { url: 'https://example.test/terms', version: '2' },
+    privacy: { url: 'https://example.test/privacy', version: '5' },
+  };
+  assert.deepEqual(await readConsent(store, actor), { ok: true, value: null });
+  // A page that showed an older version records nothing.
+  assert.deepEqual(
+    await acceptLegalDocuments(store, actor, documents, {
+      termsVersion: '1',
+      privacyVersion: '5',
+    }),
+    { ok: false, error: { code: 'consent_required', fileIds: [] } },
+  );
+  assert.deepEqual(
+    await acceptLegalDocuments(store, actor, null, {
+      termsVersion: '2',
+      privacyVersion: '5',
+    }),
+    { ok: false, error: { code: 'consent_required', fileIds: [] } },
+  );
+  assert.equal(store.consents.size, 0);
+  assert.deepEqual(
+    await acceptLegalDocuments(store, actor, documents, {
+      termsVersion: '2',
+      privacyVersion: '5',
+    }),
+    { ok: true, value: undefined },
+  );
+  assert.deepEqual(await readConsent(store, actor), {
+    ok: true,
+    value: {
+      termsVersion: '2',
+      privacyVersion: '5',
+      acceptedAt: '2026-09-27T12:00:00.000Z',
+    },
+  });
 });

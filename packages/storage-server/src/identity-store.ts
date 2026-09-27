@@ -27,6 +27,8 @@ import type {
   AccountTransaction,
   Actor,
   AppearanceChoice,
+  ConsentRecord,
+  ConsentVersions,
   InstallationRole,
   InstallationStore,
   InstallationTransaction,
@@ -481,6 +483,39 @@ export function openIdentityStore(
           [keepSessionId],
         );
         return rows.rows[0]?.ended ?? 0;
+      },
+
+      async consent(): Promise<ConsentRecord | null> {
+        const rows = await client.query<{
+          terms_version: string;
+          privacy_version: string;
+          accepted_at: Date;
+        }>(
+          `select terms_version, privacy_version, accepted_at
+             from account_consents where account_id = $1`,
+          [accountId],
+        );
+        const row = rows.rows[0];
+        return row === undefined
+          ? null
+          : {
+              termsVersion: row.terms_version,
+              privacyVersion: row.privacy_version,
+              acceptedAt: isoOf(row.accepted_at),
+            };
+      },
+
+      async recordConsent(versions: ConsentVersions): Promise<void> {
+        await client.query(
+          `insert into account_consents
+             (account_id, terms_version, privacy_version, accepted_at)
+             values ($1, $2, $3, now())
+           on conflict (account_id)
+             do update set terms_version = excluded.terms_version,
+                           privacy_version = excluded.privacy_version,
+                           accepted_at = now()`,
+          [accountId, versions.termsVersion, versions.privacyVersion],
+        );
       },
 
       async savePreferences(preferences: Preferences): Promise<void> {

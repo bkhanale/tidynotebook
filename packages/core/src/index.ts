@@ -388,3 +388,16 @@ export {
   proofLifetimeMs,
   proofRefusal,
 } from './identity/proof-of-work.ts';
+export type {
+  ConsentRecord,
+  ConsentVersions,
+  LegalDocument,
+  LegalDocuments,
+} from './identity/legal.ts';
+export {
+  acceptLegalDocuments,
+  consentMatches,
+  consentRequired,
+  maxLegalVersionLength,
+  readConsent,
+} from './identity/legal.ts';

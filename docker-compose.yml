@@ -100,6 +100,12 @@ services:
       NOTESAPP_INVITATION_LIFETIME_HOURS: ${NOTESAPP_INVITATION_LIFETIME_HOURS:-}
       NOTESAPP_PENDING_ACCOUNT_HOURS: ${NOTESAPP_PENDING_ACCOUNT_HOURS:-}
       NOTESAPP_SIGNUP_DIFFICULTY: ${NOTESAPP_SIGNUP_DIFFICULTY:-}
+      # The terms and the privacy notice of a public installation. Name all
+      # four or none. A raised version asks every account for consent again.
+      NOTESAPP_TERMS_URL: ${NOTESAPP_TERMS_URL:-}
+      NOTESAPP_TERMS_VERSION: ${NOTESAPP_TERMS_VERSION:-}
+      NOTESAPP_PRIVACY_URL: ${NOTESAPP_PRIVACY_URL:-}
+      NOTESAPP_PRIVACY_VERSION: ${NOTESAPP_PRIVACY_VERSION:-}
       # Whether a new password is checked against the range service of Have I
       # Been Pwned. Set it to off for an installation with no outbound network.
       NOTESAPP_BREACH_CHECK: ${NOTESAPP_BREACH_CHECK:-on}

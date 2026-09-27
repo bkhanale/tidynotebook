@@ -56,7 +56,7 @@ export type SetupDependencies = {
   /** What an open sign-up and its verification need (record 0114). */
   readonly open: Omit<
     OpenRegistrationDependencies,
-    'auth' | 'identity' | 'limitBytes'
+    'auth' | 'identity' | 'accounts' | 'limitBytes'
   >;
 };
 
@@ -69,6 +69,7 @@ export function createSetupHandlers(
     ...dependencies.open,
     auth,
     identity,
+    accounts: identity,
     limitBytes: dependencies.accountLimitBytes,
   };
 
@@ -86,6 +87,7 @@ export function createSetupHandlers(
       body: {
         initialized: await identity.hasAccount(),
         openRegistration: await openRegistration(identity),
+        legalDocuments: dependencies.open.documents,
       },
     }),
 
@@ -197,6 +199,7 @@ export function createSetupHandlers(
       requireWriteOrigin(servedOrigins, request);
       const name = readProperty(request.body, 'name');
       const proof = readProperty(request.body, 'proof');
+      const consent = readProperty(request.body, 'consent');
       const taken = await signUpOpen(open, {
         email: text(request.body, 'email'),
         password: text(request.body, 'password'),
@@ -205,6 +208,13 @@ export function createSetupHandlers(
           challenge: text(proof, 'challenge'),
           solution: text(proof, 'solution'),
         },
+        consent:
+          consent === undefined
+            ? null
+            : {
+                termsVersion: text(consent, 'termsVersion'),
+                privacyVersion: text(consent, 'privacyVersion'),
+              },
       });
       if (!taken.ok) throw new DomainProblemError(taken.error);
       return {

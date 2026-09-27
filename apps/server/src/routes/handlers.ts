@@ -155,7 +155,7 @@ export function createHandlers(
   const seal = createAddressSeal(config.authSecret);
   const readerOrigin = publishedOrigin(config.servedOrigins) ?? config.origin;
   return {
-    ...createAccountHandlers(store),
+    ...createAccountHandlers(store, config.legalDocuments),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
@@ -183,12 +183,10 @@ export function createHandlers(
       origin: config.origin,
       invitationLifetimeHours: config.accounts.invitationLifetimeHours,
       defaultLimitBytes: config.accounts.limitBytes,
-      // The legal documents are the part of record 0120, which this build
-      // does not have yet, so open registration stays refused.
       readiness: {
         mail: (dependencies.mail ?? null) !== null,
         publishedOrigin: publishedOrigin(config.servedOrigins) !== null,
-        legalDocuments: false,
+        legalDocuments: config.legalDocuments !== null,
       },
       openAddress: (sealed) => seal.open(sealed),
       verifyPassword:

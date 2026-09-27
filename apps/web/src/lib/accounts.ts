@@ -37,6 +37,39 @@ export function invitationTokenOf(hash: string): string | null {
   return tokenPattern.test(token) ? token : null;
 }
 
+/** The words of each part that open registration needs (record 0114). */
+const partWords: Readonly<Record<string, string>> = {
+  mail: 'a mail transport',
+  'published-origin': 'a separate address for published pages',
+  'legal-documents': 'the terms and the privacy notice',
+};
+
+/** The missing parts that a refusal of open registration names. */
+export function missingPartsOf(error: unknown): string[] {
+  if (error === null || typeof error !== 'object') return [];
+  const missing: unknown = Object.fromEntries(Object.entries(error))['missing'];
+  return Array.isArray(missing)
+    ? missing.filter((part): part is string => typeof part === 'string')
+    : [];
+}
+
+/**
+ * The sentence of a refused change to open registration, which names each
+ * missing part so the operator knows what to set.
+ */
+export function openRegistrationMissingText(
+  missing: readonly string[],
+): string {
+  const words = missing.map((part) => partWords[part] ?? part);
+  if (words.length === 0)
+    return 'Open registration needs parts that this installation does not have.';
+  const list =
+    words.length === 1
+      ? (words[0] ?? '')
+      : `${words.slice(0, -1).join(', ')} and ${words.at(-1) ?? ''}`;
+  return `Anybody can sign up only when the installation has ${list}. The operator of the server can add what is missing.`;
+}
+
 /** The page of a sign-up under open registration (record 0114). */
 export const signUpRoute = '/signup';
 

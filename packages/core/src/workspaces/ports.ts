@@ -12,6 +12,7 @@
  */
 import type { Actor, Role } from '../identity/actor.ts';
 import type { InstallationRole } from '../identity/installation.ts';
+import type { ConsentRecord, ConsentVersions } from '../identity/legal.ts';
 
 /** The three appearance choices that an account can store. */
 export type AppearanceChoice = 'system' | 'light' | 'dark';
@@ -100,6 +101,10 @@ export type AccountTransaction = {
   revokeOtherSessions(keepSessionId: string): Promise<number>;
   /** Replaces the stored settings of the account with a checked value. */
   savePreferences(preferences: Preferences): Promise<void>;
+  /** The legal documents that the account accepted, or `null` (0120). */
+  consent(): Promise<ConsentRecord | null>;
+  /** Stores the consent of the account to two versions, with the time. */
+  recordConsent(versions: ConsentVersions): Promise<void>;
   /**
    * Creates a workspace whose only member is the account, as its owner.
    *

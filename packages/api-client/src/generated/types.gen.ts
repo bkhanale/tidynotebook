@@ -116,6 +116,10 @@ export type Account = {
      * The stored settings of the account.
      */
     readonly preferences: Preferences;
+    /**
+     * Whether the account must accept the current legal documents before the application opens (record 0120).
+     */
+    readonly consentRequired: boolean;
 };
 
 /**
@@ -537,6 +541,30 @@ export type ChangesetInput = {
  * Name of a checkpoint, or null for an ordinary revision. It is written by the author and is not interpreted by the server.
  */
 export type CheckpointMessage = string | null;
+
+/**
+ * The versions of the two legal documents that a person accepts.
+ */
+export type ConsentInput = {
+    /**
+     * The version of the terms that the person read.
+     */
+    termsVersion: string;
+    /**
+     * The version of the privacy notice that the person read.
+     */
+    privacyVersion: string;
+};
+
+/**
+ * The account accepted the current legal documents.
+ */
+export type ConsentRecorded = {
+    /**
+     * The consent is stored with its time.
+     */
+    readonly accepted: true;
+};
 
 /**
  * The SHA-256 digest of the content, in lower case hexadecimal. Content is addressed by this value, so it is verified against the bytes before a revision is accepted.
@@ -1055,6 +1083,28 @@ export type InvitationReadInput = {
  * The secret of one invitation, as the link carries it. The server keeps only its digest.
  */
 export type InvitationToken = string;
+
+/**
+ * One legal document of the installation and its current version.
+ */
+export type LegalDocument = {
+    /**
+     * Where a person reads the document.
+     */
+    readonly url: string;
+    /**
+     * The current version, which a consent names.
+     */
+    readonly version: string;
+};
+
+/**
+ * The terms and the privacy notice of the installation (record 0120). The operator writes both and names their versions.
+ */
+export type LegalDocuments = {
+    terms: LegalDocument;
+    privacy: LegalDocument;
+};
 
 /**
  * One open report of a published link, as an administrator reads it. It holds no fact of a note and no fact of the workspace.
@@ -1675,6 +1725,10 @@ export type SignUpInput = {
      * The proof of work of this sign-up (record 0115).
      */
     proof: SignUpProof;
+    /**
+     * The versions of the legal documents that the person accepts. It is required when the installation names its documents (record 0120).
+     */
+    consent?: ConsentInput;
 };
 
 /**
@@ -2291,6 +2345,13 @@ export type InvitationReadInputWritable = {
 };
 
 /**
+ * The terms and the privacy notice of the installation (record 0120). The operator writes both and names their versions.
+ */
+export type LegalDocumentsWritable = {
+    [key: string]: never;
+};
+
+/**
  * One open report of a published link, as an administrator reads it. It holds no fact of a note and no fact of the workspace.
  */
 export type LinkReportWritable = {
@@ -2374,6 +2435,10 @@ export type SignUpInputWritable = {
      * The proof of work of this sign-up (record 0115).
      */
     proof: SignUpProof;
+    /**
+     * The versions of the legal documents that the person accepts. It is required when the installation names its documents (record 0120).
+     */
+    consent?: ConsentInput;
 };
 
 /**
@@ -2720,6 +2785,11 @@ export type SignUp = SignUpInputWritable;
 export type AddressVerification = AddressVerificationInput;
 
 /**
+ * The versions of the legal documents that the person accepts.
+ */
+export type Consent = ConsentInput;
+
+/**
  * The password of the published link, as its page form sends it.
  */
 export type PublishedPasswordForm = PublishedPasswordFormInput;
@@ -2771,6 +2841,64 @@ export type GetAccountResponses = {
 };
 
 export type GetAccountResponse = GetAccountResponses[keyof GetAccountResponses];
+
+export type AcceptLegalDocumentsData = {
+    /**
+     * The versions of the legal documents that the person accepts.
+     */
+    body: Consent;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/consent';
+};
+
+export type AcceptLegalDocumentsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
+     */
+    409: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type AcceptLegalDocumentsError = AcceptLegalDocumentsErrors[keyof AcceptLegalDocumentsErrors];
+
+export type AcceptLegalDocumentsResponses = {
+    /**
+     * The consent is stored.
+     */
+    200: ConsentRecorded;
+};
+
+export type AcceptLegalDocumentsResponse = AcceptLegalDocumentsResponses[keyof AcceptLegalDocumentsResponses];
 
 export type UpdatePreferencesData = {
     /**
@@ -3947,6 +4075,10 @@ export type SignUpAccountErrors = {
      */
     403: ProblemDetails;
     /**
+     * The change cannot be accepted next to the state that the workspace holds. The code names the reason: path_conflict for a path that another live file occupies, and mutation_reused for a mutation identity that was already used for another operation. A save of a note adds epoch_mismatch, which means that the note holds another generation of its document, so the device reads the current document before it saves again.
+     */
+    409: ProblemDetails;
+    /**
      * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
      */
     413: ProblemDetails;
@@ -4204,6 +4336,10 @@ export type GetSetupStatusResponses = {
          * Whether a person can ask for an account without an invitation (record 0114).
          */
         readonly openRegistration: boolean;
+        /**
+         * The terms and the privacy notice, or null when the installation names none (record 0120).
+         */
+        legalDocuments: LegalDocuments | null;
     };
 };
 

@@ -60,7 +60,8 @@ export type ProblemCode =
   | 'password_breached'
   | 'registration_closed'
   | 'verification_invalid'
-  | 'proof_invalid';
+  | 'proof_invalid'
+  | 'consent_required';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -124,6 +125,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   registration_closed: 'This installation takes new accounts by invitation.',
   verification_invalid: 'This verification link is not valid.',
   proof_invalid: 'The proof of work of this sign-up does not count.',
+  consent_required: 'The current legal documents need consent.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
@@ -348,6 +350,9 @@ const domainStatus: Readonly<
   verification_invalid: { status: 403, code: 'verification_invalid' },
   // One refusal for a forged, an expired, a reused and a weak proof.
   proof_invalid: { status: 403, code: 'proof_invalid' },
+  // The versions that the person saw are not the current ones, or the
+  // sign-up gave no consent (record 0120).
+  consent_required: { status: 409, code: 'consent_required' },
 };
 
 /** The explanation of one domain failure. It names no path and no content. */
@@ -403,6 +408,8 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
   verification_invalid:
     'This link is not valid any more. Sign up again to get a new link.',
   proof_invalid: 'The check of this browser did not finish. Try again.',
+  consent_required:
+    'The terms or the privacy notice changed. Read them again and accept them.',
 };
 
 /**

@@ -29,6 +29,7 @@ import {
   revokeInvitation,
   takeDownReportedLink,
   updateAccount,
+  updateInstallation,
   type AccountSummary,
   type Installation,
   type Invitation,
@@ -56,6 +57,7 @@ import {
   UsersIcon,
 } from '@notesapp/ui';
 import { problemMessage, useSession } from '../../app.tsx';
+import { problemCode } from '../../lib/problem-text.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { useNow } from '../../shell/now.ts';
 import {
@@ -69,6 +71,8 @@ import {
   enabledAdministrators,
   gigabytesOf,
   invitationFacts,
+  missingPartsOf,
+  openRegistrationMissingText,
   registrationPolicyText,
   type AccountAction,
 } from '../../lib/accounts.ts';
@@ -198,6 +202,36 @@ function AccountsPage(): ReactNode {
     });
   };
 
+  /**
+   * Changes who can make an account (record 0114). A refused open policy
+   * names each part that the installation lacks.
+   */
+  const changePolicy = (policy: 'invitation' | 'open'): void => {
+    if (busy) return;
+    setBusy(true);
+    setNotice('');
+    setFailure('');
+    void updateInstallation({ body: { registrationPolicy: policy } }).then(
+      (result) => {
+        setBusy(false);
+        if (result.error !== undefined) {
+          setFailure(
+            problemCode(result.error) === 'open_registration_unavailable'
+              ? openRegistrationMissingText(missingPartsOf(result.error))
+              : problemMessage(result.error),
+          );
+          return;
+        }
+        setNotice(
+          policy === 'open'
+            ? 'Anybody can sign up now. Each new account proves its address first.'
+            : 'A new account needs an invitation now.',
+        );
+        reload();
+      },
+    );
+  };
+
   const runAction = (account: AccountSummary, action: AccountAction): void => {
     const name = accountName(account);
     if (action === 'change-limit') {
@@ -265,9 +299,29 @@ function AccountsPage(): ReactNode {
               >
                 Who can make an account
               </h2>
-              <p className="m-0 px-2 text-ui text-strong">
-                {registrationPolicyText(state.installation.registrationPolicy)}
-              </p>
+              <div className="flex flex-wrap items-center gap-cluster px-2">
+                <p className="m-0 flex-1 text-ui text-strong">
+                  {registrationPolicyText(
+                    state.installation.registrationPolicy,
+                  )}
+                </p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => {
+                    changePolicy(
+                      state.installation.registrationPolicy === 'open'
+                        ? 'invitation'
+                        : 'open',
+                    );
+                  }}
+                >
+                  {state.installation.registrationPolicy === 'open'
+                    ? 'Require an invitation'
+                    : 'Let anybody sign up'}
+                </Button>
+              </div>
             </section>
 
             <section aria-labelledby="reports-heading">

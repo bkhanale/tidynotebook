@@ -64,6 +64,8 @@ function storeWith(sessions: SessionRecord[]): WorkspaceAdminStore & {
         preferences: fail,
         standing: fail,
         savePreferences: fail,
+        consent: fail,
+        recordConsent: fail,
         createWorkspace: fail,
         lockWorkspace: fail,
         recordMembershipChange: fail,

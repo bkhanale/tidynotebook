@@ -16,9 +16,11 @@ import {
   maxAccountLimitBytes,
   maxInvitationLifetimeHours,
   maxPendingAccountHours,
+  maxLegalVersionLength,
   maxProofDifficulty,
   minProofDifficulty,
 } from '@notesapp/core';
+import type { LegalDocuments } from '@notesapp/core';
 import { readFile } from 'node:fs/promises';
 import { readServedOrigins, type ServedOrigin } from './served-origins.ts';
 import { readTrustedProxies } from './trusted-proxies.ts';
@@ -185,6 +187,12 @@ export type ServerConfig = {
    */
   readonly breachCheck: boolean;
   /**
+   * The terms and the privacy notice of the installation, or `null` for
+   * none (record 0120). The operator names the address and the version of
+   * both, or of neither.
+   */
+  readonly legalDocuments: LegalDocuments | null;
+  /**
    * The stop of this process.
    *
    * `gracePeriodMs` is the wait between the moment the readiness answer
@@ -253,6 +261,10 @@ export const optionalVariables = [
   'NOTESAPP_INVITATION_LIFETIME_HOURS',
   'NOTESAPP_PENDING_ACCOUNT_HOURS',
   'NOTESAPP_SIGNUP_DIFFICULTY',
+  'NOTESAPP_TERMS_URL',
+  'NOTESAPP_TERMS_VERSION',
+  'NOTESAPP_PRIVACY_URL',
+  'NOTESAPP_PRIVACY_VERSION',
   'NOTESAPP_BREACH_CHECK',
 ] as const;
 
@@ -434,6 +446,16 @@ const configSchema: SchemaObject = {
     NOTESAPP_INVITATION_LIFETIME_HOURS: positiveInteger,
     NOTESAPP_PENDING_ACCOUNT_HOURS: positiveInteger,
     NOTESAPP_SIGNUP_DIFFICULTY: positiveInteger,
+    NOTESAPP_TERMS_URL: { type: 'string', maxLength: 2048 },
+    NOTESAPP_TERMS_VERSION: {
+      type: 'string',
+      maxLength: maxLegalVersionLength,
+    },
+    NOTESAPP_PRIVACY_URL: { type: 'string', maxLength: 2048 },
+    NOTESAPP_PRIVACY_VERSION: {
+      type: 'string',
+      maxLength: maxLegalVersionLength,
+    },
     NOTESAPP_BREACH_CHECK: { type: 'string', enum: ['on', 'off'] },
   },
 };
@@ -573,6 +595,7 @@ export function loadServerConfig(
     shutdown,
     accounts: readAccounts(raw),
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
+    legalDocuments: readLegalDocuments(raw),
   };
 }
 
@@ -582,6 +605,53 @@ export function loadServerConfig(
  * The largest limit is the largest integer that a JSON answer carries without
  * loss, and the longest invitation lasts one year.
  */
+/** The address of one document: a full http or https URL, or `null`. */
+function documentUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:'
+      ? url.href
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The legal documents of the installation (record 0120).
+ *
+ * The four values come together or not at all, so no installation asks for
+ * consent to a document with no address or no version.
+ */
+function readLegalDocuments(raw: RawConfig): LegalDocuments | null {
+  const values = [
+    raw.NOTESAPP_TERMS_URL,
+    raw.NOTESAPP_TERMS_VERSION,
+    raw.NOTESAPP_PRIVACY_URL,
+    raw.NOTESAPP_PRIVACY_VERSION,
+  ];
+  if (values.every((value) => value === undefined)) return null;
+  const issues: string[] = [];
+  if (values.some((value) => value === undefined))
+    issues.push(
+      'NOTESAPP_TERMS_URL: name the address and the version of the terms and of the privacy notice, all four, or none of them.',
+    );
+  const termsUrl = documentUrl(raw.NOTESAPP_TERMS_URL ?? '');
+  const privacyUrl = documentUrl(raw.NOTESAPP_PRIVACY_URL ?? '');
+  if (raw.NOTESAPP_TERMS_URL !== undefined && termsUrl === null)
+    issues.push('NOTESAPP_TERMS_URL: name a full http or https address.');
+  if (raw.NOTESAPP_PRIVACY_URL !== undefined && privacyUrl === null)
+    issues.push('NOTESAPP_PRIVACY_URL: name a full http or https address.');
+  if (issues.length > 0) throw new ConfigError(issues);
+  return {
+    terms: { url: termsUrl ?? '', version: raw.NOTESAPP_TERMS_VERSION ?? '' },
+    privacy: {
+      url: privacyUrl ?? '',
+      version: raw.NOTESAPP_PRIVACY_VERSION ?? '',
+    },
+  };
+}
+
 function readAccounts(raw: RawConfig): ServerConfig['accounts'] {
   const limitBytes =
     raw.NOTESAPP_ACCOUNT_LIMIT_BYTES === undefined

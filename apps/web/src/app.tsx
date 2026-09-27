@@ -182,6 +182,9 @@ function readCachedAccount(): Account | null {
         spellCheck:
           typeof spellCheck === 'boolean' ? spellCheck : defaultSpellCheck,
       },
+      // An account cached by an earlier release holds no consent state. The
+      // next read of the account answers it (record 0120).
+      consentRequired: row['consentRequired'] === true,
     };
   } catch {
     return null;

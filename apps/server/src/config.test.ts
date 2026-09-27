@@ -397,3 +397,41 @@ await test('every optional setting reaches the container of the Compose file', a
     assert.match(compose, new RegExp(`^ +${name}:`, 'm'), name);
   }
 });
+
+await test('the legal documents come all four or not at all', () => {
+  assert.equal(loadServerConfig(environment({})).legalDocuments, null);
+  const named = loadServerConfig(
+    environment({
+      NOTESAPP_TERMS_URL: 'https://example.test/terms',
+      NOTESAPP_TERMS_VERSION: '2026-09',
+      NOTESAPP_PRIVACY_URL: 'https://example.test/privacy',
+      NOTESAPP_PRIVACY_VERSION: '3',
+    }),
+  );
+  assert.deepEqual(named.legalDocuments, {
+    terms: { url: 'https://example.test/terms', version: '2026-09' },
+    privacy: { url: 'https://example.test/privacy', version: '3' },
+  });
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_TERMS_URL: 'https://example.test/terms',
+          NOTESAPP_TERMS_VERSION: '1',
+        }),
+      ),
+    /all four, or none of them/,
+  );
+  assert.throws(
+    () =>
+      loadServerConfig(
+        environment({
+          NOTESAPP_TERMS_URL: 'ftp://example.test/terms',
+          NOTESAPP_TERMS_VERSION: '1',
+          NOTESAPP_PRIVACY_URL: 'https://example.test/privacy',
+          NOTESAPP_PRIVACY_VERSION: '1',
+        }),
+      ),
+    /NOTESAPP_TERMS_URL: name a full http or https address/,
+  );
+});

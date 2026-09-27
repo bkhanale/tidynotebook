@@ -75,7 +75,11 @@ export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
       Promise.resolve({
         status: 200,
         mediaType: 'application/json',
-        body: { initialized: true, openRegistration: false },
+        body: {
+          initialized: true,
+          openRegistration: false,
+          legalDocuments: null,
+        },
       }),
     createOwner: () =>
       Promise.resolve({

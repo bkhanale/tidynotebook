@@ -23,9 +23,19 @@ and a message with a link goes to the address. The account
 exists after the person opens the link, and then the person signs in. A sign-up
 that nobody finishes goes away after a time that the server sets.
 
-The server allows this only when the installation has a mail transport, a
-separate address for published pages, and the terms and privacy documents of
-the service.
+Select **Let anybody sign up** under **Who can make an account** on the
+accounts page. The server allows this only when the installation has a mail
+transport, a separate address for published pages, and the terms and the
+privacy notice of the service. If a part is missing, the page names it. Select
+**Require an invitation** to stop new sign-ups.
+
+## Terms and privacy notice
+
+When the installation names its terms and its privacy notice, each person
+accepts them. The sign-up form links both and asks for consent. When a new
+version comes out, each person accepts it at the next visit, before the notes
+open. A person who does not accept can export their notes, remove their
+account, or sign out.
 
 ## Open the accounts page
 

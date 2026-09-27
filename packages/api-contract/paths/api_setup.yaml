@@ -16,6 +16,7 @@ get:
             required:
               - initialized
               - openRegistration
+              - legalDocuments
             properties:
               initialized:
                 type: boolean
@@ -26,6 +27,13 @@ get:
                 description: >-
                   Whether a person can ask for an account without an
                   invitation (record 0114).
+              legalDocuments:
+                oneOf:
+                  - $ref: '../components/schemas/LegalDocuments.yaml'
+                  - type: 'null'
+                description: >-
+                  The terms and the privacy notice, or null when the
+                  installation names none (record 0120).
     '400':
       $ref: '../components/responses/BadRequest.yaml'
     '429':

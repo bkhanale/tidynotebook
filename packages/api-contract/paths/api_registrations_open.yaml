@@ -20,6 +20,8 @@ post:
       $ref: '../components/responses/BadRequest.yaml'
     '403':
       $ref: '../components/responses/Forbidden.yaml'
+    '409':
+      $ref: '../components/responses/Conflict.yaml'
     '413':
       $ref: '../components/responses/PayloadTooLarge.yaml'
     '415':
