@@ -4,7 +4,8 @@ Status: active
 
 The [project board](https://github.com/users/bkhanale/projects/2) holds the live
 work. Each row below is one issue, with a milestone, a priority label and an
-area label. Phase 1 is milestone 0.8.0 and phase 2 is milestone 0.9.0.
+area label. Both phases ship in milestone 0.8.0, as the owner decided on
+2026-09-27.
 [Design 015](../design/015-several-accounts-on-one-installation.md) and
 [design 016](../design/016-a-public-service.md) state the problem and the
 choices.
@@ -28,11 +29,10 @@ choices.
 
 ## Landing boundaries
 
-1. Phase 1 is items 1 to 7. It ships several accounts by invitation. A
-   self-hosted installation can release it alone, because the policy stays
-   `invitation`.
-2. Phase 2 is items 8 to 14. The `open` policy stays refused until items 8 to 13
-   land, because record 0114 checks their parts.
+1. Phase 1 is items 1 to 7. It ships several accounts by invitation. It
+   landed first, and it keeps the policy `invitation`.
+2. Phase 2 is items 8 to 14, in the same release. The `open` policy stays
+   refused until items 8 to 13 land, because record 0114 checks their parts.
 3. Items 1 to 4 share one branch and one landing, with one commit for each
    item. The contract, the rules, the storage and the handlers change
    together. `checkRegistration` in `apps/server/src/plugins/register.ts`
