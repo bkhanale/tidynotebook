@@ -99,6 +99,7 @@ services:
       NOTESAPP_ACCOUNT_LIMIT_BYTES: ${NOTESAPP_ACCOUNT_LIMIT_BYTES:-}
       NOTESAPP_INVITATION_LIFETIME_HOURS: ${NOTESAPP_INVITATION_LIFETIME_HOURS:-}
       NOTESAPP_PENDING_ACCOUNT_HOURS: ${NOTESAPP_PENDING_ACCOUNT_HOURS:-}
+      NOTESAPP_SIGNUP_DIFFICULTY: ${NOTESAPP_SIGNUP_DIFFICULTY:-}
       # Whether a new password is checked against the range service of Have I
       # Been Pwned. Set it to off for an installation with no outbound network.
       NOTESAPP_BREACH_CHECK: ${NOTESAPP_BREACH_CHECK:-on}

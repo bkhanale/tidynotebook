@@ -68,6 +68,8 @@ paths:
     $ref: './paths/api_registrations_open.yaml'
   /api/registrations/verification:
     $ref: './paths/api_registrations_verification.yaml'
+  /api/registrations/challenge:
+    $ref: './paths/api_registrations_challenge.yaml'
   /api/installation:
     $ref: './paths/api_installation.yaml'
   /api/invitations:
@@ -383,6 +385,8 @@ components:
       $ref: './components/responses/InvitationList.yaml'
     SignUpAccepted:
       $ref: './components/responses/SignUpAccepted.yaml'
+    SignUpChallenge:
+      $ref: './components/responses/SignUpChallenge.yaml'
     AddressVerified:
       $ref: './components/responses/AddressVerified.yaml'
     VerificationUnavailable:
@@ -632,6 +636,10 @@ components:
       $ref: './components/schemas/SignUpInput.yaml'
     SignUpAccepted:
       $ref: './components/schemas/SignUpAccepted.yaml'
+    SignUpChallenge:
+      $ref: './components/schemas/SignUpChallenge.yaml'
+    SignUpProof:
+      $ref: './components/schemas/SignUpProof.yaml'
     AddressVerificationInput:
       $ref: './components/schemas/AddressVerificationInput.yaml'
     AddressVerified:

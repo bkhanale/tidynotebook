@@ -180,13 +180,31 @@ export function createSetupHandlers(
       };
     },
 
+    getSignUpChallenge: async (): Promise<HandlerResult> => {
+      if (!(await openRegistration(identity)))
+        throw new DomainProblemError({
+          code: 'registration_closed',
+          fileIds: [],
+        });
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        body: open.challenges.issue(open.clock()),
+      };
+    },
+
     signUpAccount: async (request): Promise<HandlerResult> => {
       requireWriteOrigin(servedOrigins, request);
       const name = readProperty(request.body, 'name');
+      const proof = readProperty(request.body, 'proof');
       const taken = await signUpOpen(open, {
         email: text(request.body, 'email'),
         password: text(request.body, 'password'),
         name: typeof name === 'string' && name !== '' ? name : null,
+        proof: {
+          challenge: text(proof, 'challenge'),
+          solution: text(proof, 'solution'),
+        },
       });
       if (!taken.ok) throw new DomainProblemError(taken.error);
       return {

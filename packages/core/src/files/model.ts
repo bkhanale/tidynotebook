@@ -286,7 +286,8 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  * refuses a new password that the breach service lists (record 0116).
  * `registration_closed` refuses an open sign-up while the policy is not
  * open, and `verification_invalid` is the one refusal of a verification link
- * (record 0114).
+ * (record 0114). `proof_invalid` refuses a sign-up whose proof of work does
+ * not count (record 0115).
  */
 export type DomainErrorCode =
   | 'forbidden'
@@ -317,7 +318,8 @@ export type DomainErrorCode =
   | 'open_registration_unavailable'
   | 'password_breached'
   | 'registration_closed'
-  | 'verification_invalid';
+  | 'verification_invalid'
+  | 'proof_invalid';
 
 /**
  * A domain failure and the files it refers to.

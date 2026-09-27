@@ -507,7 +507,12 @@ function throttleGroup(id: OperationId): string | null {
   // A report counts per client address and per /64 prefix (record 0119).
   if (id === 'reportPublishedLink') return 'report';
   // A sign-up and its verification count the same way (record 0115).
-  if (id === 'signUpAccount' || id === 'verifyAddress') return 'signup';
+  if (
+    id === 'signUpAccount' ||
+    id === 'verifyAddress' ||
+    id === 'getSignUpChallenge'
+  )
+    return 'signup';
   return null;
 }
 

@@ -16,6 +16,10 @@
  * the answer does not show the branch. A leaked password is refused before the
  * address is read, so that refusal is the same for every address as well.
  *
+ * **One proof of work for each sign-up.** A sign-up carries the solution of
+ * one challenge of this server (record 0115). The proof is checked before the
+ * address is read, and a challenge counts once.
+ *
  * **One message budget for each address.** A message counts against a limit
  * of the target address, so a sign-up cannot flood the mailbox of another
  * person. Over the limit the sign-up still answers the same and sends nothing.
@@ -38,6 +42,7 @@ import type { NotesappAuth } from './better-auth.ts';
 import type { MailTransport } from './mail.ts';
 import type { RegistrationIdentity } from './registration.ts';
 import type { VerificationTokens } from './verification.ts';
+import type { ProofAttempt, SignUpChallenges } from './proof-of-work.ts';
 import { readProperty } from '../values.ts';
 
 /** What open registration needs from the composition. */
@@ -56,6 +61,10 @@ export type OpenRegistrationDependencies = {
   readonly breached: (password: string) => Promise<boolean>;
   /** Whether one more message may go to an address now. */
   readonly mayMail: (email: string) => Promise<boolean>;
+  /** The challenges of the proof of work (record 0115). */
+  readonly challenges: SignUpChallenges;
+  /** Marks one challenge used, and answers whether this was the first use. */
+  readonly useChallenge: (digest: string, expiresAt: Date) => Promise<boolean>;
   /** The byte limit that a new account starts with. */
   readonly limitBytes: bigint;
   readonly clock: () => Date;
@@ -66,6 +75,7 @@ export type SignUpInput = {
   readonly email: string;
   readonly password: string;
   readonly name: string | null;
+  readonly proof: ProofAttempt;
 };
 
 /** The address of the page that opens a verification link. */
@@ -130,6 +140,12 @@ export async function signUpOpen(
 ): Promise<Result<void>> {
   if ((await dependencies.identity.registrationPolicy()) !== 'open')
     return fail('registration_closed');
+  const refusal = await dependencies.challenges.check(
+    input.proof,
+    dependencies.clock(),
+    dependencies.useChallenge,
+  );
+  if (refusal !== null) return fail('proof_invalid');
   if (await dependencies.breached(input.password))
     return fail('password_breached');
   const email = normalizeEmail(input.email);

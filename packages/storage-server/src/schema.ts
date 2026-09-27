@@ -1155,6 +1155,26 @@ export const attemptCounters = pgTable(
 );
 
 /**
+ * The digest of each challenge of the proof of work that a sign-up used
+ * (record 0115). A row lives until the challenge expires, so one solution
+ * makes one account. The runtime role reaches it through two functions only.
+ */
+export const usedChallenges = pgTable(
+  'used_challenges',
+  {
+    digest: text('digest').primaryKey(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      'used_challenges_digest_check',
+      sql`${table.digest} ~ '^[0-9a-f]{64}$'`,
+    ),
+    index('used_challenges_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+/**
  * The map from a Better Auth user to an application account.
  *
  * The application identifies an account by a UUID that never changes, so the

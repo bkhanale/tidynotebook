@@ -10,7 +10,11 @@
  */
 import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router';
-import { signUpAccount, verifyAddress } from '@notesapp/api-client';
+import {
+  getSignUpChallenge,
+  signUpAccount,
+  verifyAddress,
+} from '@notesapp/api-client';
 import {
   Button,
   buttonClassName,
@@ -23,6 +27,7 @@ import { problemMessage } from '../../app.tsx';
 import { verificationTokenOf } from '../../lib/accounts.ts';
 import { problemCode } from '../../lib/problem-text.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
+import { solveChallenge } from '../../lib/proof-of-work.ts';
 import { useDocumentTitle } from '../../shell/document-title.ts';
 import { AuthFrame } from './accounts.tsx';
 
@@ -37,7 +42,7 @@ export function SignUpPage(): ReactNode {
   const [reveal, setReveal] = useState(false);
   const [fieldError, setFieldError] = useState('');
   const [error, setError] = useState('');
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'checking' | 'sending' | null>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
   useDocumentTitle('Create an account');
 
@@ -48,12 +53,29 @@ export function SignUpPage(): ReactNode {
       setFieldError(problem);
       return;
     }
-    setBusy(true);
+    setBusy('checking');
     setError('');
+    // The browser pays a short proof of work that this server issued, so a
+    // script cannot make accounts for free (record 0115).
+    const challenge = await getSignUpChallenge();
+    if (challenge.data === undefined) {
+      setBusy(null);
+      setError(problemMessage(challenge.error));
+      return;
+    }
+    const solution = await solveChallenge(
+      challenge.data.value,
+      challenge.data.difficulty,
+    );
+    setBusy('sending');
     const result = await signUpAccount({
-      body: { email: email.trim(), password },
+      body: {
+        email: email.trim(),
+        password,
+        proof: { challenge: challenge.data.challenge, solution },
+      },
     });
-    setBusy(false);
+    setBusy(null);
     if (result.data === undefined) {
       setError(problemMessage(result.error));
       return;
@@ -118,8 +140,12 @@ export function SignUpPage(): ReactNode {
         {error === '' ? null : (
           <Notice className="mb-4" tone="problem" message={error} />
         )}
-        <Button type="submit" disabled={busy} className="w-full">
-          {busy ? 'Sending the link' : 'Create account'}
+        <Button type="submit" disabled={busy !== null} className="w-full">
+          {busy === 'checking'
+            ? 'Checking this browser'
+            : busy === 'sending'
+              ? 'Sending the link'
+              : 'Create account'}
         </Button>
       </form>
       <Link

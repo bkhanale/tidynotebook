@@ -215,6 +215,13 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
      */
     removePendingIdentities(cutoff: Date): Promise<number>;
     /**
+     * Marks one challenge of the proof of work used, and answers whether this
+     * call was the first use (record 0115).
+     */
+    useChallenge(digest: string, expiresAt: Date): Promise<boolean>;
+    /** Removes the used challenges that expired before `cutoff`. */
+    pruneChallenges(cutoff: Date): Promise<number>;
+    /**
      * Appends one content free record to the audit trail of an account. The
      * operator recovery command uses it.
      */
@@ -921,6 +928,31 @@ export function openIdentityStore(
           workspaceId: row.workspace_id,
           role: asRole(row.role),
         }));
+      });
+    },
+
+    async useChallenge(digest: string, expiresAt: Date): Promise<boolean> {
+      if (!/^[0-9a-f]{64}$/.test(digest))
+        throw new OperationalError(
+          'unexpected',
+          'notesapp: a used challenge is stored as a digest.',
+        );
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ first: boolean }>(
+          'select notesapp_use_challenge($1, $2) as first',
+          [digest, expiresAt],
+        );
+        return rows.rows[0]?.first ?? false;
+      });
+    },
+
+    async pruneChallenges(cutoff: Date): Promise<number> {
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ removed: number }>(
+          'select notesapp_prune_challenges($1) as removed',
+          [cutoff],
+        );
+        return rows.rows[0]?.removed ?? 0;
       });
     },
 

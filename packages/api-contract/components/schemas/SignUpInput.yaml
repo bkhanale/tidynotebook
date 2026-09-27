@@ -4,6 +4,7 @@ additionalProperties: false
 required:
   - email
   - password
+  - proof
 properties:
   email:
     allOf:
@@ -18,3 +19,7 @@ properties:
     description: The display name of the new account.
     minLength: 1
     maxLength: 256
+  proof:
+    allOf:
+      - $ref: './SignUpProof.yaml'
+    description: The proof of work of this sign-up (record 0115).

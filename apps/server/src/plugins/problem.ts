@@ -59,7 +59,8 @@ export type ProblemCode =
   | 'open_registration_unavailable'
   | 'password_breached'
   | 'registration_closed'
-  | 'verification_invalid';
+  | 'verification_invalid'
+  | 'proof_invalid';
 
 /** Problem details body. Extra members are permitted by RFC 9457. */
 export type Problem = {
@@ -122,6 +123,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   password_breached: 'This password is in a list of leaked passwords.',
   registration_closed: 'This installation takes new accounts by invitation.',
   verification_invalid: 'This verification link is not valid.',
+  proof_invalid: 'The proof of work of this sign-up does not count.',
   rate_limited: 'Too many attempts were made in a short time.',
   route_not_found: 'No operation serves this method and path.',
   not_ready: 'The service cannot accept traffic yet.',
@@ -344,6 +346,8 @@ const domainStatus: Readonly<
   // The one refusal of a verification link. An expired, a replaced and an
   // unknown token all answer it, so the answer states nothing more.
   verification_invalid: { status: 403, code: 'verification_invalid' },
+  // One refusal for a forged, an expired, a reused and a weak proof.
+  proof_invalid: { status: 403, code: 'proof_invalid' },
 };
 
 /** The explanation of one domain failure. It names no path and no content. */
@@ -398,6 +402,7 @@ const domainTitles: Readonly<Record<DomainErrorCode, string>> = {
     'This installation takes new accounts by invitation. Ask an administrator for one.',
   verification_invalid:
     'This link is not valid any more. Sign up again to get a new link.',
+  proof_invalid: 'The check of this browser did not finish. Try again.',
 };
 
 /**

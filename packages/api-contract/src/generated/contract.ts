@@ -36,6 +36,7 @@ export type OperationId =
   | 'getRootHealth'
   | 'getRootReadiness'
   | 'getSetupStatus'
+  | 'getSignUpChallenge'
   | 'getSnapshotPage'
   | 'getSyncProtocol'
   | 'importWorkspace'
@@ -6320,6 +6321,117 @@ export const operations: readonly OperationEntry[] = [
     "noContent": []
   },
   {
+    "id": "getSignUpChallenge",
+    "method": "get",
+    "path": "/api/registrations/challenge",
+    "protocol": null,
+    "security": [],
+    "parameters": [],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {}
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "A challenge of the proof of work of a sign-up. The digest of the value, a colon and the solution must start with `difficulty` zero bits.",
+          "additionalProperties": false,
+          "required": [
+            "challenge",
+            "value",
+            "difficulty",
+            "expiresAt"
+          ],
+          "properties": {
+            "challenge": {
+              "type": "string",
+              "readOnly": true,
+              "description": "The signed challenge, which the sign-up sends back unchanged.",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "value": {
+              "type": "string",
+              "readOnly": true,
+              "description": "The random value whose digest a solution reduces.",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "difficulty": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "How many leading zero bits the digest of a solution needs.",
+              "minimum": 8,
+              "maximum": 28
+            },
+            "expiresAt": {
+              "type": "string",
+              "readOnly": true,
+              "description": "Instant after which the challenge counts for nothing.",
+              "format": "date-time",
+              "maxLength": 64
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 429,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
     "id": "getSnapshotPage",
     "method": "get",
     "path": "/api/workspaces/{workspaceId}/sync/snapshots/{token}",
@@ -10902,7 +11014,8 @@ export const operations: readonly OperationEntry[] = [
         "additionalProperties": false,
         "required": [
           "email",
-          "password"
+          "password",
+          "proof"
         ],
         "properties": {
           "email": {
@@ -10925,6 +11038,36 @@ export const operations: readonly OperationEntry[] = [
             "description": "The display name of the new account.",
             "minLength": 1,
             "maxLength": 256
+          },
+          "proof": {
+            "allOf": [
+              {
+                "type": "object",
+                "description": "The solution of one challenge of the proof of work.",
+                "additionalProperties": false,
+                "required": [
+                  "challenge",
+                  "solution"
+                ],
+                "properties": {
+                  "challenge": {
+                    "type": "string",
+                    "description": "The signed challenge, as the server answered it.",
+                    "minLength": 1,
+                    "maxLength": 512,
+                    "pattern": "^[A-Za-z0-9_.-]+$"
+                  },
+                  "solution": {
+                    "type": "string",
+                    "description": "The solution that the browser found.",
+                    "minLength": 1,
+                    "maxLength": 32,
+                    "pattern": "^[0-9a-z]+$"
+                  }
+                }
+              }
+            ],
+            "description": "The proof of work of this sign-up (record 0115)."
           }
         }
       },

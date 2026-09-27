@@ -375,6 +375,8 @@ const openOperations = [
   // its token, before any account exists (record 0114).
   'signUpAccount',
   'verifyAddress',
+  // The challenge of the proof of work of a sign-up (record 0115).
+  'getSignUpChallenge',
   // The served sync protocol versions are a fact of the build and hold no
   // account data. A client reads them before it knows its session (0086).
   'getSyncProtocol',

@@ -1634,6 +1634,28 @@ export type SignUpAccepted = {
 };
 
 /**
+ * A challenge of the proof of work of a sign-up. The digest of the value, a colon and the solution must start with `difficulty` zero bits.
+ */
+export type SignUpChallenge = {
+    /**
+     * The signed challenge, which the sign-up sends back unchanged.
+     */
+    readonly challenge: string;
+    /**
+     * The random value whose digest a solution reduces.
+     */
+    readonly value: string;
+    /**
+     * How many leading zero bits the digest of a solution needs.
+     */
+    readonly difficulty: number;
+    /**
+     * Instant after which the challenge counts for nothing.
+     */
+    readonly expiresAt: string;
+};
+
+/**
  * What a person gives to ask for an account under open registration.
  */
 export type SignUpInput = {
@@ -1649,6 +1671,24 @@ export type SignUpInput = {
      * The display name of the new account.
      */
     name?: string;
+    /**
+     * The proof of work of this sign-up (record 0115).
+     */
+    proof: SignUpProof;
+};
+
+/**
+ * The solution of one challenge of the proof of work.
+ */
+export type SignUpProof = {
+    /**
+     * The signed challenge, as the server answered it.
+     */
+    challenge: string;
+    /**
+     * The solution that the browser found.
+     */
+    solution: string;
 };
 
 /**
@@ -2330,6 +2370,10 @@ export type SignUpInputWritable = {
      * The display name of the new account.
      */
     name?: string;
+    /**
+     * The proof of work of this sign-up (record 0115).
+     */
+    proof: SignUpProof;
 };
 
 /**
@@ -3797,6 +3841,43 @@ export type RegisterAccountResponses = {
 };
 
 export type RegisterAccountResponse = RegisterAccountResponses[keyof RegisterAccountResponses];
+
+export type GetSignUpChallengeData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/registrations/challenge';
+};
+
+export type GetSignUpChallengeErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetSignUpChallengeError = GetSignUpChallengeErrors[keyof GetSignUpChallengeErrors];
+
+export type GetSignUpChallengeResponses = {
+    /**
+     * One challenge for the proof of work of a sign-up.
+     */
+    200: SignUpChallenge;
+};
+
+export type GetSignUpChallengeResponse = GetSignUpChallengeResponses[keyof GetSignUpChallengeResponses];
 
 export type ReadInvitationData = {
     /**

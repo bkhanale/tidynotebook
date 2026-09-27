@@ -257,13 +257,15 @@ again. The command also enables the account:
 pnpm account:promote --email person@example.com
 ```
 
-Three optional settings of `.env` apply to accounts.
+Four optional settings of `.env` apply to accounts.
 `NOTESAPP_ACCOUNT_LIMIT_BYTES` is the storage limit, in bytes, that a new
 account starts with. An administrator changes the limit of one account in the
 application. `NOTESAPP_INVITATION_LIFETIME_HOURS` is how long a new invitation
 works. `NOTESAPP_PENDING_ACCOUNT_HOURS` is how long a sign-up waits for the
 person to open the link in its message. After that the server removes the
-sign-up.
+sign-up. `NOTESAPP_SIGNUP_DIFFICULTY` sets how hard the check of the browser is
+at a sign-up, from 8 to 28. Each step doubles the time that the browser takes.
+The check runs in the browser and sends nothing to another service.
 
 A sign-in needs a proved address. The first account and an invited account
 prove their address when they are made, so an installation that upgrades keeps

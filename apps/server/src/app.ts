@@ -114,6 +114,7 @@ import {
 } from './served-origins.ts';
 import { publishedOriginDecision } from './plugins/published-origin.ts';
 import { createVerificationTokens } from './auth/verification.ts';
+import { createSignUpChallenges } from './auth/proof-of-work.ts';
 
 /** How many messages of a sign-up one address takes in an hour (record 0114). */
 const signUpMailsPerHour = 3;
@@ -664,6 +665,12 @@ async function composeApp(
           origin: config.origin,
           pendingHours: config.accounts.pendingHours,
           tokens: createVerificationTokens(config.authSecret),
+          challenges: createSignUpChallenges(
+            config.authSecret,
+            config.accounts.proofDifficulty,
+          ),
+          useChallenge: (digest, expiresAt) =>
+            identity.useChallenge(digest, expiresAt),
           breached: auth.breached,
           // Three messages to one address in an hour, whoever asked for them
           // (record 0114). The count is shared by every server process.
@@ -710,10 +717,13 @@ async function composeApp(
     {
       name: 'pending',
       // A sign-up that nobody verified in time leaves nothing (record 0114).
-      run: () =>
-        identity.removePendingIdentities(
+      // The used challenges of the proof of work go once they expire.
+      run: async () => {
+        await identity.removePendingIdentities(
           new Date(Date.now() - config.accounts.pendingHours * 3_600_000),
-        ),
+        );
+        await identity.pruneChallenges(new Date());
+      },
     },
     {
       name: 'attempts',

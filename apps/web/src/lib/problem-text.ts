@@ -25,6 +25,7 @@ const sentences: Readonly<Record<string, string>> = {
     'This installation takes new accounts by invitation. Ask an administrator for one.',
   verification_invalid:
     'This link is not valid any more. Sign up again to get a new link.',
+  proof_invalid: 'The check of this browser did not finish. Try again.',
   last_administrator:
     'The installation needs an administrator. Make another account an administrator first.',
   mutation_reused: 'That save was already sent. Nothing changed.',

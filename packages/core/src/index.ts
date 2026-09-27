@@ -377,3 +377,14 @@ export {
   readDailyNoteSettings,
   updateDailyNoteSettings,
 } from './daily-notes/settings.ts';
+export type { ProofFacts, ProofRefusal } from './identity/proof-of-work.ts';
+export {
+  defaultProofDifficulty,
+  leadingZeroBits,
+  maxProofDifficulty,
+  maxProofSolutionLength,
+  minProofDifficulty,
+  proofInput,
+  proofLifetimeMs,
+  proofRefusal,
+} from './identity/proof-of-work.ts';

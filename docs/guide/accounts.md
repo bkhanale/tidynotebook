@@ -18,7 +18,8 @@ cannot open a note of another account.
 
 An installation can let a person make an account without an invitation. The
 sign-in screen then offers **Create an account**. The person gives an address
-and a password, and a message with a link goes to the address. The account
+and a password. The browser then does a short check that takes a few seconds,
+and a message with a link goes to the address. The account
 exists after the person opens the link, and then the person signs in. A sign-up
 that nobody finishes goes away after a time that the server sets.
 

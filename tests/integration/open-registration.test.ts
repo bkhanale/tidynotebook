@@ -8,7 +8,7 @@
  * what a person gets: the status, the body, and whether a sign-in works.
  */
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -19,12 +19,17 @@ import {
   createOwner,
   getAccount,
   getSetupStatus,
+  getSignUpChallenge,
   signInWithPassword,
   signUpAccount,
   updateInstallation,
   verifyAddress,
 } from '@notesapp/api-client';
-import { defaultAccountLimitBytes } from '@notesapp/core';
+import {
+  defaultAccountLimitBytes,
+  leadingZeroBits,
+  proofInput,
+} from '@notesapp/core';
 import {
   createApp,
   createAuth,
@@ -91,6 +96,8 @@ function environment(
     NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
     NOTESAPP_RATE_LIMIT_MAX: '10000',
     NOTESAPP_BREACH_CHECK: 'off',
+    // The least difficulty, so each sign-up of this test costs little.
+    NOTESAPP_SIGNUP_DIFFICULTY: '8',
   };
 }
 
@@ -164,14 +171,48 @@ async function signsIn(email: string, password: string): Promise<boolean> {
   return responseOf(signed.response).status === 200;
 }
 
-function signUp(email: string, password: string) {
-  return signUpAccount({ headers: origin, body: { email, password } });
+/** Solves one challenge the way a browser does. */
+function solve(value: string, difficulty: number): string {
+  for (let counter = 0; ; counter += 1) {
+    const solution = counter.toString(36);
+    const digest = createHash('sha256')
+      .update(proofInput(value, solution))
+      .digest();
+    if (leadingZeroBits(digest) >= difficulty) return solution;
+  }
+}
+
+/** A proof of work for one sign-up (record 0115). */
+async function proof(): Promise<{ challenge: string; solution: string }> {
+  const issued = await getSignUpChallenge({ headers: origin });
+  assert.ok(issued.data !== undefined, JSON.stringify(issued.error));
+  return {
+    challenge: issued.data.challenge,
+    solution: solve(issued.data.value, issued.data.difficulty),
+  };
+}
+
+async function signUp(email: string, password: string) {
+  return signUpAccount({
+    headers: origin,
+    body: { email, password, proof: await proof() },
+  });
 }
 
 await test('a sign-up is refused while the policy is not open', async () => {
   const status = await getSetupStatus();
   assert.equal(status.data?.openRegistration, false);
-  const refused = await signUp('early@notes.invalid', 'early-password-12345');
+  const closed = await getSignUpChallenge({ headers: origin });
+  assert.equal(responseOf(closed.response).status, 403);
+  assert.equal(problemCode(closed.error), 'registration_closed');
+  const refused = await signUpAccount({
+    headers: origin,
+    body: {
+      email: 'early@notes.invalid',
+      password: 'early-password-12345',
+      proof: { challenge: 'v1.a.8.1.b', solution: '0' },
+    },
+  });
   assert.equal(responseOf(refused.response).status, 403);
   assert.equal(problemCode(refused.error), 'registration_closed');
   assert.equal(mailsTo('early@notes.invalid').length, 0);
@@ -258,6 +299,38 @@ await test('a second sign-up for a pending address replaces it and its password'
   assert.equal(responseOf(verified.response).status, 200);
   assert.equal(await signsIn(email, 'stranger-password-1234'), false);
   assert.equal(await signsIn(email, 'owner-of-address-12345'), true);
+});
+
+await test('a used challenge makes no second account, and a forged one none', async () => {
+  const used = await proof();
+  const first = `first-${randomUUID()}@notes.invalid`;
+  const second = `second-${randomUUID()}@notes.invalid`;
+  const once = await signUpAccount({
+    headers: origin,
+    body: { email: first, password: 'first-password-123456', proof: used },
+  });
+  assert.equal(responseOf(once.response).status, 202);
+  const twice = await signUpAccount({
+    headers: origin,
+    body: { email: second, password: 'second-password-12345', proof: used },
+  });
+  assert.equal(responseOf(twice.response).status, 403);
+  assert.equal(problemCode(twice.error), 'proof_invalid');
+  assert.equal(mailsTo(second).length, 0);
+  const issued = await getSignUpChallenge({ headers: origin });
+  const value = issued.data?.value ?? '';
+  // The same solution under a challenge that this server did not sign.
+  const forged = (issued.data?.challenge ?? '').replace(/\.[^.]+$/, '.AAAA');
+  const refused = await signUpAccount({
+    headers: origin,
+    body: {
+      email: second,
+      password: 'second-password-12345',
+      proof: { challenge: forged, solution: solve(value, 8) },
+    },
+  });
+  assert.equal(problemCode(refused.error), 'proof_invalid');
+  assert.equal(mailsTo(second).length, 0);
 });
 
 await test('a forged or unknown link opens nothing', async () => {

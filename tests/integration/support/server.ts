@@ -101,6 +101,17 @@ export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
         mediaType: 'application/json',
         body: { accepted: true },
       }),
+    getSignUpChallenge: () =>
+      Promise.resolve({
+        status: 200,
+        mediaType: 'application/json',
+        body: {
+          challenge: 'v1.a.8.1.b',
+          value: 'a',
+          difficulty: 8,
+          expiresAt: '2026-01-01T00:00:00.000Z',
+        },
+      }),
     verifyAddress: () =>
       Promise.resolve({
         status: 200,
