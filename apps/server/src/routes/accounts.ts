@@ -9,8 +9,11 @@
 import type { FastifyRequest } from 'fastify';
 import type { Preferences, Result, WorkspaceAdminStore } from '@notesapp/core';
 import {
+  listSessions,
   readOwnStanding,
   readPreferences,
+  revokeOtherSessions,
+  revokeSession,
   updatePreferences,
 } from '@notesapp/core';
 import { requireActor } from '../auth/actor.ts';
@@ -112,6 +115,49 @@ export function createAccountHandlers(store: WorkspaceAdminStore): HandlerMap {
           preferences: preferencesBody(preferences),
         },
       };
+    },
+
+    listSessions: async (request): Promise<HandlerResult> => {
+      const resolved = requireActor(request);
+      const sessions = unwrap(
+        await listSessions(store, resolved.actor, resolved.sessionId),
+      );
+      return {
+        status: 200,
+        mediaType: jsonMediaType,
+        body: {
+          // Each member is named, so no member of the store, and never a
+          // token, reaches the answer (record 0122).
+          sessions: sessions.map((session) => ({
+            sessionId: session.sessionId,
+            current: session.current,
+            userAgent: session.userAgent,
+            createdAt: session.createdAt,
+            lastActiveAt: session.lastActiveAt,
+            expiresAt: session.expiresAt,
+          })),
+        },
+      };
+    },
+
+    revokeSession: async (request): Promise<HandlerResult> => {
+      const resolved = requireActor(request);
+      unwrap(
+        await revokeSession(
+          store,
+          resolved.actor,
+          readParameter(request, 'sessionId'),
+        ),
+      );
+      return { status: 200, mediaType: jsonMediaType, body: { removed: true } };
+    },
+
+    revokeOtherSessions: async (request): Promise<HandlerResult> => {
+      const resolved = requireActor(request);
+      const revoked = unwrap(
+        await revokeOtherSessions(store, resolved.actor, resolved.sessionId),
+      );
+      return { status: 200, mediaType: jsonMediaType, body: { revoked } };
     },
 
     updatePreferences: async (request): Promise<HandlerResult> => {

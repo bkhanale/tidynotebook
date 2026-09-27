@@ -54,6 +54,15 @@ export type AccountOwnStanding = {
   readonly limitBytes: bigint;
 };
 
+/** One session of an account, as the account sees it. It holds no token. */
+export type SessionRecord = {
+  readonly sessionId: string;
+  readonly userAgent: string | null;
+  readonly createdAt: string;
+  readonly lastActiveAt: string;
+  readonly expiresAt: string;
+};
+
 /** One workspace as its member sees it. */
 export type WorkspaceSummary = {
   readonly workspaceId: string;
@@ -83,6 +92,12 @@ export type AccountTransaction = {
    * owns use, and its limit (records 0109, 0112).
    */
   standing(): Promise<AccountOwnStanding>;
+  /** Every session of the account that has not expired (record 0122). */
+  sessions(): Promise<readonly SessionRecord[]>;
+  /** Ends one session of the account. Answers `false` for no such session. */
+  revokeSession(sessionId: string): Promise<boolean>;
+  /** Ends every session of the account but one, and answers how many. */
+  revokeOtherSessions(keepSessionId: string): Promise<number>;
   /** Replaces the stored settings of the account with a checked value. */
   savePreferences(preferences: Preferences): Promise<void>;
   /**

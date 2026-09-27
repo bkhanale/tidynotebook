@@ -36,6 +36,7 @@ import type {
   RegistrationPolicy,
   RegistrationStore,
   Role,
+  SessionRecord,
   WorkspaceAdminStore,
   WorkspaceAdminTransaction,
   WorkspaceSummary,
@@ -416,6 +417,39 @@ export function openIdentityStore(
           usedBytes: BigInt(row.used_bytes),
           limitBytes: BigInt(row.limit_bytes),
         };
+      },
+
+      async sessions(): Promise<readonly SessionRecord[]> {
+        const rows = await client.query<{
+          session_id: string;
+          user_agent: string | null;
+          created_at: Date;
+          last_active_at: Date;
+          expires_at: Date;
+        }>('select * from notesapp_account_sessions()');
+        return rows.rows.map((row) => ({
+          sessionId: row.session_id,
+          userAgent: row.user_agent,
+          createdAt: isoOf(row.created_at),
+          lastActiveAt: isoOf(row.last_active_at),
+          expiresAt: isoOf(row.expires_at),
+        }));
+      },
+
+      async revokeSession(sessionId: string): Promise<boolean> {
+        const rows = await client.query<{ revoked: boolean }>(
+          'select notesapp_revoke_session($1) as revoked',
+          [sessionId],
+        );
+        return rows.rows[0]?.revoked ?? false;
+      },
+
+      async revokeOtherSessions(keepSessionId: string): Promise<number> {
+        const rows = await client.query<{ ended: number }>(
+          'select notesapp_revoke_other_sessions($1) as ended',
+          [keepSessionId],
+        );
+        return rows.rows[0]?.ended ?? 0;
       },
 
       async savePreferences(preferences: Preferences): Promise<void> {

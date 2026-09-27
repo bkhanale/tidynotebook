@@ -99,6 +99,13 @@
       "when": 1790472975559,
       "tag": "0013_shared_limits",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790489285293,
+      "tag": "0014_own_sessions",
+      "breakpoints": true
     }
   ]
 }

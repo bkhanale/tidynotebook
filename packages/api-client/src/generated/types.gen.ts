@@ -139,6 +139,46 @@ export type AccountRemovalInput = {
 };
 
 /**
+ * One session of the signed in account, on one device. It holds no token, so a read of the list opens no session.
+ */
+export type AccountSession = {
+    /**
+     * Identifier of the session. It is not the token.
+     */
+    readonly sessionId: string;
+    /**
+     * True for the session of the device that reads the list.
+     */
+    readonly current: boolean;
+    /**
+     * What the browser of the session said it is, or null when it said nothing.
+     */
+    readonly userAgent: string | null;
+    /**
+     * Instant at which the session started.
+     */
+    readonly createdAt: string;
+    /**
+     * Instant at which the session was last used.
+     */
+    readonly lastActiveAt: string;
+    /**
+     * Instant at which the session ends if nobody uses it.
+     */
+    readonly expiresAt: string;
+};
+
+/**
+ * Every session of the signed in account.
+ */
+export type AccountSessionList = {
+    /**
+     * The sessions, the current one first, then newest first.
+     */
+    readonly sessions: Array<AccountSession>;
+};
+
+/**
  * Whether an account can sign in. A disabled account keeps its notes and gets no session.
  */
 export type AccountState = 'enabled' | 'disabled';
@@ -1497,6 +1537,16 @@ export type SearchResults = {
 };
 
 /**
+ * How many sessions ended.
+ */
+export type SessionsRevoked = {
+    /**
+     * The number of sessions that ended.
+     */
+    readonly revoked: number;
+};
+
+/**
  * One pinned file of a snapshot. The revision identifier is immutable, so a later commit cannot change what a page shows.
  */
 export type SnapshotItem = {
@@ -2338,6 +2388,11 @@ export type AccountId = Uuid;
 export type InvitationId = Uuid;
 
 /**
+ * Identifier of the session that the operation ends.
+ */
+export type SessionId = string;
+
+/**
  * The note of a folder link that the page shows. Leave it out to read the list of every note that the link opens. A link over one note opens that note, so it needs no value here.
  */
 export type PublishedNote = PublishedNoteReference;
@@ -2620,6 +2675,144 @@ export type RemoveOwnAccountResponses = {
 };
 
 export type RemoveOwnAccountResponse = RemoveOwnAccountResponses[keyof RemoveOwnAccountResponses];
+
+export type ListSessionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/sessions';
+};
+
+export type ListSessionsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListSessionsError = ListSessionsErrors[keyof ListSessionsErrors];
+
+export type ListSessionsResponses = {
+    /**
+     * Every session of the signed in account.
+     */
+    200: AccountSessionList;
+};
+
+export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
+
+export type RevokeOtherSessionsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/account/sessions/others';
+};
+
+export type RevokeOtherSessionsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeOtherSessionsError = RevokeOtherSessionsErrors[keyof RevokeOtherSessionsErrors];
+
+export type RevokeOtherSessionsResponses = {
+    /**
+     * How many sessions ended.
+     */
+    200: SessionsRevoked;
+};
+
+export type RevokeOtherSessionsResponse = RevokeOtherSessionsResponses[keyof RevokeOtherSessionsResponses];
+
+export type RevokeSessionData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the session that the operation ends.
+         */
+        sessionId: string;
+    };
+    query?: never;
+    url: '/api/account/sessions/{sessionId}';
+};
+
+export type RevokeSessionErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type RevokeSessionError = RevokeSessionErrors[keyof RevokeSessionErrors];
+
+export type RevokeSessionResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type RevokeSessionResponse = RevokeSessionResponses[keyof RevokeSessionResponses];
 
 export type ListAccountsData = {
     body?: never;

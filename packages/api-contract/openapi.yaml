@@ -78,6 +78,12 @@ paths:
     $ref: './paths/api_sync_protocol.yaml'
   /api/account:
     $ref: './paths/api_account.yaml'
+  /api/account/sessions:
+    $ref: './paths/api_account_sessions.yaml'
+  /api/account/sessions/others:
+    $ref: './paths/api_account_sessions_others.yaml'
+  /api/account/sessions/{sessionId}:
+    $ref: './paths/api_account_sessions_sessionId.yaml'
   /api/account/removal:
     $ref: './paths/api_account_removal.yaml'
   /api/account/preferences:
@@ -201,6 +207,8 @@ components:
       $ref: './components/parameters/AccountId.yaml'
     InvitationId:
       $ref: './components/parameters/InvitationId.yaml'
+    SessionId:
+      $ref: './components/parameters/SessionId.yaml'
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
@@ -375,6 +383,10 @@ components:
       $ref: './components/responses/OpenRegistrationUnavailable.yaml'
     InvitationRefused:
       $ref: './components/responses/InvitationRefused.yaml'
+    AccountSessionList:
+      $ref: './components/responses/AccountSessionList.yaml'
+    SessionsRevoked:
+      $ref: './components/responses/SessionsRevoked.yaml'
   schemas:
     HealthReport:
       $ref: './components/schemas/HealthReport.yaml'
@@ -612,3 +624,9 @@ components:
       $ref: './components/schemas/InstallationUpdateInput.yaml'
     AccountRemovalInput:
       $ref: './components/schemas/AccountRemovalInput.yaml'
+    AccountSession:
+      $ref: './components/schemas/AccountSession.yaml'
+    AccountSessionList:
+      $ref: './components/schemas/AccountSessionList.yaml'
+    SessionsRevoked:
+      $ref: './components/schemas/SessionsRevoked.yaml'

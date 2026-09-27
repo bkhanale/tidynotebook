@@ -53,6 +53,11 @@ enabled administrator.
 
 ## Your own account
 
+**Settings** shows each device that is signed in to your account, under
+**Sessions**. The device that you use now is first. Select **Sign out** on a
+row to sign out a device that you lost. Select **Sign out every other device**
+if another person can know your password, then change your password.
+
 You remove your own account in **Settings**, under **Remove account**, with your
 password. If you are the last administrator, first make another account an
 administrator.

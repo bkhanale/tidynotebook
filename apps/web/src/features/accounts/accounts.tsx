@@ -26,9 +26,13 @@ import {
 } from 'react';
 import { Link, Navigate, useNavigate, useParams } from 'react-router';
 import {
+  type AccountSession,
   createOwner,
   getSetupStatus,
+  listSessions,
   removeOwnAccount,
+  revokeOtherSessions,
+  revokeSession,
   signInWithPassword,
   updatePreferences,
 } from '@notesapp/api-client';
@@ -44,6 +48,7 @@ import {
   Card,
   Checkbox,
   CheckIcon,
+  ListRow,
   ComputerIcon,
   DownloadIcon,
   LoadingState,
@@ -72,6 +77,11 @@ import {
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
 import { storageLine } from '../../lib/accounts.ts';
+import {
+  deviceName,
+  otherSessionsEndedText,
+  sessionFacts,
+} from '../../lib/sessions.ts';
 import { passwordProblem, passwordRule } from '../../lib/password-policy.ts';
 import {
   signOut as endSession,
@@ -80,6 +90,7 @@ import {
 import { downloadAll, importAll } from '../export/export.ts';
 import { DailyNoteSettingsFields } from '../daily-notes/daily-note-settings.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
+import { useNow } from '../../shell/now.ts';
 
 /** The title of the settings page, which is also its breadcrumb part. */
 export const settingsTitle = 'Settings';
@@ -706,6 +717,158 @@ function useOfflineChoices(
   return { choices, status, setChoice };
 }
 
+/** How far the list of sessions got. */
+type SessionsState =
+  | { readonly kind: 'loading' }
+  | { readonly kind: 'failed'; readonly message: string }
+  | { readonly kind: 'ready'; readonly sessions: readonly AccountSession[] };
+
+/**
+ * The devices that are signed in to this account (record 0122).
+ *
+ * The current device is first and has no action here, because the Sign out
+ * section ends it. Each other device has its own Sign out, for a lost phone,
+ * and one action ends every other device, for a password that somebody else
+ * may know. Only the identifier of a session leaves the server, never its
+ * token.
+ */
+function SessionsSettings(): ReactNode {
+  const now = useNow();
+  const [state, setState] = useState<SessionsState>({ kind: 'loading' });
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{
+    readonly tone: 'info' | 'problem';
+    readonly message: string;
+  } | null>(null);
+  const [generation, setGeneration] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    void listSessions().then((result) => {
+      if (cancelled) return;
+      if (result.error !== undefined || result.data === undefined) {
+        setState({ kind: 'failed', message: problemMessage(result.error) });
+        return;
+      }
+      setState({ kind: 'ready', sessions: result.data.sessions });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [generation]);
+
+  /** Runs one change, states its result, and reads the list again. */
+  function change(
+    run: () => Promise<{ readonly error?: unknown; readonly done: string }>,
+  ): void {
+    setBusy(true);
+    setNotice(null);
+    void run()
+      .then((result) => {
+        setNotice(
+          result.error === undefined
+            ? { tone: 'info', message: result.done }
+            : { tone: 'problem', message: problemMessage(result.error) },
+        );
+      })
+      .finally(() => {
+        setBusy(false);
+        setGeneration((value) => value + 1);
+      });
+  }
+
+  const others =
+    state.kind === 'ready'
+      ? state.sessions.filter((session) => !session.current).length
+      : 0;
+
+  return (
+    <SettingsSection
+      title="Sessions"
+      titleId="sessions-heading"
+      description="These devices are signed in to your account. Sign out a device that you do not use or do not know."
+    >
+      {notice === null ? null : (
+        <Notice className="mb-3" tone={notice.tone} message={notice.message} />
+      )}
+      {state.kind === 'failed' ? (
+        <Notice tone="problem" message={state.message} />
+      ) : state.kind === 'loading' ? (
+        <LoadingState
+          shape="list"
+          rows={2}
+          label="The signed in devices are loading."
+        />
+      ) : (
+        <>
+          <ul className="m-0 list-none p-0">
+            {state.sessions.map((session) => {
+              const name = deviceName(session.userAgent);
+              return (
+                <ListRow key={session.sessionId} className="flex-wrap">
+                  <span
+                    className="inline-flex shrink-0 items-center text-muted"
+                    aria-hidden="true"
+                  >
+                    <ComputerIcon />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="m-0 truncate text-ui text-strong">{name}</p>
+                    <p className="m-0 flex flex-wrap gap-cluster text-control text-muted">
+                      {sessionFacts(session, now).map((fact) => (
+                        <span key={fact}>{fact}</span>
+                      ))}
+                    </p>
+                  </div>
+                  {session.current ? null : (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled={busy}
+                      label={`Sign out ${name}`}
+                      onClick={() => {
+                        change(async () => ({
+                          error: (
+                            await revokeSession({
+                              path: { sessionId: session.sessionId },
+                            })
+                          ).error,
+                          done: `${name} is signed out.`,
+                        }));
+                      }}
+                    >
+                      Sign out
+                    </Button>
+                  )}
+                </ListRow>
+              );
+            })}
+          </ul>
+          {others === 0 ? null : (
+            <Button
+              className="mt-3"
+              variant="secondary"
+              icon={<SignOutIcon />}
+              disabled={busy}
+              onClick={() => {
+                change(async () => {
+                  const ended = await revokeOtherSessions();
+                  return {
+                    error: ended.error,
+                    done: otherSessionsEndedText(ended.data?.revoked ?? 0),
+                  };
+                });
+              }}
+            >
+              Sign out every other device
+            </Button>
+          )}
+        </>
+      )}
+    </SettingsSection>
+  );
+}
+
 /** Account page: profile, theme, offline availability, and sign-out. */
 export function AccountSettingsPage(): ReactNode {
   const session = useSession();
@@ -943,6 +1106,8 @@ export function AccountSettingsPage(): ReactNode {
             </Link>
           ) : null}
         </SettingsSection>
+
+        <SessionsSettings />
 
         <SettingsSection
           title="Sign out"

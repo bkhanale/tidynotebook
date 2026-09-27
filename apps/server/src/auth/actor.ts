@@ -26,6 +26,8 @@ export type ResolvedActor = {
   readonly actor: Actor;
   /** The identity user of the session, which a password check names. */
   readonly authUserId: string;
+  /** The identifier of the session, which is not its token (record 0122). */
+  readonly sessionId: string;
   /** Sign-in address of the account. */
   readonly email: string | null;
   /** Display name of the account. */
@@ -109,7 +111,7 @@ export async function accountForSession(
  */
 function readSessionUser(
   value: unknown,
-): { id: string; email: string; name: string } | null {
+): { id: string; email: string; name: string; sessionId: string } | null {
   if (value === null || typeof value !== 'object') return null;
   const record: Record<string, unknown> = Object.fromEntries(
     Object.entries(value),
@@ -121,8 +123,16 @@ function readSessionUser(
   );
   const id = fields.id;
   if (typeof id !== 'string' || id === '') return null;
+  const session = record.session;
+  const sessionFields: Record<string, unknown> =
+    session === null || typeof session !== 'object'
+      ? {}
+      : Object.fromEntries(Object.entries(session));
+  const sessionId = sessionFields.id;
+  if (typeof sessionId !== 'string' || sessionId === '') return null;
   return {
     id,
+    sessionId,
     email: typeof fields.email === 'string' ? fields.email : '',
     name: typeof fields.name === 'string' ? fields.name : '',
   };
@@ -211,6 +221,7 @@ export function createIdentityAdapter(
     return {
       actor: verified.value,
       authUserId: user.id,
+      sessionId: user.sessionId,
       email: user.email === '' ? null : user.email,
       name: user.name === '' ? null : user.name,
     };

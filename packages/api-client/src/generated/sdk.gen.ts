@@ -2,7 +2,7 @@
 
 import { client } from './client.gen.js';
 import { type Client, type ClientMeta, formDataBodySerializer, type Options as Options2, type RequestResult, type TDataShape, urlSearchParamsBodySerializer } from './client/index.js';
-import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
+import type { CommitChangesetData, CommitChangesetErrors, CommitChangesetResponses, CreateFileData, CreateFileErrors, CreateFileResponses, CreateInvitationData, CreateInvitationErrors, CreateInvitationResponses, CreateOwnerData, CreateOwnerErrors, CreateOwnerResponses, CreatePublishedLinkData, CreatePublishedLinkErrors, CreatePublishedLinkResponses, CreateWorkspaceData, CreateWorkspaceErrors, CreateWorkspaceResponses, DeleteFileData, DeleteFileErrors, DeleteFileResponses, DeleteWorkspaceData, DeleteWorkspaceErrors, DeleteWorkspaceResponses, ExportNoteData, ExportNoteErrors, ExportNoteResponses, ExportWorkspaceData, ExportWorkspaceErrors, ExportWorkspaceResponses, FinalizeAttachmentData, FinalizeAttachmentErrors, FinalizeAttachmentResponses, GetAccountData, GetAccountErrors, GetAccountResponses, GetAttachmentRevisionData, GetAttachmentRevisionErrors, GetAttachmentRevisionResponses, GetAuthSessionData, GetAuthSessionErrors, GetAuthSessionResponses, GetChangesData, GetChangesErrors, GetChangesResponses, GetDailyNoteSettingsData, GetDailyNoteSettingsErrors, GetDailyNoteSettingsResponses, GetFileData, GetFileErrors, GetFileResponses, GetHealthData, GetHealthErrors, GetHealthResponses, GetInstallationData, GetInstallationErrors, GetInstallationResponses, GetMutationReceiptData, GetMutationReceiptErrors, GetMutationReceiptResponses, GetPublishedAttachmentData, GetPublishedAttachmentErrors, GetPublishedAttachmentResponses, GetPublishedPageData, GetPublishedPageErrors, GetPublishedPageResponses, GetReadinessData, GetReadinessErrors, GetReadinessResponses, GetRevisionData, GetRevisionErrors, GetRevisionResponses, GetRootHealthData, GetRootHealthErrors, GetRootHealthResponses, GetRootReadinessData, GetRootReadinessErrors, GetRootReadinessResponses, GetSetupStatusData, GetSetupStatusErrors, GetSetupStatusResponses, GetSnapshotPageData, GetSnapshotPageErrors, GetSnapshotPageResponses, GetSyncProtocolData, GetSyncProtocolErrors, GetSyncProtocolResponses, ImportWorkspaceData, ImportWorkspaceErrors, ImportWorkspaceResponses, ListAccountsData, ListAccountsErrors, ListAccountsResponses, ListBacklinksData, ListBacklinksErrors, ListBacklinksResponses, ListDeletedFilesData, ListDeletedFilesErrors, ListDeletedFilesResponses, ListFilesData, ListFilesErrors, ListFilesResponses, ListHistoryData, ListHistoryErrors, ListHistoryResponses, ListInvitationsData, ListInvitationsErrors, ListInvitationsResponses, ListPublishedLinksData, ListPublishedLinksErrors, ListPublishedLinksResponses, ListSessionsData, ListSessionsErrors, ListSessionsResponses, ListWorkspacesData, ListWorkspacesErrors, ListWorkspacesResponses, OpenPublishedPageData, OpenPublishedPageErrors, OpenPublishedPageResponses, PreviewPurgeData, PreviewPurgeErrors, PreviewPurgeResponses, PurgeFilesData, PurgeFilesErrors, PurgeFilesResponses, ReadInvitationData, ReadInvitationErrors, ReadInvitationResponses, RegisterAccountData, RegisterAccountErrors, RegisterAccountResponses, RemoveAccountData, RemoveAccountErrors, RemoveAccountResponses, RemoveOwnAccountData, RemoveOwnAccountErrors, RemoveOwnAccountResponses, RequestPasswordResetData, RequestPasswordResetErrors, RequestPasswordResetResponses, ResetPasswordData, ResetPasswordErrors, ResetPasswordResponses, RestoreFileData, RestoreFileErrors, RestoreFileResponses, RestoreRevisionData, RestoreRevisionErrors, RestoreRevisionResponses, RevokeInvitationData, RevokeInvitationErrors, RevokeInvitationResponses, RevokeOtherSessionsData, RevokeOtherSessionsErrors, RevokeOtherSessionsResponses, RevokePublishedLinkData, RevokePublishedLinkErrors, RevokePublishedLinkResponses, RevokeSessionData, RevokeSessionErrors, RevokeSessionResponses, SearchFilesData, SearchFilesErrors, SearchFilesResponses, SignInWithPasswordData, SignInWithPasswordErrors, SignInWithPasswordResponses, SignOutData, SignOutErrors, SignOutResponses, StartSnapshotData, StartSnapshotErrors, StartSnapshotResponses, UnlockPublishedLinkData, UnlockPublishedLinkErrors, UnlockPublishedLinkResponses, UpdateAccountData, UpdateAccountErrors, UpdateAccountResponses, UpdateDailyNoteSettingsData, UpdateDailyNoteSettingsErrors, UpdateDailyNoteSettingsResponses, UpdateFileData, UpdateFileErrors, UpdateFileResponses, UpdateInstallationData, UpdateInstallationErrors, UpdateInstallationResponses, UpdatePreferencesData, UpdatePreferencesErrors, UpdatePreferencesResponses, UpdateWorkspaceData, UpdateWorkspaceErrors, UpdateWorkspaceResponses, UploadAttachmentData, UploadAttachmentErrors, UploadAttachmentResponses } from './types.gen.js';
 
 export type Options<TData extends TDataShape = TDataShape, ThrowOnError extends boolean = boolean, TResponse = unknown> = Options2<TData, ThrowOnError, TResponse> & {
     /**
@@ -69,6 +69,51 @@ export const removeOwnAccount = <ThrowOnError extends boolean = false>(options: 
         'Content-Type': 'application/json',
         ...options.headers
     }
+});
+
+/**
+ * List the sessions of the signed in account.
+ *
+ * Lists every session of the account with the device that the browser named and the last activity. No answer holds a token.
+ */
+export const listSessions = <ThrowOnError extends boolean = false>(options?: Options<ListSessionsData, ThrowOnError>): RequestResult<ListSessionsResponses, ListSessionsErrors, ThrowOnError> => (options?.client ?? client).get<ListSessionsResponses, ListSessionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/account/sessions',
+    ...options
+});
+
+/**
+ * End every session of the account but the current one.
+ *
+ * Signs the account out on every other device. The session that makes the request stays.
+ */
+export const revokeOtherSessions = <ThrowOnError extends boolean = false>(options?: Options<RevokeOtherSessionsData, ThrowOnError>): RequestResult<RevokeOtherSessionsResponses, RevokeOtherSessionsErrors, ThrowOnError> => (options?.client ?? client).delete<RevokeOtherSessionsResponses, RevokeOtherSessionsErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/account/sessions/others',
+    ...options
+});
+
+/**
+ * End one session of the signed in account.
+ *
+ * Ends one session of the account, for example on a lost device. A session of another account answers not found.
+ */
+export const revokeSession = <ThrowOnError extends boolean = false>(options: Options<RevokeSessionData, ThrowOnError>): RequestResult<RevokeSessionResponses, RevokeSessionErrors, ThrowOnError> => (options.client ?? client).delete<RevokeSessionResponses, RevokeSessionErrors, ThrowOnError>({
+    security: [{
+            in: 'cookie',
+            name: 'notesapp_session',
+            type: 'apiKey'
+        }],
+    url: '/api/account/sessions/{sessionId}',
+    ...options
 });
 
 /**

@@ -243,6 +243,7 @@ const pathValues: Readonly<Record<string, string>> = {
   objectId: randomUUID(),
   accountId: randomUUID(),
   invitationId: randomUUID(),
+  sessionId: randomUUID(),
   token,
 };
 

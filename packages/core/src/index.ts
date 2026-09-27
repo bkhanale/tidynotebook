@@ -23,6 +23,12 @@ export type {
 export { actionsForRole, authorize, verifyActor } from './identity/actor.ts';
 export { generateUUID } from './identity/uuid.ts';
 export type { PasswordProblem } from './identity/password.ts';
+export type { SessionView } from './identity/sessions.ts';
+export {
+  listSessions,
+  revokeOtherSessions,
+  revokeSession,
+} from './identity/sessions.ts';
 export { passwordBounds, passwordProblem } from './identity/password.ts';
 export type {
   AccountStanding,
@@ -197,6 +203,7 @@ export {
   readRevision,
 } from './files/read.ts';
 export type {
+  SessionRecord,
   AccountOwnStanding,
   AccountTransaction,
   AppearanceChoice,

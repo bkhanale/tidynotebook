@@ -44,6 +44,7 @@ export type OperationId =
   | 'listHistory'
   | 'listInvitations'
   | 'listPublishedLinks'
+  | 'listSessions'
   | 'listWorkspaces'
   | 'openPublishedPage'
   | 'previewPurge'
@@ -57,7 +58,9 @@ export type OperationId =
   | 'restoreFile'
   | 'restoreRevision'
   | 'revokeInvitation'
+  | 'revokeOtherSessions'
   | 'revokePublishedLink'
+  | 'revokeSession'
   | 'searchFiles'
   | 'signInWithPassword'
   | 'signOut'
@@ -7634,6 +7637,159 @@ export const operations: readonly OperationEntry[] = [
     "noContent": []
   },
   {
+    "id": "listSessions",
+    "method": "get",
+    "path": "/api/account/sessions",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared2"
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "Every session of the signed in account.",
+          "additionalProperties": false,
+          "required": [
+            "sessions"
+          ],
+          "properties": {
+            "sessions": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The sessions, the current one first, then newest first.",
+              "maxItems": 1000,
+              "items": {
+                "type": "object",
+                "description": "One session of the signed in account, on one device. It holds no token, so a read of the list opens no session.",
+                "additionalProperties": false,
+                "required": [
+                  "sessionId",
+                  "current",
+                  "userAgent",
+                  "createdAt",
+                  "lastActiveAt",
+                  "expiresAt"
+                ],
+                "properties": {
+                  "sessionId": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Identifier of the session. It is not the token.",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "current": {
+                    "type": "boolean",
+                    "readOnly": true,
+                    "description": "True for the session of the device that reads the list."
+                  },
+                  "userAgent": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "readOnly": true,
+                    "description": "What the browser of the session said it is, or null when it said nothing.",
+                    "maxLength": 512
+                  },
+                  "createdAt": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the session started.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  },
+                  "lastActiveAt": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the session was last used.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  },
+                  "expiresAt": {
+                    "type": "string",
+                    "readOnly": true,
+                    "description": "Instant at which the session ends if nobody uses it.",
+                    "format": "date-time",
+                    "maxLength": 64
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
     "id": "listWorkspaces",
     "method": "get",
     "path": "/api/workspaces",
@@ -9420,6 +9576,102 @@ export const operations: readonly OperationEntry[] = [
     "noContent": []
   },
   {
+    "id": "revokeOtherSessions",
+    "method": "delete",
+    "path": "/api/account/sessions/others",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared2"
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "How many sessions ended.",
+          "additionalProperties": false,
+          "required": [
+            "revoked"
+          ],
+          "properties": {
+            "revoked": {
+              "type": "integer",
+              "readOnly": true,
+              "description": "The number of sessions that ended.",
+              "minimum": 0
+            }
+          }
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
     "id": "revokePublishedLink",
     "method": "delete",
     "path": "/api/workspaces/{workspaceId}/publications/{publicationId}",
@@ -9467,6 +9719,114 @@ export const operations: readonly OperationEntry[] = [
         "required": [
           "publicationId",
           "workspaceId"
+        ],
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Shared2"
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 200,
+        "mediaType": "application/json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Removed"
+        }
+      },
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 404,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": []
+  },
+  {
+    "id": "revokeSession",
+    "method": "delete",
+    "path": "/api/account/sessions/{sessionId}",
+    "protocol": null,
+    "security": [
+      {
+        "sessionCookie": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "sessionId",
+        "location": "path",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "sessionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          }
+        },
+        "required": [
+          "sessionId"
         ],
         "additionalProperties": false
       },
