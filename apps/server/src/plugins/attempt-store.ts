@@ -21,6 +21,7 @@
  * a server that has no database, which is what a test of the boundary runs.
  * This file is the one place that decides where a count lives.
  */
+import { isIPv4, isIPv6 } from 'node:net';
 
 /** What one key holds right now. */
 type Attempt = {
@@ -215,4 +216,38 @@ export function attemptStoreFor(
       super({ counters: counter });
     }
   };
+}
+
+/**
+ * The client part of the key of a report attempt (record 0119).
+ *
+ * An IPv4 address counts alone. A host of IPv6 usually holds a whole /64
+ * prefix and can draw a new address from it for each attempt, so an IPv6
+ * address counts by its /64 prefix. An IPv4 address that IPv6 carries counts
+ * as that IPv4 address.
+ */
+export function attemptAddress(ip: string): string {
+  const address = ip.trim().toLowerCase();
+  if (isIPv4(address)) return address;
+  if (!isIPv6(address)) return address;
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (mapped?.[1] !== undefined) return mapped[1];
+  const [head = '', tail] = address.split('::');
+  const left = head === '' ? [] : head.split(':');
+  const right = tail === undefined || tail === '' ? [] : tail.split(':');
+  const groups =
+    tail === undefined
+      ? left
+      : [
+          ...left,
+          ...Array.from<string>({
+            length: 8 - left.length - right.length,
+          }).fill('0'),
+          ...right,
+        ];
+  const prefix = groups
+    .slice(0, 4)
+    .map((group) => group.replace(/^0+(?=.)/, ''))
+    .join(':');
+  return `${prefix}::/64`;
 }

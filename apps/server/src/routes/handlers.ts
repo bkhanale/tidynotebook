@@ -40,6 +40,8 @@ import { createDailyNoteHandlers } from './daily-notes.ts';
 import { secretDigest } from '../auth/publication-secrets.ts';
 import { createPublicationHandlers } from './publications.ts';
 import { createPublishedHandlers } from './published.ts';
+import { createAddressSeal } from '../auth/report-seal.ts';
+import { publishedOrigin } from '../served-origins.ts';
 
 /**
  * A store that is not there yet.
@@ -82,7 +84,7 @@ function missingAttachmentStore(): AttachmentStore {
  */
 export type PublicationStores = Pick<
   WorkspaceStoreHandle,
-  'publications' | 'publishedLinks' | 'unlockPublication'
+  'publications' | 'publishedLinks' | 'unlockPublication' | 'reportPublication'
 >;
 
 /** What the published link operations need from the composition. */
@@ -148,6 +150,10 @@ export function createHandlers(
   const store = dependencies.store ?? missingStore();
   const lifecycle = dependencies.lifecycle ?? runningLifecycle;
   const published = dependencies.publications;
+  // A report keeps the address of its link sealed with a key of this server
+  // (record 0123). The address names the published origin when there is one.
+  const seal = createAddressSeal(config.authSecret);
+  const readerOrigin = publishedOrigin(config.servedOrigins) ?? config.origin;
   return {
     ...createAccountHandlers(store),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
@@ -177,14 +183,14 @@ export function createHandlers(
       origin: config.origin,
       invitationLifetimeHours: config.accounts.invitationLifetimeHours,
       defaultLimitBytes: config.accounts.limitBytes,
-      // The published origin and the legal documents are the parts of
-      // records 0118 and 0120, which this release does not have yet, so open
-      // registration stays refused whatever the mail transport.
+      // The legal documents are the part of record 0120, which this build
+      // does not have yet, so open registration stays refused.
       readiness: {
         mail: (dependencies.mail ?? null) !== null,
-        publishedOrigin: false,
+        publishedOrigin: publishedOrigin(config.servedOrigins) !== null,
         legalDocuments: false,
       },
+      openAddress: (sealed) => seal.open(sealed),
       verifyPassword:
         dependencies.verifyPassword ?? (() => Promise.resolve(false)),
     }),
@@ -204,6 +210,11 @@ export function createHandlers(
         : {
             store: published.store.publications,
             unlock: (attempt) => published.store.unlockPublication(attempt),
+            report: (report) => published.store.reportPublication(report),
+            sealLink: (token) =>
+              seal.seal(
+                `${readerOrigin}/published/${encodeURIComponent(token)}`,
+              ),
             attachments: published.attachments,
             secrets: secretDigest,
             hasher: published.hasher,

@@ -51,6 +51,18 @@ Each account row has a menu. It holds the changes that apply to that account:
 The menu does not show a change that would leave the installation without an
 enabled administrator.
 
+## Reports of published links
+
+A reader can report a published page from the **Report this page** link at its
+foot. The accounts page lists each open report under **Reports of published
+links**, with its reason and the words of the reader.
+
+- **Open link** opens the page as any reader sees it. You read nothing else of
+  the workspace.
+- **Take down** stops the link at once and closes every report of it. The owner
+  sees that an administrator took the link down, and cannot open it again.
+- **Close** closes the report and keeps the link.
+
 ## Your own account
 
 **Settings** shows each device that is signed in to your account, under

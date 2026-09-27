@@ -31,7 +31,9 @@ function environment(
 await test('a complete environment produces a configuration', () => {
   const config = loadServerConfig(valid);
   assert.equal(config.origin, 'http://127.0.0.1');
-  assert.deepEqual(config.servedOrigins, ['http://127.0.0.1']);
+  assert.deepEqual(config.servedOrigins, [
+    { origin: 'http://127.0.0.1', role: 'application' },
+  ]);
   assert.equal(config.logLevel, 'warn');
   assert.equal(config.limits.bodyBytes, 1048576);
   assert.equal(config.limits.headerBytes, 16384);
@@ -277,7 +279,9 @@ await test('an absent additional list serves the canonical origin only', () => {
     }),
   );
   assert.equal(config.origin, 'https://notes.example.com:8443');
-  assert.deepEqual(config.servedOrigins, ['https://notes.example.com:8443']);
+  assert.deepEqual(config.servedOrigins, [
+    { origin: 'https://notes.example.com:8443', role: 'application' },
+  ]);
 });
 
 await test('an additional origin joins the served list', () => {
@@ -287,7 +291,7 @@ await test('an additional origin joins the served list', () => {
         NOTESAPP_ORIGIN: 'http://127.0.0.1',
         NOTESAPP_ADDITIONAL_ORIGINS: 'http://localhost,http://[::1]:3000',
       }),
-    ).servedOrigins,
+    ).servedOrigins.map((entry) => entry.origin),
     ['http://127.0.0.1', 'http://localhost', 'http://[::1]:3000'],
   );
 });

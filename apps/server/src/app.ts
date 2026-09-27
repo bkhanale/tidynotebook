@@ -107,7 +107,12 @@ export function requestId(supplied: unknown): string {
 
 import { hostName } from './plugins/host.ts';
 export { hostName } from './plugins/host.ts';
-import { servedHostNames } from './served-origins.ts';
+import {
+  publishedOrigin,
+  roleOfHost,
+  servedHostNames,
+} from './served-origins.ts';
+import { publishedOriginDecision } from './plugins/published-origin.ts';
 
 /**
  * The address of one request, as a problem body repeats it.
@@ -305,6 +310,55 @@ export async function createAppWithHandlers(
         }),
       );
   });
+
+  // The published origin serves the reader path and nothing else, and the
+  // application origin sends a reader address there (record 0118). A request
+  // that the published origin does not serve gets the not-found answer of any
+  // other unknown address, so the origin names no operation of the product.
+  const published = publishedOrigin(config.servedOrigins);
+  if (published !== null) {
+    app.addHook('onRequest', async (request, reply) => {
+      const decision = publishedOriginDecision(
+        roleOfHost(config.servedOrigins, hostName(request.headers.host)),
+        published,
+        {
+          operationId: request.routeOptions.config.operationId,
+          method: request.method,
+          url: request.url,
+        },
+      );
+      if (decision.kind === 'serve') return;
+      if (decision.kind === 'redirect') {
+        await reply.redirect(decision.location, 307);
+        return;
+      }
+      // The operation of this address does not exist on the published origin,
+      // so its contract does not apply. The answer is the not-found answer of
+      // an unknown address, serialized here so that no route schema reads it.
+      await reply
+        .status(404)
+        .header('content-type', `${problemMediaType}; charset=utf-8`)
+        .send(
+          JSON.stringify(
+            createProblem({
+              code: 'route_not_found',
+              status: 404,
+              detail: 'No operation serves this method and path.',
+              instance: instanceOf(request),
+              requestId: request.id,
+            }),
+          ),
+        );
+    });
+    // No answer of the published origin sets a cookie, whatever wrote it.
+    app.addHook('onSend', async (request, reply) => {
+      if (
+        roleOfHost(config.servedOrigins, hostName(request.headers.host)) ===
+        'published'
+      )
+        reply.removeHeader('set-cookie');
+    });
+  }
 
   const webDist = webAssetsDirectory(options.webDist);
 

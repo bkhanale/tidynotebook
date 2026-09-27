@@ -383,7 +383,9 @@ await test('every reader operation declares an empty security requirement', () =
   assert.deepEqual(readers.map((operation) => operation.id).sort(), [
     'getPublishedAttachment',
     'getPublishedPage',
+    'getReportPage',
     'openPublishedPage',
+    'reportPublishedLink',
     'unlockPublishedLink',
   ]);
   for (const reader of readers)

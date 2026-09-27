@@ -167,6 +167,15 @@ one. One installation serves HTTP or HTTPS, not both, because one cookie policy
 serves all of its origins. An empty list serves `NOTESAPP_ORIGIN` and nothing
 else.
 
+A public installation shows published pages on an origin of their own. Set
+`NOTESAPP_PUBLISHED_ORIGIN` to that origin, for example
+`https://pages.example.net`, and point that host name at the same server. Use
+a host name that no other origin uses, and the scheme of `NOTESAPP_ORIGIN`. The
+published origin serves published pages and nothing else, and it sets no
+cookie, so a harmful page cannot reach an account. A browser block of one page
+then does not block the application. An empty value shows published pages on
+`NOTESAPP_ORIGIN`.
+
 Set `NOTESAPP_SECRETS_DIR` and create the directory it names. This value is
 required and has no default, as `NOTESAPP_DATABASE_DIR` and
 `NOTESAPP_STORAGE_DIR` are: `docker compose up` stops with a message that

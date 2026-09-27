@@ -38,6 +38,7 @@ import {
   ResponseContractError,
 } from './problem.ts';
 import { createServerLogger } from '../logging.ts';
+import { attemptAddress } from './attempt-store.ts';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -503,6 +504,8 @@ function throttleGroup(id: OperationId): string | null {
   if (id === 'readInvitation' || id === 'registerAccount') return 'invitation';
   // The removal of an own account takes the password again, like a sign-in.
   if (id === 'removeOwnAccount') return 'password';
+  // A report counts per client address and per /64 prefix (record 0119).
+  if (id === 'reportPublishedLink') return 'report';
   return null;
 }
 
@@ -731,6 +734,12 @@ export function registerOperations(
                 groupId: throttleGroup(operation.id) ?? '',
                 max: rateLimit.max,
                 timeWindow: rateLimit.windowSeconds * 1000,
+                ...(throttleGroup(operation.id) === 'report'
+                  ? {
+                      keyGenerator: (request: FastifyRequest) =>
+                        attemptAddress(request.ip),
+                    }
+                  : {}),
               },
             }),
       },

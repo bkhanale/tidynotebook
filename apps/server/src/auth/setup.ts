@@ -20,6 +20,7 @@ import type { NotesappAuth } from './better-auth.ts';
 import { secretDigest } from './publication-secrets.ts';
 import { registerIdentity, startSession } from './registration.ts';
 import { seedWelcomeNote } from './welcome-note.ts';
+import type { ServedOrigin } from '../served-origins.ts';
 
 const jsonMediaType = 'application/json';
 
@@ -41,7 +42,7 @@ export type SetupDependencies = {
   readonly identity: IdentityStoreHandle;
   readonly content: WorkspaceStore;
   /** The served origins of the deployment, from `config.servedOrigins`. */
-  readonly servedOrigins: readonly string[];
+  readonly servedOrigins: readonly ServedOrigin[];
   /** The byte limit that a new account starts with. */
   readonly accountLimitBytes: bigint;
 };

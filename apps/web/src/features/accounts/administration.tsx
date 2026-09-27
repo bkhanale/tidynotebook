@@ -1,8 +1,10 @@
 /**
  * The accounts page of an administrator (records 0108 to 0112).
  *
- * One page holds the three facts an administrator manages: who can make an
- * account, the invitations that wait, and the accounts. The one primary
+ * One page holds the four facts an administrator manages: who can make an
+ * account, the reports of published links (record 0119), the invitations that
+ * wait, and the accounts. A report row opens its link as any reader does, and
+ * never names a note or a workspace. The one primary
  * action is Invite a person. Each account row holds one menu of the changes
  * that apply to it, and the menu hides a change that would fail, such as the
  * demotion of the last administrator (record 0110). The server refuses the
@@ -18,23 +20,29 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   createInvitation,
+  dismissReport,
   getInstallation,
   listAccounts,
   listInvitations,
+  listReports,
   removeAccount,
   revokeInvitation,
+  takeDownReportedLink,
   updateAccount,
   type AccountSummary,
   type Installation,
   type Invitation,
+  type LinkReport,
 } from '@notesapp/api-client';
 import {
   Button,
+  buttonClassName,
   CopyIcon,
   Dialog,
   DialogBody,
   DialogFooter,
   EmptyState,
+  LinkIcon,
   ListRow,
   LoadingState,
   Menu,
@@ -64,6 +72,12 @@ import {
   registrationPolicyText,
   type AccountAction,
 } from '../../lib/accounts.ts';
+import {
+  canTakeDown,
+  reportFacts,
+  reportNotice,
+  reportReasonWord,
+} from '../../lib/reports.ts';
 
 /** What the page says under its title. */
 const accountsDescription =
@@ -78,6 +92,7 @@ type PageState =
       readonly installation: Installation;
       readonly invitations: readonly Invitation[];
       readonly accounts: readonly AccountSummary[];
+      readonly reports: readonly LinkReport[];
     };
 
 /** The dialog that is open, if any. */
@@ -122,10 +137,11 @@ function AccountsPage(): ReactNode {
   useEffect(() => {
     let cancelled = false;
     void (async (): Promise<void> => {
-      const [installation, invitations, accounts] = await Promise.all([
+      const [installation, invitations, accounts, reports] = await Promise.all([
         getInstallation(),
         listInvitations(),
         listAccounts(),
+        listReports(),
       ]);
       if (cancelled) return;
       if (installation.data === undefined)
@@ -143,11 +159,17 @@ function AccountsPage(): ReactNode {
           kind: 'failed',
           message: problemMessage(accounts.error),
         });
+      if (reports.data === undefined)
+        return setState({
+          kind: 'failed',
+          message: problemMessage(reports.error),
+        });
       setState({
         kind: 'ready',
         installation: installation.data,
         invitations: invitations.data.invitations,
         accounts: accounts.data.accounts,
+        reports: reports.data.reports,
       });
     })();
     return () => {
@@ -246,6 +268,107 @@ function AccountsPage(): ReactNode {
               <p className="m-0 px-2 text-ui text-strong">
                 {registrationPolicyText(state.installation.registrationPolicy)}
               </p>
+            </section>
+
+            <section aria-labelledby="reports-heading">
+              <h2
+                className="mb-1 px-2 text-control font-medium text-muted"
+                id="reports-heading"
+              >
+                Reports of published links
+              </h2>
+              {state.reports.length === 0 ? (
+                <p className="m-0 px-2 text-control text-muted">
+                  No report waits. A reader reports a published page from the
+                  link at its foot.
+                </p>
+              ) : (
+                <ul className="m-0 list-none p-0">
+                  {state.reports.map((report) => {
+                    const reason = reportReasonWord(report.reason);
+                    return (
+                      <ListRow key={report.reportId} className="flex-wrap">
+                        <span
+                          className="inline-flex shrink-0 items-center text-muted"
+                          aria-hidden="true"
+                        >
+                          <LinkIcon />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="m-0 truncate text-ui text-strong">
+                            {reason}
+                          </p>
+                          <p className="m-0 flex flex-wrap gap-cluster text-control text-muted">
+                            {reportFacts(report, now).map((fact) => (
+                              <span key={fact}>{fact}</span>
+                            ))}
+                          </p>
+                          {report.note === null ? null : (
+                            <p
+                              className="m-0 truncate text-control text-muted"
+                              title={report.note}
+                            >
+                              {report.note}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-cluster">
+                          {report.address === null ? null : (
+                            <a
+                              className={buttonClassName({
+                                variant: 'secondary',
+                                size: 'sm',
+                              })}
+                              href={report.address}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Open link
+                            </a>
+                          )}
+                          {canTakeDown(report) ? (
+                            <Button
+                              variant="secondary"
+                              tone="danger"
+                              size="sm"
+                              disabled={busy}
+                              label={`Take down the link of the report: ${reason}`}
+                              onClick={() => {
+                                change(
+                                  () =>
+                                    takeDownReportedLink({
+                                      path: { reportId: report.reportId },
+                                    }),
+                                  reportNotice('take-down'),
+                                );
+                              }}
+                            >
+                              Take down
+                            </Button>
+                          ) : null}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={busy}
+                            label={`Close the report: ${reason}`}
+                            onClick={() => {
+                              change(
+                                () =>
+                                  dismissReport({
+                                    path: { reportId: report.reportId },
+                                  }),
+                                reportNotice('close'),
+                              );
+                            }}
+                          >
+                            Close
+                          </Button>
+                        </div>
+                      </ListRow>
+                    );
+                  })}
+                </ul>
+              )}
             </section>
 
             <section aria-labelledby="invitations-heading">

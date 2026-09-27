@@ -50,6 +50,7 @@ export type {
   InstallationStore,
   InstallationTransaction,
   InvitationRecord,
+  LinkReportRecord,
   NewInvitation,
   RegistrationGround,
   RegistrationRequest,
@@ -80,13 +81,16 @@ export type {
 } from './identity/administration.ts';
 export {
   createInvitation,
+  dismissReport,
   listAccounts,
   listInvitations,
+  listReports,
   readRegistrationPolicy,
   removeAccount,
   removeOwnAccount,
   revokeInvitation,
   setRegistrationPolicy,
+  takeDownReportedLink,
   updateAccount,
 } from './identity/administration.ts';
 export type {
@@ -278,6 +282,14 @@ export type {
   ScopedNote,
 } from './publications/model.ts';
 export { maxPublishedLinksPerWorkspace } from './publications/model.ts';
+export type { ReportReason, ReportedLinkState } from './publications/report.ts';
+export {
+  isReportReason,
+  maxReportNoteLength,
+  reportNote,
+  reportReasons,
+  reportedLinkStates,
+} from './publications/report.ts';
 export type {
   ReaderRefusalCause,
   ReaderRefusalLog,

@@ -31,6 +31,7 @@ import type {
   InstallationStore,
   InstallationTransaction,
   InvitationRecord,
+  LinkReportRecord,
   NewInvitation,
   Preferences,
   RegistrationPolicy,
@@ -48,6 +49,8 @@ import {
   isThemeFamilyId,
   OperationalError,
   registrationPolicies,
+  reportReasons,
+  reportedLinkStates,
 } from '@notesapp/core';
 import pg from 'pg';
 import { openPool } from './pool.ts';
@@ -123,6 +126,21 @@ function asRegistrationPolicy(value: string): RegistrationPolicy {
       'notesapp: the settings hold an unknown registration policy.',
     );
   return known;
+}
+
+/** Narrows the stored reason and link state of a report. */
+function asReportFacts(
+  reason: string,
+  linkState: string,
+): Pick<LinkReportRecord, 'reason' | 'linkState'> {
+  const knownReason = reportReasons.find((known) => known === reason);
+  const knownState = reportedLinkStates.find((known) => known === linkState);
+  if (knownReason === undefined || knownState === undefined)
+    throw new OperationalError(
+      'unexpected',
+      'notesapp: a report row holds an unknown reason or link state.',
+    );
+  return { reason: knownReason, linkState: knownState };
 }
 
 /** An instant that the driver read, as an ISO 8601 text. */
@@ -674,6 +692,44 @@ export function openIdentityStore(
           [invitationId],
         );
         return rows.rows[0]?.revoked ?? false;
+      },
+
+      async reports(): Promise<readonly LinkReportRecord[]> {
+        const rows = await client.query<{
+          report_id: string;
+          publication_id: string;
+          reason: string;
+          note: string | null;
+          sealed_address: string | null;
+          link_state: string;
+          created_at: Date;
+        }>('select * from notesapp_list_reports()');
+        return rows.rows.map((row) => ({
+          reportId: row.report_id,
+          publicationId: row.publication_id,
+          ...asReportFacts(row.reason, row.link_state),
+          note: row.note,
+          sealedAddress: row.sealed_address,
+          createdAt: isoOf(row.created_at),
+        }));
+      },
+
+      async dismissReport(reportId: string): Promise<boolean> {
+        assertUuid(reportId, 'the report');
+        const rows = await client.query<{ closed: boolean }>(
+          'select notesapp_dismiss_report($1) as closed',
+          [reportId],
+        );
+        return rows.rows[0]?.closed ?? false;
+      },
+
+      async takeDown(reportId: string): Promise<boolean> {
+        assertUuid(reportId, 'the report');
+        const rows = await client.query<{ taken: boolean }>(
+          'select notesapp_take_down_publication($1) as taken',
+          [reportId],
+        );
+        return rows.rows[0]?.taken ?? false;
       },
 
       async registrationPolicy(): Promise<RegistrationPolicy> {

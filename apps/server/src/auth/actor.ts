@@ -20,6 +20,7 @@ import {
   UnauthenticatedError,
 } from '../plugins/problem.ts';
 import { toRequestHeaders, type NotesappAuth } from './better-auth.ts';
+import { applicationOrigins, type ServedOrigin } from '../served-origins.ts';
 
 /** A verified actor and what the session knows about it. */
 export type ResolvedActor = {
@@ -73,7 +74,7 @@ export type IdentityDependencies = {
   readonly auth: NotesappAuth;
   readonly identity: IdentityStoreHandle;
   /** The served origins of the deployment, from `config.servedOrigins`. */
-  readonly servedOrigins: readonly string[];
+  readonly servedOrigins: readonly ServedOrigin[];
 };
 
 /** The identity adapter of one deployment. */
@@ -152,9 +153,11 @@ export type OriginDecision = 'accepted' | 'foreign' | 'missing';
  * The list is the one that `config.servedOrigins` holds, which is the same
  * list that the identity routes trust. See
  * [decision 0039](../../../../docs/decisions/0039-one-list-of-served-origins.md).
+ * Only an `application` origin is trusted, so a page on the published origin
+ * cannot write (record 0118).
  */
 export function checkWriteOrigin(
-  servedOrigins: readonly string[],
+  servedOrigins: readonly ServedOrigin[],
   method: string,
   headers: {
     readonly origin?: string | undefined;
@@ -163,7 +166,9 @@ export function checkWriteOrigin(
 ): OriginDecision {
   if (safeMethods.has(method.toUpperCase())) return 'accepted';
   if (headers.origin !== undefined)
-    return servedOrigins.includes(headers.origin) ? 'accepted' : 'foreign';
+    return applicationOrigins(servedOrigins).includes(headers.origin)
+      ? 'accepted'
+      : 'foreign';
   if (headers.site !== undefined)
     return headers.site === 'same-origin' ? 'accepted' : 'foreign';
   return 'missing';
@@ -178,7 +183,7 @@ export function checkWriteOrigin(
  * forget it. `auth/setup.ts` is the one such operation today.
  */
 export function requireWriteOrigin(
-  servedOrigins: readonly string[],
+  servedOrigins: readonly ServedOrigin[],
   request: FastifyRequest,
 ): void {
   const decision = checkWriteOrigin(servedOrigins, request.method, {

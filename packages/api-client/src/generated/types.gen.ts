@@ -1037,6 +1037,47 @@ export type InvitationReadInput = {
 export type InvitationToken = string;
 
 /**
+ * One open report of a published link, as an administrator reads it. It holds no fact of a note and no fact of the workspace.
+ */
+export type LinkReport = {
+    /**
+     * Identifier of the report.
+     */
+    readonly reportId: Uuid;
+    /**
+     * Identifier of the reported link. Two reports of one link name the same value. It opens nothing.
+     */
+    readonly publicationId: Uuid;
+    reason: ReportReason;
+    /**
+     * What the reader added, or null.
+     */
+    readonly note: string | null;
+    /**
+     * The address of the reported link, which the administrator opens as any reader does. It is null when the server cannot open the sealed address, for example after a change of its secret.
+     */
+    readonly address: string | null;
+    /**
+     * Whether the link opens now, an administrator took it down, or it stopped for another cause.
+     */
+    readonly linkState: 'live' | 'taken-down' | 'stopped';
+    /**
+     * Instant of the report.
+     */
+    readonly createdAt: string;
+};
+
+/**
+ * The open reports of published links.
+ */
+export type LinkReportList = {
+    /**
+     * The open reports, newest first.
+     */
+    readonly reports: Array<LinkReport>;
+};
+
+/**
  * The content of one saved note. It carries document work, never text: the accepted text is what the workspace derives from the accepted document.
  */
 export type MarkdownContentInput = {
@@ -1207,6 +1248,10 @@ export type PublishedLink = {
      * Whether a reader gives a password before it reads the link.
      */
     readonly passwordProtected: boolean;
+    /**
+     * Whether an administrator took the link down after a report. A taken down link opens nothing, and its owner cannot make it live again. It stays in the list for 30 days.
+     */
+    readonly takenDown: boolean;
 };
 
 /**
@@ -1294,6 +1339,13 @@ export type PublishedRefusal = {
      * Identifier of the request, repeated in the x-request-id header.
      */
     readonly requestId: string;
+};
+
+/**
+ * The fields of the report form of a published page. The page holds no script, so the browser sends the fields in the form encoding of HTML.
+ */
+export type PublishedReportFormInput = {
+    reason: ReportReason;
 };
 
 /**
@@ -1436,6 +1488,11 @@ export type Removed = {
      */
     readonly removed: boolean;
 };
+
+/**
+ * Why a reader reports a published link. The list is fixed, so an administrator can sort the reports.
+ */
+export type ReportReason = 'phishing' | 'malware' | 'illegal' | 'harassment' | 'spam' | 'other';
 
 /**
  * Payload to bring one deleted file back into the file tree.
@@ -2146,6 +2203,20 @@ export type InvitationReadInputWritable = {
 };
 
 /**
+ * One open report of a published link, as an administrator reads it. It holds no fact of a note and no fact of the workspace.
+ */
+export type LinkReportWritable = {
+    reason: ReportReason;
+};
+
+/**
+ * The open reports of published links.
+ */
+export type LinkReportListWritable = {
+    [key: string]: never;
+};
+
+/**
  * One published link of a workspace, as its owner sees it. This shape holds no token, so a read of the list cannot open a link.
  */
 export type PublishedLinkWritable = {
@@ -2164,6 +2235,17 @@ export type PublishedLinkCreatedWritable = {
  */
 export type PublishedLinkListWritable = {
     [key: string]: never;
+};
+
+/**
+ * The fields of the report form of a published page. The page holds no script, so the browser sends the fields in the form encoding of HTML.
+ */
+export type PublishedReportFormInputWritable = {
+    reason: ReportReason;
+    /**
+     * What the reader adds for the administrator. An empty value is the same as no note.
+     */
+    note?: string;
 };
 
 /**
@@ -2393,6 +2475,11 @@ export type InvitationId = Uuid;
 export type SessionId = string;
 
 /**
+ * Identifier of the report that the operation acts on.
+ */
+export type ReportId = Uuid;
+
+/**
  * The note of a folder link that the page shows. Leave it out to read the list of every note that the link opens. A link over one note opens that note, so it needs no value here.
  */
 export type PublishedNote = PublishedNoteReference;
@@ -2516,6 +2603,11 @@ export type AccountRemoval = AccountRemovalInput;
  * The password of the published link, as its page form sends it.
  */
 export type PublishedPasswordForm = PublishedPasswordFormInput;
+
+/**
+ * The report of a published link, as its form sends it.
+ */
+export type PublishedReportForm = PublishedReportFormInputWritable;
 
 export type GetAccountData = {
     body?: never;
@@ -3677,6 +3769,153 @@ export type ReadInvitationResponses = {
 };
 
 export type ReadInvitationResponse = ReadInvitationResponses[keyof ReadInvitationResponses];
+
+export type ListReportsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/reports';
+};
+
+export type ListReportsErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ListReportsError = ListReportsErrors[keyof ListReportsErrors];
+
+export type ListReportsResponses = {
+    /**
+     * The open reports of published links.
+     */
+    200: LinkReportList;
+};
+
+export type ListReportsResponse = ListReportsResponses[keyof ListReportsResponses];
+
+export type DismissReportData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the report that the operation acts on.
+         */
+        reportId: Uuid;
+    };
+    query?: never;
+    url: '/api/reports/{reportId}';
+};
+
+export type DismissReportErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type DismissReportError = DismissReportErrors[keyof DismissReportErrors];
+
+export type DismissReportResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type DismissReportResponse = DismissReportResponses[keyof DismissReportResponses];
+
+export type TakeDownReportedLinkData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * Identifier of the report that the operation acts on.
+         */
+        reportId: Uuid;
+    };
+    query?: never;
+    url: '/api/reports/{reportId}/takedown';
+};
+
+export type TakeDownReportedLinkErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The requested resource does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type TakeDownReportedLinkError = TakeDownReportedLinkErrors[keyof TakeDownReportedLinkErrors];
+
+export type TakeDownReportedLinkResponses = {
+    /**
+     * The named record no longer exists.
+     */
+    200: Removed;
+};
+
+export type TakeDownReportedLinkResponse = TakeDownReportedLinkResponses[keyof TakeDownReportedLinkResponses];
 
 export type GetSetupStatusData = {
     body?: never;
@@ -6270,6 +6509,101 @@ export type GetPublishedAttachmentResponses = {
 };
 
 export type GetPublishedAttachmentResponse = GetPublishedAttachmentResponses[keyof GetPublishedAttachmentResponses];
+
+export type GetReportPageData = {
+    body?: never;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
+         */
+        token: PublishedSecret;
+    };
+    query?: never;
+    url: '/published/{token}/report';
+};
+
+export type GetReportPageErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type GetReportPageError = GetReportPageErrors[keyof GetReportPageErrors];
+
+export type GetReportPageResponses = {
+    /**
+     * The published page, as one HTML document.
+     */
+    200: PublishedDocument;
+};
+
+export type GetReportPageResponse = GetReportPageResponses[keyof GetReportPageResponses];
+
+export type ReportPublishedLinkData = {
+    /**
+     * The report of a published link, as its form sends it.
+     */
+    body: PublishedReportForm;
+    headers?: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+    };
+    path: {
+        /**
+         * The token of the published link. It is the one part of the address that opens the link. Any single segment of an address is accepted here, because a value that no link holds opens nothing and must read like every other value that no link holds.
+         */
+        token: PublishedSecret;
+    };
+    query?: never;
+    url: '/published/{token}/report';
+};
+
+export type ReportPublishedLinkErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit. A save of a note adds document_too_large, which means that the update or the document it would produce passes a bound of the workspace. The work stays on the device, which offers recovery rather than sending the same bytes again.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts were made in a short time.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type ReportPublishedLinkError = ReportPublishedLinkErrors[keyof ReportPublishedLinkErrors];
+
+export type ReportPublishedLinkResponses = {
+    /**
+     * The published page, as one HTML document.
+     */
+    200: PublishedDocument;
+};
+
+export type ReportPublishedLinkResponse = ReportPublishedLinkResponses[keyof ReportPublishedLinkResponses];
 
 export type UnlockPublishedLinkData = {
     /**

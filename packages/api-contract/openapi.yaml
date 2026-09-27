@@ -70,6 +70,12 @@ paths:
     $ref: './paths/api_invitations.yaml'
   /api/invitations/{invitationId}:
     $ref: './paths/api_invitations_invitationId.yaml'
+  /api/reports:
+    $ref: './paths/api_reports.yaml'
+  /api/reports/{reportId}:
+    $ref: './paths/api_reports_reportId.yaml'
+  /api/reports/{reportId}/takedown:
+    $ref: './paths/api_reports_reportId_takedown.yaml'
   /api/accounts:
     $ref: './paths/api_accounts.yaml'
   /api/accounts/{accountId}:
@@ -146,6 +152,8 @@ paths:
     $ref: './paths/published_token.yaml'
   /published/{token}/unlock:
     $ref: './paths/published_token_unlock.yaml'
+  /published/{token}/report:
+    $ref: './paths/published_token_report.yaml'
   /published/{token}/attachments/{fileId}/{revisionId}:
     $ref: './paths/published_token_attachments_fileId_revisionId.yaml'
 components:
@@ -209,6 +217,8 @@ components:
       $ref: './components/parameters/InvitationId.yaml'
     SessionId:
       $ref: './components/parameters/SessionId.yaml'
+    ReportId:
+      $ref: './components/parameters/ReportId.yaml'
   requestBodies:
     PreferencesUpdate:
       $ref: './components/requestBodies/PreferencesUpdate.yaml'
@@ -367,6 +377,8 @@ components:
       $ref: './components/responses/AccountSummary.yaml'
     InvitationList:
       $ref: './components/responses/InvitationList.yaml'
+    LinkReportList:
+      $ref: './components/responses/LinkReportList.yaml'
     InvitationCreated:
       $ref: './components/responses/InvitationCreated.yaml'
     InvitationAddress:
@@ -606,6 +618,14 @@ components:
       $ref: './components/schemas/Invitation.yaml'
     InvitationList:
       $ref: './components/schemas/InvitationList.yaml'
+    LinkReport:
+      $ref: './components/schemas/LinkReport.yaml'
+    LinkReportList:
+      $ref: './components/schemas/LinkReportList.yaml'
+    ReportReason:
+      $ref: './components/schemas/ReportReason.yaml'
+    PublishedReportFormInput:
+      $ref: './components/schemas/PublishedReportFormInput.yaml'
     InvitationCreateInput:
       $ref: './components/schemas/InvitationCreateInput.yaml'
     InvitationCreated:

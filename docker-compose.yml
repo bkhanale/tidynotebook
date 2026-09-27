@@ -62,6 +62,10 @@ services:
       # origin, with its scheme and its port, only when a second address
       # reaches this installation.
       NOTESAPP_ADDITIONAL_ORIGINS: ${NOTESAPP_ADDITIONAL_ORIGINS:-}
+      # A public installation serves each published page from an origin of
+      # its own, on a host name that the application does not use. An empty
+      # value serves published pages from the origin above.
+      NOTESAPP_PUBLISHED_ORIGIN: ${NOTESAPP_PUBLISHED_ORIGIN:-}
       NOTESAPP_LOG_LEVEL: ${NOTESAPP_LOG_LEVEL:-info}
       NOTESAPP_MAX_BODY_BYTES: ${NOTESAPP_MAX_BODY_BYTES:-1048576}
       NOTESAPP_MAX_HEADER_BYTES: ${NOTESAPP_MAX_HEADER_BYTES:-16384}

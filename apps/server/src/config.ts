@@ -15,7 +15,7 @@ import {
   maxInvitationLifetimeHours,
 } from '@notesapp/core';
 import { readFile } from 'node:fs/promises';
-import { readServedOrigins } from './served-origins.ts';
+import { readServedOrigins, type ServedOrigin } from './served-origins.ts';
 import { readTrustedProxies } from './trusted-proxies.ts';
 
 const logLevels = [
@@ -69,13 +69,16 @@ export type ServerConfig = {
   /** Secret that signs sessions and tokens. */
   readonly authSecret: string;
   /**
-   * Every origin that this deployment serves, the canonical one first.
+   * Every origin that this deployment serves and its role, the canonical one
+   * first and the published origin, when there is one, last.
    *
    * It is the one list. The cookie write check, the trusted list of the
-   * identity routes, and the Host allowlist all read it. See
-   * [decision 0039](../../../docs/decisions/0039-one-list-of-served-origins.md).
+   * identity routes, and the Host allowlist all read it, and only an
+   * `application` origin is trusted for a write. See
+   * [decision 0039](../../../docs/decisions/0039-one-list-of-served-origins.md)
+   * and [record 0118](../../../docs/decisions/0118-a-published-page-of-a-public-installation-has-its-own-origin.md).
    */
-  readonly servedOrigins: readonly string[];
+  readonly servedOrigins: readonly ServedOrigin[];
   /**
    * The socket that this process listens on.
    *
@@ -223,6 +226,7 @@ const variables = [
  */
 export const optionalVariables = [
   'NOTESAPP_ADDITIONAL_ORIGINS',
+  'NOTESAPP_PUBLISHED_ORIGIN',
   'NOTESAPP_HOST',
   'NOTESAPP_PORT',
   'NOTESAPP_TRUSTED_PROXIES',
@@ -388,6 +392,7 @@ const configSchema: SchemaObject = {
     // The shape of one entry is decided by `served-origins.ts`, which refuses
     // a value that is not exactly one origin and names what to write instead.
     NOTESAPP_ADDITIONAL_ORIGINS: { type: 'string', maxLength: 1024 },
+    NOTESAPP_PUBLISHED_ORIGIN: { type: 'string', maxLength: 1024 },
     NOTESAPP_HOST: { type: 'string', minLength: 1, maxLength: 255 },
     NOTESAPP_PORT: positiveInteger,
     // The shape of one entry is decided by `trusted-proxies.ts`, which refuses
@@ -453,9 +458,10 @@ export function loadServerConfig(
   const served = readServedOrigins(
     raw.NOTESAPP_ORIGIN,
     raw.NOTESAPP_ADDITIONAL_ORIGINS,
+    raw.NOTESAPP_PUBLISHED_ORIGIN,
   );
   if (!served.ok) throw new ConfigError(served.issues);
-  const [canonical] = served.origins;
+  const canonical = served.origins[0]?.origin;
   if (canonical === undefined)
     throw new ConfigError([
       'NOTESAPP_ORIGIN: name the origin of this installation.',

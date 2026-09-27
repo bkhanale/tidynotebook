@@ -55,6 +55,7 @@ import type { ProblemCode } from '../plugins/problem.ts';
 import { createProblem, problemMediaType } from '../plugins/problem.ts';
 import type { ProtocolAdapter, ProtocolResult } from '../plugins/register.ts';
 import type { MailTransport } from './mail.ts';
+import { applicationOrigins } from '../served-origins.ts';
 
 /** Base path of every Better Auth route. */
 export const authBasePath = '/api/auth';
@@ -273,7 +274,7 @@ function buildAuth(
     // cookie authenticated write against this list, and it rejects a redirect
     // target outside it. No scheme and no port is added here: the list arrives
     // as the operator wrote it, through `served-origins.ts`.
-    trustedOrigins: [...config.servedOrigins],
+    trustedOrigins: [...applicationOrigins(config.servedOrigins)],
     emailAndPassword: {
       enabled: true,
       disableSignUp: options.allowSignUp !== true,
