@@ -151,6 +151,7 @@ and needs no record.
 | [0119](0119-a-report-reaches-an-administrator-who-can-take-a-link-down.md)         | A report reaches an administrator who can take a link down                      |
 | [0120](0120-an-account-records-the-legal-documents-it-accepted.md)                 | An account records the legal documents it accepted                              |
 | [0121](0121-every-limit-and-every-job-holds-across-server-processes.md)            | Every limit and every job holds across server processes                         |
+| [0122](0122-a-session-is-revoked-by-its-identifier.md)                             | A session is revoked by its identifier                                          |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -452,4 +453,6 @@ their own sessions. Record 0118 gives published pages their own origin, and it
 refines records 0039 and 0031. Record 0119 adds a report and a takedown, and
 it refines record 0031.
 Record 0120 records the legal documents that an account accepted. Record 0121
-makes every limit and every job hold across server processes.
+makes every limit and every job hold across server processes. Record 0122
+supersedes record 0117, because the revoke route of the library names a
+session by its token.
