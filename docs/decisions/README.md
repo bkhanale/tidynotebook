@@ -160,6 +160,7 @@ and needs no record.
 | [0126](0126-websocket-messages-use-the-generated-contract.md)                      | WebSocket messages use the generated contract                                   |
 | [0127](0127-a-sync-page-holds-whole-commits.md)                                    | A sync page holds whole commits                                                 |
 | [0128](0128-the-server-validates-every-notice-frame.md)                            | The server validates every notice frame                                         |
+| [0129](0129-the-notice-gateway-and-its-bounds.md)                                  | The notice gateway and its bounds                                               |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -483,3 +484,9 @@ Record 0128 answers
 validates every notice frame in both directions, and the browser reads a
 frame by its kind, because the content security policy keeps Ajv out of the
 browser. It refines record 0126.
+
+Record 0129 answers
+[issue 189](https://github.com/bkhanale/notesapp/issues/189). It names the
+channel, the triggers, the two switches, the access rechecks, the shared
+reservations and the bounds of the notice gateway. It refines records 0124
+and 0125.
