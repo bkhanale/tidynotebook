@@ -1,0 +1,25 @@
+type: object
+description: >-
+  The complete set of workspaces that the client wants notices for. It
+  replaces the set before it as a whole. The server checks the access of the
+  account to every workspace before it accepts the set, and refuses the whole
+  set when one check fails. An empty set stops every notice.
+additionalProperties: false
+required:
+  - kind
+  - generation
+  - workspaceIds
+properties:
+  kind:
+    type: string
+    const: subscribe
+  generation:
+    $ref: './SyncNoticeGeneration.yaml'
+  workspaceIds:
+    type: array
+    description: >-
+      Every workspace of the set, at most as many as one workspace list holds.
+    maxItems: 1000
+    uniqueItems: true
+    items:
+      $ref: './Uuid.yaml'

@@ -46,6 +46,7 @@ export type ProblemCode =
   | 'document_unsupported'
   | 'document_too_large'
   | 'sync_protocol_unsupported'
+  | 'notices_unavailable'
   | 'quota_exceeded'
   | 'rate_limited'
   | 'route_not_found'
@@ -94,6 +95,7 @@ const titles: Readonly<Record<ProblemCode, string>> = {
   document_too_large: 'The document work passes a bound of the workspace.',
   sync_protocol_unsupported:
     'This deployment does not serve the sync protocol version of the caller.',
+  notices_unavailable: 'This deployment does not open the notice stream now.',
   request_timeout: 'The request body stopped before it was complete.',
   unauthenticated: 'The request carries no usable session or token.',
   forbidden: 'The actor may not perform this operation.',

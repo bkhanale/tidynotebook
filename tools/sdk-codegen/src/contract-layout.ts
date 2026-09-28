@@ -18,6 +18,11 @@
  * The check reads the bundled source document, before the generator merges the
  * authentication fragment, because that fragment adds paths and schemas that
  * no source file holds.
+ *
+ * The message contract `asyncapi.yaml` is a second root (record 0126). Each of
+ * its components needs its file too. A schema file can serve both roots,
+ * because a message payload is a schema that the HTTP contract also lists.
+ * Any other file serves one root only.
  */
 import { resolve } from 'node:path';
 import { listFiles } from './files.ts';
@@ -27,6 +32,9 @@ type Json = Record<string, unknown>;
 
 /** Directory of the path item files, relative to the contract directory. */
 export const pathsDirectory = 'paths';
+
+/** Directory of the channel files of the message contract. */
+export const channelsDirectory = 'channels';
 
 /** Directory of the component files, relative to the contract directory. */
 export const componentsDirectory = 'components';
@@ -56,12 +64,14 @@ export function componentFile(section: string, name: string): string {
   return `${componentsDirectory}/${section}/${name}.yaml`;
 }
 
-/** Everything the document declares, as the file that must hold it. */
+/** Everything the documents declare, as the file that must hold it. */
 function requiredFiles(
   document: Json,
+  messages: Json | null,
   problems: string[],
 ): Map<string, string> {
   const required = new Map<string, string>();
+  const shared = new Set<string>();
   const claim = (file: string, owner: string): void => {
     const other = required.get(file);
     if (other === undefined) {
@@ -78,8 +88,27 @@ function requiredFiles(
   if (isRecord(components))
     for (const [section, entries] of Object.entries(components)) {
       if (!isRecord(entries)) continue;
-      for (const name of Object.keys(entries))
+      for (const name of Object.keys(entries)) {
         claim(componentFile(section, name), `the component ${section}/${name}`);
+        if (section === 'schemas') shared.add(componentFile(section, name));
+      }
+    }
+  // A channel of the message contract is its own file, as a path item is.
+  const channels = messages?.channels;
+  if (isRecord(channels))
+    for (const name of Object.keys(channels))
+      claim(`${channelsDirectory}/${name}.yaml`, `the channel ${name}`);
+  const messageComponents = messages?.components;
+  if (isRecord(messageComponents))
+    for (const [section, entries] of Object.entries(messageComponents)) {
+      if (!isRecord(entries)) continue;
+      for (const name of Object.keys(entries)) {
+        const file = componentFile(section, name);
+        // One schema file serves both roots. That is how a payload keeps one
+        // source.
+        if (section === 'schemas' && shared.has(file)) continue;
+        claim(file, `the message component ${section}/${name}`);
+      }
     }
   return required;
 }
@@ -88,9 +117,10 @@ function requiredFiles(
 export function findLayoutProblems(
   document: Json,
   files: readonly string[],
+  messages: Json | null = null,
 ): string[] {
   const problems: string[] = [];
-  const required = requiredFiles(document, problems);
+  const required = requiredFiles(document, messages, problems);
   const present = new Set(files);
   for (const [file, owner] of [...required].sort(([a], [b]) =>
     a < b ? -1 : 1,
@@ -102,14 +132,14 @@ export function findLayoutProblems(
   for (const file of [...present].sort())
     if (!required.has(file))
       problems.push(
-        `${file}: no path and no component reaches this file. Reference it from the root document, or delete it.`,
+        `${file}: no path and no component reaches this file. Reference it from a root document, or delete it.`,
       );
   return problems;
 }
 
 /** The contract source files, relative to the contract directory. */
 export async function contractSourceFiles(): Promise<string[]> {
-  const directories = [pathsDirectory, componentsDirectory];
+  const directories = [pathsDirectory, channelsDirectory, componentsDirectory];
   const listed = await Promise.all(
     directories.map(async (directory) =>
       (await listFiles(resolve(contractDirectory, directory))).map(
@@ -120,13 +150,20 @@ export async function contractSourceFiles(): Promise<string[]> {
   return listed.flat();
 }
 
-/** Stops generation when the source files and the root document disagree. */
-export async function assertContractLayout(document: Json): Promise<void> {
-  const problems = findLayoutProblems(document, await contractSourceFiles());
+/** Stops generation when the source files and the root documents disagree. */
+export async function assertContractLayout(
+  document: Json,
+  messages: Json,
+): Promise<void> {
+  const problems = findLayoutProblems(
+    document,
+    await contractSourceFiles(),
+    messages,
+  );
   if (problems.length === 0) return;
   throw new Error(
     [
-      'Contract layout: the source files and the root document disagree.',
+      'Contract layout: the source files and the root documents disagree.',
       'One file holds one path item. One file holds one component.',
       ...problems.map((problem) => `  ${problem}`),
     ].join('\n'),

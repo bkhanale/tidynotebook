@@ -105,3 +105,60 @@ await test('one file for two path items is reported once', () => {
   assert.equal(problems.length, 1);
   assert.match(problems[0] ?? '', /both need this file/);
 });
+
+/** A bundled message contract that shares the Uuid schema file. */
+function messages(): Json {
+  return {
+    asyncapi: '3.0.0',
+    channels: { stream: { address: '/api/stream' } },
+    components: {
+      securitySchemes: { streamCookie: { type: 'httpApiKey' } },
+      schemas: { Uuid: { type: 'string' } },
+    },
+  };
+}
+
+/** The files that the fixture documents need together. */
+function allFiles(): string[] {
+  return [
+    ...files(),
+    'channels/stream.yaml',
+    'components/securitySchemes/streamCookie.yaml',
+  ];
+}
+
+await test('a schema file serves both contracts', () => {
+  assert.deepEqual(findLayoutProblems(document(), allFiles(), messages()), []);
+});
+
+await test('a channel keeps its own file', () => {
+  const problems = findLayoutProblems(
+    document(),
+    allFiles().filter((file) => file !== 'channels/stream.yaml'),
+    messages(),
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0] ?? '', /the channel stream stays in the root/);
+});
+
+await test('a channel file that no contract lists is a failure', () => {
+  const problems = findLayoutProblems(
+    document(),
+    [...allFiles(), 'channels/forgotten.yaml'],
+    messages(),
+  );
+  assert.equal(problems.length, 1);
+  assert.match(problems[0] ?? '', /channels\/forgotten\.yaml: no path/);
+});
+
+await test('a component other than a schema serves one contract only', () => {
+  const input = document();
+  const components = input.components;
+  assert.ok(components !== null && typeof components === 'object');
+  Object.assign(components, {
+    securitySchemes: { streamCookie: { type: 'apiKey' } },
+  });
+  const problems = findLayoutProblems(input, allFiles(), messages());
+  assert.equal(problems.length, 1);
+  assert.match(problems[0] ?? '', /both need this file/);
+});

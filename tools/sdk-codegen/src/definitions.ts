@@ -161,9 +161,26 @@ function rewriteRoot(schema: Json, names: ReadonlyMap<string, string>): Json {
   return dialect === undefined ? body : { $schema: dialect, ...body };
 }
 
+/** One message with its dereferenced payload schema. */
+export type MessageSchema = {
+  readonly kind: string;
+  readonly direction: 'client' | 'server';
+  readonly schema: Json;
+};
+
+/** One channel of the message contract with its payload schemas. */
+export type ChannelSchemas = {
+  readonly name: string;
+  readonly address: string;
+  readonly operationId: string;
+  readonly subprotocol: string;
+  readonly messages: readonly MessageSchema[];
+};
+
 /** A contract index whose schemas point into one shared definition document. */
 export type SharedContract = {
   readonly index: ContractIndex;
+  readonly channels: readonly ChannelSchemas[];
   /** Body of the `$defs` member of the shared definition document. */
   readonly definitions: Json;
 };
@@ -180,6 +197,7 @@ export type SharedContract = {
 export function shareDefinitions(
   index: ContractIndex,
   componentSchemas: Json,
+  channels: readonly ChannelSchemas[] = [],
 ): SharedContract {
   const componentNames = new Map<string, string>();
   for (const [name, schema] of Object.entries(componentSchemas))
@@ -187,14 +205,19 @@ export function shareDefinitions(
 
   const counts = new Map<string, number>();
   const order: string[] = [];
-  for (const operation of index.operations)
-    for (const root of rootSchemas(operation))
-      visitSchemas(root, (schema) => {
-        const text = JSON.stringify(schema);
-        const seen = counts.get(text);
-        if (seen === undefined) order.push(text);
-        counts.set(text, (seen ?? 0) + 1);
-      });
+  const roots = [
+    ...index.operations.flatMap(rootSchemas),
+    ...channels.flatMap((channel) =>
+      channel.messages.map((message) => withoutMeta(message.schema)),
+    ),
+  ];
+  for (const root of roots)
+    visitSchemas(root, (schema) => {
+      const text = JSON.stringify(schema);
+      const seen = counts.get(text);
+      if (seen === undefined) order.push(text);
+      counts.set(text, (seen ?? 0) + 1);
+    });
 
   const names = new Map<string, string>();
   const taken = new Set<string>();
@@ -239,6 +262,13 @@ export function shareDefinitions(
         })),
       })),
     },
+    channels: channels.map((channel) => ({
+      ...channel,
+      messages: channel.messages.map((message) => ({
+        ...message,
+        schema: rewriteRoot(message.schema, names),
+      })),
+    })),
     definitions,
   };
 }

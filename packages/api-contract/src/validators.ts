@@ -24,8 +24,17 @@ import type { ValidateFunction } from 'ajv';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import ajvFormats from 'ajv-formats';
 
-import type { JsonSchema, OperationId } from './generated/contract.ts';
-import { operations, sharedDefinitions } from './generated/contract.ts';
+import type {
+  ChannelId,
+  JsonSchema,
+  MessageDirection,
+  OperationId,
+} from './generated/contract.ts';
+import {
+  channels,
+  operations,
+  sharedDefinitions,
+} from './generated/contract.ts';
 
 export type RequestSlot = 'params' | 'query' | 'headers' | 'body';
 
@@ -67,8 +76,18 @@ export function responseKey(
   return `${id}:${String(status)}:${mediaType}`;
 }
 
+/** Key of a message validator. */
+export function messageKey(
+  channel: ChannelId,
+  direction: MessageDirection,
+  kind: string,
+): string {
+  return `${channel}:${direction}:${kind}`;
+}
+
 const requests = new Map<string, ValidateFunction>();
 const responses = new Map<string, ValidateFunction>();
+const messages = new Map<string, ValidateFunction>();
 
 /**
  * One compiled validator per distinct schema of one Ajv instance.
@@ -118,6 +137,19 @@ for (const operation of operations) {
   }
 }
 
+// A WebSocket message is validated like a body: it arrives as JSON, so no
+// value is converted (record 0126).
+for (const channel of channels)
+  for (const message of channel.messages)
+    messages.set(
+      messageKey(channel.id, message.direction, message.kind),
+      validatorFor(ajv, message.schema),
+    );
+
+/** Compiled message validators, keyed by messageKey. */
+export const messageValidators: ReadonlyMap<string, ValidateFunction> =
+  messages;
+
 /** Compiled request validators, keyed by requestKey. */
 export const requestValidators: ReadonlyMap<string, ValidateFunction> =
   requests;
@@ -137,5 +169,5 @@ export const compileCounts: {
   readonly validators: number;
 } = {
   schemas: (compiled.get(ajv)?.size ?? 0) + (compiled.get(ajvQuery)?.size ?? 0),
-  validators: requests.size + responses.size,
+  validators: requests.size + responses.size + messages.size,
 };

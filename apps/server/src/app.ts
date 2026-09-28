@@ -115,6 +115,7 @@ import {
 import { publishedOriginDecision } from './plugins/published-origin.ts';
 import { createVerificationTokens } from './auth/verification.ts';
 import { createSignUpChallenges } from './auth/proof-of-work.ts';
+import { createSyncNoticesProtocol } from './routes/sync-notices.ts';
 
 /** How many messages of a sign-up one address takes in an hour (record 0114). */
 const signUpMailsPerHour = 3;
@@ -487,7 +488,9 @@ export async function createAppWithHandlers(
     app,
     options.handlers,
     options.identity,
-    options.protocols ?? [],
+    // The notice stream belongs to this server, not to a composition choice,
+    // so every application serves its upgrade address.
+    [...(options.protocols ?? []), createSyncNoticesProtocol()],
     config.rateLimit,
     config.limits,
   );

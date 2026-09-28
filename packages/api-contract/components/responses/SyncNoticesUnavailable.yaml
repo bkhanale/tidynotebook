@@ -1,0 +1,8 @@
+description: >-
+  This deployment does not open the notice stream now. The code is
+  notices_unavailable. The client keeps its work, reads the feed on its own
+  schedule, and tries the stream again later.
+content:
+  application/problem+json:
+    schema:
+      $ref: '../schemas/ProblemDetails.yaml'

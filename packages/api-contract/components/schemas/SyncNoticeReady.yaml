@@ -1,0 +1,15 @@
+type: object
+description: >-
+  The first message of the server on a new connection. It names the account
+  of the session that opened the stream. The connection holds no
+  subscription until the client sends a set.
+additionalProperties: false
+required:
+  - kind
+  - accountId
+properties:
+  kind:
+    type: string
+    const: ready
+  accountId:
+    $ref: './Uuid.yaml'

@@ -6,9 +6,9 @@ this directory. The recipe for a whole feature is in
 
 ## Purpose
 
-The generator. It lints the contract, merges the authentication fragment,
-and writes `packages/api-contract/src/generated/` and
-`packages/api-client/src/generated/`. It is the only workspace that produces
+The generator. It lints both contract roots, merges the authentication
+fragment, checks the message contract against the HTTP contract, and writes
+`packages/api-contract/src/generated/` and `packages/api-client/src/generated/`. It is the only workspace that produces
 the HTTP boundary instead of using it.
 
 ## What lives here and what does not
@@ -21,8 +21,12 @@ the HTTP boundary instead of using it.
 - `src/orphans.ts` walks the merged document from the paths and the document
   security and reports every component that nothing reaches.
   `src/contract-layout.ts` compares the contract source files with the root
-  document, because a file that the root does not list reaches no Redocly
-  rule.
+  documents, because a file that no root lists reaches no Redocly rule. Both
+  read `asyncapi.yaml` as a second root.
+- `src/message-contract.ts` checks the channel address, the subprotocol, and
+  the shared payload schemas against `openapi.yaml`, and `src/emit.ts` writes
+  the channel index and `socket.gen.ts` from it (0128).
+  `src/dialect.test.ts` proves the shared schema dialect with the pinned lint.
 - No application code lives here. No handler and no screen.
 
 ## Allowed imports
@@ -58,11 +62,12 @@ proved by `pnpm generated:check`, which is part of `pnpm verify`.
 
 ## Key files
 
-| File                     | Purpose                                       |
-| ------------------------ | --------------------------------------------- |
-| `src/generate.ts`        | Writes the contract index and the client      |
-| `src/check-generated.ts` | Compares the committed output with the source |
-| `src/auth-contract.ts`   | The authentication protocol fragment          |
-| `src/orphans.ts`         | The orphan component check                    |
-| `src/contract-layout.ts` | The contract source layout check              |
-| `src/emit.ts`            | File emission                                 |
+| File                      | Purpose                                       |
+| ------------------------- | --------------------------------------------- |
+| `src/generate.ts`         | Writes the contract index and the client      |
+| `src/check-generated.ts`  | Compares the committed output with the source |
+| `src/auth-contract.ts`    | The authentication protocol fragment          |
+| `src/orphans.ts`          | The orphan component check                    |
+| `src/message-contract.ts` | The message contract check                    |
+| `src/contract-layout.ts`  | The contract source layout check              |
+| `src/emit.ts`             | File emission                                 |

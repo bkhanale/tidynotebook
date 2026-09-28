@@ -17,7 +17,9 @@ authentication routes on one origin, and it holds no domain rule.
   handler per operation id and the body lives in its area file. `published.ts` is the
   reader path of a published link and its report (0119), `published-document.ts`
   writes its one document (0031, 0047), and `publications.ts` holds the owner
-  operations.
+  operations. `sync-notices.ts` serves the upgrade address of the notice
+  stream, which answers `notices_unavailable` until plan 016 turns it on
+  (0128).
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start
   and of the stop and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a

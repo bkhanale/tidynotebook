@@ -52,6 +52,7 @@ export type OperationId =
   | 'listSessions'
   | 'listWorkspaces'
   | 'openPublishedPage'
+  | 'openSyncNotices'
   | 'previewPurge'
   | 'purgeFiles'
   | 'readInvitation'
@@ -2154,6 +2155,17 @@ export const sharedDefinitions: JsonSchema = {
       "minLength": 1,
       "maxLength": 32,
       "pattern": "^[0-9]+$"
+    },
+    "SyncNoticeGeneration": {
+      "type": "integer",
+      "description": "The number of one subscription set on one connection. The client raises it for each new set, starting at 1. The server echoes it on every answer and notice for that set, so a late message of an older set cannot act on a newer one.",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "SyncNoticeProtocol": {
+      "type": "string",
+      "description": "The WebSocket subprotocol of the sync notice stream. The browser names it when it opens the stream, and the server accepts no other value. A later version gets a new name, so an old client and a new server never read each other's messages.",
+      "const": "notesapp.sync.1"
     },
     "ThemeFamily": {
       "type": "string",
@@ -6958,6 +6970,16 @@ export const operations: readonly OperationEntry[] = [
                 "type": "integer",
                 "minimum": 1
               }
+            },
+            "notificationProtocols": {
+              "type": "array",
+              "readOnly": true,
+              "description": "The notice stream subprotocols that this deployment opens now. The list is empty while notices are off. A server that omits the member predates the notice stream, so the client reads the feed on its own schedule.",
+              "maxItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeProtocol"
+              }
             }
           }
         }
@@ -8726,6 +8748,112 @@ export const operations: readonly OperationEntry[] = [
       }
     ],
     "noContent": []
+  },
+  {
+    "id": "openSyncNotices",
+    "method": "get",
+    "path": "/api/sync/notices",
+    "protocol": "sync-notices",
+    "security": [
+      {
+        "sessionCookie": []
+      }
+    ],
+    "parameters": [
+      {
+        "name": "x-request-id",
+        "location": "header",
+        "required": false,
+        "style": "simple",
+        "explode": false
+      },
+      {
+        "name": "sec-websocket-protocol",
+        "location": "header",
+        "required": true,
+        "style": "simple",
+        "explode": false
+      }
+    ],
+    "request": {
+      "params": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "query": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      },
+      "headers": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "properties": {
+          "x-request-id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "sec-websocket-protocol": {
+            "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeProtocol"
+          }
+        },
+        "required": [
+          "sec-websocket-protocol"
+        ]
+      },
+      "body": null,
+      "bodyMediaType": null
+    },
+    "responses": [
+      {
+        "status": 400,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 401,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 403,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 500,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      },
+      {
+        "status": 503,
+        "mediaType": "application/problem+json",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "$ref": "https://notesapp.invalid/contract-definitions#/$defs/ProblemDetails"
+        }
+      }
+    ],
+    "noContent": [
+      101
+    ]
   },
   {
     "id": "previewPurge",
@@ -13009,5 +13137,236 @@ export const operations: readonly OperationEntry[] = [
       }
     ],
     "noContent": []
+  }
+];
+
+/** Every channel of `packages/api-contract/asyncapi.yaml`. */
+export type ChannelId = 'syncNotices';
+
+/** Who sends a message: the browser or the server. */
+export type MessageDirection = 'client' | 'server';
+
+/** The kind of every message that a client sends. */
+export type ClientMessageKind = 'subscribe';
+
+/** The kind of every message that the server sends. */
+export type ServerMessageKind = 'changed' | 'ready' | 'reconcile' | 'refused' | 'stop' | 'subscribed';
+
+/** One message of a channel and the schema of its payload. */
+export type MessageEntry = {
+  /** The value of the `kind` member, which names the message. */
+  readonly kind: ClientMessageKind | ServerMessageKind;
+  readonly direction: MessageDirection;
+  readonly schema: JsonSchema;
+};
+
+/** One WebSocket channel and the HTTP upgrade operation that opens it. */
+export type ChannelEntry = {
+  readonly id: ChannelId;
+  readonly address: string;
+  readonly operationId: OperationId;
+  /** The one WebSocket subprotocol of the channel. */
+  readonly subprotocol: string;
+  readonly messages: readonly MessageEntry[];
+};
+
+export const channels: readonly ChannelEntry[] = [
+  {
+    "id": "syncNotices",
+    "address": "/api/sync/notices",
+    "operationId": "openSyncNotices",
+    "subprotocol": "notesapp.sync.1",
+    "messages": [
+      {
+        "kind": "changed",
+        "direction": "server",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "A commit changed the feed of one subscribed workspace. The client reads the feed of that workspace through the HTTP operations. The notice carries no cursor and no content, and only an applied feed page moves the stored cursor. A missed or repeated notice changes no result.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "generation",
+            "workspaceId"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "changed"
+            },
+            "generation": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeGeneration"
+            },
+            "workspaceId": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
+            }
+          }
+        }
+      },
+      {
+        "kind": "ready",
+        "direction": "server",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The first message of the server on a new connection. It names the account of the session that opened the stream. The connection holds no subscription until the client sends a set.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "accountId"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "ready"
+            },
+            "accountId": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
+            }
+          }
+        }
+      },
+      {
+        "kind": "reconcile",
+        "direction": "server",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The server could have missed a commit, for example after its database listener reconnected. The client reads the feed of every workspace of the set.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "generation"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "reconcile"
+            },
+            "generation": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeGeneration"
+            }
+          }
+        }
+      },
+      {
+        "kind": "refused",
+        "direction": "server",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The server refused a subscription set as a whole. The set before it stays in force. `forbidden` means that the account cannot read one workspace of the set, so the client asks the HTTP operations which access it holds. `stale_generation` means that the generation is not above the last one.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "generation",
+            "reason"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "refused"
+            },
+            "generation": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeGeneration"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "forbidden",
+                "stale_generation"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "stop",
+        "direction": "server",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The last message before the server closes the stream. The client keeps its local work in every case. `session_ended` means that the session or the account is no longer valid, so the client checks the session through the HTTP operations and does not reconnect. `malformed` means that the client sent a message outside this contract, so it does not reconnect with the same build. `draining` and `overloaded` ask the client to reconnect after a delay. `unavailable` means that notices are off, so the client reads the feed on its own schedule and tries the stream again later.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "reason"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "stop"
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "session_ended",
+                "malformed",
+                "draining",
+                "overloaded",
+                "unavailable"
+              ]
+            }
+          }
+        }
+      },
+      {
+        "kind": "subscribe",
+        "direction": "client",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The complete set of workspaces that the client wants notices for. It replaces the set before it as a whole. The server checks the access of the account to every workspace before it accepts the set, and refuses the whole set when one check fails. An empty set stops every notice.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "generation",
+            "workspaceIds"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "subscribe"
+            },
+            "generation": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeGeneration"
+            },
+            "workspaceIds": {
+              "type": "array",
+              "description": "Every workspace of the set, at most as many as one workspace list holds.",
+              "maxItems": 1000,
+              "uniqueItems": true,
+              "items": {
+                "$ref": "https://notesapp.invalid/contract-definitions#/$defs/Uuid"
+              }
+            }
+          }
+        }
+      },
+      {
+        "kind": "subscribed",
+        "direction": "server",
+        "schema": {
+          "$schema": "https://json-schema.org/draft/2020-12/schema",
+          "type": "object",
+          "description": "The server accepted a subscription set and registered it. A commit after this message sends a notice. The client reads each workspace of the set from its stored cursor after this message, so a commit before it is not lost.",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "generation"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "subscribed"
+            },
+            "generation": {
+              "$ref": "https://notesapp.invalid/contract-definitions#/$defs/SyncNoticeGeneration"
+            }
+          }
+        }
+      }
+    ]
   }
 ];

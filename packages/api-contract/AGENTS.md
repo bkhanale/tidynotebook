@@ -3,9 +3,10 @@
 Read the root [AGENTS.md](../../AGENTS.md) first. This file adds the rules of
 this directory. The recipe for a whole feature is in
 [docs/development/feature-workflow.md](../../docs/development/feature-workflow.md).
-This package is the only source of the notesapp HTTP interface. It also
-exposes the generated operation index and the compiled Ajv 2020-12 validators
-that the server boundary uses.
+This package is the only source of the notesapp HTTP interface and of the
+messages of its WebSocket channels. It also exposes the generated operation and
+channel index and the compiled Ajv 2020-12 validators that the server boundary
+uses.
 
 ## The source layout
 
@@ -20,12 +21,16 @@ from a path file, `'./<Name>.yaml'` in one section, and `'../<section>/<Name>.ya
 
 ## What lives here and what does not
 
-- `openapi.yaml`, `paths/` and `components/` are authoritative.
-  `redocly.yaml` holds the strict rules of `pnpm contract:lint`.
+- `openapi.yaml`, `paths/` and `components/` are authoritative. `redocly.yaml`
+  holds the rules of `pnpm contract:lint` and `.redocly.lint-ignore.yaml` its
+  one exception, the 101 of the upgrade (0128).
+- `asyncapi.yaml` is the message root (0126), and `channels/` holds one file
+  per channel. A payload is a schema that `openapi.yaml` also lists, in the
+  keywords that AsyncAPI 3.0 and JSON Schema 2020-12 share.
 - `src/generated/` holds the operation index and the compiled validators. Never
   edit a file there. `pnpm generate` writes it and `generated:check` compares it.
-- `src/operations.ts` gives the registry lookups and `src/schema.ts` compiles
-  a schema. No route, no handler, and no client code lives here. The generator
+- `src/operations.ts` gives the registry lookups, `src/messages.ts` checks
+  each frame both ways (0128), and `src/schema.ts` compiles a schema. No route, no handler, and no client code lives here. The generator
   lives in `tools/sdk-codegen`.
 
 ## Allowed imports
@@ -44,6 +49,9 @@ No workspace package. Only `ajv` and `ajv-formats`.
 - **A schema, a parameter, a response, a request body, a security scheme.**
   Write it in `components/<section>/<Name>.yaml`, named after the component,
   then add its row to `components.<section>` in the root.
+- **A message.** Write its schema with a constant `kind`, list it in
+  `openapi.yaml`, add it to its channel file under that kind, and name it in
+  an operation of `asyncapi.yaml`.
 - **An operation.** Give it a stable `camelCase` `operationId`, a summary, a
   description, and a declared tag. Give every parameter `in`, `required`,
   `style`, `explode`, a description, and a schema. Declare the success status,
@@ -56,7 +64,8 @@ No workspace package. Only `ajv` and `ajv-formats`.
 ## Testing conventions here
 
 `node --test` through `pnpm test:unit`. `src/validators.test.ts` proves that a
-compiled validator accepts the declared shape and refuses the neighbouring one.
+compiled validator accepts the declared shape and refuses the neighbouring one,
+and `src/messages.test.ts` does the same for each frame direction.
 `tests/integration/contract.test.ts` proves the contract to handler mapping.
 
 ## Forbidden here
@@ -74,6 +83,7 @@ compiled validator accepts the declared shape and refuses the neighbouring one.
 | File             | Purpose                                  |
 | ---------------- | ---------------------------------------- |
 | `openapi.yaml`   | The root OpenAPI 3.1.2 document          |
+| `asyncapi.yaml`  | The root AsyncAPI 3.0 message document   |
 | `paths/`         | One file for each path item              |
 | `components/`    | One file for each component, by section  |
 | `redocly.yaml`   | The strict rules of `pnpm contract:lint` |

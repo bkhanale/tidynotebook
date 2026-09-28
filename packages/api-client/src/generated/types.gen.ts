@@ -1938,6 +1938,78 @@ export type SyncMembershipRecord = {
 };
 
 /**
+ * A commit changed the feed of one subscribed workspace. The client reads the feed of that workspace through the HTTP operations. The notice carries no cursor and no content, and only an applied feed page moves the stored cursor. A missed or repeated notice changes no result.
+ */
+export type SyncNoticeChanged = {
+    kind: 'changed';
+    generation: SyncNoticeGeneration;
+    workspaceId: Uuid;
+};
+
+/**
+ * The number of one subscription set on one connection. The client raises it for each new set, starting at 1. The server echoes it on every answer and notice for that set, so a late message of an older set cannot act on a newer one.
+ */
+export type SyncNoticeGeneration = number;
+
+/**
+ * The WebSocket subprotocol of the sync notice stream. The browser names it when it opens the stream, and the server accepts no other value. A later version gets a new name, so an old client and a new server never read each other's messages.
+ */
+export type SyncNoticeProtocol = 'notesapp.sync.1';
+
+/**
+ * The first message of the server on a new connection. It names the account of the session that opened the stream. The connection holds no subscription until the client sends a set.
+ */
+export type SyncNoticeReady = {
+    kind: 'ready';
+    accountId: Uuid;
+};
+
+/**
+ * The server could have missed a commit, for example after its database listener reconnected. The client reads the feed of every workspace of the set.
+ */
+export type SyncNoticeReconcile = {
+    kind: 'reconcile';
+    generation: SyncNoticeGeneration;
+};
+
+/**
+ * The server refused a subscription set as a whole. The set before it stays in force. `forbidden` means that the account cannot read one workspace of the set, so the client asks the HTTP operations which access it holds. `stale_generation` means that the generation is not above the last one.
+ */
+export type SyncNoticeRefused = {
+    kind: 'refused';
+    generation: SyncNoticeGeneration;
+    reason: 'forbidden' | 'stale_generation';
+};
+
+/**
+ * The last message before the server closes the stream. The client keeps its local work in every case. `session_ended` means that the session or the account is no longer valid, so the client checks the session through the HTTP operations and does not reconnect. `malformed` means that the client sent a message outside this contract, so it does not reconnect with the same build. `draining` and `overloaded` ask the client to reconnect after a delay. `unavailable` means that notices are off, so the client reads the feed on its own schedule and tries the stream again later.
+ */
+export type SyncNoticeStop = {
+    kind: 'stop';
+    reason: 'session_ended' | 'malformed' | 'draining' | 'overloaded' | 'unavailable';
+};
+
+/**
+ * The complete set of workspaces that the client wants notices for. It replaces the set before it as a whole. The server checks the access of the account to every workspace before it accepts the set, and refuses the whole set when one check fails. An empty set stops every notice.
+ */
+export type SyncNoticeSubscribe = {
+    kind: 'subscribe';
+    generation: SyncNoticeGeneration;
+    /**
+     * Every workspace of the set, at most as many as one workspace list holds.
+     */
+    workspaceIds: Array<Uuid>;
+};
+
+/**
+ * The server accepted a subscription set and registered it. A commit after this message sends a notice. The client reads each workspace of the set from its stored cursor after this message, so a commit before it is not lost.
+ */
+export type SyncNoticeSubscribed = {
+    kind: 'subscribed';
+    generation: SyncNoticeGeneration;
+};
+
+/**
  * The sync protocol versions that push and pull accept.
  */
 export type SyncProtocolReport = {
@@ -1945,6 +2017,10 @@ export type SyncProtocolReport = {
      * Every served sync protocol version, oldest first. The list is never empty.
      */
     readonly versions: Array<number>;
+    /**
+     * The notice stream subprotocols that this deployment opens now. The list is empty while notices are off. A server that omits the member predates the notice stream, so the client reads the feed on its own schedule.
+     */
+    readonly notificationProtocols?: Array<SyncNoticeProtocol>;
 };
 
 /**
@@ -2618,6 +2694,11 @@ export type SyncCursor = string;
  * Largest number of change records in one answer. The server uses 100 when the parameter is absent and accepts at most 500. A page ends only at the end of a commit, so the server stops before a commit that does not fit. When the first commit is larger than the limit, the answer holds that one whole commit.
  */
 export type SyncLimit = number;
+
+/**
+ * The subprotocol that the browser asks for when it opens the notice stream. The server opens the stream only for the one subprotocol that this contract names.
+ */
+export type SyncNoticeProtocolHeader = SyncNoticeProtocol;
 
 /**
  * Identifier of the published link that the operation acts on.
@@ -4397,6 +4478,48 @@ export type CreateOwnerResponses = {
 };
 
 export type CreateOwnerResponse = CreateOwnerResponses[keyof CreateOwnerResponses];
+
+export type OpenSyncNoticesData = {
+    body?: never;
+    headers: {
+        /**
+         * Optional caller supplied correlation identifier. The server echoes the value and generates a UUID when the header is absent. A value outside the pattern below is rejected with a 400 problem.
+         */
+        'x-request-id'?: string;
+        /**
+         * The subprotocol that the browser asks for when it opens the notice stream. The server opens the stream only for the one subprotocol that this contract names.
+         */
+        'sec-websocket-protocol': SyncNoticeProtocol;
+    };
+    path?: never;
+    query?: never;
+    url: '/api/sync/notices';
+};
+
+export type OpenSyncNoticesErrors = {
+    /**
+     * The request did not match the contract.
+     */
+    400: ProblemDetails;
+    /**
+     * The request carries no usable session.
+     */
+    401: ProblemDetails;
+    /**
+     * The actor may not perform this operation.
+     */
+    403: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+    /**
+     * This deployment does not open the notice stream now. The code is notices_unavailable. The client keeps its work, reads the feed on its own schedule, and tries the stream again later.
+     */
+    503: ProblemDetails;
+};
+
+export type OpenSyncNoticesError = OpenSyncNoticesErrors[keyof OpenSyncNoticesErrors];
 
 export type GetSyncProtocolData = {
     body?: never;

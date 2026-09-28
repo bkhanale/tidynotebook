@@ -1,0 +1,16 @@
+type: object
+description: >-
+  The server accepted a subscription set and registered it. A commit after
+  this message sends a notice. The client reads each workspace of the set
+  from its stored cursor after this message, so a commit before it is not
+  lost.
+additionalProperties: false
+required:
+  - kind
+  - generation
+properties:
+  kind:
+    type: string
+    const: subscribed
+  generation:
+    $ref: './SyncNoticeGeneration.yaml'

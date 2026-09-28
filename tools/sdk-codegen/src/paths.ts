@@ -22,6 +22,9 @@ export const contractDirectory = resolve(
 /** Root document of the contract. Redocly bundles its files into one. */
 export const contractFile = resolve(contractDirectory, 'openapi.yaml');
 
+/** Root document of the message contract (record 0126). */
+export const messageContractFile = resolve(contractDirectory, 'asyncapi.yaml');
+
 /** Redocly rule configuration for the contract. */
 export const redoclyConfigFile = resolve(contractDirectory, 'redocly.yaml');
 

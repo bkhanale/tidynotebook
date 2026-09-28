@@ -88,6 +88,8 @@ paths:
     $ref: './paths/api_accounts_accountId.yaml'
   /api/sync/protocol:
     $ref: './paths/api_sync_protocol.yaml'
+  /api/sync/notices:
+    $ref: './paths/api_sync_notices.yaml'
   /api/account:
     $ref: './paths/api_account.yaml'
   /api/account/consent:
@@ -213,6 +215,8 @@ components:
       $ref: './components/parameters/SyncCursor.yaml'
     SyncLimit:
       $ref: './components/parameters/SyncLimit.yaml'
+    SyncNoticeProtocolHeader:
+      $ref: './components/parameters/SyncNoticeProtocolHeader.yaml'
     PublicationId:
       $ref: './components/parameters/PublicationId.yaml'
     PublishedToken:
@@ -367,6 +371,10 @@ components:
       $ref: './components/responses/SyncChanges.yaml'
     SyncProtocolUnsupported:
       $ref: './components/responses/SyncProtocolUnsupported.yaml'
+    SyncNoticesOpened:
+      $ref: './components/responses/SyncNoticesOpened.yaml'
+    SyncNoticesUnavailable:
+      $ref: './components/responses/SyncNoticesUnavailable.yaml'
     SnapshotRequired:
       $ref: './components/responses/SnapshotRequired.yaml'
     PublishedLinkCreated:
@@ -424,6 +432,24 @@ components:
       $ref: './components/schemas/ReadinessReport.yaml'
     SyncProtocolReport:
       $ref: './components/schemas/SyncProtocolReport.yaml'
+    SyncNoticeChanged:
+      $ref: './components/schemas/SyncNoticeChanged.yaml'
+    SyncNoticeGeneration:
+      $ref: './components/schemas/SyncNoticeGeneration.yaml'
+    SyncNoticeProtocol:
+      $ref: './components/schemas/SyncNoticeProtocol.yaml'
+    SyncNoticeReady:
+      $ref: './components/schemas/SyncNoticeReady.yaml'
+    SyncNoticeReconcile:
+      $ref: './components/schemas/SyncNoticeReconcile.yaml'
+    SyncNoticeRefused:
+      $ref: './components/schemas/SyncNoticeRefused.yaml'
+    SyncNoticeStop:
+      $ref: './components/schemas/SyncNoticeStop.yaml'
+    SyncNoticeSubscribe:
+      $ref: './components/schemas/SyncNoticeSubscribe.yaml'
+    SyncNoticeSubscribed:
+      $ref: './components/schemas/SyncNoticeSubscribed.yaml'
     ReadinessCheck:
       $ref: './components/schemas/ReadinessCheck.yaml'
     ProblemDetails:

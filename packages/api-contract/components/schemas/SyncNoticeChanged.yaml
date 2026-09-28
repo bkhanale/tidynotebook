@@ -1,0 +1,19 @@
+type: object
+description: >-
+  A commit changed the feed of one subscribed workspace. The client reads the
+  feed of that workspace through the HTTP operations. The notice carries no
+  cursor and no content, and only an applied feed page moves the stored
+  cursor. A missed or repeated notice changes no result.
+additionalProperties: false
+required:
+  - kind
+  - generation
+  - workspaceId
+properties:
+  kind:
+    type: string
+    const: changed
+  generation:
+    $ref: './SyncNoticeGeneration.yaml'
+  workspaceId:
+    $ref: './Uuid.yaml'

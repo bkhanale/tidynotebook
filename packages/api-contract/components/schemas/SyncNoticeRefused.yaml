@@ -1,0 +1,22 @@
+type: object
+description: >-
+  The server refused a subscription set as a whole. The set before it stays
+  in force. `forbidden` means that the account cannot read one workspace of
+  the set, so the client asks the HTTP operations which access it holds.
+  `stale_generation` means that the generation is not above the last one.
+additionalProperties: false
+required:
+  - kind
+  - generation
+  - reason
+properties:
+  kind:
+    type: string
+    const: refused
+  generation:
+    $ref: './SyncNoticeGeneration.yaml'
+  reason:
+    type: string
+    enum:
+      - forbidden
+      - stale_generation

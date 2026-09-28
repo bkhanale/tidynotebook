@@ -13,6 +13,11 @@
  * `$ref`, and reports every component that it never reached. It reads the
  * merged document in source form, which still holds its references, because a
  * dereferenced document has none left to follow.
+ *
+ * The message contract is a second root (record 0126). Its walk starts at its
+ * operations, and a schema that only a message reaches is still in use: the
+ * HTTP contract lists it so that Hey API writes its type. A schema that
+ * neither walk reaches is an orphan.
  */
 
 type Json = Record<string, unknown>;
@@ -82,12 +87,22 @@ function declaredComponents(document: Json): string[] {
 
 /** Component pointers that the paths and the document security reach. */
 export function reachableComponents(document: Json): Set<string> {
-  const reachable = new Set<string>();
-  const pending: unknown[] = [
+  return walkFrom(document, [
     { paths: document.paths },
     { webhooks: document.webhooks },
     { security: document.security },
-  ];
+  ]);
+}
+
+/** Component pointers that the operations of a message contract reach. */
+export function reachableMessageComponents(document: Json): Set<string> {
+  return walkFrom(document, [{ operations: document.operations }]);
+}
+
+/** Every component pointer that a walk from the given nodes reaches. */
+function walkFrom(document: Json, start: unknown[]): Set<string> {
+  const reachable = new Set<string>();
+  const pending: unknown[] = [...start];
   while (pending.length > 0) {
     const node = pending.pop();
     if (Array.isArray(node)) {
@@ -124,17 +139,50 @@ export function reachableComponents(document: Json): Set<string> {
   return reachable;
 }
 
-/** Components that no path and no security requirement reaches. */
-export function findOrphanComponents(document: Json): string[] {
+/**
+ * Components that nothing reaches, in either contract.
+ *
+ * `messages` is the bundled message contract, or `null` when a test reads the
+ * HTTP contract alone. A schema of the HTTP contract counts as reached when a
+ * message reaches the schema of the same name, because both contracts name a
+ * shared schema after its one file. A report of the message contract carries
+ * the prefix `asyncapi.yaml`.
+ */
+export function findOrphanComponents(
+  document: Json,
+  messages: Json | null = null,
+): string[] {
   const reachable = reachableComponents(document);
-  return declaredComponents(document).filter(
-    (pointer) => !reachable.has(pointer),
+  const byMessages =
+    messages === null
+      ? new Set<string>()
+      : reachableMessageComponents(messages);
+  const orphans = declaredComponents(document).filter(
+    (pointer) => !reachable.has(pointer) && !byMessages.has(pointer),
   );
+  if (messages === null) return orphans;
+  // The bundler writes a channel, a message and a security scheme in full
+  // where one is named, and keeps a reference to a schema only, so the walk
+  // can judge the schemas of the message contract. The message contract check
+  // judges its security schemes.
+  return [
+    ...orphans,
+    ...declaredComponents(messages)
+      .filter(
+        (pointer) =>
+          pointer.startsWith('#/components/schemas/') &&
+          !byMessages.has(pointer),
+      )
+      .map((pointer) => `asyncapi.yaml ${pointer}`),
+  ];
 }
 
-/** Stops generation when the merged document declares a component nothing uses. */
-export function assertNoOrphanComponents(document: Json): void {
-  const orphans = findOrphanComponents(document);
+/** Stops generation when either contract declares a component nothing uses. */
+export function assertNoOrphanComponents(
+  document: Json,
+  messages: Json | null = null,
+): void {
+  const orphans = findOrphanComponents(document, messages);
   if (orphans.length === 0) return;
   throw new Error(
     [

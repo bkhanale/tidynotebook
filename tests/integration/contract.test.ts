@@ -18,10 +18,22 @@ import {
   getReadiness,
   getRootHealth,
   getRootReadiness,
+  encodeSyncNoticesMessage,
   getSyncProtocol,
+  openSyncNotices,
+  readSyncNoticesMessage,
+  syncNoticesAddress,
+  syncNoticesPath,
+  syncNoticesProtocol,
   unlockPublishedLink,
 } from '@notesapp/api-client';
-import { operations, requestValidator } from '@notesapp/api-contract';
+import {
+  checkServerMessage,
+  findChannel,
+  operations,
+  readClientMessage,
+  requestValidator,
+} from '@notesapp/api-contract';
 import {
   passwordBounds,
   supportedSyncVersions,
@@ -292,8 +304,115 @@ await test('the sync protocol answers without a session', async () => {
   const result = await getSyncProtocol();
   assert.equal(result.error, undefined);
   assert.equal(responseOf(result.response).status, 200);
-  assert.deepEqual(result.data, { versions: [...supportedSyncVersions] });
+  // The notice stream stays off until plan 016 turns it on, so the answer
+  // offers no subprotocol (record 0124).
+  assert.deepEqual(result.data, {
+    versions: [...supportedSyncVersions],
+    notificationProtocols: [],
+  });
   assert.ok(result.data?.versions.includes(syncProtocolVersion));
+});
+
+await test('the notice stream authenticates before it answers', async () => {
+  // The upgrade names the session cookie scheme, so the identity check runs
+  // before the adapter and before any upgrade (record 0124).
+  const result = await openSyncNotices({
+    headers: { 'sec-websocket-protocol': syncNoticesProtocol },
+  });
+  assert.equal(responseOf(result.response).status, 401);
+  assert.equal(asProblem(result.error).code, 'unauthenticated');
+});
+
+await test('the notice stream answers unavailable while notices are off', async () => {
+  // The generated entry and the contract name one address and one
+  // subprotocol, because both come from asyncapi.yaml and openapi.yaml.
+  const channel = findChannel('syncNotices');
+  assert.equal(channel?.address, syncNoticesPath);
+  assert.equal(channel?.subprotocol, syncNoticesProtocol);
+  // This server accepts every caller, so the answer below is the one that a
+  // signed in browser gets.
+  const signedIn = await startTestServer({ identity: () => Promise.resolve() });
+  try {
+    const upgrade = await signedIn.app.inject({
+      method: 'GET',
+      url: syncNoticesPath,
+      headers: {
+        host: '127.0.0.1',
+        connection: 'Upgrade',
+        upgrade: 'websocket',
+        'sec-websocket-version': '13',
+        'sec-websocket-key': 'dGhlIHNhbXBsZSBub25jZQ==',
+        'sec-websocket-protocol': syncNoticesProtocol,
+      },
+    });
+    assert.equal(upgrade.statusCode, 503);
+    assert.equal(asProblem(upgrade.json()).code, 'notices_unavailable');
+
+    // A request without the one subprotocol is outside the contract.
+    for (const protocol of [undefined, 'notesapp.sync.0']) {
+      const refused = await signedIn.app.inject({
+        method: 'GET',
+        url: syncNoticesPath,
+        headers: {
+          host: '127.0.0.1',
+          ...(protocol === undefined
+            ? {}
+            : { 'sec-websocket-protocol': protocol }),
+        },
+      });
+      assert.equal(refused.statusCode, 400, String(protocol));
+      assert.equal(asProblem(refused.json()).code, 'invalid_request');
+    }
+  } finally {
+    await signedIn.close();
+  }
+});
+
+await test('the generated socket entry follows the scheme of the origin', () => {
+  assert.equal(
+    syncNoticesAddress('https://notes.example'),
+    'wss://notes.example/api/sync/notices',
+  );
+  assert.equal(
+    syncNoticesAddress('http://127.0.0.1:8080/app/'),
+    'ws://127.0.0.1:8080/api/sync/notices',
+  );
+});
+
+await test('a client frame of the generated entry passes the server boundary', () => {
+  // Hey API typed the message and Ajv compiled its validator from one
+  // schema file, so what the client writes is what the server reads.
+  const frame = encodeSyncNoticesMessage({
+    kind: 'subscribe',
+    generation: 3,
+    workspaceIds: ['0f8e2b1c-3d4a-4b5c-8d6e-7f8091a2b3c4'],
+  });
+  const read = readClientMessage('syncNotices', frame);
+  assert.equal(read.ok, true);
+  if (read.ok) assert.equal(read.kind, 'subscribe');
+});
+
+await test('a server message that passes the boundary is read by the client', () => {
+  const message = {
+    kind: 'changed',
+    generation: 3,
+    workspaceId: '0f8e2b1c-3d4a-4b5c-8d6e-7f8091a2b3c4',
+  };
+  assert.equal(checkServerMessage('syncNotices', message), null);
+  assert.equal(
+    readSyncNoticesMessage(JSON.stringify(message))?.kind,
+    'changed',
+  );
+  // A frame outside the server messages reads as null, so the client treats
+  // the stream as broken instead of acting on it.
+  for (const frame of [
+    'not json',
+    '[]',
+    'null',
+    '{"kind":7}',
+    '{"kind":"subscribe","generation":1,"workspaceIds":[]}',
+  ])
+    assert.equal(readSyncNoticesMessage(frame), null, frame);
 });
 
 await test('a server without the protocol operation answers route not found', async () => {
@@ -348,6 +467,13 @@ await test('every operation has exactly one handler and back', () => {
   assert.ok(
     operations.some((operation) => operation.protocol === 'better-auth'),
     'the contract must declare the authentication protocol fragment',
+  );
+  // The upgrade of every channel is a protocol operation, so the startup
+  // check proves that the server serves the address of each channel.
+  assert.equal(
+    operations.find((operation) => operation.id === 'openSyncNotices')
+      ?.protocol,
+    'sync-notices',
   );
 });
 

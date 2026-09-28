@@ -1,0 +1,8 @@
+type: integer
+description: >-
+  The number of one subscription set on one connection. The client raises it
+  for each new set, starting at 1. The server echoes it on every answer and
+  notice for that set, so a late message of an older set cannot act on a
+  newer one.
+minimum: 1
+maximum: 9007199254740991

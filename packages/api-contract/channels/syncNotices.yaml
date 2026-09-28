@@ -1,0 +1,67 @@
+address: /api/sync/notices
+title: Sync notices
+description: >-
+  One stream for one browser session. The client replaces its
+  subscription set with each subscribe message, and the server sends a
+  notice when the feed of a subscribed workspace changes.
+messages:
+  subscribe:
+    name: subscribe
+    title: Replace the subscription set
+    summary: The client states every workspace it wants notices for.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeSubscribe.yaml'
+  ready:
+    name: ready
+    title: Stream ready
+    summary: The server opened the stream for one account.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeReady.yaml'
+  subscribed:
+    name: subscribed
+    title: Subscription set accepted
+    summary: The server registered one subscription set.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeSubscribed.yaml'
+  refused:
+    name: refused
+    title: Subscription set refused
+    summary: The server refused one subscription set as a whole.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeRefused.yaml'
+  changed:
+    name: changed
+    title: Workspace changed
+    summary: The feed of one subscribed workspace changed.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeChanged.yaml'
+  reconcile:
+    name: reconcile
+    title: Read every workspace
+    summary: The server could have missed a commit.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeReconcile.yaml'
+  stop:
+    name: stop
+    title: Stream stops
+    summary: The server closes the stream after this message.
+    contentType: application/json
+    payload:
+      $ref: '../components/schemas/SyncNoticeStop.yaml'
+bindings:
+  ws:
+    method: GET
+    headers:
+      type: object
+      required:
+        - sec-websocket-protocol
+      properties:
+        sec-websocket-protocol:
+          $ref: '../components/schemas/SyncNoticeProtocol.yaml'
+    bindingVersion: 0.1.0

@@ -1,0 +1,26 @@
+type: object
+description: >-
+  The last message before the server closes the stream. The client keeps its
+  local work in every case. `session_ended` means that the session or the
+  account is no longer valid, so the client checks the session through the
+  HTTP operations and does not reconnect. `malformed` means that the client
+  sent a message outside this contract, so it does not reconnect with the
+  same build. `draining` and `overloaded` ask the client to reconnect after a
+  delay. `unavailable` means that notices are off, so the client reads the
+  feed on its own schedule and tries the stream again later.
+additionalProperties: false
+required:
+  - kind
+  - reason
+properties:
+  kind:
+    type: string
+    const: stop
+  reason:
+    type: string
+    enum:
+      - session_ended
+      - malformed
+      - draining
+      - overloaded
+      - unavailable

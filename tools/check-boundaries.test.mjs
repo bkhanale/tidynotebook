@@ -413,6 +413,20 @@ await test('rejects an HTTP library outside generated output', () => {
   );
 });
 
+await test('rejects a WebSocket library outside a named adapter file', () => {
+  for (const library of ['partysocket', 'ws', '@fastify/websocket']) {
+    rejected(
+      check(
+        workspace({
+          'apps/web/package.json': manifest('web', { [library]: '1.0.0' }),
+          'apps/web/src/index.ts': `import socket from '${library}';\nexport const open = socket;\n`,
+        }),
+      ),
+      `Use the generated socket entry instead of ${library}`,
+    );
+  }
+});
+
 await test('accepts a property or type named fetch', () => {
   accepted(
     check(

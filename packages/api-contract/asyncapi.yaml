@@ -1,0 +1,54 @@
+asyncapi: 3.0.0
+info:
+  title: notesapp sync notices
+  version: 0.1.0
+  description: >-
+    This document is the authoritative message contract of the sync notice
+    stream. It describes the server: the server receives what the client
+    sends and sends what the client receives. The HTTP upgrade operation
+    openSyncNotices in `openapi.yaml` opens the stream at the address of
+    the channel below. Each message payload is a schema component that
+    `openapi.yaml` also lists, so one file states each shape once.
+  license:
+    name: MIT
+    url: https://spdx.org/licenses/MIT.html
+defaultContentType: application/json
+channels:
+  syncNotices:
+    $ref: './channels/syncNotices.yaml'
+operations:
+  receiveClientMessages:
+    action: receive
+    title: Receive client messages
+    summary: The server reads the messages that the client sends.
+    description: >-
+      The server validates each message against its payload schema before
+      it acts on it. A message outside this contract stops the stream.
+    channel:
+      $ref: '#/channels/syncNotices'
+    security:
+      - $ref: '#/components/securitySchemes/streamSessionCookie'
+    messages:
+      - $ref: '#/channels/syncNotices/messages/subscribe'
+  sendServerMessages:
+    action: send
+    title: Send server messages
+    summary: The server writes the messages that the client reads.
+    description: >-
+      The server validates each message against its payload schema before it
+      sends it. Ready comes first, and stop comes last.
+    channel:
+      $ref: '#/channels/syncNotices'
+    security:
+      - $ref: '#/components/securitySchemes/streamSessionCookie'
+    messages:
+      - $ref: '#/channels/syncNotices/messages/ready'
+      - $ref: '#/channels/syncNotices/messages/subscribed'
+      - $ref: '#/channels/syncNotices/messages/refused'
+      - $ref: '#/channels/syncNotices/messages/changed'
+      - $ref: '#/channels/syncNotices/messages/reconcile'
+      - $ref: '#/channels/syncNotices/messages/stop'
+components:
+  securitySchemes:
+    streamSessionCookie:
+      $ref: './components/securitySchemes/streamSessionCookie.yaml'

@@ -13,7 +13,8 @@ generated output, the handler, and the tests. Do not split them across commits,
 and never edit a file under a `src/generated/` directory.
 
 See [decision 0011](../decisions/0011-contract-emit-and-one-migration.md) for
-why the contract emits shared definitions.
+why the contract emits shared definitions. A WebSocket message follows
+[Adding a WebSocket message](message-contract.md).
 
 ## Where the pieces live
 
@@ -114,9 +115,9 @@ is marked in the contract and is different in three ways.
   protocol operation is not in that list. A library release that adds an
   endpoint therefore cannot widen the surface without a reviewed change.
 - Its routes live in an encapsulated scope with a raw body parser, so the
-  library receives the bytes the client sent. No contract validator and no
-  identity hook runs there, because the library owns its own shapes and its own
-  credential checks.
+  library receives the bytes the client sent. The declared request slots and
+  the answer are still validated, and the identity hook runs only when the
+  operation names a security scheme, which no Better Auth operation does.
 
 The adapter still owns the error surface: it rewrites a refused answer into the
 problem shape, so every path of the deployment answers problem details.

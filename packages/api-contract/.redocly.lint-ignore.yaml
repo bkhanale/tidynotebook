@@ -1,0 +1,9 @@
+# One reviewed exception of `pnpm contract:lint`. Each entry names one rule at
+# one location, so the rule stays on for every other operation.
+#
+# openSyncNotices upgrades the connection to a WebSocket. Its success is
+# 101 Switching Protocols (RFC 9110 and RFC 6455), and no 2xx answer exists
+# for an upgrade. The operation still declares its success and its failures.
+paths/api_sync_notices.yaml:
+  operation-2xx-response:
+    - '#/get/responses'

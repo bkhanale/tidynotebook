@@ -1,0 +1,8 @@
+type: httpApiKey
+in: cookie
+name: notesapp_session
+description: >-
+  The browser session cookie that the HTTP operations use. The browser sends
+  it with the upgrade request, and the stream stays bound to that session.
+  A deployment whose origin is https serves the cookie under the reserved
+  name __Secure-notesapp_session.

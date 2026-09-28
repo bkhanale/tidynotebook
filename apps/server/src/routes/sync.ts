@@ -50,7 +50,13 @@ export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
       Promise.resolve({
         status: 200,
         mediaType: jsonMediaType,
-        body: { versions: [...supportedSyncVersions] },
+        // The notice stream stays off until plan 016 turns it on, so no
+        // subprotocol is offered and every client reads the feed on its own
+        // schedule (record 0124).
+        body: {
+          versions: [...supportedSyncVersions],
+          notificationProtocols: [],
+        },
       }),
 
     startSnapshot: async (request: FastifyRequest): Promise<HandlerResult> => {

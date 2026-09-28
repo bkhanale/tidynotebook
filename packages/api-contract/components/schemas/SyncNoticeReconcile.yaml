@@ -1,0 +1,15 @@
+type: object
+description: >-
+  The server could have missed a commit, for example after its database
+  listener reconnected. The client reads the feed of every workspace of the
+  set.
+additionalProperties: false
+required:
+  - kind
+  - generation
+properties:
+  kind:
+    type: string
+    const: reconcile
+  generation:
+    $ref: './SyncNoticeGeneration.yaml'

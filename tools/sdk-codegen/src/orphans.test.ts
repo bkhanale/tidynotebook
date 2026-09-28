@@ -148,3 +148,47 @@ await test('a reference that names nothing is a failure', () => {
   };
   assert.throws(() => reachableComponents(input), /names nothing/);
 });
+
+/** A message contract in bundled form whose one message sends a Note. */
+function messages(): {
+  operations: Json;
+  components: { schemas: Json };
+} {
+  return {
+    operations: {
+      sendNote: {
+        action: 'send',
+        channel: {
+          address: '/api/stream',
+          messages: {
+            note: {
+              name: 'note',
+              payload: { $ref: '#/components/schemas/Forgotten' },
+            },
+          },
+        },
+      },
+    },
+    components: { schemas: { Forgotten: { type: 'object' } } },
+  };
+}
+
+await test('a schema that only a message reaches is in use', () => {
+  assert.deepEqual(findOrphanComponents(document(), messages()), [
+    '#/components/securitySchemes/bearerToken',
+  ]);
+});
+
+await test('a schema that neither contract reaches is still an orphan', () => {
+  const stream = messages();
+  const operation = stream.operations.sendNote;
+  assert.ok(operation !== null && typeof operation === 'object');
+  Object.assign(operation, {
+    channel: { address: '/api/stream', messages: {} },
+  });
+  assert.deepEqual(findOrphanComponents(document(), stream), [
+    '#/components/schemas/Forgotten',
+    '#/components/securitySchemes/bearerToken',
+    'asyncapi.yaml #/components/schemas/Forgotten',
+  ]);
+});

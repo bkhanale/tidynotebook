@@ -1,0 +1,11 @@
+name: sec-websocket-protocol
+in: header
+required: true
+style: simple
+explode: false
+description: >-
+  The subprotocol that the browser asks for when it opens the notice stream.
+  The server opens the stream only for the one subprotocol that this
+  contract names.
+schema:
+  $ref: '../schemas/SyncNoticeProtocol.yaml'

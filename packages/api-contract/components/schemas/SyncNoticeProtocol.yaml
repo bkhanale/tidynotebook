@@ -1,0 +1,7 @@
+type: string
+description: >-
+  The WebSocket subprotocol of the sync notice stream. The browser names it
+  when it opens the stream, and the server accepts no other value. A later
+  version gets a new name, so an old client and a new server never read
+  each other's messages.
+const: notesapp.sync.1

@@ -1,0 +1,29 @@
+get:
+  operationId: openSyncNotices
+  summary: Open the WebSocket stream of sync notices.
+  description: >-
+    Upgrades the connection to the WebSocket stream that tells a signed in
+    device when the feed of a subscribed workspace changes. The stream
+    carries notices only. Saves, receipts, feed pages and snapshots stay on
+    the HTTP operations, and a device that cannot open the stream reads the
+    feed on its own schedule. `asyncapi.yaml` states every message of the
+    stream.
+  tags:
+    - files
+  x-notesapp-protocol: sync-notices
+  parameters:
+    - $ref: '../components/parameters/RequestId.yaml'
+    - $ref: '../components/parameters/SyncNoticeProtocolHeader.yaml'
+  responses:
+    '101':
+      $ref: '../components/responses/SyncNoticesOpened.yaml'
+    '400':
+      $ref: '../components/responses/BadRequest.yaml'
+    '401':
+      $ref: '../components/responses/Unauthorized.yaml'
+    '403':
+      $ref: '../components/responses/Forbidden.yaml'
+    '500':
+      $ref: '../components/responses/ServerError.yaml'
+    '503':
+      $ref: '../components/responses/SyncNoticesUnavailable.yaml'

@@ -107,6 +107,21 @@ const httpLibraries = new Set([
   'undici',
   '@hey-api/client-fetch',
 ]);
+// A WebSocket library opens a socket or serves one. The generated socket
+// entry states every address and message (record 0126), so a library enters
+// only through a file that this list names. Plan 016 adds the server adapter
+// and the browser coordinator here when each one lands.
+const socketLibraries = new Set([
+  'ws',
+  'isomorphic-ws',
+  '@fastify/websocket',
+  'partysocket',
+  'reconnecting-websocket',
+  'socket.io',
+  'socket.io-client',
+]);
+/** @type {Set<string>} */
+const socketFiles = new Set();
 // These files connect maintained protocols or cache static application assets.
 // They remain subject to imports, dependency direction, and package cycle checks.
 const protocolFiles = new Set(['apps/server/src/auth/better-auth.ts']);
@@ -410,6 +425,11 @@ function checkImport(file, specifier, isTest, isGenerated, isTypeOnly = false) {
   // Generated output owns the fetch transport and its client package.
   if (!isGenerated && httpLibraries.has(dependency))
     fail(file, `Use generated operations instead of ${dependency}.`);
+  if (socketLibraries.has(dependency) && !socketFiles.has(filePath))
+    fail(
+      file,
+      `Use the generated socket entry instead of ${dependency}, or name this adapter file in the socket list.`,
+    );
   // A declaration package declares the module it describes, but only for a
   // type-only import. TypeScript resolves `import type ... from 'mdast'`
   // through `@types/mdast`, and nothing is loaded at run time. A value import
