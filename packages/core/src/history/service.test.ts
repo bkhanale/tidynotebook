@@ -7,6 +7,7 @@ import { verifyActor, type Actor, type Role } from '../identity/actor.ts';
 import { contentDigest } from '../files/digest.ts';
 import { listHistory, restoreRevision } from './service.ts';
 import { previewPurge, purgeFiles } from './purge.ts';
+import { maxFilesPerChangeset } from '../files/commit.ts';
 import {
   ok,
   type AcceptedChangeset,
@@ -504,4 +505,35 @@ await test('purge: owner can purge files successfully and writes purge markers',
   }
   assert.equal(state.files.has('f1'), false);
   assert.equal(state.purged.has('f1'), true);
+});
+
+await test('purge: refuses more files than one commit may hold', async () => {
+  const state = new FakeWorkspace();
+  const store = fakeStore(state);
+  const owner = buildActor(ownerId, 'owner');
+  const fileIds = Array.from(
+    { length: maxFilesPerChangeset + 1 },
+    (_, index) => `f${String(index)}`,
+  );
+
+  const refused = await purgeFiles(
+    store,
+    owner,
+    workspaceId,
+    fileIds,
+    'm-too-many',
+    'req-too-many',
+  );
+  assert.equal(refused.ok, false);
+  if (!refused.ok) assert.equal(refused.error.code, 'too_many_files');
+
+  const accepted = await purgeFiles(
+    store,
+    owner,
+    workspaceId,
+    fileIds.slice(0, maxFilesPerChangeset),
+    'm-at-limit',
+    'req-at-limit',
+  );
+  assert.equal(accepted.ok, true);
 });

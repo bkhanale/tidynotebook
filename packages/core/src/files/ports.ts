@@ -411,9 +411,12 @@ export type WorkspaceTransaction = {
   /**
    * Reads the ordered change records after one cursor.
    *
-   * The answer carries the rows, the current high-water cursor, and the oldest
-   * retained cursor, so the caller can tell an empty poll from a cursor that
-   * predates the retained window.
+   * The rows hold whole commits only: every row of one cursor, or none of
+   * them. The rows stop before a commit that would pass `limit`, and hold the
+   * first commit whole when it alone passes `limit` (record 0127). The answer
+   * also carries the current high-water cursor and the oldest retained
+   * cursor, so the caller can tell an empty poll from a cursor that predates
+   * the retained window.
    */
   syncChanges(afterCursor: string, limit: number): Promise<SyncChangeFeed>;
 };

@@ -4809,8 +4809,8 @@ export const operations: readonly OperationEntry[] = [
             "changes": {
               "type": "array",
               "readOnly": true,
-              "description": "Ordered changes after the requested cursor, oldest first.",
-              "maxItems": 500,
+              "description": "Ordered changes after the requested cursor, oldest first. The page holds whole commits only. One commit larger than the requested limit comes as one whole page, and a commit holds at most 1000 records.",
+              "maxItems": 1000,
               "items": {
                 "description": "One record of the ordered feed. The kind states which form applies: the work of one save, a whole document at a new generation, a note that the workspace removed for good, or a change of the membership.",
                 "oneOf": [

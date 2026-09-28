@@ -7,6 +7,7 @@
  * execute a purge.
  */
 import { authorize, type Actor } from '../identity/actor.ts';
+import { maxFilesPerChangeset } from '../files/commit.ts';
 import { fail, type Result } from '../files/model.ts';
 import type {
   PurgePreview,
@@ -57,6 +58,11 @@ export async function purgeFiles(
   if (fileIds.length === 0) {
     return fail('invalid_graph', []);
   }
+  // One purge writes one commit of the sync feed, and a feed page holds a
+  // whole commit, so the changeset bound is also the bound of a page
+  // (record 0127).
+  if (fileIds.length > maxFilesPerChangeset)
+    return fail('too_many_files', fileIds);
 
   return store.transact<Result<PurgedFilesResult>>(
     actor,

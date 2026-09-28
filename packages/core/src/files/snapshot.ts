@@ -202,7 +202,9 @@ export type SyncChangesOptions = {
  * A cursor that predates the retained window answers `snapshot_required`,
  * because the records between the cursor and the retained window are gone and
  * the client cannot prove that nothing was missed. An empty answer carries the
- * current high-water cursor, so the client polls with it.
+ * current high-water cursor, so the client polls with it. The port answers
+ * whole commits only, so the cursor of the last change passes no record of a
+ * commit that the page did not hold (record 0127).
  */
 export async function getChanges(
   store: WorkspaceStore,

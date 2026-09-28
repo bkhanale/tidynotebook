@@ -1859,7 +1859,7 @@ export type SupersededHead = {
  */
 export type SyncChanges = {
     /**
-     * Ordered changes after the requested cursor, oldest first.
+     * Ordered changes after the requested cursor, oldest first. The page holds whole commits only. One commit larger than the requested limit comes as one whole page, and a commit holds at most 1000 records.
      */
     readonly changes: Array<SyncRecord>;
     /**
@@ -2615,7 +2615,7 @@ export type SnapshotPageLimit = number;
 export type SyncCursor = string;
 
 /**
- * Largest number of change records in one answer. The server uses 100 when the parameter is absent and never returns more than 500.
+ * Largest number of change records in one answer. The server uses 100 when the parameter is absent and accepts at most 500. A page ends only at the end of a commit, so the server stops before a commit that does not fit. When the first commit is larger than the limit, the answer holds that one whole commit.
  */
 export type SyncLimit = number;
 
@@ -6357,7 +6357,7 @@ export type GetChangesData = {
          */
         cursor: string;
         /**
-         * Largest number of change records in one answer. The server uses 100 when the parameter is absent and never returns more than 500.
+         * Largest number of change records in one answer. The server uses 100 when the parameter is absent and accepts at most 500. A page ends only at the end of a commit, so the server stops before a commit that does not fit. When the first commit is larger than the limit, the answer holds that one whole commit.
          */
         limit?: number;
     };

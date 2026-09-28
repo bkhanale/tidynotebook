@@ -976,7 +976,7 @@ export const searchFiles = <ThrowOnError extends boolean = false>(options: Optio
 /**
  * Read ordered incremental changes after a cursor.
  *
- * Reads the commit ordered change records after a cursor the client already applied, oldest first. Every relevant write allocates its cursor under the workspace lock, so the stream cannot skip a file transaction that commits late. Change records are kept for 90 days; an older cursor answers 410 with the code snapshot_required, while saved revision identifiers stay valid beyond that window.
+ * Reads the commit ordered change records after a cursor the client already applied, oldest first. Every relevant write allocates its cursor under the workspace lock, so the stream cannot skip a file transaction that commits late. A page never splits a commit, so the next cursor never passes a record of it. Change records are kept for 90 days; an older cursor answers 410 with the code snapshot_required, while saved revision identifiers stay valid beyond that window.
  */
 export const getChanges = <ThrowOnError extends boolean = false>(options: Options<GetChangesData, ThrowOnError>): RequestResult<GetChangesResponses, GetChangesErrors, ThrowOnError> => (options.client ?? client).get<GetChangesResponses, GetChangesErrors, ThrowOnError>({
     security: [{

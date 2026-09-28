@@ -5,7 +5,10 @@ style: form
 explode: true
 description: >-
   Largest number of change records in one answer. The server uses 100
-  when the parameter is absent and never returns more than 500.
+  when the parameter is absent and accepts at most 500. A page ends only
+  at the end of a commit, so the server stops before a commit that does
+  not fit. When the first commit is larger than the limit, the answer
+  holds that one whole commit.
 schema:
   type: integer
   minimum: 1

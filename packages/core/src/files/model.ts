@@ -274,7 +274,8 @@ export type AcceptedInput = Omit<ChangesetInput, 'revisions'> & {
  * because the revisions are a valid change of the stored history and the only
  * problem is how many of them there are. A folder rename is the operation
  * that reaches the limit, and the person can act on it by moving fewer notes
- * at a time.
+ * at a time. A purge takes the same limit, because one purge is one commit of
+ * the sync feed (record 0127).
  *
  * `last_administrator` refuses a change that leaves the installation with no
  * enabled administrator (record 0110). `invitation_invalid` is the one

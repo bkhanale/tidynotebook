@@ -19,6 +19,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import {
+  commitChangeset,
   configureClient,
   createFile,
   getAccount,
@@ -32,6 +33,7 @@ import {
   startSnapshot,
   updateFile,
 } from '@notesapp/api-client';
+import { maxFilesPerChangeset, syncMaxLimit } from '@notesapp/core';
 import {
   bootstrapOwner,
   createAuth,
@@ -431,6 +433,181 @@ await test('a purge emits a deletion and invalidates live snapshots', async () =
   });
   assert.equal(responseOf(reread.response).status, 410);
   assert.equal(problemCode(reread.error), 'snapshot_required');
+});
+
+/** One record of the incremental feed, as the generated client reads it. */
+type FeedRecord = NonNullable<
+  Awaited<ReturnType<typeof getChanges>>['data']
+>['changes'][number];
+
+/** The file and the revision of one note that a changeset created. */
+type CreatedNote = { readonly fileId: string; readonly revisionId: string };
+
+/** The current high-water cursor of the workspace, from a fresh snapshot. */
+async function highWater(): Promise<string> {
+  const started = await startSnapshot({
+    headers: browser(ownerCookie),
+    path: { workspaceId },
+    body: { syncVersion: 1 },
+  });
+  assert.equal(started.error, undefined, JSON.stringify(started.error));
+  return started.data?.cursor ?? '';
+}
+
+/** Accepts one changeset that creates `count` notes under one folder. */
+async function createNotes(
+  folder: string,
+  count: number,
+): Promise<readonly CreatedNote[]> {
+  const clientTime = new Date().toISOString();
+  const revisions = Array.from({ length: count }, (_, index) => ({
+    revisionId: randomUUID(),
+    fileId: randomUUID(),
+    parents: [],
+    path: `${folder}/note-${String(index)}.md`,
+    deleted: false,
+    content: {
+      kind: 'markdown' as const,
+      document: firstSave(`# Note ${String(index)}\n`),
+    },
+    clientTime,
+  }));
+  const committed = await commitChangeset({
+    headers: browser(ownerCookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      deviceId: 'integration-device',
+      expectedHeads: Object.fromEntries(
+        revisions.map((revision) => [revision.fileId, null]),
+      ),
+      revisions,
+    },
+  });
+  assert.equal(committed.error, undefined, JSON.stringify(committed.error));
+  return revisions.map(({ fileId, revisionId }) => ({ fileId, revisionId }));
+}
+
+/** What one feed record states, so two reads of it compare equal. */
+function recordKey(record: FeedRecord): string {
+  if (record.kind === 'membership') return `membership:${record.accountId}`;
+  if (record.kind === 'purge') return `purge:${record.fileId}`;
+  return `${record.fileId}:${record.revisionId}`;
+}
+
+/**
+ * Reads every page of the feed after one cursor, the way a device does.
+ *
+ * It sends each `nextCursor` back until a page is empty. It returns every
+ * record in order and the size of each page. A commit never spans two pages,
+ * so no cursor of a page may come again in a later page.
+ */
+async function readFeed(
+  after: string,
+  limit?: number,
+): Promise<{ records: readonly string[]; pageSizes: readonly number[] }> {
+  const records: string[] = [];
+  const pageSizes: number[] = [];
+  const earlierCursors = new Set<string>();
+  let cursor = after;
+  for (let page = 0; page < 100; page += 1) {
+    const read = await getChanges({
+      headers: browser(ownerCookie),
+      path: { workspaceId },
+      query: limit === undefined ? { cursor } : { cursor, limit },
+    });
+    assert.equal(read.error, undefined, JSON.stringify(read.error));
+    const rows = read.data?.changes ?? [];
+    if (rows.length === 0) return { records, pageSizes };
+    for (const row of rows)
+      assert.ok(!earlierCursors.has(row.cursor), 'a commit spans two pages');
+    for (const row of rows) earlierCursors.add(row.cursor);
+    records.push(...rows.map(recordKey));
+    pageSizes.push(rows.length);
+    cursor = read.data?.nextCursor ?? cursor;
+  }
+  assert.fail('the feed did not end');
+}
+
+/** The feed key of each created note. */
+function noteKeys(notes: readonly CreatedNote[]): string[] {
+  return notes.map((note) => `${note.fileId}:${note.revisionId}`);
+}
+
+await test('a commit larger than the page arrives whole', async () => {
+  const after = await highWater();
+  const notes = await createNotes('feed-large', 5);
+
+  const feed = await readFeed(after, 2);
+  assert.deepEqual(feed.records.toSorted(), noteKeys(notes).toSorted());
+  assert.deepEqual(feed.pageSizes, [5]);
+});
+
+await test('a page ends before a commit that does not fit', async () => {
+  const after = await highWater();
+  const first = await createNotes('feed-first', 1);
+  const second = await createNotes('feed-second', 2);
+
+  const feed = await readFeed(after, 2);
+  assert.deepEqual(feed.records.slice(0, 1), noteKeys(first));
+  assert.deepEqual(
+    feed.records.slice(1).toSorted(),
+    noteKeys(second).toSorted(),
+  );
+  assert.deepEqual(feed.pageSizes, [1, 2]);
+});
+
+await test('a purge of several notes arrives whole', async () => {
+  const notes = await createNotes('feed-purge', 3);
+  const after = await highWater();
+  const purged = await purgeFiles({
+    headers: browser(ownerCookie),
+    path: { workspaceId },
+    body: {
+      mutationId: randomUUID(),
+      fileIds: notes.map((note) => note.fileId),
+    },
+  });
+  assert.equal(purged.error, undefined, JSON.stringify(purged.error));
+
+  const feed = await readFeed(after, 2);
+  assert.deepEqual(
+    feed.records.toSorted(),
+    notes.map((note) => `purge:${note.fileId}`).toSorted(),
+  );
+  assert.deepEqual(feed.pageSizes, [3]);
+});
+
+await test('concurrent commits each arrive once and whole', async () => {
+  const after = await highWater();
+  const batches = await Promise.all(
+    [0, 1, 2, 3].map((batch) =>
+      createNotes(`feed-concurrent-${String(batch)}`, 3),
+    ),
+  );
+
+  const feed = await readFeed(after, 4);
+  assert.deepEqual(
+    feed.records.toSorted(),
+    batches.flatMap(noteKeys).toSorted(),
+  );
+  assert.deepEqual(feed.pageSizes, [3, 3, 3, 3]);
+});
+
+await test('the largest commit arrives whole at every page size', async () => {
+  const after = await highWater();
+  const first = await createNotes('feed-before-largest', 1);
+  const largest = await createNotes('feed-largest', maxFilesPerChangeset);
+  const expected = [...noteKeys(first), ...noteKeys(largest)].toSorted();
+
+  // A shipped device sends no limit, so it reads the default page.
+  const byDefault = await readFeed(after);
+  assert.deepEqual(byDefault.records.toSorted(), expected);
+  assert.deepEqual(byDefault.pageSizes, [1, maxFilesPerChangeset]);
+
+  const byLargest = await readFeed(after, syncMaxLimit);
+  assert.deepEqual(byLargest.records.toSorted(), expected);
+  assert.deepEqual(byLargest.pageSizes, [1, maxFilesPerChangeset]);
 });
 
 await test('change records expire after 90 days but history is preserved', async () => {

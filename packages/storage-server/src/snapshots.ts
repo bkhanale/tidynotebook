@@ -236,9 +236,13 @@ export async function readSnapshotPage(
 /**
  * Reads the ordered change records after one cursor.
  *
- * The answer carries the rows, the current high-water cursor, and the oldest
- * retained cursor, so the caller can tell an empty poll from a cursor that
- * predates the retained window.
+ * The rows hold whole commits only, because every row of one commit shares
+ * its cursor and the reader continues after the last cursor it read. The page
+ * stops before a commit that would pass the limit, and holds the first commit
+ * whole when it alone passes the limit (record 0127). The answer carries the
+ * rows, the current high-water cursor, and the oldest retained cursor, so the
+ * caller can tell an empty poll from a cursor that predates the retained
+ * window.
  */
 export async function readSyncChanges(
   client: pg.PoolClient,
@@ -248,6 +252,27 @@ export async function readSyncChanges(
     readonly limit: number;
   },
 ): Promise<SyncChangeFeed> {
+  // The last cursor of the page. Each commit counts its rows, and the running
+  // total of whole commits stays inside the limit. The first commit always
+  // enters, so a commit larger than the limit still makes progress. One
+  // transaction writes every row of a commit, so the second statement cannot
+  // see a part of a commit that the first one counted.
+  const bound = await client.query<{ last: string | null }>(
+    `select max(g.cursor)::text as last
+      from (
+        select cursor,
+               row_number() over (order by cursor) as place,
+               sum(count(*)) over (order by cursor) as through
+          from sync_changes
+          where workspace_id = $1 and cursor > $2::bigint
+          group by cursor
+          order by cursor
+          limit $3
+      ) g
+      where g.place = 1 or g.through <= $3`,
+    [input.workspaceId, input.afterCursor, input.limit],
+  );
+  const lastCursor = bound.rows[0]?.last ?? null;
   // The feed states everything a reader needs, so the record carries the
   // accepted work of the revision beside its metadata (record 0081). A note
   // whose revision holds no delta is a generation boundary, and the whole
@@ -287,10 +312,11 @@ export async function readSyncChanges(
         on f.workspace_id = c.workspace_id and f.id = c.entity_id
       left join note_documents d
         on d.workspace_id = c.workspace_id and d.file_id = c.entity_id
-      where c.workspace_id = $1 and c.cursor > $2::bigint
-      order by c.cursor asc, c.entity_kind asc, c.entity_id asc
-      limit $3`,
-    [input.workspaceId, input.afterCursor, input.limit],
+      where c.workspace_id = $1
+        and c.cursor > $2::bigint
+        and c.cursor <= $3::bigint
+      order by c.cursor asc, c.entity_kind asc, c.entity_id asc`,
+    [input.workspaceId, input.afterCursor, lastCursor ?? input.afterCursor],
   );
   const cursor = await highWater(client, input.workspaceId);
   const oldest = await client.query<{ oldest: string | null }>(
