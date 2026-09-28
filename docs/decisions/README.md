@@ -158,6 +158,7 @@ and needs no record.
 | [0124](0124-websockets-wake-the-durable-sync-engine.md)                            | WebSockets wake the durable sync engine                                         |
 | [0125](0125-postgresql-notifies-the-sync-gateways.md)                              | PostgreSQL notifies the sync gateways                                           |
 | [0126](0126-websocket-messages-use-the-generated-contract.md)                      | WebSocket messages use the generated contract                                   |
+| [0127](0127-a-sync-page-holds-whole-commits.md)                                    | A sync page holds whole commits                                                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -470,3 +471,8 @@ They define WebSocket wake notices, PostgreSQL notifications, and a generated
 message boundary. HTTP keeps the durable sync operations. These are target
 decisions; [plan 016](../plans/016-websocket-sync.md) owns implementation and
 measured rollout evidence.
+
+Record 0127 answers
+[issue 193](https://github.com/bkhanale/notesapp/issues/193). A page of the
+incremental feed ends only at the end of a commit, because a page that ended
+inside a commit lost the rest of it. It is the prerequisite of plan 016.
