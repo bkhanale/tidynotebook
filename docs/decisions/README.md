@@ -159,6 +159,7 @@ and needs no record.
 | [0125](0125-postgresql-notifies-the-sync-gateways.md)                              | PostgreSQL notifies the sync gateways                                           |
 | [0126](0126-websocket-messages-use-the-generated-contract.md)                      | WebSocket messages use the generated contract                                   |
 | [0127](0127-a-sync-page-holds-whole-commits.md)                                    | A sync page holds whole commits                                                 |
+| [0128](0128-the-server-validates-every-notice-frame.md)                            | The server validates every notice frame                                         |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -476,3 +477,9 @@ Record 0127 answers
 [issue 193](https://github.com/bkhanale/notesapp/issues/193). A page of the
 incremental feed ends only at the end of a commit, because a page that ended
 inside a commit lost the rest of it. It is the prerequisite of plan 016.
+
+Record 0128 answers
+[issue 188](https://github.com/bkhanale/notesapp/issues/188). The server
+validates every notice frame in both directions, and the browser reads a
+frame by its kind, because the content security policy keeps Ajv out of the
+browser. It refines record 0126.
