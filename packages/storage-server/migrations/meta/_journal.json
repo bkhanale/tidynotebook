@@ -134,6 +134,13 @@
       "when": 1790509066300,
       "tag": "0018_account_consents",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790562525500,
+      "tag": "0019_sync_notices",
+      "breakpoints": true
     }
   ]
 }

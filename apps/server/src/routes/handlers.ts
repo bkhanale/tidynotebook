@@ -133,6 +133,11 @@ export type HandlerDependencies = {
    * no token of such a build opens anything.
    */
   readonly publications?: PublicationDependencies;
+  /**
+   * The subprotocols of the notice stream that this process opens now
+   * (record 0129). A server without a notice gateway offers none.
+   */
+  readonly noticeProtocols?: () => readonly string[];
 };
 
 /**
@@ -158,7 +163,10 @@ export function createHandlers(
     ...createAccountHandlers(store, config.legalDocuments),
     ...createFileHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createHistoryHandlers(dependencies.content ?? missingWorkspaceStore()),
-    ...createSyncHandlers(dependencies.content ?? missingWorkspaceStore()),
+    ...createSyncHandlers(
+      dependencies.content ?? missingWorkspaceStore(),
+      dependencies.noticeProtocols ?? ((): readonly string[] => []),
+    ),
     ...createSearchHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createBacklinkHandlers(dependencies.content ?? missingWorkspaceStore()),
     ...createDailyNoteHandlers(dependencies.content ?? missingWorkspaceStore()),

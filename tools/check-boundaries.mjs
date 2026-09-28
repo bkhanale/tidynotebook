@@ -109,8 +109,9 @@ const httpLibraries = new Set([
 ]);
 // A WebSocket library opens a socket or serves one. The generated socket
 // entry states every address and message (record 0126), so a library enters
-// only through a file that this list names. Plan 016 adds the server adapter
-// and the browser coordinator here when each one lands.
+// only through a file that this list names: the one mount of the server
+// (record 0129) and the one test client. Plan 016 adds the browser
+// coordinator when it lands.
 const socketLibraries = new Set([
   'ws',
   'isomorphic-ws',
@@ -120,8 +121,10 @@ const socketLibraries = new Set([
   'socket.io',
   'socket.io-client',
 ]);
-/** @type {Set<string>} */
-const socketFiles = new Set();
+const socketFiles = new Set([
+  'apps/server/src/plugins/websocket.ts',
+  'tests/integration/support/notices.ts',
+]);
 // These files connect maintained protocols or cache static application assets.
 // They remain subject to imports, dependency direction, and package cycle checks.
 const protocolFiles = new Set(['apps/server/src/auth/better-auth.ts']);

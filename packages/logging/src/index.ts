@@ -23,8 +23,24 @@ export type LogEventFields = {
   };
   readonly 'maintenance.failed': {
     readonly job:
-      'sync' | 'attachments' | 'publications' | 'attempts' | 'pending';
+      | 'sync'
+      | 'attachments'
+      | 'publications'
+      | 'attempts'
+      | 'pending'
+      | 'streams';
   };
+  /**
+   * One sync notice stream opened or closed, or one upgrade was refused
+   * (record 0129). The record names the reason only: no account, no session,
+   * no workspace and no frame.
+   */
+  readonly 'notices.opened': Record<string, never>;
+  readonly 'notices.closed': { readonly reason: string };
+  readonly 'notices.refused': { readonly reason: string };
+  /** The listener of the process lost its connection, or listens again. */
+  readonly 'notices.listener_lost': Record<string, never>;
+  readonly 'notices.listener_restored': Record<string, never>;
   /**
    * One refusal of the reader path of a published link.
    *
@@ -65,6 +81,11 @@ export const logEventCatalog = {
     fields: ['operationId', 'statusCode', 'mediaType', 'reason'],
   },
   'maintenance.failed': { level: 'error', fields: ['job'] },
+  'notices.opened': { level: 'debug', fields: [] },
+  'notices.closed': { level: 'debug', fields: ['reason'] },
+  'notices.refused': { level: 'info', fields: ['reason'] },
+  'notices.listener_lost': { level: 'warn', fields: [] },
+  'notices.listener_restored': { level: 'info', fields: [] },
   'published.refused': { level: 'info', fields: ['cause'] },
   'auth.debug': { level: 'debug', fields: ['source'] },
   'auth.info': { level: 'info', fields: ['source'] },

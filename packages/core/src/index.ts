@@ -161,6 +161,13 @@ export type {
 } from './files/ports.ts';
 export { isOperationalError, OperationalError } from './files/ports.ts';
 export { commitChangeset, maxFilesPerChangeset } from './files/commit.ts';
+export {
+  emptySubscription,
+  noticeBatch,
+  replaceSubscription,
+  type NoticeSubscription,
+  type SubscriptionRefusal,
+} from './files/notices.ts';
 export { acceptDocumentWork, acceptWithDocuments } from './files/documents.ts';
 export { listBacklinks, type Backlink } from './files/backlinks.ts';
 export type {

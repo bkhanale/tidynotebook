@@ -15,7 +15,7 @@ import rateLimit from '@fastify/rate-limit';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { ReaderRefusalCause } from '@notesapp/core';
 import type { OperationId } from '@notesapp/api-contract';
-import { findOperation } from '@notesapp/api-contract';
+import { findChannel, findOperation } from '@notesapp/api-contract';
 import type { ServerConfig } from './config.ts';
 import type { ServiceLifecycle } from './lifecycle.ts';
 import { createHandlers } from './routes/handlers.ts';
@@ -46,6 +46,7 @@ import {
   createDocumentService,
   openAttachmentStore,
   openCoordination,
+  openSyncListener,
   openIdentityStore,
   openWorkspaceStore,
 } from '@notesapp/storage-server';
@@ -115,7 +116,13 @@ import {
 import { publishedOriginDecision } from './plugins/published-origin.ts';
 import { createVerificationTokens } from './auth/verification.ts';
 import { createSignUpChallenges } from './auth/proof-of-work.ts';
-import { createSyncNoticesProtocol } from './routes/sync-notices.ts';
+import {
+  createSyncNoticesProtocol,
+  syncNoticesProtocol,
+} from './routes/sync-notices.ts';
+import { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
+import { createNoticeGateway } from './notices/gateway.ts';
+import { registerWebSocket } from './plugins/websocket.ts';
 
 /** How many messages of a sign-up one address takes in an hour (record 0114). */
 const signUpMailsPerHour = 3;
@@ -194,6 +201,11 @@ export type AppOptions = {
    * its own so that it reads every message without a mail server.
    */
   readonly mail?: MailTransport | null;
+  /**
+   * The bounds of the notice gateway. A test passes shorter times, and a
+   * deployment takes `defaultNoticeBounds` (record 0129).
+   */
+  readonly noticeBounds?: Partial<NoticeBounds>;
 };
 
 /** Builds the application with an explicit handler map. */
@@ -484,13 +496,35 @@ export async function createAppWithHandlers(
       );
   });
 
+  // The notice stream belongs to this server, not to a composition choice,
+  // so every application serves its upgrade address. A composition with a
+  // gateway supplies its own adapter, and every other one refuses the stream.
+  const supplied = options.protocols ?? [];
+  const protocols = supplied.some(
+    (adapter) => adapter.protocol === syncNoticesProtocol,
+  )
+    ? supplied
+    : [...supplied, createSyncNoticesProtocol()];
+  const noticeBounds = { ...defaultNoticeBounds, ...options.noticeBounds };
+  await registerWebSocket(app, {
+    maxFrameBytes: noticeBounds.maxFrameBytes,
+    subprotocols: [findChannel('syncNotices')?.subprotocol ?? ''].filter(
+      (name) => name !== '',
+    ),
+    // Each stream gets its stop message before the server closes.
+    preClose: async () => {
+      await Promise.all(
+        protocols.map(
+          (adapter) => adapter.socket?.drain() ?? Promise.resolve(),
+        ),
+      );
+    },
+  });
   registerOperations(
     app,
     options.handlers,
     options.identity,
-    // The notice stream belongs to this server, not to a composition choice,
-    // so every application serves its upgrade address.
-    [...(options.protocols ?? []), createSyncNoticesProtocol()],
+    protocols,
     config.rateLimit,
     config.limits,
   );
@@ -632,6 +666,33 @@ async function composeApp(
   );
   opened.push(() => auth.close());
   const attempts = databaseAttemptCounter(coordination);
+  // The notice gateway of this process (record 0129). Its log sink is filled
+  // once the instance exists, as the sinks above are.
+  const noticeLog: { logger?: ReturnType<typeof createServerLogger> } = {};
+  const gateway = createNoticeGateway({
+    enabled: config.syncNotices,
+    stores: {
+      noticeAccess: (sessionId, accountId) =>
+        identity.noticeAccess(sessionId, accountId),
+      noticesPublishing: () => coordination.noticesPublishing(),
+      reserveStream: (id, accountId, ttlMs, limit) =>
+        coordination.reserveStream(id, accountId, ttlMs, limit),
+      renewStream: (id, ttlMs) => coordination.renewStream(id, ttlMs),
+      releaseStream: (id) => coordination.releaseStream(id),
+    },
+    listener: (events) => openSyncListener(config.databaseUrl, events),
+    bounds: { ...defaultNoticeBounds, ...options?.noticeBounds },
+    log: {
+      opened: () => noticeLog.logger?.emit('notices.opened', {}),
+      closed: (reason) => noticeLog.logger?.emit('notices.closed', { reason }),
+      refused: (reason) =>
+        noticeLog.logger?.emit('notices.refused', { reason }),
+      listenerLost: () => noticeLog.logger?.emit('notices.listener_lost', {}),
+      listenerRestored: () =>
+        noticeLog.logger?.emit('notices.listener_restored', {}),
+    },
+  });
+  opened.push(() => gateway.close());
   const adapter = createIdentityAdapter({
     auth: auth.auth,
     identity,
@@ -656,6 +717,7 @@ async function composeApp(
         ...(options?.lifecycle === undefined
           ? {}
           : { lifecycle: options.lifecycle }),
+        noticeProtocols: () => gateway.offered(),
       }),
       ...createSetupHandlers({
         auth: auth.auth,
@@ -691,15 +753,25 @@ async function composeApp(
       }),
     },
     identity: adapter.resolver,
-    protocols: [createAuthProtocol(config, auth.auth)],
+    protocols: [
+      createAuthProtocol(config, auth.auth),
+      createSyncNoticesProtocol({
+        gateway,
+        servedOrigins: config.servedOrigins,
+      }),
+    ],
     probes,
     ...(options?.logStream !== undefined
       ? { logStream: options.logStream }
       : {}),
     ...(options?.webDist !== undefined ? { webDist: options.webDist } : {}),
+    ...(options?.noticeBounds !== undefined
+      ? { noticeBounds: options.noticeBounds }
+      : {}),
     attempts,
   });
   const logger = createServerLogger(app.log);
+  noticeLog.logger = logger;
   refusals.record = (cause): void => {
     logger.emit('published.refused', { cause });
   };
@@ -712,7 +784,12 @@ async function composeApp(
   // finds a job running skips that run and tries again next hour.
   const jobs: readonly {
     readonly name:
-      'sync' | 'attachments' | 'publications' | 'attempts' | 'pending';
+      | 'sync'
+      | 'attachments'
+      | 'publications'
+      | 'attempts'
+      | 'pending'
+      | 'streams';
     readonly run: () => Promise<unknown>;
   }[] = [
     { name: 'sync', run: () => cleanupSync() },
@@ -736,6 +813,9 @@ async function composeApp(
       run: () =>
         coordination.pruneAttempts(new Date(Date.now() - 24 * 60 * 60 * 1000)),
     },
+    // A process that stopped without its drain leaves reservations that
+    // expired (record 0129).
+    { name: 'streams', run: () => coordination.pruneStreams() },
   ];
   const runCleanup = async (): Promise<void> => {
     if (cleanupRunning) return;
@@ -768,7 +848,12 @@ async function composeApp(
       logger.emit('auth.info', { source: 'better-auth' });
     else logger.emit('auth.debug', { source: 'better-auth' });
   };
+  // The listener starts once the instance exists. A stream opens only after
+  // it listens, so no stream can miss a commit that follows its admission.
+  gateway.start();
   app.addHook('onClose', async () => {
+    // The streams stop first, while the stores that they release still run.
+    await gateway.close();
     clearInterval(cleanupTimer);
     await auth.close();
     await authPool.end();

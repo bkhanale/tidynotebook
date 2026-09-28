@@ -18,8 +18,10 @@ authentication routes on one origin, and it holds no domain rule.
   reader path of a published link and its report (0119), `published-document.ts`
   writes its one document (0031, 0047), and `publications.ts` holds the owner
   operations. `sync-notices.ts` serves the upgrade address of the notice
-  stream, which answers `notices_unavailable` until plan 016 turns it on
-  (0128).
+  stream and checks its origin (0128, 0129).
+- `src/notices/` holds the notice gateway of the process and its bounds (0129).
+  `src/plugins/websocket.ts` is the one file that imports a WebSocket library,
+  and the gateway reads its `StreamSocket` only.
 - `main.ts` wires the process to `src/lifecycle.ts`, which owns the order of the start
   and of the stop and holds no signal and no exit.
 - `src/auth/` holds the Better Auth adapter, the actor resolver, the secrets of a

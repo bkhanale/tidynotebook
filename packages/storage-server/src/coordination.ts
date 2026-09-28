@@ -1,7 +1,8 @@
 /**
  * What every server process of one installation shares besides the data
- * (record 0121): the attempt counters of the limited routes, and the right to
- * run one maintenance job.
+ * (record 0121): the attempt counters of the limited routes, the right to
+ * run one maintenance job, the reservations of the open notice streams, and
+ * the publishing switch of the notices (record 0129).
  *
  * PostgreSQL already holds every other shared fact of the product, so it
  * holds these too. The counters live in `attempt_counters` and change through
@@ -33,6 +34,26 @@ export type CoordinationHandle = {
    * whether it ran. A process that finds the job running skips this run.
    */
   runExclusive(job: string, run: () => Promise<void>): Promise<boolean>;
+  /**
+   * Reserves one notice stream of an account, and answers false when the
+   * account already holds `limit` live streams in any process.
+   */
+  reserveStream(
+    id: string,
+    accountId: string,
+    ttlMs: number,
+    limit: number,
+  ): Promise<boolean>;
+  /** Moves the expiry of a reservation, and answers false when it is gone. */
+  renewStream(id: string, ttlMs: number): Promise<boolean>;
+  /** Ends a reservation. Ending one that is gone does nothing. */
+  releaseStream(id: string): Promise<void>;
+  /** Deletes the reservations that expired, and answers how many. */
+  pruneStreams(): Promise<number>;
+  /** Whether the notice triggers send hints now. */
+  noticesPublishing(): Promise<boolean>;
+  /** Sets the publishing switch and tells every listening process. */
+  setNoticesPublishing(publishing: boolean): Promise<void>;
   /** Closes every pooled connection. */
   close(): Promise<void>;
 };
@@ -133,6 +154,46 @@ export function openCoordination(
       } finally {
         client.release();
       }
+    },
+
+    async reserveStream(id, accountId, ttlMs, limit) {
+      const result = await pool.query<{ reserved: boolean }>(
+        'select notesapp_reserve_stream($1, $2, $3, $4) as reserved',
+        [id, accountId, Math.max(1, Math.round(ttlMs)), limit],
+      );
+      return result.rows[0]?.reserved === true;
+    },
+
+    async renewStream(id, ttlMs) {
+      const result = await pool.query<{ renewed: boolean }>(
+        'select notesapp_renew_stream($1, $2) as renewed',
+        [id, Math.max(1, Math.round(ttlMs))],
+      );
+      return result.rows[0]?.renewed === true;
+    },
+
+    async releaseStream(id) {
+      await pool.query('select notesapp_release_stream($1)', [id]);
+    },
+
+    async pruneStreams() {
+      const result = await pool.query<{ removed: number }>(
+        'select notesapp_prune_streams() as removed',
+      );
+      return result.rows[0]?.removed ?? 0;
+    },
+
+    async noticesPublishing() {
+      const result = await pool.query<{ publishing: boolean }>(
+        'select notesapp_notices_publishing() as publishing',
+      );
+      return result.rows[0]?.publishing === true;
+    },
+
+    async setNoticesPublishing(publishing) {
+      await pool.query('select notesapp_set_notices_publishing($1)', [
+        publishing,
+      ]);
     },
 
     async close() {

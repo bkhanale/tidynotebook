@@ -1175,6 +1175,47 @@ export const usedChallenges = pgTable(
 );
 
 /**
+ * The one shared publishing switch of the sync notices (record 0129).
+ *
+ * The notice triggers read it before they send a hint, so an operator stops
+ * every notice of every process with one write, and the feed stays as it is.
+ * The check keeps the table at one row.
+ */
+export const syncPublishing = pgTable(
+  'sync_publishing',
+  {
+    id: boolean('id').primaryKey().default(true),
+    publishing: boolean('publishing').notNull().default(false),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [check('sync_publishing_one_row', sql`${table.id}`)],
+);
+
+/**
+ * One open notice stream of one account, in any server process (record 0129).
+ *
+ * A gateway renews its row while the stream is open and deletes it when the
+ * stream closes. A process that stops without that leaves a row that expires,
+ * so a limit per account holds across processes and across a crash.
+ */
+export const streamReservations = pgTable(
+  'stream_reservations',
+  {
+    id: uuid('id').primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    index('stream_reservations_account_idx').on(table.accountId),
+    index('stream_reservations_expiry_idx').on(table.expiresAt),
+  ],
+);
+
+/**
  * The map from a Better Auth user to an application account.
  *
  * The application identifies an account by a UUID that never changes, so the

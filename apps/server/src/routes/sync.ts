@@ -41,21 +41,25 @@ function base64Of(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-export function createSyncHandlers(store: WorkspaceStore): HandlerMap {
+export function createSyncHandlers(
+  store: WorkspaceStore,
+  noticeProtocols: () => readonly string[],
+): HandlerMap {
   return {
-    // The list is a fact of the build, not of an account, so the answer reads
-    // no session and no store. The client reads it before a push or a pull
+    // The versions are a fact of the build, not of an account, so the answer
+    // reads no session and no store. The client reads it before a push or a pull
     // (record 0086).
     getSyncProtocol: (): Promise<HandlerResult> =>
       Promise.resolve({
         status: 200,
         mediaType: jsonMediaType,
-        // The notice stream stays off until plan 016 turns it on, so no
-        // subprotocol is offered and every client reads the feed on its own
-        // schedule (record 0124).
+        // A subprotocol is offered only while this process admits a stream,
+        // so a client with none reads the feed on its own schedule (record
+        // 0129). Admission and publishing stay off until plan 016 turns them
+        // on.
         body: {
           versions: [...supportedSyncVersions],
-          notificationProtocols: [],
+          notificationProtocols: [...noticeProtocols()],
         },
       }),
 

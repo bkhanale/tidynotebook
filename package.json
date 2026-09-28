@@ -26,6 +26,7 @@
     "account:recover": "node apps/server/src/cli/recover-account.ts",
     "account:invite": "node apps/server/src/cli/invite-account.ts",
     "account:promote": "node apps/server/src/cli/promote-account.ts",
+    "notices:publishing": "node apps/server/src/cli/notices-publishing.ts",
     "start": "node apps/server/dist/main.js",
     "dev:app": "node tools/dev-app.mjs",
     "verify": "pnpm contract:lint && pnpm generated:check && pnpm typecheck && pnpm lint && pnpm format:check && pnpm test:unit && pnpm test:integration && pnpm build && pnpm lint:types",
@@ -46,6 +47,7 @@
     "@notesapp/ui": "workspace:*",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "@types/ws": "catalog:",
     "fake-indexeddb": "6.2.5",
     "fastify": "catalog:",
     "oxc-parser": "0.150.0",
@@ -54,6 +56,7 @@
     "pg": "catalog:",
     "prettier": "3.9.8",
     "sharp": "catalog:",
-    "typescript": "catalog:toolchain"
+    "typescript": "catalog:toolchain",
+    "ws": "8.22.0"
   }
 }

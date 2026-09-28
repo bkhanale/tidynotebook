@@ -63,7 +63,9 @@ its name, and a scheme by its content.
 ## Who validates a frame
 
 The server validates every frame that it receives and every message that it
-sends. A refusal names the failed members and copies no value. The browser
+sends, in `apps/server/src/notices/gateway.ts`. The limits and the switches of
+that gateway are in
+[decision 0129](../decisions/0129-the-notice-gateway-and-its-bounds.md). A refusal names the failed members and copies no value. The browser
 reads a frame through `readSyncNoticesMessage`, which checks the kind only,
 because the content security policy keeps Ajv out of the browser. Feature code
 never opens a socket or builds its address: `tools/check-boundaries.mjs`

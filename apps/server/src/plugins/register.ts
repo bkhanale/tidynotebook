@@ -39,6 +39,7 @@ import {
 } from './problem.ts';
 import { createServerLogger } from '../logging.ts';
 import { attemptAddress } from './attempt-store.ts';
+import { isUpgrade, mountSocketRoute, type StreamSocket } from './websocket.ts';
 
 declare module 'fastify' {
   interface FastifyContextConfig {
@@ -199,7 +200,28 @@ export type ProtocolAdapter = {
    * against the declared response schema before the framework sends it.
    */
   readonly handle: (request: FastifyRequest) => Promise<ProtocolResult>;
+  /**
+   * The upgrade side of a WebSocket operation (record 0129), or undefined.
+   *
+   * An upgrade request passes the identity hook and the request check first.
+   * `admit` then accepts it and names what takes the socket, or refuses it
+   * with an answer that the contract declares. A request that asks for no
+   * upgrade goes to `handle`.
+   */
+  readonly socket?: {
+    readonly admit: (request: FastifyRequest) => Promise<SocketAdmission>;
+    /** Stops every open stream before the server closes. */
+    readonly drain: () => Promise<void>;
+  };
 };
+
+/** The decision on one upgrade request. */
+export type SocketAdmission =
+  | {
+      readonly admitted: true;
+      readonly open: (socket: StreamSocket) => void;
+    }
+  | { readonly admitted: false; readonly result: ProtocolResult };
 
 /** One answer of a protocol adapter. */
 export type ProtocolResult = {
@@ -822,6 +844,11 @@ function registerProtocol(
   adapter: ProtocolAdapter,
   byRoute: ReadonlyMap<string, OperationId>,
 ): void {
+  const socket = adapter.socket;
+  if (socket !== undefined) {
+    registerSocketProtocol(app, adapter, socket, byRoute);
+    return;
+  }
   app.register((scope, _options, done) => {
     scope.removeAllContentTypeParsers();
     scope.addContentTypeParser(
@@ -841,18 +868,85 @@ function registerProtocol(
           if (id !== undefined) checkProtocolRequest(id, request);
           const result = await adapter.handle(request);
           if (id !== undefined) checkProtocolResponse(request, id, result);
-          for (const [name, value] of result.headers) reply.header(name, value);
-          if (result.cookies.length > 0)
-            reply.header('set-cookie', [...result.cookies]);
-          reply.status(result.status);
-          if (result.bytes !== null) {
-            if (result.mediaType !== '')
-              reply.header('content-type', result.mediaType);
-            await reply.send(Buffer.from(result.bytes));
+          await sendProtocolResult(reply, result);
+        },
+      });
+    }
+    done();
+  });
+}
+
+/** Writes one checked answer of a protocol adapter. */
+async function sendProtocolResult(
+  reply: FastifyReply,
+  result: ProtocolResult,
+): Promise<void> {
+  for (const [name, value] of result.headers) reply.header(name, value);
+  if (result.cookies.length > 0)
+    reply.header('set-cookie', [...result.cookies]);
+  reply.status(result.status);
+  if (result.bytes !== null) {
+    if (result.mediaType !== '') reply.header('content-type', result.mediaType);
+    await reply.send(Buffer.from(result.bytes));
+    return;
+  }
+  reply.header('content-type', `${result.mediaType}; charset=utf-8`);
+  await reply.send(JSON.stringify(result.body ?? null));
+}
+
+/**
+ * Mounts one WebSocket operation (record 0129).
+ *
+ * The identity hook has run when the pre-handler starts, and the pre-handler
+ * checks the declared request slots before `admit`, so a refused request never
+ * reserves a stream. A refusal is checked against the contract and sent as
+ * HTTP, which ends the upgrade. An admitted request is upgraded by the library,
+ * and the admission takes its socket.
+ */
+function registerSocketProtocol(
+  app: FastifyInstance,
+  adapter: ProtocolAdapter,
+  socket: NonNullable<ProtocolAdapter['socket']>,
+  byRoute: ReadonlyMap<string, OperationId>,
+): void {
+  const admitted = new WeakMap<
+    FastifyRequest,
+    (stream: StreamSocket) => void
+  >();
+  app.register((scope, _options, done) => {
+    for (const route of adapter.routes) {
+      const id = byRoute.get(`${route.method} ${route.path}`);
+      if (route.method !== 'GET')
+        throw new Error(
+          `Protocol ${adapter.protocol} upgrades on GET only, not ${route.method} ${route.path}.`,
+        );
+      mountSocketRoute(scope, {
+        url: route.path,
+        config: id === undefined ? {} : { operationId: id },
+        preHandler: async (request, reply) => {
+          if (id !== undefined) checkProtocolRequest(id, request);
+          if (!isUpgrade(request)) return;
+          const decision = await socket.admit(request);
+          if (decision.admitted) {
+            admitted.set(request, decision.open);
             return;
           }
-          reply.header('content-type', `${result.mediaType}; charset=utf-8`);
-          await reply.send(JSON.stringify(result.body ?? null));
+          if (id !== undefined)
+            checkProtocolResponse(request, id, decision.result);
+          await sendProtocolResult(reply, decision.result);
+        },
+        handler: async (request, reply) => {
+          const result = await adapter.handle(request);
+          if (id !== undefined) checkProtocolResponse(request, id, result);
+          await sendProtocolResult(reply, result);
+        },
+        onSocket: (stream, request) => {
+          const open = admitted.get(request);
+          admitted.delete(request);
+          // An upgrade with no admission cannot happen, because the
+          // pre-handler answers every refused request. Close it all the same.
+          if (open === undefined) stream.close(1011);
+          else open(stream);
         },
       });
     }

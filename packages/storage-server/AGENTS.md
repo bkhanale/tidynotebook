@@ -12,15 +12,15 @@ identity store, the attachment bytes, and provisioning.
 
 ## What lives here and what does not
 
-- `src/schema.ts` is the schema, `migrations/` holds the applied SQL, and
-  `migrations/meta/_journal.json` holds their order.
+- `src/schema.ts` is the schema, `migrations/` the SQL, `meta/` the order.
 - `src/workspace-store/` implements `WorkspaceStore`: `transaction.ts` is the
   unit of work, `publication-transaction.ts` the read-only one of the reader
   path and `publication-unlock.ts` its one write (0031), one repository per
   context holds the SQL, `index.ts` is the composition root, and `admin.ts`,
   `identity-store.ts`, `profiles.ts`, `snapshots.ts`, `attachments.ts` and
   `attachment-row.ts` (0019) own the rest. `coordination.ts` holds what every
-  server process shares: the attempt counters and the job locks (0121).
+  process shares (0121), with stream reservations and the notice switch
+  (0129). `sync-listener.ts` holds the `LISTEN` of the sync hints (0125).
 - `src/migrate.ts` runs the migrations and exports `requiredSchemaVersion`.
 - No domain rule and no HTTP route live here. A rule lives in `packages/core`.
 

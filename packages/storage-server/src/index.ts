@@ -9,6 +9,16 @@
 export { createDocumentService } from './document-service.ts';
 export { openPool } from './pool.ts';
 export {
+  listenerRetryMs,
+  openSyncListener,
+  parseSyncHint,
+  syncHintChannel,
+  syncListenerName,
+  type SyncHint,
+  type SyncListener,
+  type SyncListenerEvents,
+} from './sync-listener.ts';
+export {
   DatabaseFailure,
   defaultConnectionTimeoutMs,
   openWorkspaceStore,

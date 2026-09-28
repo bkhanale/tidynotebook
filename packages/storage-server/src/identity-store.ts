@@ -194,6 +194,15 @@ export type IdentityStoreHandle = WorkspaceAdminStore &
      */
     sessionAccount(authUserId: string): Promise<string | null>;
     /**
+     * The workspaces that one notice stream may still hear about, or `null`
+     * when its session ended or expired, or no longer serves an enabled
+     * account (record 0129). Nothing caches the answer.
+     */
+    noticeAccess(
+      sessionId: string,
+      accountId: string,
+    ): Promise<readonly string[] | null>;
+    /**
      * Stores one invitation of the operator command `pnpm account:invite`.
      * Answers `null` when an account already signs in with the address.
      */
@@ -894,6 +903,20 @@ export function openIdentityStore(
           [authUserId],
         );
         return rows.rows[0]?.account ?? null;
+      });
+    },
+
+    async noticeAccess(
+      sessionId: string,
+      accountId: string,
+    ): Promise<readonly string[] | null> {
+      assertUuid(accountId, 'the account');
+      return inTransaction(null, null, async (client) => {
+        const rows = await client.query<{ workspaces: string[] | null }>(
+          'select notesapp_notice_access($1, $2) as workspaces',
+          [sessionId, accountId],
+        );
+        return rows.rows[0]?.workspaces ?? null;
       });
     },
 
