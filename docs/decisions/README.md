@@ -161,6 +161,7 @@ and needs no record.
 | [0127](0127-a-sync-page-holds-whole-commits.md)                                    | A sync page holds whole commits                                                 |
 | [0128](0128-the-server-validates-every-notice-frame.md)                            | The server validates every notice frame                                         |
 | [0129](0129-the-notice-gateway-and-its-bounds.md)                                  | The notice gateway and its bounds                                               |
+| [0130](0130-one-notice-coordinator-per-account-tab.md)                             | One notice coordinator per account in the lease tab                             |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -490,3 +491,8 @@ Record 0129 answers
 channel, the triggers, the two switches, the access rechecks, the shared
 reservations and the bounds of the notice gateway. It refines records 0124
 and 0125.
+
+Record 0130 answers
+[issue 190](https://github.com/bkhanale/notesapp/issues/190). One coordinator
+in the lease tab owns the lease, the socket and the subscription set, and the
+lease tab serves the open workspace of every tab. It refines records 0050 and 0124.
