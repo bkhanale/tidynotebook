@@ -20,8 +20,16 @@ await test('another secret, a changed value or another shape opens nothing', () 
   const sealed = createAddressSeal(secret).seal(address);
   assert.equal(createAddressSeal(`${secret}-changed`).open(sealed), null);
   const seal = createAddressSeal(secret);
-  const last = sealed.at(-1) === 'A' ? 'B' : 'A';
-  assert.equal(seal.open(`${sealed.slice(0, -1)}${last}`), null);
+  // A character in the middle carries six data bits. The last one can carry
+  // padding bits only, and a change of those gives the same bytes.
+  const middle = Math.floor(sealed.length / 2);
+  const changed = sealed[middle] === 'A' ? 'B' : 'A';
+  assert.equal(
+    seal.open(
+      `${sealed.slice(0, middle)}${changed}${sealed.slice(middle + 1)}`,
+    ),
+    null,
+  );
   assert.equal(seal.open(`v2.${sealed.slice(3)}`), null);
   assert.equal(seal.open('v1.'), null);
   assert.equal(seal.open(''), null);
