@@ -18,8 +18,11 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  connectSyncNotices,
   getAccount,
+  getSyncProtocol,
   listWorkspaces,
+  syncNoticesProtocol,
   updatePreferences,
   type Account,
   type Preferences,
@@ -29,6 +32,7 @@ import { defaultSpellCheck, generateUUID } from '@notesapp/core';
 import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createSyncEngine,
+  timerSchedule,
   type LocalStore,
   type SyncNotice,
 } from '@notesapp/sync';
@@ -71,6 +75,11 @@ import { subscribeToSystemTheme, systemPrefersDark } from './platform.ts';
 import { webLogger } from './logging.ts';
 import { describeStorageFailure, signOutKeepingWork } from './pwa/lifecycle.ts';
 import { createSyncSession, type SyncSession } from './pwa/sync-session.ts';
+import {
+  startTabNotices,
+  type TabChannel,
+  type TabNotices,
+} from './pwa/notices.ts';
 
 /**
  * Turns a generated failure into one plain sentence for the person.
@@ -214,6 +223,102 @@ function syncWorkerId(): string {
 }
 
 const SyncSessionContext = createContext<SyncSession | null>(null);
+
+/** The notices of this tab and its account, or `null` before both exist. */
+const NoticesContext = createContext<TabNotices | null>(null);
+
+/** One channel between the tabs of this browser profile. */
+function browserChannel(name: string): TabChannel {
+  // A browser without the channel serves only its own tab, as before.
+  if (typeof BroadcastChannel === 'undefined')
+    return { post: () => {}, onMessage: () => {}, close: () => {} };
+  const channel = new BroadcastChannel(name);
+  return {
+    post: (message) => {
+      channel.postMessage(message);
+    },
+    onMessage: (listener) => {
+      channel.onmessage = (event: MessageEvent<unknown>): void => {
+        listener(event.data);
+      };
+    },
+    close: () => {
+      channel.close();
+    },
+  };
+}
+
+/** Whether this server offers the notice stream now (record 0130). */
+async function noticesOffered(): Promise<boolean> {
+  const answer = await getSyncProtocol();
+  // A server that predates the member, and one that offers another
+  // subprotocol, leave this tab on its poll interval.
+  return (answer.data?.notificationProtocols ?? []).includes(
+    syncNoticesProtocol,
+  );
+}
+
+/**
+ * Runs the notices of this tab for one account (record 0130).
+ *
+ * The notices hold the sender lease of the tab, so the engines of the tab
+ * start only once they exist, and the lease is given back when the account
+ * changes, the tab closes, or an update stops the sync session.
+ */
+function useTabNotices(
+  store: LocalStore | null,
+  accountId: string | null,
+  syncSession: SyncSession,
+): TabNotices | null {
+  const [notices, setNotices] = useState<TabNotices | null>(null);
+  useEffect(() => {
+    if (store === null || accountId === null) {
+      setNotices(null);
+      return;
+    }
+    const tab = startTabNotices({
+      store,
+      accountId,
+      tabId: syncSession.ownerId,
+      channel: browserChannel,
+      offered: noticesOffered,
+      connect: (handlers) =>
+        connectSyncNotices(window.location.origin, handlers),
+      schedule: timerSchedule,
+      clock: Date.now,
+      random: Math.random,
+    });
+    let stopped: Promise<void> | null = null;
+    const stop = (): Promise<void> => {
+      stopped ??= tab.stop();
+      return stopped;
+    };
+    let finish: () => void = () => {};
+    const finished = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    const unregister = syncSession.register({
+      stop: () => {
+        void stop().then(finish, finish);
+      },
+      finished,
+    });
+    // A closed tab gives the lease back at once, so another tab takes over
+    // without waiting for the lease to expire.
+    const onHide = (): void => {
+      void stop();
+    };
+    window.addEventListener('pagehide', onHide);
+    setNotices(tab);
+    return () => {
+      window.removeEventListener('pagehide', onHide);
+      unregister();
+      void stop().then(finish, finish);
+      setNotices(null);
+    };
+  }, [store, accountId, syncSession]);
+  return notices;
+}
 
 /** Reads the shared sync identity and running engines of this browser tab. */
 export function useSyncSession(): SyncSession {
@@ -793,10 +898,16 @@ export function useWorkspaceSync(
   const [state, setState] = useState<SyncState>(startingSyncState);
   const [noteName, setNoteName] = useState<string | null>(null);
   const syncSession = useSyncSession();
+  const notices = useContext(NoticesContext);
   const wake = useRef<() => void>(() => {});
 
   useEffect(() => {
-    if (store === null || accountId === null || workspaceId === null) {
+    if (
+      store === null ||
+      accountId === null ||
+      workspaceId === null ||
+      notices === null
+    ) {
       setState(startingSyncState);
       setNoteName(null);
       return;
@@ -832,11 +943,17 @@ export function useWorkspaceSync(
     const engine = createSyncEngine(store, accountId, workspaceId, {
       announce: onNotice,
       ownerId: syncSession.ownerId,
+      lease: notices.gate,
+      interval: notices.interval,
     });
     const requestSync = (): void => {
       engine.requestSync();
     };
     wake.current = requestSync;
+    // A notice of this workspace wakes this engine, and the other tabs learn
+    // that this tab reads it.
+    const unregisterWake = notices.register(workspaceId, requestSync);
+    notices.open(workspaceId);
     /**
      * Reports what the queue of this device holds right now.
      *
@@ -907,6 +1024,8 @@ export function useWorkspaceSync(
       setState({ kind: 'stopped' });
     });
     return () => {
+      unregisterWake();
+      notices.open(null);
       unregister();
       unsubscribe();
       window.removeEventListener('online', onOnline);
@@ -917,7 +1036,7 @@ export function useWorkspaceSync(
       engine.stop();
       wake.current = () => {};
     };
-  }, [store, accountId, workspaceId, syncSession]);
+  }, [store, accountId, workspaceId, syncSession, notices]);
 
   const requestSync = useCallback((): void => {
     wake.current();
@@ -951,8 +1070,27 @@ export function useBackgroundSync(
   accountId: string | null,
   openWorkspaceId: string | null,
   syncSession: SyncSession,
+  notices: TabNotices | null,
 ): void {
   const [queued, setQueued] = useState<readonly string[]>([]);
+  const [served, setServed] = useState<readonly string[]>([]);
+
+  // The workspaces that other tabs read, which this tab serves while it
+  // holds the lease (record 0130).
+  useEffect(() => {
+    if (notices === null) {
+      setServed([]);
+      return;
+    }
+    setServed(notices.served());
+    return notices.onServed(() => {
+      setServed(notices.served());
+    });
+  }, [notices]);
+
+  useEffect(() => {
+    notices?.queued(queued);
+  }, [notices, queued]);
 
   // Which workspaces hold work. The local store publishes a queue change on
   // every enqueue and every acknowledgment, so the set follows the queue
@@ -995,15 +1133,24 @@ export function useBackgroundSync(
   }, [store, accountId]);
 
   const background = useMemo(
-    () => queued.filter((workspaceId) => workspaceId !== openWorkspaceId),
-    [queued, openWorkspaceId],
+    () =>
+      [...new Set([...queued, ...served])].filter(
+        (workspaceId) => workspaceId !== openWorkspaceId,
+      ),
+    [queued, served, openWorkspaceId],
   );
   // The joined key and not the array, so a re-read that answers the same set
   // does not stop and start every engine.
   const backgroundKey = background.join(' ');
 
   useEffect(() => {
-    if (store === null || accountId === null || backgroundKey === '') return;
+    if (
+      store === null ||
+      accountId === null ||
+      notices === null ||
+      backgroundKey === ''
+    )
+      return;
     const controller = new AbortController();
     const runs = backgroundKey.split(' ').map((workspaceId) => {
       const engine = createSyncEngine(store, accountId, workspaceId, {
@@ -1012,11 +1159,19 @@ export function useBackgroundSync(
         // cannot see.
         announce: () => {},
         ownerId: syncSession.ownerId,
+        lease: notices.gate,
+        interval: notices.interval,
       });
-      const finished = engine.run(controller.signal).catch(() => {
-        // The workspace keeps its queue and the next pass tries again. The
-        // work is durable in the local store either way.
+      const unregisterWake = notices.register(workspaceId, () => {
+        engine.requestSync();
       });
+      const finished = engine
+        .run(controller.signal)
+        .catch(() => {
+          // The workspace keeps its queue and the next pass tries again. The
+          // work is durable in the local store either way.
+        })
+        .finally(unregisterWake);
       return { engine, finished };
     });
     const unregister = syncSession.register({
@@ -1033,7 +1188,7 @@ export function useBackgroundSync(
       controller.abort();
       for (const run of runs) run.engine.stop();
     };
-  }, [store, accountId, backgroundKey, syncSession]);
+  }, [store, accountId, backgroundKey, syncSession, notices]);
 }
 
 /**
@@ -1122,11 +1277,17 @@ export function AppProviders({
   // Record 0050. The drain sits here and not in the shell, so a workspace that
   // still holds queued work keeps sending while the person reads another
   // workspace, and while they are on a screen that has no shell at all.
+  const notices = useTabNotices(
+    storeValue.store,
+    session.account?.accountId ?? null,
+    syncSession,
+  );
   useBackgroundSync(
     storeValue.store,
     session.account?.accountId ?? null,
     workspaceState.status === 'ready' ? workspaceState.workspaceId : null,
     syncSession,
+    notices,
   );
   useIdleAccountReset(
     storeValue.store,
@@ -1192,11 +1353,13 @@ export function AppProviders({
         <SessionContext.Provider value={sessionValue}>
           <WorkspaceContext.Provider value={workspaceValue}>
             <SyncSessionContext.Provider value={syncSession}>
-              <SessionScope
-                accountKey={session.account?.accountId ?? 'signed-out'}
-              >
-                {children}
-              </SessionScope>
+              <NoticesContext.Provider value={notices}>
+                <SessionScope
+                  accountKey={session.account?.accountId ?? 'signed-out'}
+                >
+                  {children}
+                </SessionScope>
+              </NoticesContext.Provider>
             </SyncSessionContext.Provider>
           </WorkspaceContext.Provider>
         </SessionContext.Provider>

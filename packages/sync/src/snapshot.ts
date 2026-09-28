@@ -135,6 +135,45 @@ export async function pullNew(
   net: SnapshotNetwork,
   ctx: SyncContext,
 ): Promise<PullOutcome> {
+  return (await pullPage(local, accountId, workspaceId, net, ctx)).outcome;
+}
+
+/** The pages that one turn reads at most before it yields (record 0130). */
+export const pagesPerTurn = 10;
+
+/**
+ * Reads feed pages until a page is empty, or until one turn is spent.
+ *
+ * One wake names no cursor, so it asks for every change after the stored one.
+ * A page that held changes can have a successor, so the loop reads again, and
+ * an empty page proves the end of the feed. `more` is true when the turn ended
+ * before that proof, and the caller schedules another turn after it yields.
+ * Each page moves the cursor in its own transaction, as before.
+ */
+export async function pullPages(
+  local: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  net: SnapshotNetwork,
+  ctx: SyncContext,
+  maxPages: number = pagesPerTurn,
+): Promise<{ readonly outcome: PullOutcome; readonly more: boolean }> {
+  for (let page = 0; page < maxPages; page += 1) {
+    const read = await pullPage(local, accountId, workspaceId, net, ctx);
+    if (read.outcome !== 'done' || !read.more)
+      return { outcome: read.outcome, more: false };
+  }
+  return { outcome: 'done', more: true };
+}
+
+/** One page of the feed, and whether it held changes. */
+async function pullPage(
+  local: LocalStore,
+  accountId: string,
+  workspaceId: string,
+  net: SnapshotNetwork,
+  ctx: SyncContext,
+): Promise<{ readonly outcome: PullOutcome; readonly more: boolean }> {
   let cursor = await local.readCursor(accountId, workspaceId);
   for (let round = 0; round < 2; round += 1) {
     try {
@@ -146,7 +185,8 @@ export async function pullNew(
           net,
           ctx,
         );
-        if (fresh.status !== 'ready') return fresh.status;
+        if (fresh.status !== 'ready')
+          return { outcome: fresh.status, more: false };
         cursor = fresh.cursor;
       }
       return await fetchAndApply(
@@ -271,13 +311,13 @@ async function fetchAndApply(
   net: SnapshotNetwork,
   ctx: SyncContext,
   cursor: string,
-): Promise<PullOutcome> {
+): Promise<{ readonly outcome: PullOutcome; readonly more: boolean }> {
   const fed = await sendWithRetry(ctx, (signal) => net.changes(cursor, signal));
-  if (fed === null) return 'deferred';
+  if (fed === null) return { outcome: 'deferred', more: false };
   if (!fed.ok) {
-    if (fed.problem.status === 401) return 'paused';
+    if (fed.problem.status === 401) return { outcome: 'paused', more: false };
     if (fed.problem.status === 403 || fed.problem.status === 404)
-      return 'access-lost';
+      return { outcome: 'access-lost', more: false };
     if (fed.problem.status === 410)
       throw new SnapshotRestartNeeded('cursor-expired');
     throw new SyncFailedError(fed.problem.code, fed.problem.status);
@@ -323,5 +363,6 @@ async function fetchAndApply(
   ).length;
   if (fileCount > 0)
     ctx.announce({ kind: 'changes-applied', count: fileCount });
-  return 'done';
+  // A page that held a record, a membership record too, can have a successor.
+  return { outcome: 'done', more: fed.value.changes.length > 0 };
 }

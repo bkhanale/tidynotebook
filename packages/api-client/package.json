@@ -15,6 +15,10 @@
     "test:unit": "node ../../tools/run-tests.mjs unit"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "typescript": "catalog:toolchain"
+  },
+  "dependencies": {
+    "partysocket": "1.3.0"
   }
 }

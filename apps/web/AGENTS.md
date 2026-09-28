@@ -11,9 +11,9 @@ screens, the worker and the diagram frame. It composes and holds no rule.
   palette and the frame notices. `header-slot.tsx` holds the two places a
   route writes into the header (0064, 0069), `lib/breadcrumb.ts` states its
   parts (0064) and `action-icons.tsx` draws the one glyph of an action (0065).
-  `workspaces.tsx` owns the switcher (0049). `src/features/<feature>/` holds a
-  feature, `src/lib/` is pure, `src/app.tsx`, `src/router.tsx` and
-  `src/main.tsx` compose it, `src/pwa/` the worker, `src/diagram/` the frame.
+  `workspaces.tsx` owns the switcher (0049). `src/features/<feature>/` is a
+  feature, `src/lib/` is pure, `app.tsx`, `router.tsx` and `main.tsx` compose
+  it, `src/pwa/` the worker and notices (0130), `src/diagram/` the frame.
 - `src/tailwind.css` is the only application CSS source: Tailwind imports,
   sources, the `@font-face` block (0061), and the central scales. A domain
   rule lives in `packages/core`, a Markdown rule in `packages/markdown`.

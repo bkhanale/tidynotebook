@@ -8,6 +8,14 @@
 export * from './generated/index.ts';
 export * from './generated/socket.gen.ts';
 export {
+  connectSyncNotices,
+  policyCloseCode,
+  reconnectSettings,
+  type ReconnectSettings,
+  type SyncNoticesHandlers,
+  type SyncNoticesTransport,
+} from './socket.ts';
+export {
   configureClient,
   normalizeProblem,
   type TokenProvider,

@@ -17,8 +17,9 @@ the contract in `packages/api-contract/`.
   transport. `src/generated/socket.gen.ts` holds the address, the subprotocol,
   the message types, and the frame text of each channel. Never edit a file
   there.
-- `src/configure.ts` is the one handwritten file. It sets the base URL, the
-  cookie behaviour, the token provider, and it normalizes a problem answer.
+- `src/configure.ts` sets the base URL, the cookie behaviour, the token
+  provider, and it normalizes a problem answer. `src/socket.ts` is the one
+  browser transport of the notice stream over PartySocket (0130).
 - `src/index.ts` re-exports the generated operations and the configuration.
   No consumer may import a file under `src/generated/` directly.
 - No domain rule, no retry policy, and no queue lives here. Those live in
@@ -26,7 +27,8 @@ the contract in `packages/api-contract/`.
 
 ## Allowed imports
 
-No workspace package and no runtime dependency.
+No workspace package. The one runtime dependency is `partysocket`, and only
+`src/socket.ts` imports it (0126, 0130).
 
 ## How to add a common thing here
 

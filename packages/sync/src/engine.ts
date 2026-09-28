@@ -3,9 +3,10 @@
  *
  * One run of the engine repeats the revision exchange of the design:
  *
- * 1. Hold the single worker lease, renewing it every cycle. Another tab with
- *    a live lease keeps this run from starting; an expired lease is taken
- *    over. Tab messages only announce these states.
+ * 1. Hold the single worker lease, renewing it every cycle, or read the gate
+ *    of the lease keeper that holds it for the tab (record 0130). Another tab
+ *    with a live lease keeps this run from starting; an expired lease is
+ *    taken over. Tab messages only announce these states.
  * 2. Verify the session and the workspace membership before touching data.
  *    An expired session pauses the run with drafts kept. A session of
  *    another account pauses the run too, because one browser profile holds
@@ -19,9 +20,9 @@
  * 4. Submit the queued mutations in parent order through `pushQueue`, which
  *    freezes each mutation on first send, batches unsent chains atomically,
  *    branches on stale heads, and preserves anything the server refuses.
- * 5. Pull the server state through `pullNew`: stage a snapshot, fetch its
+ * 5. Pull the server state through `pullPages`: stage a snapshot, fetch its
  *    immutable revisions, activate only when complete, then consume ordered
- *    changes. A dirty working copy is never replaced.
+ *    changes until an empty page. A dirty working copy is never replaced.
  * 6. Wait for the poll interval and repeat until the abort signal fires.
  *
  * Every application HTTP call below is a direct import of a generated
@@ -64,7 +65,7 @@ import {
   type SyncContext,
   type SyncNotice,
 } from './queue.ts';
-import { pullNew, type SnapshotNetwork } from './snapshot.ts';
+import { pullNew, pullPages, type SnapshotNetwork } from './snapshot.ts';
 import {
   protocolFit,
   servedProtocolOfProblem,
@@ -239,6 +240,25 @@ export type EngineOptions = {
   readonly announce?: (notice: SyncNotice) => void;
   /** Injected operations. The generated client by default. */
   readonly operations?: EngineOperations;
+  /**
+   * The lease of the tab. By default the engine takes, renews and releases
+   * the lease itself. The notice coordinator passes the gate of its lease
+   * keeper instead, so an engine that stops releases nothing (record 0130).
+   */
+  readonly lease?: LeaseGate;
+  /**
+   * The rest between two passes, read before each rest. The coordinator
+   * lengthens it while a notice set is accepted. `pollIntervalMs` by default.
+   */
+  readonly interval?: () => number;
+};
+
+/** Whether this tab may send now, and what the end of a run gives back. */
+export type LeaseGate = {
+  /** Takes or renews the lease, or reads it, and answers whether it holds. */
+  readonly hold: () => Promise<boolean>;
+  /** Runs once when the engine ends. */
+  readonly release: () => Promise<void>;
 };
 
 /** One foreground sync engine. */
@@ -298,6 +318,7 @@ export function createSyncEngine(
   const pollIntervalMs = options.pollIntervalMs ?? 15_000;
   const leaseTtlMs = options.leaseTtlMs ?? 30_000;
   const announce = options.announce ?? ((): void => {});
+  const interval = options.interval ?? ((): number => pollIntervalMs);
   const extraHeaders = options.headers ?? ((): Record<string, string> => ({}));
   const operations =
     options.operations ?? createOperations(workspaceId, extraHeaders);
@@ -418,17 +439,18 @@ export function createSyncEngine(
 
   async function loop(signal: AbortSignal): Promise<void> {
     const ownerId = options.ownerId ?? newId();
+    const lease: LeaseGate = options.lease ?? {
+      hold: () =>
+        acquireWorkerLease(local, { ownerId, ttlMs: leaseTtlMs, clock }),
+      release: () => releaseWorkerLease(local, ownerId),
+    };
     let held = false;
     while (!held) {
       if (signal.aborted) return;
-      held = await acquireWorkerLease(local, {
-        ownerId,
-        ttlMs: leaseTtlMs,
-        clock,
-      });
+      held = await lease.hold();
       if (held) break;
       announce({ kind: 'lease-held' });
-      if (!(await rest(Math.min(pollIntervalMs, leaseTtlMs), signal))) return;
+      if (!(await rest(Math.min(interval(), leaseTtlMs), signal))) return;
     }
     try {
       let lastSession: SessionState = 'ok';
@@ -465,16 +487,12 @@ export function createSyncEngine(
       while (session !== 'ok') {
         if (signal.aborted) return;
         noteSession(session === 'deferred' ? 'access-lost' : session);
-        if (!(await rest(pollIntervalMs, signal))) return;
+        if (!(await rest(interval(), signal))) return;
         session = await verifyOnce(signal);
       }
       for (;;) {
         if (signal.aborted) return;
-        const renewed = await acquireWorkerLease(local, {
-          ownerId,
-          ttlMs: leaseTtlMs,
-          clock,
-        });
+        const renewed = await lease.hold();
         if (!renewed) {
           announce({ kind: 'lease-lost' });
           return;
@@ -483,12 +501,12 @@ export function createSyncEngine(
           const check = await verifyOnce(signal);
           if (check === 'paused' || check === 'other-account') {
             noteSession(check);
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
           if (check !== 'ok') {
             noteSession('access-lost');
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
           noteSession('ok');
@@ -501,12 +519,12 @@ export function createSyncEngine(
           };
           const fit = await readProtocolFit(ctx);
           if (fit === null) {
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
           noteFit(fit);
           if (fit !== 'compatible') {
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
           // A refused precondition makes the queue read the server again
@@ -523,25 +541,30 @@ export function createSyncEngine(
           );
           if (pushed === 'paused') {
             noteSession('paused');
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
           if (pushed === 'access-lost') {
             noteSession(await refusalCause(signal));
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
           if (pushed === 'deferred') {
-            if (!(await rest(pollIntervalMs, signal))) return;
+            if (!(await rest(interval(), signal))) return;
             continue;
           }
-          const pulled = await pullNew(
+          // One pass reads until an empty page proves the end of the feed. A
+          // turn that ends before that proof asks for the next pass at once,
+          // so a backlog drains after one wake with no later notice.
+          const read = await pullPages(
             local,
             accountId,
             workspaceId,
             operations,
             ctx,
           );
+          const pulled = read.outcome;
+          if (read.more) wakeRequested = true;
           if (pulled === 'paused') {
             noteSession('paused');
           } else if (pulled === 'access-lost') {
@@ -549,7 +572,7 @@ export function createSyncEngine(
           } else {
             lastCycleError = '';
           }
-          if (!(await rest(pollIntervalMs, signal))) return;
+          if (!(await rest(interval(), signal))) return;
         } catch (error: unknown) {
           if (signal.aborted) return;
           if (error instanceof DOMException && error.name === 'AbortError')
@@ -558,11 +581,11 @@ export function createSyncEngine(
           else if (isLocalStorageError(error))
             noteCycleError(`local-${error.kind}`);
           else throw error;
-          if (!(await rest(pollIntervalMs, signal))) return;
+          if (!(await rest(interval(), signal))) return;
         }
       }
     } finally {
-      await releaseWorkerLease(local, ownerId);
+      await lease.release();
     }
   }
 

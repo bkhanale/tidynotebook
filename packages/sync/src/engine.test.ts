@@ -2460,3 +2460,206 @@ await test('an early wake stops the sleep that it raced', async () => {
   await running;
   for (const record of sleeps) assert.equal(record.stopped, true);
 });
+
+/** A sleep that never ends by itself and stops with the run. */
+function endlessSleep(_ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise<void>((_resolve, reject) => {
+    const stop = (): void => {
+      reject(new DOMException('The sync run stopped.', 'AbortError'));
+    };
+    if (signal.aborted) stop();
+    else signal.addEventListener('abort', stop, { once: true });
+  });
+}
+
+/** A feed of membership pages from `from` to `to`, one record each. */
+function membershipFeed(
+  to: number,
+  reads: string[],
+): SnapshotNetwork['changes'] {
+  return (cursor) => {
+    reads.push(cursor);
+    const at = Number(cursor);
+    if (at >= to)
+      return Promise.resolve({
+        ok: true as const,
+        value: { changes: [], nextCursor: cursor },
+      });
+    // A membership record only moves the cursor, and it still ends a page
+    // that can have a successor.
+    return Promise.resolve({
+      ok: true as const,
+      value: {
+        changes: [{ file: null, purgedFileId: null }],
+        nextCursor: String(at + 1),
+      },
+    });
+  };
+}
+
+await test('one wake drains a backlog of several pages with no later notice', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  const reads: string[] = [];
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-drain',
+    operations: stubOperations({ changes: membershipFeed(23, reads) }),
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => reads.length === 4);
+  assert.deepEqual(reads, ['20', '21', '22', '23']);
+  assert.equal(store.cursors.get(`${accountId}/${workspaceId}`), '23');
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('a long backlog drains in bounded turns without a request', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '0');
+  const reads: string[] = [];
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-turns',
+    operations: stubOperations({ changes: membershipFeed(25, reads) }),
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => reads.at(-1) === '25');
+  assert.equal(reads.length, 26);
+  assert.equal(store.cursors.get(`${accountId}/${workspaceId}`), '25');
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('an engine on a lease gate never takes or gives back the lease', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  const reads: string[] = [];
+  let holds = 0;
+  let releases = 0;
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-gate',
+    operations: stubOperations({ changes: membershipFeed(20, reads) }),
+    pollIntervalMs: 60_000,
+    sleep: endlessSleep,
+    lease: {
+      hold: () => {
+        holds += 1;
+        return Promise.resolve(true);
+      },
+      release: () => {
+        releases += 1;
+        return Promise.resolve();
+      },
+    },
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => reads.length === 1);
+  controller.abort();
+  engine.stop();
+  await running;
+  assert.ok(holds >= 1);
+  assert.equal(releases, 1);
+  assert.equal(store.lease, null, 'the engine wrote no lease row');
+});
+
+await test('an engine whose gate is closed sends and reads nothing', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  const reads: string[] = [];
+  let holds = 0;
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-closed',
+    operations: stubOperations({ changes: membershipFeed(21, reads) }),
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+    lease: {
+      hold: () => {
+        holds += 1;
+        return Promise.resolve(holds > 2);
+      },
+      release: () => Promise.resolve(),
+    },
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  // Each wake asks the gate again. The gate opens on its third answer.
+  await waitFor(() => holds === 1);
+  engine.requestSync();
+  await waitFor(() => holds === 2);
+  assert.deepEqual(reads, []);
+  engine.requestSync();
+  await waitFor(() => reads.length === 2);
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('a wake with no new page moves no cursor', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  let reads = 0;
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-quiet',
+    operations: stubOperations({
+      changes: () => {
+        reads += 1;
+        return Promise.resolve({
+          ok: false as const,
+          problem: { status: 503, code: 'shutting_down', fileIds: [] },
+        });
+      },
+    }),
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    // The backoff of a refused read ends at once, and the rest never does.
+    sleep: (ms, signal) =>
+      ms < 60_000 ? Promise.resolve() : endlessSleep(ms, signal),
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => reads >= 1);
+  engine.requestSync();
+  await waitFor(() => reads >= 2);
+  assert.equal(store.cursors.get(`${accountId}/${workspaceId}`), '20');
+  controller.abort();
+  engine.stop();
+  await running;
+});
+
+await test('the interval is read before each rest', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  const rests: number[] = [];
+  let long = false;
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-interval',
+    operations: stubOperations({ changes: membershipFeed(20, []) }),
+    leaseTtlMs: 120_000,
+    interval: () => (long ? 300_000 : 15_000),
+    sleep: (ms, signal) => {
+      rests.push(ms);
+      return endlessSleep(ms, signal);
+    },
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  await waitFor(() => rests.length === 1);
+  long = true;
+  engine.requestSync();
+  await waitFor(() => rests.length === 2);
+  assert.deepEqual(rests, [15_000, 300_000]);
+  controller.abort();
+  engine.stop();
+  await running;
+});

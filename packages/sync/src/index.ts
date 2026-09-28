@@ -82,8 +82,33 @@ export type {
   SnapshotItemData,
   SnapshotNetwork,
 } from './snapshot.ts';
-export { pullNew } from './snapshot.ts';
-export type { WorkerLease } from './lease.ts';
+export { pagesPerTurn, pullNew, pullPages } from './snapshot.ts';
+export type { LeaseStore, WorkerLease } from './lease.ts';
+export {
+  createLeaseKeeper,
+  timerSchedule,
+  type LeaseKeeper,
+  type Schedule,
+} from './lease-keeper.ts';
+export {
+  createInterestTable,
+  interestHeartbeatMs,
+  interestTtlMs,
+  subscriptionSet,
+  type InterestTable,
+  type TabInterest,
+} from './interests.ts';
+export {
+  createNoticeCoordinator,
+  engineInterval,
+  maxSubscribedWorkspaces,
+  offerRetryMs,
+  type CoordinatorPorts,
+  type NoticeCoordinator,
+  type NoticeHandlers,
+  type NoticeSocket,
+  type StreamEnd,
+} from './notice-coordinator.ts';
 export {
   acquireWorkerLease,
   isLeaseExpired,
@@ -100,6 +125,7 @@ export {
 export type {
   EngineOptions,
   EngineOperations,
+  LeaseGate,
   ProtocolNetwork,
   SessionNetwork,
   SyncEngine,

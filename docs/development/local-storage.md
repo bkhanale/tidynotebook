@@ -85,7 +85,10 @@ merge records a new one. `src/local-store/reviews.ts` holds the table, and
 
 A draft write and a save transaction need no connection. The sync engine wakes
 when a queue transaction commits and also runs a periodic safety check. A lease
-stops two tabs from sending the same browser queue at the same time.
+stops two tabs from sending the same browser queue at the same time. The lease
+keeper of `packages/sync/src/lease-keeper.ts` holds it for the tab, and that
+tab reads the open workspace of every tab. A notice of the server only wakes an
+engine, and only an applied feed page moves a cursor (record 0130).
 
 Snapshot activation changes accepted server state only. It never deletes a
 draft or a queued version.

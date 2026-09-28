@@ -127,3 +127,22 @@ export async function openStream(
     throw new Error(`The stream was refused with ${String(upgrade.status)}.`);
   return upgrade.stream;
 }
+
+/**
+ * A socket class for the browser transport that sends a cookie and an origin.
+ *
+ * PartySocket builds its socket from the address and the subprotocol only,
+ * and a browser adds the cookie and the origin by itself. Node adds neither,
+ * so this class adds them, and the rest of the transport runs as it does in
+ * a browser.
+ */
+export function socketClassWith(headers: {
+  readonly cookie: string;
+  readonly origin: string;
+}): unknown {
+  return class extends SocketClient {
+    constructor(url: string, protocols?: string | string[]) {
+      super(url, protocols, { headers: { ...headers } });
+    }
+  };
+}
