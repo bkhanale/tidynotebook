@@ -5,6 +5,33 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.0 - 2026-09-29
+
+This minor release shows the changes of your other devices in less than a
+second, and repairs sync of a large change.
+
+### Added
+
+- **Live updates.** When you save a change on one device, your other devices
+  show it in less than a second. The server tells each browser that a change
+  is ready, and the browser reads it. The message holds no note text.
+- A browser that cannot keep the connection, for example behind a proxy that
+  refuses it, still reads the changes about every 15 seconds.
+
+### Changed
+
+- The tab that syncs for a browser now also reads the notes that its other
+  tabs show, so a note open in any tab stays current.
+- A proxy in front of the server must pass WebSocket connections to give live
+  updates. The hosting guide names the address.
+
+### Fixed
+
+- A device no longer misses part of a large change, for example a move of
+  many notes, when it reads the changes after a time away.
+- A tab that signs in to another account no longer stops the saves of that
+  account in the other tabs of the browser.
+
 ## 0.8.0 - 2026-09-27
 
 This minor release lets several people use one installation, each with their
