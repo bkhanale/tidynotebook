@@ -38,6 +38,7 @@ import {
   revokeSession,
   signInWithPassword,
   updatePreferences,
+  updateProfile,
 } from '@notesapp/api-client';
 import type { LocalStore } from '@notesapp/sync';
 import {
@@ -79,7 +80,11 @@ import {
   useRequestSync,
 } from '../../app.tsx';
 import { problemCode, problemStatus } from '../../lib/problem-text.ts';
-import { signUpRoute, storageLine } from '../../lib/accounts.ts';
+import {
+  profileNameProblem,
+  signUpRoute,
+  storageLine,
+} from '../../lib/accounts.ts';
 import { consentTo, waitsForConsent } from '../../lib/legal.ts';
 import {
   deviceName,
@@ -1074,6 +1079,93 @@ function SessionsSettings(): ReactNode {
   );
 }
 
+/** The name a person can change and the sign-in address they can read. */
+function ProfileSettings({
+  name,
+  email,
+}: {
+  readonly name: string | null | undefined;
+  readonly email: string | null | undefined;
+}): ReactNode {
+  const session = useSession();
+  const [draft, setDraft] = useState(name ?? '');
+  const [attempted, setAttempted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setDraft(name ?? '');
+  }, [name]);
+
+  async function save(): Promise<void> {
+    setAttempted(true);
+    setSaved(false);
+    setProblem('');
+    const fieldProblem = profileNameProblem(draft);
+    if (fieldProblem !== null) return;
+    const nextName = draft.trim();
+    if (nextName === name) return;
+    setBusy(true);
+    const result = await updateProfile({ body: { name: nextName } });
+    setBusy(false);
+    if (result.error !== undefined || result.data === undefined) {
+      setProblem(problemMessage(result.error));
+      return;
+    }
+    session.adoptProfileName(nextName);
+    setSaved(true);
+  }
+
+  return (
+    <SettingsSection
+      title="Profile"
+      titleId="profile-heading"
+      description="Your name appears with your account. Use your email address to sign in."
+    >
+      <form
+        onSubmit={(event): void => {
+          event.preventDefault();
+          void save();
+        }}
+      >
+        <TextField
+          id="profile-name"
+          label="Name"
+          value={draft}
+          autoComplete="name"
+          hint="Use no more than 256 characters."
+          error={attempted ? (profileNameProblem(draft) ?? '') : ''}
+          onChange={(value) => {
+            setDraft(value);
+            setSaved(false);
+            setProblem('');
+          }}
+        />
+        <p className="mb-1 mt-0 text-control font-medium text-strong">
+          Email address
+        </p>
+        <p className="mb-4 mt-0 text-ui text-strong">
+          {email ?? 'No address linked'}
+        </p>
+        {problem === '' ? null : (
+          <Notice className="mb-3" tone="problem" message={problem} />
+        )}
+        {saved ? (
+          <Notice
+            className="mb-3"
+            tone="info"
+            message="Your new name appears in your account."
+          />
+        ) : null}
+        <Button type="submit" disabled={busy || draft.trim() === name}>
+          {busy ? 'Saving name' : 'Save name'}
+        </Button>
+      </form>
+    </SettingsSection>
+  );
+}
+
 /** Account page: profile, theme, offline availability, and sign-out. */
 export function AccountSettingsPage(): ReactNode {
   const session = useSession();
@@ -1158,6 +1250,8 @@ export function AccountSettingsPage(): ReactNode {
     <Page>
       <PageHeader title={settingsTitle} />
       <div>
+        <ProfileSettings name={account.name} email={account.email} />
+
         <ThemeSettings />
 
         <SpellCheckSettings />
@@ -1287,12 +1381,9 @@ export function AccountSettingsPage(): ReactNode {
 
         <SettingsSection
           title="Account"
-          titleId="profile-heading"
+          titleId="account-heading"
           description="Your account owns every note in your workspaces. No other account can read them."
         >
-          <p className="m-0 text-ui text-strong">
-            {account.email ?? 'No address linked'}
-          </p>
           {storageLine(account.storage) === '' ? null : (
             <p className="mb-0 mt-1 text-control text-muted">
               {storageLine(account.storage)}

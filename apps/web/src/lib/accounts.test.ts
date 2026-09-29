@@ -15,11 +15,21 @@ import {
   registrationPolicyText,
   missingPartsOf,
   openRegistrationMissingText,
+  profileNameProblem,
   storageLine,
   verificationTokenOf,
 } from './accounts.ts';
 
 const now = Date.parse('2026-09-26T12:00:00.000Z');
+
+await test('a profile name needs visible text within the account limit', () => {
+  assert.equal(profileNameProblem(' Ada '), null);
+  assert.equal(profileNameProblem('   '), 'Enter a name.');
+  assert.equal(
+    profileNameProblem('a'.repeat(257)),
+    'Use a name with no more than 256 characters.',
+  );
+});
 
 function account(extra: Partial<AccountSummary> = {}): AccountSummary {
   return {

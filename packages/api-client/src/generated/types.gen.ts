@@ -405,6 +405,16 @@ export type AuthPasswordSignIn = {
 };
 
 /**
+ * The display name of the signed in account.
+ */
+export type AuthProfileUpdate = {
+    /**
+     * Display name of the account.
+     */
+    name: string;
+};
+
+/**
  * The result of a completed sign-in. It never carries the session token: the browser already holds that value in an HttpOnly cookie, and the protocol adapter removes it from this answer.
  */
 export type AuthSession = {
@@ -3669,6 +3679,62 @@ export type SignOutResponses = {
 };
 
 export type SignOutResponse = SignOutResponses[keyof SignOutResponses];
+
+export type UpdateProfileData = {
+    /**
+     * The new display name.
+     */
+    body: AuthProfileUpdate;
+    path?: never;
+    query?: never;
+    url: '/api/auth/update-user';
+};
+
+export type UpdateProfileErrors = {
+    /**
+     * The request did not match the endpoint.
+     */
+    400: ProblemDetails;
+    /**
+     * The credential was refused.
+     */
+    401: ProblemDetails;
+    /**
+     * The request did not come from the configured origin.
+     */
+    403: ProblemDetails;
+    /**
+     * The named record does not exist.
+     */
+    404: ProblemDetails;
+    /**
+     * The request body is larger than the configured limit.
+     */
+    413: ProblemDetails;
+    /**
+     * The request media type is not supported.
+     */
+    415: ProblemDetails;
+    /**
+     * Too many attempts. Try again later.
+     */
+    429: ProblemDetails;
+    /**
+     * The service failed to complete the request.
+     */
+    500: ProblemDetails;
+};
+
+export type UpdateProfileError = UpdateProfileErrors[keyof UpdateProfileErrors];
+
+export type UpdateProfileResponses = {
+    /**
+     * The account profile was updated.
+     */
+    200: AuthOutcome;
+};
+
+export type UpdateProfileResponse = UpdateProfileResponses[keyof UpdateProfileResponses];
 
 export type GetHealthData = {
     body?: never;

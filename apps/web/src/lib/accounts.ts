@@ -23,6 +23,15 @@ export const accountsTitle = 'Accounts';
  */
 export const invitationRoute = '/invitation';
 
+/** The problem with a display name, or `null` when it can be saved. */
+export function profileNameProblem(value: string): string | null {
+  const name = value.trim();
+  if (name === '') return 'Enter a name.';
+  if (Array.from(name).length > 256)
+    return 'Use a name with no more than 256 characters.';
+  return null;
+}
+
 /** The shape of an invitation token, as the contract states it. */
 const tokenPattern = /^[A-Za-z0-9_-]{43}$/;
 

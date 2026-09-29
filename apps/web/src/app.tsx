@@ -111,6 +111,8 @@ export type SessionValue = {
    * screen reads them at once and the next start reads them offline.
    */
   readonly adoptPreferences: (preferences: Preferences) => void;
+  /** Applies a saved display name to the avatar and the cached account. */
+  readonly adoptProfileName: (name: string) => void;
 };
 
 const SessionContext = createContext<SessionValue>({
@@ -120,6 +122,7 @@ const SessionContext = createContext<SessionValue>({
   refresh: () => {},
   signOut: () => {},
   adoptPreferences: () => {},
+  adoptProfileName: () => {},
 });
 
 const cachedAccountKey = 'notesapp.cached-account';
@@ -339,6 +342,7 @@ function useSessionLoader(generation: number): {
   readonly account: Account | null;
   readonly error: string | null;
   readonly adoptPreferences: (preferences: Preferences) => void;
+  readonly adoptProfileName: (name: string) => void;
 } {
   const [status, setStatus] = useState<SessionStatus>('loading');
   const [account, setAccount] = useState<Account | null>(null);
@@ -390,13 +394,17 @@ function useSessionLoader(generation: number): {
     );
   }, []);
 
+  const adoptProfileName = useCallback((name: string): void => {
+    setAccount((current) => (current === null ? null : { ...current, name }));
+  }, []);
+
   // The cached account follows the settings that a write returned, so a start
   // with no connection reads the settings of the last write.
   useEffect(() => {
     if (status === 'signed-in' && account !== null) rememberAccount(account);
   }, [status, account]);
 
-  return { status, account, error, adoptPreferences };
+  return { status, account, error, adoptPreferences, adoptProfileName };
 }
 
 /**
@@ -1327,6 +1335,7 @@ export function AppProviders({
       refresh,
       signOut: doSignOut,
       adoptPreferences: session.adoptPreferences,
+      adoptProfileName: session.adoptProfileName,
     }),
     [session, refresh, doSignOut],
   );

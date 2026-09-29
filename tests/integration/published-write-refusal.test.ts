@@ -233,6 +233,7 @@ const protocolWrites = [
   'resetPassword',
   'signInWithPassword',
   'signOut',
+  'updateProfile',
 ];
 
 /**
@@ -417,14 +418,18 @@ await test('the account path gives a published token no session', async () => {
   for (const id of protocolWrites) {
     const operation = operations.find((entry) => entry.id === id);
     assert.ok(operation !== undefined, id);
-    await app.inject({
+    const response = await app.inject({
       ...readerAttempt(operation),
       headers: {
         ...readerAttempt(operation).headers,
         'content-type': 'application/json',
       },
-      payload: JSON.stringify({}),
+      payload: JSON.stringify(id === 'updateProfile' ? { name: 'Reader' } : {}),
     });
+    if (id === 'updateProfile') {
+      assert.equal(response.statusCode, 401);
+      assert.equal(problemCodeOf(response.body), 'unauthenticated');
+    }
   }
   // Whatever each of those answered, the token is still not a session: the
   // guarded read of the owner refuses it exactly as it did before.

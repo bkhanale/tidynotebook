@@ -22,6 +22,7 @@ import {
   revokeOtherSessions,
   revokeSession,
   signInWithPassword,
+  updateProfile,
 } from '@notesapp/api-client';
 import { createApp, loadServerConfig } from '@notesapp/server';
 import { createDisposableDatabase, openSession } from './support/database.ts';
@@ -184,6 +185,40 @@ await test('another account cannot end or see a session of this account', async 
   });
   assert.equal(responseOf(refused.response).status, 404);
   assert.equal(await accountStatus(target), 200);
+});
+
+await test('a person changes only their own display name', async () => {
+  const device = await signIn(ownerEmail, ownerPassword, 'Profile browser');
+  const otherEmail = await secondPerson('other-password-123456');
+  const other = await signIn(
+    otherEmail,
+    'other-password-123456',
+    'Other profile',
+  );
+  const refused = await updateProfile({
+    headers: device,
+    body: { name: '   ' },
+  });
+  assert.equal(responseOf(refused.response).status, 400);
+  const changed = await updateProfile({
+    headers: device,
+    body: { name: 'Ada' },
+  });
+  assert.equal(
+    responseOf(changed.response).status,
+    200,
+    JSON.stringify(changed.error),
+  );
+  assert.equal(changed.data?.status, true);
+  const account = await getAccount({ headers: device });
+  assert.equal(account.data?.name, 'Ada');
+  assert.equal(account.data?.email, ownerEmail);
+  assert.equal((await getAccount({ headers: other })).data?.name, otherEmail);
+  assert.equal(
+    responseOf((await updateProfile({ body: { name: 'No session' } })).response)
+      .status,
+    401,
+  );
 });
 
 await test('sign out every other device keeps only the current session', async () => {
