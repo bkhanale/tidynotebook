@@ -162,6 +162,7 @@ and needs no record.
 | [0128](0128-the-server-validates-every-notice-frame.md)                            | The server validates every notice frame                                         |
 | [0129](0129-the-notice-gateway-and-its-bounds.md)                                  | The notice gateway and its bounds                                               |
 | [0130](0130-one-notice-coordinator-per-account-tab.md)                             | One notice coordinator per account in the lease tab                             |
+| [0131](0131-the-notice-stream-always-runs.md)                                      | The notice stream always runs                                                   |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -496,3 +497,8 @@ Record 0130 answers
 [issue 190](https://github.com/bkhanale/notesapp/issues/190). One coordinator
 in the lease tab owns the lease, the socket and the subscription set, and the
 lease tab serves the open workspace of every tab. It refines records 0050 and 0124.
+
+Record 0131 makes the notice stream run on every deployment, with no
+admission setting and no publishing switch, because the owner chose that on
+2026-09-29. It replaces the switch bullets of records 0125 and 0129, and the
+poll stays as the fallback.
