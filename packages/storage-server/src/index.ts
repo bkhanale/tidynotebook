@@ -7,7 +7,7 @@
  * A browser package must never import it.
  */
 export { createDocumentService } from './document-service.ts';
-export { openPool } from './pool.ts';
+export { openPool, poolSizes, processConnectionLimit } from './pool.ts';
 export {
   listenerRetryMs,
   openSyncListener,

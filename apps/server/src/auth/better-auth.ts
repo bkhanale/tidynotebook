@@ -49,6 +49,7 @@ import {
   authVerification,
   defaultConnectionTimeoutMs,
   openPool,
+  poolSizes,
 } from '@notesapp/storage-server';
 import type { ServerConfig } from '../config.ts';
 import type { ProblemCode } from '../plugins/problem.ts';
@@ -446,7 +447,7 @@ export function createAuthPool(config: ServerConfig): pg.Pool {
   // `@notesapp/storage-server`. A pool with no bound waits without end.
   return openPool({
     connectionString: config.authDatabaseUrl,
-    max: 5,
+    max: poolSizes.auth,
     connectionTimeoutMillis: defaultConnectionTimeoutMs,
   });
 }

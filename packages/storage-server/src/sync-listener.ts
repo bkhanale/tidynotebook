@@ -13,7 +13,7 @@
  * The listener reconnects on its own, with a delay that grows to a cap.
  */
 import pg from 'pg';
-import { openPool } from './pool.ts';
+import { openPool, poolSizes } from './pool.ts';
 import { defaultConnectionTimeoutMs } from './workspace-store/index.ts';
 
 /** The PostgreSQL channel of every sync hint. */
@@ -81,7 +81,7 @@ export function openSyncListener(
 ): SyncListener {
   const pool = openPool({
     connectionString: databaseUrl,
-    max: 1,
+    max: poolSizes.listener,
     connectionTimeoutMillis: defaultConnectionTimeoutMs,
     application_name: syncListenerName,
   });

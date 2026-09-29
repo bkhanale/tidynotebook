@@ -12,7 +12,7 @@ import type { Readable } from 'node:stream';
 import { and, eq } from 'drizzle-orm';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { openPool } from './pool.ts';
+import { openPool, poolSizes } from './pool.ts';
 import type {
   Actor,
   AttachmentMediaType,
@@ -175,7 +175,7 @@ export function openAttachmentStore(
 ): AttachmentStoreHandle {
   const pool = openPool({
     connectionString: databaseUrl,
-    max: options.poolSize ?? 10,
+    max: options.poolSize ?? poolSizes.attachments,
     // Every pool of this server takes the same bound, for the reason stated
     // beside `defaultConnectionTimeoutMs`.
     connectionTimeoutMillis: defaultConnectionTimeoutMs,

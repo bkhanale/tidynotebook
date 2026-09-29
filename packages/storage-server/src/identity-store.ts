@@ -55,7 +55,7 @@ import {
   reportedLinkStates,
 } from '@notesapp/core';
 import pg from 'pg';
-import { openPool } from './pool.ts';
+import { openPool, poolSizes } from './pool.ts';
 import {
   defaultConnectionTimeoutMs,
   WorkspaceUnavailableError,
@@ -265,7 +265,7 @@ export function openIdentityStore(
 ): IdentityStoreHandle {
   const pool = openPool({
     connectionString: databaseUrl,
-    max: options.poolSize ?? 10,
+    max: options.poolSize ?? poolSizes.identity,
     // Every pool of this server takes the same bound. A pool with no bound
     // waits for a free slot and for the connection itself without end, so one
     // unreachable database turns into a queue of held request slots.

@@ -63,6 +63,28 @@ class ClosingPool extends pg.Pool {
   }
 }
 
+/**
+ * The size of each pool of one server process.
+ *
+ * A pool that a caller opens with no size of its own takes its size here, so
+ * the whole connection budget of a process is one sum. The load tool of the
+ * sync notices holds that sum as its bound (issue 191).
+ */
+export const poolSizes = {
+  identity: 10,
+  content: 10,
+  attachments: 10,
+  coordination: 4,
+  auth: 5,
+  listener: 1,
+} as const;
+
+/** The most connections that one server process opens. */
+export const processConnectionLimit = Object.values(poolSizes).reduce(
+  (sum, size) => sum + size,
+  0,
+);
+
 /** Opens one connection pool with the two rules of this module. */
 export function openPool(config: pg.PoolConfig): pg.Pool {
   return new ClosingPool(config);

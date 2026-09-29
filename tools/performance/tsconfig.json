@@ -8,6 +8,8 @@
   "include": ["**/*.ts"],
   "references": [
     { "path": "../../packages/core/tsconfig.build.json" },
-    { "path": "../../packages/storage-server/tsconfig.build.json" }
+    { "path": "../../packages/storage-server/tsconfig.build.json" },
+    { "path": "../../packages/api-client/tsconfig.build.json" },
+    { "path": "../../apps/server/tsconfig.build.json" }
   ]
 }

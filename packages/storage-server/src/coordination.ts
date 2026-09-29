@@ -12,7 +12,7 @@
  */
 import { OperationalError } from '@notesapp/core';
 import pg from 'pg';
-import { openPool } from './pool.ts';
+import { openPool, poolSizes } from './pool.ts';
 import { defaultConnectionTimeoutMs } from './workspace-store/index.ts';
 
 /** The count of one key and the milliseconds left in its window. */
@@ -83,7 +83,7 @@ export function openCoordination(
 ): CoordinationHandle {
   const pool = openPool({
     connectionString: databaseUrl,
-    max: options.poolSize ?? 4,
+    max: options.poolSize ?? poolSizes.coordination,
     connectionTimeoutMillis: defaultConnectionTimeoutMs,
   });
 

@@ -16,7 +16,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
-import { openPool } from '../pool.ts';
+import { openPool, poolSizes } from '../pool.ts';
 import type {
   Actor,
   DocumentService,
@@ -265,7 +265,7 @@ export function openWorkspaceStore(
 ): WorkspaceStoreHandle {
   const pool = openPool({
     connectionString: databaseUrl,
-    max: options.poolSize ?? 10,
+    max: options.poolSize ?? poolSizes.content,
     connectionTimeoutMillis:
       options.connectionTimeoutMs ?? defaultConnectionTimeoutMs,
     ...(options.statementTimeoutMs === undefined
