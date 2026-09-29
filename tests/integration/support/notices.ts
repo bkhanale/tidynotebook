@@ -18,6 +18,9 @@ import {
   type SyncNoticesServerMessage,
 } from '@notesapp/api-client';
 
+/** The longest wait for one message of a stream. */
+export const waitBoundMs = 20_000;
+
 /** One open stream of a test. */
 export type TestStream = {
   /** Every server message so far, in order. */
@@ -97,8 +100,23 @@ export function openTestStream(
           waitFor: (match) => {
             const found = messages.find(match);
             if (found !== undefined) return Promise.resolve(found);
-            return new Promise((done) => {
-              waiters.push({ match, resolve: done });
+            // A message that never comes fails the test with what it waited
+            // for, instead of holding the whole suite.
+            return new Promise((done, fail) => {
+              const timer = setTimeout(() => {
+                fail(
+                  new Error(
+                    `No matching message after ${String(waitBoundMs)} ms. Received: ${messages.map((entry) => entry.kind).join(', ')}`,
+                  ),
+                );
+              }, waitBoundMs);
+              waiters.push({
+                match,
+                resolve: (message) => {
+                  clearTimeout(timer);
+                  done(message);
+                },
+              });
             });
           },
           send: (message) => {

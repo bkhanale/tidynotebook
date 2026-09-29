@@ -504,11 +504,13 @@ await test('a commit that fails at its end reports no acceptance and retries', a
 
 /** Waits until an instance offers the stream, which needs its listener. */
 async function offered(baseUrl: string): Promise<void> {
-  for (;;) {
+  const started = Date.now();
+  while (Date.now() - started < 20_000) {
     const answer = await getSyncProtocol({ baseUrl });
     if ((answer.data?.notificationProtocols ?? []).length > 0) return;
     await new Promise((resolve) => setImmediate(resolve));
   }
+  throw new Error(`${baseUrl} offered no stream in 20 s.`);
 }
 
 await test('both instances offer the stream once they listen', async () => {
@@ -666,7 +668,9 @@ await test('the stream limit of an account holds across instances', async () => 
   await left.closed;
   // The release is a write of the other instance, so the next open waits for
   // it, and a refusal before it lands is expected.
+  const reopening = Date.now();
   for (;;) {
+    assert.ok(Date.now() - reopening < 20_000, 'no stream opened in 20 s');
     const again = await openTestStream(two.baseUrl, owner);
     if (again.opened) {
       again.stream.close();
@@ -681,11 +685,14 @@ await test('the stream limit of an account holds across instances', async () => 
   // waits until no reservation is left before the next one opens a stream.
   const session = await openSession(database.migrationUrl);
   try {
+    const started = Date.now();
     for (;;) {
       const rows = await session.query<{ held: number }>(
-        'select count(*)::int as held from stream_reservations',
+        'select count(*)::int as held from stream_reservations where expires_at > now()',
       );
       if (rows[0]?.held === 0) break;
+      if (Date.now() - started > 20_000)
+        throw new Error('A stream reservation stayed after its stream closed.');
     }
   } finally {
     await session.close();
