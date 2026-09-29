@@ -11,6 +11,7 @@ import {
   leaseTtlMs,
   readTabMessage,
   startTabNotices,
+  suspendMs,
   type TabChannel,
   type TabNotices,
 } from './notices.ts';
@@ -267,4 +268,30 @@ await test('a message of the channel is read only in its shape', () => {
     { kind: 'shout', tabId: 't' },
   ])
     assert.equal(readTabMessage(value), null, JSON.stringify(value));
+});
+
+await test('a tab whose session serves no longer gives the lease back', async () => {
+  const world = new World();
+  const a = world.tab('tab-a');
+  await world.advance(0);
+  const b = world.tab('tab-b');
+  await world.advance(0);
+  assert.equal(await a.gate.hold(), true);
+  // The session of tab A now serves another account, so it cannot send, and
+  // it must not keep the other tab from sending either.
+  await a.suspend();
+  assert.equal(await a.gate.hold(), false);
+  assert.equal(world.streams.has('tab-a'), false);
+  await world.advance(Math.floor(leaseTtlMs / 3));
+  assert.equal(await b.gate.hold(), true);
+  // A suspended tab asks again later, and finds the lease taken.
+  await world.advance(suspendMs);
+  assert.equal(await a.gate.hold(), false);
+  assert.equal(await b.gate.hold(), true);
+  // With the other tab gone, the later check takes the lease back.
+  await b.stop();
+  await a.suspend();
+  await world.advance(suspendMs);
+  assert.equal(await a.gate.hold(), true);
+  await a.stop();
 });

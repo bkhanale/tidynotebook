@@ -2663,3 +2663,43 @@ await test('the interval is read before each rest', async () => {
   engine.stop();
   await running;
 });
+
+await test('an engine on a gate waits for a lost lease and goes on', async () => {
+  const store = new FakeStore();
+  store.cursors.set(`${accountId}/${workspaceId}`, '20');
+  const reads: string[] = [];
+  let open = true;
+  const notices: SyncNotice[] = [];
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: 'owner-regain',
+    operations: stubOperations({ changes: membershipFeed(20, reads) }),
+    pollIntervalMs: 60_000,
+    leaseTtlMs: 120_000,
+    sleep: endlessSleep,
+    announce: (notice) => notices.push(notice),
+    lease: {
+      hold: () => Promise.resolve(open),
+      release: () => Promise.resolve(),
+    },
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  let ended = false;
+  void running.then(() => {
+    ended = true;
+  });
+  await waitFor(() => reads.length === 1);
+  // Another tab takes the lease: the next pass finds the gate closed.
+  open = false;
+  engine.requestSync();
+  await waitFor(() => notices.some((notice) => notice.kind === 'lease-lost'));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(ended, false, 'the run waits for the lease instead of ending');
+  // The lease comes back, and a wake starts a pass again.
+  open = true;
+  engine.requestSync();
+  await waitFor(() => reads.length === 2);
+  controller.abort();
+  engine.stop();
+  await running;
+});

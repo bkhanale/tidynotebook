@@ -917,6 +917,9 @@ export function useWorkspaceSync(
     const activeWorkspace = workspaceId;
     const controller = new AbortController();
     const onNotice = (notice: SyncNotice): void => {
+      // A paused session cannot send for this account. The lease goes to a
+      // tab that can, so a tab of another account is not kept waiting.
+      if (notice.kind === 'paused') void notices.suspend();
       const next = syncStateOfNotice(notice);
       if (next === null) return;
       setState(next);

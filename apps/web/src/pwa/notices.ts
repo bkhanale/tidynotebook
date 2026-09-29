@@ -34,6 +34,13 @@ export const pollIntervalMs = 15_000;
 /** How long the sender lease of a tab lasts. */
 export const leaseTtlMs = 30_000;
 
+/**
+ * How long a suspended tab waits before it asks for the lease again. A tab
+ * whose session serves another account cannot send, so it gives the lease to
+ * a tab that can, and it checks again after this time.
+ */
+export const suspendMs = 60_000;
+
 /** One channel between the tabs of one account. */
 export type TabChannel = {
   readonly post: (message: unknown) => void;
@@ -73,6 +80,11 @@ export type TabNotices = {
   readonly served: () => readonly string[];
   /** Hears each change of `served`, and answers the function that stops it. */
   readonly onServed: (listener: () => void) => () => void;
+  /**
+   * Gives the lease back because the session of this tab does not serve its
+   * account now. The tab asks for the lease again after `suspendMs`.
+   */
+  readonly suspend: () => Promise<void>;
   /** Stops the stream and the channel, and gives the lease back. */
   readonly stop: () => Promise<void>;
 };
@@ -117,6 +129,7 @@ export function startTabNotices(deps: TabNoticeDependencies): TabNotices {
   let queuedIds: readonly string[] = [];
   let served: readonly string[] = [];
   let stopped = false;
+  let cancelResume: () => void = () => {};
 
   const wakeAll = (): void => {
     for (const set of wakes.values()) for (const wake of [...set]) wake();
@@ -226,9 +239,18 @@ export function startTabNotices(deps: TabNoticeDependencies): TabNotices {
         servedListeners.delete(listener);
       };
     },
+    suspend: async () => {
+      if (stopped) return;
+      cancelResume();
+      await keeper.stop();
+      cancelResume = deps.schedule(suspendMs, () => {
+        if (!stopped) keeper.start();
+      });
+    },
     stop: async () => {
       if (stopped) return;
       stopped = true;
+      cancelResume();
       cancelBeat();
       stopLease();
       channel.post({ kind: 'bye', tabId: deps.tabId });

@@ -490,13 +490,22 @@ export function createSyncEngine(
         if (!(await rest(interval(), signal))) return;
         session = await verifyOnce(signal);
       }
+      let lost = false;
       for (;;) {
         if (signal.aborted) return;
         const renewed = await lease.hold();
         if (!renewed) {
-          announce({ kind: 'lease-lost' });
-          return;
+          if (!lost) announce({ kind: 'lease-lost' });
+          lost = true;
+          // Another tab took a lease that this engine took itself, so the run
+          // ends as it always did. The keeper of a gate can take the lease
+          // back for the tab, so an engine on a gate waits for it (record
+          // 0130).
+          if (options.lease === undefined) return;
+          if (!(await rest(Math.min(interval(), leaseTtlMs), signal))) return;
+          continue;
         }
+        lost = false;
         try {
           const check = await verifyOnce(signal);
           if (check === 'paused' || check === 'other-account') {
