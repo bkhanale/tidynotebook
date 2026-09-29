@@ -109,10 +109,6 @@ services:
       # Whether a new password is checked against the range service of Have I
       # Been Pwned. Set it to off for an installation with no outbound network.
       NOTESAPP_BREACH_CHECK: ${NOTESAPP_BREACH_CHECK:-on}
-      # Whether this instance opens the sync notice stream. Keep it off. The
-      # stream is not ready for use yet, and every device reads its changes
-      # on its own schedule without it.
-      NOTESAPP_SYNC_NOTICES: ${NOTESAPP_SYNC_NOTICES:-off}
     secrets:
       - runtime_database_url
       - auth_database_url

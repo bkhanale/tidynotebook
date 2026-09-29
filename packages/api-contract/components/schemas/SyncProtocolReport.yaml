@@ -20,7 +20,7 @@ properties:
     readOnly: true
     description: >-
       The notice stream subprotocols that this deployment opens now. The list
-      is empty while notices are off. A server that omits the member predates
+      is empty while this process cannot send notices. A server that omits the member predates
       the notice stream, so the client reads the feed on its own schedule.
     maxItems: 1
     uniqueItems: true

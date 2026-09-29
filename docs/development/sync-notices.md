@@ -1,7 +1,7 @@
 # Sync notices
 
-This page owns the operation of the sync notice stream: the parts, the two
-switches, the bounds, and the commands that prove them. The message contract
+This page owns the operation of the sync notice stream: the parts, the bounds,
+and the commands that prove them. The message contract
 is in [Adding a WebSocket message](message-contract.md).
 
 ## What a notice is
@@ -14,26 +14,26 @@ accepted. See
 
 ## The parts
 
-| Part                                   | Where                                          |
-| -------------------------------------- | ---------------------------------------------- |
-| Triggers, switch, reservations, access | `packages/storage-server/migrations/`          |
-| The one listener of a process          | `packages/storage-server/src/sync-listener.ts` |
-| The gateway and its bounds             | `apps/server/src/notices/`                     |
-| The browser transport                  | `packages/api-client/src/socket.ts`            |
-| The lease keeper and the coordinator   | `packages/sync/src/`                           |
-| The notices of one tab                 | `apps/web/src/pwa/notices.ts`                  |
+| Part                                 | Where                                          |
+| ------------------------------------ | ---------------------------------------------- |
+| Triggers, reservations, access       | `packages/storage-server/migrations/`          |
+| The one listener of a process        | `packages/storage-server/src/sync-listener.ts` |
+| The gateway and its bounds           | `apps/server/src/notices/`                     |
+| The browser transport                | `packages/api-client/src/socket.ts`            |
+| The lease keeper and the coordinator | `packages/sync/src/`                           |
+| The notices of one tab               | `apps/web/src/pwa/notices.ts`                  |
 
 Records [0125](../decisions/0125-postgresql-notifies-the-sync-gateways.md),
-[0129](../decisions/0129-the-notice-gateway-and-its-bounds.md) and
-[0130](../decisions/0130-one-notice-coordinator-per-account-tab.md) state the
-choices.
+[0129](../decisions/0129-the-notice-gateway-and-its-bounds.md),
+[0130](../decisions/0130-one-notice-coordinator-per-account-tab.md) and
+[0131](../decisions/0131-the-notice-stream-always-runs.md) state the choices.
 
 ## Invariants
 
-- A trigger sends a hint only after commit, and only while the shared
-  publishing switch is on. A rollback and a replayed receipt send nothing.
-- A stream opens only when `NOTESAPP_SYNC_NOTICES` is on, publishing is on,
-  and the listener of the process listens.
+- A trigger sends a hint only after commit. A rollback and a replayed receipt
+  send nothing.
+- Every process admits a stream while its listener listens. No setting and no
+  switch turns the stream off (record 0131).
 - The gateway reads the access of a stream before each batch and caches no
   answer. A lost session stops the stream.
 - One tab of a browser profile holds the sender lease and the one stream of
@@ -54,9 +54,9 @@ connection bound is the sum of the pool sizes of `poolSizes` in
 `packages/storage-server/src/pool.ts`. Measured results go on the board issue,
 never here.
 
-## Rollback
+## Fallback and rollback
 
-`pnpm notices:publishing --state off` stops every notice at its trigger and
-every stream at its gateway. The feed, the saves and the queues do not change,
-and every device reads on its poll interval. Admission off does the same for
-one process.
+A device whose stream is down, refused, or not offered reads on its poll
+interval, and a healthy stream keeps a long safety read. An emergency stop of
+every notice is a deploy of an earlier release. The feed, the saves and the
+queues do not depend on the stream.

@@ -31,7 +31,7 @@ import {
   syncNoticesProtocol,
 } from '@notesapp/api-client';
 import { createApp, loadServerConfig } from '@notesapp/server';
-import { openCoordination, syncListenerName } from '@notesapp/storage-server';
+import { syncListenerName } from '@notesapp/storage-server';
 import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createLeaseKeeper,
@@ -86,10 +86,7 @@ const config = loadServerConfig({
   NOTESAPP_MAX_BODY_BYTES: '4194304',
   NOTESAPP_MAX_HEADER_BYTES: '16384',
   NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
-  NOTESAPP_SYNC_NOTICES: 'on',
 });
-const coordination = openCoordination(database.runtimeUrl, { poolSize: 1 });
-await coordination.setNoticesPublishing(true);
 const app = await createApp(config);
 await app.listen({ host: '127.0.0.1', port: 0 });
 const address: string | AddressInfo | null = app.server.address();
@@ -384,7 +381,7 @@ await test('an old client with no coordinator still syncs by polling', async () 
   }
 });
 
-await test('a local note is sent at once, and still is with the stream off', async () => {
+await test('a local note is sent at once, and still is with no stream', async () => {
   const first = randomUUID();
   await createNote(store, draft(first, 'local/first.md'));
   await waitFor(
@@ -394,7 +391,9 @@ await test('a local note is sent at once, and still is with the stream off', asy
   const sent = await getFile({ headers, path: { workspaceId, fileId: first } });
   assert.equal(responseOf(sent.response).status, 200);
 
-  await coordination.setNoticesPublishing(false);
+  // The stream goes away, as it does behind a proxy that refuses the
+  // upgrade. The queue change still wakes the engine over HTTP.
+  coordinator.stop();
   await waitFor(() => !coordinator.healthy(), 'the stream stops');
   assert.equal(
     engineInterval(coordinator.healthy(), hourMs, () => 0),
@@ -416,6 +415,5 @@ await test('a local note is sent at once, and still is with the stream off', asy
 // Teardown
 await device.stop();
 await app.close();
-await coordination.close();
 await rm(storageRoot, { recursive: true, force: true });
 await database.destroy();

@@ -18,7 +18,6 @@ await test('each hint kind is read from its payload', () => {
     kind: 'session',
     sessionId: 'session-id-1',
   });
-  assert.deepEqual(parseSyncHint('p'), { kind: 'publishing' });
 });
 
 await test('a payload of no hint reads as null', () => {
@@ -30,6 +29,7 @@ await test('a payload of no hint reads as null', () => {
     'a:ABC',
     's:',
     `s:${'x'.repeat(257)}`,
+    'p',
     'publishing',
   ])
     assert.equal(parseSyncHint(payload), null, payload);

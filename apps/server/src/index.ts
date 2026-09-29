@@ -120,7 +120,6 @@ export { bootstrapOwner, type BootstrapResult } from './cli/bootstrap.ts';
 export { recoverAccount, type RecoveryResult } from './cli/recover-account.ts';
 export { inviteAccount, type InviteResult } from './cli/invite-account.ts';
 export { promoteAccount } from './cli/promote-account.ts';
-export { setNoticesPublishing } from './cli/notices-publishing.ts';
 export { defaultNoticeBounds, type NoticeBounds } from './notices/bounds.ts';
 export { syncNoticesProtocol } from './routes/sync-notices.ts';
 export { createSyncCleanup } from './jobs/sync-cleanup.ts';

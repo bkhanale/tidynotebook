@@ -3,7 +3,7 @@
  * (records 0124, 0125, 0129).
  *
  * The first part listens on the hint channel itself and proves each feed
- * writer, rollback, receipt replay, the publishing switch, the identity hints,
+ * writer, rollback, receipt replay, the identity hints,
  * and a failed commit. The second part runs two server instances over one
  * database, as two processes of one installation, and proves fan-out, access
  * checks, shared limits, a listener gap, and the stop of a stream.
@@ -45,7 +45,6 @@ import {
   type NoticeBounds,
 } from '@notesapp/server';
 import {
-  openCoordination,
   openSyncListener,
   syncListenerName,
   type SyncHint,
@@ -84,7 +83,6 @@ const config = loadServerConfig({
   NOTESAPP_MAX_BODY_BYTES: '1048576',
   NOTESAPP_MAX_HEADER_BYTES: '16384',
   NOTESAPP_REQUEST_TIMEOUT_MS: '60000',
-  NOTESAPP_SYNC_NOTICES: 'on',
 });
 
 /** Every log line that the instances wrote. */
@@ -139,8 +137,6 @@ const hintListener = openSyncListener(database.runtimeUrl, {
   },
 });
 await listeningNow;
-
-const coordination = openCoordination(database.runtimeUrl, { poolSize: 2 });
 
 /**
  * The hints that one action sent. After the action, the test sends a hint of
@@ -257,22 +253,14 @@ function changeset(folder: string, count: number) {
   };
 }
 
-await test('no hint goes out while publishing is off', async () => {
-  await settled(async () => {
-    await coordination.setNoticesPublishing(false);
-    return true;
-  });
+await test('a commit sends its hint with no switch', async () => {
   const sent = await hintsOf(async () => {
-    await newNote('off/quiet.md');
+    await newNote('always/first.md');
   });
-  assert.deepEqual(sent, []);
+  assert.deepEqual(sent, [`w:${workspaceId}`]);
 });
 
 await test('one commit of many files sends one hint of its workspace', async () => {
-  await settled(async () => {
-    await coordination.setNoticesPublishing(true);
-    return true;
-  });
   const sent = await hintsOf(async () => {
     const committed = await commitChangeset({
       headers: owner,
@@ -524,7 +512,6 @@ async function offered(baseUrl: string): Promise<void> {
 }
 
 await test('both instances offer the stream once they listen', async () => {
-  await coordination.setNoticesPublishing(true);
   await offered(one.baseUrl);
   await offered(two.baseUrl);
   const answer = await getSyncProtocol({ baseUrl: two.baseUrl });
@@ -761,25 +748,6 @@ await test('a long listener gap and a drain stop the stream', async () => {
   await offered(one.baseUrl);
 });
 
-await test('publishing off stops the streams and keeps HTTP saves', async () => {
-  const stream = await openStream(two.baseUrl, owner);
-  await stream.waitFor((m) => m.kind === 'ready');
-  await coordination.setNoticesPublishing(false);
-  assert.deepEqual(await stream.waitFor((m) => m.kind === 'stop'), {
-    kind: 'stop',
-    reason: 'unavailable',
-  });
-  await stream.closed;
-  await newNote('publishing-off/saved.md');
-  const answer = await getSyncProtocol({ baseUrl: two.baseUrl });
-  assert.deepEqual(answer.data?.notificationProtocols, []);
-  assert.deepEqual(await openTestStream(one.baseUrl, owner), {
-    opened: false,
-    status: 503,
-  });
-  await coordination.setNoticesPublishing(true);
-});
-
 await test('a notice log line names a reason and no identifier', () => {
   const notices = logLines
     .map((line): unknown => JSON.parse(line))
@@ -811,6 +779,5 @@ await test('a notice log line names a reason and no identifier', () => {
 await one.app.close();
 await two.app.close();
 await hintListener.close();
-await coordination.close();
 await rm(storageRoot, { recursive: true, force: true });
 await database.destroy();

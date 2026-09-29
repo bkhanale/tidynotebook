@@ -1,6 +1,6 @@
 # WebSocket sync implementation
 
-Status: active
+Status: complete
 
 The [GitHub project board](https://github.com/users/bkhanale/projects/2) owns
 priority and release assignment. Each issue carries the release milestone

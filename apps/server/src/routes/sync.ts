@@ -53,10 +53,9 @@ export function createSyncHandlers(
       Promise.resolve({
         status: 200,
         mediaType: jsonMediaType,
-        // A subprotocol is offered only while this process admits a stream,
-        // so a client with none reads the feed on its own schedule (record
-        // 0129). Admission and publishing stay off until plan 016 turns them
-        // on.
+        // A subprotocol is offered only while this process can admit a
+        // stream, so a client with none reads the feed on its own schedule
+        // (records 0129, 0131).
         body: {
           versions: [...supportedSyncVersions],
           notificationProtocols: [...noticeProtocols()],

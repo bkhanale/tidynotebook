@@ -23,7 +23,6 @@ import { join } from 'node:path';
 import process from 'node:process';
 import { createInterface } from 'node:readline';
 import { setTimeout as delay } from 'node:timers/promises';
-import pg from 'pg';
 import SocketClient from 'ws';
 import {
   connectSyncNotices,
@@ -139,7 +138,6 @@ try {
     NOTESAPP_BREACH_CHECK: 'off',
     NOTESAPP_SHUTDOWN_GRACE_MS: '0',
     NOTESAPP_TRUSTED_PROXIES: '127.0.0.1',
-    NOTESAPP_SYNC_NOTICES: 'on',
   };
   const email = 'proxy@notes.invalid';
   await bootstrapOwner({
@@ -148,11 +146,6 @@ try {
     name: 'Proxy',
     password,
   });
-  const admin = new pg.Client({ connectionString: migrationUrl });
-  admin.on('error', () => {});
-  await admin.connect();
-  await admin.query('select notesapp_set_notices_publishing(true)');
-  await admin.end();
 
   const first = await startServer({
     ...shared,

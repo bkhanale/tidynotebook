@@ -31,15 +31,13 @@ export const syncListenerName = 'notesapp-sync-listener';
 export type SyncHint =
   | { readonly kind: 'workspace'; readonly workspaceId: string }
   | { readonly kind: 'session'; readonly sessionId: string }
-  | { readonly kind: 'account'; readonly accountId: string }
-  | { readonly kind: 'publishing' };
+  | { readonly kind: 'account'; readonly accountId: string };
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** Reads one payload of the channel, or `null` for a payload of no hint. */
 export function parseSyncHint(payload: string): SyncHint | null {
-  if (payload === 'p') return { kind: 'publishing' };
   const value = payload.slice(2);
   if (payload.startsWith('w:') && uuidPattern.test(value))
     return { kind: 'workspace', workspaceId: value };

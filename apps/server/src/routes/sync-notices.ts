@@ -59,7 +59,7 @@ const unavailable = (request: FastifyRequest): ProtocolResult =>
     request,
     'notices_unavailable',
     503,
-    'The notice stream is off. Read the feed on your own schedule.',
+    'The notice stream is not available now. Read the feed on your own schedule.',
   );
 
 /** Reads one header as a single string. */

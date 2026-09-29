@@ -335,37 +335,20 @@ is not, and it names both values. `.env.example` holds both.
 
 ## Live updates
 
-A device reads the changes of other devices on its own schedule, about every 15
-seconds. The server can also send a short notice over one WebSocket connection
-for each browser, and the other device then reads the change in less than a
-second. A notice holds no note text. The device reads the change itself over
-HTTP, so a missed notice costs time and never data.
-
-Two switches control the notices, and both are off by default.
-
-1. Set `NOTESAPP_SYNC_NOTICES` to `on` in `.env`, then restart the server. The
-   server then opens the connection when a browser asks for it.
-2. Turn on the notices of the database:
-
-```sh
-pnpm notices:publishing --state on
-```
+Each browser holds one WebSocket connection to the server. When another device
+saves a change, the server sends a short notice on that connection, and the
+browser reads the change in less than a second. A notice holds no note text.
+The browser reads the change itself over HTTP, so a missed notice costs time
+and never data. This needs no setting.
 
 The proxy in front of the server must pass a WebSocket upgrade on the address
 `/api/sync/notices` and keep the connection open. The Caddy service of the
 `tls` profile does this with no change. For nginx, pass the `Upgrade` and
 `Connection` headers and set a read timeout above one minute.
 
-Turn on the notices for a few people first, and compare the result with the
-time before. To stop every notice at once, turn them off in the database:
-
-```sh
-pnpm notices:publishing --state off
-```
-
-Every browser then reads on its own schedule again, and no saved or queued work
-changes. A server of an older release runs next to a server of this release
-with no change.
+A browser that cannot hold the connection, for example behind a proxy that
+refuses the upgrade, reads the changes on its own schedule, about every 15
+seconds. No saved or queued work depends on the connection.
 
 ## Logs
 

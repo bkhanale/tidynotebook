@@ -1175,25 +1175,6 @@ export const usedChallenges = pgTable(
 );
 
 /**
- * The one shared publishing switch of the sync notices (record 0129).
- *
- * The notice triggers read it before they send a hint, so an operator stops
- * every notice of every process with one write, and the feed stays as it is.
- * The check keeps the table at one row.
- */
-export const syncPublishing = pgTable(
-  'sync_publishing',
-  {
-    id: boolean('id').primaryKey().default(true),
-    publishing: boolean('publishing').notNull().default(false),
-    updatedAt: timestamp('updated_at', { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [check('sync_publishing_one_row', sql`${table.id}`)],
-);
-
-/**
  * One open notice stream of one account, in any server process (record 0129).
  *
  * A gateway renews its row while the stream is open and deletes it when the

@@ -670,11 +670,9 @@ async function composeApp(
   // once the instance exists, as the sinks above are.
   const noticeLog: { logger?: ReturnType<typeof createServerLogger> } = {};
   const gateway = createNoticeGateway({
-    enabled: config.syncNotices,
     stores: {
       noticeAccess: (sessionId, accountId) =>
         identity.noticeAccess(sessionId, accountId),
-      noticesPublishing: () => coordination.noticesPublishing(),
       reserveStream: (id, accountId, ttlMs, limit) =>
         coordination.reserveStream(id, accountId, ttlMs, limit),
       renewStream: (id, ttlMs) => coordination.renewStream(id, ttlMs),

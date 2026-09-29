@@ -35,7 +35,6 @@ export type GatewayStores = {
     sessionId: string,
     accountId: string,
   ) => Promise<readonly string[] | null>;
-  readonly noticesPublishing: () => Promise<boolean>;
   readonly reserveStream: (
     id: string,
     accountId: string,
@@ -50,8 +49,7 @@ export type GatewayStores = {
 export type GatewayHint =
   | { readonly kind: 'workspace'; readonly workspaceId: string }
   | { readonly kind: 'session'; readonly sessionId: string }
-  | { readonly kind: 'account'; readonly accountId: string }
-  | { readonly kind: 'publishing' };
+  | { readonly kind: 'account'; readonly accountId: string };
 
 /** Opens the listener of the process with the events of the gateway. */
 export type GatewayListenerFactory = (events: {
@@ -65,10 +63,8 @@ export type GatewayListenerFactory = (events: {
 
 /** Why an upgrade is refused. The reason reaches the log, not the client. */
 export type AdmissionRefusal =
-  | 'disabled'
   | 'draining'
   | 'listener'
-  | 'publishing'
   | 'process_limit'
   | 'account_limit'
   | 'store_unavailable';
@@ -160,7 +156,6 @@ function readSubscribe(
 
 /** Builds the gateway of one process. */
 export function createNoticeGateway(options: {
-  readonly enabled: boolean;
   readonly stores: GatewayStores;
   readonly listener: GatewayListenerFactory;
   readonly bounds: NoticeBounds;
@@ -171,7 +166,6 @@ export function createNoticeGateway(options: {
   const byWorkspace = new Map<string, Set<Stream>>();
   let pending = 0;
   let draining = false;
-  let publishing = false;
   let gap = false;
   let graceTimer: NodeJS.Timeout | null = null;
   let listener: ReturnType<GatewayListenerFactory> | null = null;
@@ -376,20 +370,7 @@ export function createNoticeGateway(options: {
     send(stream, { kind: 'ready', accountId: binding.accountId });
   };
 
-  const checkPublishing = async (): Promise<void> => {
-    try {
-      publishing = await stores.noticesPublishing();
-    } catch {
-      return;
-    }
-    if (!publishing) stopAll('unavailable');
-  };
-
   const onHint = (hint: GatewayHint): void => {
-    if (hint.kind === 'publishing') {
-      void checkPublishing();
-      return;
-    }
     if (hint.kind === 'workspace') {
       for (const stream of byWorkspace.get(hint.workspaceId) ?? []) {
         stream.changed.add(hint.workspaceId);
@@ -448,10 +429,8 @@ export function createNoticeGateway(options: {
 
   return {
     start: () => {
-      if (!options.enabled || listener !== null) return;
+      if (listener !== null) return;
       listener = options.listener({ onHint, onLost, onListening });
-      void checkPublishing();
-      every(bounds.publishingCheckMs, () => void checkPublishing());
       every(bounds.heartbeatMs, () => {
         for (const stream of [...streams]) {
           if (!stream.alive) {
@@ -482,12 +461,7 @@ export function createNoticeGateway(options: {
     },
 
     offered: () =>
-      options.enabled &&
-      !draining &&
-      publishing &&
-      listener?.listening() === true
-        ? [subprotocol]
-        : [],
+      !draining && listener?.listening() === true ? [subprotocol] : [],
 
     admit: async (binding) => {
       const refuse = (
@@ -496,7 +470,6 @@ export function createNoticeGateway(options: {
         log.refused(reason);
         return { ok: false, reason };
       };
-      if (!options.enabled) return refuse('disabled');
       if (draining) return refuse('draining');
       if (listener?.listening() !== true) return refuse('listener');
       if (streams.size + pending >= bounds.streamsPerProcess)
@@ -504,10 +477,6 @@ export function createNoticeGateway(options: {
       pending += 1;
       let admitted = false;
       try {
-        // The switch is read at each admission, so a stop of publishing
-        // does not wait for a hint or a timer.
-        publishing = await stores.noticesPublishing();
-        if (!publishing) return refuse('publishing');
         const reservationId = randomUUID();
         const reserved = await stores.reserveStream(
           reservationId,

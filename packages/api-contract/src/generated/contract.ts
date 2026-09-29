@@ -6974,7 +6974,7 @@ export const operations: readonly OperationEntry[] = [
             "notificationProtocols": {
               "type": "array",
               "readOnly": true,
-              "description": "The notice stream subprotocols that this deployment opens now. The list is empty while notices are off. A server that omits the member predates the notice stream, so the client reads the feed on its own schedule.",
+              "description": "The notice stream subprotocols that this deployment opens now. The list is empty while this process cannot send notices. A server that omits the member predates the notice stream, so the client reads the feed on its own schedule.",
               "maxItems": 1,
               "uniqueItems": true,
               "items": {
@@ -13287,7 +13287,7 @@ export const channels: readonly ChannelEntry[] = [
         "schema": {
           "$schema": "https://json-schema.org/draft/2020-12/schema",
           "type": "object",
-          "description": "The last message before the server closes the stream. The client keeps its local work in every case. `session_ended` means that the session or the account is no longer valid, so the client checks the session through the HTTP operations and does not reconnect. `malformed` means that the client sent a message outside this contract, so it does not reconnect with the same build. `draining` and `overloaded` ask the client to reconnect after a delay. `unavailable` means that notices are off, so the client reads the feed on its own schedule and tries the stream again later.",
+          "description": "The last message before the server closes the stream. The client keeps its local work in every case. `session_ended` means that the session or the account is no longer valid, so the client checks the session through the HTTP operations and does not reconnect. `malformed` means that the client sent a message outside this contract, so it does not reconnect with the same build. `draining` and `overloaded` ask the client to reconnect after a delay. `unavailable` means that the server cannot send notices now, so the client reads the feed on its own schedule and tries the stream again later.",
           "additionalProperties": false,
           "required": [
             "kind",

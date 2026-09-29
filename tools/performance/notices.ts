@@ -17,7 +17,7 @@
  * - slow: one device stops reading during the hot writes, and the other
  *   devices of that account keep their delay;
  * - reconnect: every device drops and connects again at once;
- * - polling: the same writers with notices off, and 200 devices that read the
+ * - polling: the same writers with the streams closed, and 200 devices that read the
  *   feed every 15 seconds, as a device without the stream does.
  *
  * The bounds fail the run. Everything else is a measured result to record on
@@ -284,7 +284,6 @@ try {
     NOTESAPP_RATE_LIMIT_MAX: '100000',
     NOTESAPP_BREACH_CHECK: 'off',
     NOTESAPP_SHUTDOWN_GRACE_MS: '0',
-    NOTESAPP_SYNC_NOTICES: 'on',
   };
 
   // The accounts come in through the one registration path: the first one as
@@ -302,10 +301,6 @@ try {
     name: 'Load 0',
     password,
   });
-  const publish = async (on: boolean): Promise<void> => {
-    await admin.query('select notesapp_set_notices_publishing($1)', [on]);
-  };
-  await publish(true);
 
   const start = (env: Record<string, string>): Promise<ChildProcess> =>
     new Promise((resolve, reject) => {
@@ -479,9 +474,8 @@ try {
   results['pushPeakDatabaseConnections'] = phasePeak();
   for (const device of devices) device.socket?.close();
 
-  // Polling: the same writers with the stream off, and 200 devices that read
+  // Polling: the same writers with every stream closed, and 200 devices that read
   // the feed every 15 seconds from their stored cursor.
-  await publish(false);
   const cursors = new Map<Device, string>();
   // A device starts from the cursor of a snapshot, as a first sync does.
   for (const device of devices) {

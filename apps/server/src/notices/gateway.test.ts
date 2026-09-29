@@ -83,7 +83,6 @@ class FakeSocket {
 /** Stores that answer from fields a test sets. */
 class FakeStores {
   readable: readonly string[] | null = [first, second];
-  publishing = true;
   reserveAnswer = true;
   failReserve = false;
   renewAnswer = true;
@@ -96,7 +95,6 @@ class FakeStores {
       this.accessChecks += 1;
       return Promise.resolve(this.readable);
     },
-    noticesPublishing: () => Promise.resolve(this.publishing),
     reserveStream: (id) => {
       if (this.failReserve) return Promise.reject(new Error('down'));
       if (this.reserveAnswer) this.reserved.push(id);
@@ -136,10 +134,7 @@ class FakeListener {
 }
 
 /** A gateway over fakes, and every log line it wrote. */
-function gateway(
-  overrides: Partial<NoticeBounds> = {},
-  enabled = true,
-): {
+function gateway(overrides: Partial<NoticeBounds> = {}): {
   readonly gateway: NoticeGateway;
   readonly stores: FakeStores;
   readonly listener: FakeListener;
@@ -149,7 +144,6 @@ function gateway(
   const listener = new FakeListener();
   const log: string[] = [];
   const built = createNoticeGateway({
-    enabled,
     stores: stores.stores,
     listener: (events) => {
       listener.events = events;
@@ -355,29 +349,31 @@ await test('a long listener gap stops every stream', async () => {
   await target.close();
 });
 
-await test('publishing off stops every stream and refuses admission', async () => {
-  const { gateway: target, listener, stores } = gateway();
-  await settle();
-  const socket = await openStream(target);
-  stores.publishing = false;
-  listener.hint({ kind: 'publishing' });
-  await settle();
-  assert.deepEqual(socket.sent.at(-1), { kind: 'stop', reason: 'unavailable' });
-  assert.deepEqual(target.offered(), []);
-  assert.deepEqual(
-    await target.admit({ accountId: account, sessionId: 'session-2' }),
-    { ok: false, reason: 'publishing' },
-  );
-  await target.close();
-});
-
 await test('each admission refusal names its reason', async () => {
-  const off = gateway({}, false);
-  assert.deepEqual(
-    await off.gateway.admit({ accountId: account, sessionId: 's' }),
-    { ok: false, reason: 'disabled' },
-  );
-  assert.deepEqual(off.gateway.offered(), []);
+  // A gateway whose listener has not started offers nothing and admits
+  // nothing, whatever the deployment.
+  const idle = createNoticeGateway({
+    stores: new FakeStores().stores,
+    listener: () => ({
+      listening: () => false,
+      close: () => Promise.resolve(),
+    }),
+    bounds: defaultNoticeBounds,
+    log: {
+      opened: () => {},
+      closed: () => {},
+      refused: () => {},
+      listenerLost: () => {},
+      listenerRestored: () => {},
+    },
+  });
+  idle.start();
+  assert.deepEqual(idle.offered(), []);
+  assert.deepEqual(await idle.admit({ accountId: account, sessionId: 's' }), {
+    ok: false,
+    reason: 'listener',
+  });
+  await idle.close();
 
   const full = gateway({ streamsPerProcess: 1 });
   await settle();

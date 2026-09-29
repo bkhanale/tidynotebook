@@ -20,8 +20,6 @@ export type NoticeBounds = {
   readonly heartbeatMs: number;
   /** The interval of the access check of an idle stream. */
   readonly accessCheckMs: number;
-  /** The interval of the check of the shared publishing switch. */
-  readonly publishingCheckMs: number;
   /** The life of a stream reservation, which the gateway renews. */
   readonly reservationTtlMs: number;
   /** The interval of that renewal. */
@@ -47,7 +45,6 @@ export const defaultNoticeBounds: NoticeBounds = {
   maxBufferedBytes: 64 * 1024,
   heartbeatMs: 30_000,
   accessCheckMs: 60_000,
-  publishingCheckMs: 30_000,
   reservationTtlMs: 90_000,
   reservationRenewMs: 30_000,
   openDeadlineMs: 10_000,

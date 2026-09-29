@@ -1,8 +1,8 @@
 /**
  * What every server process of one installation shares besides the data
  * (record 0121): the attempt counters of the limited routes, the right to
- * run one maintenance job, the reservations of the open notice streams, and
- * the publishing switch of the notices (record 0129).
+ * run one maintenance job, and the reservations of the open notice streams
+ * (record 0129).
  *
  * PostgreSQL already holds every other shared fact of the product, so it
  * holds these too. The counters live in `attempt_counters` and change through
@@ -50,10 +50,6 @@ export type CoordinationHandle = {
   releaseStream(id: string): Promise<void>;
   /** Deletes the reservations that expired, and answers how many. */
   pruneStreams(): Promise<number>;
-  /** Whether the notice triggers send hints now. */
-  noticesPublishing(): Promise<boolean>;
-  /** Sets the publishing switch and tells every listening process. */
-  setNoticesPublishing(publishing: boolean): Promise<void>;
   /** Closes every pooled connection. */
   close(): Promise<void>;
 };
@@ -181,19 +177,6 @@ export function openCoordination(
         'select notesapp_prune_streams() as removed',
       );
       return result.rows[0]?.removed ?? 0;
-    },
-
-    async noticesPublishing() {
-      const result = await pool.query<{ publishing: boolean }>(
-        'select notesapp_notices_publishing() as publishing',
-      );
-      return result.rows[0]?.publishing === true;
-    },
-
-    async setNoticesPublishing(publishing) {
-      await pool.query('select notesapp_set_notices_publishing($1)', [
-        publishing,
-      ]);
     },
 
     async close() {

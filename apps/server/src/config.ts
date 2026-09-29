@@ -187,12 +187,6 @@ export type ServerConfig = {
    */
   readonly breachCheck: boolean;
   /**
-   * Whether this process admits a sync notice stream (record 0129). It is off
-   * by default. A stream also needs the shared publishing switch of the
-   * database and a listening connection.
-   */
-  readonly syncNotices: boolean;
-  /**
    * The terms and the privacy notice of the installation, or `null` for
    * none (record 0120). The operator names the address and the version of
    * both, or of neither.
@@ -272,7 +266,6 @@ export const optionalVariables = [
   'NOTESAPP_PRIVACY_URL',
   'NOTESAPP_PRIVACY_VERSION',
   'NOTESAPP_BREACH_CHECK',
-  'NOTESAPP_SYNC_NOTICES',
 ] as const;
 
 const protectedFiles = {
@@ -464,7 +457,6 @@ const configSchema: SchemaObject = {
       maxLength: maxLegalVersionLength,
     },
     NOTESAPP_BREACH_CHECK: { type: 'string', enum: ['on', 'off'] },
-    NOTESAPP_SYNC_NOTICES: { type: 'string', enum: ['on', 'off'] },
   },
 };
 
@@ -603,7 +595,6 @@ export function loadServerConfig(
     shutdown,
     accounts: readAccounts(raw),
     breachCheck: raw.NOTESAPP_BREACH_CHECK !== 'off',
-    syncNotices: raw.NOTESAPP_SYNC_NOTICES === 'on',
     legalDocuments: readLegalDocuments(raw),
   };
 }

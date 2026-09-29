@@ -1,6 +1,6 @@
 # WebSocket sync
 
-Status: active
+Status: complete
 
 This design gives a connected device prompt notice of accepted changes. It
 keeps offline work, immutable History, and the existing save boundaries.
