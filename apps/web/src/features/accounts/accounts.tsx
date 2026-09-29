@@ -1159,7 +1159,7 @@ function ProfileSettings({
           />
         ) : null}
         <Button type="submit" disabled={busy || draft.trim() === name}>
-          {busy ? 'Saving name' : 'Save name'}
+          {busy ? 'Saving' : 'Save'}
         </Button>
       </form>
     </SettingsSection>
