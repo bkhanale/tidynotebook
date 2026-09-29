@@ -31,7 +31,7 @@ import {
   syncNoticesProtocol,
 } from '@notesapp/api-client';
 import { createApp, loadServerConfig } from '@notesapp/server';
-import { openCoordination } from '@notesapp/storage-server';
+import { openCoordination, syncListenerName } from '@notesapp/storage-server';
 import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createLeaseKeeper,
@@ -115,70 +115,99 @@ const accountId = (await getAccount({ headers })).data?.accountId ?? '';
 const workspaceId =
   (await listWorkspaces({ headers })).data?.workspaces[0]?.workspaceId ?? '';
 
-const store: LocalStore = await openLocalStore('https://notes.test', {
-  indexedDB: new IDBFactory(),
-  IDBKeyRange: FakeKeyRange,
-  databaseName: 'notesapp-notices-device',
-  deviceId: 'device-notices',
-});
+/** One device: its store, lease keeper, coordinator and engine. */
+type Device = {
+  readonly store: LocalStore;
+  readonly coordinator: ReturnType<typeof createNoticeCoordinator>;
+  /** How many notices named a workspace, which only the stream can raise. */
+  readonly notified: () => number;
+  readonly stop: () => Promise<void>;
+};
 
-// The tab of the device: one lease keeper, one coordinator, one engine.
-const keeper = createLeaseKeeper(store, { ownerId: 'tab-1', ttlMs: 30_000 });
-const wakes = new Map<string, () => void>();
-/** How many notices named a workspace, which only the stream can raise. */
-let notified = 0;
-const coordinator = createNoticeCoordinator(accountId, {
-  keeper,
-  offered: async () =>
-    ((await getSyncProtocol()).data?.notificationProtocols ?? []).includes(
-      syncNoticesProtocol,
-    ),
-  open: (handlers) =>
-    connectSyncNotices(baseUrl, handlers, {
-      socketClass: socketClassWith(headers),
-    }),
-  encode: (generation, workspaceIds) =>
-    encodeSyncNoticesMessage({
-      kind: 'subscribe',
-      generation,
-      workspaceIds: [...workspaceIds],
-    }),
-  wake: (id) => {
-    notified += 1;
-    wakes.get(id)?.();
-  },
-  wakeAll: () => {
-    for (const wake of wakes.values()) wake();
-  },
-  sessionEnded: () => {},
-  schedule: timerSchedule,
-});
+/** Starts one device with a fresh local store, as the web tab runs it. */
+async function startDevice(label: string): Promise<Device> {
+  const store = await openLocalStore('https://notes.test', {
+    indexedDB: new IDBFactory(),
+    IDBKeyRange: FakeKeyRange,
+    databaseName: `notesapp-notices-${label}`,
+    deviceId: `device-${label}`,
+  });
+  const keeper = createLeaseKeeper(store, { ownerId: label, ttlMs: 30_000 });
+  let notified = 0;
+  let wake: () => void = () => {};
+  const coordinator = createNoticeCoordinator(accountId, {
+    keeper,
+    offered: async () =>
+      ((await getSyncProtocol()).data?.notificationProtocols ?? []).includes(
+        syncNoticesProtocol,
+      ),
+    open: (handlers) =>
+      connectSyncNotices(baseUrl, handlers, {
+        socketClass: socketClassWith(headers),
+      }),
+    encode: (generation, workspaceIds) =>
+      encodeSyncNoticesMessage({
+        kind: 'subscribe',
+        generation,
+        workspaceIds: [...workspaceIds],
+      }),
+    wake: () => {
+      notified += 1;
+      wake();
+    },
+    wakeAll: () => {
+      wake();
+    },
+    sessionEnded: () => {},
+    schedule: timerSchedule,
+  });
+  const engine = createSyncEngine(store, accountId, workspaceId, {
+    ownerId: label,
+    headers: () => headers,
+    lease: keeper.gate,
+    interval: () => engineInterval(coordinator.healthy(), hourMs, Math.random),
+  });
+  wake = () => {
+    engine.requestSync();
+  };
+  keeper.onChange(() => {
+    engine.requestSync();
+  });
+  // A local queue change wakes the engine, with or without the stream.
+  const stopQueue = store.subscribe((change) => {
+    if (change.kind === 'queue') engine.requestSync();
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  coordinator.want([workspaceId]);
+  keeper.start();
+  coordinator.start();
+  return {
+    store,
+    coordinator,
+    notified: () => notified,
+    stop: async () => {
+      coordinator.stop();
+      stopQueue();
+      controller.abort();
+      engine.stop();
+      await running;
+      await keeper.stop();
+      await store.close();
+    },
+  };
+}
+
 const hourMs = 60 * 60_000;
-const engine = createSyncEngine(store, accountId, workspaceId, {
-  ownerId: 'tab-1',
-  headers: () => headers,
-  lease: keeper.gate,
-  interval: () => engineInterval(coordinator.healthy(), hourMs, Math.random),
-});
-wakes.set(workspaceId, () => {
-  engine.requestSync();
-});
-keeper.onChange(() => {
-  engine.requestSync();
-});
-// A local queue change wakes the engine, with or without the stream.
-const stopQueue = store.subscribe((change) => {
-  if (change.kind === 'queue') engine.requestSync();
-});
-const controller = new AbortController();
-const running = engine.run(controller.signal);
-coordinator.want([workspaceId]);
-keeper.start();
-coordinator.start();
+const device = await startDevice('tab-1');
+const { store, coordinator } = device;
 
-/** Whether the local cursor reached one server cursor. */
-async function reached(cursor: string): Promise<boolean> {
-  const local = await store.readCursor(accountId, workspaceId);
+/** Whether the local cursor of a store reached one server cursor. */
+async function reached(
+  cursor: string,
+  target: LocalStore = store,
+): Promise<boolean> {
+  const local = await target.readCursor(accountId, workspaceId);
   return local !== null && BigInt(local) >= BigInt(cursor);
 }
 
@@ -234,9 +263,9 @@ await test('the device takes the lease, reads a snapshot and accepts its set', a
 });
 
 await test('a commit of another device reaches this device through a notice', async () => {
-  const before = notified;
+  const before = device.notified();
   const cursor = await commitElsewhere('elsewhere', 1);
-  await waitFor(() => notified > before, 'the notice');
+  await waitFor(() => device.notified() > before, 'the notice');
   await waitFor(() => reached(cursor), 'the pull');
 });
 
@@ -263,6 +292,97 @@ function draft(fileId: string, path: string): Draft {
     deleted: false,
   };
 }
+
+/** Runs one statement as the migration role. */
+async function asOwner(text: string, params: unknown[] = []): Promise<void> {
+  const session = await openSession(database.migrationUrl);
+  try {
+    await session.query(text, params);
+  } finally {
+    await session.close();
+  }
+}
+
+await test('a commit before and during a subscription is read after it', async () => {
+  const before = await commitElsewhere('before-subscribe', 1);
+  const starting = startDevice('late');
+  const during = await commitElsewhere('during-subscribe', 1);
+  const late = await starting;
+  try {
+    await waitFor(() => late.coordinator.healthy(), 'the late set');
+    await waitFor(() => reached(before, late.store), 'the commit before');
+    await waitFor(() => reached(during, late.store), 'the commit during');
+  } finally {
+    await late.stop();
+  }
+});
+
+await test('duplicate notices change nothing', async () => {
+  const cursor = await commitElsewhere('duplicate', 1);
+  await waitFor(() => reached(cursor), 'the first read');
+  const before = device.notified();
+  for (let turn = 0; turn < 3; turn += 1)
+    await asOwner("select pg_notify('notesapp_sync', $1)", [
+      `w:${workspaceId}`,
+    ]);
+  await waitFor(() => device.notified() > before, 'a repeated notice');
+  const next = await commitElsewhere('after-duplicate', 1);
+  await waitFor(() => reached(next), 'the next commit');
+  assert.deepEqual(await store.pending(accountId, workspaceId), []);
+});
+
+await test('a notice missed in a listener gap is read after reconcile', async () => {
+  const before = device.notified();
+  await asOwner(
+    'select pg_terminate_backend(pid) from pg_stat_activity where application_name = $1',
+    [syncListenerName],
+  );
+  const cursor = await commitElsewhere('in-the-gap', 1);
+  await waitFor(() => reached(cursor), 'the read after reconcile');
+  // The commit fell in the gap, so no notice named it. The read came from the
+  // reconcile that followed the restored listener.
+  assert.equal(device.notified(), before);
+});
+
+await test('an expired cursor restarts from a snapshot and converges', async () => {
+  const first = await commitElsewhere('before-expiry', 1);
+  await waitFor(() => reached(first), 'the read before the expiry');
+  // The retention job removes old feed rows. Every row goes here, so the
+  // cursor of the device predates the retained feed.
+  await asOwner('delete from sync_changes where workspace_id = $1', [
+    workspaceId,
+  ]);
+  const cursor = await commitElsewhere('after-expiry', 1);
+  await waitFor(() => reached(cursor), 'the read from a fresh snapshot');
+});
+
+await test('an old client with no coordinator still syncs by polling', async () => {
+  const old = await openLocalStore('https://notes.test', {
+    indexedDB: new IDBFactory(),
+    IDBKeyRange: FakeKeyRange,
+    databaseName: 'notesapp-notices-old-client',
+    deviceId: 'device-old',
+  });
+  // The engine of a release before the stream: its own lease and a poll.
+  const engine = createSyncEngine(old, accountId, workspaceId, {
+    ownerId: 'old-client',
+    headers: () => headers,
+    pollIntervalMs: 50,
+  });
+  const controller = new AbortController();
+  const running = engine.run(controller.signal);
+  try {
+    // The lease of the browser profile belongs to another tab in this run,
+    // so the old client has a profile of its own, as another browser does.
+    const cursor = await commitElsewhere('old-client', 1);
+    await waitFor(() => reached(cursor, old), 'the poll of the old client');
+  } finally {
+    controller.abort();
+    engine.stop();
+    await running;
+    await old.close();
+  }
+});
 
 await test('a local note is sent at once, and still is with the stream off', async () => {
   const first = randomUUID();
@@ -294,13 +414,7 @@ await test('a local note is sent at once, and still is with the stream off', asy
 });
 
 // Teardown
-coordinator.stop();
-stopQueue();
-controller.abort();
-engine.stop();
-await running;
-await keeper.stop();
-await store.close();
+await device.stop();
 await app.close();
 await coordination.close();
 await rm(storageRoot, { recursive: true, force: true });
