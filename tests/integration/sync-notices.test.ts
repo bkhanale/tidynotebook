@@ -55,7 +55,7 @@ import {
   saveForHead,
   useDocumentHeaders,
 } from './support/documents.ts';
-import { openStream, openTestStream } from './support/notices.ts';
+import { openStream, openTestStream, waitBoundMs } from './support/notices.ts';
 
 function responseOf(response: Response | undefined): Response {
   if (response === undefined)
@@ -147,8 +147,14 @@ async function hintsOf(action: () => Promise<void>): Promise<string[]> {
   const start = hints.length;
   await action();
   const marker = `s:marker-${randomUUID()}`;
-  const arrived = new Promise<void>((done) => {
+  // A hint that a lost listener missed never arrives, so the wait ends with
+  // a failure that names it instead of holding the whole suite open.
+  let bound: ReturnType<typeof setTimeout> | undefined;
+  const arrived = new Promise<void>((done, fail) => {
     hintWaiters.push({ match: (index) => hints[index] === marker, done });
+    bound = setTimeout(() => {
+      fail(new Error(`The marker hint did not arrive in ${waitBoundMs} ms.`));
+    }, waitBoundMs);
   });
   const session = await openSession(database.migrationUrl);
   try {
@@ -156,7 +162,11 @@ async function hintsOf(action: () => Promise<void>): Promise<string[]> {
   } finally {
     await session.close();
   }
-  await arrived;
+  try {
+    await arrived;
+  } finally {
+    clearTimeout(bound);
+  }
   return hints.slice(start, hints.indexOf(marker, start));
 }
 
@@ -699,18 +709,65 @@ await test('the stream limit of an account holds across instances', async () => 
   }
 });
 
-/** Ends every listening connection of the channel. */
+/**
+ * Ends every listening connection of the channel in the database of this test.
+ *
+ * The PostgreSQL service is shared by every test file and every worktree, so
+ * the query names this database. Without it the test also ended the
+ * listeners of other runs, and a run that lost its listener waited for a hint
+ * that never came.
+ */
 async function endListeners(): Promise<void> {
   const session = await openSession(database.migrationUrl);
   try {
     await session.query(
-      'select pg_terminate_backend(pid) from pg_stat_activity where application_name = $1',
+      'select pg_terminate_backend(pid) from pg_stat_activity where application_name = $1 and datname = current_database()',
       [syncListenerName],
     );
   } finally {
     await session.close();
   }
 }
+
+await test('the end of the listeners of this test leaves another database alone', async () => {
+  // Another test file or another worktree listens on the same service.
+  const other = await createDisposableDatabase();
+  let lost = false;
+  let listening: () => void = () => {};
+  const listeningNow = new Promise<void>((resolve) => {
+    listening = resolve;
+  });
+  const listener = openSyncListener(other.runtimeUrl, {
+    onHint: () => {},
+    onLost: () => {
+      lost = true;
+    },
+    onListening: () => {
+      listening();
+    },
+  });
+  try {
+    await listeningNow;
+    await endListeners();
+    const session = await openSession(other.migrationUrl);
+    try {
+      const rows = await session.query<{ held: number }>(
+        'select count(*)::int as held from pg_stat_activity where application_name = $1 and datname = current_database()',
+        [syncListenerName],
+      );
+      assert.equal(rows[0]?.held, 1);
+    } finally {
+      await session.close();
+    }
+    assert.equal(lost, false);
+  } finally {
+    await listener.close();
+    await other.destroy();
+  }
+  // The listeners of this test come back before the next test reads them.
+  await offered(one.baseUrl);
+  await offered(two.baseUrl);
+});
 
 await test('a short listener gap ends with reconcile', async () => {
   const stream = await openStream(one.baseUrl, owner);
