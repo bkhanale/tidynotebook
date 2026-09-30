@@ -87,6 +87,17 @@ const owner = {
   cookie: cookieHeader(responseOf(created.response).headers.getSetCookie()),
 };
 
+/** Waits until a condition holds, checking at each turn of the event loop. */
+async function until(check: () => boolean): Promise<void> {
+  const deadline = Date.now() + 10_000;
+  while (!check()) {
+    if (Date.now() > deadline) throw new Error('The condition never held.');
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+  }
+}
+
 function mailsTo(email: string): MailMessage[] {
   return sent.filter((message) => message.to === email);
 }
@@ -124,6 +135,49 @@ async function member(password: string): Promise<{
   };
 }
 
+/**
+ * Runs one check against a server of its own over the same database, and
+ * stops it after. The stop waits for every message that is still on its way,
+ * so the check can count what went and what did not.
+ */
+async function withServer<T>(
+  run: (served: Awaited<ReturnType<typeof createApp>>) => Promise<T>,
+): Promise<T> {
+  const served = await createApp(config, {
+    mail: {
+      send: (message) => {
+        sent.push(message);
+        return Promise.resolve();
+      },
+    },
+  });
+  try {
+    return await run(served);
+  } finally {
+    await served.close();
+  }
+}
+
+/** Asks one server for a reset, from one client address. */
+async function askResetOf(
+  served: Awaited<ReturnType<typeof createApp>>,
+  email: string,
+  client: string,
+): Promise<{ status: number; body: string }> {
+  const answer = await served.inject({
+    method: 'POST',
+    url: '/api/auth/request-password-reset',
+    remoteAddress: client,
+    headers: {
+      host: '127.0.0.1',
+      origin: 'http://127.0.0.1',
+      'content-type': 'application/json',
+    },
+    payload: { email },
+  });
+  return { status: answer.statusCode, body: answer.body };
+}
+
 async function signsIn(email: string, password: string): Promise<boolean> {
   const signed = await signInWithPassword({
     headers: origin,
@@ -150,6 +204,8 @@ await test('a reset link opens the application and replaces the password', async
   const before = mailsTo(person.email).length;
   const asked = await askReset(person.email);
   assert.equal(asked.status, 200);
+  // The answer does not wait for the message, so the test waits for it.
+  await until(() => mailsTo(person.email).length === before + 1);
   const [reset] = mailsTo(person.email).slice(before);
   assert.equal(reset?.subject, 'Reset your password on NotesApp at 127.0.0.1');
   const token = lastToken(person.email, '/reset-password');
@@ -167,6 +223,7 @@ await test('a reset link opens the application and replaces the password', async
   });
   assert.equal(responseOf(stale.response).status, 401);
   // The owner of the address learns that the password changed.
+  await until(() => mailsTo(person.email).length === before + 2);
   const notice = mailsTo(person.email).at(-1);
   assert.equal(notice?.subject, 'Your password on NotesApp at 127.0.0.1 changed');
   assert.ok(
@@ -183,10 +240,13 @@ await test('a reset link opens the application and replaces the password', async
 
 await test('a reset for an unknown address answers the same and sends nothing', async () => {
   const person = await member('known-password-123456');
-  const known = await askReset(person.email);
   const unknownEmail = `nobody-${randomUUID()}@notes.invalid`;
-  const unknown = await askReset(unknownEmail);
+  const [known, unknown] = await withServer(async (served) => [
+    await askResetOf(served, person.email, '198.51.100.1'),
+    await askResetOf(served, unknownEmail, '198.51.100.2'),
+  ]);
   assert.deepEqual(unknown, known);
+  assert.equal(mailsTo(person.email).at(-1)?.subject.startsWith('Reset'), true);
   assert.equal(mailsTo(unknownEmail).length, 0);
 });
 
@@ -195,21 +255,67 @@ await test('one address takes at most three reset messages in an hour', async ()
   const before = mailsTo(person.email).length;
   // Each request comes from another client, so the attempt limit of one
   // client never answers first and the budget of the address is what holds.
-  for (let index = 0; index < 6; index += 1) {
-    const asked = await app.inject({
-      method: 'POST',
-      url: '/api/auth/request-password-reset',
-      remoteAddress: `192.0.2.${String(10 + index)}`,
-      headers: {
-        host: '127.0.0.1',
-        origin: 'http://127.0.0.1',
-        'content-type': 'application/json',
-      },
-      payload: { email: person.email },
-    });
-    assert.equal(asked.statusCode, 200);
-  }
+  const answers = await withServer(async (served) => {
+    const statuses: number[] = [];
+    for (let index = 0; index < 6; index += 1)
+      statuses.push(
+        (await askResetOf(served, person.email, `192.0.2.${String(10 + index)}`))
+          .status,
+      );
+    return statuses;
+  });
+  assert.deepEqual(answers, [200, 200, 200, 200, 200, 200]);
   assert.equal(mailsTo(person.email).length - before, 3);
+});
+
+await test('a reset answers before its message is sent', async () => {
+  // The defect this covers: the answer waited for the mail server, and only
+  // an address with an account sends a message, so the time of the answer
+  // told a stranger which address has an account.
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const waiting: MailMessage[] = [];
+  const slow = await createApp(config, {
+    mail: {
+      send: async (message) => {
+        waiting.push(message);
+        await held;
+      },
+    },
+  });
+  try {
+    let timer: NodeJS.Timeout | undefined;
+    const answered = await Promise.race([
+      slow
+        .inject({
+          method: 'POST',
+          url: '/api/auth/request-password-reset',
+          remoteAddress: '198.51.100.7',
+          headers: {
+            host: '127.0.0.1',
+            origin: 'http://127.0.0.1',
+            'content-type': 'application/json',
+          },
+          payload: { email: ownerEmail },
+        })
+        .then((answer) => answer.statusCode),
+      new Promise<null>((resolve) => {
+        timer = setTimeout(() => {
+          resolve(null);
+        }, 10_000);
+      }),
+    ]);
+    clearTimeout(timer);
+    assert.equal(answered, 200);
+    // The message still goes, after the answer.
+    await until(() => waiting.length === 1);
+    assert.equal(waiting[0]?.to, ownerEmail);
+  } finally {
+    release();
+    await slow.close();
+  }
 });
 
 await test('an installation with no mail offers no reset', async () => {

@@ -23,6 +23,10 @@ written in a different place from every other message of the server.
   sends the token and the new password to the reset operation.
 - After a reset, a second message tells the owner of the address that the
   password changed, and Better Auth ends every session of the account.
+- The answer to a reset request does not wait for the mail server, because
+  only an address with an account sends a message and the time of the answer
+  would show which one does. The close of the auth instance waits for every
+  message on its way.
 - `apps/server/src/auth/messages.ts` writes every message of the server. Each
   one is plain text, names the product and the installation, and carries
   `Auto-Submitted: auto-generated` (RFC 3834).

@@ -227,8 +227,26 @@ function buildAuth(
   config: ServerConfig,
   options: AuthOptions,
   database: ReturnType<typeof drizzle>,
+  pending: Set<Promise<void>>,
 ) {
   const mail = options.mail;
+  // A message that the answer does not wait for. Its failure reaches the
+  // operator through the log, with no address and no token. The close of the
+  // instance waits for every message that is still on its way, so a stop
+  // does not drop one.
+  const sendLater = (sending: Promise<void>): void => {
+    const settled = sending
+      .catch(() => {
+        options.log?.({
+          level: 'error',
+          message: 'A message of a password reset could not be sent.',
+        });
+      })
+      .finally(() => {
+        pending.delete(settled);
+      });
+    pending.add(settled);
+  };
   const breached = breachGuard(config, options);
   const secure = config.origin.startsWith('https://');
   const logging = authLogLevel(config.logLevel);
@@ -317,30 +335,41 @@ function buildAuth(
             // The link opens the reset page of the application with the token
             // in the fragment, so no server log and no `Referer` header holds
             // it. The address that the library builds is not used.
-            sendResetPassword: async (data: {
+            //
+            // The answer does not wait for the mail server. Only an address
+            // with an account sends a message, so an answer that waited would
+            // tell a stranger by its time which address has one.
+            sendResetPassword: (data: {
               user: { email: string };
               token: string;
             }): Promise<void> => {
-              await mail.send(
-                passwordResetMessage({
-                  to: data.user.email,
-                  origin: config.origin,
-                  link: resetPasswordLink(config.origin, data.token),
-                  lifetimeHours: resetLifetimeHours,
-                }),
+              sendLater(
+                mail.send(
+                  passwordResetMessage({
+                    to: data.user.email,
+                    origin: config.origin,
+                    link: resetPasswordLink(config.origin, data.token),
+                    lifetimeHours: resetLifetimeHours,
+                  }),
+                ),
               );
+              return Promise.resolve();
             },
             // The owner of the address learns that the password changed, and
-            // the library ends every session of the account.
-            onPasswordReset: async (data: {
+            // the library ends every session of the account. A mail server
+            // that fails does not undo the reset.
+            onPasswordReset: (data: {
               user: { email: string };
             }): Promise<void> => {
-              await mail.send(
-                passwordChangedMessage({
-                  to: data.user.email,
-                  origin: config.origin,
-                }),
+              sendLater(
+                mail.send(
+                  passwordChangedMessage({
+                    to: data.user.email,
+                    origin: config.origin,
+                  }),
+                ),
               );
+              return Promise.resolve();
             },
           }),
     },
@@ -444,7 +473,10 @@ export type AuthHandle = {
   readonly auth: NotesappAuth;
   /** Whether the breach service lists a new password. See `breachGuard`. */
   readonly breached: (password: string) => Promise<boolean>;
-  /** Closes the connection pool of the identity tables. */
+  /**
+   * Waits for every message that is still on its way, then closes the
+   * connection pool of the identity tables.
+   */
   close(): Promise<void>;
 };
 
@@ -464,10 +496,14 @@ export function createAuth(
   shared?: pg.Pool,
 ): AuthHandle {
   const pool = shared ?? createAuthPool(config);
+  const pending = new Set<Promise<void>>();
   return {
-    auth: buildAuth(config, options, drizzle({ client: pool })),
+    auth: buildAuth(config, options, drizzle({ client: pool }), pending),
     breached: breachGuard(config, options),
     close: async (): Promise<void> => {
+      // A message on its way still reads the budget of its address, so it
+      // ends before the stores close.
+      await Promise.all([...pending]);
       // A shared pool belongs to the composition that created it.
       if (shared === undefined) await pool.end();
     },
