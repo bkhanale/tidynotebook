@@ -503,6 +503,9 @@ const openOperations = [
   'verifyAddress',
   // The challenge of the proof of work of a sign-up (record 0115).
   'getSignUpChallenge',
+  // The terms and the privacy notice, which a person reads before an account
+  // exists (record 0140).
+  'getLegalDocument',
   // The served sync protocol versions are a fact of the build and hold no
   // account data. A client reads them before it knows its session (0086).
   'getSyncProtocol',
@@ -758,6 +761,8 @@ const resetLogged = await startTestServer({
 });
 
 await test('every log record redacts the password reset token', async () => {
+  // A reset link of a message sent before record 0141 names this address.
+  // The route is not mounted any more, and the token still reaches no log.
   const token = 'live-password-reset-token';
   const redacted = '/api/auth/reset-password/[redacted]?[redacted]';
   const response = await resetLogged.app.inject({
@@ -765,7 +770,8 @@ await test('every log record redacts the password reset token', async () => {
     url: `/api/auth/reset-password/${token}?callbackURL=/notes`,
     headers: { host: '127.0.0.1' },
   });
-  assert.equal(response.statusCode, 503);
+  assert.equal(response.statusCode, 404);
+  assert.equal(readProperty(response.json(), 'code'), 'route_not_found');
   assert.equal(resetAudit.lines.join('\n').includes(token), false);
 
   const urls = resetAudit.records().flatMap((record) => {

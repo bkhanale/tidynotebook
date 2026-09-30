@@ -78,6 +78,7 @@ export function completeTestHandlers(handlers: HandlerMap): HandlerMap {
         body: {
           initialized: true,
           openRegistration: false,
+          passwordReset: false,
           legalDocuments: null,
         },
       }),
