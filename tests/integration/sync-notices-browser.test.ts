@@ -31,7 +31,7 @@ import {
   syncNoticesProtocol,
 } from '@notesapp/api-client';
 import { createApp, loadServerConfig } from '@notesapp/server';
-import { syncListenerName } from '@notesapp/storage-server';
+import { openSyncListener, syncListenerName } from '@notesapp/storage-server';
 import { openLocalStore } from '@notesapp/storage-browser';
 import {
   createLeaseKeeper,
@@ -329,16 +329,40 @@ await test('duplicate notices change nothing', async () => {
 });
 
 await test('a notice missed in a listener gap is read after reconcile', async () => {
-  const before = device.notified();
-  await asOwner(
-    'select pg_terminate_backend(pid) from pg_stat_activity where application_name = $1',
-    [syncListenerName],
-  );
-  const cursor = await commitElsewhere('in-the-gap', 1);
-  await waitFor(() => reached(cursor), 'the read after reconcile');
-  // The commit fell in the gap, so no notice named it. The read came from the
-  // reconcile that followed the restored listener.
-  assert.equal(device.notified(), before);
+  // Another test file or worktree uses the same PostgreSQL service.
+  const other = await createDisposableDatabase();
+  let lost = false;
+  let listening: () => void = () => {};
+  const listeningNow = new Promise<void>((resolve) => {
+    listening = resolve;
+  });
+  const listener = openSyncListener(other.runtimeUrl, {
+    onHint: () => {},
+    onLost: () => {
+      lost = true;
+    },
+    onListening: () => {
+      listening();
+    },
+  });
+  try {
+    await listeningNow;
+    const before = device.notified();
+    await asOwner(
+      'select pg_terminate_backend(pid) from pg_stat_activity where application_name = $1 and datname = current_database()',
+      [syncListenerName],
+    );
+    const cursor = await commitElsewhere('in-the-gap', 1);
+    await waitFor(() => reached(cursor), 'the read after reconcile');
+    // The commit fell in the gap, so no notice named it. The read came from
+    // the reconcile that followed the restored listener.
+    assert.equal(device.notified(), before);
+    assert.equal(lost, false, 'the listener of another database stays open');
+    assert.equal(listener.listening(), true);
+  } finally {
+    await listener.close();
+    await other.destroy();
+  }
 });
 
 await test('an expired cursor restarts from a snapshot and converges', async () => {
