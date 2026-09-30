@@ -174,6 +174,7 @@ and needs no record.
 | [0140](0140-the-installation-serves-the-legal-documents-that-its-operator-writes.md)  | The installation serves the legal documents that its operator writes            |
 | [0141](0141-a-person-resets-a-password-in-the-application.md)                         | A person resets a password in the application                                   |
 | [0142](0142-a-published-formula-keeps-its-layout-in-style-attributes.md)              | A published formula keeps its layout in style attributes                        |
+| [0143](0143-a-person-imports-a-theme-that-the-account-keeps.md)                       | A person imports a theme that the account keeps                                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -560,3 +561,9 @@ Record 0142 lets the style attributes of a formula apply on the published
 page, because KaTeX places each row and each script with one and the page
 refused them all. The math sanitizer stays the one producer of such an
 attribute. It refines records 0031 and 0060.
+
+Record 0143 answers
+[issue 137](https://github.com/bkhanale/notesapp/issues/137). A person imports
+a theme file, the account keeps it, and one rule set of a palette holds the
+registry and every import, so a theme that cannot be used names what to
+correct. It refines record 0016.
