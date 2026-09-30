@@ -35,6 +35,8 @@ import {
   pageRowClassName,
   pageSectionsShown,
   pageSideClassName,
+  sectionScrollTop,
+  type ChosenPageSection,
   type PageHeaderActionLayout,
   type PageSection,
 } from './layout-classes.ts';
@@ -144,9 +146,9 @@ function scrollerOf(element: HTMLElement): HTMLElement | null {
  * The list of the sections of a page, with the section in view marked.
  *
  * It is the outline of a page, so it takes the section and the rows of the
- * note outline. A row brings its section to the top and marks it at once. The
- * next scroll of the person moves the mark again, from the rule of
- * `currentPageSection`.
+ * note outline. A row brings its section to the top of the scroller of the
+ * page and marks it, and the next scroll of the person moves the mark again,
+ * from the rule of `currentPageSection`.
  */
 function PageSections({
   sections,
@@ -155,9 +157,7 @@ function PageSections({
 }): ReactNode {
   const [open, setOpen] = useState(true);
   const [current, setCurrent] = useState<string | null>(null);
-  // The scroll that a row starts ends on its own section, which the rule of
-  // the line cannot always reach, so that one scroll keeps the chosen row.
-  const chosen = useRef<string | null>(null);
+  const chosen = useRef<ChosenPageSection | null>(null);
   // The effect reads the sections again only when the list itself changes,
   // and not for each new array with the same rows.
   const ids = sections.map((section) => section.id).join('\n');
@@ -167,11 +167,6 @@ function PageSections({
     const scroller = first === null ? null : scrollerOf(first);
     if (scroller === null) return;
     const read = (): void => {
-      if (chosen.current !== null) {
-        setCurrent(chosen.current);
-        chosen.current = null;
-        return;
-      }
       const origin = scroller.getBoundingClientRect().top;
       const tops = order.flatMap((id) => {
         const target = sectionTarget(id);
@@ -182,7 +177,14 @@ function PageSections({
       const atEnd =
         scroller.scrollTop > 0 &&
         scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
-      setCurrent(currentPageSection(tops, atEnd));
+      const next = currentPageSection(
+        tops,
+        atEnd,
+        chosen.current,
+        scroller.scrollTop,
+      );
+      if (next !== chosen.current?.id) chosen.current = null;
+      setCurrent(next);
     };
     read();
     scroller.addEventListener('scroll', read, { passive: true });
@@ -211,10 +213,22 @@ function PageSections({
                 aria-current={marked ? 'location' : undefined}
                 onClick={(): void => {
                   const target = sectionTarget(section.id);
-                  if (target === null) return;
-                  chosen.current = section.id;
+                  const scroller = target === null ? null : scrollerOf(target);
+                  if (target === null || scroller === null) return;
+                  scroller.scrollTo({
+                    top: sectionScrollTop(
+                      scroller.scrollTop,
+                      target.getBoundingClientRect().top,
+                      scroller.getBoundingClientRect().top,
+                    ),
+                  });
+                  // The scroller clamps the offset at its end, so the mark
+                  // holds at the offset it reached and not the one it asked.
+                  chosen.current = {
+                    id: section.id,
+                    scrollTop: scroller.scrollTop,
+                  };
                   setCurrent(section.id);
-                  target.scrollIntoView({ block: 'start' });
                 }}
               >
                 <span className="min-w-0 flex-1 truncate">{section.title}</span>

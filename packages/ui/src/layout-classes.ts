@@ -66,6 +66,12 @@ export function pageSectionsShown(sections: readonly PageSection[]): boolean {
 /** How far below the top of the scroller a section counts as in view. */
 export const pageSectionLine = 32;
 
+/** A row that a person chose, and the scroll offset its jump ended at. */
+export type ChosenPageSection = {
+  readonly id: string;
+  readonly scrollTop: number;
+};
+
 /**
  * The section that a person reads now.
  *
@@ -74,15 +80,38 @@ export const pageSectionLine = 32;
  * the line, and the first one before any has. At the end of the scroll the
  * last section is current, because a short last section never reaches the
  * line.
+ *
+ * A row that a person chose stays current while the scroller stays where the
+ * jump left it, because a section near the end cannot reach the line. The
+ * next scroll of the person decides again.
  */
 export function currentPageSection(
   tops: readonly { readonly id: string; readonly top: number }[],
   atEnd: boolean,
+  chosen: ChosenPageSection | null = null,
+  scrollTop = 0,
 ): string | null {
+  if (chosen !== null && Math.abs(scrollTop - chosen.scrollTop) < 1)
+    return chosen.id;
   if (tops.length === 0) return null;
   if (atEnd) return tops[tops.length - 1]?.id ?? null;
   let current = tops[0]?.id ?? null;
   for (const section of tops)
     if (section.top <= pageSectionLine) current = section.id;
   return current;
+}
+
+/**
+ * The scroll offset that puts a section at the top of its scroller.
+ *
+ * The page scrolls its own scroller and nothing around it. A jump that asks
+ * the browser to bring an element into view also moves every ancestor that
+ * clips, the frame among them, when the scroller reaches its end.
+ */
+export function sectionScrollTop(
+  scrollTop: number,
+  targetTop: number,
+  scrollerTop: number,
+): number {
+  return Math.max(0, scrollTop + targetTop - scrollerTop);
 }

@@ -9,6 +9,7 @@ import {
   pageSectionLine,
   pageSectionsShown,
   pageSideClassName,
+  sectionScrollTop,
 } from './layout-classes.ts';
 
 await test('split page actions occupy the row and keep its two ends', () => {
@@ -96,4 +97,33 @@ await test('the last section is current at the end of the scroll', () => {
 await test('a page with no section has no current section', () => {
   assert.equal(currentPageSection([], false), null);
   assert.equal(currentPageSection([], true), null);
+});
+
+await test('a chosen row stays current while the scroller stays at its jump', () => {
+  // A section near the end cannot reach the line, and the end rule would
+  // mark the last section instead of the one the person chose.
+  const tops = [
+    { id: 'a', top: -900 },
+    { id: 'b', top: 200 },
+    { id: 'c', top: 500 },
+  ];
+  const chosen = { id: 'b', scrollTop: 1200 };
+  assert.equal(currentPageSection(tops, true, chosen, 1200), 'b');
+  assert.equal(currentPageSection(tops, true, chosen, 1200.4), 'b');
+});
+
+await test('a scroll of the person after a jump decides the section again', () => {
+  const tops = [
+    { id: 'a', top: -900 },
+    { id: 'b', top: 10 },
+    { id: 'c', top: 500 },
+  ];
+  const chosen = { id: 'c', scrollTop: 1200 };
+  assert.equal(currentPageSection(tops, false, chosen, 1100), 'b');
+});
+
+await test('a jump scrolls the scroller by the distance to the section', () => {
+  assert.equal(sectionScrollTop(300, 544, 44), 800);
+  assert.equal(sectionScrollTop(300, -56, 44), 200);
+  assert.equal(sectionScrollTop(0, 0, 44), 0);
 });
