@@ -96,8 +96,9 @@ here.
   load uses one workspace per active user, because accepted changes in one
   workspace have a required total order. Search load uses one shared workspace.
 - `pnpm perf:bundle` builds the production web application and measures the
-  compressed JavaScript that the first route actually loads, excluding the
-  deferred editor and rich rendering chunks.
+  compressed JavaScript that the first route actually loads. A deferred
+  chunk, such as the editor, stays out of the measure. The budget follows
+  [record 0136](../decisions/0136-the-initial-javascript-budget-follows-the-inequality-gap.md).
 
 The local interaction checks bound the typing transaction, the local draft
 save, and a cached note read, using the Node adapters. They do not include

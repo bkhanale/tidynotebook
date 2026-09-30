@@ -7,7 +7,10 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const dist = resolve(root, 'apps/web/dist/web');
 const htmlPath = join(dist, 'index.html');
-const budgetBytes = 250 * 1024;
+// The JavaScript share of the 3-second critical-path budget for a JS-heavy
+// page in The Performance Inequality Gap, 2026 (Alex Russell): a P75 phone on
+// a 9 Mbps link reads 0.62 MiB of compressed JavaScript (record 0136).
+const budgetBytes = Math.floor(0.62 * 1024 * 1024);
 const html = await readFile(htmlPath, 'utf8');
 const references = new Set();
 for (const match of html.matchAll(

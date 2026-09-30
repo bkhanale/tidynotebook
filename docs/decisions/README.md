@@ -166,6 +166,7 @@ and needs no record.
 | [0132](0132-a-list-marker-holds-no-caret.md)                                       | A list marker holds no caret                                                    |
 | [0133](0133-an-open-note-saves-the-text-of-its-document.md)                        | An open note saves the text of its document                                     |
 | [0134](0134-a-task-box-keeps-one-state-through-a-merge.md)                         | A task box keeps one state through a merge                                      |
+| [0136](0136-the-initial-javascript-budget-follows-the-inequality-gap.md)           | The initial JavaScript budget follows the inequality gap                        |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -518,3 +519,7 @@ work. It refines record 0085.
 Record 0134 makes a toggle of a task box a save boundary, and a merge that
 leaves a box with two states keeps the state of the save accepted last. It
 refines records 0022 and 0081.
+
+Record 0136 takes the initial JavaScript budget from the 3-second budget of
+The Performance Inequality Gap, 2026, because the round figure before it had
+no source.
