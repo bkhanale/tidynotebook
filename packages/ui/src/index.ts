@@ -103,12 +103,15 @@ export {
   ListRow,
   Page,
   pageGutter,
+  PageBackProvider,
   PageHeader,
   PageRegion,
 } from './layout.tsx';
 export type { PageSection } from './layout-classes.ts';
 export {
   pageColumnClassName,
+  pageGroupLabelClassName,
+  pageListClassName,
   pageRowClassName,
   pageSideClassName,
 } from './layout-classes.ts';

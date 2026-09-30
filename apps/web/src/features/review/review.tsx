@@ -21,7 +21,6 @@ import type { LocalStore, ReviewRecord } from '@notesapp/sync';
 import {
   buttonClassName,
   CheckIcon,
-  ChevronLeftIcon,
   EmptyState,
   LoadingState,
   Notice,
@@ -160,22 +159,10 @@ function ReviewDetail({
     };
   }, [kept, current]);
 
-  const back = (
-    <Link
-      className={buttonClassName({ variant: 'ghost', size: 'sm' })}
-      to={`/w/${workspaceId}/notes/${fileId}`}
-    >
-      <span className="inline-flex items-center" aria-hidden="true">
-        <ChevronLeftIcon />
-      </span>
-      <span>Back to the note</span>
-    </Link>
-  );
-
   if (opened.status === 'loading')
     return (
       <Page>
-        <PageHeader title="Review" actions={back} />
+        <PageHeader title="Review" />
         <LoadingState
           shape="list"
           rows={4}
@@ -186,7 +173,7 @@ function ReviewDetail({
   if (opened.status === 'none' || opened.status === 'failed')
     return (
       <Page>
-        <PageHeader title="Review" actions={back} />
+        <PageHeader title="Review" />
         {opened.status === 'failed' ? (
           <Notice tone="problem" message={reviewReadFailed} />
         ) : (
@@ -194,14 +181,6 @@ function ReviewDetail({
             icon={<CheckIcon size={20} />}
             title={noReviewTitle}
             description={noReviewDescription}
-            action={
-              <Link
-                className={buttonClassName({ variant: 'secondary' })}
-                to={`/w/${workspaceId}/notes/${fileId}`}
-              >
-                Back to the note
-              </Link>
-            }
           />
         )}
       </Page>
@@ -210,11 +189,7 @@ function ReviewDetail({
   const page = reviewPage(opened.review);
   return (
     <Page>
-      <PageHeader
-        title={page.title}
-        description={page.description}
-        actions={back}
-      />
+      <PageHeader title={page.title} description={page.description} />
       <div className="space-y-4">
         {page.opensAttention ? (
           <div>

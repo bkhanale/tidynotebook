@@ -76,6 +76,7 @@ import {
   focusOutline,
   focusOutlineInset,
   Notice,
+  PageBackProvider,
   pageColumnClassName,
   pageGutter,
   pageRowClassName,
@@ -200,12 +201,14 @@ import type { ActionIconName } from '../lib/palette-items.ts';
 import {
   breadcrumbKey,
   breadcrumbParts,
+  breadcrumbParentOf,
   framePageOf,
   leafOf,
   type BreadcrumbPart,
   type PageTitles,
 } from '../lib/breadcrumb.ts';
 import { settingsTitle } from '../features/accounts/accounts.tsx';
+import { BackLink } from './back-link.tsx';
 import { notFoundTitle } from './not-found.tsx';
 import {
   DeleteWorkspaceDialog,
@@ -721,10 +724,6 @@ function Sidebar({
   const notesPath = `/w/${workspaceId}`;
   const trashPath = `/w/${workspaceId}/trash`;
   const publishedPath = `/w/${workspaceId}/published`;
-  const accountsPath = `/w/${workspaceId}/accounts`;
-  // An administrator manages the accounts of the installation, so only an
-  // administrator sees the row that opens them (record 0109).
-  const administers = session.account?.installationRole === 'administrator';
   const attentionPath = `/w/${workspaceId}/attention`;
   // One short sentence for the state of the work, beside the dot that states
   // the same thing without a word. A failed local write of the open note
@@ -1097,27 +1096,6 @@ function Sidebar({
               {publishedLinksTitle}
             </span>
           </Link>
-          {administers ? (
-            <Link
-              className={rowClassName({
-                current: location.pathname === accountsPath,
-                inset: false,
-              })}
-              to={accountsPath}
-              onClick={onNavigate}
-              aria-current={
-                location.pathname === accountsPath ? 'page' : undefined
-              }
-            >
-              <span
-                className="inline-flex shrink-0 items-center"
-                aria-hidden="true"
-              >
-                {actionIcon('accounts')}
-              </span>
-              <span className="min-w-0 flex-1 truncate">{accountsTitle}</span>
-            </Link>
-          ) : null}
           <AttentionLink
             workspaceId={workspaceId}
             count={attentionCount}
@@ -1553,11 +1531,18 @@ function ShellFrame({
   // part comes from the workspace and from the path of the open note.
   const noteName =
     openNotePath === null ? null : displayNoteName(baseNameOf(openNotePath));
-  const routeName = leafOf(
-    framePageOf(matches.map((match) => match.handle)),
-    noteName,
-    pageTitles,
-  );
+  const framePage = framePageOf(matches.map((match) => match.handle));
+  const routeName = leafOf(framePage, noteName, pageTitles);
+  // A page that belongs to another page names it before its own name, so
+  // Accounts reads as a part of Settings (record 0138).
+  const crumbParent = breadcrumbParentOf(framePage);
+  const routeParent =
+    crumbParent === null
+      ? null
+      : {
+          label: pageTitles[crumbParent],
+          to: `/w/${workspaceId}/${crumbParent}`,
+        };
 
   // The avatar shows the first letter of the person, so the accessible name
   // holds the whole name: a control whose visible text is one letter has to
@@ -1849,6 +1834,7 @@ function ShellFrame({
                 workspaceName: openWorkspace?.name ?? '',
                 notePath: openNotePath,
                 leaf: routeName,
+                parent: routeParent,
               })}
               onSelectFolder={(folder) => {
                 folders.openFolder(folder);
@@ -1991,7 +1977,13 @@ function ShellFrame({
               </div>
               <div className={pageSideClassName()} />
             </div>
-            <Outlet />
+            {/*
+              Every page header of the frame draws the one back control, to
+              the page above it (record 0138).
+            */}
+            <PageBackProvider value={<BackLink />}>
+              <Outlet />
+            </PageBackProvider>
           </div>
 
           <DeleteNoticeBar />

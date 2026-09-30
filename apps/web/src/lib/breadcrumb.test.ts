@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  backTarget,
   breadcrumbKey,
+  breadcrumbParentOf,
   breadcrumbParts,
   framePageOf,
   framePages,
   leafOf,
+  pageParents,
   type BreadcrumbPart,
   type BreadcrumbRoute,
   type PageTitles,
@@ -225,4 +228,61 @@ await test('a route that names no page yields no last part', () => {
   assert.deepEqual(breadcrumbParts(route({ leaf })), [
     { label: 'Personal', to: '/w/w1', folder: '' },
   ]);
+});
+
+await test('every page but All notes names the page above it', () => {
+  // Record 0138. One back control on every page, and none on the top.
+  for (const page of framePages)
+    assert.equal(pageParents[page] === null, page === 'notes', page);
+  assert.equal(backTarget('notes', 'w1', null), null);
+  assert.equal(backTarget(null, 'w1', null), null);
+});
+
+await test('a page goes back to the page above it', () => {
+  assert.deepEqual(backTarget('trash', 'w1', null), {
+    to: '/w/w1',
+    label: 'Back to your notes',
+  });
+  assert.deepEqual(backTarget('settings', 'w1', null), {
+    to: '/w/w1',
+    label: 'Back to your notes',
+  });
+  assert.deepEqual(backTarget('accounts', 'w1', null), {
+    to: '/w/w1/settings',
+    label: 'Back to Settings',
+  });
+  assert.deepEqual(backTarget('history', 'w1', 'f1'), {
+    to: '/w/w1/notes/f1',
+    label: 'Back to the note',
+  });
+  assert.deepEqual(backTarget('note', 'w1', 'f1'), {
+    to: '/w/w1',
+    label: 'Back to your notes',
+  });
+});
+
+await test('a page under a note with no note goes back to the note list', () => {
+  assert.deepEqual(backTarget('review', 'w1', null), {
+    to: '/w/w1',
+    label: 'Back to your notes',
+  });
+});
+
+await test('Accounts reads as a part of Settings in the breadcrumb', () => {
+  assert.equal(breadcrumbParentOf('accounts'), 'settings');
+  for (const page of framePages)
+    if (page !== 'accounts') assert.equal(breadcrumbParentOf(page), null, page);
+  assert.deepEqual(
+    breadcrumbParts(
+      route({
+        leaf: 'Accounts',
+        parent: { label: 'Settings', to: '/w/w1/settings' },
+      }),
+    ),
+    [
+      { label: 'Personal', to: '/w/w1', folder: '' },
+      { label: 'Settings', to: '/w/w1/settings', folder: null },
+      { label: 'Accounts', to: null, folder: null },
+    ],
+  );
 });

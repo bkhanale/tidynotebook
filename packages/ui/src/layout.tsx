@@ -25,7 +25,14 @@
  * and
  * [decision 0065](../../../docs/decisions/0065-one-recipe-for-a-control-and-one-grid-for-an-icon.md).
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { rowClassName } from './control-classes.ts';
 import { CollapsibleSection } from './controls.tsx';
 import {
@@ -241,6 +248,17 @@ function PageSections({
   );
 }
 
+/** The back control that every page header of a frame draws. */
+const PageBackContext = createContext<ReactNode>(null);
+
+/**
+ * Gives every `PageHeader` below it one back control (record 0138).
+ *
+ * The control decides for itself where it goes and whether it draws, so one
+ * element serves every page of the frame.
+ */
+export const PageBackProvider = PageBackContext.Provider;
+
 /**
  * The title row of a screen, with optional actions below or on the right.
  *
@@ -248,6 +266,12 @@ function PageSections({
  * never pushes the action onto a line of its own on a wide screen. Below
  * the small width the title takes a full line and the action wraps under
  * it, because a title squeezed next to a button is unreadable.
+ *
+ * The one back control of the page stands before the title on the title line
+ * (record 0138). The frame of the application provides it with
+ * `PageBackProvider`, because the address it goes to is a fact of the router
+ * and not of this package, and every header inside the frame takes it, so no
+ * page can leave it out or draw one of its own.
  */
 export function PageHeader({
   title,
@@ -262,15 +286,19 @@ export function PageHeader({
   readonly actionLayout?: PageHeaderActionLayout | undefined;
   readonly id?: string | undefined;
 }): ReactNode {
+  const back = useContext(PageBackContext);
   return (
     <div className="mb-6 flex flex-wrap items-start justify-between gap-group">
       <div className="min-w-0 grow basis-full sm:basis-0">
-        <h1
-          className="m-0 text-xl font-semibold tracking-heading text-strong"
-          id={id}
-        >
-          {title}
-        </h1>
+        <div className="flex min-w-0 items-center gap-1">
+          {back}
+          <h1
+            className="m-0 min-w-0 text-xl font-semibold tracking-heading text-strong"
+            id={id}
+          >
+            {title}
+          </h1>
+        </div>
         {description === undefined || description === '' ? null : (
           <p className="mb-0 mt-1 text-control text-muted">{description}</p>
         )}

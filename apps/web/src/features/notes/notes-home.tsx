@@ -26,7 +26,9 @@ import {
   LoadingState,
   Notice,
   Page,
+  pageGroupLabelClassName,
   PageHeader,
+  pageListClassName,
   PlusIcon,
   rowClassName,
 } from '@notesapp/ui';
@@ -44,8 +46,7 @@ import { noteRowMeta } from '../../lib/note-row.ts';
 import { showNewNoteInHeader } from '../../lib/notes-home-action.ts';
 
 /** The quiet heading of one time band of the list. */
-const groupLabelClassName =
-  'px-2 pb-1 pt-4 text-control font-medium text-muted';
+const groupLabelClassName = `${pageGroupLabelClassName()} pt-4`;
 
 /** The note list of the open area. */
 export function NotesHomeView(): ReactNode {
@@ -120,7 +121,7 @@ export function NotesHomeView(): ReactNode {
               >
                 {group.label}
               </h2>
-              <ul className="m-0 list-none p-0">
+              <ul className={pageListClassName()}>
                 {group.notes.map((note) => {
                   const meta = noteRowMeta(note.path, note.updatedAt, now);
                   return (

@@ -62,6 +62,7 @@ import {
   Page,
   pageGutter,
   PageHeader,
+  pageListClassName,
   SignOutIcon,
   SunIcon,
   TextField,
@@ -1015,7 +1016,7 @@ function SessionsSettings(): ReactNode {
         />
       ) : (
         <>
-          <ul className="m-0 list-none p-0">
+          <ul className={pageListClassName()}>
             {state.sessions.map((session) => {
               const name = deviceName(session.userAgent);
               return (

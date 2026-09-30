@@ -169,6 +169,7 @@ and needs no record.
 | [0135](0135-an-identity-is-keyed-by-its-provider-and-its-account.md)               | An identity is keyed by its provider and its account                            |
 | [0136](0136-the-initial-javascript-budget-follows-the-inequality-gap.md)           | The initial JavaScript budget follows the inequality gap                        |
 | [0137](0137-every-page-shares-the-note-column-and-its-side-region.md)              | Every page shares the note column and its side region                           |
+| [0138](0138-a-page-names-the-page-above-it-and-accounts-belong-to-settings.md)     | A page names the page above it, and Accounts belong to Settings                 |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -534,3 +535,8 @@ Record 0137 gives every page the column of the note measure and the side
 region of the note, because the column moved and changed its width between
 a note and a page. A page of two or more sections lists them in the region.
 It refines records 0055 and 0091.
+
+Record 0138 gives every page but All notes and the note one back control,
+a caret before its title to the page above it, lines a list up with the page
+column, and moves Accounts from the sidebar into Settings, because the owner
+asked for one rule on 2026-09-30. It refines records 0064, 0091 and 0137.

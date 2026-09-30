@@ -39,10 +39,10 @@ account, or sign out.
 
 ## Open the accounts page
 
-Select **Accounts** at the bottom of the sidebar. You can also open
-**Settings** and select **Manage accounts**, or search for "accounts" in the
-command palette. A person who is not an administrator does not see these
-entries.
+Open **Settings** and select **Manage accounts** in the Account section. You
+can also search for "accounts" in the command palette. A person who is not an
+administrator does not see these entries. The caret before the page title
+goes back to Settings.
 
 ## Invite a person
 

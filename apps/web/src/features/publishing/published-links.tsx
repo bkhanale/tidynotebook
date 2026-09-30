@@ -30,7 +30,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import {
   listPublishedLinks,
   revokePublishedLink,
@@ -38,15 +38,15 @@ import {
 } from '@notesapp/api-client';
 import {
   Button,
-  buttonClassName,
-  ChevronLeftIcon,
   EmptyState,
   LinkIcon,
   ListRow,
   LoadingState,
   Notice,
   Page,
+  pageGroupLabelClassName,
   PageHeader,
+  pageListClassName,
 } from '@notesapp/ui';
 import { problemMessage } from '../../app.tsx';
 import { useDocumentTitle } from '../../shell/document-title.ts';
@@ -169,17 +169,6 @@ function PublishedLinksList({
       <PageHeader
         title={publishedLinksTitle}
         description={publishedLinksDescription}
-        actions={
-          <Link
-            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
-            to={`/w/${workspaceId}`}
-          >
-            <span className="inline-flex items-center" aria-hidden="true">
-              <ChevronLeftIcon />
-            </span>
-            <span>Back to your notes</span>
-          </Link>
-        }
       />
       <div className="space-y-4">
         {notice === '' ? null : <Notice tone="success" message={notice} />}
@@ -205,12 +194,12 @@ function PublishedLinksList({
         ) : (
           <section aria-labelledby="published-links-heading">
             <h2
-              className="mb-1 px-2 text-control font-medium text-muted"
+              className={pageGroupLabelClassName()}
               id="published-links-heading"
             >
               Your links
             </h2>
-            <ul className="m-0 list-none p-0">
+            <ul className={pageListClassName()}>
               {rows.map((link) => {
                 const name = linkTitle(link.scope, notes);
                 const facts = linkFacts(

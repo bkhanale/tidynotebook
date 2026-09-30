@@ -5,6 +5,7 @@
  * The local statement keeps an offline deletion visible, and the server
  * statement wins when both sources know the note.
  */
+import { pageListClassName } from '@notesapp/ui';
 
 /** One deleted note as the Trash screen shows it. */
 export type TrashItem = {
@@ -31,8 +32,36 @@ export type LocalTrashFile = {
   readonly updatedAt: string;
 };
 
-/** Rows separate with the named close-group distance and no rule. */
-export const trashListClassName = 'm-0 flex list-none flex-col gap-cluster p-0';
+/**
+ * Rows separate with the named close-group distance and no rule. The list
+ * lines its rows up with the page, as every list of a page does (0138).
+ */
+export const trashListClassName = `${pageListClassName()} flex flex-col gap-cluster`;
+
+/**
+ * The place of one destructive action and its confirmation.
+ *
+ * The action and the confirmation share one grid cell and both stay in it,
+ * the one not in use unseen. The slot is therefore always as wide as the
+ * wider of the two, so neither state moves anything beside it.
+ * A fixed width did the same job, until the action was wider than the width
+ * and reached over the Restore button next to it.
+ */
+export function trashActionSlotClassName(place: 'row' | 'header'): string {
+  // A row holds its actions at its end. The actions of a page header wrap
+  // under the title below the small width and line up with its start there,
+  // so the slot holds its action where the header puts it.
+  return place === 'row'
+    ? 'grid shrink-0 items-center justify-items-end'
+    : 'grid shrink-0 items-center justify-items-start sm:justify-items-end';
+}
+
+/** One layer of the action slot. A hidden layer keeps its size and its place. */
+export function trashActionLayerClassName(hidden: boolean): string {
+  return hidden
+    ? 'col-start-1 row-start-1 invisible'
+    : 'col-start-1 row-start-1';
+}
 
 /**
  * Merges the server Trash with the deleted notes only this device knows.

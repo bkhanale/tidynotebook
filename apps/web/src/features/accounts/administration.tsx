@@ -50,7 +50,9 @@ import {
   MoreIcon,
   Notice,
   Page,
+  pageGroupLabelClassName,
   PageHeader,
+  pageListClassName,
   PlusIcon,
   ReadOnlyField,
   TextField,
@@ -301,7 +303,7 @@ function AccountsPage(): ReactNode {
             bodies={{
               registration: (
                 <>
-                  <div className="flex flex-wrap items-center gap-cluster px-2">
+                  <div className="flex flex-wrap items-center gap-cluster">
                     <p className="m-0 flex-1 text-ui text-strong">
                       {registrationPolicyText(
                         state.installation.registrationPolicy,
@@ -329,12 +331,12 @@ function AccountsPage(): ReactNode {
               reports: (
                 <>
                   {state.reports.length === 0 ? (
-                    <p className="m-0 px-2 text-control text-muted">
+                    <p className="m-0 text-control text-muted">
                       No report waits. A reader reports a published page from
                       the link at its foot.
                     </p>
                   ) : (
-                    <ul className="m-0 list-none p-0">
+                    <ul className={pageListClassName()}>
                       {state.reports.map((report) => {
                         const reason = reportReasonWord(report.reason);
                         return (
@@ -425,11 +427,11 @@ function AccountsPage(): ReactNode {
               invitations: (
                 <>
                   {state.invitations.length === 0 ? (
-                    <p className="m-0 px-2 text-control text-muted">
+                    <p className="m-0 text-control text-muted">
                       No invitation waits. Select Invite a person to make one.
                     </p>
                   ) : (
-                    <ul className="m-0 list-none p-0">
+                    <ul className={pageListClassName()}>
                       {state.invitations.map((invitation) => {
                         const facts = invitationFacts(invitation, now);
                         return (
@@ -475,7 +477,7 @@ function AccountsPage(): ReactNode {
               ),
               accounts: (
                 <>
-                  <ul className="m-0 list-none p-0">
+                  <ul className={pageListClassName()}>
                     {state.accounts.map((account) => {
                       const name = accountName(account);
                       const facts = accountFacts(account, now);
@@ -821,10 +823,7 @@ function AdministrationSections({
     <>
       {administrationSections.map((section) => (
         <section key={section.key} aria-labelledby={section.id}>
-          <h2
-            className="mb-1 px-2 text-control font-medium text-muted"
-            id={section.id}
-          >
+          <h2 className={pageGroupLabelClassName()} id={section.id}>
             {section.title}
           </h2>
           {bodies[section.key]}

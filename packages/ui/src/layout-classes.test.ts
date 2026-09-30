@@ -4,6 +4,8 @@ import test from 'node:test';
 import {
   currentPageSection,
   pageColumnClassName,
+  pageGroupLabelClassName,
+  pageListClassName,
   pageHeaderActionsClassName,
   pageRowClassName,
   pageSectionLine,
@@ -126,4 +128,21 @@ await test('a jump scrolls the scroller by the distance to the section', () => {
   assert.equal(sectionScrollTop(300, 544, 44), 800);
   assert.equal(sectionScrollTop(300, -56, 44), 200);
   assert.equal(sectionScrollTop(0, 0, 44), 0);
+});
+
+await test('a list takes back the inset of its rows', () => {
+  // Record 0138. A row carries px-2, so the list pulls by the same step and
+  // the row text lines up with the page title.
+  const list = pageListClassName().split(' ');
+  assert.ok(list.includes('-mx-2'));
+  assert.ok(list.includes('list-none'));
+  assert.ok(list.includes('p-0'));
+  assert.ok(!list.some((name) => /^(m|mx)-/.test(name)));
+});
+
+await test('a group label has no inset of its own', () => {
+  const label = pageGroupLabelClassName().split(' ');
+  assert.ok(!label.some((name) => /^(p|px|pl|ps)-/.test(name)));
+  assert.ok(label.includes('text-control'));
+  assert.ok(label.includes('text-muted'));
 });

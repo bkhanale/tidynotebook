@@ -16,21 +16,21 @@
  * store, and the sync engine sends the requeued save.
  */
 import { useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import { generateUUID } from '@notesapp/core';
 import { type Draft } from '@notesapp/sync';
 import {
   Button,
-  buttonClassName,
   CheckIcon,
-  ChevronLeftIcon,
   CopyIcon,
   EmptyState,
   ListRow,
   LoadingState,
   Notice,
   Page,
+  pageGroupLabelClassName,
   PageHeader,
+  pageListClassName,
   StatusRegion,
   TrashIcon,
 } from '@notesapp/ui';
@@ -318,17 +318,6 @@ export function AttentionRoute(): ReactNode {
       <PageHeader
         title={attentionTitle}
         description="Notesapp keeps text here when it cannot complete a save. Retry the save, or create a new note from its text."
-        actions={
-          <Link
-            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
-            to={`/w/${activeWorkspace}`}
-          >
-            <span className="inline-flex items-center" aria-hidden="true">
-              <ChevronLeftIcon />
-            </span>
-            <span>Back to your notes</span>
-          </Link>
-        }
       />
       <div className="space-y-4">
         {error === null ? null : <Notice tone="problem" message={error} />}
@@ -344,13 +333,10 @@ export function AttentionRoute(): ReactNode {
           />
         ) : (
           <section aria-labelledby="attention-heading">
-            <h2
-              className="mb-1 px-2 text-control font-medium text-muted"
-              id="attention-heading"
-            >
+            <h2 className={pageGroupLabelClassName()} id="attention-heading">
               Text to review
             </h2>
-            <ul className="m-0 list-none p-0">
+            <ul className={pageListClassName()}>
               {saves.map((save) => (
                 <ParkedSaveRow
                   key={save.recoveryId}

@@ -18,7 +18,7 @@
  * request, URL, or response shape here.
  */
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Link, useParams } from 'react-router';
+import { useParams } from 'react-router';
 import {
   getFile,
   getRevision,
@@ -35,15 +35,15 @@ import {
 import type { LocalStore } from '@notesapp/sync';
 import {
   Button,
-  buttonClassName,
-  ChevronLeftIcon,
   EmptyState,
   HistoryIcon,
   ListRow,
   LoadingState,
   Notice,
   Page,
+  pageGroupLabelClassName,
   PageHeader,
+  pageListClassName,
   rowClassName,
 } from '@notesapp/ui';
 import {
@@ -126,7 +126,6 @@ export function HistoryView(): ReactNode {
   if (workspaceId === null || fileId === null)
     return (
       <HistoryNotice
-        workspaceId={null}
         title="This address names no history"
         description="Open a note and choose History in its menu."
       />
@@ -148,13 +147,11 @@ export function HistoryView(): ReactNode {
   );
 }
 
-/** One message screen of the history, with the way back to the notes. */
+/** One message screen of the history. Its header holds the way back. */
 function HistoryNotice({
-  workspaceId,
   title,
   description,
 }: {
-  readonly workspaceId: string | null;
   readonly title: string;
   readonly description: string;
 }): ReactNode {
@@ -165,14 +162,6 @@ function HistoryNotice({
         icon={<HistoryIcon size={20} />}
         title={title}
         description={description}
-        action={
-          <Link
-            className={buttonClassName({ variant: 'secondary' })}
-            to={workspaceId === null ? '/' : `/w/${workspaceId}`}
-          >
-            Back to your notes
-          </Link>
-        }
       />
     </Page>
   );
@@ -478,7 +467,6 @@ function HistoryDetail({
   if (head.status === 'error')
     return (
       <HistoryNotice
-        workspaceId={workspaceId}
         title="The history is not available"
         description={head.message}
       />
@@ -486,7 +474,6 @@ function HistoryDetail({
   if (head.status === 'unknown')
     return (
       <HistoryNotice
-        workspaceId={workspaceId}
         title="This note has no history here"
         description="The note is not in this workspace. It may have been deleted permanently."
       />
@@ -494,7 +481,6 @@ function HistoryDetail({
   if (head.status === 'purged')
     return (
       <HistoryNotice
-        workspaceId={workspaceId}
         title="This note is deleted permanently"
         description="Its versions on the server are gone. Work that never left this device is still in Needs attention."
       />
@@ -507,17 +493,6 @@ function HistoryDetail({
       <PageHeader
         title={`History of ${name}`}
         description="Restore brings a version back as the newest one. Nothing is lost, and the text on this device stays as it is."
-        actions={
-          <Link
-            className={buttonClassName({ variant: 'ghost', size: 'sm' })}
-            to={`/w/${workspaceId}/notes/${fileId}`}
-          >
-            <span className="inline-flex items-center" aria-hidden="true">
-              <ChevronLeftIcon />
-            </span>
-            <span>Back to the note</span>
-          </Link>
-        }
       />
       <div className="space-y-4">
         {actionMessage === '' ? null : (
@@ -537,13 +512,10 @@ function HistoryDetail({
           />
         ) : (
           <section aria-labelledby="history-versions">
-            <h2
-              className="mb-1 px-2 text-control font-medium text-muted"
-              id="history-versions"
-            >
+            <h2 className={pageGroupLabelClassName()} id="history-versions">
               Versions
             </h2>
-            <ol className="m-0 list-none p-0">
+            <ol className={pageListClassName()}>
               {items.map((item, index) => {
                 const when = relativeTime(item.serverTime, now);
                 const change = rowChangeOf({
@@ -613,7 +585,7 @@ function HistoryDetail({
               })}
             </ol>
             {nextCursor === null ? null : (
-              <div className="mt-4 px-2">
+              <div className="mt-4">
                 <Button
                   variant="secondary"
                   size="sm"

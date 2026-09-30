@@ -115,3 +115,24 @@ export function sectionScrollTop(
 ): number {
   return Math.max(0, scrollTop + targetTop - scrollerTop);
 }
+
+/**
+ * A list of rows on a page.
+ *
+ * A row keeps its own inset, so its text sits inside its fill. The list takes
+ * that inset back, so the text of a row, its buttons and the label of its
+ * group line up with the page title and the page actions, and the fill of a
+ * hovered row reaches into the gutter (record 0138).
+ */
+export function pageListClassName(): string {
+  return '-mx-2 my-0 list-none p-0';
+}
+
+/**
+ * The quiet label above one group of rows on a page.
+ *
+ * It has no inset, because the list below it already lines up with the page.
+ */
+export function pageGroupLabelClassName(): string {
+  return 'mb-1 mt-0 text-control font-medium text-muted';
+}

@@ -105,6 +105,79 @@ export function leafOf(
   }
 }
 
+/**
+ * The page above each page of the frame (record 0138).
+ *
+ * The back control of a page goes there, and the breadcrumb names it when it
+ * is not already a part. All notes is the top, so it has none. The record is
+ * total by its type, so a new page fails the typecheck until it names one.
+ */
+export const pageParents: Readonly<Record<FramePage, FramePage | null>> = {
+  notes: null,
+  note: 'notes',
+  history: 'note',
+  review: 'note',
+  trash: 'notes',
+  published: 'notes',
+  accounts: 'settings',
+  attention: 'notes',
+  settings: 'notes',
+  'not-found': 'notes',
+};
+
+/** The one back control of a page: where it goes and what it is called. */
+export type BackTarget = { readonly to: string; readonly label: string };
+
+/**
+ * The back control of one page, or `null` for a page with nothing above it.
+ *
+ * A page under a note goes back to that note. An address that names no note
+ * there goes back to the note list, which always exists.
+ */
+export function backTarget(
+  page: FramePage | null,
+  workspaceId: string,
+  fileId: string | null,
+): BackTarget | null {
+  const parent = page === null ? null : pageParents[page];
+  const home = workspaceHome(workspaceId);
+  switch (parent) {
+    case null:
+      return null;
+    case 'note':
+      return fileId === null
+        ? { to: home, label: 'Back to your notes' }
+        : { to: `${home}/notes/${fileId}`, label: 'Back to the note' };
+    case 'settings':
+      return { to: `${home}/settings`, label: 'Back to Settings' };
+    default:
+      return { to: home, label: 'Back to your notes' };
+  }
+}
+
+/**
+ * The page above a page that the breadcrumb names as a part of its own.
+ *
+ * The note list is the workspace part and a note page names its note, so a
+ * parent that is either of them adds no part.
+ */
+export function breadcrumbParentOf(
+  page: FramePage | null,
+): Exclude<FramePage, NotePage | 'notes' | 'not-found'> | null {
+  const parent = page === null ? null : pageParents[page];
+  switch (parent) {
+    case null:
+    case 'notes':
+    case 'note':
+    case 'history':
+    case 'review':
+    case 'not-found':
+      return null;
+    default:
+      return parent;
+  }
+}
+
 /** One part of the breadcrumb. */
 export type BreadcrumbPart = {
   readonly label: string;
@@ -123,6 +196,8 @@ export type BreadcrumbRoute = {
   readonly notePath: string | null;
   /** The name of the note or the page, which is the last part. */
   readonly leaf: string;
+  /** The page above the page, from `breadcrumbParentOf`, as a link. */
+  readonly parent?: { readonly label: string; readonly to: string } | null;
 };
 
 /**
@@ -177,6 +252,12 @@ export function breadcrumbParts(
     walked = walked === '' ? segment : `${walked}/${segment}`;
     parts.push({ label: segment, to: home, folder: walked });
   }
+  if (route.parent !== undefined && route.parent !== null)
+    parts.push({
+      label: route.parent.label,
+      to: route.parent.to,
+      folder: null,
+    });
   if (route.leaf !== '')
     parts.push({ label: route.leaf, to: null, folder: null });
   return parts;
