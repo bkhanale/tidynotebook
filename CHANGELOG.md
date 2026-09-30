@@ -5,6 +5,37 @@ All notable changes to this project are recorded here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.1 - 2026-09-30
+
+This patch release repairs saves across devices, keeps task boxes usable, and
+makes notes easier to open and edit on a phone. Settings lets you change your
+profile name.
+
+### Added
+
+- Settings lets you change the name that appears with your account.
+
+### Changed
+
+- Bullets and task boxes stay visible while you edit a list item. Select a
+  marker to see and copy its Markdown text.
+- A task box saves its change at once.
+
+### Fixed
+
+- A note already on your device opens without a brief empty editor or a
+  second copy of its name.
+- The sidebar scrolls on a short screen, so you can still reach your notes
+  when the phone keyboard is open.
+- A tap beside a list marker puts the cursor on the item text. A scroll that
+  starts on a task box leaves its state unchanged.
+- A task box keeps one state when two devices change it at the same time.
+- A save of an open note keeps the changes that arrive from another device.
+  A tab with no new edit creates no extra version.
+- Saves from two tabs of one note reach the server in order.
+- The next save tries to store the whole open note again after a local write
+  fails. If it still cannot store the note, it shows a message.
+
 ## 0.9.0 - 2026-09-29
 
 This minor release shows the changes of your other devices in less than a
