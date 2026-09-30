@@ -164,6 +164,7 @@ and needs no record.
 | [0130](0130-one-notice-coordinator-per-account-tab.md)                             | One notice coordinator per account in the lease tab                             |
 | [0131](0131-the-notice-stream-always-runs.md)                                      | The notice stream always runs                                                   |
 | [0132](0132-a-list-marker-holds-no-caret.md)                                       | A list marker holds no caret                                                    |
+| [0133](0133-an-open-note-saves-the-text-of-its-document.md)                        | An open note saves the text of its document                                     |
 
 Records 0001 to 0015 record the decisions D1 to D15 of
 [the v0.1 revamp plan](../plans/003-v0.1-revamp.md). Record 0016 records the
@@ -508,3 +509,7 @@ Record 0132 draws a bullet and a task box at every caret, keeps the caret
 out of the marker, and shows the source of a selected marker, the way Notion
 and Obsidian do, because a tap beside a box on a phone put the caret before
 the box. It refines records 0033 and 0025.
+
+Record 0133 makes a save of an open note freeze its document and take the
+text of that document, so a text that lags its document never becomes new
+work. It refines record 0085.

@@ -297,9 +297,11 @@ await test('a draft save and a checkpoint commit as one transaction each', async
     acceptedText: null,
     acceptedPath: null,
     acceptedRevisionId: null,
+    // No checkpoint has started the document of the note yet.
+    document: null,
   });
 
-  const entry = await store.checkpoint(draft, null);
+  const entry = await store.checkpoint(draft, null, 'text');
   assert.notEqual(entry, null);
   assert.equal(entry?.state, 'pending');
   assert.equal(entry?.digest, null);
@@ -334,11 +336,11 @@ await test('a deletion checkpoint submits a tombstone with no text', async () =>
   const draft = draftOf(account, workspace, file, 'copy-a', '# Body\n');
 
   await store.saveDraft(draft);
-  assert.notEqual(await store.checkpoint(draft, null), null);
+  assert.notEqual(await store.checkpoint(draft, null, 'text'), null);
 
   const removed = { ...draft, deleted: true, sequence: 2 };
   await store.saveDraft(removed);
-  const entry = await store.checkpoint(removed, null);
+  const entry = await store.checkpoint(removed, null, 'text');
   const revision = entry?.input.revisions[0];
   assert.equal(revision?.deleted, true);
   // A deletion carries no text work at all. It states the complete state
@@ -366,13 +368,16 @@ await test('an unchanged checkpoint is suppressed and a named one is not', async
   const draft = draftOf(account, workspace, file, 'copy-a', 'text\n');
 
   await store.saveDraft(draft);
-  assert.notEqual(await store.checkpoint(draft, null), null);
-  assert.equal(await store.checkpoint(draft, null), null);
-  assert.notEqual(await store.checkpoint(draft, 'before the rewrite'), null);
+  assert.notEqual(await store.checkpoint(draft, null, 'text'), null);
+  assert.equal(await store.checkpoint(draft, null, 'text'), null);
+  assert.notEqual(
+    await store.checkpoint(draft, 'before the rewrite', 'text'),
+    null,
+  );
 
   const changed = { ...draft, text: 'text and more\n', sequence: 2 };
   await store.saveDraft(changed);
-  assert.notEqual(await store.checkpoint(changed, null), null);
+  assert.notEqual(await store.checkpoint(changed, null, 'text'), null);
 
   const checkpoints = await store.listCheckpoints(account, workspace, file);
   assert.deepEqual(
@@ -394,7 +399,7 @@ await test('an unchanged working copy of an accepted file writes nothing', async
   const file = randomUUID();
   const first = draftOf(account, workspace, file, 'copy-a', 'body\n');
   await store.saveDraft(first);
-  const entry = await store.checkpoint(first, null);
+  const entry = await store.checkpoint(first, null, 'text');
   const revisionId = entry?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(entry, account, '10'));
   await withRawDatabase(backend, async (tables) => {
@@ -411,6 +416,7 @@ await test('an unchanged working copy of an accepted file writes nothing', async
     acceptedText: null,
     acceptedPath: 'notes/one.md',
     acceptedRevisionId: revisionId,
+    document: await store.readNoteDocument(account, workspace, file),
   });
 
   // A second tab opens the accepted head and leaves without typing.
@@ -418,7 +424,7 @@ await test('an unchanged working copy of an accepted file writes nothing', async
     baseRevisionId: revisionId,
   });
   await store.saveDraft(reopened);
-  assert.equal(await store.checkpoint(reopened, null), null);
+  assert.equal(await store.checkpoint(reopened, null, 'text'), null);
   assert.deepEqual(await store.pending(account, workspace), []);
   await store.close();
 });
@@ -448,6 +454,8 @@ await test('a cached local deletion does not reopen accepted content', async () 
     acceptedText: null,
     acceptedPath: null,
     acceptedRevisionId: null,
+    // No checkpoint has started the document of the note yet.
+    document: null,
   });
   await store.close();
 });
@@ -461,7 +469,7 @@ await test('two working copies of one file create ordered local saves', async ()
 
   const base = draftOf(account, workspace, file, 'copy-a', 'start\n');
   await store.saveDraft(base);
-  const first = await store.checkpoint(base, null);
+  const first = await store.checkpoint(base, null, 'text');
   const firstRevision = first?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(first, account, '11'));
 
@@ -474,8 +482,8 @@ await test('two working copies of one file create ordered local saves', async ()
   });
   await store.saveDraft(tabA);
   await store.saveDraft(tabB);
-  const fromA = await store.checkpoint(tabA, null);
-  const fromB = await store.checkpoint(tabB, null);
+  const fromA = await store.checkpoint(tabA, null, 'text');
+  const fromB = await store.checkpoint(tabB, null, 'text');
   const revisionA = fromA?.input.revisions[0]?.id ?? '';
   const revisionB = fromB?.input.revisions[0]?.id ?? '';
   assert.notEqual(revisionA, revisionB);
@@ -537,7 +545,7 @@ await test('a discarded deletion leaves the note in its accepted state', async (
 
   const base = draftOf(account, workspace, file, 'copy-a', 'body\n');
   await store.saveDraft(base);
-  const created = await store.checkpoint(base, null);
+  const created = await store.checkpoint(base, null, 'text');
   const acceptedHead = created?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(created, account, '10'));
 
@@ -551,7 +559,7 @@ await test('a discarded deletion leaves the note in its accepted state', async (
     deleted: true,
   };
   await store.saveDraft(removal);
-  const queued = await store.checkpoint(removal, null);
+  const queued = await store.checkpoint(removal, null, 'text');
   assert.ok(queued !== null);
   await store.discardQueueEntry(account, queued.input.mutationId);
 
@@ -601,13 +609,13 @@ await test('a failed transaction leaves no checkpoint, content, or queue entry',
   const file = randomUUID();
   const draft = draftOf(account, workspace, file, 'copy-a', 'first\n');
   await store.saveDraft(draft);
-  const accepted = await store.checkpoint(draft, null);
+  const accepted = await store.checkpoint(draft, null, 'text');
   assert.notEqual(accepted, null);
 
   failing = true;
   const changed = { ...draft, text: 'second\n', sequence: 2 };
   await store.saveDraft(changed);
-  const error: unknown = await store.checkpoint(changed, null).then(
+  const error: unknown = await store.checkpoint(changed, null, 'text').then(
     () => null,
     (reason: unknown) => reason,
   );
@@ -652,7 +660,7 @@ await test('a full profile reports the quota failure kind', async () => {
   const draft = draftOf(account, workspace, randomUUID(), 'copy-a', 'a note\n');
   await store.saveDraft(draft);
   failing = true;
-  const error: unknown = await store.checkpoint(draft, null).then(
+  const error: unknown = await store.checkpoint(draft, null, 'text').then(
     () => null,
     (reason: unknown) => reason,
   );
@@ -674,14 +682,14 @@ await test('acknowledgment preserves later drafts and checkpoints', async () => 
   const file = randomUUID();
   const draft = draftOf(account, workspace, file, 'copy-a', 'one\n');
   await store.saveDraft(draft);
-  const submitted = await store.checkpoint(draft, null);
+  const submitted = await store.checkpoint(draft, null, 'text');
   const submittedRevision = submitted?.input.revisions[0]?.id ?? '';
   const mutationId = submitted?.input.mutationId ?? '';
 
   // The user keeps typing while the mutation is in flight.
   const later = { ...draft, text: 'one and two\n', sequence: 2 };
   await store.saveDraft(later);
-  const laterEntry = await store.checkpoint(later, null);
+  const laterEntry = await store.checkpoint(later, null, 'text');
   assert.notEqual(laterEntry, null);
   assert.equal(laterEntry?.state, 'pending');
   assert.deepEqual(laterEntry?.input.expectedHeads, { [file]: null });
@@ -732,7 +740,7 @@ await test('acknowledging one mutation twice changes nothing', async () => {
   const file = randomUUID();
   const draft = draftOf(account, workspace, file, 'copy-a', 'one\n');
   await store.saveDraft(draft);
-  const entry = await store.checkpoint(draft, null);
+  const entry = await store.checkpoint(draft, null, 'text');
   const result = acceptanceOf(entry, account, '7');
 
   await store.acknowledge(account, result);
@@ -763,7 +771,7 @@ await test('one account cannot see the records of another', async () => {
 
   const draft = draftOf(accountA, workspace, file, 'copy-a', 'private\n');
   await store.saveDraft(draft);
-  await store.checkpoint(draft, null);
+  await store.checkpoint(draft, null, 'text');
 
   assert.equal(await store.readDraft(accountB, workspace, 'copy-a'), null);
   assert.equal(await store.readDraft(accountA, otherWorkspace, 'copy-a'), null);
@@ -808,7 +816,7 @@ await test('the queued workspaces of an account name only the ones with work', a
       'queued\n',
     );
     await store.saveDraft(draft);
-    await store.checkpoint(draft, null);
+    await store.checkpoint(draft, null, 'text');
   }
   // A draft alone is not queued work. Only a checkpoint queues a mutation, so
   // this workspace stays out of the answer.
@@ -824,7 +832,7 @@ await test('the queued workspaces of an account name only the ones with work', a
     'theirs\n',
   );
   await store.saveDraft(theirs);
-  await store.checkpoint(theirs, null);
+  await store.checkpoint(theirs, null, 'text');
 
   assert.deepEqual(
     [...(await store.queuedWorkspaces(account))].sort(),
@@ -848,7 +856,7 @@ await test('an interrupted migration is completed on the next open', async () =>
   const file = randomUUID();
   const draft = draftOf(account, workspace, file, 'copy-a', 'kept\n');
   await first.saveDraft(draft);
-  await first.checkpoint(draft, null);
+  await first.checkpoint(draft, null, 'text');
   await first.close();
 
   await withRawDatabase(backend, async (tables) => {
@@ -937,7 +945,7 @@ await test('a record upgrade edits the stored rows of a real database', async ()
   const file = randomUUID();
   const draft = draftOf(account, workspace, file, 'copy-a', 'kept\n');
   await store.saveDraft(draft);
-  const queued = await store.checkpoint(draft, null);
+  const queued = await store.checkpoint(draft, null, 'text');
   assert.ok(queued !== null);
   await store.close();
 
@@ -1129,7 +1137,7 @@ await test('local files and save state follow committed writes per file', async 
       .hasUncheckpointedDraft,
     true,
   );
-  const queued = await store.checkpoint(first, null);
+  const queued = await store.checkpoint(first, null, 'text');
   assert.ok(queued !== null);
   const firstState = await store.readFileSaveSnapshot(
     account,
@@ -1166,7 +1174,7 @@ await test('an uncheckpointed draft still describes a note that is in sync', asy
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'saved\n');
   await store.saveDraft(draft);
-  const queued = await store.checkpoint(draft, null);
+  const queued = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(queued, account, '2'));
   // Typing writes a draft and no checkpoint, so the accepted head does not
   // move. The text must survive a reload.
@@ -1189,7 +1197,7 @@ await test('a purge marker drops the note from the local file list', async () =>
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'purge me\n');
   await store.saveDraft(draft);
-  const queued = await store.checkpoint(draft, null);
+  const queued = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(queued, account, '7'));
   assert.deepEqual(
     (await store.listLocalFiles(account, workspace)).map((file) => file.fileId),
@@ -1220,11 +1228,12 @@ await test('a restore from the server puts a deleted note back in the tree', asy
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'keep me\n');
   await store.saveDraft(draft);
-  const saved = await store.checkpoint(draft, null);
+  const saved = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(saved, account, '3'));
   const removed = await store.checkpoint(
     { ...draft, deleted: true, text: '', sequence: 2 },
     null,
+    'text',
   );
   await store.acknowledge(account, acceptanceOf(removed, account, '4'));
   assert.deepEqual(
@@ -1281,14 +1290,14 @@ await test('a restore reaches a device whose deletion draft holds the text', asy
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'keep me\n');
   await store.saveDraft(draft);
-  const saved = await store.checkpoint(draft, null);
+  const saved = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(saved, account, '3'));
 
   // The editor deletes the note it has open, so the deletion draft keeps the
   // buffer while the tombstone revision carries no text.
   const removal = { ...draft, deleted: true, sequence: 2 };
   await store.saveDraft(removal);
-  const removed = await store.checkpoint(removal, null);
+  const removed = await store.checkpoint(removal, null, 'text');
   await store.acknowledge(account, acceptanceOf(removed, account, '4'));
   // The accepted head is the tombstone, so the accepted file states the
   // deletion. Nothing local moved past it.
@@ -1440,7 +1449,7 @@ await test('a draft that matches a newer accepted head is dropped on open', asyn
   // accepted head it created.
   const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
   await store.saveDraft(first);
-  const entry = await store.checkpoint(first, null);
+  const entry = await store.checkpoint(first, null, 'text');
   const firstRevision = entry?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(entry, account, '10'));
   const shared = '# Shared\n';
@@ -1490,7 +1499,7 @@ await test('a draft over an older accepted head opens as stale', async () => {
 
   const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
   await store.saveDraft(first);
-  const entry = await store.checkpoint(first, null);
+  const entry = await store.checkpoint(first, null, 'text');
   const firstRevision = entry?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(entry, account, '10'));
   await store.saveDraft({ ...first, text: 'my own text\n', sequence: 2 });
@@ -1542,6 +1551,7 @@ await test('a draft over an older accepted head opens as stale', async () => {
       baseRevisionId: kept?.baseRevisionId ?? null,
     },
     null,
+    'text',
   );
   assert.deepEqual(next?.input.expectedHeads, { [file]: remoteRevision });
   assert.deepEqual(next?.input.revisions[0]?.parents, [remoteRevision]);
@@ -1647,7 +1657,7 @@ await test('a save names the accepted revision its content descends from', async
     '2',
   );
 
-  const queued = await store.checkpoint(typed, null);
+  const queued = await store.checkpoint(typed, null, 'text');
   // The precondition names `rev-1`, which this text was written over. A
   // precondition of `rev-2` would tell the server that this save had read the
   // version of the other device, and the server would replace it in silence.
@@ -1659,6 +1669,7 @@ await test('a save names the accepted revision its content descends from', async
   const again = await store.checkpoint(
     { ...typed, text: 'mine again\n', sequence: 2 },
     null,
+    'text',
   );
   assert.deepEqual(again?.input.expectedHeads, { [file]: 'rev-1' });
   await store.close();
@@ -1725,7 +1736,7 @@ await test('a restore reaches a device that holds the replaced text', async () =
   // copy stays, because the editor is open on the note.
   const written = draftOf(account, workspace, file, 'copy-a', 'newest\n');
   await store.saveDraft(written);
-  const entry = await store.checkpoint(written, null);
+  const entry = await store.checkpoint(written, null, 'text');
   await store.acknowledge(account, acceptanceOf(entry, account, '4'));
 
   // History restore writes an older version as the newest one on the server.
@@ -1769,7 +1780,7 @@ await test('a remote change keeps a draft that differs from it', async () => {
 
   const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
   await store.saveDraft(first);
-  const entry = await store.checkpoint(first, null);
+  const entry = await store.checkpoint(first, null, 'text');
   const firstRevision = entry?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(entry, account, '10'));
   // The draft is renamed as well as retyped, so its identity is at stake.
@@ -1835,7 +1846,7 @@ await test('a checkpoint of an older buffer is refused', async () => {
   await store.saveDraft({ ...older, text: 'newest text\n', sequence: 5 });
 
   await assert.rejects(
-    () => store.checkpoint(older, null),
+    () => store.checkpoint(older, null, 'text'),
     (thrown: unknown) => {
       assert.ok(isLocalStorageError(thrown));
       assert.equal(thrown.kind, 'stale');
@@ -1864,7 +1875,7 @@ await test('a parked save keeps its text in the recovery area', async () => {
 
   const draft = draftOf(account, workspace, file, 'copy-a', 'refused text\n');
   await store.saveDraft(draft);
-  const entry = await store.checkpoint(draft, null);
+  const entry = await store.checkpoint(draft, null, 'text');
   assert.ok(entry !== null);
 
   // The server refused the save for good, so the queue parks it.
@@ -1897,7 +1908,7 @@ await test('an unknown refusal code still parks the text', async () => {
 
   const draft = draftOf(account, workspace, file, 'copy-a', 'kept text\n');
   await store.saveDraft(draft);
-  const entry = await store.checkpoint(draft, null);
+  const entry = await store.checkpoint(draft, null, 'text');
   assert.ok(entry !== null);
   await parkRefusedSave(store, account, entry, 'deleted_remotely');
 
@@ -1917,7 +1928,7 @@ await test('a draft with no base is not reported as stale', async () => {
   // The note starts on this device, so its first draft names no base.
   const created = draftOf(account, workspace, file, 'copy-a', 'first\n');
   await store.saveDraft(created);
-  const entry = await store.checkpoint(created, null);
+  const entry = await store.checkpoint(created, null, 'text');
   const revisionId = entry?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(entry, account, '10'));
 
@@ -1949,7 +1960,7 @@ await test('a queued save of this device never reads as a stale draft', async ()
 
   const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
   await store.saveDraft(first);
-  const accepted = await store.checkpoint(first, null);
+  const accepted = await store.checkpoint(first, null, 'text');
   const acceptedRevision = accepted?.input.revisions[0]?.id ?? '';
   await store.acknowledge(account, acceptanceOf(accepted, account, '10'));
 
@@ -1957,7 +1968,7 @@ await test('a queued save of this device never reads as a stale draft', async ()
   // work of this device rather than ahead of it. That is not a stale draft.
   const second = { ...first, text: 'two\n', sequence: 2 };
   await store.saveDraft(second);
-  const queued = await store.checkpoint(second, null);
+  const queued = await store.checkpoint(second, null, 'text');
   assert.ok(queued !== null);
   await store.saveDraft({ ...second, text: 'three\n', sequence: 3 });
 
@@ -1980,11 +1991,11 @@ await test('forgetting a purged file removes every local trace of it', async () 
   // recovery copy parked for it. A purge must take all three.
   const draft = draftOf(account, workspace, file, 'copy-a', '# One\n');
   await store.saveDraft(draft);
-  const created = await store.checkpoint(draft, null);
+  const created = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(created, account, '1'));
   const edited = { ...draft, text: '# Two\n', sequence: 2 };
   await store.saveDraft(edited);
-  const queued = await store.checkpoint(edited, null);
+  const queued = await store.checkpoint(edited, null, 'text');
   assert.ok(queued !== null);
   await parkRefusedSave(store, account, queued, 'purged');
 
@@ -2020,14 +2031,14 @@ await test('a purge marker forgets the queue and recovery, not only the file row
 
   const draft = draftOf(account, workspace, file, 'copy-a', 'purge me\n');
   await store.saveDraft(draft);
-  const created = await store.checkpoint(draft, null);
+  const created = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(created, account, '1'));
   // A queued edit and a parked recovery copy are still on the device when the
   // purge marker arrives. A re-send of the edit, or the recovery copy, would
   // bring the note back, so the marker must clear both.
   const edited = { ...draft, text: 'edit\n', sequence: 2 };
   await store.saveDraft(edited);
-  const queued = await store.checkpoint(edited, null);
+  const queued = await store.checkpoint(edited, null, 'text');
   assert.ok(queued !== null);
   await parkRefusedSave(store, account, queued, 'save_refused');
 
@@ -2064,13 +2075,13 @@ await test('a fresh snapshot forgets a purged note but keeps unsent local work',
   // one note the server does hold.
   const purgedDraft = draftOf(account, workspace, purged, 'copy-p', 'gone\n');
   await store.saveDraft(purgedDraft);
-  const acceptedPurged = await store.checkpoint(purgedDraft, null);
+  const acceptedPurged = await store.checkpoint(purgedDraft, null, 'text');
   await store.acknowledge(account, acceptanceOf(acceptedPurged, account, '1'));
   const localDraft = draftOf(account, workspace, local, 'copy-l', 'mine\n', {
     path: 'notes/mine.md',
   });
   await store.saveDraft(localDraft);
-  const localEntry = await store.checkpoint(localDraft, null);
+  const localEntry = await store.checkpoint(localDraft, null, 'text');
   assert.ok(localEntry !== null);
 
   const text = '# Kept\n';
@@ -2113,11 +2124,11 @@ await test('acknowledging a tombstone removes the leftover deletion draft', asyn
 
   const draft = draftOf(account, workspace, file, 'copy-a', '# Body\n');
   await store.saveDraft(draft);
-  const created = await store.checkpoint(draft, null);
+  const created = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(created, account, '1'));
   const removal = { ...draft, deleted: true, text: '', sequence: 2 };
   await store.saveDraft(removal);
-  const removed = await store.checkpoint(removal, null);
+  const removed = await store.checkpoint(removal, null, 'text');
   await store.acknowledge(account, acceptanceOf(removed, account, '2'));
 
   // The deletion draft is redundant once the server accepts the tombstone,
@@ -2149,7 +2160,7 @@ await test('a move survives the next save of an open working copy', async () => 
   // working copy `copy-a` over the accepted head.
   const opened = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
   await store.saveDraft(opened);
-  const first = await store.checkpoint(opened, null);
+  const first = await store.checkpoint(opened, null, 'text');
   await store.acknowledge(account, acceptanceOf(first, account, '2'));
 
   const [queued] = await store.moveFiles(account, workspace, [
@@ -2177,7 +2188,7 @@ await test('a move survives the next save of an open working copy', async () => 
   assert.ok(held !== null);
   const typed: Draft = { ...held, text: 'text edited\n', sequence: 2 };
   await store.saveDraft(typed);
-  const after = await store.checkpoint(typed, null);
+  const after = await store.checkpoint(typed, null, 'text');
 
   assert.deepEqual(
     (await store.listLocalFiles(account, workspace)).map((file) => file.path),
@@ -2200,7 +2211,7 @@ await test('a move keeps text that is typed and not yet a version', async () => 
   const fileId = randomUUID();
   const opened = draftOf(account, workspace, fileId, 'copy-a', 'saved\n');
   await store.saveDraft(opened);
-  const first = await store.checkpoint(opened, null);
+  const first = await store.checkpoint(opened, null, 'text');
   await store.acknowledge(account, acceptanceOf(first, account, '2'));
   await store.saveDraft({ ...opened, text: 'typed\n', sequence: 2 });
 
@@ -2234,7 +2245,7 @@ await test('a folder move writes every note or none of them', async () => {
       { path: `Inbox/note-${String(index)}.md` },
     );
     await store.saveDraft(draft);
-    const queued = await store.checkpoint(draft, null);
+    const queued = await store.checkpoint(draft, null, 'text');
     await store.acknowledge(
       account,
       acceptanceOf(queued, account, String(index + 2)),
@@ -2276,7 +2287,7 @@ await test('a move to the path a note already carries writes nothing', async () 
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
   await store.saveDraft(draft);
-  const queued = await store.checkpoint(draft, null);
+  const queued = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(queued, account, '2'));
 
   assert.deepEqual(
@@ -2303,7 +2314,7 @@ await test('a deletion survives the next save of an open working copy', async ()
   // working copy `copy-a` over the accepted head.
   const opened = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
   await store.saveDraft(opened);
-  const first = await store.checkpoint(opened, null);
+  const first = await store.checkpoint(opened, null, 'text');
   await store.acknowledge(account, acceptanceOf(first, account, '2'));
 
   // The sidebar moves the note to Trash while the editor is open.
@@ -2358,7 +2369,7 @@ await test('a folder deletion writes every tombstone or none of them', async () 
       { path: `Inbox/note-${String(index)}.md` },
     );
     await store.saveDraft(draft);
-    const queued = await store.checkpoint(draft, null);
+    const queued = await store.checkpoint(draft, null, 'text');
     await store.acknowledge(
       account,
       acceptanceOf(queued, account, String(index + 2)),
@@ -2401,7 +2412,7 @@ await test('a note in Trash refuses a move', async () => {
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
   await store.saveDraft(draft);
-  const queued = await store.checkpoint(draft, null);
+  const queued = await store.checkpoint(draft, null, 'text');
   await store.acknowledge(account, acceptanceOf(queued, account, '2'));
   await store.trashFiles(account, workspace, [fileId]);
 
@@ -2421,7 +2432,7 @@ await test('an editor that has not learned of a deletion cannot undo it', async 
   const fileId = randomUUID();
   const opened = draftOf(account, workspace, fileId, 'copy-a', 'text\n');
   await store.saveDraft(opened);
-  const first = await store.checkpoint(opened, null);
+  const first = await store.checkpoint(opened, null, 'text');
   await store.acknowledge(account, acceptanceOf(first, account, '2'));
 
   // The sidebar, another tab, or another device moves the note to Trash.
@@ -2437,7 +2448,12 @@ await test('an editor that has not learned of a deletion cannot undo it', async 
     'a draft never states a trashed file live',
   );
   await assert.rejects(
-    () => store.checkpoint({ ...opened, text: 'late\n', sequence: 2 }, null),
+    () =>
+      store.checkpoint(
+        { ...opened, text: 'late\n', sequence: 2 },
+        null,
+        'text',
+      ),
     (error: unknown) => isLocalStorageError(error) && error.kind === 'stale',
   );
   assert.deepEqual(
@@ -2592,7 +2608,7 @@ await test('a read of the server never writes over what this device holds', asyn
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'mine\n');
   await store.saveDraft(draft);
-  await store.checkpoint(draft, null);
+  await store.checkpoint(draft, null, 'text');
 
   await store.cacheServerNote(account, workspace, {
     fileId,
@@ -2877,7 +2893,7 @@ await test('a note of the server takes no save before its document is here', asy
     // A document started here would hold the text twice once it joins the
     // document of the server (record 0084). Nothing is written.
     await assert.rejects(
-      store.checkpoint(draft, null),
+      store.checkpoint(draft, null, 'text'),
       (error: unknown) =>
         error instanceof LocalStorageError && error.kind === 'stale',
     );
@@ -2898,7 +2914,7 @@ await test('a note of the server takes no save before its document is here', asy
       document: startDocument('theirs\n'),
       epoch: 1,
     });
-    assert.ok((await store.checkpoint(draft, null)) !== null);
+    assert.ok((await store.checkpoint(draft, null, 'text')) !== null);
   } finally {
     await store.close();
   }
@@ -2913,7 +2929,7 @@ await test('sign-out leaves no document of a note on the device', async () => {
   try {
     const draft = draftOf(account, workspace, fileId, 'copy-a', 'private\n');
     await store.saveDraft(draft);
-    await store.checkpoint(draft, null);
+    await store.checkpoint(draft, null, 'text');
     assert.ok(
       (await store.readNoteDocument(account, workspace, fileId)) !== null,
     );
@@ -2959,13 +2975,13 @@ await test('a sign-in deletes the idle data of every other account', async () =>
     await store.saveDraft(saved);
     await store.acknowledge(
       absent,
-      acceptanceOf(await store.checkpoint(saved, null), absent, '1'),
+      acceptanceOf(await store.checkpoint(saved, null, 'text'), absent, '1'),
     );
     await store.setAttachmentPinned(absent, idle, 'b'.repeat(64), true);
     // A save that waits for the server is work.
     const waiting = draftOf(absent, queued, randomUUID(), 'copy-q', 'queued\n');
     await store.saveDraft(waiting);
-    await store.checkpoint(waiting, null);
+    await store.checkpoint(waiting, null, 'text');
     // Kept text of the recovery area is work.
     await store.addRecovery(withRecovery, recovered, {
       fileId: randomUUID(),
@@ -2978,7 +2994,11 @@ await test('a sign-in deletes the idle data of every other account', async () =>
     await store.saveDraft(typing);
     await store.acknowledge(
       withTyping,
-      acceptanceOf(await store.checkpoint(typing, null), withTyping, '1'),
+      acceptanceOf(
+        await store.checkpoint(typing, null, 'text'),
+        withTyping,
+        '1',
+      ),
     );
     await store.saveDraft({ ...typing, text: 'saved\ntyped\n', sequence: 2 });
     // An account that signed out offline keeps its marker and nothing else.
@@ -2997,13 +3017,17 @@ await test('a sign-in deletes the idle data of every other account', async () =>
     await store.saveDraft(mine);
     await store.acknowledge(
       signedIn,
-      acceptanceOf(await store.checkpoint(mine, null), signedIn, '1'),
+      acceptanceOf(await store.checkpoint(mine, null, 'text'), signedIn, '1'),
     );
     const theirs = draftOf(absent, idle, idleFile, 'copy-else', 'other\n');
     await elsewhere.saveDraft(theirs);
     await elsewhere.acknowledge(
       absent,
-      acceptanceOf(await elsewhere.checkpoint(theirs, null), absent, '1'),
+      acceptanceOf(
+        await elsewhere.checkpoint(theirs, null, 'text'),
+        absent,
+        '1',
+      ),
     );
 
     const kept = await store.clearIdleAccounts(signedIn);
@@ -3068,7 +3092,7 @@ await test('a store of release 0.5.0 keeps its drafts and reads a snapshot again
   const fileId = randomUUID();
   const draft = draftOf(account, workspace, fileId, 'copy-a', 'saved\n');
   await store.saveDraft(draft);
-  await store.checkpoint(draft, null);
+  await store.checkpoint(draft, null, 'text');
   await store.saveDraft({ ...draft, text: 'saved\ntyped\n', sequence: 2 });
   // The editor writes each keystroke into the document at once, so the
   // document can hold more than the last draft write.
@@ -3260,14 +3284,14 @@ await test('a merged save keeps its own checkpoint for Review', async () => {
   try {
     const first = draftOf(account, workspace, file, 'copy-a', 'one\n');
     await store.saveDraft(first);
-    const created = await store.checkpoint(first, null);
+    const created = await store.checkpoint(first, null, 'text');
     // A save that saw everything is not a merge, so nothing waits.
     await store.acknowledge(account, acceptanceOf(created, account, '1'));
     assert.deepEqual(await store.listReviews(account, workspace, file), []);
 
     const second = { ...first, text: 'one\ntwo\n', sequence: 2 };
     await store.saveDraft(second);
-    const merging = await store.checkpoint(second, null);
+    const merging = await store.checkpoint(second, null, 'text');
     const changes: LocalChange[] = [];
     const unsubscribe = store.subscribe((change) => changes.push(change));
     await store.acknowledge(account, mergedAcceptanceOf(merging, account, '2'));
@@ -3281,7 +3305,7 @@ await test('a merged save keeps its own checkpoint for Review', async () => {
     // a later save that saw everything.
     const third = { ...first, text: 'one\ntwo\nthree\n', sequence: 3 };
     await store.saveDraft(third);
-    const later = await store.checkpoint(third, null);
+    const later = await store.checkpoint(third, null, 'text');
     await store.saveDraft({ ...third, text: 'typing\n', sequence: 4 });
     await store.acknowledge(account, acceptanceOf(later, account, '3'));
 
@@ -3306,10 +3330,10 @@ await test('one commit makes one Review and a later merge makes another', async 
   try {
     const draft = draftOf(account, workspace, file, 'copy-a', 'a\n');
     await store.saveDraft(draft);
-    const firstSave = await store.checkpoint(draft, null);
+    const firstSave = await store.checkpoint(draft, null, 'text');
     const next = { ...draft, text: 'a\nb\n', sequence: 2 };
     await store.saveDraft(next);
-    const secondSave = await store.checkpoint(next, null);
+    const secondSave = await store.checkpoint(next, null, 'text');
     // One sent batch is one commit, and every answer of it shares the cursor.
     // The Review compares the last text that the batch sent.
     await store.acknowledge(
@@ -3326,7 +3350,7 @@ await test('one commit makes one Review and a later merge makes another', async 
 
     const last = { ...draft, text: 'a\nb\nc\n', sequence: 3 };
     await store.saveDraft(last);
-    const thirdSave = await store.checkpoint(last, null);
+    const thirdSave = await store.checkpoint(last, null, 'text');
     await store.acknowledge(
       account,
       mergedAcceptanceOf(thirdSave, account, '6'),
@@ -3368,7 +3392,7 @@ await test('one commit makes one Review and a later merge makes another', async 
     await store.clearReview(account, workspace, both[1]?.reviewId ?? '');
     const again = { ...draft, text: 'a\nb\nc\nd\n', sequence: 4 };
     await store.saveDraft(again);
-    const fourthSave = await store.checkpoint(again, null);
+    const fourthSave = await store.checkpoint(again, null, 'text');
     await store.acknowledge(
       account,
       mergedAcceptanceOf(fourthSave, account, '7'),
@@ -3394,7 +3418,7 @@ await test('a purge and a reset take the Reviews of their notes', async () => {
     for (const file of [purged, other]) {
       const draft = draftOf(account, workspace, file, `copy-${file}`, 'x\n');
       await store.saveDraft(draft);
-      const entry = await store.checkpoint(draft, null);
+      const entry = await store.checkpoint(draft, null, 'text');
       await store.acknowledge(
         account,
         mergedAcceptanceOf(entry, account, file),
@@ -3412,6 +3436,150 @@ await test('a purge and a reset take the Reviews of their notes', async () => {
     await withRawDatabase(backend, async (tables) => {
       assert.deepEqual(await tables.reviews.toArray(), []);
     });
+  } finally {
+    await store.close();
+  }
+});
+
+/** Writes one text into the stored document, as a device with its own identity. */
+async function writeIntoDocument(
+  store: LocalStore,
+  key: { account: string; workspace: string; fileId: string },
+  text: string,
+): Promise<void> {
+  const held = await store.readNoteDocument(
+    key.account,
+    key.workspace,
+    key.fileId,
+  );
+  assert.ok(held !== null, 'the note must hold a document');
+  const written = replaceDocumentText(held.bytes, text);
+  assert.ok(written.ok);
+  await store.mergeNoteWork(
+    key.account,
+    key.workspace,
+    key.fileId,
+    encodeDocumentDelta(
+      written.value.document,
+      documentStateVector(held.bytes),
+    ),
+  );
+}
+
+await test('a checkpoint of an open note freezes its document and writes no text', async () => {
+  // Record 0133: the buffer of an open editor can lag work that the store
+  // took first. A diff of that buffer wrote a revert of the work as work of
+  // this device, and a task box toggled on two devices read "[  ]".
+  const backend = createBackend('frozen-document');
+  const store = await openLocalStore(origin, backend.options());
+  const key = {
+    account: randomUUID(),
+    workspace: randomUUID(),
+    fileId: randomUUID(),
+  };
+  try {
+    const made = draftOf(
+      key.account,
+      key.workspace,
+      key.fileId,
+      'copy-frozen',
+      '- [ ] task\n',
+    );
+    await store.saveDraft(made);
+    assert.ok((await store.checkpoint(made, null, 'text')) !== null);
+    // Work of another device reaches the document before the editor joins it.
+    await writeIntoDocument(store, key, '- [x] task\n');
+
+    // The editor still shows the box unchecked and saves.
+    const lagging = { ...made, sequence: 2 };
+    await store.saveDraft(lagging);
+    const entry = await store.checkpoint(lagging, 'Saved', 'document');
+    assert.ok(entry !== null, 'the checkpoint must queue a mutation');
+
+    const held = await store.readNoteDocument(
+      key.account,
+      key.workspace,
+      key.fileId,
+    );
+    assert.equal(
+      readDocumentText(held?.bytes ?? startDocument('')),
+      '- [x] task\n',
+    );
+    // The version and the draft say what the document says.
+    const revisionId = entry.input.revisions[0]?.id ?? '';
+    assert.equal(
+      await store.readRevisionText(key.account, key.workspace, revisionId),
+      '- [x] task\n',
+    );
+    assert.equal(
+      (await store.readDraft(key.account, key.workspace, 'copy-frozen'))?.text,
+      '- [x] task\n',
+    );
+  } finally {
+    await store.close();
+  }
+});
+
+await test('a checkpoint of an open note refuses a note whose document is not here', async () => {
+  // Record 0084: a device never starts the document of a note that the
+  // server holds, and a frozen save has no text to start one from.
+  const backend = createBackend('frozen-missing');
+  const store = await openLocalStore(origin, backend.options());
+  const account = randomUUID();
+  const workspace = randomUUID();
+  const fileId = randomUUID();
+  try {
+    const draft = draftOf(account, workspace, fileId, 'copy-missing', 'x\n', {
+      baseRevisionId: randomUUID(),
+    });
+    await store.saveDraft(draft);
+    await assert.rejects(
+      store.checkpoint(draft, null, 'document'),
+      (failure: unknown) =>
+        isLocalStorageError(failure) && failure.kind === 'stale',
+    );
+    assert.equal(
+      await store.readNoteDocument(account, workspace, fileId),
+      null,
+    );
+  } finally {
+    await store.close();
+  }
+});
+
+await test('a cached note gives the document of the same read as its text', async () => {
+  // Record 0133: the loader read the text and the document in two reads, so
+  // work between them made the open write the difference as new work.
+  const backend = createBackend('cached-document');
+  const store = await openLocalStore(origin, backend.options());
+  const key = {
+    account: randomUUID(),
+    workspace: randomUUID(),
+    fileId: randomUUID(),
+  };
+  try {
+    const made = draftOf(
+      key.account,
+      key.workspace,
+      key.fileId,
+      'copy-cached',
+      '- [ ] task\n',
+    );
+    await store.saveDraft(made);
+    await store.checkpoint(made, null, 'text');
+    await writeIntoDocument(store, key, '- [x] task\n');
+    await store.saveDraft({ ...made, text: '- [x] task\n', sequence: 2 });
+
+    const cached = await store.readCachedNote(
+      key.account,
+      key.workspace,
+      key.fileId,
+    );
+    assert.equal(cached?.text, '- [x] task\n');
+    assert.equal(
+      readDocumentText(cached?.document?.bytes ?? startDocument('')),
+      '- [x] task\n',
+    );
   } finally {
     await store.close();
   }

@@ -13,8 +13,10 @@ import {
   type Draft,
   type LocalCachedNote,
   type LocalStore,
+  type NoteDocument,
 } from '@notesapp/sync';
 import { guard, type DraftRow, type FileRow } from '../database.ts';
+import { readDocumentRow } from './documents.ts';
 import {
   validateAcceptedFile,
   validateCheckpoint,
@@ -32,6 +34,9 @@ type DraftsSlice = Pick<
   LocalStore,
   'saveDraft' | 'readDraft' | 'readCachedNote' | 'rebaseDraft' | 'dropDraft'
 >;
+
+/** One cached note before the document of its read joins it. */
+type CachedText = Omit<LocalCachedNote, 'document'>;
 
 export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
   const { serverOrigin, db, tables, nowIso, publish } = ctx;
@@ -62,7 +67,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
     workspaceId: string,
     fileId: string,
     file: FileRow | null,
-  ): Promise<LocalCachedNote | null> => {
+  ): Promise<CachedText | null> => {
     if (file === null || file.kind !== 'note') return null;
     const acceptedPath = file.path;
     const acceptedRevisionId = file.acceptedHeadRevisionId;
@@ -281,6 +286,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
             tables.acceptedFiles,
             tables.checkpoints,
             tables.contents,
+            tables.documents,
             tables.drafts,
           ],
           async () => {
@@ -333,13 +339,25 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
             };
             const head = await headNote(accountId, workspaceId, fileId, file);
             const leads = draft === null ? false : draftLeads(file, draft);
-            return { draft, accepted, head, leads };
+            // The document comes from this read, so the text and the document
+            // that an editor opens from state the same moment (record 0133).
+            const row = await readDocumentRow(tables, {
+              serverOrigin,
+              accountId,
+              workspaceId,
+              fileId,
+            });
+            const document: NoteDocument | null =
+              row === null ? null : { bytes: row.bytes, epoch: row.epoch };
+            return { draft, accepted, head, leads, document };
           },
         ),
       );
+      const withDocument = (note: CachedText | null): LocalCachedNote | null =>
+        note === null ? null : { ...note, document: snapshot.document };
 
       const draft = snapshot.draft;
-      if (draft === null) return snapshot.head;
+      if (draft === null) return withDocument(snapshot.head);
       const accepted = snapshot.accepted;
       const draftBase = draft.lastCheckpointId ?? draft.baseRevisionId;
 
@@ -360,7 +378,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
               )) === accepted.digest;
         if (equal) {
           await dropStaleDraft(accountId, workspaceId, draft);
-          return snapshot.head;
+          return withDocument(snapshot.head);
         }
       }
 
@@ -380,9 +398,9 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
       // The draft no longer describes its file and holds no stale text to
       // choose from, so the accepted row is the newer statement of the path
       // and of the deletion state.
-      if (!snapshot.leads && !stale) return snapshot.head;
+      if (!snapshot.leads && !stale) return withDocument(snapshot.head);
 
-      return {
+      return withDocument({
         fileId,
         path: draft.path,
         text: draft.text,
@@ -394,7 +412,7 @@ export function createDraftsSlice(ctx: LocalStoreContext): DraftsSlice {
         acceptedText: stale ? accepted.text : null,
         acceptedPath: accepted.path,
         acceptedRevisionId: accepted.revisionId,
-      };
+      });
     },
 
     async rebaseDraft(

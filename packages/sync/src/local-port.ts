@@ -311,6 +311,14 @@ export type LocalCachedNote = {
   readonly acceptedPath: string | null;
   /** The current accepted head revision, when the server confirmed one. */
   readonly acceptedRevisionId: string | null;
+  /**
+   * The document of the note, from the same read as `text`, or `null`.
+   *
+   * An editor opens from this pair. A document read apart from its text can
+   * hold work that arrived between the two reads, and the open would then
+   * write that difference as new work (record 0133).
+   */
+  readonly document: NoteDocument | null;
 };
 
 /**
@@ -405,6 +413,20 @@ export type NoteDocument = {
   readonly bytes: Uint8Array;
   readonly epoch: number;
 };
+
+/**
+ * Where the text work of one checkpoint comes from (record 0133).
+ *
+ * `document`: an open editor wrote every change into the document of the
+ * note already. The checkpoint freezes that document and takes its text, and
+ * it never writes the text of the draft into it. That text can lag the
+ * document, and a diff of it would write a revert or a second copy of remote
+ * work as work of this device.
+ *
+ * `text`: a writer with no open document, such as a new note or a text that
+ * a person places, so the checkpoint writes the text into the document.
+ */
+export type CheckpointSource = 'document' | 'text';
 
 /**
  * One note that a screen read from the server, ready to cache.
@@ -698,8 +720,16 @@ export type LocalStore = {
    *
    * A new checkpoint always becomes the local head. The server rebases it on
    * the current accepted head when another save reached the server first.
+   *
+   * `source` states where the text work comes from. An open editor passes
+   * `document`: the version then holds the text of the stored document, and
+   * the text of the draft becomes no work (record 0133).
    */
-  checkpoint(draft: Draft, message: string | null): Promise<QueueEntry | null>;
+  checkpoint(
+    draft: Draft,
+    message: string | null,
+    source: CheckpointSource,
+  ): Promise<QueueEntry | null>;
 
   /**
    * Gives every named file a new path in one transaction.

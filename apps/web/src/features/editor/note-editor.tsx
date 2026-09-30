@@ -288,6 +288,10 @@ function NoteEditorBody({
   // so the store folds its text into that document and never starts one of
   // its own (see `startWork` in `@notesapp/editor`).
   const startWrittenRef = useRef<Promise<void>>(Promise.resolve());
+  // Every local write of the open document that has not settled yet. A
+  // checkpoint freezes the stored document (record 0133), so it waits for
+  // them, and the version holds every change that the screen shows.
+  const localWorkWrittenRef = useRef<Promise<void>>(Promise.resolve());
   const sequenceRef = useRef(initialSequence);
   // The live document of this note, built once for this working copy. The
   // editor binds to it, so the text on the screen and the text of the note
@@ -608,13 +612,19 @@ function NoteEditorBody({
     if (existing !== null) return existing;
     const run = (async (): Promise<boolean> => {
       await startWrittenRef.current;
+      await localWorkWrittenRef.current;
       const saved = await saveDraftNow.current();
       if (!saved) return false;
       const current = live.current;
       try {
+        // The document holds every change of this editor already, and the
+        // buffer can lag remote work that the store took first. The version
+        // therefore freezes the document and never writes the buffer into
+        // it (record 0133).
         const entry = await current.store.checkpoint(
           buildDraft(false),
           saveCheckpointMessage,
+          'document',
         );
         // The new checkpoint is the parent of the next one. Holding it here
         // keeps the editor right even when its draft row is removed, so a
@@ -857,17 +867,24 @@ function NoteEditorBody({
     }
     const stop = bound.onLocalWork((update) => {
       const current = live.current;
-      void current.store
+      const written = current.store
         .mergeNoteWork(
           current.accountId,
           current.workspaceId,
           current.fileId,
           update,
         )
-        .catch(() => {
-          // A failed local write is reported by the draft write that follows
-          // it, so this path says nothing a second time.
-        });
+        .then(
+          () => undefined,
+          () => {
+            // A failed local write is reported by the draft write that
+            // follows it, so this path says nothing a second time.
+          },
+        );
+      localWorkWrittenRef.current = Promise.all([
+        localWorkWrittenRef.current,
+        written,
+      ]).then(() => undefined);
     });
     return () => {
       stop();

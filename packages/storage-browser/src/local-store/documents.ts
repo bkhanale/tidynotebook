@@ -116,17 +116,63 @@ export async function foldTextIntoDocument(
     epoch: base.epoch,
     appliedVector: base.appliedVector,
   };
+  return { row, save: saveOfDocument(row) };
+}
+
+/**
+ * The save of one document row: the work since the state the server has.
+ *
+ * The update follows the state that this device last applied from the
+ * server, so it carries every change of this device since then (record 0085).
+ */
+function saveOfDocument(row: DocumentRow): DocumentSave {
   return {
-    row,
-    save: {
-      work: {
-        kind: 'update',
-        update: encodeDocumentDelta(row.bytes, base.appliedVector),
-      },
-      epoch: row.epoch,
-      observed: observeDocument(row.bytes),
+    work: {
+      kind: 'update',
+      update: encodeDocumentDelta(row.bytes, row.appliedVector),
     },
+    epoch: row.epoch,
+    observed: observeDocument(row.bytes),
   };
+}
+
+/**
+ * Reads the text that a checkpoint of an open note freezes (record 0133).
+ *
+ * The open editor wrote every change into the document already, so the text
+ * of the version is the text of the document. A note with no document yet
+ * reads as empty, and `freezeDocument` refuses a note that the server holds.
+ */
+export async function frozenText(
+  tables: Tables,
+  key: DocumentKey,
+): Promise<string> {
+  const row = await readDocumentRow(tables, key);
+  return row === null ? '' : readDocumentText(row.bytes);
+}
+
+/**
+ * Freezes the document of an open note as the save of one checkpoint.
+ *
+ * No text becomes work here. The text of an open editor can lag its
+ * document, because remote work reaches the store before the editor joins
+ * it, and a diff of that text would write a revert or a second copy of the
+ * remote work as work of this device (record 0133). `text` is the text that
+ * the caller read with `frozenText`. When the document no longer holds it,
+ * the answer is `null` and the caller reads the text again.
+ */
+export async function freezeDocument(
+  tables: Tables,
+  key: DocumentKey,
+  text: string,
+  noteExists: boolean,
+): Promise<{ readonly row: DocumentRow; readonly save: DocumentSave } | null> {
+  const current = await readDocumentRow(tables, key);
+  // A new note that holds no document yet starts an empty one, as the first
+  // write of its editor does. A note that the server holds is refused.
+  const row = current ?? { ...documentOrStart(null, '', noteExists), ...key };
+  if (readDocumentText(row.bytes) !== text) return null;
+  return { row, save: saveOfDocument(row) };
 }
 
 /**

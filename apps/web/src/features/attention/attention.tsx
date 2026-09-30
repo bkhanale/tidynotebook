@@ -227,7 +227,8 @@ export function AttentionRoute(): ReactNode {
       sequence: 1,
     };
     await activeStore.saveDraft(draft);
-    await activeStore.checkpoint(draft, null);
+    // A kept text has no open document, so its text becomes the work.
+    await activeStore.checkpoint(draft, null, 'text');
     await activeStore.dropDraft(
       activeAccount,
       activeWorkspace,

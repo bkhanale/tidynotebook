@@ -33,6 +33,7 @@ const cachedNote: LocalCachedNote = {
   acceptedText: null,
   acceptedPath: 'Folder/Note one.md',
   acceptedRevisionId: 'revision-one',
+  document: null,
 };
 
 const saveSnapshot: FileSaveSnapshot = {
@@ -47,15 +48,20 @@ const saveSnapshot: FileSaveSnapshot = {
   hasUncheckpointedDraft: false,
 };
 
-/** A store that answers the three reads of an open from fixed rows. */
+/**
+ * A store that answers the reads of an open from fixed rows.
+ *
+ * The cached read carries the document of the note, as the store reads the
+ * two in one transaction (record 0133).
+ */
 function storeOf(
   note: LocalCachedNote | null,
   document: NoteDocument | null,
   snapshot: FileSaveSnapshot = saveSnapshot,
 ): DeviceNoteStore {
   return {
-    readCachedNote: () => Promise.resolve(note),
-    readNoteDocument: () => Promise.resolve(document),
+    readCachedNote: () =>
+      Promise.resolve(note === null ? null : { ...note, document }),
     readFileSaveSnapshot: () => Promise.resolve(snapshot),
   };
 }

@@ -13,6 +13,7 @@ export { createNote } from './create-note.ts';
 export type {
   AttachmentPin,
   CheckpointRecord,
+  CheckpointSource,
   Draft,
   FileMove,
   LocalAcceptedFile,

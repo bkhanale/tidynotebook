@@ -46,6 +46,9 @@ queue entry with its stable mutation identifier, and the draft link, in one
 IndexedDB transaction. The whole transaction succeeds or fails, so a queue
 entry can never refer to missing content.
 
+The checkpoint of an open editor freezes the document of the note and never
+writes the editor text into it. See
+[decision 0133](../decisions/0133-an-open-note-saves-the-text-of-its-document.md).
 A checkpoint uses the working copy's last version as its parent. Two open tabs
 can still send versions based on the same accepted head, and the server places
 the later accepted save after its current head. Every save therefore stays in

@@ -28,7 +28,7 @@ import {
 /** The reads of the local store that open one note. */
 export type DeviceNoteStore = Pick<
   LocalStore,
-  'readCachedNote' | 'readNoteDocument' | 'readFileSaveSnapshot'
+  'readCachedNote' | 'readFileSaveSnapshot'
 >;
 
 /**
@@ -47,13 +47,12 @@ export async function readDeviceNote(
     const cached = await store.readCachedNote(accountId, workspaceId, fileId);
     if (cached === null) return null;
     if (cached.deleted) return { kind: 'deleted', path: cached.path };
-    // The editor binds to the document of the note, so the read takes it
-    // beside the text (record 0081).
-    const document = await store.readNoteDocument(
-      accountId,
-      workspaceId,
-      fileId,
-    );
+    // The editor binds to the document of the note, and the cached read
+    // gives it with the text from one moment (records 0081, 0133). A
+    // document read apart from the text could hold work that arrived between
+    // the two reads, and the open would write that difference as new work
+    // of this device.
+    const document = cached.document;
     const held = await store.readFileSaveSnapshot(
       accountId,
       workspaceId,

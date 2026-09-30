@@ -141,7 +141,7 @@ async function queueOne(
 ): Promise<void> {
   const draft = draftOf(accountId, workspaceId, fileId, text);
   await store.saveDraft(draft);
-  const entry = await store.checkpoint(draft, null);
+  const entry = await store.checkpoint(draft, null, 'text');
   assert.notEqual(entry, null, 'the draft must queue a mutation');
 }
 

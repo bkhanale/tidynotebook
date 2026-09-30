@@ -28,7 +28,7 @@ export async function createNote(
 ): Promise<void> {
   await local.saveDraft(draft);
   try {
-    await local.checkpoint(draft, saveCheckpointMessage);
+    await local.checkpoint(draft, saveCheckpointMessage, 'text');
   } catch (failure: unknown) {
     await local
       .dropDraft(draft.accountId, draft.workspaceId, draft.workingCopyId)

@@ -270,7 +270,7 @@ function draftOf(
 /** Saves one draft and checkpoints it, returning whether it queued. */
 async function checkpointText(store: LocalStore, draft: Draft): Promise<void> {
   await store.saveDraft(draft);
-  const queued = await store.checkpoint(draft, null);
+  const queued = await store.checkpoint(draft, null, 'text');
   assert.ok(queued !== null, 'the checkpoint must queue a mutation');
 }
 
@@ -860,7 +860,7 @@ await test('an edit that arrives after a delete brings the note back', async () 
       deleted: true,
     };
     await storeB.saveDraft(removal);
-    assert.ok((await storeB.checkpoint(removal, null)) !== null);
+    assert.ok((await storeB.checkpoint(removal, null, 'text')) !== null);
 
     // Device B deletes first, so the note is a tombstone. Device A's edit can
     // no longer apply to it.
@@ -988,6 +988,7 @@ await test('a device that only opened a note keeps the newer text', async () => 
           2,
         ),
         null,
+        'text',
       ),
       null,
     );
@@ -997,6 +998,132 @@ await test('a device that only opened a note keeps the newer text', async () => 
     });
     assert.equal(live.data?.head?.text, '# Written elsewhere\n');
   } finally {
+    await storeA.close();
+  }
+});
+
+/**
+ * Writes one text into the document of a device, as an open editor does.
+ *
+ * The editor binding writes each change into the document of the note at
+ * once (record 0085), so the work is in the store before any save reads it.
+ */
+async function editorWrites(
+  store: LocalStore,
+  fileId: string,
+  text: string,
+): Promise<void> {
+  const held = await store.readNoteDocument(
+    ownerAccountId,
+    workspaceId,
+    fileId,
+  );
+  assert.ok(held !== null, 'the device must hold the document of the note');
+  const written = replaceDocumentText(held.bytes, text);
+  assert.ok(written.ok, 'the document must take the text');
+  await store.mergeNoteWork(
+    ownerAccountId,
+    workspaceId,
+    fileId,
+    encodeDocumentDelta(
+      written.value.document,
+      documentStateVector(held.bytes),
+    ),
+  );
+}
+
+/** Runs the engine of one device until its queue is empty. */
+async function drain(store: LocalStore, ownerId: string): Promise<void> {
+  const run = startEngine(store, ownerCookie, ownerId);
+  try {
+    await waitFor(
+      async () => (await queuedOf(store)).length === 0,
+      `${ownerId} drains its saves`,
+    );
+  } finally {
+    await stopEngine(run);
+  }
+}
+
+await test('a device whose open text lags its document never adds a task box', async () => {
+  // Two devices hold one note open, and the person toggles its task box on
+  // one of them. The save of the other device used to write its lagging text
+  // into the document, which reverted the toggle as its own work. Joined
+  // with the next toggle, the box read "[  ]", "[xx]" or split in two.
+  const path = 'notes/tasks.md';
+  const file = await newFile(path, '- [ ] task\n');
+  const storeA = await openStore('tasks-a', 'device-tasks-a');
+  const storeB = await openStore('tasks-b', 'device-tasks-b');
+  try {
+    await syncPull(storeA, ownerCookie, 'engine-tasks-a-pull');
+    await syncPull(storeB, ownerCookie, 'engine-tasks-b-pull');
+
+    // Device A checks the box and saves.
+    await editorWrites(storeA, file.fileId, '- [x] task\n');
+    const checked = draftOf(
+      ownerAccountId,
+      'working-tasks-a',
+      file.fileId,
+      file.revisionId,
+      '- [x] task\n',
+      path,
+      1,
+    );
+    await storeA.saveDraft(checked);
+    assert.ok(
+      (await storeA.checkpoint(checked, null, 'document')) !== null,
+      'device A queues its toggle',
+    );
+    await drain(storeA, 'engine-tasks-a-send');
+
+    // Device B takes that work into its store. Its editor has not joined it
+    // yet, so the buffer still shows the box unchecked, and the tab is
+    // hidden: the editor flushes that buffer as a version.
+    const pulled = startEngine(storeB, ownerCookie, 'engine-tasks-b-feed');
+    try {
+      await waitFor(async () => {
+        const held = await storeB.readNoteDocument(
+          ownerAccountId,
+          workspaceId,
+          file.fileId,
+        );
+        return held !== null && readDocumentText(held.bytes) === '- [x] task\n';
+      }, 'device B takes the toggle of device A');
+    } finally {
+      await stopEngine(pulled);
+    }
+    const lagging = draftOf(
+      ownerAccountId,
+      'working-tasks-b',
+      file.fileId,
+      file.revisionId,
+      '- [ ] task\n',
+      path,
+      0,
+    );
+    await storeB.saveDraft(lagging);
+    await storeB.checkpoint(lagging, null, 'document');
+
+    // Device A unchecks the box before it sees any save of device B.
+    await editorWrites(storeA, file.fileId, '- [ ] task\n');
+    const unchecked = { ...checked, text: '- [ ] task\n', sequence: 2 };
+    await storeA.saveDraft(unchecked);
+    assert.ok(
+      (await storeA.checkpoint(unchecked, null, 'document')) !== null,
+      'device A queues its second toggle',
+    );
+
+    await drain(storeB, 'engine-tasks-b-send');
+    await drain(storeA, 'engine-tasks-a-second');
+
+    // One box, in the state of the last toggle.
+    const live = await getFile({
+      headers: browser(ownerCookie),
+      path: { workspaceId, fileId: file.fileId },
+    });
+    assert.equal(live.data?.head?.text, '- [ ] task\n');
+  } finally {
+    await storeB.close();
     await storeA.close();
   }
 });
